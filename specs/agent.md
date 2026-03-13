@@ -9,9 +9,11 @@ Each VM runs `opencode serve` headlessly. Our API server talks to it via SSH tun
 ### Startup
 
 ```bash
-# Inside VM, after clone + setup
+# Inside VM, after clone + setup + credential injection
+# auth.json already copied to ~/.local/share/opencode/auth.json
+# OPENCODE_SERVER_PASSWORD already in environment
 cd /workspace/<repo>
-ANTHROPIC_API_KEY=<injected> opencode serve --port 4096 --hostname 0.0.0.0
+opencode serve --port 4096 --hostname 0.0.0.0
 ```
 
 ### SDK Connection

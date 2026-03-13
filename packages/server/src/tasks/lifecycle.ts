@@ -21,6 +21,7 @@ export interface LifecycleDeps {
   acquireVm(taskId: string): Effect.Effect<VmRow, import("../errors").PoolExhaustedError | import("../errors").ProviderError | Error>
   sshExec(host: string, port: number, command: string): Effect.Effect<{ stdout: string; stderr: string; exitCode: number }, import("../errors").SshError>
   waitForSsh(host: string, port: number): Effect.Effect<void, import("../errors").SshTimeoutError>
+  copyAuthJson(host: string, port: number, authJsonPath: string): Effect.Effect<void, import("../errors").SshError>
   injectCredentials(host: string, port: number, credentials: Record<string, string>): Effect.Effect<void, import("../errors").SshError>
   createTunnel(vmIp: string, sshPort: number, ports: { opencodeVmPort: number; previewVmPort: number }): Effect.Effect<SessionTunnel, import("../errors").TunnelError>
   createOpencodeSession(opencodePort: number, title: string): Effect.Effect<string, import("../errors").AgentError>
@@ -33,9 +34,16 @@ export interface ProjectConfig {
   preview: { port: number }
 }
 
+export interface CredentialConfig {
+  opencodeAuthPath: string | null
+  anthropicApiKey: string | null
+  githubToken: string | null
+}
+
 export function startSession(
   task: TaskRow,
   config: ProjectConfig,
+  creds: CredentialConfig,
   deps: LifecycleDeps,
 ): Effect.Effect<SessionInfo, SessionStartError> {
   return Effect.gen(function* () {
@@ -76,19 +84,39 @@ export function startSession(
       }))
     )
 
-    // Inject credentials (API keys, GitHub token) into VM environment
+    // Copy OpenCode auth.json to VM (inherits host's LLM credentials — API keys or OAuth)
+    if (creds.opencodeAuthPath) {
+      vmLog.debug("Copying OpenCode auth.json to VM")
+      yield* deps.copyAuthJson(vm.ip!, vm.ssh_port!, creds.opencodeAuthPath).pipe(
+        Effect.mapError((e) => new SessionStartError({
+          message: `auth.json copy failed: ${e.message}`,
+          taskId: task.id,
+          phase: "inject-creds",
+          cause: e,
+        }))
+      )
+    }
+
+    // Inject environment credentials (GitHub token, fallback API key if no auth.json)
     vmLog.debug("Injecting credentials")
-    yield* deps.injectCredentials(vm.ip!, vm.ssh_port!, {
-      ANTHROPIC_API_KEY: process.env.ANTHROPIC_API_KEY ?? "",
-      GITHUB_TOKEN: process.env.GITHUB_TOKEN ?? "",
-    }).pipe(
-      Effect.mapError((e) => new SessionStartError({
-        message: `Credential injection failed: ${e.message}`,
-        taskId: task.id,
-        phase: "inject-creds",
-        cause: e,
-      }))
-    )
+    const envCreds: Record<string, string> = {}
+    if (creds.githubToken) {
+      envCreds.GITHUB_TOKEN = creds.githubToken
+      envCreds.GH_TOKEN = creds.githubToken
+    }
+    if (!creds.opencodeAuthPath && creds.anthropicApiKey) {
+      envCreds.ANTHROPIC_API_KEY = creds.anthropicApiKey
+    }
+    if (Object.keys(envCreds).length > 0) {
+      yield* deps.injectCredentials(vm.ip!, vm.ssh_port!, envCreds).pipe(
+        Effect.mapError((e) => new SessionStartError({
+          message: `Credential injection failed: ${e.message}`,
+          taskId: task.id,
+          phase: "inject-creds",
+          cause: e,
+        }))
+      )
+    }
     vmLog.debug("Credentials injected")
 
     // Clone the repository

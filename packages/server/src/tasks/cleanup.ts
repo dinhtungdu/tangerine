@@ -64,7 +64,7 @@ export function cleanupSession(
       yield* deps.sshExec(
         "",
         0,
-        "rm -f /home/agent/.env; unset ANTHROPIC_API_KEY GITHUB_TOKEN || true",
+        "rm -f /home/agent/.env /home/agent/.local/share/opencode/auth.json /home/agent/.git-credentials; unset ANTHROPIC_API_KEY GITHUB_TOKEN GH_TOKEN OPENCODE_SERVER_PASSWORD || true",
       ).pipe(
         Effect.tap(() => Effect.sync(() => taskLog.debug("Credentials scrubbed"))),
         Effect.tapError(() =>

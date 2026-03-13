@@ -6,34 +6,74 @@ How API keys and tokens flow from host to VM. Never baked into images.
 
 | Credential | Purpose | Source |
 |------------|---------|--------|
-| `ANTHROPIC_API_KEY` | OpenCode → Claude API | Server config / env |
+| OpenCode `auth.json` | LLM provider auth (API keys or OAuth tokens) | Host's `~/.local/share/opencode/auth.json` |
 | `GITHUB_TOKEN` | git push, `gh pr create` | Static PAT (v0) / User OAuth (hosted) |
 | `GH_HOST` | GitHub Enterprise | Server config |
 | `OPENCODE_SERVER_PASSWORD` | Protect OpenCode API in VM | Generated per session |
 
+## OpenCode Auth Inheritance
+
+OpenCode stores credentials in `~/.local/share/opencode/auth.json` (mode 0600). It supports three credential types:
+
+```json
+{
+  "anthropic": { "type": "api", "key": "sk-ant-..." },
+  "github-copilot": { "type": "oauth", "refresh": "...", "access": "...", "expires": 1234567890 },
+  "some-enterprise": { "type": "wellknown", "key": "...", "token": "..." }
+}
+```
+
+| Type | Fields | Use Case |
+|------|--------|----------|
+| `api` | `key` | Direct API keys (Anthropic, OpenAI) |
+| `oauth` | `refresh`, `access`, `expires`, optional `accountId`/`enterpriseUrl` | ChatGPT Plus / GitHub Copilot OAuth |
+| `wellknown` | `key`, `token` | Enterprise `.well-known/opencode` endpoints |
+
+OpenCode resolves credentials in this order: env vars → project `.env` → `auth.json` → config file.
+
+### Why Inherit auth.json
+
+- **Provider-agnostic**: user authenticates once on host (API key or OAuth), VMs inherit it
+- **OAuth support**: users with ChatGPT Plus / GitHub Copilot can use OAuth tokens without managing API keys
+- **No config needed**: Tangerine doesn't need to know which provider or auth method the user chose
+
 ## Injection Flow
 
 ```
-1. Session starts → API server reads credentials from config/env
+1. Session starts → API server reads host credentials
 2. SSH into VM
-3. Write credentials to temp file
-4. Source into environment
-5. Delete temp file
-6. Start opencode serve with credentials in env
+3. Copy host's auth.json → VM's ~/.local/share/opencode/auth.json
+4. Inject GitHub token + server password into environment
+5. Start opencode serve (picks up auth.json automatically)
 ```
 
-Reuses hal9999's credential scrubbing pattern:
+### auth.json Copy
+
+```bash
+# From host → VM via SCP
+scp -P <ssh-port> ~/.local/share/opencode/auth.json \
+  agent@<vm-ip>:/home/agent/.local/share/opencode/auth.json
+ssh -p <ssh-port> agent@<vm-ip> "chmod 600 /home/agent/.local/share/opencode/auth.json"
+```
+
+### Environment Injection
+
+GitHub token and server password still go via environment (not in auth.json):
 
 ```bash
 _CREDS=$(mktemp)
 cat > "$_CREDS" <<'EOF'
-export ANTHROPIC_API_KEY='sk-...'
 export GITHUB_TOKEN='ghp_...'
 export GH_TOKEN='ghp_...'
+export OPENCODE_SERVER_PASSWORD='<generated>'
 EOF
 source "$_CREDS"
 rm -f "$_CREDS"
 ```
+
+### Fallback: ANTHROPIC_API_KEY
+
+If `auth.json` doesn't exist on the host (user hasn't set up OpenCode locally), fall back to injecting `ANTHROPIC_API_KEY` as an environment variable. OpenCode env vars take highest priority, so this still works.
 
 ## Git Authentication
 
@@ -73,22 +113,21 @@ Future (hosted):
 
 ## Credential Storage (v0)
 
-Simple: `.env` file or environment variables on the host.
+Two sources on the host:
 
-```env
-ANTHROPIC_API_KEY=sk-ant-...
-GITHUB_TOKEN=ghp_...
-GH_HOST=github.com
-```
+1. **OpenCode auth.json** (`~/.local/share/opencode/auth.json`) — LLM provider credentials (API keys or OAuth tokens). Managed by `opencode auth login` or OpenCode's `/connect` command.
+2. **Environment variables** — `GITHUB_TOKEN`, `GH_HOST`. Set in `.env` or shell profile.
+
+Users who prefer not to use OpenCode's auth system can still set `ANTHROPIC_API_KEY` as an env var — the fallback path handles this.
 
 Future (hosted): encrypted credential store per user, similar to hal9999's auth module (Keychain / Secret Service / encrypted file).
 
 ## VM Credential Cleanup
 
 On session end / VM release:
-1. Unset env vars
-2. Remove `~/.git-credentials`
-3. Remove any OpenCode auth state
+1. Remove `~/.local/share/opencode/auth.json`
+2. Unset env vars
+3. Remove `~/.git-credentials`
 4. VM returned to warm pool clean
 
 ## Security Notes
@@ -98,3 +137,4 @@ On session end / VM release:
 - `OPENCODE_SERVER_PASSWORD` adds a layer even if tunnel leaks
 - Golden images never contain credentials
 - Credential injection happens per-session, not at image build time
+- `auth.json` is copied with mode 0600 — only the agent user can read it
