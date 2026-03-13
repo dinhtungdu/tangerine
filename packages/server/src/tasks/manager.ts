@@ -9,7 +9,7 @@ import {
   AgentError,
 } from "../errors"
 import type { TaskRow } from "../db/types"
-import type { LifecycleDeps, ProjectConfig } from "./lifecycle"
+import type { CredentialConfig, LifecycleDeps, ProjectConfig } from "./lifecycle"
 import type { CleanupDeps } from "./cleanup"
 import type { RetryDeps } from "./retry"
 import { cleanupSession } from "./cleanup"
@@ -28,6 +28,7 @@ export interface TaskManagerDeps {
   cleanupDeps: CleanupDeps
   retryDeps: RetryDeps
   projectConfig: ProjectConfig
+  credentialConfig: CredentialConfig
   abortAgent(opencodePort: number, sessionId: string): Effect.Effect<void, AgentError>
 }
 
@@ -62,7 +63,7 @@ export function createTask(
 
     // Kick off provisioning in a background fiber so task creation is non-blocking
     yield* Effect.fork(
-      startSessionWithRetry(task, deps.projectConfig, deps.lifecycleDeps, deps.retryDeps)
+      startSessionWithRetry(task, deps.projectConfig, deps.credentialConfig, deps.lifecycleDeps, deps.retryDeps)
     )
 
     return task
