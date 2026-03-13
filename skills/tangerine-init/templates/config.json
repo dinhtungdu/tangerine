@@ -1,4 +1,5 @@
 {
+  "$schema": "https://tangerine.dev/schema/config.json",
   "project": {
     "name": "",
     "repo": "",

@@ -4,7 +4,7 @@ Each project defines its own environment. The platform is project-agnostic — W
 
 ## Project Config
 
-Stored in `tangerine.json` at the repo root (or `~/.config/tangerine/config.json` for global).
+Stored in `.tangerine/config.json` at the project root (or `~/.config/tangerine/config.json` for global defaults).
 
 ```json
 {
@@ -33,7 +33,7 @@ Stored in `tangerine.json` at the repo root (or `~/.config/tangerine/config.json
 | `name` | string | yes | Human-readable project name |
 | `repo` | string | yes | Repository URL (or `owner/repo` shorthand) |
 | `default_branch` | string | no | Default: `main` |
-| `image` | string | yes | Golden image name to use |
+| `image` | string | yes | Golden image snapshot name (built from `tangerine/build.sh`) |
 | `setup` | string | yes | Shell commands to run after clone (start dev server, install deps) |
 | `preview.port` | number | no | Port to forward for browser preview |
 | `preview.path` | string | no | URL path for preview (default: `/`) |
@@ -44,41 +44,29 @@ Stored in `tangerine.json` at the repo root (or `~/.config/tangerine/config.json
 
 Base environments with common tooling pre-installed. Project-specific setup runs on top at session start.
 
-### Image Registry
+### Image Definition
 
-Images defined in `images/` directory:
+Each project defines its golden image in `.tangerine/` at the project root:
 
 ```
-images/
-  wordpress-dev/
-    build.sh          # image build script
-    packages.txt      # apt packages
-  node-dev/
-    build.sh
-    packages.txt
-  fullstack-dev/
-    build.sh
-    packages.txt
+my-app/
+  .tangerine/
+    config.json           # project config
+    build.sh              # golden image build script
 ```
 
-### Example Images
-
-**node-dev**: Node.js + npm + Playwright browsers + Git + gh CLI + OpenCode
-
-**wordpress-dev**: node-dev + Docker + Docker Compose + wp-env + PHP + Composer + MariaDB client
-
-**fullstack-dev**: node-dev + Docker + Python + Ruby + Postgres client
+The `build.sh` script runs inside a fresh Debian 13 VM to install project-specific runtimes and tools. The result is snapshotted as the golden image.
 
 ### Image Build
 
 ```bash
-tangerine image build <image-name>
+tangerine image build
 ```
 
-Uses hal9999's image build pipeline:
+Reads `.tangerine/build.sh` from the current project directory. Uses hal9999's image build pipeline:
 1. Spin up base VM (Debian 13)
 2. Run `build.sh` (install packages, tools, OpenCode)
-3. Snapshot the VM
+3. Snapshot the VM (named after `project.image` from `.tangerine/config.json`)
 4. Future sessions clone from this snapshot
 
 ### Image Refresh
@@ -103,6 +91,6 @@ When a session starts for a task:
 
 ## Multiple Projects
 
-v0: one project configured at a time. Switch by changing `tangerine.json`.
+v0: one project configured at a time. Switch by changing which project dir tangerine points to.
 
 Future: multi-project support, project selector in dashboard, separate warm pools per image.

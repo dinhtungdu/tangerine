@@ -5,7 +5,7 @@ Minimal viable version. Single project, single user, local VMs.
 ## In Scope
 
 ### Core
-- [ ] Project config (`tangerine.json`)
+- [ ] Project config (`.tangerine/config.json`)
 - [ ] VM provisioning via Lima (reuse hal9999 provider)
 - [ ] Golden image build (`tangerine image build`)
 - [ ] Warm pool (acquire/release/reap)

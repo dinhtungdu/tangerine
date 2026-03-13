@@ -28,7 +28,7 @@ function readConfigFile(path: string): Record<string, unknown> | null {
 }
 
 /**
- * Loads config by merging project-local tangerine.json over global ~/.config/tangerine/config.json,
+ * Loads config by merging project-local .tangerine/config.json over global ~/.config/tangerine/config.json,
  * validates with Zod, and resolves credentials.
  *
  * LLM credentials: prefers OpenCode's auth.json (supports API keys + OAuth).
@@ -36,7 +36,7 @@ function readConfigFile(path: string): Record<string, unknown> | null {
  */
 export function loadConfig(): AppConfig {
   const globalPath = join(homedir(), ".config", "tangerine", "config.json")
-  const projectPath = join(process.cwd(), "tangerine.json")
+  const projectPath = join(process.cwd(), ".tangerine", "config.json")
 
   const globalConfig = readConfigFile(globalPath) ?? {}
   const projectConfig = readConfigFile(projectPath) ?? {}

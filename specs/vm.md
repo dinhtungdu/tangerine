@@ -106,10 +106,10 @@ CREATE TABLE vms (
 See [project.md](./project.md#golden-images) for image definitions.
 
 Build process (from hal9999):
-1. `tangerine image build <name>` 
+1. `tangerine image build` (reads `tangerine/build.sh` from project dir)
 2. Provision base VM (Debian 13)
-3. Run image's `build.sh` (installs everything)
-4. Create snapshot
+3. Run project's `build.sh` (installs everything)
+4. Create snapshot (named after `project.image` in `.tangerine/config.json`)
 5. Future VMs clone from snapshot
 
 ### Base Packages (all images)

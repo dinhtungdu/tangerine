@@ -60,7 +60,7 @@ Core types consumed by both server and web:
 - `Task`: full task object shape (matches DB row, serialized for API)
 - `WsServerMessage`: `{ type: "event" | "status" | "error" | "connected"; ... }`
 - `WsClientMessage`: `{ type: "prompt" | "abort"; ... }`
-- `ProjectConfig`: Zod schema for `tangerine.json`
+- `ProjectConfig`: Zod schema for `.tangerine/config.json`
 - `PoolStats`: pool status shape
 
 ---
@@ -179,7 +179,7 @@ Schema changes from hal9999:
 
 | File | Description |
 |------|-------------|
-| `packages/server/src/config.ts` | Load + validate `tangerine.json` and env vars |
+| `packages/server/src/config.ts` | Load + validate `.tangerine/config.json` and env vars |
 | `packages/shared/src/config.ts` | Zod schemas for project config |
 
 Loads from:
