@@ -4,6 +4,7 @@
 import type { Effect } from "effect"
 import { Hono } from "hono"
 import { logger as honoLogger } from "hono/logger"
+import { serveStatic } from "hono/bun"
 import { createLogger } from "../logger"
 import type { AppConfig } from "../config"
 import type { Database } from "bun:sqlite"
@@ -61,6 +62,12 @@ export function createApp(deps: AppDeps): { app: Hono; websocket: WsSetup["webso
     // TODO: wire to github integration
     return c.json({ received: true }, 202)
   })
+
+  // Serve built web dashboard if dist exists
+  const webDistRoot = new URL("../../../../web/dist", import.meta.url).pathname
+  app.use("/*", serveStatic({ root: webDistRoot }))
+  // SPA fallback — serve index.html for client-side routes
+  app.get("/*", serveStatic({ root: webDistRoot, rewriteRequestPath: () => "/index.html" }))
 
   // Global error handler — structured logging for all unhandled errors
   app.onError((err, c) => {
