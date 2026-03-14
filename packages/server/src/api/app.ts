@@ -27,7 +27,7 @@ interface TaggedError { _tag: string; message?: string }
 export interface AppDeps {
   db: Database
   taskManager: {
-    createTask(source: string, repoUrl: string, title: string, description?: string): Effect.Effect<TaskRow, TaggedError>
+    createTask(source: string, title: string, description?: string): Effect.Effect<TaskRow, TaggedError>
     cancelTask(taskId: string): Effect.Effect<void, TaggedError>
     completeTask(taskId: string): Effect.Effect<void, TaggedError>
     sendPrompt(taskId: string, text: string): Effect.Effect<void, TaggedError>

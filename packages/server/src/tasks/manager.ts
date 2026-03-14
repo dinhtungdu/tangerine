@@ -41,7 +41,6 @@ export function createTask(
     source: TaskSource
     sourceId?: string
     sourceUrl?: string
-    repoUrl: string
     title: string
     description?: string
   },
@@ -54,7 +53,7 @@ export function createTask(
       source: params.source,
       source_id: params.sourceId ?? null,
       source_url: params.sourceUrl ?? null,
-      repo_url: params.repoUrl,
+      repo_url: deps.projectConfig.repo,
       title: params.title,
       description: params.description ?? null,
     })

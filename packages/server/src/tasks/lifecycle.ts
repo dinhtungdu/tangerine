@@ -30,6 +30,7 @@ export interface LifecycleDeps {
 }
 
 export interface ProjectConfig {
+  repo: string
   setup: string
   preview: { port: number }
 }

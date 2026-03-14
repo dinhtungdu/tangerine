@@ -49,15 +49,15 @@ describe("tracer: config -> db -> api", () => {
     })
 
     app.post("/api/tasks", async (c) => {
-      const body = await c.req.json<{ repoUrl?: string; title?: string; description?: string }>()
-      if (!body.repoUrl || !body.title) {
-        return c.json({ error: "repoUrl and title are required" }, 400)
+      const body = await c.req.json<{ title?: string; description?: string }>()
+      if (!body.title) {
+        return c.json({ error: "title is required" }, 400)
       }
       const id = crypto.randomUUID()
       const row = Effect.runSync(createTask(db, {
         id,
         source: "manual",
-        repo_url: body.repoUrl,
+        repo_url: "https://github.com/test/repo",
         title: body.title,
         description: body.description,
       }))
@@ -97,7 +97,6 @@ describe("tracer: config -> db -> api", () => {
     // Verify camelCase mapping from snake_case DB columns
     expect(task.id).toBe("task-abc")
     expect(task.source).toBe("github")
-    expect(task.repoUrl).toBe("https://github.com/test/repo")
     expect(task.sourceId).toBe("test/repo#42")
     expect(task.sourceUrl).toBe("https://github.com/test/repo/issues/42")
     expect(task.title).toBe("Fix the bug")
@@ -140,7 +139,6 @@ describe("tracer: config -> db -> api", () => {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
-        repoUrl: "https://github.com/test/repo",
         title: "New task from API",
         description: "Created via POST",
       }),
@@ -151,7 +149,6 @@ describe("tracer: config -> db -> api", () => {
     const task = (await res.json()) as Task
     expect(task.id).toBeDefined()
     expect(task.title).toBe("New task from API")
-    expect(task.repoUrl).toBe("https://github.com/test/repo")
     expect(task.description).toBe("Created via POST")
     expect(task.source).toBe("manual")
     expect(task.status).toBe("created")
@@ -162,11 +159,11 @@ describe("tracer: config -> db -> api", () => {
     expect(dbRow!.title).toBe("New task from API")
   })
 
-  it("POST /api/tasks returns 400 when required fields missing", async () => {
+  it("POST /api/tasks returns 400 when title missing", async () => {
     const res = await app.request("/api/tasks", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ title: "No repo URL" }),
+      body: JSON.stringify({ description: "No title" }),
     })
 
     expect(res.status).toBe(400)
@@ -267,7 +264,6 @@ describe("tracer: config -> db -> api", () => {
 
     expect(mapped.sourceId).toBe("owner/repo#1")
     expect(mapped.sourceUrl).toBe("https://github.com/owner/repo/issues/1")
-    expect(mapped.repoUrl).toBe("https://github.com/owner/repo")
     expect(mapped.vmId).toBe("vm-1")
     expect(mapped.prUrl).toBe("https://github.com/owner/repo/pull/1")
     expect(mapped.userId).toBe("user-1")

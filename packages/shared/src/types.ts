@@ -7,7 +7,6 @@ export interface Task {
   source: TaskSource
   sourceId: string | null
   sourceUrl: string | null
-  repoUrl: string
   title: string
   description: string | null
   status: TaskStatus

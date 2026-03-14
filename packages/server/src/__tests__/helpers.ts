@@ -126,7 +126,6 @@ export function makeTask(overrides?: Partial<Task>): Task {
     source: "manual",
     sourceId: null,
     sourceUrl: null,
-    repoUrl: "https://github.com/test/repo",
     title: "Test task",
     description: null,
     status: "created",

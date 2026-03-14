@@ -25,7 +25,6 @@ export interface GitHubDeps {
     source: "github"
     sourceId: string
     sourceUrl: string
-    repoUrl: string
     title: string
     description: string
   }): void
@@ -110,7 +109,6 @@ export function pollGitHubIssues(
         source: "github",
         sourceId,
         sourceUrl: issue.html_url,
-        repoUrl: `https://github.com/${repo}.git`,
         title: issue.title,
         description: issue.body ?? "",
       })

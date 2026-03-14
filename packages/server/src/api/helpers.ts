@@ -8,7 +8,6 @@ export function mapTaskRow(row: TaskRow): Task {
     source: row.source as TaskSource,
     sourceId: row.source_id,
     sourceUrl: row.source_url,
-    repoUrl: row.repo_url,
     title: row.title,
     description: row.description,
     status: row.status as TaskStatus,

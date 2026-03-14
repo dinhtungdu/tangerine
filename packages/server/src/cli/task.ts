@@ -16,7 +16,6 @@ Subcommands:
   create  Create a task manually
 
 Options for create:
-  --repo <owner/repo>      Repository (required)
   --title <title>          Task title (required)
   --description <desc>     Task description (optional)
 `)
@@ -35,12 +34,10 @@ Options for create:
 
 async function createTask(argv: string[]): Promise<void> {
   const parsed = parseArgs(argv, {
-    repo: { alias: "r", required: true },
     title: { alias: "t", required: true },
     description: { alias: "d" },
   })
 
-  const repo = parsed.flags["repo"]!
   const title = parsed.flags["title"]!
   const description = parsed.flags["description"]
 
@@ -48,18 +45,17 @@ async function createTask(argv: string[]): Promise<void> {
   const db = getDb()
 
   const { createTask: dbCreateTask } = await import("../db/queries.ts")
-  const repoUrl = repo.startsWith("http") ? repo : `https://github.com/${repo}`
   const id = `task-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`
 
   const { Effect } = await import("effect")
   const task = Effect.runSync(dbCreateTask(db, {
     id,
     source: "manual",
-    repo_url: repoUrl,
+    repo_url: config.config.project.repo,
     title,
     description,
   }))
 
   console.log(`Task created: ${task.id}`)
-  log.info("Task created via CLI", { taskId: task.id, repo, title })
+  log.info("Task created via CLI", { taskId: task.id, title })
 }

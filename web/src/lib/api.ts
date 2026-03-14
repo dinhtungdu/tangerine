@@ -52,7 +52,6 @@ export async function fetchTask(id: string): Promise<Task> {
 
 export async function createTask(data: {
   title: string
-  repoUrl?: string
   description?: string
 }): Promise<Task> {
   return request<Task>("/api/tasks", {
