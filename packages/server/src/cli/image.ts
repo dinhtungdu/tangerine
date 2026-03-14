@@ -15,7 +15,7 @@ export async function runImage(argv: string[]): Promise<void> {
 Usage: tangerine image <subcommand>
 
 Subcommands:
-  build <name>  Build a golden image
+  build         Build a golden image from .tangerine/build.sh
   list          List available images
 `)
     process.exit(0)
@@ -23,7 +23,7 @@ Subcommands:
 
   switch (subcommand) {
     case "build":
-      await buildImage(argv.slice(1))
+      await buildImageCmd()
       break
     case "list":
       await listAvailableImages()
@@ -34,14 +34,10 @@ Subcommands:
   }
 }
 
-async function buildImage(argv: string[]): Promise<void> {
-  const name = argv[0]
-  if (!name) {
-    console.error("Usage: tangerine image build <name>")
-    process.exit(1)
-  }
-
+async function buildImageCmd(): Promise<void> {
   const config = loadConfig()
+  const name = config.config.project.image
+
   log.info("Building image", { name, project: config.config.project.name })
 
   try {

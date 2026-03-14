@@ -136,7 +136,7 @@ Usage: tangerine <command> [options]
 
 Commands:
   start              Start the Tangerine server
-  image build <name> Build a golden image
+  image build        Build golden image from .tangerine/build.sh
   image list         List available images
   task create        Create a task manually
   pool status        Show pool status
@@ -147,7 +147,7 @@ Options:
 
 Examples:
   tangerine start --port 3456
-  tangerine image build my-project
+  tangerine image build
   tangerine task create --repo owner/repo --title "Fix bug"
   tangerine pool status
 `)

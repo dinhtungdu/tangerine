@@ -33,7 +33,7 @@ Stored in `.tangerine/config.json` at the project root (or `~/.config/tangerine/
 | `name` | string | yes | Human-readable project name |
 | `repo` | string | yes | Repository URL (or `owner/repo` shorthand) |
 | `default_branch` | string | no | Default: `main` |
-| `image` | string | yes | Golden image snapshot name (built from `tangerine/build.sh`) |
+| `image` | string | yes | Golden image name (built from `.tangerine/build.sh`) |
 | `setup` | string | yes | Shell commands to run after clone (start dev server, install deps) |
 | `preview.port` | number | no | Port to forward for browser preview |
 | `preview.path` | string | no | URL path for preview (default: `/`) |
@@ -55,7 +55,7 @@ my-app/
     build.sh              # golden image build script
 ```
 
-The `build.sh` script runs inside a fresh Debian 13 VM to install project-specific runtimes and tools. The result is snapshotted as the golden image.
+The `build.sh` script runs inside a fresh Debian 13 VM to install project-specific runtimes and tools. The VM is kept stopped as the golden source for APFS copy-on-write cloning.
 
 ### Image Build
 
@@ -66,8 +66,8 @@ tangerine image build
 Reads `.tangerine/build.sh` from the current project directory. Uses hal9999's image build pipeline:
 1. Spin up base VM (Debian 13)
 2. Run `build.sh` (install packages, tools, OpenCode)
-3. Snapshot the VM (named after `project.image` from `.tangerine/config.json`)
-4. Future sessions clone from this snapshot
+3. Stop the VM (kept as golden source, named `tangerine-golden-<image>`)
+4. Future sessions use `limactl clone` (APFS CoW, instant)
 
 ### Image Refresh
 

@@ -1,6 +1,7 @@
 import type { AppConfig } from "../config.ts"
 import type { PoolConfig } from "./pool-types.ts"
 import type { Provider } from "./providers/types.ts"
+import { goldenVmName } from "../image/build.ts"
 import {
   DEFAULT_IDLE_TIMEOUT_MS,
   DEFAULT_MIN_READY,
@@ -9,7 +10,8 @@ import {
 
 /**
  * Creates a pool config from the app config and a provider instance.
- * Defaults are tuned for an M4 Max 48GB: 4 CPU, 8 GiB RAM, 20 GiB disk per VM.
+ * Uses clone:<golden-vm> as snapshotId so Lima clones from the golden VM
+ * using APFS copy-on-write (instant, space-efficient).
  */
 export function createPoolConfig(config: AppConfig, provider: Provider, providerName: string): PoolConfig {
   const imageName = config.config.project.image
@@ -19,7 +21,7 @@ export function createPoolConfig(config: AppConfig, provider: Provider, provider
       {
         name: providerName,
         provider,
-        snapshotId: imageName,
+        snapshotId: `clone:${goldenVmName(imageName)}`,
         region: "local",
         plan: "4cpu-8gb-20gb",
         maxPoolSize: DEFAULT_MAX_POOL_SIZE,
