@@ -7,6 +7,8 @@ interface ProjectContextValue {
   projects: ProjectConfig[]
   current: ProjectConfig | null
   model: string
+  models: string[]
+  setModel: (model: string) => void
   switchProject: (name: string) => void
   loading: boolean
 }
@@ -15,6 +17,8 @@ const ProjectContext = createContext<ProjectContextValue>({
   projects: [],
   current: null,
   model: "",
+  models: [],
+  setModel: () => {},
   switchProject: () => {},
   loading: true,
 })
@@ -23,6 +27,8 @@ export function ProjectProvider({ children }: { children: ReactNode }) {
   const [searchParams, setSearchParams] = useSearchParams()
   const [projects, setProjects] = useState<ProjectConfig[]>([])
   const [globalModel, setGlobalModel] = useState("")
+  const [models, setModels] = useState<string[]>([])
+  const [selectedModel, setSelectedModel] = useState<string | null>(null)
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
@@ -30,6 +36,7 @@ export function ProjectProvider({ children }: { children: ReactNode }) {
       .then((data) => {
         setProjects(data.projects)
         setGlobalModel(data.model)
+        setModels(data.models)
       })
       .catch(() => {})
       .finally(() => setLoading(false))
@@ -37,10 +44,11 @@ export function ProjectProvider({ children }: { children: ReactNode }) {
 
   const projectParam = searchParams.get("project")
   const current = projects.find((p) => p.name === projectParam) ?? projects[0] ?? null
-  const model = current?.model ?? globalModel
+  const model = selectedModel ?? current?.model ?? globalModel
 
   const switchProject = useCallback(
     (name: string) => {
+      setSelectedModel(null)
       setSearchParams((prev) => {
         const next = new URLSearchParams(prev)
         next.set("project", name)
@@ -58,7 +66,7 @@ export function ProjectProvider({ children }: { children: ReactNode }) {
   }, [loading, projects, projectParam, switchProject])
 
   return (
-    <ProjectContext.Provider value={{ projects, current, model, switchProject, loading }}>
+    <ProjectContext.Provider value={{ projects, current, model, models, setModel: setSelectedModel, switchProject, loading }}>
       {children}
     </ProjectContext.Provider>
   )

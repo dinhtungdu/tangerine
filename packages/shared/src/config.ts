@@ -33,9 +33,16 @@ export const integrationsSchema = z.object({
   github: githubIntegrationSchema.optional(),
 })
 
+const defaultModels = [
+  "anthropic/claude-sonnet-4-20250514",
+  "anthropic/claude-opus-4-20250514",
+  "anthropic/claude-haiku-4-20250414",
+]
+
 export const tangerineConfigSchema = z.object({
   projects: z.array(projectConfigSchema).min(1),
   model: z.string().default("anthropic/claude-sonnet-4-20250514"),
+  models: z.array(z.string()).default(defaultModels),
   integrations: integrationsSchema.optional(),
 })
 

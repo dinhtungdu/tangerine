@@ -9,6 +9,7 @@ export function projectRoutes(deps: AppDeps): Hono {
     return c.json({
       projects: deps.config.config.projects,
       model: deps.config.config.model,
+      models: deps.config.config.models,
     })
   })
 
