@@ -33,7 +33,7 @@ export function MobileLayout() {
   return (
     <div className="flex h-[100dvh] flex-col bg-[#fafafa]">
       {/* Content */}
-      <main className="min-h-0 flex-1">
+      <main className="min-h-0 flex-1 overflow-hidden">
         <Outlet />
       </main>
 

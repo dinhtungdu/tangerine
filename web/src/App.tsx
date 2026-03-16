@@ -1,35 +1,39 @@
 import { Routes, Route } from "react-router-dom"
+import { ProjectProvider } from "./context/ProjectContext"
+import { useMobile } from "./hooks/useMobile"
 import { Layout } from "./components/Layout"
 import { Dashboard } from "./pages/Dashboard"
 import { TaskDetail } from "./pages/TaskDetail"
-import { ProjectProvider } from "./context/ProjectContext"
-import { useMobile } from "./hooks/useMobile"
 import { MobileLayout } from "./components/mobile/MobileLayout"
 import { MobileRuns } from "./components/mobile/MobileRuns"
 import { MobileNewAgent } from "./components/mobile/MobileNewAgent"
 import { MobileTaskDetail } from "./components/mobile/MobileTaskDetail"
 
-export function App() {
+function ResponsiveHome() {
   const isMobile = useMobile()
+  return isMobile ? <MobileRuns /> : <Dashboard />
+}
 
+function ResponsiveTask() {
+  const isMobile = useMobile()
+  return isMobile ? <MobileTaskDetail /> : <TaskDetail />
+}
+
+function ResponsiveLayout() {
+  const isMobile = useMobile()
+  return isMobile ? <MobileLayout /> : <Layout />
+}
+
+export function App() {
   return (
     <ProjectProvider>
-      {isMobile ? (
-        <Routes>
-          <Route element={<MobileLayout />}>
-            <Route index element={<MobileRuns />} />
-            <Route path="new" element={<MobileNewAgent />} />
-          </Route>
-          <Route path="tasks/:id" element={<MobileTaskDetail />} />
-        </Routes>
-      ) : (
-        <Routes>
-          <Route element={<Layout />}>
-            <Route index element={<Dashboard />} />
-            <Route path="tasks/:id" element={<TaskDetail />} />
-          </Route>
-        </Routes>
-      )}
+      <Routes>
+        <Route element={<ResponsiveLayout />}>
+          <Route index element={<ResponsiveHome />} />
+          <Route path="new" element={<MobileNewAgent />} />
+          <Route path="tasks/:id" element={<ResponsiveTask />} />
+        </Route>
+      </Routes>
     </ProjectProvider>
   )
 }

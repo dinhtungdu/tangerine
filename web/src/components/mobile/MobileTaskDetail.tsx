@@ -51,7 +51,7 @@ export function MobileTaskDetail() {
 
   if (loading) {
     return (
-      <div className="flex h-[100dvh] items-center justify-center text-[13px] text-[#a3a3a3]">
+      <div className="flex h-full items-center justify-center text-[13px] text-[#a3a3a3]">
         Loading...
       </div>
     )
@@ -59,7 +59,7 @@ export function MobileTaskDetail() {
 
   if (!task) {
     return (
-      <div className="flex h-[100dvh] flex-col">
+      <div className="flex h-full flex-col">
         <TaskHeader onBack={() => navigate("/")} title="Not found" status="failed" />
         <div className="flex flex-1 items-center justify-center text-[13px] text-[#a3a3a3]">
           Task not found
@@ -71,7 +71,7 @@ export function MobileTaskDetail() {
   const statusColor = statusColors[task.status] ?? "#a3a3a3"
 
   return (
-    <div className="flex h-[100dvh] flex-col bg-[#fafafa]">
+    <div className="flex h-full flex-col bg-[#fafafa]">
       {/* Header */}
       <TaskHeader
         onBack={() => navigate("/")}
