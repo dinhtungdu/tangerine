@@ -140,7 +140,8 @@ Commands:
   project list       List registered projects
   project show       Show project config details
   project remove     Remove a project
-  image build        Build golden image from .tangerine/build.sh
+  image build        Build golden image (from ~/tangerine/images/<name>/build.sh)
+  image init <name>  Create a build.sh template for an image
   image list         List available images
   task create        Create a task manually
   pool status        Show pool status

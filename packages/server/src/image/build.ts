@@ -1,7 +1,7 @@
 #!/usr/bin/env bun
 /**
  * Golden image build script.
- * Creates a Lima VM from tangerine.yaml, runs the project's .tangerine/build.sh,
+ * Creates a Lima VM from tangerine.yaml, runs ~/tangerine/images/<name>/build.sh,
  * stops the VM, and keeps it as the golden source for APFS CoW cloning.
  *
  * No `limactl snapshot` — VZ doesn't support it. Instead, `limactl clone`
@@ -15,6 +15,7 @@ import { LimaProvider } from "../vm/providers/lima.ts";
 import { sshExec, waitForSsh } from "../vm/ssh.ts";
 import { getDb } from "../db/index.ts";
 import { createImage } from "../db/queries.ts";
+import { TANGERINE_HOME } from "../config.ts";
 
 const TEMPLATE_PATH = resolve(import.meta.dir, "tangerine.yaml");
 
@@ -23,9 +24,13 @@ export function goldenVmName(imageName: string): string {
   return `tangerine-golden-${imageName}`;
 }
 
-export async function buildImage(imageName: string, projectDir?: string): Promise<void> {
-  const dir = projectDir ?? process.cwd();
-  const buildScriptPath = join(dir, ".tangerine", "build.sh");
+/** Directory for a given image's assets (build.sh, etc.) */
+export function imageDir(imageName: string): string {
+  return join(TANGERINE_HOME, "images", imageName);
+}
+
+export async function buildImage(imageName: string): Promise<void> {
+  const buildScriptPath = join(imageDir(imageName), "build.sh");
   const goldenName = goldenVmName(imageName);
   const provider = new LimaProvider({ templatePath: TEMPLATE_PATH });
   const db = getDb();
