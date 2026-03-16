@@ -71,8 +71,8 @@ export async function start(): Promise<void> {
     const deps: AppDeps = {
       db,
       taskManager: {
-        createTask: (source, projectId, title, description) =>
-          taskManager.createTask(tmDeps, { source: source as taskManager.TaskSource, projectId, title, description }).pipe(
+        createTask: (params) =>
+          taskManager.createTask(tmDeps, { source: params.source as taskManager.TaskSource, projectId: params.projectId, title: params.title, description: params.description, sourceId: params.sourceId, sourceUrl: params.sourceUrl }).pipe(
             Effect.mapError((e) => ({ _tag: "TaskError" as const, message: e.message }))
           ),
         cancelTask: (taskId) => taskManager.cancelTask(tmDeps, taskId).pipe(

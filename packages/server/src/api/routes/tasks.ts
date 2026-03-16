@@ -40,7 +40,7 @@ export function taskRoutes(deps: AppDeps): Hono {
       return c.json({ error: `Unknown project: ${projectId}` }, 400)
     }
     return runEffect(c,
-      deps.taskManager.createTask("manual", projectId, body.title, body.description).pipe(
+      deps.taskManager.createTask({ source: "manual", projectId, title: body.title, description: body.description }).pipe(
         Effect.map(mapTaskRow)
       ),
       { status: 201 }
