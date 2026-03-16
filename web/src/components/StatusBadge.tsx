@@ -1,12 +1,12 @@
 import type { TaskStatus } from "@tangerine/shared"
 
 const statusConfig: Record<TaskStatus, { color: string; label: string; pulse?: boolean }> = {
-  created: { color: "bg-neutral-500", label: "Created" },
-  provisioning: { color: "bg-amber-500", label: "Provisioning" },
+  created: { color: "bg-amber-400", label: "Created" },
+  provisioning: { color: "bg-amber-400", label: "Provisioning" },
   running: { color: "bg-green-500", label: "Running", pulse: true },
-  done: { color: "bg-blue-500", label: "Done" },
+  done: { color: "bg-neutral-400", label: "Done" },
   failed: { color: "bg-red-500", label: "Failed" },
-  cancelled: { color: "bg-neutral-500", label: "Cancelled" },
+  cancelled: { color: "bg-neutral-400", label: "Cancelled" },
 }
 
 interface StatusBadgeProps {
@@ -23,7 +23,7 @@ export function StatusBadge({ status, showLabel = true }: StatusBadgeProps) {
         className={`h-2 w-2 rounded-full ${config.color} ${config.pulse ? "animate-status-pulse" : ""}`}
       />
       {showLabel && (
-        <span className="text-xs text-neutral-400">{config.label}</span>
+        <span className="text-xs text-[#737373]">{config.label}</span>
       )}
     </span>
   )

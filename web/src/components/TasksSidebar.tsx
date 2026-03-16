@@ -1,0 +1,107 @@
+import { Link, useParams } from "react-router-dom"
+import type { Task } from "@tangerine/shared"
+
+const statusColors: Record<string, string> = {
+  running: "#4CAF50",
+  done: "#DDDDDD",
+  completed: "#DDDDDD",
+  failed: "#E53935",
+  cancelled: "#DDDDDD",
+  created: "#FFC107",
+  provisioning: "#FFC107",
+  queued: "#FFC107",
+}
+
+function StatusDot({ status }: { status: string }) {
+  const color = statusColors[status] ?? "#DDDDDD"
+  return (
+    <div className="flex h-[18px] w-2 items-start pt-[5px]">
+      <div className="h-2 w-2 rounded-full" style={{ backgroundColor: color }} />
+    </div>
+  )
+}
+
+function formatTime(timestamp: string): string {
+  const diff = Date.now() - new Date(timestamp).getTime()
+  const mins = Math.floor(diff / 60000)
+  if (mins < 1) return "just now"
+  if (mins < 60) return `${mins}m ago`
+  const hours = Math.floor(mins / 60)
+  if (hours < 24) return `${hours}h ago`
+  return `${Math.floor(hours / 24)}d ago`
+}
+
+interface TasksSidebarProps {
+  tasks: Task[]
+  onNewAgent: () => void
+}
+
+export function TasksSidebar({ tasks, onNewAgent }: TasksSidebarProps) {
+  const { id: activeId } = useParams<{ id: string }>()
+
+  return (
+    <div className="flex h-full w-[260px] shrink-0 flex-col border-r border-[#e4e4e7] bg-[#fafafa]">
+      {/* Top section */}
+      <div className="flex flex-col gap-3 p-4 pt-5">
+        <button
+          onClick={onNewAgent}
+          className="flex h-9 items-center justify-center gap-1.5 rounded-md bg-black text-white"
+        >
+          <svg className="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+            <path strokeLinecap="round" strokeLinejoin="round" d="M12 4.5v15m7.5-7.5h-15" />
+          </svg>
+          <span className="text-[13px] font-medium">New Agent</span>
+        </button>
+        <div className="flex h-[34px] items-center gap-2 rounded-md border border-[#e4e4e4] bg-[#fafafa] px-2.5">
+          <svg className="h-3.5 w-3.5 text-[#777]" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+            <path strokeLinecap="round" strokeLinejoin="round" d="m21 21-5.197-5.197m0 0A7.5 7.5 0 1 0 5.196 5.196a7.5 7.5 0 0 0 10.607 10.607Z" />
+          </svg>
+          <span className="text-[13px] text-[#999]">Search tasks...</span>
+        </div>
+      </div>
+
+      {/* Divider */}
+      <div className="h-px bg-[#e4e4e4]" />
+
+      {/* Section header */}
+      <div className="flex items-center justify-between px-4 py-2.5">
+        <span className="text-[11px] font-medium tracking-wider text-[#777]">ALL RUNS</span>
+        <div className="flex items-center justify-center rounded-sm bg-black px-2 py-0.5">
+          <span className="font-mono text-[11px] font-semibold text-white">{tasks.length}</span>
+        </div>
+      </div>
+
+      {/* Divider */}
+      <div className="h-px bg-[#e4e4e4]" />
+
+      {/* Task list */}
+      <div className="flex-1 overflow-y-auto">
+        {tasks.map((task) => {
+          const isActive = task.id === activeId
+          return (
+            <Link
+              key={task.id}
+              to={`/tasks/${task.id}`}
+              className={`flex gap-2.5 px-4 py-2.5 ${
+                isActive
+                  ? "bg-[#f4f4f4] border-l-[3px] border-l-[#E53935]"
+                  : "hover:bg-[#f5f5f5]"
+              }`}
+              style={isActive ? {} : { borderLeft: "3px solid transparent" }}
+            >
+              <StatusDot status={task.status} />
+              <div className="flex min-w-0 flex-col gap-0.5">
+                <span className={`truncate text-[13px] text-black ${isActive ? "font-semibold" : "font-medium"}`}>
+                  {task.title}
+                </span>
+                <span className="font-mono text-[11px] text-[#999]">
+                  {formatTime(task.createdAt)} · {task.status}
+                </span>
+              </div>
+            </Link>
+          )
+        })}
+      </div>
+    </div>
+  )
+}
