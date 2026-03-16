@@ -123,7 +123,7 @@ export function createApp(deps: AppDeps): { app: Hono; websocket: WsSetup["webso
     const issue = payload.issue
     const sourceId = `github:${repoFullName}#${issue.number}`
 
-    const result = await Effect.runPromise(
+    const result = await Effect.runPromiseExit(
       deps.taskManager.createTask({
         source: "github",
         projectId: project.name,
@@ -134,8 +134,13 @@ export function createApp(deps: AppDeps): { app: Hono; websocket: WsSetup["webso
       })
     )
 
-    log.info("Task created from webhook", { taskId: result.id, issue: issue.number, repo: repoFullName })
-    return c.json({ received: true, taskId: result.id }, 202)
+    if (result._tag === "Failure") {
+      log.error("Webhook task creation failed", { repo: repoFullName, issue: issue.number })
+      return c.json({ error: "Task creation failed" }, 500)
+    }
+
+    log.info("Task created from webhook", { taskId: result.value.id, issue: issue.number, repo: repoFullName })
+    return c.json({ received: true, taskId: result.value.id }, 202)
   })
 
   // Serve built web dashboard if dist exists

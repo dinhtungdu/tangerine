@@ -4,6 +4,7 @@ import type { AppDeps } from "../app"
 import { mapTaskRow } from "../helpers"
 import { runEffect, runEffectVoid } from "../effect-helpers"
 import { getTask, listTasks } from "../../db/queries"
+import { TaskNotFoundError } from "../../errors"
 
 export function taskRoutes(deps: AppDeps): Hono {
   const app = new Hono()
@@ -22,7 +23,7 @@ export function taskRoutes(deps: AppDeps): Hono {
     return runEffect(c,
       getTask(deps.db, c.req.param("id")).pipe(
         Effect.flatMap((task) =>
-          task ? Effect.succeed(mapTaskRow(task)) : Effect.fail(new Error("Task not found"))
+          task ? Effect.succeed(mapTaskRow(task)) : Effect.fail(new TaskNotFoundError({ taskId: c.req.param("id") }))
         )
       )
     )

@@ -3,6 +3,7 @@ import { Hono } from "hono"
 import type { AppDeps } from "../app"
 import { getTask } from "../../db/queries"
 import { runEffect } from "../effect-helpers"
+import { AgentError } from "../../errors"
 
 export function previewRoutes(deps: AppDeps): Hono {
   const app = new Hono()
@@ -16,11 +17,9 @@ export function previewRoutes(deps: AppDeps): Hono {
         const task = yield* getTask(deps.db, id)
 
         if (!task || !task.preview_port) {
-          return yield* Effect.fail({
-            _tag: "AgentError" as const,
-            message: "No preview available for this task",
-            taskId: id,
-          })
+          return yield* Effect.fail(
+            new AgentError({ message: "No preview available for this task", taskId: id })
+          )
         }
 
         // Strip the /preview/:id prefix to get the downstream path
@@ -41,11 +40,7 @@ export function previewRoutes(deps: AppDeps): Hono {
             headers,
             body: c.req.method !== "GET" && c.req.method !== "HEAD" ? c.req.raw.body : undefined,
           }),
-          catch: () => ({
-            _tag: "AgentError" as const,
-            message: "Preview service unavailable",
-            taskId: id,
-          }),
+          catch: (e) => new AgentError({ message: "Preview service unavailable", taskId: id, cause: e }),
         })
 
         return new Response(response.body, {
