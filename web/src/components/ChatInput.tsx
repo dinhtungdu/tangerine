@@ -1,4 +1,6 @@
 import { useState, useRef, useCallback, type KeyboardEvent } from "react"
+import { useProject } from "../context/ProjectContext"
+import { formatModelName } from "../lib/format"
 
 interface ChatInputProps {
   onSend: (text: string) => void
@@ -9,6 +11,7 @@ interface ChatInputProps {
 }
 
 export function ChatInput({ onSend, disabled, queueLength, isWorking, onAbort }: ChatInputProps) {
+  const { model } = useProject()
   const [text, setText] = useState("")
   const textareaRef = useRef<HTMLTextAreaElement>(null)
 
@@ -73,8 +76,17 @@ export function ChatInput({ onSend, disabled, queueLength, isWorking, onAbort }:
         </button>
       </div>
 
-      {isWorking && (
-        <div className="mt-2 flex justify-end">
+      <div className="mt-2 flex items-center justify-between">
+        {model && (
+          <div className="flex items-center gap-1.5 rounded-md border border-[#e5e5e5] px-2 py-1">
+            <svg className="h-3 w-3 text-[#737373]" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+              <path strokeLinecap="round" strokeLinejoin="round" d="M9.813 15.904 9 18.75l-.813-2.846a4.5 4.5 0 0 0-3.09-3.09L2.25 12l2.846-.813a4.5 4.5 0 0 0 3.09-3.09L9 5.25l.813 2.846a4.5 4.5 0 0 0 3.09 3.09L15.75 12l-2.846.813a4.5 4.5 0 0 0-3.09 3.09Z" />
+            </svg>
+            <span className="text-[11px] font-medium text-[#0a0a0a]">{formatModelName(model)}</span>
+          </div>
+        )}
+        {!model && <div />}
+        {isWorking && (
           <button
             onClick={onAbort}
             className="flex items-center gap-1 rounded bg-[#e7000b] px-2 py-1"
@@ -84,8 +96,8 @@ export function ChatInput({ onSend, disabled, queueLength, isWorking, onAbort }:
             </svg>
             <span className="text-[11px] font-medium text-white">Stop agent</span>
           </button>
-        </div>
-      )}
+        )}
+      </div>
     </div>
   )
 }

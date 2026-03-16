@@ -6,6 +6,7 @@ import { fetchProjects } from "../lib/api"
 interface ProjectContextValue {
   projects: ProjectConfig[]
   current: ProjectConfig | null
+  model: string
   switchProject: (name: string) => void
   loading: boolean
 }
@@ -13,6 +14,7 @@ interface ProjectContextValue {
 const ProjectContext = createContext<ProjectContextValue>({
   projects: [],
   current: null,
+  model: "",
   switchProject: () => {},
   loading: true,
 })
@@ -20,17 +22,22 @@ const ProjectContext = createContext<ProjectContextValue>({
 export function ProjectProvider({ children }: { children: ReactNode }) {
   const [searchParams, setSearchParams] = useSearchParams()
   const [projects, setProjects] = useState<ProjectConfig[]>([])
+  const [globalModel, setGlobalModel] = useState("")
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
     fetchProjects()
-      .then(setProjects)
+      .then((data) => {
+        setProjects(data.projects)
+        setGlobalModel(data.model)
+      })
       .catch(() => {})
       .finally(() => setLoading(false))
   }, [])
 
   const projectParam = searchParams.get("project")
   const current = projects.find((p) => p.name === projectParam) ?? projects[0] ?? null
+  const model = current?.model ?? globalModel
 
   const switchProject = useCallback(
     (name: string) => {
@@ -51,7 +58,7 @@ export function ProjectProvider({ children }: { children: ReactNode }) {
   }, [loading, projects, projectParam, switchProject])
 
   return (
-    <ProjectContext.Provider value={{ projects, current, switchProject, loading }}>
+    <ProjectContext.Provider value={{ projects, current, model, switchProject, loading }}>
       {children}
     </ProjectContext.Provider>
   )

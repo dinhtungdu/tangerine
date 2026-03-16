@@ -1,5 +1,6 @@
 import { useState, useCallback } from "react"
 import { useProject } from "../context/ProjectContext"
+import { formatModelName } from "../lib/format"
 
 interface NewAgentFormProps {
   onSubmit: (data: { projectId: string; title: string; description?: string; branch?: string }) => void
@@ -13,7 +14,7 @@ const suggestedTasks = [
 ]
 
 export function NewAgentForm({ onSubmit }: NewAgentFormProps) {
-  const { current } = useProject()
+  const { current, model } = useProject()
   const [description, setDescription] = useState("")
   const branch = current?.defaultBranch ?? "main"
 
@@ -58,6 +59,14 @@ export function NewAgentForm({ onSubmit }: NewAgentFormProps) {
                 </svg>
                 <span className="text-[11px] text-[#0a0a0a]">{branch}</span>
               </div>
+              {model && (
+                <div className="flex items-center gap-1.5 rounded-md border border-[#e5e5e5] px-2 py-1">
+                  <svg className="h-3 w-3 text-[#737373]" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M9.813 15.904 9 18.75l-.813-2.846a4.5 4.5 0 0 0-3.09-3.09L2.25 12l2.846-.813a4.5 4.5 0 0 0 3.09-3.09L9 5.25l.813 2.846a4.5 4.5 0 0 0 3.09 3.09L15.75 12l-2.846.813a4.5 4.5 0 0 0-3.09 3.09Z" />
+                  </svg>
+                  <span className="text-[11px] text-[#0a0a0a]">{formatModelName(model)}</span>
+                </div>
+              )}
             </div>
 
             {/* Start button */}
