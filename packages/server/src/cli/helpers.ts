@@ -135,6 +135,7 @@ export function printHelp(): void {
 Usage: tangerine <command> [options]
 
 Commands:
+  install            One-time setup (deps check, skill install)
   start              Start the Tangerine server
   project add        Register a project
   project list       List registered projects

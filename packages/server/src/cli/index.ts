@@ -35,6 +35,11 @@ async function main(): Promise<void> {
       await runPool(args.slice(1))
       break
     }
+    case "install": {
+      const { install } = await import("./install.ts")
+      await install()
+      break
+    }
     default:
       console.error(`Unknown command: ${command}`)
       printHelp()
