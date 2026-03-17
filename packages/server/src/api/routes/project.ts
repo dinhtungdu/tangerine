@@ -1,15 +1,23 @@
 import { Hono } from "hono"
 import type { AppDeps } from "../app"
+import { discoverModels } from "../../models"
 
 export function projectRoutes(deps: AppDeps): Hono {
   const app = new Hono()
 
-  // List all configured projects + global model
+  // List all configured projects + available models from OpenCode
   app.get("/", (c) => {
+    const discovered = discoverModels()
+    const configModels = deps.config.config.models
+    // Use discovered models if available, fall back to config
+    const models = discovered.length > 0
+      ? discovered.map((m) => m.id)
+      : configModels
+
     return c.json({
       projects: deps.config.config.projects,
       model: deps.config.config.model,
-      models: deps.config.config.models,
+      models,
     })
   })
 

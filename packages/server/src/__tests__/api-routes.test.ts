@@ -1,7 +1,7 @@
 import { describe, test, expect, beforeEach } from "bun:test"
 import { Effect } from "effect"
 import type { Database } from "bun:sqlite"
-import { createTestDb, makeTask } from "./helpers"
+import { createTestDb } from "./helpers"
 import { createApp, type AppDeps } from "../api/app"
 import { createTask as dbCreateTask, updateTaskStatus } from "../db/queries"
 import type { TaskRow } from "../db/types"
@@ -47,11 +47,19 @@ function createMockDeps(db: Database): AppDeps {
     config: {
       config: {
         projects: [
-          { name: "test-project", repo: "test/repo", defaultBranch: "main", path: "/tmp/test" },
+          { name: "test-project", repo: "test/repo", defaultBranch: "main", image: "test", setup: "echo ok" },
         ],
         integrations: {},
+        model: "openai/gpt-4o",
+        models: ["openai/gpt-4o"],
       },
-    } as AppDeps["config"],
+      credentials: {
+        opencodeAuthPath: null,
+        anthropicApiKey: null,
+        githubToken: null,
+        ghHost: "github.com",
+      },
+    } satisfies AppDeps["config"],
   }
 }
 
@@ -123,7 +131,7 @@ describe("API routes", () => {
       const res = await app.fetch(new Request("http://localhost/api/tasks?project=test-project"))
       const body = await res.json() as Array<{ title: string }>
       expect(body).toHaveLength(1)
-      expect(body[0].title).toBe("Match")
+      expect(body[0]!.title).toBe("Match")
     })
   })
 

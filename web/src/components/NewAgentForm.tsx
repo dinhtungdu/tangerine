@@ -70,7 +70,7 @@ function TaskIcon({ icon }: { icon: string }) {
 
 export function NewAgentForm({ onSubmit }: NewAgentFormProps) {
   const navigate = useNavigate()
-  const { current, model } = useProject()
+  const { current } = useProject()
   const [description, setDescription] = useState("")
   const [submitting, setSubmitting] = useState(false)
   const branch = current?.defaultBranch ?? "main"

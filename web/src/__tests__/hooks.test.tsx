@@ -56,8 +56,8 @@ describe("useTasks", () => {
       expect(result.current.loading).toBe(false)
     })
 
-    const calls = (globalThis.fetch as ReturnType<typeof mock>).mock.calls
-    const url = calls[0][0] as string
+    const calls = (globalThis.fetch as ReturnType<typeof mock>).mock.calls as unknown[][]
+    const url = calls[0]![0] as string
     expect(url).toContain("project=my-project")
     expect(url).toContain("status=running")
   })
