@@ -5,7 +5,8 @@ import { Effect } from "effect"
 import { createLogger } from "../logger"
 import { loadConfig, getProjectConfig, TANGERINE_HOME, VM_AUTH_PATH } from "../config"
 import { getDb } from "../db/index"
-import { createTask as dbCreateTask, getTask, listTasks, updateTask, insertSessionLog } from "../db/queries"
+import { createTask as dbCreateTask, getTask, listTasks, updateTask } from "../db/queries"
+import { logActivity } from "../activity"
 import type { TaskRow } from "../db/types"
 import { VMPoolManager } from "../vm/pool"
 import { createApp } from "../api/app"
@@ -46,7 +47,7 @@ export async function start(): Promise<void> {
       updateTask: (taskId, updates) => updateTask(db, taskId, updates) as Effect.Effect<TaskRow | null, Error>,
       getTask: (taskId) => getTask(db, taskId),
       listTasks: (filter) => listTasks(db, filter),
-      insertSessionLog: (log) => insertSessionLog(db, log),
+      logActivity: (taskId, type, event, content, metadata) => logActivity(db, taskId, type, event, content, metadata),
       getProjectConfig: (projectId) => {
         const p = getProjectConfig(config.config, projectId)
         if (!p) return undefined

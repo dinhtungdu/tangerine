@@ -4,6 +4,8 @@ export type {
   TaskSource,
   Task,
   PoolStats,
+  ActivityType,
+  ActivityEntry,
   WsServerMessage,
   WsClientMessage,
 } from "./types"

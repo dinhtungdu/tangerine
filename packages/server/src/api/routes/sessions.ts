@@ -2,6 +2,7 @@ import { Effect } from "effect"
 import { Hono } from "hono"
 import type { AppDeps } from "../app"
 import { getTask, getSessionLogs } from "../../db/queries"
+import { getActivities } from "../../activity"
 import { runEffect, runEffectVoid } from "../effect-helpers"
 
 export function sessionRoutes(deps: AppDeps): Hono {
@@ -27,6 +28,10 @@ export function sessionRoutes(deps: AppDeps): Hono {
     return runEffectVoid(c,
       deps.taskManager.abortTask(c.req.param("id"))
     )
+  })
+
+  app.get("/:id/activities", (c) => {
+    return runEffect(c, getActivities(deps.db, c.req.param("id")))
   })
 
   app.get("/:id/diff", (c) => {

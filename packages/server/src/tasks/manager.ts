@@ -3,6 +3,7 @@
 
 import { Effect } from "effect"
 import { createLogger } from "../logger"
+import type { ActivityType } from "@tangerine/shared"
 import {
   TaskNotFoundError,
   SessionCleanupError,
@@ -25,7 +26,7 @@ export interface TaskManagerDeps {
   updateTask(taskId: string, updates: Partial<Omit<TaskRow, "id">>): Effect.Effect<TaskRow | null, Error>
   getTask(taskId: string): Effect.Effect<TaskRow | null, Error>
   listTasks(filter?: { status?: string; projectId?: string }): Effect.Effect<TaskRow[], Error>
-  insertSessionLog(log: { task_id: string; role: string; content: string }): Effect.Effect<unknown, Error>
+  logActivity(taskId: string, type: ActivityType, event: string, content: string, metadata?: Record<string, unknown>): Effect.Effect<unknown, Error>
   lifecycleDeps: LifecycleDeps
   cleanupDeps: CleanupDeps
   retryDeps: RetryDeps
@@ -69,11 +70,9 @@ export function createTask(
 
     log.info("Task created", { taskId: id, projectId: params.projectId, source: params.source, title: params.title })
 
-    // Log creation as the first activity entry
-    yield* deps.insertSessionLog({
-      task_id: id,
-      role: "system",
-      content: `Task created: ${params.title}`,
+    yield* deps.logActivity(id, "lifecycle", "task.created", `Task created: ${params.title}`, {
+      source: params.source,
+      projectId: params.projectId,
     }).pipe(Effect.catchAll(() => Effect.succeed(undefined)))
 
     emitStatusChange(id, task.status)
@@ -105,9 +104,13 @@ export function cancelTask(
       status: "cancelled",
       completed_at: new Date().toISOString(),
     }).pipe(
-      // DB update errors during cancel are non-critical for the cancel flow
       Effect.ignoreLogged
     )
+
+    yield* deps.logActivity(taskId, "lifecycle", "task.cancelled", "Task cancelled").pipe(
+      Effect.catchAll(() => Effect.succeed(undefined))
+    )
+
     emitStatusChange(taskId, "cancelled")
 
     // Clean up running session if active
@@ -147,6 +150,11 @@ export function completeTask(
     yield* deps.updateTask(taskId, { status: "done", completed_at: now }).pipe(
       Effect.ignoreLogged
     )
+
+    yield* deps.logActivity(taskId, "lifecycle", "task.completed", "Task completed", {
+      durationMs,
+    }).pipe(Effect.catchAll(() => Effect.succeed(undefined)))
+
     emitStatusChange(taskId, "done")
     log.info("Task completed", { taskId, durationMs })
 

@@ -32,6 +32,18 @@ export interface PoolStats {
   total: number
 }
 
+export type ActivityType = "lifecycle" | "file" | "system"
+
+export interface ActivityEntry {
+  id: number
+  taskId: string
+  type: ActivityType
+  event: string
+  content: string
+  metadata: Record<string, unknown> | null
+  timestamp: string
+}
+
 // WebSocket message types
 export type WsServerMessage =
   | { type: "connected" }

@@ -58,6 +58,19 @@ export const SCHEMA = `
 
   CREATE INDEX IF NOT EXISTS idx_session_logs_task_id ON session_logs(task_id);
 
+  CREATE TABLE IF NOT EXISTS activity_log (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    task_id TEXT NOT NULL,
+    type TEXT NOT NULL,
+    event TEXT NOT NULL,
+    content TEXT NOT NULL,
+    metadata TEXT,
+    timestamp TEXT NOT NULL DEFAULT (datetime('now')),
+    FOREIGN KEY (task_id) REFERENCES tasks(id)
+  );
+
+  CREATE INDEX IF NOT EXISTS idx_activity_log_task_id ON activity_log(task_id);
+
   CREATE TABLE IF NOT EXISTS images (
     id TEXT PRIMARY KEY,
     name TEXT NOT NULL,
