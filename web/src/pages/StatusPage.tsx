@@ -4,7 +4,7 @@ import type { PoolStats } from "@tangerine/shared"
 import { useProject } from "../context/ProjectContext"
 import { useTaskSearch } from "../hooks/useTaskSearch"
 import { TasksSidebar } from "../components/TasksSidebar"
-import { ActiveRunsCard, PoolCard, ImageCard, VmList, SystemLog } from "../components/StatusWidgets"
+import { ActiveRunsCard, PoolCard, ImageCard, VmList, BuildLog, SystemLog } from "../components/StatusWidgets"
 import { fetchPool, fetchVms, fetchImages, fetchBuildStatus, triggerImageBuild, type VmInfo, type ImageInfo, type BuildStatus } from "../lib/api"
 
 export function StatusPage() {
@@ -74,11 +74,14 @@ export function StatusPage() {
             <div className="flex flex-col gap-4 md:flex-row md:gap-4">
               <ActiveRunsCard tasks={tasks} />
               {pool && <PoolCard pool={pool} />}
-              <ImageCard image={images[0] ?? null} projectImage={current?.image} buildStatus={buildStatus} onBuild={handleBuild} project={current?.name} />
+              <ImageCard image={images[0] ?? null} projectImage={current?.image} buildStatus={buildStatus} onBuild={handleBuild} />
             </div>
 
             {/* VM list */}
             <VmList vms={vms} />
+
+            {/* Build log */}
+            <BuildLog project={current?.name} buildStatus={buildStatus} />
 
             {/* System log */}
             <SystemLog />
