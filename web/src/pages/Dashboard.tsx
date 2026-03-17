@@ -1,3 +1,4 @@
+import { useState, useRef, useEffect } from "react"
 import { Link, useNavigate } from "react-router-dom"
 import type { Task } from "@tangerine/shared"
 import { useProject } from "../context/ProjectContext"
@@ -66,6 +67,85 @@ const projectColors = [
   "bg-cyan-500", "bg-violet-500", "bg-orange-500", "bg-teal-500",
 ]
 
+/* ── Mobile project switcher ── */
+
+function MobileProjectSwitcher() {
+  const { current, projects, switchProject } = useProject()
+  const [open, setOpen] = useState(false)
+  const ref = useRef<HTMLDivElement>(null)
+  const currentIndex = current ? projects.indexOf(current) : 0
+
+  useEffect(() => {
+    if (!open) return
+    function handleClick(e: MouseEvent) {
+      if (ref.current && !ref.current.contains(e.target as Node)) {
+        setOpen(false)
+      }
+    }
+    document.addEventListener("mousedown", handleClick)
+    return () => document.removeEventListener("mousedown", handleClick)
+  }, [open])
+
+  return (
+    <div className="relative" ref={ref}>
+      <button
+        onClick={() => setOpen(!open)}
+        className="flex h-11 w-full items-center justify-between border-b border-[#e5e5e5] px-4"
+      >
+        <div className="flex items-center gap-2.5">
+          {current && (
+            <>
+              <div className={`flex h-5 w-5 items-center justify-center rounded ${projectColors[currentIndex % projectColors.length]}`}>
+                <span className="text-[9px] font-bold text-white">{current.name.charAt(0).toUpperCase()}</span>
+              </div>
+              <span className="text-[14px] font-medium text-[#0a0a0a]">{current.name}</span>
+            </>
+          )}
+        </div>
+        <svg
+          className={`h-3.5 w-3.5 text-[#737373] transition-transform ${open ? "rotate-180" : ""}`}
+          fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}
+        >
+          <path strokeLinecap="round" strokeLinejoin="round" d="m19.5 8.25-7.5 7.5-7.5-7.5" />
+        </svg>
+      </button>
+
+      {open && projects.length > 0 && (
+        <div className="absolute left-0 right-0 top-full z-50 mx-4 overflow-hidden rounded-lg border border-[#e5e5e5] bg-white shadow-lg">
+          {projects.map((project, i) => {
+            const isActive = project.name === current?.name
+            return (
+              <button
+                key={project.name}
+                onClick={() => {
+                  switchProject(project.name)
+                  setOpen(false)
+                }}
+                className={`flex w-full items-center gap-2.5 px-3 py-2.5 text-left transition ${
+                  isActive ? "bg-[#f5f5f5]" : "active:bg-[#fafafa]"
+                }`}
+              >
+                <div className={`flex h-5 w-5 shrink-0 items-center justify-center rounded ${projectColors[i % projectColors.length]}`}>
+                  <span className="text-[9px] font-bold text-white">{project.name.charAt(0).toUpperCase()}</span>
+                </div>
+                <div className="flex min-w-0 flex-col">
+                  <span className="truncate text-[13px] font-medium text-[#0a0a0a]">{project.name}</span>
+                  <span className="truncate text-[11px] text-[#999]">{project.repo}</span>
+                </div>
+                {isActive && (
+                  <svg className="ml-auto h-3.5 w-3.5 shrink-0 text-[#0a0a0a]" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+                    <path strokeLinecap="round" strokeLinejoin="round" d="m4.5 12.75 6 6 9-13.5" />
+                  </svg>
+                )}
+              </button>
+            )
+          })}
+        </div>
+      )}
+    </div>
+  )
+}
+
 /* ── Dashboard page ── */
 
 export function Dashboard() {
@@ -127,21 +207,7 @@ export function Dashboard() {
         </div>
 
         {/* Project switcher */}
-        <button className="flex h-11 items-center justify-between border-b border-[#e5e5e5] px-4">
-          <div className="flex items-center gap-2.5">
-            {current && (
-              <>
-                <div className={`flex h-5 w-5 items-center justify-center rounded ${projectColor}`}>
-                  <span className="text-[9px] font-bold text-white">{current.name.charAt(0).toUpperCase()}</span>
-                </div>
-                <span className="text-[14px] font-medium text-[#0a0a0a]">{current.name}</span>
-              </>
-            )}
-          </div>
-          <svg className="h-3.5 w-3.5 text-[#737373]" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-            <path strokeLinecap="round" strokeLinejoin="round" d="m19.5 8.25-7.5 7.5-7.5-7.5" />
-          </svg>
-        </button>
+        <MobileProjectSwitcher />
 
         {/* Runs header */}
         <div className="flex flex-col gap-1 border-b border-[#e5e5e5] px-4 py-3">
