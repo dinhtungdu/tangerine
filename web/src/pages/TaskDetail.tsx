@@ -2,6 +2,9 @@ import { useState, useEffect, useRef, useCallback, type KeyboardEvent } from "re
 import { useParams, useNavigate } from "react-router-dom"
 import type { Task } from "@tangerine/shared"
 import { fetchTask, fetchDiff, type DiffFile } from "../lib/api"
+import { getStatusConfig } from "../lib/status"
+import { getEventStyle } from "../lib/activity"
+import { formatRelativeTime } from "../lib/format"
 import { useSession, type ChatMessage as ChatMessageType } from "../hooks/useSession"
 import { useTaskSearch } from "../hooks/useTaskSearch"
 import { useProject } from "../context/ProjectContext"
@@ -12,158 +15,7 @@ import { ChatMessage } from "../components/ChatMessage"
 
 type MobileTab = "chat" | "diff" | "activities"
 
-const statusColors: Record<string, string> = {
-  running: "#22c55e",
-  done: "#a3a3a3",
-  failed: "#ef4444",
-  cancelled: "#a3a3a3",
-  created: "#f59e0b",
-  provisioning: "#f59e0b",
-}
-
-export function TaskDetail() {
-  const { id } = useParams<{ id: string }>()
-  const navigate = useNavigate()
-  const { current } = useProject()
-  const [task, setTask] = useState<Task | null>(null)
-  const [loading, setLoading] = useState(true)
-  const [showActivity, setShowActivity] = useState(true)
-  const [mobileTab, setMobileTab] = useState<MobileTab>("chat")
-
-  const session = useSession(id ?? "")
-  const { query, setQuery, tasks } = useTaskSearch(current?.name)
-
-  useEffect(() => {
-    if (!id) return
-    let cancelled = false
-    async function load() {
-      try {
-        const data = await fetchTask(id!)
-        if (!cancelled) setTask(data)
-      } catch {
-        // task not found
-      } finally {
-        if (!cancelled) setLoading(false)
-      }
-    }
-    load()
-    const interval = setInterval(load, 10000)
-    return () => { cancelled = true; clearInterval(interval) }
-  }, [id])
-
-  useEffect(() => {
-    if (session.taskStatus) {
-      setTask((prev) => (prev ? { ...prev, status: session.taskStatus! } : prev))
-    }
-  }, [session.taskStatus])
-
-  if (loading) {
-    return (
-      <div className="flex h-full">
-        <div className="hidden md:block">
-          <TasksSidebar tasks={tasks} searchQuery={query} onSearchChange={setQuery} onNewAgent={() => navigate("/")} />
-        </div>
-        <div className="flex flex-1 items-center justify-center text-[13px] text-[#737373]">
-          Loading...
-        </div>
-      </div>
-    )
-  }
-
-  if (!task) {
-    return (
-      <div className="flex h-full">
-        <div className="hidden md:block">
-          <TasksSidebar tasks={tasks} searchQuery={query} onSearchChange={setQuery} onNewAgent={() => navigate("/")} />
-        </div>
-        <div className="flex flex-1 items-center justify-center text-[13px] text-[#737373]">
-          Task not found
-        </div>
-      </div>
-    )
-  }
-
-  const statusColor = statusColors[task.status] ?? "#a3a3a3"
-  const statusLabel =
-    task.status === "running" ? "Running" :
-    task.status === "done" ? "Completed" :
-    task.status === "failed" ? "Failed" :
-    task.status === "provisioning" ? "Provisioning" :
-    task.status === "created" ? "Queued" :
-    task.status
-
-  return (
-    <div className="flex h-full">
-      {/* ── Desktop layout ── */}
-      <div className="hidden h-full w-full md:flex">
-        <TasksSidebar tasks={tasks} searchQuery={query} onSearchChange={setQuery} onNewAgent={() => navigate("/")} />
-        <div className="flex min-w-0 flex-1 flex-col">
-          <ChatPanel
-            messages={session.messages}
-            agentStatus={session.agentStatus}
-            queueLength={session.queueLength}
-            taskTitle={task.title}
-            branch={task.branch ?? undefined}
-            prUrl={task.prUrl ?? undefined}
-            onSend={session.sendPrompt}
-            onAbort={session.abort}
-            onToggleActivity={() => setShowActivity(!showActivity)}
-            showActivityToggle
-          />
-        </div>
-        {showActivity && (
-          <ActivityPanel messages={session.messages} onCollapse={() => setShowActivity(false)} />
-        )}
-      </div>
-
-      {/* ── Mobile layout ── */}
-      <div className="flex h-full w-full flex-col md:hidden">
-        {/* Header */}
-        <div className="flex items-center gap-2 border-b border-[#e5e5e5] bg-white px-4 py-2.5">
-          <button onClick={() => navigate("/")} className="text-[#0a0a0a]">
-            <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-              <path strokeLinecap="round" strokeLinejoin="round" d="M10.5 19.5 3 12m0 0 7.5-7.5M3 12h18" />
-            </svg>
-          </button>
-          <div className="h-2 w-2 rounded-full" style={{ backgroundColor: statusColor }} />
-          <span className="min-w-0 flex-1 truncate text-[14px] font-medium text-[#0a0a0a]">{task.title}</span>
-          <span className="shrink-0 text-[12px]" style={{ color: statusColor }}>{statusLabel}</span>
-        </div>
-
-        {/* View tabs */}
-        <div className="flex items-center gap-1 border-b border-[#e5e5e5] bg-[#f5f5f5] px-3 py-1">
-          {(["chat", "diff", "activities"] as const).map((t) => (
-            <button
-              key={t}
-              onClick={() => setMobileTab(t)}
-              className={`rounded-md px-3 py-1.5 text-[13px] font-medium transition ${
-                mobileTab === t ? "bg-white text-[#0a0a0a] shadow-sm" : "text-[#737373]"
-              }`}
-            >
-              {t.charAt(0).toUpperCase() + t.slice(1)}
-            </button>
-          ))}
-        </div>
-
-        {/* Tab content */}
-        <div className="min-h-0 flex-1">
-          {mobileTab === "chat" && (
-            <MobileChatContent
-              messages={session.messages}
-              agentStatus={session.agentStatus}
-              onSend={session.sendPrompt}
-              onAbort={session.abort}
-            />
-          )}
-          {mobileTab === "diff" && <MobileDiffContent taskId={id!} />}
-          {mobileTab === "activities" && <MobileActivityContent messages={session.messages} />}
-        </div>
-      </div>
-    </div>
-  )
-}
-
-/* ─── Mobile Chat ─── */
+/* ─── Mobile Chat (module-level) ─── */
 
 function MobileChatContent({
   messages,
@@ -234,7 +86,6 @@ function MobileChatContent({
         </div>
       </div>
 
-      {/* Input bar */}
       <div className="flex items-center gap-2 border-t border-[#e5e5e5] bg-white px-3 py-2">
         <textarea
           ref={textareaRef}
@@ -251,11 +102,11 @@ function MobileChatContent({
           className="min-w-0 flex-1 resize-none rounded-lg border border-[#e5e5e5] bg-[#fafafa] px-3 py-2 text-[14px] text-[#0a0a0a] placeholder-[#a3a3a3] outline-none disabled:opacity-50"
         />
         {agentStatus === "working" ? (
-          <button onClick={onAbort} className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-[#ef4444] text-white">
+          <button onClick={onAbort} aria-label="Stop agent" className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-[#ef4444] text-white">
             <svg className="h-3.5 w-3.5" fill="currentColor" viewBox="0 0 24 24"><rect x="6" y="6" width="12" height="12" rx="1" /></svg>
           </button>
         ) : (
-          <button onClick={handleSend} disabled={!text.trim()} className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-[#171717] text-white disabled:opacity-30">
+          <button onClick={handleSend} disabled={!text.trim()} aria-label="Send message" className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-[#171717] text-white disabled:opacity-30">
             <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
               <path strokeLinecap="round" strokeLinejoin="round" d="M4.5 10.5 12 3m0 0 7.5 7.5M12 3v18" />
             </svg>
@@ -266,7 +117,7 @@ function MobileChatContent({
   )
 }
 
-/* ─── Mobile Diff ─── */
+/* ─── Mobile Diff (module-level) ─── */
 
 function MobileDiffContent({ taskId }: { taskId: string }) {
   const [files, setFiles] = useState<DiffFile[]>([])
@@ -314,7 +165,7 @@ function MobileDiffContent({ taskId }: { taskId: string }) {
                 : line.startsWith("-") ? "text-red-600 bg-red-50"
                 : line.startsWith("@@") ? "text-blue-600"
                 : "text-[#737373]"
-              return <div key={i} className={`px-1 ${color}`}>{line}</div>
+              return <span key={i} className={`block px-1 ${color}`}>{line}</span>
             })}
           </pre>
         </div>
@@ -323,38 +174,7 @@ function MobileDiffContent({ taskId }: { taskId: string }) {
   )
 }
 
-/* ─── Mobile Activities ─── */
-
-const eventColors: Record<string, { bg: string; dot: string }> = {
-  read: { bg: "#3b82f620", dot: "#3b82f6" },
-  write: { bg: "#8b5cf620", dot: "#8b5cf6" },
-  edit: { bg: "#8b5cf620", dot: "#8b5cf6" },
-  bash: { bg: "#3b82f620", dot: "#3b82f6" },
-  search: { bg: "#f59e0b20", dot: "#f59e0b" },
-  test: { bg: "#22c55e20", dot: "#22c55e" },
-  default: { bg: "#3b82f620", dot: "#3b82f6" },
-}
-
-function getEventType(content: string): string {
-  const lc = content.toLowerCase()
-  if (lc.includes("read file") || lc.includes("file-search")) return "read"
-  if (lc.includes("write file") || lc.includes("file-pen")) return "write"
-  if (lc.includes("edit")) return "edit"
-  if (lc.includes("bash") || lc.includes("terminal")) return "bash"
-  if (lc.includes("search") || lc.includes("grep")) return "search"
-  if (lc.includes("test")) return "test"
-  return "default"
-}
-
-function formatActivityTime(ts: string): string {
-  const diff = Date.now() - new Date(ts).getTime()
-  const mins = Math.floor(diff / 60000)
-  if (mins < 1) return "just now"
-  if (mins < 60) return `${mins}m ago`
-  const hours = Math.floor(mins / 60)
-  if (hours < 24) return `${hours}h ago`
-  return new Date(ts).toLocaleTimeString("en-US", { hour12: true, hour: "numeric", minute: "2-digit" })
-}
+/* ─── Mobile Activities (module-level) ─── */
 
 function MobileActivityContent({ messages }: { messages: ChatMessageType[] }) {
   const activities = messages.filter((m) => m.role === "assistant" || m.role === "tool")
@@ -390,13 +210,12 @@ function MobileActivityContent({ messages }: { messages: ChatMessageType[] }) {
           <div className="mb-3 text-[12px] font-semibold text-[#a3a3a3]">{group.label}</div>
           <div className="flex flex-col gap-4">
             {group.items.map((msg) => {
-              const et = getEventType(msg.content)
-              const colors = eventColors[et] ?? eventColors.default!
+              const style = getEventStyle(msg.content)
               return (
                 <div key={msg.id} className="flex gap-3">
                   <div className="flex flex-col items-center pt-1">
-                    <div className="flex h-6 w-6 items-center justify-center rounded-full" style={{ backgroundColor: colors.bg }}>
-                      <div className="h-2 w-2 rounded-full" style={{ backgroundColor: colors.dot }} />
+                    <div className="flex h-6 w-6 items-center justify-center rounded-full" style={{ backgroundColor: style.bg }}>
+                      <div className="h-2 w-2 rounded-full" style={{ backgroundColor: style.dot }} />
                     </div>
                     <div className="mt-1 w-px flex-1 bg-[#e5e5e5]" />
                   </div>
@@ -404,7 +223,7 @@ function MobileActivityContent({ messages }: { messages: ChatMessageType[] }) {
                     <p className="text-[13px] font-medium leading-tight text-[#0a0a0a]">
                       {msg.content.slice(0, 100)}{msg.content.length > 100 && "..."}
                     </p>
-                    <span className="mt-1 text-[11px] text-[#a3a3a3]">{formatActivityTime(msg.timestamp)}</span>
+                    <span className="mt-1 text-[11px] text-[#a3a3a3]">{formatRelativeTime(msg.timestamp)}</span>
                   </div>
                 </div>
               )
@@ -412,6 +231,142 @@ function MobileActivityContent({ messages }: { messages: ChatMessageType[] }) {
           </div>
         </div>
       ))}
+    </div>
+  )
+}
+
+/* ─── TaskDetail page ─── */
+
+export function TaskDetail() {
+  const { id } = useParams<{ id: string }>()
+  const navigate = useNavigate()
+  const { current } = useProject()
+  const [task, setTask] = useState<Task | null>(null)
+  const [loading, setLoading] = useState(true)
+  const [showActivity, setShowActivity] = useState(true)
+  const [mobileTab, setMobileTab] = useState<MobileTab>("chat")
+
+  const session = useSession(id ?? "")
+  const { query, setQuery, tasks } = useTaskSearch(current?.name)
+
+  useEffect(() => {
+    if (!id) return
+    let cancelled = false
+    async function load() {
+      try {
+        const data = await fetchTask(id!)
+        if (!cancelled) setTask(data)
+      } catch {
+        // task not found
+      } finally {
+        if (!cancelled) setLoading(false)
+      }
+    }
+    load()
+    const interval = setInterval(load, 10000)
+    return () => { cancelled = true; clearInterval(interval) }
+  }, [id])
+
+  useEffect(() => {
+    if (session.taskStatus) {
+      setTask((prev) => (prev ? { ...prev, status: session.taskStatus! } : prev))
+    }
+  }, [session.taskStatus])
+
+  if (loading) {
+    return (
+      <div className="flex h-full">
+        <div className="hidden md:block">
+          <TasksSidebar tasks={tasks} searchQuery={query} onSearchChange={setQuery} onNewAgent={() => navigate("/")} />
+        </div>
+        <div className="flex flex-1 items-center justify-center text-[13px] text-[#737373]">
+          Loading...
+        </div>
+      </div>
+    )
+  }
+
+  if (!task) {
+    return (
+      <div className="flex h-full">
+        <div className="hidden md:block">
+          <TasksSidebar tasks={tasks} searchQuery={query} onSearchChange={setQuery} onNewAgent={() => navigate("/")} />
+        </div>
+        <div className="flex flex-1 items-center justify-center text-[13px] text-[#737373]">
+          Task not found
+        </div>
+      </div>
+    )
+  }
+
+  const { color: statusColor, label: statusLabel } = getStatusConfig(task.status)
+
+  return (
+    <div className="flex h-full">
+      {/* Desktop layout */}
+      <div className="hidden h-full w-full md:flex">
+        <TasksSidebar tasks={tasks} searchQuery={query} onSearchChange={setQuery} onNewAgent={() => navigate("/")} />
+        <div className="flex min-w-0 flex-1 flex-col">
+          <ChatPanel
+            messages={session.messages}
+            agentStatus={session.agentStatus}
+            queueLength={session.queueLength}
+            taskTitle={task.title}
+            branch={task.branch ?? undefined}
+            prUrl={task.prUrl ?? undefined}
+            onSend={session.sendPrompt}
+            onAbort={session.abort}
+            onToggleActivity={() => setShowActivity(!showActivity)}
+            showActivityToggle
+          />
+        </div>
+        {showActivity && (
+          <ActivityPanel messages={session.messages} onCollapse={() => setShowActivity(false)} />
+        )}
+      </div>
+
+      {/* Mobile layout */}
+      <div className="flex h-full w-full flex-col md:hidden">
+        <div className="flex items-center gap-2 border-b border-[#e5e5e5] bg-white px-4 py-2.5">
+          <button onClick={() => navigate("/")} aria-label="Back to runs" className="text-[#0a0a0a]">
+            <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+              <path strokeLinecap="round" strokeLinejoin="round" d="M10.5 19.5 3 12m0 0 7.5-7.5M3 12h18" />
+            </svg>
+          </button>
+          <div className="h-2 w-2 rounded-full" style={{ backgroundColor: statusColor }} />
+          <span className="min-w-0 flex-1 truncate text-[14px] font-medium text-[#0a0a0a]">{task.title}</span>
+          <span className="shrink-0 text-[12px]" style={{ color: statusColor }}>{statusLabel}</span>
+        </div>
+
+        <div className="flex items-center gap-1 border-b border-[#e5e5e5] bg-[#f5f5f5] px-3 py-1" role="tablist">
+          {(["chat", "diff", "activities"] as const).map((t) => (
+            <button
+              key={t}
+              role="tab"
+              aria-selected={mobileTab === t}
+              onClick={() => setMobileTab(t)}
+              className={`rounded-md px-3 py-1.5 text-[13px] font-medium transition ${
+                mobileTab === t ? "bg-white text-[#0a0a0a] shadow-sm" : "text-[#737373]"
+              }`}
+            >
+              {t.charAt(0).toUpperCase() + t.slice(1)}
+            </button>
+          ))}
+        </div>
+
+        <div className="min-h-0 flex-1">
+          {mobileTab === "chat" && (
+            <MobileChatContent
+              messages={session.messages}
+              agentStatus={session.agentStatus}
+              onSend={session.sendPrompt}
+              onAbort={session.abort}
+            />
+          )}
+          {mobileTab === "diff" && <MobileDiffContent taskId={id!} />}
+          {mobileTab === "activities" && <MobileActivityContent messages={session.messages} />}
+        </div>
+      </div>
     </div>
   )
 }

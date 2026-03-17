@@ -4,6 +4,42 @@ import { useProject } from "../context/ProjectContext"
 import { createTask } from "../lib/api"
 import { formatModelName } from "../lib/format"
 
+/* ── Toggle row (module-level) ── */
+
+function ToggleRow({ icon, label, defaultOn }: { icon: string; label: string; defaultOn?: boolean }) {
+  const [on, setOn] = useState(defaultOn ?? false)
+
+  return (
+    <div className="flex items-center justify-between">
+      <div className="flex items-center gap-2">
+        {icon === "terminal" ? (
+          <svg className="h-4 w-4 text-[#737373]" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.8}>
+            <path strokeLinecap="round" strokeLinejoin="round" d="m5.25 4.5 7.5 7.5-7.5 7.5m6 0h6.75" />
+          </svg>
+        ) : (
+          <svg className="h-4 w-4 text-[#737373]" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.8}>
+            <path strokeLinecap="round" strokeLinejoin="round" d="M12 21a9.004 9.004 0 0 0 8.716-6.747M12 21a9.004 9.004 0 0 1-8.716-6.747M12 21c2.485 0 4.5-4.03 4.5-9S14.485 3 12 3m0 18c-2.485 0-4.5-4.03-4.5-9S9.515 3 12 3m0 0a8.997 8.997 0 0 1 7.843 4.582M12 3a8.997 8.997 0 0 0-7.843 4.582m15.686 0A11.953 11.953 0 0 1 12 10.5c-2.998 0-5.74-1.1-7.843-2.918m15.686 0A8.959 8.959 0 0 1 21 12c0 .778-.099 1.533-.284 2.253m0 0A17.919 17.919 0 0 1 12 16.5a17.92 17.92 0 0 1-8.716-2.247m0 0A8.966 8.966 0 0 1 3 12c0-1.264.26-2.467.73-3.558" />
+          </svg>
+        )}
+        <span className="text-[14px] text-[#0a0a0a]">{label}</span>
+      </div>
+      <button
+        role="switch"
+        aria-checked={on}
+        aria-label={label}
+        onClick={() => setOn(!on)}
+        className={`relative h-[28px] w-[48px] rounded-full transition-colors ${on ? "bg-[#171717]" : "bg-[#e5e5e5]"}`}
+      >
+        <div
+          className={`absolute top-[3px] h-[22px] w-[22px] rounded-full bg-white shadow-sm transition-transform ${
+            on ? "translate-x-[23px]" : "translate-x-[3px]"
+          }`}
+        />
+      </button>
+    </div>
+  )
+}
+
 const suggestedTasks = [
   ["Fix failing tests", "Add API docs"],
   ["Refactor DB queries", "Update deps"],
@@ -38,7 +74,7 @@ export function NewAgent() {
     <div className="flex h-full flex-col">
       {/* Header */}
       <div className="flex h-[52px] items-center gap-3 border-b border-[#e5e5e5] px-4">
-        <button onClick={() => navigate("/")} className="text-[#0a0a0a]">
+        <button onClick={() => navigate("/")} aria-label="Back" className="text-[#0a0a0a]">
           <svg className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
             <path strokeLinecap="round" strokeLinejoin="round" d="M15.75 19.5 8.25 12l7.5-7.5" />
           </svg>
@@ -119,37 +155,6 @@ export function NewAgent() {
           <ToggleRow icon="globe" label="Web access" defaultOn />
         </div>
       </div>
-    </div>
-  )
-}
-
-function ToggleRow({ icon, label, defaultOn }: { icon: string; label: string; defaultOn?: boolean }) {
-  const [on, setOn] = useState(defaultOn ?? false)
-
-  return (
-    <div className="flex items-center justify-between">
-      <div className="flex items-center gap-2">
-        {icon === "terminal" ? (
-          <svg className="h-4 w-4 text-[#737373]" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.8}>
-            <path strokeLinecap="round" strokeLinejoin="round" d="m5.25 4.5 7.5 7.5-7.5 7.5m6 0h6.75" />
-          </svg>
-        ) : (
-          <svg className="h-4 w-4 text-[#737373]" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.8}>
-            <path strokeLinecap="round" strokeLinejoin="round" d="M12 21a9.004 9.004 0 0 0 8.716-6.747M12 21a9.004 9.004 0 0 1-8.716-6.747M12 21c2.485 0 4.5-4.03 4.5-9S14.485 3 12 3m0 18c-2.485 0-4.5-4.03-4.5-9S9.515 3 12 3m0 0a8.997 8.997 0 0 1 7.843 4.582M12 3a8.997 8.997 0 0 0-7.843 4.582m15.686 0A11.953 11.953 0 0 1 12 10.5c-2.998 0-5.74-1.1-7.843-2.918m15.686 0A8.959 8.959 0 0 1 21 12c0 .778-.099 1.533-.284 2.253m0 0A17.919 17.919 0 0 1 12 16.5a17.92 17.92 0 0 1-8.716-2.247m0 0A8.966 8.966 0 0 1 3 12c0-1.264.26-2.467.73-3.558" />
-          </svg>
-        )}
-        <span className="text-[14px] text-[#0a0a0a]">{label}</span>
-      </div>
-      <button
-        onClick={() => setOn(!on)}
-        className={`relative h-[28px] w-[48px] rounded-full transition-colors ${on ? "bg-[#171717]" : "bg-[#e5e5e5]"}`}
-      >
-        <div
-          className={`absolute top-[3px] h-[22px] w-[22px] rounded-full bg-white shadow-sm transition-transform ${
-            on ? "translate-x-[23px]" : "translate-x-[3px]"
-          }`}
-        />
-      </button>
     </div>
   )
 }

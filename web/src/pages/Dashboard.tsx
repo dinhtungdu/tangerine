@@ -1,47 +1,15 @@
 import { Link, useNavigate } from "react-router-dom"
-import type { Task } from "@tangerine/shared"
 import { useProject } from "../context/ProjectContext"
 import { useTaskSearch } from "../hooks/useTaskSearch"
 import { TasksSidebar } from "../components/TasksSidebar"
 import { NewAgentForm } from "../components/NewAgentForm"
 import { ProjectSwitcher } from "../components/ProjectSwitcher"
 import { createTask } from "../lib/api"
+import { getStatusConfig } from "../lib/status"
+import { formatDuration, formatDate } from "../lib/format"
+import type { Task } from "@tangerine/shared"
 
-/* ── Status badge config ── */
-
-const statusBadge: Record<string, { label: string; color: string; bg: string }> = {
-  running:      { label: "Running",   color: "#16a34a", bg: "#dcfce7" },
-  done:         { label: "Completed", color: "#737373", bg: "#f5f5f5" },
-  completed:    { label: "Completed", color: "#737373", bg: "#f5f5f5" },
-  failed:       { label: "Failed",    color: "#dc2626", bg: "#fecaca" },
-  cancelled:    { label: "Cancelled", color: "#737373", bg: "#f5f5f5" },
-  created:      { label: "Queued",    color: "#a16207", bg: "#fef9c3" },
-  provisioning: { label: "Queued",    color: "#a16207", bg: "#fef9c3" },
-}
-
-const defaultBadge = { label: "Unknown", color: "#737373", bg: "#f5f5f5" }
-
-/* ── Helpers ── */
-
-function formatDuration(task: Task): string {
-  const start = task.startedAt ? new Date(task.startedAt).getTime() : new Date(task.createdAt).getTime()
-  const end = task.completedAt ? new Date(task.completedAt).getTime() : Date.now()
-  const diff = end - start
-  const mins = Math.floor(diff / 60000)
-  const secs = Math.floor((diff % 60000) / 1000)
-  if (mins >= 60) {
-    const h = Math.floor(mins / 60)
-    const m = mins % 60
-    return `${h}h ${m}m`
-  }
-  return `${mins}m ${secs.toString().padStart(2, "0")}s`
-}
-
-function formatDate(ts: string): string {
-  return new Date(ts).toLocaleDateString("en-US", { month: "short", day: "numeric" })
-}
-
-/* ── Source icon (13x13, lucide style) ── */
+/* ── Source icon ── */
 
 function SourceIcon({ source }: { source: string }) {
   const cls = "h-[13px] w-[13px] text-[#737373]"
@@ -52,11 +20,51 @@ function SourceIcon({ source }: { source: string }) {
       </svg>
     )
   }
-  // manual → user icon
   return (
     <svg className={cls} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.8}>
       <path strokeLinecap="round" strokeLinejoin="round" d="M15.75 6a3.75 3.75 0 1 1-7.5 0 3.75 3.75 0 0 1 7.5 0ZM4.501 20.118a7.5 7.5 0 0 1 14.998 0A17.933 17.933 0 0 1 12 21.75c-2.676 0-5.216-.584-7.499-1.632Z" />
     </svg>
+  )
+}
+
+/* ── Run card ── */
+
+function RunCard({ task }: { task: Task }) {
+  const { label, color, bg } = getStatusConfig(task.status)
+
+  return (
+    <Link
+      to={`/tasks/${task.id}`}
+      className="rounded-[10px] border border-[#e5e5e5] p-3.5 transition active:bg-[#fafafa]"
+    >
+      <div className="flex items-center justify-between gap-3">
+        <span className="min-w-0 truncate text-[14px] font-medium text-[#0a0a0a]">{task.title}</span>
+        <span
+          className="shrink-0 rounded-xl px-2.5 py-0.5 text-[11px] font-semibold"
+          style={{ color, backgroundColor: bg }}
+        >
+          {label}
+        </span>
+      </div>
+      <div className="mt-2.5 flex items-center gap-4 text-[12px] text-[#737373]">
+        <div className="flex items-center gap-1.5">
+          <svg className="h-[13px] w-[13px]" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.8}>
+            <path strokeLinecap="round" strokeLinejoin="round" d="M12 6v6h4.5m4.5 0a9 9 0 1 1-18 0 9 9 0 0 1 18 0Z" />
+          </svg>
+          <span>{formatDuration(task.startedAt, task.completedAt, task.createdAt)}</span>
+        </div>
+        <div className="flex items-center gap-1.5">
+          <SourceIcon source={task.source} />
+          <span className="capitalize">{task.source === "github" ? "GitHub Push" : task.source}</span>
+        </div>
+        <div className="flex items-center gap-1.5">
+          <svg className="h-[13px] w-[13px]" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.8}>
+            <path strokeLinecap="round" strokeLinejoin="round" d="M6.75 3v2.25M17.25 3v2.25M3 18.75V7.5a2.25 2.25 0 0 1 2.25-2.25h13.5A2.25 2.25 0 0 1 21 7.5v11.25m-18 0A2.25 2.25 0 0 0 5.25 21h13.5A2.25 2.25 0 0 0 21 18.75m-18 0v-7.5A2.25 2.25 0 0 1 5.25 9h13.5A2.25 2.25 0 0 1 21 11.25v7.5" />
+          </svg>
+          <span>{formatDate(task.createdAt)}</span>
+        </div>
+      </div>
+    </Link>
   )
 }
 
@@ -81,12 +89,7 @@ export function Dashboard() {
     <div className="flex h-full">
       {/* Desktop sidebar */}
       <div className="hidden md:block">
-        <TasksSidebar
-          tasks={tasks}
-          searchQuery={query}
-          onSearchChange={setQuery}
-          onNewAgent={() => {}}
-        />
+        <TasksSidebar tasks={tasks} searchQuery={query} onSearchChange={setQuery} onNewAgent={() => {}} />
       </div>
 
       {/* Desktop: new agent form */}
@@ -107,18 +110,17 @@ export function Dashboard() {
             <span className="text-[15px] font-bold text-[#0a0a0a]">Tangerine</span>
           </div>
           <div className="flex items-center gap-2">
-            <button className="flex h-8 w-8 items-center justify-center rounded-md">
+            <button aria-label="Notifications" className="flex h-8 w-8 items-center justify-center rounded-md">
               <svg className="h-4 w-4 text-[#737373]" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.8}>
                 <path strokeLinecap="round" strokeLinejoin="round" d="M14.857 17.082a23.848 23.848 0 0 0 5.454-1.31A8.967 8.967 0 0 1 18 9.75V9A6 6 0 0 0 6 9v.75a8.967 8.967 0 0 1-2.312 6.022c1.733.64 3.56 1.085 5.455 1.31m5.714 0a24.255 24.255 0 0 1-5.714 0m5.714 0a3 3 0 1 1-5.714 0" />
               </svg>
             </button>
-            <div className="flex h-7 w-7 items-center justify-center rounded-full bg-[#171717]">
+            <div className="flex h-7 w-7 items-center justify-center rounded-full bg-[#171717]" aria-label="User avatar">
               <span className="text-[11px] font-semibold text-[#fafafa]">TN</span>
             </div>
           </div>
         </div>
 
-        {/* Project switcher */}
         <ProjectSwitcher variant="mobile" />
 
         {/* Runs header */}
@@ -155,49 +157,9 @@ export function Dashboard() {
         {/* Run cards */}
         <div className="flex-1 overflow-y-auto px-4 pb-4 pt-1">
           <div className="flex flex-col gap-2.5">
-            {tasks.map((task) => {
-              const badge = statusBadge[task.status] ?? defaultBadge
-
-              return (
-                <Link
-                  key={task.id}
-                  to={`/tasks/${task.id}`}
-                  className="rounded-[10px] border border-[#e5e5e5] p-3.5 transition active:bg-[#fafafa]"
-                >
-                  {/* Title + badge */}
-                  <div className="flex items-center justify-between gap-3">
-                    <span className="min-w-0 truncate text-[14px] font-medium text-[#0a0a0a]">{task.title}</span>
-                    <span
-                      className="shrink-0 rounded-xl px-2.5 py-0.5 text-[11px] font-semibold"
-                      style={{ color: badge.color, backgroundColor: badge.bg }}
-                    >
-                      {badge.label}
-                    </span>
-                  </div>
-
-                  {/* Meta row */}
-                  <div className="mt-2.5 flex items-center gap-4 text-[12px] text-[#737373]">
-                    <div className="flex items-center gap-1.5">
-                      <svg className="h-[13px] w-[13px]" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.8}>
-                        <path strokeLinecap="round" strokeLinejoin="round" d="M12 6v6h4.5m4.5 0a9 9 0 1 1-18 0 9 9 0 0 1 18 0Z" />
-                      </svg>
-                      <span>{formatDuration(task)}</span>
-                    </div>
-                    <div className="flex items-center gap-1.5">
-                      <SourceIcon source={task.source} />
-                      <span className="capitalize">{task.source === "github" ? "GitHub Push" : task.source}</span>
-                    </div>
-                    <div className="flex items-center gap-1.5">
-                      <svg className="h-[13px] w-[13px]" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.8}>
-                        <path strokeLinecap="round" strokeLinejoin="round" d="M6.75 3v2.25M17.25 3v2.25M3 18.75V7.5a2.25 2.25 0 0 1 2.25-2.25h13.5A2.25 2.25 0 0 1 21 7.5v11.25m-18 0A2.25 2.25 0 0 0 5.25 21h13.5A2.25 2.25 0 0 0 21 18.75m-18 0v-7.5A2.25 2.25 0 0 1 5.25 9h13.5A2.25 2.25 0 0 1 21 11.25v7.5" />
-                      </svg>
-                      <span>{formatDate(task.createdAt)}</span>
-                    </div>
-                  </div>
-                </Link>
-              )
-            })}
-
+            {tasks.map((task) => (
+              <RunCard key={task.id} task={task} />
+            ))}
             {tasks.length === 0 && (
               <div className="py-16 text-center text-[13px] text-[#a3a3a3]">No runs yet</div>
             )}

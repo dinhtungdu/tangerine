@@ -5043,7 +5043,7 @@
       "type": "frame",
       "id": "LNgmt",
       "x": 0,
-      "y": 3686,
+      "y": 5710,
       "name": "Agent Chat",
       "clip": true,
       "width": 1440,
@@ -5057,6 +5057,8 @@
           "ref": "274WZ",
           "width": "fill_container",
           "name": "ref1",
+          "x": 0,
+          "y": 0,
           "descendants": {
             "hqgx6": {
               "width": "fit_content",
@@ -5064,7 +5066,7 @@
               "x": 16,
               "y": 14
             },
-            "QTPCW": {
+            "QdMoK": {
               "x": 5,
               "y": 5
             },
@@ -5073,13 +5075,13 @@
               "y": 3
             },
             "0lhvD": {
-              "x": 123,
+              "x": 122,
               "y": 16
             },
             "OR9Du": {
               "width": "fit_content",
               "height": "fit_content",
-              "x": 124,
+              "x": 123,
               "y": 11
             },
             "9scS7": {
@@ -5100,7 +5102,7 @@
             },
             "1f3W3": {
               "width": "fill_container",
-              "x": 323,
+              "x": 322,
               "y": 25.5
             },
             "0ztwK": {
@@ -7940,7 +7942,7 @@
       "type": "frame",
       "id": "zSqvh",
       "x": 0,
-      "y": 6711,
+      "y": 4693,
       "name": "New Agent Screen",
       "clip": true,
       "width": 1440,
@@ -7954,6 +7956,8 @@
           "ref": "274WZ",
           "width": "fill_container",
           "name": "ref2",
+          "x": 0,
+          "y": 0,
           "descendants": {
             "hqgx6": {
               "width": "fit_content",
@@ -7961,7 +7965,7 @@
               "x": 16,
               "y": 14
             },
-            "QTPCW": {
+            "QdMoK": {
               "x": 5,
               "y": 5
             },
@@ -7970,13 +7974,13 @@
               "y": 3
             },
             "0lhvD": {
-              "x": 123,
+              "x": 122,
               "y": 16
             },
             "OR9Du": {
               "width": "fit_content",
               "height": "fit_content",
-              "x": 124,
+              "x": 123,
               "y": 11
             },
             "9scS7": {
@@ -7997,7 +8001,7 @@
             },
             "1f3W3": {
               "width": "fill_container",
-              "x": 323,
+              "x": 322,
               "y": 25.5
             },
             "0ztwK": {
@@ -9214,7 +9218,7 @@
       "type": "frame",
       "id": "ttBbY",
       "x": 0,
-      "y": 4686,
+      "y": 6710,
       "name": "Diff Tab Screen",
       "clip": true,
       "width": 1440,
@@ -9228,6 +9232,8 @@
           "ref": "274WZ",
           "width": "fill_container",
           "name": "ref3",
+          "x": 0,
+          "y": 0,
           "descendants": {
             "hqgx6": {
               "width": "fit_content",
@@ -9235,7 +9241,7 @@
               "x": 16,
               "y": 14
             },
-            "QTPCW": {
+            "QdMoK": {
               "x": 5,
               "y": 5
             },
@@ -9244,13 +9250,13 @@
               "y": 3
             },
             "0lhvD": {
-              "x": 123,
+              "x": 122,
               "y": 16
             },
             "OR9Du": {
               "width": "fit_content",
               "height": "fit_content",
-              "x": 124,
+              "x": 123,
               "y": 11
             },
             "9scS7": {
@@ -9271,7 +9277,7 @@
             },
             "1f3W3": {
               "width": "fill_container",
-              "x": 323,
+              "x": 322,
               "y": 25.5
             },
             "0ztwK": {
@@ -13133,6 +13139,8 @@
           "ref": "274WZ",
           "width": "fill_container",
           "name": "ref4",
+          "x": 0,
+          "y": 0,
           "descendants": {
             "hqgx6": {
               "width": "fit_content",
@@ -13140,7 +13148,7 @@
               "x": 16,
               "y": 14
             },
-            "QTPCW": {
+            "QdMoK": {
               "x": 5,
               "y": 5
             },
@@ -13149,13 +13157,13 @@
               "y": 3
             },
             "0lhvD": {
-              "x": 123,
+              "x": 122,
               "y": 16
             },
             "OR9Du": {
               "width": "fit_content",
               "height": "fit_content",
-              "x": 124,
+              "x": 123,
               "y": 11
             },
             "9scS7": {
@@ -13176,7 +13184,7 @@
             },
             "1f3W3": {
               "width": "fill_container",
-              "x": 323,
+              "x": 322,
               "y": 25.5
             },
             "0ztwK": {
@@ -14705,7 +14713,7 @@
       "type": "frame",
       "id": "uNrKm",
       "x": 0,
-      "y": 5686,
+      "y": 3686,
       "name": "Runs Tab Screen",
       "clip": true,
       "width": 1440,
@@ -14719,6 +14727,8 @@
           "ref": "274WZ",
           "width": "fill_container",
           "name": "ref4",
+          "x": 0,
+          "y": 0,
           "descendants": {
             "hqgx6": {
               "width": "fit_content",
@@ -14726,7 +14736,7 @@
               "x": 16,
               "y": 14
             },
-            "QTPCW": {
+            "QdMoK": {
               "x": 5,
               "y": 5
             },
@@ -14735,13 +14745,13 @@
               "y": 3
             },
             "0lhvD": {
-              "x": 123,
+              "x": 122,
               "y": 16
             },
             "OR9Du": {
               "width": "fit_content",
               "height": "fit_content",
-              "x": 124,
+              "x": 123,
               "y": 11
             },
             "9scS7": {
@@ -14762,7 +14772,7 @@
             },
             "1f3W3": {
               "width": "fill_container",
-              "x": 323,
+              "x": 322,
               "y": 25.5
             },
             "0ztwK": {
@@ -16414,6 +16424,8 @@
           "ref": "274WZ",
           "width": "fill_container",
           "name": "ref7",
+          "x": 0,
+          "y": 0,
           "descendants": {
             "hqgx6": {
               "width": "fit_content",
@@ -16421,7 +16433,7 @@
               "x": 16,
               "y": 14
             },
-            "QTPCW": {
+            "QdMoK": {
               "x": 5,
               "y": 5
             },
@@ -16430,13 +16442,13 @@
               "y": 3
             },
             "0lhvD": {
-              "x": 123,
+              "x": 122,
               "y": 16
             },
             "OR9Du": {
               "width": "fit_content",
               "height": "fit_content",
-              "x": 124,
+              "x": 123,
               "y": 11
             },
             "9scS7": {
@@ -16457,7 +16469,7 @@
             },
             "1f3W3": {
               "width": "fill_container",
-              "x": 323,
+              "x": 322,
               "y": 25.5
             },
             "0ztwK": {
@@ -19071,7 +19083,7 @@
                   "children": [
                     {
                       "type": "icon_font",
-                      "id": "QTPCW",
+                      "id": "QdMoK",
                       "name": "logoInner",
                       "width": 14,
                       "height": 14,
@@ -19086,7 +19098,7 @@
                   "id": "yMkJt",
                   "name": "logoTxt",
                   "fill": "$--foreground",
-                  "content": "AgentHub",
+                  "content": "Tangerine",
                   "fontFamily": "Inter",
                   "fontSize": 15,
                   "fontWeight": "700"
@@ -20061,7 +20073,7 @@
       "type": "frame",
       "id": "2K8Mj",
       "x": 1509,
-      "y": 3686,
+      "y": 5710,
       "name": "Mobile: Agent Chat",
       "clip": true,
       "width": 390,
@@ -20486,7 +20498,7 @@
       "type": "frame",
       "id": "rSSbs",
       "x": 1509,
-      "y": 6711,
+      "y": 4693,
       "name": "Mobile: New Agent Screen",
       "clip": true,
       "width": 390,
@@ -20991,7 +21003,7 @@
       "type": "frame",
       "id": "LJmeA",
       "x": 1509,
-      "y": 4686,
+      "y": 6710,
       "name": "Mobile: Diff Tab Screen",
       "clip": true,
       "width": 390,
@@ -26586,7 +26598,7 @@
       "type": "frame",
       "id": "DxjKY",
       "x": 1509,
-      "y": 5686,
+      "y": 3686,
       "name": "Mobile: Runs Tab Screen",
       "clip": true,
       "width": 390,
@@ -26601,7 +26613,202 @@
           "width": "fill_container",
           "name": "sb6",
           "x": 0,
-          "y": 0
+          "y": 0,
+          "height": 62
+        },
+        {
+          "type": "frame",
+          "id": "YSKFY",
+          "name": "mobile-topbar",
+          "width": "fill_container",
+          "height": 48,
+          "fill": "$--background",
+          "stroke": {
+            "align": "inside",
+            "thickness": {
+              "bottom": 1
+            },
+            "fill": "$--border"
+          },
+          "padding": [
+            0,
+            16
+          ],
+          "justifyContent": "space_between",
+          "alignItems": "center",
+          "children": [
+            {
+              "type": "frame",
+              "id": "RMcKC",
+              "name": "leftLogo",
+              "gap": 8,
+              "alignItems": "center",
+              "children": [
+                {
+                  "type": "frame",
+                  "id": "1fsvP",
+                  "name": "logoIcon",
+                  "width": 24,
+                  "height": 24,
+                  "fill": "$--primary",
+                  "cornerRadius": 6,
+                  "justifyContent": "center",
+                  "alignItems": "center",
+                  "children": [
+                    {
+                      "type": "icon_font",
+                      "id": "Gro3Q",
+                      "name": "logoIc",
+                      "width": 14,
+                      "height": 14,
+                      "iconFontName": "bot",
+                      "iconFontFamily": "lucide",
+                      "fill": "$--primary-foreground"
+                    }
+                  ]
+                },
+                {
+                  "type": "text",
+                  "id": "Ro6gF",
+                  "name": "logoTxt",
+                  "fill": "$--foreground",
+                  "content": "Tangerine",
+                  "fontFamily": "Inter",
+                  "fontSize": 15,
+                  "fontWeight": "700"
+                }
+              ]
+            },
+            {
+              "type": "frame",
+              "id": "rC6zp",
+              "name": "rightGrp",
+              "gap": 8,
+              "alignItems": "center",
+              "children": [
+                {
+                  "type": "frame",
+                  "id": "7jdsi",
+                  "name": "bellBtn",
+                  "width": 32,
+                  "height": 32,
+                  "cornerRadius": 6,
+                  "justifyContent": "center",
+                  "alignItems": "center",
+                  "children": [
+                    {
+                      "type": "icon_font",
+                      "id": "2ccJM",
+                      "name": "bellIc",
+                      "width": 16,
+                      "height": 16,
+                      "iconFontName": "bell",
+                      "iconFontFamily": "lucide",
+                      "fill": "$--muted-foreground"
+                    }
+                  ]
+                },
+                {
+                  "type": "frame",
+                  "id": "nOjm0",
+                  "name": "avatar",
+                  "width": 28,
+                  "height": 28,
+                  "fill": "$--primary",
+                  "cornerRadius": 14,
+                  "justifyContent": "center",
+                  "alignItems": "center",
+                  "children": [
+                    {
+                      "type": "text",
+                      "id": "XO5nL",
+                      "name": "initials",
+                      "fill": "$--primary-foreground",
+                      "content": "TN",
+                      "fontFamily": "Inter",
+                      "fontSize": 11,
+                      "fontWeight": "600"
+                    }
+                  ]
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "type": "frame",
+          "id": "lEPTP",
+          "name": "project-switcher",
+          "width": "fill_container",
+          "height": 44,
+          "fill": "$--card",
+          "stroke": {
+            "align": "inside",
+            "thickness": {
+              "bottom": 1
+            },
+            "fill": "$--border"
+          },
+          "padding": [
+            0,
+            16
+          ],
+          "justifyContent": "space_between",
+          "alignItems": "center",
+          "children": [
+            {
+              "type": "frame",
+              "id": "3GFhn",
+              "name": "leftGroup",
+              "gap": 10,
+              "alignItems": "center",
+              "children": [
+                {
+                  "type": "frame",
+                  "id": "bvBqv",
+                  "name": "projIconBox",
+                  "width": 20,
+                  "height": 20,
+                  "fill": "#6366f1",
+                  "cornerRadius": 4,
+                  "justifyContent": "center",
+                  "alignItems": "center",
+                  "children": [
+                    {
+                      "type": "icon_font",
+                      "id": "3lmTd",
+                      "name": "projIco",
+                      "width": 11,
+                      "height": 11,
+                      "iconFontName": "shopping-cart",
+                      "iconFontFamily": "lucide",
+                      "fill": "#ffffff"
+                    }
+                  ]
+                },
+                {
+                  "type": "text",
+                  "id": "2gpnU",
+                  "name": "projName",
+                  "fill": "$--foreground",
+                  "content": "E-commerce Rewrite",
+                  "fontFamily": "Inter",
+                  "fontSize": 14,
+                  "fontWeight": "500"
+                }
+              ]
+            },
+            {
+              "type": "icon_font",
+              "id": "z2o82",
+              "name": "chevron",
+              "width": 14,
+              "height": 14,
+              "iconFontName": "chevron-down",
+              "iconFontFamily": "lucide",
+              "fill": "$--muted-foreground"
+            }
+          ]
         },
         {
           "type": "frame",
@@ -27540,7 +27747,7 @@
       "type": "frame",
       "id": "hsVPD",
       "x": 1509,
-      "y": 3436,
+      "y": 4465,
       "name": "Mobile Status Bar",
       "reusable": true,
       "width": 390,

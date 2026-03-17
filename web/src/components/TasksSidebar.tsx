@@ -1,35 +1,7 @@
 import { Link, useParams } from "react-router-dom"
 import type { Task } from "@tangerine/shared"
-
-const statusColors: Record<string, string> = {
-  running: "#4CAF50",
-  done: "#DDDDDD",
-  completed: "#DDDDDD",
-  failed: "#E53935",
-  cancelled: "#DDDDDD",
-  created: "#FFC107",
-  provisioning: "#FFC107",
-  queued: "#FFC107",
-}
-
-function StatusDot({ status }: { status: string }) {
-  const color = statusColors[status] ?? "#DDDDDD"
-  return (
-    <div className="flex h-[18px] w-2 items-start pt-[5px]">
-      <div className="h-2 w-2 rounded-full" style={{ backgroundColor: color }} />
-    </div>
-  )
-}
-
-function formatTime(timestamp: string): string {
-  const diff = Date.now() - new Date(timestamp).getTime()
-  const mins = Math.floor(diff / 60000)
-  if (mins < 1) return "just now"
-  if (mins < 60) return `${mins}m ago`
-  const hours = Math.floor(mins / 60)
-  if (hours < 24) return `${hours}h ago`
-  return `${Math.floor(hours / 24)}d ago`
-}
+import { getStatusConfig } from "../lib/status"
+import { formatRelativeTime } from "../lib/format"
 
 interface TasksSidebarProps {
   tasks: Task[]
@@ -66,7 +38,7 @@ export function TasksSidebar({ tasks, searchQuery, onSearchChange, onNewAgent }:
             className="min-w-0 flex-1 bg-transparent text-[13px] text-[#0a0a0a] placeholder-[#999] outline-none"
           />
           {searchQuery && (
-            <button onClick={() => onSearchChange("")} className="shrink-0 text-[#999] hover:text-[#555]">
+            <button onClick={() => onSearchChange("")} aria-label="Clear search" className="shrink-0 text-[#999] hover:text-[#555]">
               <svg className="h-3 w-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                 <path strokeLinecap="round" strokeLinejoin="round" d="M6 18 18 6M6 6l12 12" />
               </svg>
@@ -75,10 +47,8 @@ export function TasksSidebar({ tasks, searchQuery, onSearchChange, onNewAgent }:
         </div>
       </div>
 
-      {/* Divider */}
       <div className="h-px bg-[#e4e4e4]" />
 
-      {/* Section header */}
       <div className="flex items-center justify-between px-4 py-2.5">
         <span className="text-[11px] font-medium tracking-wider text-[#777]">ALL RUNS</span>
         <div className="flex items-center justify-center rounded-sm bg-black px-2 py-0.5">
@@ -86,13 +56,12 @@ export function TasksSidebar({ tasks, searchQuery, onSearchChange, onNewAgent }:
         </div>
       </div>
 
-      {/* Divider */}
       <div className="h-px bg-[#e4e4e4]" />
 
-      {/* Task list */}
       <div className="flex-1 overflow-y-auto">
         {tasks.map((task) => {
           const isActive = task.id === activeId
+          const { color } = getStatusConfig(task.status)
           return (
             <Link
               key={task.id}
@@ -104,13 +73,15 @@ export function TasksSidebar({ tasks, searchQuery, onSearchChange, onNewAgent }:
               }`}
               style={isActive ? {} : { borderLeft: "3px solid transparent" }}
             >
-              <StatusDot status={task.status} />
+              <div className="flex h-[18px] w-2 items-start pt-[5px]">
+                <div className="h-2 w-2 rounded-full" style={{ backgroundColor: color }} />
+              </div>
               <div className="flex min-w-0 flex-col gap-0.5">
                 <span className={`truncate text-[13px] text-black ${isActive ? "font-semibold" : "font-medium"}`}>
                   {task.title}
                 </span>
                 <span className="font-mono text-[11px] text-[#999]">
-                  {formatTime(task.createdAt)} · {task.status}
+                  {formatRelativeTime(task.createdAt)} · {task.status}
                 </span>
               </div>
             </Link>

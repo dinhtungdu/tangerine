@@ -53,6 +53,8 @@ export function ToolCallDisplay({ content }: ToolCallDisplayProps) {
       {/* Header */}
       <button
         onClick={() => setExpanded(!expanded)}
+        aria-expanded={expanded}
+        aria-label={`${expanded ? "Collapse" : "Expand"} ${label}`}
         className="flex w-full items-center gap-2 bg-[#f5f5f5] px-3 py-1.5"
       >
         <svg className="h-3.5 w-3.5 text-[#737373]" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
