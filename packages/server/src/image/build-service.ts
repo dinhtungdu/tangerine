@@ -28,7 +28,8 @@ export function startBuild(imageName: string): { ok: true } | { ok: false; reaso
   const log = createLogger("image:build")
 
   // Fire-and-forget — state updated on completion/failure
-  buildImage(imageName, log)
+  // Dashboard rebuilds only the project layer; base must already exist
+  buildImage(imageName, log, { requireBase: true })
     .then(() => {
       if (currentBuild?.imageName === imageName && currentBuild.status === "building") {
         currentBuild = {

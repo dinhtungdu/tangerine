@@ -15,7 +15,7 @@ export function createPoolConfig(config: AppConfig, provider: Provider, provider
     provider,
     snapshotId: `clone:${goldenVmName(project.image)}`,
     region: "local",
-    plan: "4cpu-8gb-20gb",
+    plan: "4cpu-8gb-10gb",
     maxPoolSize: project.pool?.maxPoolSize ?? globalPool.maxPoolSize,
     priority: 1,
     idleTimeoutMs: project.pool?.idleTimeoutMs ?? globalPool.idleTimeoutMs,

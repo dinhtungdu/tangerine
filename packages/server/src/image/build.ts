@@ -100,7 +100,26 @@ async function ensureBase(provider: LimaProvider, logFile: string, log: Logger):
   log.info("Base VM built and stopped", { baseVm: BASE_VM_NAME });
 }
 
-export async function buildImage(imageName: string, log: Logger): Promise<void> {
+/**
+ * Build only the base VM from template. Called from CLI.
+ * This is the slow step (~10 min) that installs all common tools.
+ */
+export async function buildBase(log: Logger): Promise<void> {
+  const provider = new LimaProvider({ templatePath: TEMPLATE_PATH });
+  const logFile = buildLogPath("base");
+
+  mkdirSync(LOG_DIR, { recursive: true });
+  writeFileSync(logFile, `=== Base image build ===\n`);
+  appendLog(logFile, `Template: ${TEMPLATE_PATH}`);
+
+  await ensureBase(provider, logFile, log);
+}
+
+/**
+ * Build a project golden image. If `requireBase` is true (default for dashboard),
+ * fails if the base VM doesn't exist instead of building it on the fly.
+ */
+export async function buildImage(imageName: string, log: Logger, opts?: { requireBase?: boolean }): Promise<void> {
   const buildScriptPath = join(imageDir(imageName), "build.sh");
   const goldenName = goldenVmName(imageName);
   const provider = new LimaProvider({ templatePath: TEMPLATE_PATH });
@@ -115,8 +134,21 @@ export async function buildImage(imageName: string, log: Logger): Promise<void> 
 
   log.info("Building golden image", { imageName, template: TEMPLATE_PATH, goldenVm: goldenName });
 
-  // Step 1: Ensure base VM exists (fast if already built)
-  await ensureBase(provider, logFile, log);
+  // Step 1: Check base VM exists
+  if (opts?.requireBase) {
+    try {
+      await Effect.runPromise(provider.getInstance(BASE_VM_NAME));
+    } catch {
+      throw new Error(`Base VM "${BASE_VM_NAME}" not found. Run "tangerine image build-base" first.`);
+    }
+    // Ensure it's stopped for cloning
+    const base = await Effect.runPromise(provider.getInstance(BASE_VM_NAME));
+    if (base.status === "active") {
+      await Effect.runPromise(provider.stopInstance(BASE_VM_NAME));
+    }
+  } else {
+    await ensureBase(provider, logFile, log);
+  }
 
   // Step 2: Destroy existing golden VM if any
   try {

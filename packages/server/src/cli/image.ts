@@ -16,7 +16,8 @@ export async function runImage(argv: string[]): Promise<void> {
 Usage: tangerine image <subcommand>
 
 Subcommands:
-  build [--project <name>]   Build a golden image (from ~/tangerine/images/<image>/build.sh)
+  build-base                 Build the base VM from tangerine.yaml (one-time, ~10 min)
+  build [--project <name>]   Build a project golden image (clones from base + runs build.sh)
   list                       List available images
   init <image-name>          Create a build.sh template for an image
 
@@ -26,6 +27,9 @@ Build script location: ~/tangerine/images/<image-name>/build.sh
   }
 
   switch (subcommand) {
+    case "build-base":
+      await buildBaseCmd()
+      break
     case "build":
       await buildImageCmd(argv.slice(1))
       break
@@ -38,6 +42,22 @@ Build script location: ~/tangerine/images/<image-name>/build.sh
     default:
       console.error(`Unknown image subcommand: ${subcommand}`)
       process.exit(1)
+  }
+}
+
+async function buildBaseCmd(): Promise<void> {
+  log.info("Building base VM from template")
+  try {
+    const { buildBase } = await import("../image/build.ts")
+    await buildBase(log)
+    log.info("Base VM built successfully")
+  } catch (err) {
+    if ((err as NodeJS.ErrnoException).code === "MODULE_NOT_FOUND" ||
+        (err as NodeJS.ErrnoException).code === "ERR_MODULE_NOT_FOUND") {
+      console.error("Image build module not available (Phase 2 not yet built)")
+      process.exit(1)
+    }
+    throw err
   }
 }
 
