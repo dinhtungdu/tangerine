@@ -5,6 +5,12 @@ export const previewConfigSchema = z.object({
   path: z.string().default("/"),
 })
 
+export const poolConfigSchema = z.object({
+  maxPoolSize: z.number().default(2),
+  minReady: z.number().default(1),
+  idleTimeoutMs: z.number().default(600_000),
+})
+
 export const projectConfigSchema = z.object({
   name: z.string(),
   repo: z.string(),
@@ -16,6 +22,7 @@ export const projectConfigSchema = z.object({
   extraPorts: z.array(z.number()).optional(),
   env: z.record(z.string()).optional(),
   model: z.string().optional(),
+  pool: poolConfigSchema.partial().optional(),
 })
 
 export const githubTriggerSchema = z.object({
@@ -38,12 +45,6 @@ const defaultModels = [
   "anthropic/claude-opus-4-20250514",
   "anthropic/claude-haiku-4-20250414",
 ]
-
-export const poolConfigSchema = z.object({
-  maxPoolSize: z.number().default(2),
-  minReady: z.number().default(1),
-  idleTimeoutMs: z.number().default(600_000),
-})
 
 export const tangerineConfigSchema = z.object({
   projects: z.array(projectConfigSchema).min(1),
