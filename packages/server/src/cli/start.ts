@@ -106,12 +106,20 @@ export async function start(): Promise<void> {
           }),
         createOpencodeSession: (opencodePort, title) =>
           Effect.gen(function* () {
-            const client = yield* getOrCreateClient(`opencode-${opencodePort}`, opencodePort)
-            const session = yield* Effect.tryPromise({
-              try: () => client.session.create({ title }),
+            // Use raw HTTP — SDK wraps response in { data } which breaks .id access
+            const res = yield* Effect.tryPromise({
+              try: async () => {
+                const r = await fetch(`http://localhost:${opencodePort}/session`, {
+                  method: "POST",
+                  headers: { "Content-Type": "application/json" },
+                  body: JSON.stringify({ title }),
+                })
+                if (!r.ok) throw new Error(`Session create failed: ${r.status}`)
+                return r.json() as Promise<{ id: string }>
+              },
               catch: (e) => new AgentError({ message: `OpenCode session creation failed: ${e}`, taskId: "unknown" }),
             })
-            return session.id
+            return res.id
           }).pipe(Effect.mapError((e) => {
             if (e instanceof AgentError) return e
             return new AgentError({ message: String(e), taskId: "unknown" })
