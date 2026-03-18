@@ -1,6 +1,6 @@
 import { existsSync, readFileSync, writeFileSync, mkdirSync } from "fs"
 import { join } from "path"
-import { homedir } from "os"
+import { homedir, userInfo } from "os"
 import { tangerineConfigSchema } from "@tangerine/shared"
 import type { TangerineConfig, ProjectConfig } from "@tangerine/shared"
 
@@ -34,11 +34,14 @@ export function writeRawConfig(config: RawConfig): void {
 /** Path to OpenCode's credential store on the host */
 export const OPENCODE_AUTH_PATH = join(homedir(), ".local", "share", "opencode", "auth.json")
 
-/** SSH user inside the VM */
-export const VM_USER = "agent"
+/** SSH user inside the VM — Lima defaults to the host username */
+export const VM_USER = userInfo().username
 
-/** Path where auth.json is placed inside the VM */
-export const VM_AUTH_PATH = `/home/${VM_USER}/.local/share/opencode/auth.json`
+/** Path where auth.json is placed inside the VM (~ doesn't work with scp, so absolute) */
+export const VM_AUTH_PATH = `/home/${VM_USER}.guest/.local/share/opencode/auth.json`
+
+/** Home directory of the VM user */
+export const VM_HOME = `/home/${VM_USER}.guest`
 
 export interface AppConfig {
   config: TangerineConfig

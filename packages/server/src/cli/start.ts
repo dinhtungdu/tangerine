@@ -93,7 +93,7 @@ export async function start(): Promise<void> {
           return sshExec(
             host,
             port,
-            `printf '%s\\n' '${envLines}' >> /home/${VM_USER}/.env`,
+            `printf '%s\\n' '${envLines}' >> ~/.env`,
           ).pipe(Effect.asVoid)
         },
         createTunnel: (vmIp, sshPort, ports) =>

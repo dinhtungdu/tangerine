@@ -26,12 +26,9 @@ ssh:
   loadDotSSHPubKeys: true
   forwardAgent: false
 
-# Dedicated non-root user for agent workloads.
+# Use Lima's default user (matches host username).
 # Lima injects SSH keys and grants passwordless sudo automatically.
-user:
-  name: "agent"
-  home: "/home/agent"
-  shell: "/bin/bash"
+# No custom user block needed — Lima handles everything.
 
 # No host mounts — repos are cloned inside the VM
 mounts: []
@@ -86,21 +83,31 @@ provision:
       # Install OpenCode globally
       npm install -g opencode-ai
 
-      # Workspace directory owned by agent user
+      # Workspace directory (owned by Lima default user via user provision)
       mkdir -p /workspace
-      chown agent:agent /workspace
-
-      # git: allow operations in any directory
-      su - agent -c "git config --global safe.directory '*'"
-
-      # Pre-configure OpenCode for agent user
-      su - agent -c "mkdir -p ~/.config/opencode && echo '{}' > ~/.config/opencode/opencode.json"
 
       # Cleanup
       apt-get clean
       rm -rf /var/lib/apt/lists/* /tmp/* /var/tmp/*
 
+  # Runs as the Lima default user (has passwordless sudo).
+  # This stage runs after SSH keys are injected.
+  - mode: user
+    script: |
+      #!/bin/bash
+      set -eux -o pipefail
+
+      # Take ownership of workspace
+      sudo chown "$(whoami):$(whoami)" /workspace
+
+      # git: allow operations in any directory
+      git config --global safe.directory '*'
+
+      # Pre-configure OpenCode
+      mkdir -p ~/.config/opencode
+      echo '{}' > ~/.config/opencode/opencode.json
+
 message: |
   Tangerine VM ready!
   Workspace: /workspace
-  User: agent (with passwordless sudo)
+  User: {{.User}} (Lima default, with passwordless sudo)
