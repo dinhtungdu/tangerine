@@ -17,9 +17,11 @@ import { Effect } from "effect";
 import { LimaProvider } from "../vm/providers/lima.ts";
 import { sshExec, sshExecStreaming, waitForSsh } from "../vm/ssh.ts";
 import { getDb } from "../db/index.ts";
-import { createImage } from "../db/queries.ts";
+import { createImage, listVms, pruneOldImages, updateVmStatus } from "../db/queries.ts";
 import { TANGERINE_HOME } from "../config.ts";
 import type { Logger } from "../logger.ts";
+import type { Database } from "bun:sqlite";
+import type { Provider } from "../vm/providers/types.ts";
 
 const TEMPLATE_PATH = resolve(import.meta.dir, "tangerine.yaml");
 const BASE_VM_NAME = "tangerine-base";
@@ -46,6 +48,33 @@ export function imageDir(imageName: string): string {
 function appendLog(logFile: string, line: string): void {
   const ts = new Date().toISOString().slice(11, 23);
   appendFileSync(logFile, `[${ts}] ${line}\n`);
+}
+
+export async function cleanupUnassignedVmsForImage(
+  db: Database,
+  provider: Provider,
+  snapshotId: string,
+  logFile: string,
+  log: Logger,
+): Promise<number> {
+  const readyVms = Effect.runSync(listVms(db, "ready")).filter((vm) => vm.snapshot_id === snapshotId);
+
+  let destroyed = 0;
+  for (const vm of readyVms) {
+    try {
+      await Effect.runPromise(provider.destroyInstance(vm.id));
+    } catch (err) {
+      appendLog(logFile, `WARN: Failed to destroy stale ready VM ${vm.id}: ${String(err)}`);
+      log.warn("Failed to destroy stale ready VM", { vmId: vm.id, snapshotId, error: String(err) });
+      continue;
+    }
+
+    Effect.runSync(updateVmStatus(db, vm.id, "destroyed"));
+    appendLog(logFile, `Destroyed stale ready VM: ${vm.id}`);
+    destroyed++;
+  }
+
+  return destroyed;
 }
 
 /**
@@ -252,7 +281,15 @@ export async function buildImage(imageName: string, log: Logger, opts?: { requir
     provider: "lima",
     snapshot_id: `clone:${goldenName}`,
   }));
+  const pruned = Effect.runSync(pruneOldImages(db, imageName, imageId));
   appendLog(logFile, `Image recorded: ${imageId}`);
+  if (pruned > 0) {
+    appendLog(logFile, `Pruned ${pruned} outdated image record(s)`);
+  }
+  const cleanedReadyVms = await cleanupUnassignedVmsForImage(db, provider, `clone:${goldenName}`, logFile, log);
+  if (cleanedReadyVms > 0) {
+    appendLog(logFile, `Destroyed ${cleanedReadyVms} stale ready VM(s) using previous image`);
+  }
   appendLog(logFile, `\n=== Build complete ===`);
-  log.info("Golden image built successfully", { imageId, cloneSource: goldenName });
+  log.info("Golden image built successfully", { imageId, cloneSource: goldenName, pruned, cleanedReadyVms });
 }

@@ -52,6 +52,11 @@ function createMockDeps(db: Database): AppDeps {
         integrations: {},
         model: "openai/gpt-4o",
         models: ["openai/gpt-4o"],
+        pool: {
+          maxPoolSize: 2,
+          minReady: 1,
+          idleTimeoutMs: 600_000,
+        },
       },
       credentials: {
         opencodeAuthPath: null,

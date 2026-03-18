@@ -50,4 +50,5 @@ export {
   createImage,
   getImage,
   listImages,
+  pruneOldImages,
 } from "./queries"

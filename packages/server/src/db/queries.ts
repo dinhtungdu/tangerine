@@ -219,3 +219,11 @@ export function listImages(db: Database): Effect.Effect<ImageRow[], DbError> {
     return db.prepare("SELECT * FROM images ORDER BY created_at DESC").all() as ImageRow[]
   })
 }
+
+export function pruneOldImages(db: Database, name: string, keepId: string): Effect.Effect<number, DbError> {
+  return dbTry(() => {
+    const stmt = db.prepare("DELETE FROM images WHERE name = ? AND id != ?")
+    const result = stmt.run(name, keepId)
+    return Number(result.changes)
+  })
+}

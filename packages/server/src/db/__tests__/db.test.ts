@@ -19,6 +19,7 @@ import {
   createImage,
   getImage,
   listImages,
+  pruneOldImages,
 } from "../queries"
 
 function freshDb(): Database {
@@ -249,5 +250,17 @@ describe("images", () => {
 
     const images = Effect.runSync(listImages(db))
     expect(images.length).toBe(2)
+  })
+
+  test("prunes outdated images for the same name", () => {
+    Effect.runSync(createImage(db, { id: "i-1", name: "woo", provider: "lima", snapshot_id: "s1" }))
+    Effect.runSync(createImage(db, { id: "i-2", name: "woo", provider: "lima", snapshot_id: "s2" }))
+    Effect.runSync(createImage(db, { id: "i-3", name: "other", provider: "lima", snapshot_id: "s3" }))
+
+    const pruned = Effect.runSync(pruneOldImages(db, "woo", "i-2"))
+
+    expect(pruned).toBe(1)
+    const images = Effect.runSync(listImages(db))
+    expect(images.map((image) => image.id).sort()).toEqual(["i-2", "i-3"])
   })
 })
