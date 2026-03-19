@@ -3,6 +3,7 @@ import { Effect } from "effect"
 import { Hono } from "hono"
 import type { AppDeps } from "../app"
 import { runEffect, runEffectVoid } from "../effect-helpers"
+import { normalizeTimestamps } from "../helpers"
 import { listImages } from "../../db/queries"
 import { querySystemLogs } from "../../system-log"
 import { buildLogPath } from "../../image/build"
@@ -138,7 +139,7 @@ export function systemRoutes(deps: AppDeps): Hono {
     const since = c.req.query("since") || undefined
 
     const logs = querySystemLogs(deps.db, { level, logger, limit, since })
-    return c.json(logs)
+    return c.json(logs.map(normalizeTimestamps))
   })
 
   // Clear system logs

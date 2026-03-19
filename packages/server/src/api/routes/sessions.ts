@@ -4,6 +4,7 @@ import type { AppDeps } from "../app"
 import { getTask, getSessionLogs } from "../../db/queries"
 import { getActivities } from "../../activity"
 import { runEffect, runEffectVoid } from "../effect-helpers"
+import { normalizeTimestamps } from "../helpers"
 import { TaskNotFoundError } from "../../errors"
 
 export function sessionRoutes(deps: AppDeps): Hono {
@@ -11,7 +12,9 @@ export function sessionRoutes(deps: AppDeps): Hono {
 
   app.get("/:id/messages", (c) => {
     return runEffect(c,
-      getSessionLogs(deps.db, c.req.param("id"))
+      getSessionLogs(deps.db, c.req.param("id")).pipe(
+        Effect.map((rows) => rows.map(normalizeTimestamps))
+      )
     )
   })
 
@@ -67,7 +70,11 @@ export function sessionRoutes(deps: AppDeps): Hono {
   })
 
   app.get("/:id/activities", (c) => {
-    return runEffect(c, getActivities(deps.db, c.req.param("id")))
+    return runEffect(c,
+      getActivities(deps.db, c.req.param("id")).pipe(
+        Effect.map((rows) => rows.map(normalizeTimestamps))
+      )
+    )
   })
 
   app.get("/:id/diff", (c) => {

@@ -1,6 +1,19 @@
 import type { Task, TaskSource, TaskStatus, ProviderType } from "@tangerine/shared"
 import type { TaskRow } from "../db/types"
 
+/**
+ * SQLite datetime('now') produces UTC timestamps without a Z suffix
+ * (e.g. "2026-03-19 22:37:49"). JS Date() parses bare timestamps as
+ * local time, causing wrong relative times. Append Z so they parse as UTC.
+ */
+function utc(ts: string | null): string | null {
+  if (!ts) return null
+  // Already has timezone info (Z or +offset or T...Z from ISO strings)
+  if (/[Z+\-]\d|T.*Z$/.test(ts)) return ts
+  // Bare SQLite timestamp — append Z
+  return ts.replace(" ", "T") + "Z"
+}
+
 /** Maps a snake_case TaskRow from SQLite to a camelCase Task for API responses */
 export function mapTaskRow(row: TaskRow): Task {
   return {
@@ -22,11 +35,23 @@ export function mapTaskRow(row: TaskRow): Task {
     agentPort: row.agent_port,
     previewPort: row.preview_port,
     error: row.error,
-    createdAt: row.created_at,
-    updatedAt: row.updated_at,
-    startedAt: row.started_at,
-    completedAt: row.completed_at,
+    createdAt: utc(row.created_at)!,
+    updatedAt: utc(row.updated_at)!,
+    startedAt: utc(row.started_at),
+    completedAt: utc(row.completed_at),
   }
+}
+
+/** Normalize all timestamp-like string fields in an object to UTC (append Z) */
+export function normalizeTimestamps<T extends Record<string, unknown>>(row: T): T {
+  const result = { ...row }
+  for (const key of Object.keys(result)) {
+    const val = result[key]
+    if (typeof val === "string" && /^\d{4}-\d{2}-\d{2}[ T]\d{2}:\d{2}:\d{2}$/.test(val)) {
+      ;(result as Record<string, unknown>)[key] = val.replace(" ", "T") + "Z"
+    }
+  }
+  return result
 }
 
 /** Generates a unique ID using the built-in crypto API */
