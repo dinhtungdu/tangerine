@@ -55,16 +55,17 @@ export function ActiveRunsCard({ tasks }: { tasks: Task[] }) {
 }
 
 export function PoolCard({ pool }: { pool: PoolStats }) {
-  const total = pool.total || 1
-  const readyPct = (pool.ready / total) * 100
-  const assignedPct = (pool.assigned / total) * 100
+  const active = pool.ready + pool.assigned + pool.provisioning
+  const barTotal = active || 1
+  const readyPct = (pool.ready / barTotal) * 100
+  const assignedPct = (pool.assigned / barTotal) * 100
 
   return (
     <div className="flex flex-1 flex-col gap-2.5 rounded-[10px] border border-edge p-3.5 md:gap-3 md:p-4">
       <div className="flex items-center justify-between">
         <span className="text-[13px] font-medium text-fg-muted">VM Pool</span>
         <span className="rounded-xl bg-status-info-bg px-2.5 py-0.5 text-[11px] font-semibold text-status-info-text">
-          {pool.total} / {pool.total + pool.ready}
+          {active} Active
         </span>
       </div>
       <div className="flex gap-4 md:gap-6">
@@ -404,36 +405,52 @@ export function SystemLog() {
         <div className="py-8 text-center text-[13px] text-fg-faint">No system logs yet</div>
       ) : (
         <div className="max-h-[400px] overflow-y-auto rounded-lg border border-edge">
-          {/* Desktop: single-row table */}
+          {/* Desktop: table with task/VM context */}
           <div className="hidden md:block">
-            <div className="grid grid-cols-[110px_50px_80px_1fr] bg-surface-secondary px-3 py-2">
+            <div className="grid grid-cols-[100px_50px_80px_80px_80px_1fr] bg-surface-secondary px-3 py-2">
               <span className="text-[12px] font-medium text-fg-muted">Time</span>
               <span className="text-[12px] font-medium text-fg-muted">Level</span>
               <span className="text-[12px] font-medium text-fg-muted">Source</span>
+              <span className="text-[12px] font-medium text-fg-muted">Task</span>
+              <span className="text-[12px] font-medium text-fg-muted">VM</span>
               <span className="text-[12px] font-medium text-fg-muted">Message</span>
             </div>
-            {logs.map((log) => (
-              <div key={log.id} className="grid grid-cols-[110px_50px_80px_1fr] items-center border-t border-edge px-3 py-2">
-                <span className="font-mono text-[11px] text-fg-muted">{formatLogTimestamp(log.timestamp)}</span>
-                <div><LogLevelBadge level={log.level} /></div>
-                <span className="truncate text-[12px] font-medium text-fg-muted">{log.logger}</span>
-                <span className="truncate text-[12px] text-fg">{log.message}</span>
-              </div>
-            ))}
+            {logs.map((log) => {
+              const ctx = log.context as Record<string, string> | null
+              const taskId = ctx?.taskId ? String(ctx.taskId).slice(0, 8) : ""
+              const vmId = ctx?.vmId ? String(ctx.vmId).replace("tangerine-", "") : ""
+              return (
+                <div key={log.id} className="grid grid-cols-[100px_50px_80px_80px_80px_1fr] items-center border-t border-edge px-3 py-2">
+                  <span className="font-mono text-[11px] text-fg-muted">{formatLogTimestamp(log.timestamp)}</span>
+                  <div><LogLevelBadge level={log.level} /></div>
+                  <span className="truncate text-[12px] font-medium text-fg-muted">{log.logger}</span>
+                  <span className="truncate font-mono text-[11px] text-fg-faint">{taskId}</span>
+                  <span className="truncate font-mono text-[11px] text-fg-faint">{vmId}</span>
+                  <span className="truncate text-[12px] text-fg">{log.message}</span>
+                </div>
+              )
+            })}
           </div>
 
           {/* Mobile: two-row cards */}
           <div className="flex flex-col md:hidden">
-            {logs.map((log) => (
-              <div key={log.id} className="flex flex-col gap-0.5 border-b border-edge px-3 py-2 last:border-b-0">
-                <div className="flex items-center gap-2">
-                  <span className="font-mono text-[10px] text-fg-muted">{formatLogTimestamp(log.timestamp)}</span>
-                  <LogLevelBadge level={log.level} />
-                  <span className="text-[11px] font-medium text-fg-muted">{log.logger}</span>
+            {logs.map((log) => {
+              const ctx = log.context as Record<string, string> | null
+              const taskId = ctx?.taskId ? String(ctx.taskId).slice(0, 8) : ""
+              const vmId = ctx?.vmId ? String(ctx.vmId).replace("tangerine-", "") : ""
+              return (
+                <div key={log.id} className="flex flex-col gap-0.5 border-b border-edge px-3 py-2 last:border-b-0">
+                  <div className="flex items-center gap-2">
+                    <span className="font-mono text-[10px] text-fg-muted">{formatLogTimestamp(log.timestamp)}</span>
+                    <LogLevelBadge level={log.level} />
+                    <span className="text-[11px] font-medium text-fg-muted">{log.logger}</span>
+                    {taskId && <span className="font-mono text-[10px] text-fg-faint">{taskId}</span>}
+                    {vmId && <span className="font-mono text-[10px] text-fg-faint">{vmId}</span>}
+                  </div>
+                  <span className="text-[12px] text-fg">{log.message}</span>
                 </div>
-                <span className="text-[12px] text-fg">{log.message}</span>
-              </div>
-            ))}
+              )
+            })}
           </div>
         </div>
       )}
