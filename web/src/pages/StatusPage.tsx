@@ -1,29 +1,25 @@
 import { useState, useEffect, useCallback } from "react"
 import { useNavigate } from "react-router-dom"
-import type { PoolStats } from "@tangerine/shared"
 import { useProject } from "../context/ProjectContext"
 import { useTaskSearch } from "../hooks/useTaskSearch"
 import { TasksSidebar } from "../components/TasksSidebar"
-import { ActiveRunsCard, PoolCard, ImageCard, VmList, BuildLog, SystemLog } from "../components/StatusWidgets"
-import { fetchPool, fetchVms, fetchImages, fetchBuildStatus, triggerImageBuild, type VmInfo, type ImageInfo, type BuildStatus } from "../lib/api"
+import { ActiveRunsCard, VmSummaryCard, ImageCard, VmList, BuildLog, SystemLog } from "../components/StatusWidgets"
+import { fetchVms, fetchImages, fetchBuildStatus, triggerImageBuild, type VmInfo, type ImageInfo, type BuildStatus } from "../lib/api"
 
 export function StatusPage() {
   const navigate = useNavigate()
   const { current } = useProject()
   const { query, setQuery, tasks } = useTaskSearch(current?.name)
-  const [pool, setPool] = useState<PoolStats | null>(null)
   const [vms, setVms] = useState<VmInfo[]>([])
   const [images, setImages] = useState<ImageInfo[]>([])
   const [buildStatus, setBuildStatus] = useState<BuildStatus>({ status: "idle" })
 
   const loadAll = useCallback(async () => {
-    const [poolData, vmData, imgData, bsData] = await Promise.all([
-      fetchPool().catch(() => null),
+    const [vmData, imgData, bsData] = await Promise.all([
       fetchVms().catch(() => []),
       fetchImages(current?.name).catch(() => []),
       fetchBuildStatus().catch(() => ({ status: "idle" as const })),
     ])
-    if (poolData) setPool(poolData)
     setVms(vmData as VmInfo[])
     setImages(imgData as ImageInfo[])
     setBuildStatus(bsData)
@@ -73,7 +69,7 @@ export function StatusPage() {
             {/* Cards — horizontal on desktop, stacked on mobile */}
             <div className="flex flex-col gap-4 md:flex-row md:gap-4">
               <ActiveRunsCard tasks={tasks} />
-              {pool && <PoolCard pool={pool} />}
+              <VmSummaryCard vms={vms} />
               <ImageCard image={images[0] ?? null} projectImage={current?.image} buildStatus={buildStatus} onBuild={handleBuild} />
             </div>
 

@@ -1,4 +1,12 @@
-import type { Task, PoolStats, ProjectConfig, SystemLogEntry, ActivityEntry } from "@tangerine/shared"
+import type { Task, ProjectConfig, SystemLogEntry, ActivityEntry } from "@tangerine/shared"
+
+export interface PoolStats {
+  provisioning: number
+  active: number
+  stopped: number
+  total: number
+  byProvider?: Record<string, number>
+}
 
 const BASE = ""
 
@@ -57,6 +65,7 @@ export async function createTask(data: {
   projectId: string
   title: string
   description?: string
+  provider?: string
 }): Promise<Task> {
   return request<Task>("/api/tasks", {
     method: "POST",

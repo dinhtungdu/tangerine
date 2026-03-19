@@ -21,7 +21,7 @@ export interface SseSubscription {
  * the unsubscribe handle.
  */
 export function subscribeToEvents(
-  opencodePort: number,
+  agentPort: number,
   taskId: string,
   onEvent: EventHandler,
   options?: { maxReconnectAttempts?: number },
@@ -33,13 +33,13 @@ export function subscribeToEvents(
       let cancelled = false
       let attempt = 0
 
-      taskLog.info("SSE subscribed", { opencodePort })
+      taskLog.info("SSE subscribed", { agentPort })
 
       async function connect(): Promise<void> {
         if (cancelled) return
 
         try {
-          const response = await fetch(`http://localhost:${opencodePort}/event`, {
+          const response = await fetch(`http://localhost:${agentPort}/event`, {
             headers: { Accept: "text/event-stream" },
           })
 
@@ -113,7 +113,7 @@ export function subscribeToEvents(
       new AgentConnectionError({
         message: "Failed to start SSE subscription",
         taskId,
-        url: `http://localhost:${opencodePort}/event`,
+        url: `http://localhost:${agentPort}/event`,
         cause: e,
       }),
   })

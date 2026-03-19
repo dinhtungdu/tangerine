@@ -11,9 +11,8 @@ import {
   createVm,
   getVm,
   listVms,
+  updateVm,
   updateVmStatus,
-  assignVm,
-  releaseVm,
   insertSessionLog,
   getSessionLogs,
   createImage,
@@ -129,6 +128,7 @@ describe("vms", () => {
       id: "vm-1",
       label: "test-vm",
       provider: "lima",
+      project_id: "test",
       snapshot_id: "snap-1",
       region: "local",
       plan: "default",
@@ -137,6 +137,7 @@ describe("vms", () => {
     expect(vm.id).toBe("vm-1")
     expect(vm.status).toBe("provisioning")
     expect(vm.provider).toBe("lima")
+    expect(vm.project_id).toBe("test")
 
     const retrieved = Effect.runSync(getVm(db, "vm-1"))
     expect(retrieved).not.toBeNull()
@@ -148,48 +149,44 @@ describe("vms", () => {
       id: "vm-2",
       label: "vm-two",
       provider: "lima",
+      project_id: "test",
       snapshot_id: "snap-1",
       region: "local",
       plan: "default",
     }))
 
-    const updated = Effect.runSync(updateVmStatus(db, "vm-2", "ready"))
-    expect(updated!.status).toBe("ready")
+    const updated = Effect.runSync(updateVmStatus(db, "vm-2", "active"))
+    expect(updated!.status).toBe("active")
   })
 
-  test("assign and release VM", () => {
-    Effect.runSync(createTask(db, { id: "task-x", source: "manual", project_id: "test", repo_url: "r", title: "X" }))
+  test("update VM fields", () => {
     Effect.runSync(createVm(db, {
       id: "vm-3",
       label: "vm-three",
       provider: "lima",
+      project_id: "test",
       snapshot_id: "snap-1",
       region: "local",
       plan: "default",
-      status: "ready",
+      status: "active",
     }))
 
-    const assigned = Effect.runSync(assignVm(db, "vm-3", "task-x"))
-    expect(assigned!.status).toBe("assigned")
-    expect(assigned!.task_id).toBe("task-x")
-
-    const released = Effect.runSync(releaseVm(db, "vm-3"))
-    expect(released!.status).toBe("ready")
-    expect(released!.task_id).toBeNull()
-    expect(released!.idle_since).not.toBeNull()
+    const stopped = Effect.runSync(updateVm(db, "vm-3", { status: "stopped" }))
+    expect(stopped!.status).toBe("stopped")
+    expect(stopped!.project_id).toBe("test")
   })
 
   test("list VMs by status", () => {
-    Effect.runSync(createVm(db, { id: "v-a", label: "a", provider: "lima", snapshot_id: "s", region: "local", plan: "default" }))
-    Effect.runSync(createVm(db, { id: "v-b", label: "b", provider: "lima", snapshot_id: "s", region: "local", plan: "default" }))
-    Effect.runSync(updateVmStatus(db, "v-b", "ready"))
+    Effect.runSync(createVm(db, { id: "v-a", label: "a", provider: "lima", project_id: "test", snapshot_id: "s", region: "local", plan: "default" }))
+    Effect.runSync(createVm(db, { id: "v-b", label: "b", provider: "lima", project_id: "test", snapshot_id: "s", region: "local", plan: "default" }))
+    Effect.runSync(updateVmStatus(db, "v-b", "active"))
 
     const all = Effect.runSync(listVms(db))
     expect(all.length).toBe(2)
 
-    const ready = Effect.runSync(listVms(db, "ready"))
-    expect(ready.length).toBe(1)
-    expect(ready[0]!.id).toBe("v-b")
+    const active = Effect.runSync(listVms(db, "active"))
+    expect(active.length).toBe(1)
+    expect(active[0]!.id).toBe("v-b")
   })
 })
 

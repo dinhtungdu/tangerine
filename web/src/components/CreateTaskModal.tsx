@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback, type FormEvent } from "react"
-import type { ProjectConfig } from "@tangerine/shared"
+import type { ProjectConfig, ProviderType } from "@tangerine/shared"
 import { createTask } from "../lib/api"
 
 interface CreateTaskModalProps {
@@ -14,6 +14,7 @@ export function CreateTaskModal({ open, onClose, onCreated, projects, defaultPro
   const [projectId, setProjectId] = useState(defaultProject || "")
   const [title, setTitle] = useState("")
   const [description, setDescription] = useState("")
+  const [provider, setProvider] = useState<ProviderType>("opencode")
   const [submitting, setSubmitting] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
@@ -45,6 +46,7 @@ export function CreateTaskModal({ open, onClose, onCreated, projects, defaultPro
           projectId,
           title: title.trim(),
           description: description.trim() || undefined,
+          provider,
         })
         setTitle("")
         setDescription("")
@@ -56,7 +58,7 @@ export function CreateTaskModal({ open, onClose, onCreated, projects, defaultPro
         setSubmitting(false)
       }
     },
-    [projectId, title, description, onCreated, onClose],
+    [projectId, title, description, provider, onCreated, onClose],
   )
 
   if (!open) return null
@@ -119,6 +121,21 @@ export function CreateTaskModal({ open, onClose, onCreated, projects, defaultPro
               rows={3}
               className="w-full resize-none rounded-lg border border-neutral-700 bg-neutral-800 px-3 py-2 text-sm text-neutral-100 placeholder-neutral-500 outline-none focus:border-tangerine"
             />
+          </div>
+
+          <div>
+            <label htmlFor="provider" className="mb-1 block text-xs text-neutral-400">
+              Provider
+            </label>
+            <select
+              id="provider"
+              value={provider}
+              onChange={(e) => setProvider(e.target.value as ProviderType)}
+              className="w-full rounded-lg border border-neutral-700 bg-neutral-800 px-3 py-2 text-sm text-neutral-100 outline-none focus:border-tangerine"
+            >
+              <option value="opencode">OpenCode</option>
+              <option value="claude-code">Claude Code</option>
+            </select>
           </div>
 
           {error && (

@@ -22,18 +22,16 @@ export function systemRoutes(deps: AppDeps): Hono {
     return runEffect(c,
       Effect.sync(() => {
         const rows = deps.db.prepare(`
-          SELECT vms.*, tasks.title as task_title
+          SELECT *
           FROM vms
-          LEFT JOIN tasks ON vms.task_id = tasks.id
-          WHERE vms.status != 'destroyed'
-          ORDER BY vms.created_at DESC
-        `).all() as Array<{ id: string; status: string; ip: string | null; task_id: string | null; provider: string; created_at: string; task_title: string | null }>
+          WHERE status != 'destroyed'
+          ORDER BY created_at DESC
+        `).all() as Array<{ id: string; status: string; ip: string | null; project_id: string; provider: string; created_at: string }>
         return rows.map((r) => ({
           id: r.id,
           status: r.status,
           ip: r.ip,
-          taskId: r.task_id,
-          taskTitle: r.task_title,
+          projectId: r.project_id,
           provider: r.provider,
           createdAt: r.created_at,
         }))

@@ -1,10 +1,11 @@
 import { useState, useCallback } from "react"
 import { useNavigate } from "react-router-dom"
+import type { ProviderType } from "@tangerine/shared"
 import { useProject } from "../context/ProjectContext"
 import { ModelSelector } from "./ModelSelector"
 
 interface NewAgentFormProps {
-  onSubmit: (data: { projectId: string; title: string; description?: string; branch?: string }) => void
+  onSubmit: (data: { projectId: string; title: string; description?: string; branch?: string; provider?: string }) => void
 }
 
 const suggestedTasks = [
@@ -72,6 +73,7 @@ export function NewAgentForm({ onSubmit }: NewAgentFormProps) {
   const navigate = useNavigate()
   const { current } = useProject()
   const [description, setDescription] = useState("")
+  const [provider, setProvider] = useState<ProviderType>("opencode")
   const [submitting, setSubmitting] = useState(false)
   const branch = current?.defaultBranch ?? "main"
 
@@ -84,10 +86,11 @@ export function NewAgentForm({ onSubmit }: NewAgentFormProps) {
       title: trimmed.slice(0, 80),
       description: trimmed,
       branch,
+      provider,
     })
     // Parent navigates on success; reset submitting if it fails
     setTimeout(() => setSubmitting(false), 3000)
-  }, [description, current, branch, submitting, onSubmit])
+  }, [description, current, branch, provider, submitting, onSubmit])
 
   return (
     <div className="flex h-full flex-1 flex-col bg-surface">
@@ -133,6 +136,15 @@ export function NewAgentForm({ onSubmit }: NewAgentFormProps) {
                   <span className="text-[11px] text-fg">{branch}</span>
                 </div>
                 <ModelSelector />
+                <select
+                  value={provider}
+                  onChange={(e) => setProvider(e.target.value as ProviderType)}
+                  aria-label="Provider"
+                  className="rounded-md border border-edge bg-surface px-2 py-1 text-[11px] text-fg outline-none"
+                >
+                  <option value="opencode">OpenCode</option>
+                  <option value="claude-code">Claude Code</option>
+                </select>
               </div>
               <button
                 onClick={handleSubmit}
@@ -149,16 +161,27 @@ export function NewAgentForm({ onSubmit }: NewAgentFormProps) {
 
           {/* Mobile: branch/model chips + full-width start button */}
           <div className="flex flex-col gap-6 md:hidden">
-            <div className="flex gap-2">
-              <div className="flex h-10 flex-1 items-center gap-2 rounded-lg border border-edge bg-surface px-3">
-                <svg className="h-4 w-4 shrink-0 text-fg-muted" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                  <path strokeLinecap="round" strokeLinejoin="round" d="M7.217 10.907a2.25 2.25 0 1 0 0 2.186m0-2.186c.18.324.283.696.283 1.093s-.103.77-.283 1.093m0-2.186 9.566-5.314m-9.566 7.5 9.566 5.314m0-12.814a2.25 2.25 0 1 0 0-2.186m0 2.186a2.25 2.25 0 1 0 0 2.186" />
-                </svg>
-                <span className="text-[13px] text-fg">{branch}</span>
+            <div className="flex flex-col gap-2">
+              <div className="flex gap-2">
+                <div className="flex h-10 flex-1 items-center gap-2 rounded-lg border border-edge bg-surface px-3">
+                  <svg className="h-4 w-4 shrink-0 text-fg-muted" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M7.217 10.907a2.25 2.25 0 1 0 0 2.186m0-2.186c.18.324.283.696.283 1.093s-.103.77-.283 1.093m0-2.186 9.566-5.314m-9.566 7.5 9.566 5.314m0-12.814a2.25 2.25 0 1 0 0-2.186m0 2.186a2.25 2.25 0 1 0 0 2.186" />
+                  </svg>
+                  <span className="text-[13px] text-fg">{branch}</span>
+                </div>
+                <div className="flex h-10 flex-1 items-center rounded-lg border border-edge bg-surface px-3">
+                  <ModelSelector />
+                </div>
               </div>
-              <div className="flex h-10 flex-1 items-center rounded-lg border border-edge bg-surface px-3">
-                <ModelSelector />
-              </div>
+              <select
+                value={provider}
+                onChange={(e) => setProvider(e.target.value as ProviderType)}
+                aria-label="Provider"
+                className="h-10 w-full rounded-lg border border-edge bg-surface px-3 text-[13px] text-fg outline-none"
+              >
+                <option value="opencode">OpenCode</option>
+                <option value="claude-code">Claude Code</option>
+              </select>
             </div>
             <button
               onClick={handleSubmit}

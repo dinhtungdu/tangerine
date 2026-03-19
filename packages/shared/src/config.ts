@@ -22,7 +22,8 @@ export const projectConfigSchema = z.object({
   extraPorts: z.array(z.number()).optional(),
   env: z.record(z.string()).optional(),
   model: z.string().optional(),
-  pool: poolConfigSchema.partial().optional(),
+  defaultProvider: z.enum(["opencode", "claude-code"]).default("opencode"),
+  pool: poolConfigSchema.partial().optional(), // deprecated, kept for config compat
 })
 
 export const githubTriggerSchema = z.object({

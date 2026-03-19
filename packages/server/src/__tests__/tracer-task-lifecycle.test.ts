@@ -7,7 +7,6 @@ import {
   getTask,
   updateTask,
   updateTaskStatus,
-  assignVm,
   createVm,
   insertSessionLog,
   getSessionLogs,
@@ -40,7 +39,7 @@ describe("tracer: task lifecycle", () => {
     }))
     expect(task.status).toBe("created")
     expect(task.vm_id).toBeNull()
-    expect(task.opencode_session_id).toBeNull()
+    expect(task.agent_session_id).toBeNull()
 
     // 2. Simulate provisioning (update status)
     const provisioning = Effect.runSync(updateTaskStatus(db, "task-lifecycle", "provisioning"))
@@ -51,26 +50,26 @@ describe("tracer: task lifecycle", () => {
       id: "vm-lc",
       label: "lifecycle-vm",
       provider: "lima",
+      project_id: "test",
       snapshot_id: "snap-1",
       region: "local",
       plan: "default",
-      status: "ready",
+      status: "active",
     }))
-    Effect.runSync(assignVm(db, "vm-lc", "task-lifecycle"))
     const withVm = Effect.runSync(updateTask(db, "task-lifecycle", { vm_id: "vm-lc" }))
     expect(withVm!.vm_id).toBe("vm-lc")
 
     // 4. Simulate running (update opencode session fields)
     const running = Effect.runSync(updateTask(db, "task-lifecycle", {
       status: "running",
-      opencode_session_id: "oc-session-123",
-      opencode_port: 8080,
+      agent_session_id: "oc-session-123",
+      agent_port: 8080,
       preview_port: 3000,
       started_at: new Date().toISOString(),
     }))
     expect(running!.status).toBe("running")
-    expect(running!.opencode_session_id).toBe("oc-session-123")
-    expect(running!.opencode_port).toBe(8080)
+    expect(running!.agent_session_id).toBe("oc-session-123")
+    expect(running!.agent_port).toBe(8080)
     expect(running!.preview_port).toBe(3000)
     expect(running!.started_at).toBeDefined()
 
@@ -120,7 +119,7 @@ describe("tracer: task lifecycle", () => {
     expect(final.source_id).toBe("test/repo#1")
     expect(final.status).toBe("done")
     expect(final.vm_id).toBe("vm-lc")
-    expect(final.opencode_session_id).toBe("oc-session-123")
+    expect(final.agent_session_id).toBe("oc-session-123")
     expect(final.pr_url).toBe("https://github.com/test/repo/pull/42")
     expect(final.created_at).toBeDefined()
     expect(final.started_at).toBeDefined()

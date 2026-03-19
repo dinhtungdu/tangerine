@@ -253,12 +253,14 @@ describe("tracer: config -> db -> api", () => {
       title: "Test",
       description: "desc",
       status: "running",
+      provider: "opencode",
       vm_id: "vm-1",
       branch: "feat/test",
+      worktree_path: null,
       pr_url: "https://github.com/owner/repo/pull/1",
       user_id: "user-1",
-      opencode_session_id: "session-1",
-      opencode_port: 8080,
+      agent_session_id: "session-1",
+      agent_port: 8080,
       preview_port: 3000,
       error: null,
       created_at: "2025-01-01T00:00:00Z",
@@ -269,13 +271,14 @@ describe("tracer: config -> db -> api", () => {
 
     const mapped = mapTaskRow(row)
 
+    expect(mapped.provider).toBe("opencode")
     expect(mapped.sourceId).toBe("owner/repo#1")
     expect(mapped.sourceUrl).toBe("https://github.com/owner/repo/issues/1")
     expect(mapped.vmId).toBe("vm-1")
     expect(mapped.prUrl).toBe("https://github.com/owner/repo/pull/1")
     expect(mapped.userId).toBe("user-1")
-    expect(mapped.opencodeSessionId).toBe("session-1")
-    expect(mapped.opencodePort).toBe(8080)
+    expect(mapped.agentSessionId).toBe("session-1")
+    expect(mapped.agentPort).toBe(8080)
     expect(mapped.previewPort).toBe(3000)
     expect(mapped.createdAt).toBe("2025-01-01T00:00:00Z")
     expect(mapped.updatedAt).toBe("2025-01-01T01:00:00Z")

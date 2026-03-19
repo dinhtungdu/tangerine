@@ -15,12 +15,12 @@ function dbTry<T>(op: () => T): Effect.Effect<T, DbError> {
 export function createTask(
   db: Database,
   task: Pick<TaskRow, "id" | "project_id" | "source" | "repo_url" | "title"> &
-    Partial<Pick<TaskRow, "source_id" | "source_url" | "description" | "user_id" | "branch">>
+    Partial<Pick<TaskRow, "source_id" | "source_url" | "description" | "user_id" | "branch" | "provider">>
 ): Effect.Effect<TaskRow, DbError> {
   return dbTry(() => {
     const stmt = db.prepare(`
-      INSERT INTO tasks (id, project_id, source, source_id, source_url, repo_url, title, description, user_id, branch)
-      VALUES ($id, $project_id, $source, $source_id, $source_url, $repo_url, $title, $description, $user_id, $branch)
+      INSERT INTO tasks (id, project_id, source, source_id, source_url, repo_url, title, description, user_id, branch, provider)
+      VALUES ($id, $project_id, $source, $source_id, $source_url, $repo_url, $title, $description, $user_id, $branch, $provider)
     `)
     stmt.run({
       $id: task.id,
@@ -33,6 +33,7 @@ export function createTask(
       $description: task.description ?? null,
       $user_id: task.user_id ?? null,
       $branch: task.branch ?? null,
+      $provider: task.provider ?? "opencode",
     })
     return db.prepare("SELECT * FROM tasks WHERE id = ?").get(task.id) as TaskRow
   })
@@ -90,13 +91,13 @@ export function updateTaskStatus(db: Database, id: string, status: string): Effe
 
 export function createVm(
   db: Database,
-  vm: Pick<VmRow, "id" | "label" | "provider" | "snapshot_id" | "region" | "plan"> &
+  vm: Pick<VmRow, "id" | "label" | "provider" | "snapshot_id" | "region" | "plan" | "project_id"> &
     Partial<Pick<VmRow, "ip" | "ssh_port" | "status">>
 ): Effect.Effect<VmRow, DbError> {
   return dbTry(() => {
     const stmt = db.prepare(`
-      INSERT INTO vms (id, label, provider, ip, ssh_port, status, snapshot_id, region, plan)
-      VALUES ($id, $label, $provider, $ip, $ssh_port, $status, $snapshot_id, $region, $plan)
+      INSERT INTO vms (id, label, provider, ip, ssh_port, status, project_id, snapshot_id, region, plan)
+      VALUES ($id, $label, $provider, $ip, $ssh_port, $status, $project_id, $snapshot_id, $region, $plan)
     `)
     stmt.run({
       $id: vm.id,
@@ -105,6 +106,7 @@ export function createVm(
       $ip: vm.ip ?? null,
       $ssh_port: vm.ssh_port ?? null,
       $status: vm.status ?? "provisioning",
+      $project_id: vm.project_id,
       $snapshot_id: vm.snapshot_id,
       $region: vm.region,
       $plan: vm.plan,
@@ -149,15 +151,9 @@ export function updateVmStatus(db: Database, id: string, status: string): Effect
   return updateVm(db, id, { status })
 }
 
-export function assignVm(db: Database, vmId: string, taskId: string): Effect.Effect<VmRow | null, DbError> {
-  return updateVm(db, vmId, { status: "assigned", task_id: taskId, idle_since: null })
-}
-
-export function releaseVm(db: Database, vmId: string): Effect.Effect<VmRow | null, DbError> {
-  return updateVm(db, vmId, {
-    status: "ready",
-    task_id: null,
-    idle_since: new Date().toISOString(),
+export function getVmByProject(db: Database, projectId: string): Effect.Effect<VmRow | null, DbError> {
+  return dbTry(() => {
+    return db.prepare("SELECT * FROM vms WHERE project_id = ? AND status != 'destroyed' ORDER BY created_at DESC LIMIT 1").get(projectId) as VmRow | null
   })
 }
 

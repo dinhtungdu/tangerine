@@ -1,5 +1,5 @@
-// Session cleanup: persist logs, kill processes, scrub credentials, release VM.
-// Logging ensures cleanup failures are traceable back to the originating task.
+// Session cleanup: persist logs, shutdown agent, remove worktree.
+// VM persists for the project — only the worktree is cleaned up.
 
 import { Effect } from "effect"
 import { createLogger } from "../logger"
@@ -9,11 +9,12 @@ import type { TaskRow } from "../db/types"
 const log = createLogger("cleanup")
 
 export interface CleanupDeps {
-  getSessionMessages(opencodePort: number, sessionId: string): Effect.Effect<unknown[], import("../errors").AgentError>
+  getSessionMessages(agentPort: number, sessionId: string): Effect.Effect<unknown[], import("../errors").AgentError>
   persistMessages(taskId: string, messages: unknown[]): Effect.Effect<void, Error>
   sshExec(host: string, port: number, command: string): Effect.Effect<{ stdout: string; stderr: string; exitCode: number }, import("../errors").SshError>
-  releaseVm(vmId: string): Effect.Effect<void, Error>
   getTask(taskId: string): Effect.Effect<TaskRow | null, Error>
+  getVmForTask(taskId: string): Effect.Effect<{ ip: string; sshPort: number } | null, Error>
+  getAgentHandle(taskId: string): import("../agent/provider").AgentHandle | null
 }
 
 export function cleanupSession(
@@ -37,52 +38,46 @@ export function cleanupSession(
     const taskLog = log.child({ taskId: task.id, vmId: task.vm_id })
     const span = taskLog.startOp("cleanup")
 
-    // Persist chat messages before tearing down the session (best-effort)
-    if (task.opencode_port && task.opencode_session_id) {
+    // 1. Persist chat messages before tearing down (best-effort)
+    if (task.agent_port && task.agent_session_id) {
       yield* Effect.gen(function* () {
         const messages = yield* deps.getSessionMessages(
-          task.opencode_port!,
-          task.opencode_session_id!,
+          task.agent_port!,
+          task.agent_session_id!,
         )
         yield* deps.persistMessages(task.id, messages)
         taskLog.info("Session logs persisted", { messageCount: messages.length })
       }).pipe(Effect.ignoreLogged)
     }
 
-    if (task.vm_id) {
-      // Kill agent and dev server processes inside the VM (best-effort)
-      yield* deps.sshExec(
-        "",
-        0,
-        "pkill -f opencode; pkill -f 'dev server' || true",
-      ).pipe(
-        Effect.tap(() => Effect.sync(() => taskLog.debug("Processes killed"))),
-        Effect.ignoreLogged
+    // 2. Shutdown agent handle (kills process, closes tunnel/SSE)
+    const handle = deps.getAgentHandle(taskId)
+    if (handle) {
+      yield* handle.shutdown().pipe(
+        Effect.tap(() => Effect.sync(() => taskLog.info("Agent shutdown"))),
+        Effect.ignoreLogged,
       )
-
-      // Remove injected credentials from VM before returning to pool (best-effort)
-      yield* deps.sshExec(
-        "",
-        0,
-        "rm -f ~/.env ~/.local/share/opencode/auth.json ~/.git-credentials; unset ANTHROPIC_API_KEY GITHUB_TOKEN GH_TOKEN OPENCODE_SERVER_PASSWORD || true",
-      ).pipe(
-        Effect.tap(() => Effect.sync(() => taskLog.debug("Credentials scrubbed"))),
-        Effect.tapError(() =>
-          Effect.sync(() => taskLog.warn("Credential scrub failed, VM will be destroyed instead of recycled"))
-        ),
-        Effect.ignoreLogged
-      )
-
-      // Return VM to the warm pool (must succeed for cleanup to be considered complete)
-      yield* deps.releaseVm(task.vm_id).pipe(
-        Effect.mapError((e) => new SessionCleanupError({
-          message: "VM release failed",
-          taskId,
-          cause: e,
-        }))
-      )
-      taskLog.info("VM released")
     }
+
+    // 3. Remove worktree from VM (best-effort)
+    if (task.worktree_path && task.vm_id) {
+      const vmInfo = yield* deps.getVmForTask(taskId).pipe(
+        Effect.catchAll(() => Effect.succeed(null)),
+      )
+
+      if (vmInfo) {
+        yield* deps.sshExec(
+          vmInfo.ip,
+          vmInfo.sshPort,
+          `cd /workspace/repo && git worktree remove ${task.worktree_path} --force 2>/dev/null || rm -rf ${task.worktree_path}`,
+        ).pipe(
+          Effect.tap(() => Effect.sync(() => taskLog.info("Worktree removed", { path: task.worktree_path }))),
+          Effect.ignoreLogged,
+        )
+      }
+    }
+
+    // NOTE: VM is NOT released/destroyed — it persists for the project
 
     span.end()
   })

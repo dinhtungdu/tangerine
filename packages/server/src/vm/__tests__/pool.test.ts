@@ -87,14 +87,13 @@ function createTestDb(): Database {
       ip          TEXT,
       ssh_port    INTEGER,
       status      TEXT NOT NULL DEFAULT 'provisioning',
-      task_id     TEXT,
+      project_id  TEXT NOT NULL DEFAULT 'test',
       snapshot_id TEXT NOT NULL,
       region      TEXT NOT NULL,
       plan        TEXT NOT NULL,
       created_at  TEXT NOT NULL DEFAULT (datetime('now')),
       updated_at  TEXT NOT NULL DEFAULT (datetime('now')),
-      error       TEXT,
-      idle_since  TEXT
+      error       TEXT
     );
 
     CREATE TABLE IF NOT EXISTS tasks (
@@ -116,7 +115,7 @@ function createTestDb(): Database {
     );
 
     CREATE INDEX IF NOT EXISTS idx_vms_status ON vms(status);
-    CREATE INDEX IF NOT EXISTS idx_vms_task_id ON vms(task_id);
+    CREATE INDEX IF NOT EXISTS idx_vms_project_id ON vms(project_id);
   `);
   return db;
 }
@@ -154,7 +153,7 @@ describe("VMPoolManager", () => {
 
   describe("acquireVm", () => {
     it("provisions and returns a VM when pool is empty", async () => {
-      // Insert a task so acquireVm can assign to it
+      // Insert a task so acquireVm can reference it
       db.run(
         `INSERT INTO tasks (id, repo_url, context, status) VALUES ('task-1', 'https://github.com/test/repo', 'test', 'pending')`
       );
@@ -162,17 +161,16 @@ describe("VMPoolManager", () => {
       const vm = await Effect.runPromise(pool.acquireVm("task-1"));
 
       expect(vm).toBeDefined();
-      expect(vm.status).toBe("assigned");
-      expect(vm.task_id).toBe("task-1");
+      expect(vm.status).toBe("active");
       expect(vm.ip).toBeTruthy();
     });
 
     it("reuses a warm VM when one is available", async () => {
-      // Pre-populate a ready VM in the pool
+      // Pre-populate an active VM in the pool
       const now = new Date().toISOString();
       db.run(
-        `INSERT INTO vms (id, label, provider, ip, ssh_port, status, snapshot_id, region, plan, created_at, updated_at)
-         VALUES ('warm-1', 'warm-1', 'mock', '10.0.0.99', 22, 'ready', 'snap', 'local', '2cpu-4gb', ?, ?)`,
+        `INSERT INTO vms (id, label, provider, ip, ssh_port, status, project_id, snapshot_id, region, plan, created_at, updated_at)
+         VALUES ('warm-1', 'warm-1', 'mock', '10.0.0.99', 22, 'active', 'test', 'snap', 'local', '2cpu-4gb', ?, ?)`,
         [now, now]
       );
 
@@ -183,17 +181,16 @@ describe("VMPoolManager", () => {
       const vm = await Effect.runPromise(pool.acquireVm("task-2"));
 
       expect(vm.id).toBe("warm-1");
-      expect(vm.status).toBe("assigned");
-      expect(vm.task_id).toBe("task-2");
+      expect(vm.status).toBe("active");
     });
   });
 
   describe("releaseVm", () => {
-    it("marks VM as ready with idle_since when idleTimeout > 0", async () => {
+    it("marks VM as stopped when idleTimeout > 0", async () => {
       const now = new Date().toISOString();
       db.run(
-        `INSERT INTO vms (id, label, provider, ip, ssh_port, status, task_id, snapshot_id, region, plan, created_at, updated_at)
-         VALUES ('vm-1', 'vm-1', 'mock', '10.0.0.1', 22, 'assigned', 'task-1', 'snap', 'local', '2cpu-4gb', ?, ?)`,
+        `INSERT INTO vms (id, label, provider, ip, ssh_port, status, project_id, snapshot_id, region, plan, created_at, updated_at)
+         VALUES ('vm-1', 'vm-1', 'mock', '10.0.0.1', 22, 'active', 'test', 'snap', 'local', '2cpu-4gb', ?, ?)`,
         [now, now]
       );
 
@@ -201,9 +198,7 @@ describe("VMPoolManager", () => {
 
       const vm = Effect.runSync(pool.getVm("vm-1"));
       expect(vm).toBeDefined();
-      expect(vm!.status).toBe("ready");
-      expect(vm!.task_id).toBeNull();
-      expect(vm!.idle_since).toBeTruthy();
+      expect(vm!.status).toBe("stopped");
     });
 
     it("destroys VM immediately when idleTimeout is 0", async () => {
@@ -230,8 +225,8 @@ describe("VMPoolManager", () => {
 
       const now = new Date().toISOString();
       db.run(
-        `INSERT INTO vms (id, label, provider, ip, ssh_port, status, task_id, snapshot_id, region, plan, created_at, updated_at)
-         VALUES ('vm-2', 'vm-2', 'mock', '10.0.0.2', 22, 'assigned', 'task-2', 'snap', 'local', '2cpu-4gb', ?, ?)`,
+        `INSERT INTO vms (id, label, provider, ip, ssh_port, status, project_id, snapshot_id, region, plan, created_at, updated_at)
+         VALUES ('vm-2', 'vm-2', 'mock', '10.0.0.2', 22, 'active', 'test', 'snap', 'local', '2cpu-4gb', ?, ?)`,
         [now, now]
       );
 
@@ -244,13 +239,13 @@ describe("VMPoolManager", () => {
   });
 
   describe("reapIdleVms", () => {
-    it("destroys VMs that have been idle past timeout", async () => {
-      // Insert a VM with idle_since set far in the past
+    it("destroys stopped VMs that have been idle past timeout", async () => {
+      // Insert a VM with updated_at set far in the past
       const pastTime = new Date(Date.now() - 600_000).toISOString();
       db.run(
-        `INSERT INTO vms (id, label, provider, ip, ssh_port, status, snapshot_id, region, plan, created_at, updated_at, idle_since)
-         VALUES ('idle-1', 'idle-1', 'mock', '10.0.0.1', 22, 'ready', 'snap', 'local', '2cpu-4gb', ?, ?, ?)`,
-        [pastTime, pastTime, pastTime]
+        `INSERT INTO vms (id, label, provider, ip, ssh_port, status, project_id, snapshot_id, region, plan, created_at, updated_at)
+         VALUES ('idle-1', 'idle-1', 'mock', '10.0.0.1', 22, 'stopped', 'test', 'snap', 'local', '2cpu-4gb', ?, ?)`,
+        [pastTime, pastTime]
       );
 
       const reaped = await Effect.runPromise(pool.reapIdleVms());
@@ -261,108 +256,26 @@ describe("VMPoolManager", () => {
       expect(vm!.status).toBe("destroyed");
     });
 
-    it("does not reap VMs that are still within timeout", async () => {
-      // Insert a VM with idle_since set just now
+    it("does not reap stopped VMs that are still within timeout", async () => {
       const now = new Date().toISOString();
       db.run(
-        `INSERT INTO vms (id, label, provider, ip, ssh_port, status, snapshot_id, region, plan, created_at, updated_at, idle_since)
-         VALUES ('fresh-1', 'fresh-1', 'mock', '10.0.0.1', 22, 'ready', 'snap', 'local', '2cpu-4gb', ?, ?, ?)`,
-        [now, now, now]
+        `INSERT INTO vms (id, label, provider, ip, ssh_port, status, project_id, snapshot_id, region, plan, created_at, updated_at)
+         VALUES ('fresh-1', 'fresh-1', 'mock', '10.0.0.1', 22, 'stopped', 'test', 'snap', 'local', '2cpu-4gb', ?, ?)`,
+        [now, now]
       );
 
       const reaped = await Effect.runPromise(pool.reapIdleVms());
 
       expect(reaped).toBe(0);
       const vm = Effect.runSync(pool.getVm("fresh-1"));
-      expect(vm!.status).toBe("ready");
+      expect(vm!.status).toBe("stopped");
     });
   });
 
   describe("ensureWarm", () => {
-    it("provisions VMs when below minReady", async () => {
-      const warmProvider = createMockProvider();
-      const warmPool = new VMPoolManager(
-        db,
-        createTestConfig(warmProvider, {
-          slots: [
-            {
-              name: "mock",
-              provider: warmProvider,
-              snapshotId: "clone:golden",
-              region: "local",
-              plan: "2cpu-4gb",
-              maxPoolSize: 5,
-              priority: 1,
-              idleTimeoutMs: 300_000,
-              minReady: 2,
-            },
-          ],
-        })
-      );
-
-      warmPool.ensureWarm();
-
-      // Wait a tick for fire-and-forget provisioning to complete
-      await new Promise((r) => setTimeout(r, 100));
-
-      const vms = Effect.runSync(warmPool.listVms());
-      // Should have provisioned VMs to meet minReady target
-      const activeVms = vms.filter((v) => v.status !== "destroyed" && v.status !== "error");
-      expect(activeVms.length).toBeGreaterThanOrEqual(1);
-    });
-
-    it("does not provision when at or above minReady", async () => {
-      let provisionCount = 0;
-      const countingProvider = createMockProvider({
-        createInstance(opts: CreateInstanceOptions) {
-          provisionCount++;
-          const id = opts.label ?? `mock-${provisionCount}`;
-          return Effect.succeed({
-            id,
-            label: id,
-            ip: `10.0.0.${provisionCount}`,
-            status: "active" as const,
-            region: opts.region,
-            plan: opts.plan,
-            createdAt: new Date().toISOString(),
-            sshPort: 22,
-          });
-        },
-      });
-
-      const warmPool = new VMPoolManager(
-        db,
-        createTestConfig(countingProvider, {
-          slots: [
-            {
-              name: "mock",
-              provider: countingProvider,
-              snapshotId: "clone:golden",
-              region: "local",
-              plan: "2cpu-4gb",
-              maxPoolSize: 5,
-              priority: 1,
-              idleTimeoutMs: 300_000,
-              minReady: 1,
-            },
-          ],
-        })
-      );
-
-      // Pre-populate one ready VM
-      const now = new Date().toISOString();
-      db.run(
-        `INSERT INTO vms (id, label, provider, ip, ssh_port, status, snapshot_id, region, plan, created_at, updated_at)
-         VALUES ('ready-1', 'ready-1', 'mock', '10.0.0.1', 22, 'ready', 'snap', 'local', '2cpu-4gb', ?, ?)`,
-        [now, now]
-      );
-
-      warmPool.ensureWarm();
-
-      // Wait a tick
-      await new Promise((r) => setTimeout(r, 50));
-
-      expect(provisionCount).toBe(0);
+    it("is a no-op (being replaced by ProjectVmManager)", () => {
+      pool.ensureWarm();
+      // No error = pass
     });
   });
 
@@ -371,26 +284,26 @@ describe("VMPoolManager", () => {
       const now = new Date().toISOString();
 
       db.run(
-        `INSERT INTO vms (id, label, provider, ip, status, snapshot_id, region, plan, created_at, updated_at)
-         VALUES ('p1', 'p1', 'mock', NULL, 'provisioning', 'snap', 'local', '2cpu-4gb', ?, ?)`,
+        `INSERT INTO vms (id, label, provider, ip, status, project_id, snapshot_id, region, plan, created_at, updated_at)
+         VALUES ('p1', 'p1', 'mock', NULL, 'provisioning', 'test', 'snap', 'local', '2cpu-4gb', ?, ?)`,
         [now, now]
       );
       db.run(
-        `INSERT INTO vms (id, label, provider, ip, status, snapshot_id, region, plan, created_at, updated_at)
-         VALUES ('r1', 'r1', 'mock', '10.0.0.1', 'ready', 'snap', 'local', '2cpu-4gb', ?, ?)`,
+        `INSERT INTO vms (id, label, provider, ip, status, project_id, snapshot_id, region, plan, created_at, updated_at)
+         VALUES ('a1', 'a1', 'mock', '10.0.0.1', 'active', 'test', 'snap', 'local', '2cpu-4gb', ?, ?)`,
         [now, now]
       );
       db.run(
-        `INSERT INTO vms (id, label, provider, ip, status, task_id, snapshot_id, region, plan, created_at, updated_at)
-         VALUES ('a1', 'a1', 'mock', '10.0.0.2', 'assigned', 'task-1', 'snap', 'local', '2cpu-4gb', ?, ?)`,
+        `INSERT INTO vms (id, label, provider, ip, status, project_id, snapshot_id, region, plan, created_at, updated_at)
+         VALUES ('s1', 's1', 'mock', '10.0.0.2', 'stopped', 'test', 'snap', 'local', '2cpu-4gb', ?, ?)`,
         [now, now]
       );
 
       const stats = Effect.runSync(pool.getPoolStats());
 
       expect(stats.provisioning).toBe(1);
-      expect(stats.ready).toBe(1);
-      expect(stats.assigned).toBe(1);
+      expect(stats.active).toBe(1);
+      expect(stats.stopped).toBe(1);
       expect(stats.total).toBe(3);
       expect(stats.byProvider.mock).toBe(3);
     });

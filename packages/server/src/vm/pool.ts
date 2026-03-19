@@ -136,19 +136,18 @@ export interface VmDbRow {
   ip: string | null
   ssh_port: number | null
   status: string
-  task_id: string | null
+  project_id: string
   snapshot_id: string
   region: string
   plan: string
   created_at: string
   updated_at: string
   error: string | null
-  idle_since: string | null
 }
 
 export type { VmDbRow as VmRow }
 
-export type VmStatus = "provisioning" | "ready" | "assigned" | "destroyed" | "error"
+export type VmStatus = "provisioning" | "active" | "stopped" | "destroyed" | "error"
 
 export class VMPoolManager {
   private db: Database
@@ -163,6 +162,7 @@ export class VMPoolManager {
     return this.config.slots[0]!
   }
 
+  // TODO: This class will be replaced by ProjectVmManager. Keeping it compiling for now.
   acquireVm(taskId: string): Effect.Effect<VmDbRow, Error> {
     return Effect.tryPromise({
       try: async () => {
@@ -170,13 +170,13 @@ export class VMPoolManager {
 
         // Try to find a warm VM
         const warmVm = this.db.prepare(
-          "SELECT * FROM vms WHERE status = 'ready' ORDER BY created_at ASC LIMIT 1"
+          "SELECT * FROM vms WHERE status = 'active' ORDER BY created_at ASC LIMIT 1"
         ).get() as VmDbRow | null
 
         if (warmVm) {
           this.db.prepare(
-            "UPDATE vms SET status = 'assigned', task_id = ?, idle_since = NULL, updated_at = datetime('now') WHERE id = ?"
-          ).run(taskId, warmVm.id)
+            "UPDATE vms SET status = 'active', updated_at = datetime('now') WHERE id = ?"
+          ).run(warmVm.id)
           return this.db.prepare("SELECT * FROM vms WHERE id = ?").get(warmVm.id) as VmDbRow
         }
 
@@ -193,8 +193,8 @@ export class VMPoolManager {
 
         const now = new Date().toISOString()
         this.db.prepare(`
-          INSERT INTO vms (id, label, provider, ip, ssh_port, status, task_id, snapshot_id, region, plan, created_at, updated_at)
-          VALUES (?, ?, ?, ?, ?, 'assigned', ?, ?, ?, ?, ?, ?)
+          INSERT INTO vms (id, label, provider, ip, ssh_port, status, project_id, snapshot_id, region, plan, created_at, updated_at)
+          VALUES (?, ?, ?, ?, ?, 'active', ?, ?, ?, ?, ?, ?)
         `).run(
           instance.id, instance.label, slot.name,
           instance.ip, instance.sshPort ?? null,
@@ -221,11 +221,11 @@ export class VMPoolManager {
             // Provider destroy may fail if instance doesn't exist there
           }
           this.db.prepare(
-            "UPDATE vms SET status = 'destroyed', task_id = NULL, updated_at = datetime('now') WHERE id = ?"
+            "UPDATE vms SET status = 'destroyed', updated_at = datetime('now') WHERE id = ?"
           ).run(vmId)
         } else {
           this.db.prepare(
-            "UPDATE vms SET status = 'ready', task_id = NULL, idle_since = datetime('now'), updated_at = datetime('now') WHERE id = ?"
+            "UPDATE vms SET status = 'stopped', updated_at = datetime('now') WHERE id = ?"
           ).run(vmId)
         }
       },
@@ -237,13 +237,14 @@ export class VMPoolManager {
     return Effect.tryPromise({
       try: async () => {
         const slot = this.getSlot()
-        const idleVms = this.db.prepare(
-          "SELECT * FROM vms WHERE status = 'ready' AND idle_since IS NOT NULL"
+        // Reap stopped VMs that have been idle longer than the timeout
+        const stoppedVms = this.db.prepare(
+          "SELECT * FROM vms WHERE status = 'stopped'"
         ).all() as VmDbRow[]
 
         let reaped = 0
-        for (const vm of idleVms) {
-          const idleMs = Date.now() - new Date(vm.idle_since!).getTime()
+        for (const vm of stoppedVms) {
+          const idleMs = Date.now() - new Date(vm.updated_at).getTime()
           if (idleMs > slot.idleTimeoutMs) {
             try {
               await Effect.runPromise(slot.provider.destroyInstance(vm.id))
@@ -274,87 +275,20 @@ export class VMPoolManager {
     })
   }
 
+  // TODO: Will be replaced by ProjectVmManager
   ensureWarm(): void {
-    const slot = this.getSlot()
-    const readyCount = (this.db.prepare(
-      "SELECT COUNT(*) as count FROM vms WHERE status = 'ready'"
-    ).get() as { count: number }).count
-
-    const deficit = slot.minReady - readyCount
-    if (deficit <= 0) return
-
-    // Fire and forget provisioning
-    for (let i = 0; i < deficit; i++) {
-      const label = `${this.config.labelPrefix ?? "vm"}-${crypto.randomUUID().slice(0, 8)}`
-      Effect.runPromise(
-        Effect.tryPromise({
-          try: async () => {
-            const instance = await Effect.runPromise(slot.provider.createInstance({
-              region: slot.region,
-              plan: slot.plan,
-              snapshotId: slot.snapshotId,
-              label,
-            }))
-            await Effect.runPromise(slot.provider.waitForReady(instance.id))
-            // Wait for SSH to be available before marking as ready
-            await Effect.runPromise(waitForSsh(instance.ip, instance.sshPort ?? 22))
-            const now = new Date().toISOString()
-            this.db.prepare(`
-              INSERT INTO vms (id, label, provider, ip, ssh_port, status, snapshot_id, region, plan, created_at, updated_at)
-              VALUES (?, ?, ?, ?, ?, 'ready', ?, ?, ?, ?, ?)
-            `).run(
-              instance.id, instance.label, slot.name,
-              instance.ip, instance.sshPort ?? null,
-              slot.snapshotId, slot.region, slot.plan,
-              now, now
-            )
-          },
-          catch: (err) => err instanceof Error ? err : new Error(String(err)),
-        })
-      ).catch((err) => {
-        log.error("ensureWarm provisioning failed", { error: String(err) })
-      })
-    }
+    // No-op: warm pool concept is being replaced by per-project VMs
   }
 
-  /**
-   * Release VMs assigned to tasks that are no longer active (failed/cancelled/done).
-   * Prevents VM leaks after task failures or retries.
-   */
+  // TODO: Will be replaced by ProjectVmManager
   releaseStaleVms(): Effect.Effect<number, Error> {
-    return Effect.tryPromise({
-      try: async () => {
-        // Find VMs that are assigned but stale:
-        // 1. Task no longer exists
-        // 2. Task is in a terminal state (failed/cancelled/done)
-        // 3. Task's vm_id points to a different VM (task was re-dispatched)
-        const staleVms = this.db.prepare(`
-          SELECT vms.* FROM vms
-          LEFT JOIN tasks ON vms.task_id = tasks.id
-          WHERE vms.status = 'assigned'
-          AND (
-            tasks.id IS NULL
-            OR tasks.status IN ('failed', 'cancelled', 'done')
-            OR (tasks.vm_id IS NOT NULL AND tasks.vm_id != vms.id)
-          )
-        `).all() as VmDbRow[]
-
-        let released = 0
-        for (const vm of staleVms) {
-          log.info("Releasing stale VM", { vmId: vm.id, taskId: vm.task_id })
-          await Effect.runPromise(this.releaseVm(vm.id))
-          released++
-        }
-        return released
-      },
-      catch: (err) => err instanceof Error ? err : new Error(String(err)),
-    })
+    return Effect.succeed(0)
   }
 
   getPoolStats(): Effect.Effect<{
     provisioning: number
-    ready: number
-    assigned: number
+    active: number
+    stopped: number
     total: number
     byProvider: Record<string, number>
   }, never> {
@@ -367,16 +301,16 @@ export class VMPoolManager {
 
       const stats = {
         provisioning: 0,
-        ready: 0,
-        assigned: 0,
+        active: 0,
+        stopped: 0,
         total: 0,
         byProvider: {} as Record<string, number>,
       }
 
       for (const row of rows) {
         if (row.status === "provisioning") stats.provisioning += row.count
-        if (row.status === "ready") stats.ready += row.count
-        if (row.status === "assigned") stats.assigned += row.count
+        if (row.status === "active") stats.active += row.count
+        if (row.status === "stopped") stats.stopped += row.count
         stats.total += row.count
         stats.byProvider[row.provider] = (stats.byProvider[row.provider] ?? 0) + row.count
       }

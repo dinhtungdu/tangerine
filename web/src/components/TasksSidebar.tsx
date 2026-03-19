@@ -82,6 +82,10 @@ export function TasksSidebar({ tasks, searchQuery, onSearchChange, onNewAgent }:
                 </span>
                 <span className="font-mono text-[11px] text-fg-muted">
                   {formatRelativeTime(task.createdAt)} · {task.status}
+                  {" · "}
+                  <span className="rounded bg-surface-secondary px-1 py-px text-[10px]">
+                    {task.provider === "claude-code" ? "CC" : "OC"}
+                  </span>
                 </span>
               </div>
             </Link>

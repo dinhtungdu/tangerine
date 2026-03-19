@@ -7,7 +7,7 @@ import { VM_USER } from "../config";
 export interface SessionTunnel {
   vmIp: string;
   sshPort: number;
-  opencodePort: number;
+  agentPort: number;
   previewPort: number;
   process: Subprocess;
 }
@@ -24,7 +24,7 @@ export function createTunnel(opts: {
       const user = opts.user ?? VM_USER;
       const remoteOpencodePort = opts.remoteOpencodePort ?? 4096;
 
-      const [opencodePort, previewPort] = await Promise.all([
+      const [agentPort, previewPort] = await Promise.all([
         Effect.runPromise(allocatePort()),
         Effect.runPromise(allocatePort()),
       ]);
@@ -39,7 +39,7 @@ export function createTunnel(opts: {
         "-o", "ExitOnForwardFailure=yes",
         "-p", String(opts.sshPort),
         // Forward OpenCode port
-        "-L", `${opencodePort}:127.0.0.1:${remoteOpencodePort}`,
+        "-L", `${agentPort}:127.0.0.1:${remoteOpencodePort}`,
         // Forward preview port
         "-L", `${previewPort}:127.0.0.1:${opts.remotePreviewPort}`,
         `${user}@${opts.vmIp}`,
@@ -69,7 +69,7 @@ export function createTunnel(opts: {
       return {
         vmIp: opts.vmIp,
         sshPort: opts.sshPort,
-        opencodePort,
+        agentPort,
         previewPort,
         process,
       };

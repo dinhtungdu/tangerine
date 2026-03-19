@@ -10,7 +10,7 @@ import type { RawConfig } from "../config"
 function createMockDeps(db: Database, configOverrides?: Partial<AppDeps["config"]["config"]>): AppDeps {
   const configData = {
     projects: [
-      { name: "test-project", repo: "test/repo", defaultBranch: "main", image: "test", setup: "echo ok" },
+      { name: "test-project", repo: "test/repo", defaultBranch: "main", image: "test", setup: "echo ok", defaultProvider: "opencode" as const },
     ],
     integrations: {},
     model: "openai/gpt-4o",
@@ -66,7 +66,7 @@ function createMockDeps(db: Database, configOverrides?: Partial<AppDeps["config"
     },
     pool: {
       getPoolStats() {
-        return Effect.succeed({ ready: 2, assigned: 1, provisioning: 0, total: 3 })
+        return Effect.succeed({ active: 2, stopped: 1, provisioning: 0, total: 3 })
       },
       destroyVm(vmId) {
         return Effect.sync(() => {
@@ -92,6 +92,7 @@ function createMockDeps(db: Database, configOverrides?: Partial<AppDeps["config"
       config: configData,
       credentials: {
         opencodeAuthPath: null,
+        claudeOauthToken: null,
         anthropicApiKey: null,
         githubToken: null,
         ghHost: "github.com",
@@ -122,15 +123,16 @@ function seedTask(db: Database, overrides?: Partial<Parameters<typeof dbCreateTa
 function seedVm(db: Database, overrides?: Record<string, unknown>): { id: string } {
   const id = `vm-${crypto.randomUUID().slice(0, 8)}`
   db.prepare(`
-    INSERT INTO vms (id, label, provider, ip, ssh_port, status, snapshot_id, region, plan)
-    VALUES ($id, $label, $provider, $ip, $ssh_port, $status, $snapshot_id, $region, $plan)
+    INSERT INTO vms (id, label, provider, ip, ssh_port, status, project_id, snapshot_id, region, plan)
+    VALUES ($id, $label, $provider, $ip, $ssh_port, $status, $project_id, $snapshot_id, $region, $plan)
   `).run({
     $id: id,
     $label: id,
     $provider: "lima",
     $ip: "10.0.0.1",
     $ssh_port: 22,
-    $status: "ready",
+    $status: "active",
+    $project_id: "test-project",
     $snapshot_id: "snap-test",
     $region: "local",
     $plan: "4cpu-8gb",
@@ -163,8 +165,8 @@ describe("API routes", () => {
     test("returns pool stats", async () => {
       const res = await app.fetch(new Request("http://localhost/api/pool"))
       expect(res.status).toBe(200)
-      const body = await res.json() as { ready: number; total: number }
-      expect(body.ready).toBe(2)
+      const body = await res.json() as { active: number; total: number }
+      expect(body.active).toBe(2)
       expect(body.total).toBe(3)
     })
   })

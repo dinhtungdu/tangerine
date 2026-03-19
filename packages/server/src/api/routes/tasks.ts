@@ -31,7 +31,7 @@ export function taskRoutes(deps: AppDeps): Hono {
   })
 
   app.post("/", async (c) => {
-    const body = await c.req.json<{ projectId?: string; title?: string; description?: string }>()
+    const body = await c.req.json<{ projectId?: string; title?: string; description?: string; provider?: string }>()
     if (!body.title) {
       return c.json({ error: "title is required" }, 400)
     }
@@ -41,8 +41,9 @@ export function taskRoutes(deps: AppDeps): Hono {
     if (!project) {
       return c.json({ error: `Unknown project: ${projectId}` }, 400)
     }
+    const provider = body.provider === "claude-code" ? "claude-code" : "opencode"
     return runEffect(c,
-      deps.taskManager.createTask({ source: "manual", projectId, title: body.title, description: body.description }).pipe(
+      deps.taskManager.createTask({ source: "manual", projectId, title: body.title, description: body.description, provider }).pipe(
         Effect.map(mapTaskRow)
       ),
       { status: 201 }
@@ -73,6 +74,7 @@ export function taskRoutes(deps: AppDeps): Hono {
                 description: task.description ?? undefined,
                 sourceId: task.source_id ?? undefined,
                 sourceUrl: task.source_url ?? undefined,
+                provider: task.provider,
               }).pipe(Effect.mapError((e) => new Error(String(e))))
             ),
             Effect.map(mapTaskRow),

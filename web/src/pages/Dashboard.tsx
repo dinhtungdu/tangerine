@@ -14,7 +14,7 @@ export function Dashboard() {
   const { current } = useProject()
   const { query, setQuery, tasks, refetch } = useTaskSearch(current?.name)
 
-  const handleNewAgent = async (data: { projectId: string; title: string; description?: string }) => {
+  const handleNewAgent = async (data: { projectId: string; title: string; description?: string; provider?: string }) => {
     try {
       const task = await createTask(data)
       refetch()

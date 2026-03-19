@@ -83,6 +83,9 @@ provision:
       # Install OpenCode globally
       npm install -g opencode-ai
 
+      # Install Claude Code CLI
+      npm install -g @anthropic-ai/claude-code
+
       # Workspace directory (owned by Lima default user via user provision)
       mkdir -p /workspace
 

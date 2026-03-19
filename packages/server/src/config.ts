@@ -34,6 +34,9 @@ export function writeRawConfig(config: RawConfig): void {
 /** Path to OpenCode's credential store on the host */
 export const OPENCODE_AUTH_PATH = join(homedir(), ".local", "share", "opencode", "auth.json")
 
+/** Path to Claude Code's config directory on the host */
+export const CLAUDE_AUTH_DIR = join(homedir(), ".claude")
+
 /** SSH user inside the VM — Lima defaults to the host username */
 export const VM_USER = userInfo().username
 
@@ -44,6 +47,7 @@ export interface AppConfig {
   config: TangerineConfig
   credentials: {
     opencodeAuthPath: string | null
+    claudeOauthToken: string | null
     anthropicApiKey: string | null
     githubToken: string | null
     ghHost: string
@@ -81,12 +85,14 @@ export function loadConfig(): AppConfig {
   const config = tangerineConfigSchema.parse(raw)
 
   const opencodeAuthPath = existsSync(OPENCODE_AUTH_PATH) ? OPENCODE_AUTH_PATH : null
+  const claudeOauthToken = process.env["CLAUDE_CODE_OAUTH_TOKEN"] ?? null
   const anthropicApiKey = process.env["ANTHROPIC_API_KEY"] ?? null
 
-  if (!opencodeAuthPath && !anthropicApiKey) {
+  if (!opencodeAuthPath && !claudeOauthToken && !anthropicApiKey) {
     throw new Error(
-      "No LLM credentials found. Either run `opencode auth login` to set up auth, " +
-      "or set the ANTHROPIC_API_KEY environment variable.",
+      "No LLM credentials found. Either run `opencode auth login`, " +
+      "set CLAUDE_CODE_OAUTH_TOKEN (from `claude setup-token`), " +
+      "or set ANTHROPIC_API_KEY.",
     )
   }
 
@@ -94,6 +100,7 @@ export function loadConfig(): AppConfig {
     config,
     credentials: {
       opencodeAuthPath,
+      claudeOauthToken,
       anthropicApiKey,
       githubToken: process.env["GITHUB_TOKEN"] ?? null,
       ghHost: process.env["GH_HOST"] ?? "github.com",

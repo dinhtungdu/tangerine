@@ -1,4 +1,4 @@
-import type { Task, TaskSource, TaskStatus } from "@tangerine/shared"
+import type { Task, TaskSource, TaskStatus, ProviderType } from "@tangerine/shared"
 import type { TaskRow } from "../db/types"
 
 /** Maps a snake_case TaskRow from SQLite to a camelCase Task for API responses */
@@ -12,12 +12,14 @@ export function mapTaskRow(row: TaskRow): Task {
     title: row.title,
     description: row.description,
     status: row.status as TaskStatus,
+    provider: row.provider as ProviderType,
     vmId: row.vm_id,
     branch: row.branch,
+    worktreePath: row.worktree_path,
     prUrl: row.pr_url,
     userId: row.user_id,
-    opencodeSessionId: row.opencode_session_id,
-    opencodePort: row.opencode_port,
+    agentSessionId: row.agent_session_id,
+    agentPort: row.agent_port,
     previewPort: row.preview_port,
     error: row.error,
     createdAt: row.created_at,

@@ -22,7 +22,7 @@ const log = createLogger("tasks")
 export type TaskSource = "github" | "manual" | "api"
 
 export interface TaskManagerDeps {
-  insertTask(task: Pick<TaskRow, "id" | "project_id" | "source" | "repo_url" | "title"> & Partial<Pick<TaskRow, "source_id" | "source_url" | "description" | "user_id" | "branch">>): Effect.Effect<TaskRow, Error>
+  insertTask(task: Pick<TaskRow, "id" | "project_id" | "source" | "repo_url" | "title"> & Partial<Pick<TaskRow, "source_id" | "source_url" | "description" | "user_id" | "branch" | "provider">>): Effect.Effect<TaskRow, Error>
   updateTask(taskId: string, updates: Partial<Omit<TaskRow, "id">>): Effect.Effect<TaskRow | null, Error>
   getTask(taskId: string): Effect.Effect<TaskRow | null, Error>
   listTasks(filter?: { status?: string; projectId?: string }): Effect.Effect<TaskRow[], Error>
@@ -32,7 +32,7 @@ export interface TaskManagerDeps {
   retryDeps: RetryDeps
   getProjectConfig(projectId: string): ProjectConfig | undefined
   credentialConfig: CredentialConfig
-  abortAgent(opencodePort: number, sessionId: string): Effect.Effect<void, AgentError>
+  abortAgent(agentPort: number, sessionId: string): Effect.Effect<void, AgentError>
 }
 
 // Prompt queue per task (sent sequentially so agent completes one before starting next)
@@ -47,6 +47,7 @@ export function createTask(
     sourceUrl?: string
     title: string
     description?: string
+    provider?: string
   },
 ): Effect.Effect<TaskRow, Error> {
   return Effect.gen(function* () {
@@ -66,6 +67,7 @@ export function createTask(
       repo_url: projectConfig.repo,
       title: params.title,
       description: params.description ?? null,
+      provider: params.provider ?? "opencode",
     })
 
     log.info("Task created", { taskId: id, projectId: params.projectId, source: params.source, title: params.title })
@@ -211,21 +213,13 @@ export function resumeOrphanedTasks(
 
       log.info("Resuming orphaned task", { taskId: task.id, status: task.status, title: task.title })
 
-      // Release the previously assigned VM before re-dispatching
-      if (task.vm_id) {
-        yield* deps.cleanupDeps.releaseVm(task.vm_id).pipe(
-          Effect.tap(() => Effect.sync(() => log.info("Released orphaned VM", { vmId: task.vm_id, taskId: task.id }))),
-          Effect.catchAll(() => Effect.void),
-        )
-      }
-
-      // Reset to created and clear VM assignment so lifecycle starts fresh
+      // Reset task state (VM persists per-project, no need to release)
       yield* deps.updateTask(task.id, {
         status: "created",
-        vm_id: null,
-        opencode_session_id: null,
-        opencode_port: null,
+        agent_session_id: null,
+        agent_port: null,
         preview_port: null,
+        worktree_path: null,
       }).pipe(Effect.ignoreLogged)
 
       // Use Effect.forkDaemon so the fiber outlives this Effect scope
@@ -247,12 +241,12 @@ export function abortAgent(
       Effect.mapError(() => new TaskNotFoundError({ taskId }))
     )
 
-    if (!task?.opencode_port || !task.opencode_session_id) {
+    if (!task?.agent_port || !task.agent_session_id) {
       log.warn("Abort requested but no active session", { taskId })
       return yield* new TaskNotFoundError({ taskId })
     }
 
     log.info("Agent aborted", { taskId })
-    yield* deps.abortAgent(task.opencode_port, task.opencode_session_id)
+    yield* deps.abortAgent(task.agent_port, task.agent_session_id)
   })
 }

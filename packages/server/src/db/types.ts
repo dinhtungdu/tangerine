@@ -5,14 +5,13 @@ export interface VmRow {
   ip: string | null
   ssh_port: number | null
   status: string
-  task_id: string | null
+  project_id: string
   snapshot_id: string
   region: string
   plan: string
   created_at: string
   updated_at: string
   error: string | null
-  idle_since: string | null
 }
 
 export interface TaskRow {
@@ -25,12 +24,14 @@ export interface TaskRow {
   title: string
   description: string | null
   status: string
+  provider: string
   vm_id: string | null
   branch: string | null
+  worktree_path: string | null
   pr_url: string | null
   user_id: string | null
-  opencode_session_id: string | null
-  opencode_port: number | null
+  agent_session_id: string | null
+  agent_port: number | null
   preview_port: number | null
   error: string | null
   created_at: string

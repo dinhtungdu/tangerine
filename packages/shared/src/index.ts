@@ -3,7 +3,7 @@ export type {
   VmStatus,
   TaskSource,
   Task,
-  PoolStats,
+  ProviderType,
   ActivityType,
   ActivityEntry,
   WsServerMessage,

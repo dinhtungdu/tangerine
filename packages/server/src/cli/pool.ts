@@ -1,9 +1,7 @@
 import { Effect } from "effect"
-import { loadConfig } from "../config.ts"
 import { getDb } from "../db/index.ts"
 import { createProvider } from "../vm/providers/index.ts"
-import { createPoolConfig } from "../vm/pool-config.ts"
-import { VMPoolManager } from "../vm/pool.ts"
+import { ProjectVmManager } from "../vm/project-vm.ts"
 import { createLogger } from "../logger.ts"
 import { printTable } from "./helpers.ts"
 
@@ -17,8 +15,8 @@ export async function runPool(argv: string[]): Promise<void> {
 Usage: tangerine pool <subcommand>
 
 Subcommands:
-  status     Show pool status and VM list
-  reconcile  Reconcile pool state with provider
+  status     Show project VMs
+  reconcile  Reconcile VM state with provider
 `)
     process.exit(0)
   }
@@ -36,42 +34,37 @@ Subcommands:
   }
 }
 
-function createPool(): { pool: VMPoolManager } {
-  const config = loadConfig()
+function createVmManager(): ProjectVmManager {
   const db = getDb()
   const providerType = process.platform === "darwin" ? "lima" : "incus"
   const provider = createProvider(providerType as "lima" | "incus")
-  const poolConfig = createPoolConfig(config, provider, providerType)
-  const pool = new VMPoolManager(db, poolConfig)
-  return { pool }
+  return new ProjectVmManager(db, {
+    provider,
+    providerName: providerType,
+    region: "local",
+    plan: "4cpu-8gb-20gb",
+  })
 }
 
 async function showStatus(): Promise<void> {
-  const { pool } = createPool()
-  const stats = Effect.runSync(pool.getPoolStats())
+  const vmManager = createVmManager()
+  const vms = await Effect.runPromise(vmManager.listVms())
 
-  console.log()
-  console.log("Pool Status")
-  console.log(`  Ready:        ${stats.ready}`)
-  console.log(`  Assigned:     ${stats.assigned}`)
-  console.log(`  Provisioning: ${stats.provisioning}`)
-  console.log(`  Total:        ${stats.total}`)
-  console.log()
-
-  const vms = Effect.runSync(pool.listVms())
-  const activeVms = vms.filter((vm) => vm.status !== "destroyed" && vm.status !== "error")
-  if (activeVms.length === 0) {
-    console.log("No active VMs")
+  if (vms.length === 0) {
+    console.log("\nNo active VMs")
     return
   }
 
+  console.log(`\nProject VMs: ${vms.length}`)
+  console.log()
+
   printTable(
-    ["ID", "STATUS", "IP", "TASK", "PROVIDER", "CREATED"],
-    activeVms.map((vm) => [
-      vm.id.slice(0, 12),
+    ["ID", "STATUS", "IP", "PROJECT", "PROVIDER", "CREATED"],
+    vms.map((vm) => [
+      vm.id.slice(0, 20),
       vm.status,
       vm.ip ?? "-",
-      vm.task_id?.slice(0, 12) ?? "-",
+      vm.project_id,
       vm.provider,
       vm.created_at,
     ])
@@ -79,23 +72,14 @@ async function showStatus(): Promise<void> {
 }
 
 async function runReconcile(): Promise<void> {
-  const { pool } = createPool()
+  const vmManager = createVmManager()
 
-  console.log("Reconciling pool state with provider...")
-  // Reap idle VMs as a simple reconciliation step
-  const destroyed = await Effect.runPromise(pool.reapIdleVms())
-  pool.ensureWarm()
+  console.log("Reconciling VM state with provider...")
+  const { alive, dead } = await Effect.runPromise(vmManager.reconcileOnStartup())
 
   console.log()
-  console.log(`Destroyed: ${destroyed}`)
+  console.log(`Alive: ${alive}`)
+  console.log(`Dead:  ${dead}`)
 
-  const stats = Effect.runSync(pool.getPoolStats())
-  console.log()
-  console.log("Pool after reconcile:")
-  console.log(`  Ready:        ${stats.ready}`)
-  console.log(`  Assigned:     ${stats.assigned}`)
-  console.log(`  Provisioning: ${stats.provisioning}`)
-  console.log(`  Total:        ${stats.total}`)
-
-  log.info("Pool reconciled via CLI", { destroyed })
+  log.info("VM reconciled via CLI", { alive, dead })
 }

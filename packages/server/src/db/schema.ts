@@ -9,12 +9,14 @@ export const SCHEMA = `
     title TEXT NOT NULL,
     description TEXT,
     status TEXT NOT NULL DEFAULT 'created',
+    provider TEXT NOT NULL DEFAULT 'opencode',
     vm_id TEXT,
     branch TEXT,
+    worktree_path TEXT,
     pr_url TEXT,
     user_id TEXT,
-    opencode_session_id TEXT,
-    opencode_port INTEGER,
+    agent_session_id TEXT,
+    agent_port INTEGER,
     preview_port INTEGER,
     error TEXT,
     created_at TEXT NOT NULL DEFAULT (datetime('now')),
@@ -34,18 +36,17 @@ export const SCHEMA = `
     ip TEXT,
     ssh_port INTEGER,
     status TEXT NOT NULL DEFAULT 'provisioning',
-    task_id TEXT,
+    project_id TEXT NOT NULL,
     snapshot_id TEXT NOT NULL,
     region TEXT NOT NULL,
     plan TEXT NOT NULL,
     created_at TEXT NOT NULL DEFAULT (datetime('now')),
     updated_at TEXT NOT NULL DEFAULT (datetime('now')),
-    error TEXT,
-    idle_since TEXT
+    error TEXT
   );
 
   CREATE INDEX IF NOT EXISTS idx_vms_status ON vms(status);
-  CREATE INDEX IF NOT EXISTS idx_vms_task_id ON vms(task_id);
+  CREATE INDEX IF NOT EXISTS idx_vms_project_id ON vms(project_id);
 
   CREATE TABLE IF NOT EXISTS session_logs (
     id INTEGER PRIMARY KEY AUTOINCREMENT,

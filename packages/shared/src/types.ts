@@ -1,5 +1,6 @@
 export type TaskStatus = "created" | "provisioning" | "running" | "done" | "failed" | "cancelled"
-export type VmStatus = "provisioning" | "ready" | "assigned" | "destroying" | "destroyed" | "error"
+export type VmStatus = "provisioning" | "active" | "stopped" | "destroyed" | "error"
+export type ProviderType = "opencode" | "claude-code"
 export type TaskSource = "github" | "linear" | "manual"
 
 export interface Task {
@@ -11,25 +12,20 @@ export interface Task {
   title: string
   description: string | null
   status: TaskStatus
+  provider: ProviderType
   vmId: string | null
   branch: string | null
+  worktreePath: string | null
   prUrl: string | null
   userId: string | null
-  opencodeSessionId: string | null
-  opencodePort: number | null
+  agentSessionId: string | null
+  agentPort: number | null
   previewPort: number | null
   error: string | null
   createdAt: string
   updatedAt: string
   startedAt: string | null
   completedAt: string | null
-}
-
-export interface PoolStats {
-  ready: number
-  assigned: number
-  provisioning: number
-  total: number
 }
 
 export type ActivityType = "lifecycle" | "file" | "system"
