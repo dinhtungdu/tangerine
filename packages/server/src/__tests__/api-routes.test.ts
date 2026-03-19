@@ -3,7 +3,7 @@ import { Effect } from "effect"
 import type { Database } from "bun:sqlite"
 import { createTestDb } from "./helpers"
 import { createApp, type AppDeps } from "../api/app"
-import { createTask as dbCreateTask, updateTaskStatus } from "../db/queries"
+import { createTask as dbCreateTask, updateTaskStatus, insertSessionLog } from "../db/queries"
 import type { TaskRow } from "../db/types"
 import type { RawConfig } from "../config"
 
@@ -56,7 +56,10 @@ function createMockDeps(db: Database, configOverrides?: Partial<AppDeps["config"
           Effect.runSync(updateTaskStatus(db, taskId, "done"))
         })
       },
-      sendPrompt() { return Effect.succeed(undefined as void) },
+      sendPrompt(taskId, text) {
+        Effect.runSync(insertSessionLog(db, { task_id: taskId, role: "user", content: text }))
+        return Effect.succeed(undefined as void)
+      },
       abortTask() { return Effect.succeed(undefined as void) },
       onTaskEvent() { return () => {} },
       onStatusChange() { return () => {} },

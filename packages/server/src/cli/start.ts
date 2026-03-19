@@ -281,6 +281,11 @@ export async function start(): Promise<void> {
         ),
         sendPrompt: (taskId, text) =>
           Effect.gen(function* () {
+            // Persist user message to session_logs so it survives page refresh
+            yield* insertSessionLog(db, { task_id: taskId, role: "user", content: text }).pipe(
+              Effect.catchAll(() => Effect.void)
+            )
+
             const task = yield* getTask(db, taskId)
             if (!task?.opencode_port || !task.opencode_session_id) {
               // Task not yet running — queue for later

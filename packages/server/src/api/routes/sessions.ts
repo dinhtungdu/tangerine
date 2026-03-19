@@ -1,7 +1,7 @@
 import { Effect } from "effect"
 import { Hono } from "hono"
 import type { AppDeps } from "../app"
-import { getTask, getSessionLogs, insertSessionLog } from "../../db/queries"
+import { getTask, getSessionLogs } from "../../db/queries"
 import { getActivities } from "../../activity"
 import { runEffect, runEffectVoid } from "../effect-helpers"
 import { TaskNotFoundError } from "../../errors"
@@ -38,14 +38,7 @@ export function sessionRoutes(deps: AppDeps): Hono {
         const task = yield* getTask(deps.db, taskId)
         if (!task) return yield* Effect.fail(new TaskNotFoundError({ taskId }))
 
-        // Persist user message to session_logs for REST API consumers
-        yield* insertSessionLog(deps.db, {
-          task_id: taskId,
-          role: "user",
-          content: body.text!,
-        })
-
-        // Send to agent
+        // Send to agent (sendPrompt persists the user message to session_logs)
         yield* deps.taskManager.sendPrompt(taskId, body.text!)
 
         return { ok: true, taskId, status: task.status }
