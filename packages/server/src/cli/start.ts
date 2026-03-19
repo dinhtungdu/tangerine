@@ -150,27 +150,25 @@ export async function start(): Promise<void> {
       },
       cleanupDeps: {
         getSessionMessages: (opencodePort, sessionId) =>
-          Effect.gen(function* () {
-            const client = yield* getOrCreateClient(`opencode-${opencodePort}`, opencodePort)
-            return yield* Effect.tryPromise({
-              try: () => client.message.list(sessionId),
-              catch: (e) => new AgentError({ message: `Failed to get messages: ${e}`, taskId: "unknown" }),
-            })
-          }).pipe(Effect.mapError((e) => {
-            if (e instanceof AgentError) return e
-            return new AgentError({ message: String(e), taskId: "unknown" })
-          })),
+          Effect.tryPromise({
+            try: async () => {
+              const res = await fetch(`http://localhost:${opencodePort}/session/${sessionId}/message`)
+              if (!res.ok) throw new Error(`Failed to get messages: ${res.status}`)
+              return res.json() as Promise<unknown[]>
+            },
+            catch: (e) => new AgentError({ message: `Failed to get messages: ${e}`, taskId: "unknown" }),
+          }),
         persistMessages: (taskId, messages) =>
           Effect.gen(function* () {
             for (const msg of messages) {
-              const m = msg as Record<string, unknown>
-              const role = (m.role as string) ?? "assistant"
-              // Extract text content from message parts
-              const parts = m.parts as Array<{ type: string; text?: string }> | undefined
-              const content = parts
+              // OpenCode message format: { info: { role }, parts: [{ type, text }] }
+              const m = msg as { info?: { role?: string }; parts?: Array<{ type: string; text?: string }> }
+              const role = m.info?.role ?? "assistant"
+              const content = m.parts
                 ?.filter((p) => p.type === "text" && p.text)
                 .map((p) => p.text)
-                .join("\n") ?? JSON.stringify(m)
+                .join("\n") ?? ""
+              if (!content) continue
               yield* insertSessionLog(db, { task_id: taskId, role, content }).pipe(
                 Effect.catchAll(() => Effect.void)
               )
@@ -186,25 +184,55 @@ export async function start(): Promise<void> {
       retryDeps: {
         updateTask: (taskId, updates) => updateTask(db, taskId, updates).pipe(Effect.asVoid),
         onSessionReady: (taskId, session) => {
-          // Subscribe to OpenCode SSE events and relay to task event system
+          // Track in-progress text parts to assemble complete messages
+          const textParts = new Map<string, string>() // messageId -> accumulated text
+
           Effect.runPromise(
             subscribeToEvents(session.opencodePort, taskId, (eventData) => {
-              // Relay all events to WebSocket clients
-              emitTaskEvent(taskId, eventData)
+              const data = eventData as { type: string; properties: Record<string, unknown> }
+              if (!data?.type) return
 
-              // Persist message events to session_logs for REST API
-              const data = eventData as Record<string, unknown>
-              if (data && typeof data.type === "string" && data.type.startsWith("message")) {
-                const parts = data.parts as Array<{ type: string; text?: string }> | undefined
-                const role = (data.role as string) ?? "assistant"
-                const content = parts
-                  ?.filter((p) => p.type === "text" && p.text)
-                  .map((p) => p.text)
-                  .join("\n") ?? ""
-                if (content) {
-                  Effect.runPromise(
-                    insertSessionLog(db, { task_id: taskId, role, content }).pipe(Effect.catchAll(() => Effect.void))
-                  )
+              switch (data.type) {
+                // Text content streaming — accumulate parts
+                case "message.part.updated": {
+                  const part = data.properties.part as { type: string; text?: string; messageID?: string } | undefined
+                  if (part?.type === "text" && part.text && part.messageID) {
+                    textParts.set(part.messageID, part.text)
+                  }
+                  break
+                }
+
+                // Message completed — persist and relay to WebSocket
+                case "message.updated": {
+                  const info = data.properties.info as { id: string; role: string; time?: { completed?: number } } | undefined
+                  if (!info?.id || !info.role) break
+
+                  // Only persist completed assistant messages (have time.completed)
+                  if (info.role === "assistant" && info.time?.completed) {
+                    const text = textParts.get(info.id)
+                    if (text) {
+                      // Emit to WebSocket as chat message
+                      emitTaskEvent(taskId, { role: "assistant", content: text, timestamp: new Date().toISOString() })
+
+                      // Persist to session_logs for REST API
+                      Effect.runPromise(
+                        insertSessionLog(db, { task_id: taskId, role: "assistant", content: text }).pipe(Effect.catchAll(() => Effect.void))
+                      )
+                      textParts.delete(info.id)
+                    }
+                  }
+                  break
+                }
+
+                // Agent status — relay as events the frontend understands
+                case "session.status": {
+                  const status = (data.properties as { status?: { type?: string } }).status
+                  if (status?.type === "busy") {
+                    emitTaskEvent(taskId, { event: "agent.start" })
+                  } else if (status?.type === "idle") {
+                    emitTaskEvent(taskId, { event: "agent.idle" })
+                  }
+                  break
                 }
               }
             })
