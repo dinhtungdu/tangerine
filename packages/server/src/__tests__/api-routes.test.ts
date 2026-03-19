@@ -79,6 +79,11 @@ function createMockDeps(db: Database, configOverrides?: Partial<AppDeps["config"
         return Effect.succeed(undefined as void)
       },
     },
+    devServer: {
+      start() { return Effect.succeed(undefined as void) },
+      stop() { return Effect.succeed(undefined as void) },
+      status() { return Effect.succeed({ running: false }) },
+    },
     configStore: {
       read: () => rawConfig,
       write: (config: RawConfig) => { rawConfig = config },

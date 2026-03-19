@@ -47,6 +47,11 @@ export interface AppDeps {
     startBase(): { ok: true } | { ok: false; reason: string }
     getStatus(): { status: "idle" } | { status: "building" | "success" | "failed"; imageName: string; startedAt: string; finishedAt?: string; error?: string }
   }
+  devServer: {
+    start(taskId: string): Effect.Effect<void, TaggedError>
+    stop(taskId: string): Effect.Effect<void, TaggedError>
+    status(taskId: string): Effect.Effect<{ running: boolean }, TaggedError>
+  }
   configStore: {
     read(): import("../config").RawConfig
     write(config: import("../config").RawConfig): void

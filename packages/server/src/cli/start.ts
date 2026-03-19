@@ -348,6 +348,57 @@ export async function start(): Promise<void> {
         startBase: startBaseBuild,
         getStatus: getBuildStatus,
       },
+      devServer: {
+        start: (taskId) =>
+          Effect.gen(function* () {
+            const task = yield* getTask(db, taskId)
+            if (!task?.vm_id || !task.preview_port) {
+              return yield* Effect.fail({ _tag: "TaskNotFoundError" as const, message: "Task has no VM or preview port" })
+            }
+            const vm = yield* getVm(db, task.vm_id)
+            if (!vm?.ip || !vm.ssh_port) {
+              return yield* Effect.fail({ _tag: "VmNotFoundError" as const, message: "VM not found" })
+            }
+            const project = getProjectConfig(config.config, task.project_id)
+            const previewPort = project?.preview?.port ?? 3000
+            // Kill any existing process on the port, then start fresh
+            yield* sshExec(vm.ip, vm.ssh_port, `fuser -k ${previewPort}/tcp 2>/dev/null || true`).pipe(Effect.catchAll(() => Effect.void))
+            // Start the app backgrounded via nohup
+            yield* sshExec(vm.ip, vm.ssh_port,
+              `cd /workspace/repo && nohup node server.js > /tmp/dev-server.log 2>&1 &`
+            ).pipe(Effect.asVoid)
+          }).pipe(Effect.mapError((e) => "_tag" in e ? e : { _tag: "TaskNotFoundError" as const, message: String(e) })),
+
+        stop: (taskId) =>
+          Effect.gen(function* () {
+            const task = yield* getTask(db, taskId)
+            if (!task?.vm_id) {
+              return yield* Effect.fail({ _tag: "TaskNotFoundError" as const, message: "Task has no VM" })
+            }
+            const vm = yield* getVm(db, task.vm_id)
+            if (!vm?.ip || !vm.ssh_port) {
+              return yield* Effect.fail({ _tag: "VmNotFoundError" as const, message: "VM not found" })
+            }
+            const project = getProjectConfig(config.config, task.project_id)
+            const previewPort = project?.preview?.port ?? 3000
+            yield* sshExec(vm.ip, vm.ssh_port, `fuser -k ${previewPort}/tcp 2>/dev/null || true`).pipe(Effect.asVoid)
+          }).pipe(Effect.mapError((e) => "_tag" in e ? e : { _tag: "TaskNotFoundError" as const, message: String(e) })),
+
+        status: (taskId) =>
+          Effect.gen(function* () {
+            const task = yield* getTask(db, taskId)
+            if (!task?.preview_port) return { running: false }
+            try {
+              const res = yield* Effect.tryPromise({
+                try: () => fetch(`http://localhost:${task.preview_port}/`, { signal: AbortSignal.timeout(2000) }),
+                catch: () => null as never,
+              })
+              return { running: res.ok }
+            } catch {
+              return { running: false }
+            }
+          }).pipe(Effect.catchAll(() => Effect.succeed({ running: false }))),
+      },
       configStore: {
         read: readRawConfig,
         write: writeRawConfig,

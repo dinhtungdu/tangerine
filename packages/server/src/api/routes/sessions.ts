@@ -53,6 +53,19 @@ export function sessionRoutes(deps: AppDeps): Hono {
     )
   })
 
+  // Dev server control
+  app.post("/:id/server/start", (c) => {
+    return runEffectVoid(c, deps.devServer.start(c.req.param("id")))
+  })
+
+  app.post("/:id/server/stop", (c) => {
+    return runEffectVoid(c, deps.devServer.stop(c.req.param("id")))
+  })
+
+  app.get("/:id/server/status", (c) => {
+    return runEffect(c, deps.devServer.status(c.req.param("id")))
+  })
+
   app.get("/:id/activities", (c) => {
     return runEffect(c, getActivities(deps.db, c.req.param("id")))
   })
