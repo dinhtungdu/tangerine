@@ -142,7 +142,7 @@ export function NewAgentForm({ onSubmit }: NewAgentFormProps) {
               onChange={(e) => setDescription(e.target.value)}
               placeholder="Describe the task or paste an issue URL..."
               rows={4}
-              className="w-full resize-none border-0 bg-transparent px-4 pt-4 pb-2 text-[14px] leading-[1.6] text-fg placeholder-fg-muted outline-none"
+              className="w-full resize-none border-0 bg-transparent px-4 pt-4 pb-2 text-[16px] leading-[1.6] text-fg placeholder-fg-muted outline-none md:text-[14px]"
             />
             {/* Desktop: inline controls below textarea */}
             <div className="hidden items-center justify-between border-t border-edge px-3 py-2.5 md:flex">
@@ -195,7 +195,7 @@ export function NewAgentForm({ onSubmit }: NewAgentFormProps) {
                 value={provider}
                 onChange={(e) => handleProviderChange(e.target.value as ProviderType)}
                 aria-label="Harness"
-                className="h-10 w-full rounded-lg border border-edge bg-surface px-3 text-[13px] text-fg outline-none"
+                className="h-10 w-full rounded-lg border border-edge bg-surface px-3 text-[16px] text-fg outline-none md:text-[13px]"
               >
                 <option value="opencode">OpenCode</option>
                 <option value="claude-code">Claude Code</option>

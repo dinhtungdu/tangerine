@@ -35,7 +35,7 @@ export function TasksSidebar({ tasks, searchQuery, onSearchChange, onNewAgent }:
             value={searchQuery}
             onChange={(e) => onSearchChange(e.target.value)}
             placeholder="Search tasks..."
-            className="min-w-0 flex-1 bg-transparent text-[13px] text-fg placeholder-fg-muted outline-none"
+            className="min-w-0 flex-1 bg-transparent text-[16px] text-fg placeholder-fg-muted outline-none md:text-[13px]"
           />
           {searchQuery && (
             <button onClick={() => onSearchChange("")} aria-label="Clear search" className="shrink-0 text-fg-muted hover:text-neutral-600">

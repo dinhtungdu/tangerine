@@ -58,7 +58,7 @@ export function Dashboard() {
               value={query}
               onChange={(e) => setQuery(e.target.value)}
               placeholder="Search runs..."
-              className="min-w-0 flex-1 bg-transparent text-[13px] text-fg placeholder-fg-muted outline-none"
+              className="min-w-0 flex-1 bg-transparent text-[16px] text-fg placeholder-fg-muted outline-none md:text-[13px]"
             />
           </div>
           <Link

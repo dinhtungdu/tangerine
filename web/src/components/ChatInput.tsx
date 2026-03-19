@@ -55,7 +55,7 @@ export function ChatInput({ onSend, disabled, queueLength, isWorking, onAbort }:
             placeholder={disabled ? "Agent is working..." : "Message agent..."}
             disabled={disabled}
             rows={1}
-            className="w-full resize-none rounded-lg border border-edge bg-surface px-3 py-2 text-[14px] text-fg placeholder-fg-faint outline-none transition focus:border-fg-faint disabled:cursor-not-allowed disabled:opacity-50 md:px-3.5 md:py-2.5 md:text-[13px] md:placeholder-fg-muted"
+            className="w-full resize-none rounded-lg border border-edge bg-surface px-3 py-2 text-[16px] text-fg placeholder-fg-faint outline-none transition focus:border-fg-faint disabled:cursor-not-allowed disabled:opacity-50 md:px-3.5 md:py-2.5 md:text-[13px] md:placeholder-fg-muted"
           />
           {queueLength > 0 && (
             <span className="absolute right-2 top-2 flex h-5 w-5 items-center justify-center rounded-full bg-tangerine text-[10px] font-bold text-white">
