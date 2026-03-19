@@ -1,19 +1,20 @@
 # Project Configuration
 
-Each project defines its own environment. The platform is project-agnostic — WordPress, React, Rails, whatever. One active project at a time.
+Each project defines its own environment. The platform is project-agnostic — WordPress, React, Rails, whatever.
 
 ## Project Config
 
-Stored in `.tangerine/config.json` at the project root (or `~/.config/tangerine/config.json` for global defaults).
+Stored in `tangerine.json` at the project root (or `~/.config/tangerine/config.json` for global defaults).
 
 ```json
 {
-  "project": {
+  "projects": [{
     "name": "wordpress-develop",
     "repo": "https://github.com/WordPress/wordpress-develop",
-    "default_branch": "trunk",
+    "defaultBranch": "trunk",
     "image": "wordpress-dev",
     "setup": "npm install && npx wp-env start",
+    "defaultProvider": "opencode",
     "preview": {
       "port": 8888,
       "path": "/"
@@ -22,7 +23,7 @@ Stored in `.tangerine/config.json` at the project root (or `~/.config/tangerine/
     "env": {
       "PHP_VERSION": "8.2"
     }
-  }
+  }]
 }
 ```
 
@@ -30,67 +31,78 @@ Stored in `.tangerine/config.json` at the project root (or `~/.config/tangerine/
 
 | Field | Type | Required | Description |
 |-------|------|----------|-------------|
-| `name` | string | yes | Human-readable project name |
+| `name` | string | yes | Human-readable project name (also used as project ID) |
 | `repo` | string | yes | Repository URL (or `owner/repo` shorthand) |
-| `default_branch` | string | no | Default: `main` |
-| `image` | string | yes | Golden image name (built from `.tangerine/build.sh`) |
-| `setup` | string | yes | Shell commands to run after clone (start dev server, install deps) |
-| `preview.port` | number | no | Port to forward for browser preview |
-| `preview.path` | string | no | URL path for preview (default: `/`) |
+| `defaultBranch` | string | no | Default: `main` |
+| `image` | string | yes | Golden image name (built from image assets dir) |
+| `setup` | string | yes | Shell commands to run after clone (install deps, start dev server) |
+| `defaultProvider` | `"opencode" \| "claude-code"` | no | Default agent provider. Default: `"opencode"` |
+| `preview.port` | number | no | Port to forward for browser preview. Default: 3000 |
+| `preview.path` | string | no | URL path for preview. Default: `/` |
 | `test` | string | no | Command to run tests |
+| `extraPorts` | number[] | no | Additional ports to forward |
 | `env` | object | no | Extra env vars passed to VM |
+| `model` | string | no | Model override for this project |
+
+### Top-Level Config
+
+```json
+{
+  "projects": [...],
+  "model": "openai/gpt-5.4",
+  "models": ["openai/gpt-5.4", "anthropic/claude-sonnet-4-20250514", ...],
+  "integrations": {
+    "github": {
+      "webhookSecret": "...",
+      "pollIntervalMinutes": 60,
+      "trigger": { "type": "label", "value": "agent" }
+    }
+  }
+}
+```
 
 ## Golden Images
 
 Base environments with common tooling pre-installed. Project-specific setup runs on top at session start.
 
-### Image Definition
+### Two-Layer Build
 
-Each project defines its golden image in `.tangerine/` at the project root:
+1. **Base layer** (`tangerine-base`): built from `tangerine.yaml` with cloud-init. Contains Node.js, Docker, OpenCode, Claude Code, gh CLI, etc. Slow (~10 min), rarely rebuilt.
+2. **Project layer** (`tangerine-golden-<name>`): cloned from base via `limactl clone` (APFS CoW, instant). Runs project's `build.sh` for project-specific setup.
+
+### Image Assets
+
+Each image defines its build script in `~/.config/tangerine/images/<name>/`:
 
 ```
-my-app/
-  .tangerine/
-    config.json           # project config
-    build.sh              # golden image build script
+~/.config/tangerine/images/
+  wordpress-dev/
+    build.sh              # project-specific setup script
 ```
-
-The `build.sh` script runs inside a fresh Debian 13 VM to install project-specific runtimes and tools. The VM is kept stopped as the golden source for APFS copy-on-write cloning.
 
 ### Image Build
 
 ```bash
-tangerine image build
+tangerine image build-base     # Build base VM (once, slow)
+tangerine image build           # Build project golden image (fast, from base clone)
 ```
 
-Reads `.tangerine/build.sh` from the current project directory. Uses hal9999's image build pipeline:
-1. Spin up base VM (Debian 13)
-2. Run `build.sh` (install packages, tools, OpenCode)
-3. Stop the VM (kept as golden source, named `tangerine-golden-<image>`)
-4. Future sessions use `limactl clone` (APFS CoW, instant)
-
-### Image Refresh
-
-Images should be rebuilt periodically to stay current with latest deps. Not automated in v0 — manual `tangerine image build`.
-
-Future: cron-based rebuild (like Ramp's 30-min cycle), versioned images.
+API endpoints also available: `POST /api/images/build-base`, `POST /api/images/build`.
 
 ## Project Setup Flow
 
-When a session starts for a task:
+When a task starts:
 
 ```
-1. Acquire VM from warm pool (uses project's golden image)
-2. Clone repo (or git pull if warm VM already has it)
-3. Checkout feature branch
-4. Run project.setup commands
-5. Start opencode serve
-6. Establish SSH tunnels (OpenCode API + preview port)
+1. Get or create persistent VM for the project (ProjectVmManager)
+2. Clone repo to /workspace/repo (or git fetch if already there)
+3. Create git worktree: /workspace/worktrees/<task-prefix>
+4. Run project.setup commands in worktree
+5. Start agent (OpenCode or Claude Code) in worktree
+6. Establish SSH tunnels (OpenCode) or pipe stdin/stdout (Claude Code)
 7. Session ready for chat
 ```
 
 ## Multiple Projects
 
-v0: one project configured at a time. Switch by changing which project dir tangerine points to.
-
-Future: multi-project support, project selector in dashboard, separate warm pools per image.
+Config supports multiple projects in the `projects` array. Each project gets its own persistent VM. Dashboard shows project context.

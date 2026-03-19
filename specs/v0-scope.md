@@ -5,43 +5,50 @@ Minimal viable version. Single project, single user, local VMs.
 ## In Scope
 
 ### Core
-- [ ] Project config (`.tangerine/config.json`)
-- [ ] VM provisioning via Lima (reuse hal9999 provider)
-- [ ] Golden image build (`tangerine image build`)
-- [ ] Warm pool (acquire/release/reap)
-- [ ] SSH tunnel management (OpenCode API + preview port)
+- [x] Project config (`.tangerine/config.json`) with `defaultProvider` field
+- [x] VM provisioning via Lima (reuse hal9999 provider)
+- [x] Golden image build (two-layer: base + project)
+- [x] Per-project persistent VMs (`ProjectVmManager`)
+- [x] SSH tunnel management (agent API + preview port)
+- [x] Git worktrees for task isolation
 
 ### Agent
-- [ ] OpenCode server mode inside VM
-- [ ] SDK bridge: create session, send prompts, stream events, abort
-- [ ] Credential injection (ANTHROPIC_API_KEY, GITHUB_TOKEN)
-- [ ] Terminal attach (`opencode attach`)
+- [x] Multi-provider abstraction (`AgentFactory` → `AgentHandle`)
+- [x] OpenCode server mode inside VM (SSE events via tunnel)
+- [x] Claude Code CLI inside VM (NDJSON via stdin/stdout)
+- [x] Normalized `AgentEvent` stream from both providers
+- [x] Credential injection (ANTHROPIC_API_KEY, CLAUDE_CODE_OAUTH_TOKEN, GITHUB_TOKEN)
+- [x] Terminal attach (`opencode attach`) for OpenCode tasks
 
 ### API Server
-- [ ] Hono + Bun
-- [ ] REST: tasks CRUD, proxy to OpenCode
-- [ ] WebSocket: real-time chat relay (OpenCode SSE → WS → browser)
-- [ ] Preview proxy (reverse proxy to VM dev server)
-- [ ] GitHub webhook handler (issues → tasks)
+- [x] Hono + Bun
+- [x] REST: tasks CRUD, proxy to agent, VM management
+- [x] WebSocket: real-time chat relay (AgentEvent → WS → browser)
+- [x] Preview proxy (reverse proxy to VM dev server)
+- [x] GitHub webhook handler (issues → tasks)
+- [x] Image build endpoints (base + project)
+- [x] System logs, activity log
 
 ### Web Dashboard
-- [ ] Vite + React
-- [ ] Dashboard: task list with real-time status
-- [ ] Task detail: chat panel + preview iframe
-- [ ] Streaming agent output
-- [ ] Send prompts, abort execution
-- [ ] Diff view
+- [x] Vite + React
+- [x] Dashboard: task list with real-time status
+- [x] Task detail: chat panel + preview iframe
+- [x] Streaming agent output
+- [x] Send prompts, abort execution
+- [x] Provider selector (OpenCode / Claude Code)
+- [x] VM summary card
+- [x] Activity log panel
 
 ### Integration
-- [ ] GitHub issues as task source (webhook, label trigger)
-- [ ] PR creation via `gh` CLI in VM
-- [ ] Branch management (auto-create per task)
+- [x] GitHub issues as task source (webhook, label trigger)
+- [x] PR creation via `gh` CLI in VM
+- [x] Branch management (auto-create per task via worktrees)
 
 ### CLI
-- [ ] `tangerine start` — start API server + dashboard
-- [ ] `tangerine image build <name>` — build golden image
-- [ ] `tangerine task create` — manual task creation (testing)
-- [ ] `tangerine pool status` — warm pool info
+- [x] `tangerine start` — start API server + dashboard
+- [x] `tangerine image build <name>` — build golden image
+- [x] `tangerine image build-base` — build base image
+- [x] `tangerine task create` — manual task creation
 
 ## Out of Scope (future)
 
@@ -65,28 +72,28 @@ Minimal viable version. Single project, single user, local VMs.
 1. Project scaffolding (Bun + Hono + Vite + React)
 2. DB schema (tasks, VMs)
 3. Project config loading
-4. Extract/import hal9999 VM layer (Lima provider, pool, SSH)
+4. Extract/import hal9999 VM layer (Lima provider, SSH)
 
 ### Phase 2: VM + Agent
-5. Golden image build script (base: Debian + OpenCode + Docker + git)
-6. Session lifecycle: provision → clone → start OpenCode → tunnel
-7. OpenCode SDK bridge (connect, prompt, events, abort)
+5. Golden image build (two-layer: base + project)
+6. Session lifecycle: get/create VM → worktree → start agent → tunnel
+7. Agent provider abstraction + OpenCode provider
 8. Credential injection
 
 ### Phase 3: API + WebSocket
-9. REST endpoints (tasks, proxy to OpenCode)
-10. WebSocket endpoint (SSE bridge)
+9. REST endpoints (tasks, sessions, VMs, images)
+10. WebSocket endpoint (AgentEvent bridge)
 11. Preview proxy
 12. GitHub webhook handler
 
 ### Phase 4: Web Dashboard
-13. Dashboard page (task list)
-14. Task detail page (chat + preview)
-15. Streaming chat UI
-16. Diff view
+13. Dashboard page (task list + VM summary)
+14. Task detail page (chat + preview + activity log)
+15. Provider selector
+16. Streaming chat UI
 
-### Phase 5: Polish
-17. Error handling + recovery
-18. Warm pool tuning
-19. CLI commands
-20. README + setup docs
+### Phase 5: Multi-Provider + Polish
+17. Claude Code provider
+18. NDJSON parser + event mapping
+19. Error handling + recovery
+20. Server restart reconciliation

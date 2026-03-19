@@ -4,7 +4,7 @@ Agents should verify their work. The golden image includes test tooling; the pro
 
 ## Approach
 
-The agent runs tests as part of its workflow — not a separate system. OpenCode has shell access inside the VM, so the agent can run whatever test commands the project defines.
+The agent runs tests as part of its workflow — not a separate system. Both OpenCode and Claude Code have shell access inside the VM, so the agent can run whatever test commands the project defines.
 
 ## Project Test Config
 
@@ -21,17 +21,10 @@ The test command is included in the agent's context so it knows how to verify ch
 ### WordPress (wp-env)
 
 ```bash
-# PHPUnit
 npx wp-env run tests-wordpress -- phpunit --filter=TestClassName
-
-# Playwright e2e
 npx playwright test
-
-# PHP linting
 npx wp-env run cli -- wp eval 'echo "PHP OK";'
 ```
-
-wp-env runs Docker containers inside the VM. The golden image has Docker pre-installed.
 
 ### Node.js / React
 
@@ -55,8 +48,6 @@ Golden images with Playwright should pre-install browsers:
 npx playwright install --with-deps chromium
 ```
 
-This avoids slow browser downloads at session start.
-
 ## Agent Prompting
 
 The project test command is included in the system context:
@@ -70,7 +61,7 @@ The agent decides when to run tests (after changes, before creating PR).
 
 ## Test Results in Chat
 
-When the agent runs tests via shell, the output appears in the chat stream (via OpenCode's tool call display). Users see pass/fail in real time.
+When the agent runs tests via shell, the output appears in the chat stream (via tool call display). Users see pass/fail in real time. Works identically for both OpenCode and Claude Code providers.
 
 ## Future
 

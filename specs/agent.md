@@ -1,102 +1,119 @@
 # Agent Integration
 
-OpenCode in server mode as the agent backend. Bidirectional communication via typed SDK.
+Multi-provider agent abstraction. OpenCode and Claude Code supported via `AgentProvider` interface.
 
-## OpenCode Server
+## Provider Abstraction
 
-Each VM runs `opencode serve` headlessly. Our API server talks to it via SSH tunnel.
+`agent/provider.ts` defines the contract all providers implement:
+
+```typescript
+type ProviderType = "opencode" | "claude-code"
+
+interface AgentEvent =
+  | { kind: "message.streaming"; content: string; messageId?: string }
+  | { kind: "message.complete"; role: "assistant" | "user"; content: string; messageId?: string }
+  | { kind: "status"; status: "idle" | "working" }
+  | { kind: "error"; message: string }
+
+interface AgentHandle {
+  sendPrompt(text: string): Effect<void, PromptError>
+  abort(): Effect<void, AgentError>
+  subscribe(onEvent: (e: AgentEvent) => void): { unsubscribe(): void }
+  shutdown(): Effect<void, never>
+}
+
+interface AgentStartContext {
+  taskId: string
+  vmIp: string
+  sshPort: number
+  workdir: string      // worktree path inside VM
+  title: string
+  previewPort: number
+}
+
+interface AgentFactory {
+  start(ctx: AgentStartContext): Effect<AgentHandle, SessionStartError>
+}
+```
+
+## OpenCode Provider (`opencode-provider.ts`)
+
+Spawns `opencode serve` inside VM, establishes SSH tunnel, creates a session, bridges SSE events.
 
 ### Startup
 
 ```bash
-# Inside VM, after clone + setup + credential injection
-# auth.json already copied to ~/.local/share/opencode/auth.json
-# OPENCODE_SERVER_PASSWORD already in environment
-cd /workspace/<repo>
+# Inside VM (sources ~/.env for API keys first)
+test -f ~/.env && set -a && . ~/.env && set +a
+cd /workspace/worktrees/<task-prefix>
 opencode serve --port 4096 --hostname 0.0.0.0
 ```
 
-### SDK Connection
+### Communication
 
-From host, connect via tunneled port:
+1. SSH tunnel from host to VM port 4096
+2. REST API via tunnel: create session, send prompts (`prompt_async`), abort
+3. SSE stream from `GET /event` relayed to subscribers via `AgentEvent`
 
-```typescript
-import { createOpencodeClient } from "@opencode-ai/sdk"
+### Event Mapping
 
-const client = createOpencodeClient({
-  baseUrl: `http://localhost:${tunnel.opencodePort}`,
-})
+OpenCode SSE events → `AgentEvent`:
+- `message.part.updated` → `message.streaming` (accumulates text per message ID)
+- `message.updated` (with `time.completed`) → `message.complete`
+- `session.status` → `status` (idle/working)
+
+### Metadata
+
+`AgentHandleWithMeta` extends `AgentHandle` with `__meta: { sessionId, agentPort, previewPort }`. Retrieved via `getHandleMeta(handle)`.
+
+## Claude Code Provider (`claude-code-provider.ts`)
+
+Spawns `claude` CLI inside VM via SSH with stdin/stdout piping. No tunnel, no HTTP, no port allocation.
+
+### Startup
+
+```bash
+ssh -T -p <sshPort> root@<vmIp> \
+  "test -f ~/.env && set -a && . ~/.env && set +a; \
+   cd /workspace/worktrees/<task-prefix> && \
+   claude --output-format stream-json --input-format stream-json \
+          --verbose --session-id <uuid> --dangerously-skip-permissions"
 ```
+
+### Communication
+
+- **Prompts**: JSON written to stdin: `{"type":"user","message":{"role":"user","content":"..."}}`
+- **Events**: NDJSON from stdout, parsed by `ndjson.ts`
+- **Abort**: `SIGINT` to SSH process
+
+### Event Mapping (`ndjson.ts`)
+
+Claude Code stream-json events → `AgentEvent`:
+- `assistant` with text content → `message.streaming`
+- `assistant` with `tool_use` blocks → `status: working`
+- `user` (tool results) → `status: working`
+- `result` → `message.complete` (or `error` if `is_error`)
+- `stream_event` with `content_block_delta` → `message.streaming`
+- `system` with `subtype: init` → `status: working`
+
+## Provider Selection
+
+`POST /api/tasks` accepts optional `provider` field (`"opencode" | "claude-code"`). Default comes from project config's `defaultProvider` field (defaults to `"opencode"`).
 
 ## Session Management
 
-### Create Session
+### Prompt Queue
 
-When a task starts:
+Per-task queue. Prompts sent while agent is working are queued on the API server. When agent goes idle (detected via `AgentEvent` status), next prompt is sent.
 
-```typescript
-const session = await client.session.create({
-  body: { title: task.title }
-})
-```
+### Agent Capabilities Inside VM
 
-### Send Prompt
-
-User sends message from web chat:
-
-```typescript
-// Async — don't block, stream via SSE
-await client.session.prompt_async({
-  path: { id: sessionId },
-  body: {
-    parts: [{ type: "text", text: userMessage }],
-  },
-})
-```
-
-### Stream Events
-
-Subscribe to OpenCode's SSE stream, relay to browser via WebSocket:
-
-```typescript
-const events = await client.event.subscribe()
-for await (const event of events.stream) {
-  // Relay to connected WebSocket clients
-  ws.send(JSON.stringify(event))
-}
-```
-
-### Abort
-
-User clicks stop:
-
-```typescript
-await client.session.abort({ path: { id: sessionId } })
-```
-
-### Queue Follow-ups
-
-Prompts sent while agent is working are queued on our API server. When current execution completes (detected via SSE events), next prompt is sent.
-
-## Terminal Attach
-
-Developers can attach to any running session from their terminal:
-
-```bash
-opencode attach http://localhost:<tunneled-opencode-port>
-```
-
-This gives full TUI access to the same session the web UI shows. Changes are synced — both see the same messages and state.
-
-## Agent Capabilities Inside VM
-
-The agent (via OpenCode) has access to:
-
+Both providers have access to:
 - **File read/write** — edit project source code
 - **Shell execution** — run builds, tests, dev server
 - **Git** — commit, push, create branches
 - **gh CLI** — create PRs (with injected token)
-- **Project tooling** — whatever's in the golden image (Docker, wp-env, npm, etc.)
+- **Project tooling** — whatever's in the golden image
 
 ## OpenCode Configuration
 
@@ -111,27 +128,10 @@ Pre-baked in golden image at `/root/.config/opencode/opencode.json`:
 }
 ```
 
-Project-specific rules/skills can be added via `opencode.json` in the repo root or `.opencode/` directory.
+## Terminal Attach (OpenCode only)
 
-## Key SDK Methods Used
+```bash
+opencode attach http://localhost:<tunneled-opencode-port>
+```
 
-| Method | Purpose |
-|--------|---------|
-| `session.create()` | New session per task |
-| `session.prompt()` | Send prompt (sync, wait for response) |
-| `session.prompt_async()` | Send prompt (async, stream via SSE) |
-| `session.abort()` | Stop current execution |
-| `session.messages()` | Load message history |
-| `session.get()` | Session status |
-| `session.diff()` | Get file changes |
-| `event.subscribe()` | SSE stream for real-time updates |
-| `global.health()` | Check if OpenCode server is alive |
-
-## Prompt Async vs Message Endpoint
-
-From the OpenCode server API:
-
-- `POST /session/:id/message` — send prompt, **wait** for full response. Blocks.
-- `POST /session/:id/prompt_async` — send prompt, returns `204` immediately. Stream results via `GET /event` SSE.
-
-We use `prompt_async` for the web chat flow (non-blocking), and `message` for programmatic/scripted interactions where we need the result.
+Full TUI access to the same session. Not available for Claude Code provider.
