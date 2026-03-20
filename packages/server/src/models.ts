@@ -74,11 +74,8 @@ export function discoverModels(): ModelInfo[] {
   return models
 }
 
-/** Discover models available for Claude Code CLI (requires Anthropic credentials) */
+/** Known models for Claude Code CLI — always returned since auth is in the VM, not the host */
 export function discoverClaudeCodeModels(): ModelInfo[] {
-  const hasApiKey = !!process.env["ANTHROPIC_API_KEY"]
-  const hasOAuthToken = !!process.env["CLAUDE_CODE_OAUTH_TOKEN"]
-  if (!hasApiKey && !hasOAuthToken) return []
   return CLAUDE_CODE_MODELS
 }
 

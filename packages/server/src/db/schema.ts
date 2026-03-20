@@ -10,6 +10,7 @@ export const SCHEMA = `
     description TEXT,
     status TEXT NOT NULL DEFAULT 'created',
     provider TEXT NOT NULL DEFAULT 'opencode',
+    model TEXT,
     vm_id TEXT,
     branch TEXT,
     worktree_path TEXT,

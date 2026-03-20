@@ -29,6 +29,8 @@ export interface AgentStartContext {
   workdir: string
   title: string
   previewPort: number
+  /** Model ID to use (e.g. "claude-sonnet-4-6" for Claude Code, "anthropic/claude-sonnet-4-6" for OpenCode) */
+  model?: string
   /** If set, resume an existing session instead of creating a new one */
   resumeSessionId?: string
 }

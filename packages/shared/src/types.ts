@@ -13,6 +13,7 @@ export interface Task {
   description: string | null
   status: TaskStatus
   provider: ProviderType
+  model: string | null
   vmId: string | null
   branch: string | null
   worktreePath: string | null

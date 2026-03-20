@@ -25,6 +25,7 @@ export interface TaskRow {
   description: string | null
   status: string
   provider: string
+  model: string | null
   vm_id: string | null
   branch: string | null
   worktree_path: string | null

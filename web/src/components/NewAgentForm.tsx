@@ -4,10 +4,9 @@ import type { ProviderType } from "@tangerine/shared"
 import { useProject } from "../context/ProjectContext"
 import { ModelSelector } from "./ModelSelector"
 import { HarnessSelector } from "./HarnessSelector"
-import { formatModelName } from "../lib/format"
 
 interface NewAgentFormProps {
-  onSubmit: (data: { projectId: string; title: string; description?: string; branch?: string; provider?: string }) => void
+  onSubmit: (data: { projectId: string; title: string; description?: string; branch?: string; provider?: string; model?: string }) => void
 }
 
 const suggestedTasks = [
@@ -75,12 +74,11 @@ export function NewAgentForm({ onSubmit }: NewAgentFormProps) {
   const navigate = useNavigate()
   const { current, modelsByProvider } = useProject()
   const [description, setDescription] = useState("")
-  const [provider, setProvider] = useState<ProviderType>(current?.defaultProvider ?? "opencode")
+  const [provider, setProvider] = useState<ProviderType>(current?.defaultProvider ?? "claude-code")
   const [selectedModel, setSelectedModel] = useState<string | null>(null)
   const [submitting, setSubmitting] = useState(false)
   const branch = current?.defaultBranch ?? "main"
 
-  // Models available for the selected harness
   const providerModels = modelsByProvider[provider] ?? []
   const activeModel = selectedModel && providerModels.includes(selectedModel)
     ? selectedModel
@@ -88,7 +86,7 @@ export function NewAgentForm({ onSubmit }: NewAgentFormProps) {
 
   const handleProviderChange = useCallback((p: ProviderType) => {
     setProvider(p)
-    setSelectedModel(null) // reset model when switching harness
+    setSelectedModel(null)
   }, [])
 
   const handleModelChange = useCallback((m: string) => {
@@ -105,10 +103,11 @@ export function NewAgentForm({ onSubmit }: NewAgentFormProps) {
       description: trimmed,
       branch,
       provider,
+      model: activeModel || undefined,
     })
     // Parent navigates on success; reset submitting if it fails
     setTimeout(() => setSubmitting(false), 3000)
-  }, [description, current, branch, provider, submitting, onSubmit])
+  }, [description, current, branch, provider, activeModel, submitting, onSubmit])
 
   return (
     <div className="flex h-full flex-1 flex-col bg-surface">

@@ -26,6 +26,7 @@ export function createClaudeCodeProvider(): AgentFactory {
               `--input-format stream-json`,
               `--verbose`,
               sessionFlag,
+              ...(ctx.model ? [`--model ${ctx.model}`] : []),
               `--dangerously-skip-permissions`,
             ]
             return Bun.spawn(

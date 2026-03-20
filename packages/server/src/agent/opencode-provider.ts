@@ -143,7 +143,7 @@ export function createOpenCodeProvider(deps: OpenCodeProviderDeps): AgentFactory
             const r = await fetch(`http://localhost:${tunnel.agentPort}/session`, {
               method: "POST",
               headers: { "Content-Type": "application/json" },
-              body: JSON.stringify({ title: ctx.title }),
+              body: JSON.stringify({ title: ctx.title, ...(ctx.model ? { model: ctx.model } : {}) }),
             })
             if (!r.ok) throw new Error(`Session create failed: ${r.status}`)
             const body = (await r.json()) as { id: string }

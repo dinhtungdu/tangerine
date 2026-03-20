@@ -26,6 +26,7 @@ export function mapTaskRow(row: TaskRow): Task {
     description: row.description,
     status: row.status as TaskStatus,
     provider: row.provider as ProviderType,
+    model: row.model,
     vmId: row.vm_id,
     branch: row.branch,
     worktreePath: row.worktree_path,
