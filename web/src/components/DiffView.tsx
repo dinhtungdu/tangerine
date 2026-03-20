@@ -388,7 +388,7 @@ function FileSection({ file, onAddComment }: { file: DiffFile; onAddComment?: (c
         <div className="flex shrink-0 items-center gap-2.5">
           <span className="text-[12px] font-semibold text-green-600">+{stats.added}</span>
           <span className="text-[12px] font-semibold text-red-500">&minus;{stats.removed}</span>
-          <div className="hidden overflow-hidden rounded-md border border-edge md:flex">
+          <div className="hidden overflow-hidden rounded-md border border-edge @min-[600px]:flex">
             <button
               onClick={() => setViewMode("split")}
               className={`px-2.5 py-1 text-[11px] font-medium ${viewMode === "split" ? "bg-surface-secondary text-fg" : "text-fg-muted"}`}
@@ -406,12 +406,12 @@ function FileSection({ file, onAddComment }: { file: DiffFile; onAddComment?: (c
       </div>
       {!collapsed && (
         <>
-          {/* Mobile: always unified */}
-          <div className="md:hidden">
+          {/* Narrow container: always unified */}
+          <div className="@min-[600px]:hidden">
             <UnifiedDiff diff={file.diff} filePath={file.path} onAddComment={onAddComment} />
           </div>
-          {/* Desktop: respect toggle */}
-          <div className="hidden md:block">
+          {/* Wide container: respect toggle */}
+          <div className="hidden @min-[600px]:block">
             {viewMode === "split"
               ? <SplitDiff diff={file.diff} filePath={file.path} onAddComment={onAddComment} />
               : <UnifiedDiff diff={file.diff} filePath={file.path} onAddComment={onAddComment} />
@@ -432,7 +432,7 @@ export function DiffView({ files, onAddComment }: DiffViewProps) {
   if (files.length === 0) return null
 
   return (
-    <div className="h-full overflow-y-auto bg-surface">
+    <div className="@container h-full overflow-y-auto bg-surface">
       {files.map((file) => (
         <div key={file.path} id={`diff-file-${file.path}`}>
           <FileSection file={file} onAddComment={onAddComment} />

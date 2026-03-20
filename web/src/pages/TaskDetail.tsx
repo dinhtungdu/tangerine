@@ -242,10 +242,10 @@ export function TaskDetail() {
             </div>
           )}
 
-          {/* Diff pane */}
+          {/* Diff pane — container query switches sidebar from right to bottom */}
           {showDiff && (
-            <div className={`flex min-w-0 flex-1 flex-col ${showDiff && showActivity ? "md:border-r md:border-edge" : ""}`}>
-              <div className="flex min-h-0 flex-1">
+            <div className={`@container/diff flex min-w-0 flex-1 flex-col ${showDiff && showActivity ? "md:border-r md:border-edge" : ""}`}>
+              <div className="flex min-h-0 flex-1 flex-col @min-[700px]/diff:flex-row">
                 <div className="min-w-0 flex-1 overflow-y-auto">
                   {diffFiles.length > 0 ? (
                     <DiffView files={diffFiles} onAddComment={handleAddComment} />
@@ -256,15 +256,13 @@ export function TaskDetail() {
                   )}
                 </div>
                 {diffFiles.length > 0 && (
-                  <div className="hidden md:flex">
-                    <DiffSidebar
-                      files={diffFiles}
-                      comments={diffComments}
-                      onScrollToFile={handleScrollToFile}
-                      onRemoveComment={handleRemoveComment}
-                      onSendComments={handleSendComments}
-                    />
-                  </div>
+                  <DiffSidebar
+                    files={diffFiles}
+                    comments={diffComments}
+                    onScrollToFile={handleScrollToFile}
+                    onRemoveComment={handleRemoveComment}
+                    onSendComments={handleSendComments}
+                  />
                 )}
               </div>
             </div>

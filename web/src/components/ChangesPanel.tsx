@@ -24,7 +24,7 @@ export function ChangesPanel({ files, comments, onRemoveComment, onSendComments,
   }
 
   return (
-    <div className="flex h-full w-[220px] shrink-0 flex-col border-l border-edge">
+    <div className="flex h-[180px] w-full shrink-0 flex-col border-t border-edge @min-[700px]/diff:h-full @min-[700px]/diff:w-[220px] @min-[700px]/diff:border-l @min-[700px]/diff:border-t-0">
       {/* File list */}
       <div className="flex-1 overflow-y-auto">
         <div className="flex h-11 items-center justify-between px-3">
