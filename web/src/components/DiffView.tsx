@@ -257,14 +257,14 @@ function SplitDiff({ diff, filePath, onAddComment }: { diff: string; filePath: s
     useLineComment(filePath, getLineNum, onAddComment)
 
   return (
-    <div className="w-full">
+    <div className="w-full overflow-hidden">
       <div className="flex w-full">
-        <div className="flex-1 border-r border-edge">
+        <div className="min-w-0 flex-1 border-r border-edge">
           <div className="flex h-8 items-center bg-surface-secondary px-4">
             <span className="font-mono text-[11px] font-medium text-fg-muted">Before</span>
           </div>
         </div>
-        <div className="flex-1">
+        <div className="min-w-0 flex-1">
           <div className="flex h-8 items-center bg-surface-secondary px-4">
             <span className="font-mono text-[11px] font-medium text-fg-muted">After</span>
           </div>
@@ -282,20 +282,20 @@ function SplitDiff({ diff, filePath, onAddComment }: { diff: string; filePath: s
             <div key={i}>
               <div className="flex w-full">
                 <div
-                  className={`flex h-[22px] flex-1 items-center border-r border-edge font-mono text-[11px] ${leftBg} ${leftSelected ? "border-l-2 border-l-status-info bg-status-info/5" : ""}`}
+                  className={`flex min-h-[22px] min-w-0 flex-1 border-r border-edge font-mono text-[11px] ${leftBg} ${leftSelected ? "border-l-2 border-l-status-info bg-status-info/5" : ""}`}
                   onMouseEnter={() => handleLineMouseEnter(i, "left")}
                 >
                   <LineNum num={l?.num ?? ""} canComment={!!onAddComment} onMouseDown={() => handleGutterMouseDown(i, "left")} />
-                  <span className={`min-w-0 flex-1 whitespace-pre overflow-x-clip px-2 ${l?.type === "remove" ? "text-red-600" : "text-fg-muted"}`}>
+                  <span className={`min-w-0 flex-1 whitespace-pre-wrap break-all px-2 ${l?.type === "remove" ? "text-red-600" : "text-fg-muted"}`}>
                     {l?.content ?? ""}
                   </span>
                 </div>
                 <div
-                  className={`flex h-[22px] flex-1 items-center font-mono text-[11px] ${rightBg} ${rightSelected ? "border-l-2 border-l-status-info bg-status-info/5" : ""}`}
+                  className={`flex min-h-[22px] min-w-0 flex-1 font-mono text-[11px] ${rightBg} ${rightSelected ? "border-l-2 border-l-status-info bg-status-info/5" : ""}`}
                   onMouseEnter={() => handleLineMouseEnter(i, "right")}
                 >
                   <LineNum num={r?.num ?? ""} canComment={!!onAddComment} onMouseDown={() => handleGutterMouseDown(i, "right")} />
-                  <span className={`min-w-0 flex-1 whitespace-pre overflow-x-clip px-2 ${r?.type === "add" ? "text-green-700" : "text-fg-muted"}`}>
+                  <span className={`min-w-0 flex-1 whitespace-pre-wrap break-all px-2 ${r?.type === "add" ? "text-green-700" : "text-fg-muted"}`}>
                     {r?.content ?? ""}
                   </span>
                 </div>
@@ -388,7 +388,7 @@ function FileSection({ file, onAddComment }: { file: DiffFile; onAddComment?: (c
         <div className="flex shrink-0 items-center gap-2.5">
           <span className="text-[12px] font-semibold text-green-600">+{stats.added}</span>
           <span className="text-[12px] font-semibold text-red-500">&minus;{stats.removed}</span>
-          <div className="hidden overflow-hidden rounded-md border border-edge @min-[600px]:flex">
+          <div className="hidden overflow-hidden rounded-md border border-edge @min-[900px]:flex">
             <button
               onClick={() => setViewMode("split")}
               className={`px-2.5 py-1 text-[11px] font-medium ${viewMode === "split" ? "bg-surface-secondary text-fg" : "text-fg-muted"}`}
@@ -407,11 +407,11 @@ function FileSection({ file, onAddComment }: { file: DiffFile; onAddComment?: (c
       {!collapsed && (
         <>
           {/* Narrow container: always unified */}
-          <div className="@min-[600px]:hidden">
+          <div className="@min-[900px]:hidden">
             <UnifiedDiff diff={file.diff} filePath={file.path} onAddComment={onAddComment} />
           </div>
           {/* Wide container: respect toggle */}
-          <div className="hidden @min-[600px]:block">
+          <div className="hidden @min-[900px]:block">
             {viewMode === "split"
               ? <SplitDiff diff={file.diff} filePath={file.path} onAddComment={onAddComment} />
               : <UnifiedDiff diff={file.diff} filePath={file.path} onAddComment={onAddComment} />
