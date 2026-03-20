@@ -55,43 +55,35 @@ export function ActiveRunsCard({ tasks }: { tasks: Task[] }) {
 }
 
 export function VmSummaryCard({ vms }: { vms: VmInfo[] }) {
-  const active = vms.filter((v) => v.status === "active" || v.status === "ready" || v.status === "assigned").length
-  const provisioning = vms.filter((v) => v.status === "provisioning").length
-  const stopped = vms.filter((v) => v.status === "stopped" || v.status === "destroying").length
-  const total = vms.length
-  const barTotal = total || 1
-  const activePct = (active / barTotal) * 100
-  const stoppedPct = (stopped / barTotal) * 100
+  const vm = vms[0]
+  const status = vm?.status ?? "none"
+  const isActive = status === "active" || status === "ready" || status === "assigned"
+  const isProvisioning = status === "provisioning"
+
+  const badge = isActive
+    ? { label: "Active", cls: "bg-status-success-bg text-status-success-text" }
+    : isProvisioning
+      ? { label: "Provisioning", cls: "bg-status-warning-bg text-status-warning-text" }
+      : vm
+        ? { label: "Stopped", cls: "bg-surface-secondary text-fg-muted" }
+        : { label: "No VM", cls: "bg-surface-secondary text-fg-muted" }
 
   return (
     <div className="flex flex-1 flex-col gap-2.5 rounded-[10px] border border-edge p-3.5 md:gap-3 md:p-4">
       <div className="flex items-center justify-between">
-        <span className="text-[13px] font-medium text-fg-muted">Project VMs</span>
-        <span className="rounded-xl bg-status-info-bg px-2.5 py-0.5 text-[11px] font-semibold text-status-info-text">
-          {total} Total
+        <span className="text-[13px] font-medium text-fg-muted">Project VM</span>
+        <span className={`rounded-xl px-2.5 py-0.5 text-[11px] font-semibold ${badge.cls}`}>
+          {badge.label}
         </span>
       </div>
-      <div className="flex gap-4 md:gap-6">
-        <div className="flex flex-col gap-0.5">
-          <span className="text-[24px] font-bold text-fg md:text-[28px]">{active}</span>
-          <span className="text-[11px] font-medium text-status-success md:text-[12px]">Active</span>
+      {vm ? (
+        <div className="flex flex-col gap-1">
+          <span className="text-[15px] font-semibold text-fg">{vm.id}</span>
+          <span className="text-[12px] text-fg-muted">{vm.ip ?? "No IP"}</span>
         </div>
-        <div className="flex flex-col gap-0.5">
-          <span className="text-[24px] font-bold text-fg md:text-[28px]">{stopped}</span>
-          <span className="text-[11px] font-medium text-status-info md:text-[12px]">Stopped</span>
-        </div>
-        <div className="flex flex-col gap-0.5">
-          <span className="text-[24px] font-bold text-fg md:text-[28px]">{provisioning}</span>
-          <span className="text-[11px] font-medium text-status-warning md:text-[12px]">Provisioning</span>
-        </div>
-      </div>
-      {/* Progress bar */}
-      <div className="h-1.5 w-full overflow-hidden rounded-full bg-surface-secondary">
-        <div className="flex h-full">
-          <div className="h-full bg-status-success" style={{ width: `${activePct}%` }} />
-          <div className="h-full bg-status-info" style={{ width: `${stoppedPct}%` }} />
-        </div>
-      </div>
+      ) : (
+        <p className="text-[13px] text-fg-muted">No VM provisioned yet.</p>
+      )}
     </div>
   )
 }

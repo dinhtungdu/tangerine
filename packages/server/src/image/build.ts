@@ -17,7 +17,7 @@ import { Effect } from "effect";
 import { LimaProvider } from "../vm/providers/lima.ts";
 import { sshExec, sshExecStreaming, waitForSsh } from "../vm/ssh.ts";
 import { getDb } from "../db/index.ts";
-import { createImage, listVms, pruneOldImages, updateVmStatus } from "../db/queries.ts";
+import { createImage, listImages, listVms, pruneOldImages, updateVmStatus } from "../db/queries.ts";
 import { TANGERINE_HOME, VM_USER } from "../config.ts";
 import type { Logger } from "../logger.ts";
 import type { Database } from "bun:sqlite";
@@ -292,4 +292,45 @@ export async function buildImage(imageName: string, log: Logger, opts?: { requir
   }
   appendLog(logFile, `\n=== Build complete ===`);
   log.info("Golden image built successfully", { imageId, cloneSource: goldenName, pruned, cleanedReadyVms });
+}
+
+/**
+ * Reconcile golden images: if a golden VM exists in the provider but has no
+ * matching DB record (e.g. DB was wiped, or image was built before tracking),
+ * insert a synthetic record so the UI shows "Built" instead of "Not Built".
+ */
+export async function reconcileImages(
+  db: Database,
+  provider: Provider,
+  projectImages: string[],
+  log: Logger,
+): Promise<number> {
+  let reconciled = 0;
+  const existing = Effect.runSync(listImages(db));
+
+  for (const imageName of projectImages) {
+    // Skip if DB already has a record for this image
+    if (existing.some((r) => r.name === imageName)) continue;
+
+    // Check if the golden VM exists in the provider
+    const golden = goldenVmName(imageName);
+    try {
+      await Effect.runPromise(provider.getInstance(golden));
+    } catch {
+      continue; // Golden VM doesn't exist — genuinely not built
+    }
+
+    // Golden VM exists but no DB record — insert one
+    const imageId = `img-${imageName}-reconciled-${Date.now()}`;
+    Effect.runSync(createImage(db, {
+      id: imageId,
+      name: imageName,
+      provider: "lima",
+      snapshot_id: `clone:${golden}`,
+    }));
+    log.info("Reconciled golden image", { imageName, imageId, goldenVm: golden });
+    reconciled++;
+  }
+
+  return reconciled;
 }
