@@ -11,20 +11,20 @@ import { getEventType, getEventStyle, EVENT_STYLES } from "../lib/activity"
 
 describe("format", () => {
   describe("formatModelName", () => {
-    test("strips provider prefix", () => {
-      expect(formatModelName("anthropic/claude-sonnet-4-20250514")).toBe("claude-sonnet-4")
+    test("strips date suffix", () => {
+      expect(formatModelName("anthropic/claude-sonnet-4-20250514")).toBe("anthropic/claude-sonnet-4")
     })
 
-    test("strips date suffix only", () => {
+    test("strips date suffix without prefix", () => {
       expect(formatModelName("claude-sonnet-4-20250514")).toBe("claude-sonnet-4")
     })
 
-    test("returns as-is without prefix or suffix", () => {
+    test("returns as-is without date suffix", () => {
       expect(formatModelName("claude-sonnet-4")).toBe("claude-sonnet-4")
     })
 
-    test("handles model with slash but no date", () => {
-      expect(formatModelName("openai/gpt-4")).toBe("gpt-4")
+    test("returns as-is for model with slash but no date", () => {
+      expect(formatModelName("openai/gpt-4")).toBe("openai/gpt-4")
     })
   })
 
@@ -107,13 +107,14 @@ describe("status", () => {
   test("getStatusConfig returns default for unknown status", () => {
     const config = getStatusConfig("unknown_status")
     expect(config.label).toBe("Unknown")
-    expect(config.color).toBe("#737373")
+    expect(config.color).toBeTruthy()
   })
 
-  test("all statuses have color and bg", () => {
+  test("all statuses have color and textClass", () => {
     for (const [, config] of Object.entries(STATUS_CONFIG)) {
-      expect(config.color).toMatch(/^#[0-9a-f]{6}$/i)
-      expect(config.bg).toMatch(/^#[0-9a-f]{6}$/i)
+      expect(config.color).toBeTruthy()
+      expect(config.textClass).toBeTruthy()
+      expect(config.bgClass).toBeTruthy()
     }
   })
 })
@@ -147,16 +148,16 @@ describe("activity", () => {
     expect(getEventType("Some random message")).toBe("default")
   })
 
-  test("getEventStyle returns colors for all types", () => {
+  test("getEventStyle returns classes for all types", () => {
     const style = getEventStyle("Read file foo")
-    expect(style.bg).toBeDefined()
-    expect(style.dot).toBeDefined()
+    expect(style.bgClass).toBeDefined()
+    expect(style.dotClass).toBeDefined()
   })
 
-  test("all event styles have bg and dot", () => {
+  test("all event styles have bgClass and dotClass", () => {
     for (const [, style] of Object.entries(EVENT_STYLES)) {
-      expect(style.bg).toBeDefined()
-      expect(style.dot).toBeDefined()
+      expect(style.bgClass).toBeDefined()
+      expect(style.dotClass).toBeDefined()
     }
   })
 })

@@ -3,8 +3,7 @@ import { render, screen, cleanup } from "@testing-library/react"
 import { MemoryRouter } from "react-router-dom"
 import { RunCard } from "../components/RunCard"
 import { ActivityList } from "../components/ActivityList"
-import type { Task } from "@tangerine/shared"
-import type { ChatMessage } from "../hooks/useSession"
+import type { Task, ActivityEntry } from "@tangerine/shared"
 
 function makeTask(overrides?: Partial<Task>): Task {
   return {
@@ -17,6 +16,8 @@ function makeTask(overrides?: Partial<Task>): Task {
     description: null,
     status: "running",
     provider: "opencode",
+    model: null,
+    reasoningEffort: null,
     vmId: null,
     branch: null,
     worktreePath: null,
@@ -34,11 +35,14 @@ function makeTask(overrides?: Partial<Task>): Task {
   }
 }
 
-function makeMessage(overrides?: Partial<ChatMessage>): ChatMessage {
+function makeActivity(overrides?: Partial<ActivityEntry>): ActivityEntry {
   return {
-    id: `msg-${Math.random().toString(36).slice(2)}`,
-    role: "assistant",
-    content: "Some agent activity",
+    id: Math.floor(Math.random() * 10000),
+    taskId: "t1",
+    type: "lifecycle",
+    event: "test",
+    content: "Some activity",
+    metadata: null,
     timestamp: new Date().toISOString(),
     ...overrides,
   }
@@ -96,37 +100,36 @@ describe("RunCard", () => {
 
 describe("ActivityList", () => {
   test("shows empty state", () => {
-    render(<ActivityList messages={[]} variant="compact" />)
+    render(<ActivityList activities={[]} variant="compact" />)
     expect(screen.getByText("No activity yet")).toBeTruthy()
   })
 
-  test("compact variant shows timestamp and content", () => {
-    const messages = [
-      makeMessage({ role: "assistant", content: "Read file src/index.ts" }),
+  test("compact variant shows content", () => {
+    const activities = [
+      makeActivity({ content: "Read file src/index.ts" }),
     ]
-    render(<ActivityList messages={messages} variant="compact" />)
+    render(<ActivityList activities={activities} variant="compact" />)
     expect(screen.getByText(/Read file src\/index.ts/)).toBeTruthy()
   })
 
   test("timeline variant groups by day", () => {
-    const messages = [
-      makeMessage({ role: "assistant", content: "First activity", timestamp: new Date().toISOString() }),
+    const activities = [
+      makeActivity({ content: "First activity", timestamp: new Date().toISOString() }),
     ]
-    render(<ActivityList messages={messages} variant="timeline" />)
+    render(<ActivityList activities={activities} variant="timeline" />)
     expect(screen.getByText("Today")).toBeTruthy()
     expect(screen.getByText(/First activity/)).toBeTruthy()
   })
 
-  test("filters to only assistant and tool messages", () => {
-    const messages = [
-      makeMessage({ role: "user", content: "User message" }),
-      makeMessage({ role: "assistant", content: "Agent response" }),
-      makeMessage({ role: "tool", content: "Tool output" }),
+  test("renders multiple activities", () => {
+    const activities = [
+      makeActivity({ content: "VM acquired" }),
+      makeActivity({ content: "Worktree created" }),
+      makeActivity({ content: "Agent started" }),
     ]
-    render(<ActivityList messages={messages} variant="compact" />)
-    // User message should not appear
-    expect(screen.queryByText("User message")).toBeNull()
-    expect(screen.getByText(/Agent response/)).toBeTruthy()
-    expect(screen.getByText(/Tool output/)).toBeTruthy()
+    render(<ActivityList activities={activities} variant="compact" />)
+    expect(screen.getByText(/VM acquired/)).toBeTruthy()
+    expect(screen.getByText(/Worktree created/)).toBeTruthy()
+    expect(screen.getByText(/Agent started/)).toBeTruthy()
   })
 })
