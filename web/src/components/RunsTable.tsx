@@ -95,7 +95,7 @@ export function RunsTable({ tasks, searchQuery, onSearchChange, onRefetch }: Run
             value={searchQuery}
             onChange={(e) => onSearchChange(e.target.value)}
             placeholder="Search runs..."
-            className="min-w-0 flex-1 bg-transparent text-[13px] text-fg placeholder-neutral-500 outline-none"
+            className="min-w-0 flex-1 bg-transparent text-[16px] text-fg placeholder-neutral-500 outline-none md:text-[13px]"
           />
         </div>
       </div>

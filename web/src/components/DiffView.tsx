@@ -113,7 +113,7 @@ function InlineCommentForm({ onSubmit, onCancel, rangeLabel }: { onSubmit: (text
           if (e.key === "Escape") onCancel()
         }}
         placeholder="Add a comment..."
-        className="w-full resize-none rounded-md border border-edge bg-surface px-3 py-2 text-[13px] text-fg placeholder:text-fg-faint focus:border-status-info focus:outline-none"
+        className="w-full resize-none rounded-md border border-edge bg-surface px-3 py-2 text-[16px] text-fg placeholder:text-fg-faint focus:border-status-info focus:outline-none md:text-[13px]"
         rows={3}
       />
       <div className="mt-2 flex items-center justify-end gap-2">
