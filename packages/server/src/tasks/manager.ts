@@ -305,22 +305,38 @@ export function changeModel(
 
     log.info("Changing task config", { taskId, model: modelChanged ? { from: task.model, to: model } : undefined, reasoningEffort: effortChanged ? { from: task.reasoning_effort, to: reasoningEffort } : undefined })
 
-    // Capture session ID before shutdown
-    const sessionId = task.agent_session_id
-
-    // Shutdown current agent (kills process, clears subscriptions)
     const handle = deps.cleanupDeps.getAgentHandle(taskId)
+
+    // Try hot-swap via handle (OpenCode supports this — no restart needed)
+    if (modelChanged && handle?.changeModel) {
+      const hotSwapped = yield* handle.changeModel(model!).pipe(
+        Effect.catchAll(() => Effect.succeed(false))
+      )
+      if (hotSwapped) {
+        // Update DB only, no restart
+        yield* deps.updateTask(taskId, { model: model! }).pipe(Effect.ignoreLogged)
+        if (effortChanged) {
+          yield* deps.updateTask(taskId, { reasoning_effort: reasoningEffort! }).pipe(Effect.ignoreLogged)
+        }
+        const changes = [modelChanged && `model → ${model}`, effortChanged && `reasoning → ${reasoningEffort}`].filter(Boolean).join(", ")
+        yield* deps.logActivity(taskId, "lifecycle", "config.changed", changes, {
+          model: newModel, reasoningEffort: newEffort,
+        }).pipe(Effect.catchAll(() => Effect.void))
+        return
+      }
+    }
+
+    // Fallback: restart agent (Claude Code needs this — model is a CLI flag)
+    const sessionId = task.agent_session_id
     if (handle) {
       yield* handle.shutdown()
     }
 
-    // Update DB
     const updates: Partial<import("../db/types").TaskRow> = {}
     if (modelChanged) updates.model = model!
     if (effortChanged) updates.reasoning_effort = reasoningEffort!
     yield* deps.updateTask(taskId, updates).pipe(Effect.ignoreLogged)
 
-    // Re-read task with updated fields
     const updatedTask = yield* deps.getTask(taskId).pipe(
       Effect.flatMap((t) => t ? Effect.succeed(t) : Effect.fail(new Error("Task disappeared")))
     )
@@ -331,8 +347,6 @@ export function changeModel(
     }).pipe(Effect.catchAll(() => Effect.void))
 
     const taskLifecycleDeps = depsForProvider(deps, updatedTask.provider)
-
-    // Reconnect with new model + resume session
     const taskWithSession = { ...updatedTask, agent_session_id: sessionId }
     yield* Effect.forkDaemon(
       reconnectSessionWithRetry(taskWithSession, projectConfig, deps.credentialConfig, taskLifecycleDeps, deps.retryDeps)

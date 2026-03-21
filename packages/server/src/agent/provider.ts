@@ -19,6 +19,8 @@ export interface AgentHandle {
   abort(): Effect.Effect<void, AgentError>
   subscribe(onEvent: (e: AgentEvent) => void): { unsubscribe(): void }
   shutdown(): Effect.Effect<void, never>
+  /** Change model without restarting. Returns false if not supported (requires restart). */
+  changeModel?(model: string): Effect.Effect<boolean, AgentError>
 }
 
 /** Context passed to AgentFactory.start() to bootstrap an agent session */

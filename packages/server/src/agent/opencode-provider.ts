@@ -319,6 +319,23 @@ export function createOpenCodeProvider(deps: OpenCodeProviderDeps): AgentFactory
             })
           },
 
+          changeModel(model: string) {
+            return Effect.tryPromise({
+              try: async () => {
+                const res = await fetch(`http://localhost:${tunnel.agentPort}/config`, {
+                  method: "PUT",
+                  headers: { "Content-Type": "application/json" },
+                  body: JSON.stringify({ model }),
+                })
+                if (!res.ok) throw new Error(`Config update failed: ${res.status}`)
+                taskLog.info("Model changed via config API", { model })
+                return true
+              },
+              catch: (e) =>
+                new AgentError({ message: `Model change failed: ${e}`, taskId: ctx.taskId }),
+            })
+          },
+
           subscribe(onEvent: (e: AgentEvent) => void) {
             subscribers.add(onEvent)
             return {
