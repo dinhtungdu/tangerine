@@ -82,9 +82,10 @@ export function NewAgentForm({ onSubmit }: NewAgentFormProps) {
   const branch = current?.defaultBranch ?? "main"
 
   const providerModels = modelsByProvider[provider] ?? []
+  // Only show a model if the user explicitly selected one
   const activeModel = selectedModel && providerModels.includes(selectedModel)
     ? selectedModel
-    : providerModels[0] ?? ""
+    : ""
 
   const handleProviderChange = useCallback((p: ProviderType) => {
     setProvider(p)
