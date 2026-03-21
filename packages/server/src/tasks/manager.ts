@@ -279,7 +279,8 @@ export function resumeOrphanedTasks(
 export function changeModel(
   deps: TaskManagerDeps,
   taskId: string,
-  model: string,
+  model?: string,
+  reasoningEffort?: string,
 ): Effect.Effect<void, TaskNotFoundError | Error> {
   return Effect.gen(function* () {
     const task = yield* deps.getTask(taskId).pipe(
@@ -295,7 +296,14 @@ export function changeModel(
       return yield* Effect.fail(new Error(`Unknown project: ${task.project_id}`))
     }
 
-    log.info("Changing model", { taskId, from: task.model, to: model })
+    const newModel = model ?? task.model
+    const newEffort = reasoningEffort ?? task.reasoning_effort
+    const modelChanged = model && model !== task.model
+    const effortChanged = reasoningEffort && reasoningEffort !== task.reasoning_effort
+
+    if (!modelChanged && !effortChanged) return
+
+    log.info("Changing task config", { taskId, model: modelChanged ? { from: task.model, to: model } : undefined, reasoningEffort: effortChanged ? { from: task.reasoning_effort, to: reasoningEffort } : undefined })
 
     // Capture session ID before shutdown
     const sessionId = task.agent_session_id
@@ -306,15 +314,20 @@ export function changeModel(
       yield* handle.shutdown()
     }
 
-    // Update model in DB
-    yield* deps.updateTask(taskId, { model }).pipe(Effect.ignoreLogged)
-    // Re-read task with updated model
+    // Update DB
+    const updates: Partial<import("../db/types").TaskRow> = {}
+    if (modelChanged) updates.model = model!
+    if (effortChanged) updates.reasoning_effort = reasoningEffort!
+    yield* deps.updateTask(taskId, updates).pipe(Effect.ignoreLogged)
+
+    // Re-read task with updated fields
     const updatedTask = yield* deps.getTask(taskId).pipe(
       Effect.flatMap((t) => t ? Effect.succeed(t) : Effect.fail(new Error("Task disappeared")))
     )
 
-    yield* deps.logActivity(taskId, "lifecycle", "model.changed", `Model changed to ${model}`, {
-      from: task.model, to: model,
+    const changes = [modelChanged && `model → ${model}`, effortChanged && `reasoning → ${reasoningEffort}`].filter(Boolean).join(", ")
+    yield* deps.logActivity(taskId, "lifecycle", "config.changed", changes, {
+      model: newModel, reasoningEffort: newEffort,
     }).pipe(Effect.catchAll(() => Effect.void))
 
     const taskLifecycleDeps = depsForProvider(deps, updatedTask.provider)

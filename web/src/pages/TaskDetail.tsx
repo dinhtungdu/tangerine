@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback, useRef } from "react"
 import { useParams, useNavigate } from "react-router-dom"
 import type { Task, ActivityEntry } from "@tangerine/shared"
-import { fetchTask, fetchActivities, changeModel } from "../lib/api"
+import { fetchTask, fetchActivities, changeTaskConfig } from "../lib/api"
 import { getStatusConfig } from "../lib/status"
 import { useSession } from "../hooks/useSession"
 import { useTaskSearch } from "../hooks/useTaskSearch"
@@ -79,8 +79,18 @@ export function TaskDetail() {
   const handleModelChange = useCallback(async (model: string) => {
     if (!id || !task) return
     try {
-      await changeModel(id, model)
+      await changeTaskConfig(id, { model })
       setTask((prev) => prev ? { ...prev, model } : prev)
+    } catch {
+      // TODO: error toast
+    }
+  }, [id, task])
+
+  const handleReasoningEffortChange = useCallback(async (reasoningEffort: string) => {
+    if (!id || !task) return
+    try {
+      await changeTaskConfig(id, { reasoningEffort })
+      setTask((prev) => prev ? { ...prev, reasoningEffort } : prev)
     } catch {
       // TODO: error toast
     }
@@ -261,9 +271,11 @@ export function TaskDetail() {
                 queueLength={session.queueLength}
                 model={task.model}
                 providerModels={providerModels}
+                reasoningEffort={task.reasoningEffort}
                 onSend={session.sendPrompt}
                 onAbort={session.abort}
                 onModelChange={handleModelChange}
+                onReasoningEffortChange={handleReasoningEffortChange}
               />
             </div>
           )}
@@ -326,9 +338,11 @@ export function TaskDetail() {
                 queueLength={session.queueLength}
                 model={task.model}
                 providerModels={providerModels}
+                reasoningEffort={task.reasoningEffort}
                 onSend={session.sendPrompt}
                 onAbort={session.abort}
                 onModelChange={handleModelChange}
+                onReasoningEffortChange={handleReasoningEffortChange}
               />
             </div>
           )}

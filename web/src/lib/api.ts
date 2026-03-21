@@ -108,10 +108,10 @@ export async function abortTask(id: string): Promise<void> {
   return request<void>(`/api/tasks/${id}/abort`, { method: "POST" })
 }
 
-export async function changeModel(id: string, model: string): Promise<void> {
+export async function changeTaskConfig(id: string, config: { model?: string; reasoningEffort?: string }): Promise<void> {
   return request<void>(`/api/tasks/${id}/model`, {
     method: "POST",
-    body: JSON.stringify({ model }),
+    body: JSON.stringify(config),
   })
 }
 

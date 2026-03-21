@@ -34,7 +34,7 @@ export interface AppDeps {
     completeTask(taskId: string): Effect.Effect<void, TaggedError>
     sendPrompt(taskId: string, text: string): Effect.Effect<void, TaggedError>
     abortTask(taskId: string): Effect.Effect<void, TaggedError>
-    changeModel(taskId: string, model: string): Effect.Effect<void, TaggedError>
+    changeModel(taskId: string, model?: string, reasoningEffort?: string): Effect.Effect<void, TaggedError>
     onTaskEvent(taskId: string, handler: (data: unknown) => void): () => void
     onStatusChange(taskId: string, handler: (status: string) => void): () => void
   }

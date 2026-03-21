@@ -9,9 +9,11 @@ interface ChatPanelProps {
   queueLength: number
   model?: string | null
   providerModels?: string[]
+  reasoningEffort?: string | null
   onSend: (text: string) => void
   onAbort: () => void
   onModelChange?: (model: string) => void
+  onReasoningEffortChange?: (effort: string) => void
 }
 
 export function ChatPanel({
@@ -20,9 +22,11 @@ export function ChatPanel({
   queueLength,
   model,
   providerModels,
+  reasoningEffort,
   onSend,
   onAbort,
   onModelChange,
+  onReasoningEffortChange,
 }: ChatPanelProps) {
   const scrollRef = useRef<HTMLDivElement>(null)
 
@@ -75,7 +79,9 @@ export function ChatPanel({
         onAbort={onAbort}
         model={model}
         providerModels={providerModels}
+        reasoningEffort={reasoningEffort}
         onModelChange={onModelChange}
+        onReasoningEffortChange={onReasoningEffortChange}
       />
     </div>
   )

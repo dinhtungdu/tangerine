@@ -61,9 +61,10 @@ function createMockDeps(db: Database, configOverrides?: Partial<AppDeps["config"
         return Effect.succeed(undefined as void)
       },
       abortTask() { return Effect.succeed(undefined as void) },
-      changeModel(taskId: string, model: string) {
+      changeModel(taskId: string, model?: string, reasoningEffort?: string) {
         return Effect.sync(() => {
-          db.prepare("UPDATE tasks SET model = ? WHERE id = ?").run(model, taskId)
+          if (model) db.prepare("UPDATE tasks SET model = ? WHERE id = ?").run(model, taskId)
+          if (reasoningEffort) db.prepare("UPDATE tasks SET reasoning_effort = ? WHERE id = ?").run(reasoningEffort, taskId)
         })
       },
       onTaskEvent() { return () => {} },
@@ -361,7 +362,20 @@ describe("API routes", () => {
       expect(updated.model).toBe("claude-opus-4-6")
     })
 
-    test("returns 400 without model", async () => {
+    test("changes reasoning effort for a task", async () => {
+      const row = seedTask(db)
+      db.prepare("UPDATE tasks SET status = 'running' WHERE id = ?").run(row.id)
+      const res = await app.fetch(new Request(`http://localhost/api/tasks/${row.id}/model`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ reasoningEffort: "high" }),
+      }))
+      expect(res.status).toBe(200)
+      const updated = db.prepare("SELECT reasoning_effort FROM tasks WHERE id = ?").get(row.id) as { reasoning_effort: string }
+      expect(updated.reasoning_effort).toBe("high")
+    })
+
+    test("returns 400 without model or reasoningEffort", async () => {
       const row = seedTask(db)
       const res = await app.fetch(new Request(`http://localhost/api/tasks/${row.id}/model`, {
         method: "POST",

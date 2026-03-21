@@ -57,12 +57,12 @@ export function sessionRoutes(deps: AppDeps): Hono {
   })
 
   app.post("/:id/model", async (c) => {
-    const body = await c.req.json<{ model?: string }>()
-    if (!body.model) {
-      return c.json({ error: "model is required" }, 400)
+    const body = await c.req.json<{ model?: string; reasoningEffort?: string }>()
+    if (!body.model && !body.reasoningEffort) {
+      return c.json({ error: "model or reasoningEffort is required" }, 400)
     }
     return runEffectVoid(c,
-      deps.taskManager.changeModel(c.req.param("id"), body.model)
+      deps.taskManager.changeModel(c.req.param("id"), body.model, body.reasoningEffort)
     )
   })
 

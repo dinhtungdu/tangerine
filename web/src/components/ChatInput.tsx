@@ -1,5 +1,6 @@
 import { useState, useRef, useCallback, type KeyboardEvent } from "react"
 import { ModelSelector } from "./ModelSelector"
+import { ReasoningEffortSelector, type ReasoningEffort } from "./ReasoningEffortSelector"
 
 interface ChatInputProps {
   onSend: (text: string) => void
@@ -9,10 +10,12 @@ interface ChatInputProps {
   onAbort?: () => void
   model?: string | null
   providerModels?: string[]
+  reasoningEffort?: string | null
   onModelChange?: (model: string) => void
+  onReasoningEffortChange?: (effort: string) => void
 }
 
-export function ChatInput({ onSend, disabled, queueLength, isWorking, onAbort, model, providerModels, onModelChange }: ChatInputProps) {
+export function ChatInput({ onSend, disabled, queueLength, isWorking, onAbort, model, providerModels, reasoningEffort, onModelChange, onReasoningEffortChange }: ChatInputProps) {
   const [text, setText] = useState("")
   const textareaRef = useRef<HTMLTextAreaElement>(null)
 
@@ -97,19 +100,25 @@ export function ChatInput({ onSend, disabled, queueLength, isWorking, onAbort, m
         </button>
       </div>
 
-      {/* Desktop: model selector + stop button */}
+      {/* Desktop: model + reasoning selectors + stop button */}
       <div className="mt-2 hidden items-center justify-between md:flex">
-        {canChangeModel ? (
-          <ModelSelector
-            models={providerModels}
-            model={model ?? providerModels[0] ?? ""}
-            onModelChange={onModelChange}
-          />
-        ) : model ? (
-          <ModelSelector model={model} models={[model]} />
-        ) : (
-          <div />
-        )}
+        <div className="flex items-center gap-2">
+          {canChangeModel ? (
+            <ModelSelector
+              models={providerModels}
+              model={model ?? providerModels[0] ?? ""}
+              onModelChange={onModelChange}
+            />
+          ) : model ? (
+            <ModelSelector model={model} models={[model]} />
+          ) : null}
+          {onReasoningEffortChange && (
+            <ReasoningEffortSelector
+              value={(reasoningEffort as ReasoningEffort) ?? "medium"}
+              onChange={onReasoningEffortChange}
+            />
+          )}
+        </div>
         {isWorking && (
           <button
             onClick={onAbort}
