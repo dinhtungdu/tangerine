@@ -7,13 +7,13 @@ import { useSession } from "../hooks/useSession"
 import { useTaskSearch } from "../hooks/useTaskSearch"
 import { useProject } from "../context/ProjectContext"
 import { useDiffFiles } from "../hooks/useDiffFiles"
-import { useMediaQuery } from "../hooks/useMediaQuery"
 import { useResizable } from "../hooks/useResizable"
 import { TasksSidebar } from "../components/TasksSidebar"
 import { ChatPanel } from "../components/ChatPanel"
 import { DiffView } from "../components/DiffView"
 import { ActivityList } from "../components/ActivityList"
 import { ChangesPanel as DiffSidebar, type DiffComment } from "../components/ChangesPanel"
+import { ResizeHandle, PaneToggle } from "../components/PaneControls"
 
 type PaneId = "chat" | "diff" | "activity"
 
@@ -32,7 +32,6 @@ export function TaskDetail() {
   const { files: diffFiles } = useDiffFiles(id ?? "")
   const [diffComments, setDiffComments] = useState<DiffComment[]>([])
 
-  const isDesktop = useMediaQuery("(min-width: 768px)")
   const [chatWidth, setChatWidth] = useState(480)
   const [activityWidth, setActivityWidth] = useState(250)
   const containerRef = useRef<HTMLDivElement>(null)
@@ -153,13 +152,9 @@ export function TaskDetail() {
 
   const { color: statusColor, label: statusLabel } = getStatusConfig(task.status)
 
-  // Determine which panes are actually shown
-  const showChat = isDesktop ? visiblePanes.has("chat") : mobilePane === "chat"
-  const showDiff = isDesktop ? visiblePanes.has("diff") : mobilePane === "diff"
-  const showActivity = isDesktop ? visiblePanes.has("activity") : mobilePane === "activity"
-
-  const visibleCount = isDesktop ? visiblePanes.size : 1
-  const isSolo = visibleCount === 1
+  // Desktop: multi-pane from visiblePanes set. Mobile: single pane from mobilePane.
+  // Both states are tracked; CSS breakpoints control which layout renders.
+  const desktopIsSolo = visiblePanes.size === 1
 
   return (
     <div className="flex h-full">
@@ -210,18 +205,18 @@ export function TaskDetail() {
           {/* Row 2 / Right: pane toggles + divider + stop + more */}
           <div className="flex h-9 shrink-0 items-center justify-end gap-2 px-3 pb-1 md:h-auto md:px-0 md:pb-0">
             <div className="flex items-center gap-0.5 rounded-lg bg-neutral-100 p-[3px]">
-              <PaneToggle active={isDesktop ? visiblePanes.has("chat") : mobilePane === "chat"} onClick={() => togglePane("chat")} label="Chat">
+              <PaneToggle desktopActive={visiblePanes.has("chat")} mobileActive={mobilePane === "chat"} onClick={() => togglePane("chat")} label="Chat">
                 <svg className="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                   <path strokeLinecap="round" strokeLinejoin="round" d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" />
                 </svg>
               </PaneToggle>
-              <PaneToggle active={isDesktop ? visiblePanes.has("diff") : mobilePane === "diff"} onClick={() => togglePane("diff")} label="Diff">
+              <PaneToggle desktopActive={visiblePanes.has("diff")} mobileActive={mobilePane === "diff"} onClick={() => togglePane("diff")} label="Diff">
                 <svg className="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                   <circle cx="18" cy="18" r="3" /><circle cx="6" cy="6" r="3" />
                   <path d="M13 6h3a2 2 0 0 1 2 2v7M11 18H8a2 2 0 0 1-2-2V9" />
                 </svg>
               </PaneToggle>
-              <PaneToggle active={isDesktop ? visiblePanes.has("activity") : mobilePane === "activity"} onClick={() => togglePane("activity")} label="Activity">
+              <PaneToggle desktopActive={visiblePanes.has("activity")} mobileActive={mobilePane === "activity"} onClick={() => togglePane("activity")} label="Activity">
                 <svg className="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                   <path d="M22 12h-4l-3 9L9 3l-3 9H2" />
                 </svg>
@@ -241,13 +236,12 @@ export function TaskDetail() {
           </div>
         </div>
 
-        {/* Pane content */}
-        <div ref={containerRef} className="flex min-h-0 flex-1">
-          {/* Chat pane */}
-          {showChat && (
+        {/* Desktop pane layout — multi-pane with resize handles */}
+        <div ref={containerRef} className="hidden min-h-0 flex-1 md:flex">
+          {visiblePanes.has("chat") && (
             <div
               className="flex min-w-0 flex-col"
-              style={isSolo ? undefined : { width: chatWidth, flexShrink: 0 }}
+              style={desktopIsSolo ? undefined : { width: chatWidth, flexShrink: 0 }}
             >
               <ChatPanel
                 messages={session.messages}
@@ -260,13 +254,11 @@ export function TaskDetail() {
             </div>
           )}
 
-          {/* Resize handle: chat | diff/activity */}
-          {showChat && (showDiff || showActivity) && isDesktop && (
+          {visiblePanes.has("chat") && (visiblePanes.has("diff") || visiblePanes.has("activity")) && (
             <ResizeHandle onMouseDown={chatResize.onMouseDown} />
           )}
 
-          {/* Diff pane */}
-          {showDiff && (
+          {visiblePanes.has("diff") && (
             <div className="@container/diff flex min-w-0 flex-1 flex-col">
               <div className="flex min-h-0 flex-1 flex-col @min-[700px]/diff:flex-row">
                 <div className="min-w-0 flex-1 overflow-y-auto">
@@ -291,17 +283,56 @@ export function TaskDetail() {
             </div>
           )}
 
-          {/* Resize handle: diff/chat | activity */}
-          {showActivity && (showChat || showDiff) && isDesktop && (
+          {visiblePanes.has("activity") && (visiblePanes.has("chat") || visiblePanes.has("diff")) && (
             <ResizeHandle onMouseDown={activityResize.onMouseDown} />
           )}
 
-          {/* Activity pane */}
-          {showActivity && (
+          {visiblePanes.has("activity") && (
             <div
               className="flex flex-col bg-neutral-100"
-              style={isSolo ? undefined : { width: activityWidth, flexShrink: 0 }}
+              style={desktopIsSolo ? undefined : { width: activityWidth, flexShrink: 0 }}
             >
+              <div className="flex h-11 items-center border-b border-edge px-4">
+                <span className="text-[13px] font-semibold text-fg">Activity</span>
+              </div>
+              <div className="min-h-0 flex-1 overflow-y-auto px-4">
+                <ActivityList activities={activities} variant="compact" />
+              </div>
+            </div>
+          )}
+        </div>
+
+        {/* Mobile pane layout — single pane, switched by mobilePane */}
+        <div className="flex min-h-0 flex-1 md:hidden">
+          {mobilePane === "chat" && (
+            <div className="flex min-w-0 flex-1 flex-col">
+              <ChatPanel
+                messages={session.messages}
+                agentStatus={session.agentStatus}
+                queueLength={session.queueLength}
+                model={task.model}
+                onSend={session.sendPrompt}
+                onAbort={session.abort}
+              />
+            </div>
+          )}
+          {mobilePane === "diff" && (
+            <div className="@container/diff flex min-w-0 flex-1 flex-col">
+              <div className="flex min-h-0 flex-1 flex-col">
+                <div className="min-w-0 flex-1 overflow-y-auto">
+                  {diffFiles.length > 0 ? (
+                    <DiffView files={diffFiles} onAddComment={handleAddComment} />
+                  ) : (
+                    <div className="flex h-full items-center justify-center text-[13px] text-fg-muted">
+                      No file changes yet
+                    </div>
+                  )}
+                </div>
+              </div>
+            </div>
+          )}
+          {mobilePane === "activity" && (
+            <div className="flex flex-1 flex-col bg-neutral-100">
               <div className="flex h-11 items-center border-b border-edge px-4">
                 <span className="text-[13px] font-semibold text-fg">Activity</span>
               </div>
@@ -316,34 +347,3 @@ export function TaskDetail() {
   )
 }
 
-function ResizeHandle({ onMouseDown }: { onMouseDown: (e: React.MouseEvent) => void }) {
-  return (
-    <div
-      onMouseDown={onMouseDown}
-      className="flex w-0.5 shrink-0 cursor-col-resize bg-edge transition-colors hover:bg-blue-400"
-    >
-      <span />
-    </div>
-  )
-}
-
-function PaneToggle({ active, onClick, label, children }: {
-  active: boolean
-  onClick: () => void
-  label: string
-  children: React.ReactNode
-}) {
-  return (
-    <button
-      onClick={onClick}
-      aria-label={label}
-      className={`flex h-7 w-8 items-center justify-center rounded-md ${
-        active
-          ? "border border-edge bg-neutral-50 text-fg shadow-sm"
-          : "text-neutral-500"
-      }`}
-    >
-      {children}
-    </button>
-  )
-}
