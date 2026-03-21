@@ -2,6 +2,7 @@ import { describe, test, expect, beforeEach } from "bun:test"
 import { Database } from "bun:sqlite"
 import { Effect, Exit, Cause, Option } from "effect"
 import { SCHEMA } from "../schema"
+import { getDb, resetDb, autoMigrate } from "../index"
 import {
   createTask,
   getTask,
@@ -259,5 +260,114 @@ describe("images", () => {
     expect(pruned).toBe(1)
     const images = Effect.runSync(listImages(db))
     expect(images.map((image) => image.id).sort()).toEqual(["i-2", "i-3"])
+  })
+})
+
+describe("auto-migration", () => {
+  beforeEach(() => {
+    resetDb()
+  })
+
+  test("adds missing columns to existing tables", () => {
+    // Create a DB with an older schema missing some columns
+    const db = new Database(":memory:")
+    db.run("PRAGMA foreign_keys = ON")
+    db.exec(`
+      CREATE TABLE IF NOT EXISTS tasks (
+        id TEXT PRIMARY KEY,
+        project_id TEXT NOT NULL,
+        source TEXT NOT NULL,
+        repo_url TEXT NOT NULL,
+        title TEXT NOT NULL,
+        status TEXT NOT NULL DEFAULT 'created',
+        provider TEXT NOT NULL DEFAULT 'opencode',
+        created_at TEXT NOT NULL DEFAULT (datetime('now')),
+        updated_at TEXT NOT NULL DEFAULT (datetime('now'))
+      );
+      CREATE TABLE IF NOT EXISTS vms (
+        id TEXT PRIMARY KEY,
+        label TEXT NOT NULL,
+        provider TEXT NOT NULL,
+        status TEXT NOT NULL DEFAULT 'provisioning',
+        project_id TEXT NOT NULL,
+        snapshot_id TEXT NOT NULL,
+        region TEXT NOT NULL,
+        plan TEXT NOT NULL,
+        created_at TEXT NOT NULL DEFAULT (datetime('now')),
+        updated_at TEXT NOT NULL DEFAULT (datetime('now'))
+      );
+      CREATE TABLE IF NOT EXISTS session_logs (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        task_id TEXT NOT NULL,
+        role TEXT NOT NULL,
+        content TEXT NOT NULL,
+        timestamp TEXT NOT NULL DEFAULT (datetime('now'))
+      );
+      CREATE TABLE IF NOT EXISTS activity_log (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        task_id TEXT NOT NULL,
+        type TEXT NOT NULL,
+        event TEXT NOT NULL,
+        content TEXT NOT NULL,
+        timestamp TEXT NOT NULL DEFAULT (datetime('now'))
+      );
+      CREATE TABLE IF NOT EXISTS images (
+        id TEXT PRIMARY KEY,
+        name TEXT NOT NULL,
+        provider TEXT NOT NULL,
+        snapshot_id TEXT NOT NULL,
+        created_at TEXT NOT NULL DEFAULT (datetime('now'))
+      );
+      CREATE TABLE IF NOT EXISTS system_logs (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        level TEXT NOT NULL,
+        logger TEXT NOT NULL,
+        message TEXT NOT NULL,
+        timestamp TEXT NOT NULL DEFAULT (datetime('now'))
+      );
+    `)
+
+    // Verify columns are missing before migration
+    const colsBefore = (db.prepare("PRAGMA table_info(tasks)").all() as { name: string }[]).map((c) => c.name)
+    expect(colsBefore).not.toContain("model")
+    expect(colsBefore).not.toContain("reasoning_effort")
+    expect(colsBefore).not.toContain("description")
+    expect(colsBefore).not.toContain("vm_id")
+
+    // Run autoMigrate (adds missing columns), then full schema (creates indexes)
+    autoMigrate(db)
+    db.exec(SCHEMA)
+
+    // Verify columns were added
+    const colsAfter = (db.prepare("PRAGMA table_info(tasks)").all() as { name: string }[]).map((c) => c.name)
+    expect(colsAfter).toContain("model")
+    expect(colsAfter).toContain("reasoning_effort")
+    expect(colsAfter).toContain("description")
+    expect(colsAfter).toContain("vm_id")
+    expect(colsAfter).toContain("branch")
+    expect(colsAfter).toContain("worktree_path")
+    expect(colsAfter).toContain("agent_session_id")
+
+    // Verify we can insert with the new columns
+    db.prepare("INSERT INTO tasks (id, project_id, source, repo_url, title, model, reasoning_effort) VALUES (?, ?, ?, ?, ?, ?, ?)")
+      .run("test-1", "proj", "manual", "repo", "title", "claude-opus-4-6", "high")
+    const row = db.prepare("SELECT model, reasoning_effort FROM tasks WHERE id = ?").get("test-1") as { model: string; reasoning_effort: string }
+    expect(row.model).toBe("claude-opus-4-6")
+    expect(row.reasoning_effort).toBe("high")
+
+    db.close()
+  })
+
+  test("is idempotent — running twice doesn't error", () => {
+    const db = new Database(":memory:")
+    db.run("PRAGMA foreign_keys = ON")
+    db.exec(SCHEMA)
+    // Run schema again — CREATE IF NOT EXISTS + autoMigrate should be no-ops
+    db.exec(SCHEMA)
+    // All columns already exist — no errors
+    const cols = (db.prepare("PRAGMA table_info(tasks)").all() as { name: string }[]).map((c) => c.name)
+    expect(cols).toContain("model")
+    expect(cols).toContain("reasoning_effort")
+    db.close()
   })
 })
