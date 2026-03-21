@@ -31,7 +31,7 @@ export function taskRoutes(deps: AppDeps): Hono {
   })
 
   app.post("/", async (c) => {
-    const body = await c.req.json<{ projectId?: string; title?: string; description?: string; provider?: string; model?: string }>()
+    const body = await c.req.json<{ projectId?: string; title?: string; description?: string; provider?: string; model?: string; reasoningEffort?: string }>()
     if (!body.title) {
       return c.json({ error: "title is required" }, 400)
     }
@@ -43,7 +43,7 @@ export function taskRoutes(deps: AppDeps): Hono {
     }
     const provider = body.provider === "claude-code" ? "claude-code" : "opencode"
     return runEffect(c,
-      deps.taskManager.createTask({ source: "manual", projectId, title: body.title, description: body.description, provider, model: body.model }).pipe(
+      deps.taskManager.createTask({ source: "manual", projectId, title: body.title, description: body.description, provider, model: body.model, reasoningEffort: body.reasoningEffort }).pipe(
         Effect.map(mapTaskRow)
       ),
       { status: 201 }
@@ -76,6 +76,7 @@ export function taskRoutes(deps: AppDeps): Hono {
                 sourceUrl: task.source_url ?? undefined,
                 provider: task.provider,
                 model: task.model ?? undefined,
+                reasoningEffort: task.reasoning_effort ?? undefined,
               }).pipe(Effect.mapError((e) => new Error(String(e))))
             ),
             Effect.map(mapTaskRow),

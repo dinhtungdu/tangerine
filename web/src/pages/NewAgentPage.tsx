@@ -7,7 +7,7 @@ export function NewAgentPage() {
   const navigate = useNavigate()
   const { current } = useProject()
 
-  const handleSubmit = async (data: { projectId: string; title: string; description?: string; provider?: string; model?: string }) => {
+  const handleSubmit = async (data: { projectId: string; title: string; description?: string; provider?: string; model?: string; reasoningEffort?: string }) => {
     if (!current) return
     try {
       const task = await createTask(data)

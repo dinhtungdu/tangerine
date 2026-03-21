@@ -11,6 +11,7 @@ export const SCHEMA = `
     status TEXT NOT NULL DEFAULT 'created',
     provider TEXT NOT NULL DEFAULT 'opencode',
     model TEXT,
+    reasoning_effort TEXT,
     vm_id TEXT,
     branch TEXT,
     worktree_path TEXT,

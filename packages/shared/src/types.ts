@@ -14,6 +14,7 @@ export interface Task {
   status: TaskStatus
   provider: ProviderType
   model: string | null
+  reasoningEffort: string | null
   vmId: string | null
   branch: string | null
   worktreePath: string | null

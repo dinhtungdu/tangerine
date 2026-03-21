@@ -27,6 +27,7 @@ export function createClaudeCodeProvider(): AgentFactory {
               `--verbose`,
               sessionFlag,
               ...(ctx.model ? [`--model ${ctx.model}`] : []),
+              ...(ctx.reasoningEffort ? [`--reasoning-effort ${ctx.reasoningEffort}`] : []),
               `--dangerously-skip-permissions`,
             ]
             return Bun.spawn(

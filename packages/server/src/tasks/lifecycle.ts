@@ -218,6 +218,7 @@ export function startSession(
       title: task.title,
       previewPort: config.preview.port,
       model: task.model ?? undefined,
+      reasoningEffort: task.reasoning_effort ?? undefined,
     })
     vmLog.info("Agent started")
 
@@ -334,6 +335,7 @@ export function reconnectSession(
       title: task.title,
       previewPort: config.preview.port,
       model: task.model ?? undefined,
+      reasoningEffort: task.reasoning_effort ?? undefined,
       resumeSessionId: task.agent_session_id ?? undefined,
     })
     taskLog.info("Agent reconnected")

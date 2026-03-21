@@ -265,6 +265,7 @@ export async function start(): Promise<void> {
             sourceUrl: params.sourceUrl,
             provider: params.provider,
             model: params.model,
+            reasoningEffort: params.reasoningEffort,
           }).pipe(
             Effect.mapError((e) => ({ _tag: "TaskError" as const, message: e.message }))
           ),

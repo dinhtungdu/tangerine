@@ -4,9 +4,10 @@ import type { ProviderType } from "@tangerine/shared"
 import { useProject } from "../context/ProjectContext"
 import { ModelSelector } from "./ModelSelector"
 import { HarnessSelector } from "./HarnessSelector"
+import { ReasoningEffortSelector, type ReasoningEffort } from "./ReasoningEffortSelector"
 
 interface NewAgentFormProps {
-  onSubmit: (data: { projectId: string; title: string; description?: string; branch?: string; provider?: string; model?: string }) => void
+  onSubmit: (data: { projectId: string; title: string; description?: string; branch?: string; provider?: string; model?: string; reasoningEffort?: string }) => void
 }
 
 const suggestedTasks = [
@@ -76,6 +77,7 @@ export function NewAgentForm({ onSubmit }: NewAgentFormProps) {
   const [description, setDescription] = useState("")
   const [provider, setProvider] = useState<ProviderType>(current?.defaultProvider ?? "claude-code")
   const [selectedModel, setSelectedModel] = useState<string | null>(null)
+  const [reasoningEffort, setReasoningEffort] = useState<ReasoningEffort>("medium")
   const [submitting, setSubmitting] = useState(false)
   const branch = current?.defaultBranch ?? "main"
 
@@ -104,10 +106,11 @@ export function NewAgentForm({ onSubmit }: NewAgentFormProps) {
       branch,
       provider,
       model: activeModel || undefined,
+      reasoningEffort: reasoningEffort !== "medium" ? reasoningEffort : undefined,
     })
     // Parent navigates on success; reset submitting if it fails
     setTimeout(() => setSubmitting(false), 3000)
-  }, [description, current, branch, provider, activeModel, submitting, onSubmit])
+  }, [description, current, branch, provider, activeModel, reasoningEffort, submitting, onSubmit])
 
   return (
     <div className="flex h-full flex-1 flex-col bg-surface">
@@ -158,6 +161,7 @@ export function NewAgentForm({ onSubmit }: NewAgentFormProps) {
                   model={activeModel}
                   onModelChange={handleModelChange}
                 />
+                <ReasoningEffortSelector value={reasoningEffort} onChange={setReasoningEffort} />
               </div>
               <button
                 onClick={handleSubmit}

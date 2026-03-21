@@ -26,6 +26,7 @@ export interface TaskRow {
   status: string
   provider: string
   model: string | null
+  reasoning_effort: string | null
   vm_id: string | null
   branch: string | null
   worktree_path: string | null

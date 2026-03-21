@@ -31,6 +31,8 @@ export interface AgentStartContext {
   previewPort: number
   /** Model ID to use (e.g. "claude-sonnet-4-6" for Claude Code, "anthropic/claude-sonnet-4-6" for OpenCode) */
   model?: string
+  /** Reasoning effort level: "low", "medium", "high" */
+  reasoningEffort?: string
   /** If set, resume an existing session instead of creating a new one */
   resumeSessionId?: string
 }

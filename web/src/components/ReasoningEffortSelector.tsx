@@ -1,0 +1,84 @@
+import { useState, useRef, useEffect } from "react"
+
+const EFFORTS = [
+  { value: "low", label: "Low", description: "Quick, minimal thinking" },
+  { value: "medium", label: "Medium", description: "Balanced (default)" },
+  { value: "high", label: "High", description: "Extended reasoning" },
+] as const
+
+export type ReasoningEffort = (typeof EFFORTS)[number]["value"]
+
+interface ReasoningEffortSelectorProps {
+  value: ReasoningEffort
+  onChange: (value: ReasoningEffort) => void
+}
+
+export function ReasoningEffortSelector({ value, onChange }: ReasoningEffortSelectorProps) {
+  const [open, setOpen] = useState(false)
+  const ref = useRef<HTMLDivElement>(null)
+
+  useEffect(() => {
+    if (!open) return
+    function handleClick(e: MouseEvent) {
+      if (ref.current && !ref.current.contains(e.target as Node)) {
+        setOpen(false)
+      }
+    }
+    document.addEventListener("mousedown", handleClick)
+    return () => document.removeEventListener("mousedown", handleClick)
+  }, [open])
+
+  const current = EFFORTS.find((e) => e.value === value) ?? EFFORTS[1]
+
+  return (
+    <div className="relative" ref={ref}>
+      <button
+        onClick={() => setOpen(!open)}
+        className="flex items-center gap-1.5 rounded-md border border-edge bg-surface-secondary px-2 py-1 transition hover:bg-neutral-200"
+      >
+        <svg className="h-3 w-3 text-fg-muted" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.8}>
+          <path strokeLinecap="round" strokeLinejoin="round" d="M3.75 13.5l10.5-11.25L12 10.5h8.25L9.75 21.75 12 13.5H3.75z" />
+        </svg>
+        <span className="text-[11px] font-medium text-fg">{current.label}</span>
+        <svg
+          className={`h-2.5 w-2.5 text-fg-muted transition-transform ${open ? "rotate-180" : ""}`}
+          fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}
+        >
+          <path strokeLinecap="round" strokeLinejoin="round" d="m19.5 8.25-7.5 7.5-7.5-7.5" />
+        </svg>
+      </button>
+
+      {open && (
+        <div className="absolute left-0 top-full z-50 mt-1 min-w-[180px] overflow-hidden rounded-lg border border-edge bg-white shadow-lg md:bottom-full md:top-auto md:mb-1 md:mt-0">
+          {EFFORTS.map((e) => {
+            const isActive = e.value === value
+            return (
+              <button
+                key={e.value}
+                onClick={() => {
+                  onChange(e.value)
+                  setOpen(false)
+                }}
+                className={`flex w-full items-center justify-between px-3 py-2 text-left transition ${
+                  isActive ? "bg-surface-secondary" : "hover:bg-surface"
+                }`}
+              >
+                <div className="flex flex-col">
+                  <span className={`text-[12px] ${isActive ? "font-medium text-fg" : "text-neutral-600"}`}>
+                    {e.label}
+                  </span>
+                  <span className="text-[10px] text-fg-muted">{e.description}</span>
+                </div>
+                {isActive && (
+                  <svg className="h-3 w-3 shrink-0 text-fg" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+                    <path strokeLinecap="round" strokeLinejoin="round" d="m4.5 12.75 6 6 9-13.5" />
+                  </svg>
+                )}
+              </button>
+            )
+          })}
+        </div>
+      )}
+    </div>
+  )
+}

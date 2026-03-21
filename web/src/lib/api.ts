@@ -77,6 +77,7 @@ export async function createTask(data: {
   description?: string
   provider?: string
   model?: string
+  reasoningEffort?: string
 }): Promise<Task> {
   return request<Task>("/api/tasks", {
     method: "POST",

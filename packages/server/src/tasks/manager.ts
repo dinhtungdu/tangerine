@@ -22,7 +22,7 @@ const log = createLogger("tasks")
 export type TaskSource = "github" | "manual" | "api"
 
 export interface TaskManagerDeps {
-  insertTask(task: Pick<TaskRow, "id" | "project_id" | "source" | "repo_url" | "title"> & Partial<Pick<TaskRow, "source_id" | "source_url" | "description" | "user_id" | "branch" | "provider" | "model">>): Effect.Effect<TaskRow, Error>
+  insertTask(task: Pick<TaskRow, "id" | "project_id" | "source" | "repo_url" | "title"> & Partial<Pick<TaskRow, "source_id" | "source_url" | "description" | "user_id" | "branch" | "provider" | "model" | "reasoning_effort">>): Effect.Effect<TaskRow, Error>
   updateTask(taskId: string, updates: Partial<Omit<TaskRow, "id">>): Effect.Effect<TaskRow | null, Error>
   getTask(taskId: string): Effect.Effect<TaskRow | null, Error>
   listTasks(filter?: { status?: string; projectId?: string }): Effect.Effect<TaskRow[], Error>
@@ -51,6 +51,7 @@ export function createTask(
     description?: string
     provider?: string
     model?: string
+    reasoningEffort?: string
   },
 ): Effect.Effect<TaskRow, Error> {
   return Effect.gen(function* () {
@@ -72,6 +73,7 @@ export function createTask(
       description: params.description ?? null,
       provider: params.provider ?? "opencode",
       model: params.model ?? null,
+      reasoning_effort: params.reasoningEffort ?? null,
     })
 
     log.info("Task created", { taskId: id, projectId: params.projectId, source: params.source, title: params.title })
