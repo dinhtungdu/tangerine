@@ -357,7 +357,7 @@ export function SystemLog() {
 
   const loadLogs = useCallback(async () => {
     const filter = LOG_FILTERS[activeFilter]!
-    const params: { level?: string[]; logger?: string[]; limit?: number } = { limit: 200 }
+    const params: { level?: string[]; logger?: string[]; limit?: number } = { limit: 500 }
     if (filter.level) params.level = [...filter.level]
     if (filter.value) params.logger = [...filter.value]
     const data = await fetchSystemLogs(params).catch(() => [])
@@ -400,27 +400,24 @@ export function SystemLog() {
         <div className="py-8 text-center text-[13px] text-fg-faint">No system logs yet</div>
       ) : (
         <div className="max-h-[400px] overflow-y-auto rounded-lg border border-edge">
-          {/* Desktop: table with task/VM context */}
+          {/* Desktop: table with task context */}
           <div className="hidden md:block">
-            <div className="grid grid-cols-[100px_50px_80px_80px_80px_1fr] bg-surface-secondary px-3 py-2">
+            <div className="grid grid-cols-[100px_50px_80px_80px_1fr] bg-surface-secondary px-3 py-2">
               <span className="text-[12px] font-medium text-fg-muted">Time</span>
               <span className="text-[12px] font-medium text-fg-muted">Level</span>
               <span className="text-[12px] font-medium text-fg-muted">Source</span>
               <span className="text-[12px] font-medium text-fg-muted">Task</span>
-              <span className="text-[12px] font-medium text-fg-muted">VM</span>
               <span className="text-[12px] font-medium text-fg-muted">Message</span>
             </div>
             {logs.map((log) => {
               const ctx = log.context as Record<string, string> | null
               const taskId = ctx?.taskId ? String(ctx.taskId).slice(0, 8) : ""
-              const vmId = ctx?.vmId ? String(ctx.vmId).replace("tangerine-", "") : ""
               return (
-                <div key={log.id} className="grid grid-cols-[100px_50px_80px_80px_80px_1fr] items-center border-t border-edge px-3 py-2">
+                <div key={log.id} className="grid grid-cols-[100px_50px_80px_80px_1fr] items-center border-t border-edge px-3 py-2">
                   <span className="font-mono text-[11px] text-fg-muted">{formatLogTimestamp(log.timestamp)}</span>
                   <div><LogLevelBadge level={log.level} /></div>
                   <span className="truncate text-[12px] font-medium text-fg-muted">{log.logger}</span>
                   <span className="truncate font-mono text-[11px] text-fg-faint">{taskId}</span>
-                  <span className="truncate font-mono text-[11px] text-fg-faint">{vmId}</span>
                   <span className="truncate text-[12px] text-fg">{log.message}</span>
                 </div>
               )
@@ -432,7 +429,6 @@ export function SystemLog() {
             {logs.map((log) => {
               const ctx = log.context as Record<string, string> | null
               const taskId = ctx?.taskId ? String(ctx.taskId).slice(0, 8) : ""
-              const vmId = ctx?.vmId ? String(ctx.vmId).replace("tangerine-", "") : ""
               return (
                 <div key={log.id} className="flex flex-col gap-0.5 border-b border-edge px-3 py-2 last:border-b-0">
                   <div className="flex items-center gap-2">
@@ -440,7 +436,6 @@ export function SystemLog() {
                     <LogLevelBadge level={log.level} />
                     <span className="text-[11px] font-medium text-fg-muted">{log.logger}</span>
                     {taskId && <span className="font-mono text-[10px] text-fg-faint">{taskId}</span>}
-                    {vmId && <span className="font-mono text-[10px] text-fg-faint">{vmId}</span>}
                   </div>
                   <span className="text-[12px] text-fg">{log.message}</span>
                 </div>

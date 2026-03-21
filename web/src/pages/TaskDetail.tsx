@@ -262,8 +262,8 @@ export function TaskDetail() {
         <div ref={containerRef} className="hidden min-h-0 flex-1 md:flex">
           {visiblePanes.has("chat") && (
             <div
-              className="flex min-w-0 flex-col"
-              style={desktopIsSolo ? undefined : { width: chatWidth, flexShrink: 0 }}
+              className={`flex min-w-0 flex-col${desktopIsSolo || !visiblePanes.has("diff") ? " flex-1" : ""}`}
+              style={desktopIsSolo || !visiblePanes.has("diff") ? undefined : { width: chatWidth, flexShrink: 0 }}
             >
               <ChatPanel
                 messages={session.messages}
@@ -315,7 +315,7 @@ export function TaskDetail() {
 
           {visiblePanes.has("activity") && (
             <div
-              className="flex flex-col bg-neutral-100"
+              className={`flex flex-col bg-neutral-100${desktopIsSolo ? " flex-1" : ""}`}
               style={desktopIsSolo ? undefined : { width: activityWidth, flexShrink: 0 }}
             >
               <div className="flex h-11 items-center border-b border-edge px-4">

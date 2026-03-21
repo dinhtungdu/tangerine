@@ -10,6 +10,7 @@
   },
   "dependencies": {
     "@tangerine/shared": "workspace:*",
+    "agentation": "^2.3.3",
     "react": "^19.1",
     "react-dom": "^19.1",
     "react-router-dom": "^7.3"
