@@ -75,9 +75,16 @@ export function NewAgentForm({ onSubmit }: NewAgentFormProps) {
   const navigate = useNavigate()
   const { current, modelsByProvider } = useProject()
   const [description, setDescription] = useState("")
-  const [provider, setProvider] = useState<ProviderType>(current?.defaultProvider ?? "claude-code")
-  const [modelByProvider, setModelByProvider] = useState<Record<string, string>>({})
-  const [reasoningEffort, setReasoningEffort] = useState<ReasoningEffort>("medium")
+  const PREFS_KEY = "tangerine:agent-prefs"
+
+  const loadPrefs = (): { provider?: string; models?: Record<string, string>; reasoningEffort?: string } => {
+    try { return JSON.parse(localStorage.getItem(PREFS_KEY) ?? "{}") } catch { return {} }
+  }
+  const saved = loadPrefs()
+
+  const [provider, setProvider] = useState<ProviderType>((saved.provider as ProviderType) ?? current?.defaultProvider ?? "claude-code")
+  const [modelByProvider, setModelByProvider] = useState<Record<string, string>>(saved.models ?? {})
+  const [reasoningEffort, setReasoningEffort] = useState<ReasoningEffort>((saved.reasoningEffort as ReasoningEffort) ?? "medium")
   const [submitting, setSubmitting] = useState(false)
   const branch = current?.defaultBranch ?? "main"
 
@@ -86,13 +93,23 @@ export function NewAgentForm({ onSubmit }: NewAgentFormProps) {
     ? modelByProvider[provider]!
     : providerModels[0] ?? ""
 
-  const handleProviderChange = useCallback((p: ProviderType) => {
-    setProvider(p)
+  const savePrefs = useCallback((updates: Partial<{ provider: string; models: Record<string, string>; reasoningEffort: string }>) => {
+    const current = loadPrefs()
+    localStorage.setItem(PREFS_KEY, JSON.stringify({ ...current, ...updates }))
   }, [])
 
+  const handleProviderChange = useCallback((p: ProviderType) => {
+    setProvider(p)
+    savePrefs({ provider: p })
+  }, [savePrefs])
+
   const handleModelChange = useCallback((m: string) => {
-    setModelByProvider((prev) => ({ ...prev, [provider]: m }))
-  }, [provider])
+    setModelByProvider((prev) => {
+      const next = { ...prev, [provider]: m }
+      savePrefs({ models: next })
+      return next
+    })
+  }, [provider, savePrefs])
 
   const handleSubmit = useCallback(() => {
     const trimmed = description.trim()
@@ -160,7 +177,7 @@ export function NewAgentForm({ onSubmit }: NewAgentFormProps) {
                   model={activeModel}
                   onModelChange={handleModelChange}
                 />
-                <ReasoningEffortSelector value={reasoningEffort} onChange={setReasoningEffort} />
+                <ReasoningEffortSelector value={reasoningEffort} onChange={(e) => { setReasoningEffort(e); savePrefs({ reasoningEffort: e }) }} />
               </div>
               <button
                 onClick={handleSubmit}
