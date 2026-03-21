@@ -137,28 +137,7 @@ export function createOpenCodeProvider(deps: OpenCodeProviderDeps): AgentFactory
             }),
         })
 
-        // Set model via config API if specified (session creation doesn't support model field)
-        if (ctx.model) {
-          yield* Effect.tryPromise({
-            try: async () => {
-              const res = await fetch(`http://localhost:${tunnel.agentPort}/config`, {
-                method: "PUT",
-                headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({ model: ctx.model }),
-              })
-              if (!res.ok) taskLog.warn("Config model update failed", { status: res.status })
-              else taskLog.info("Model set via config", { model: ctx.model })
-            },
-            catch: () => new SessionStartError({
-              message: `Config update failed`,
-              taskId: ctx.taskId,
-              phase: "set-model",
-              cause: new Error("Config update failed"),
-            }),
-          }).pipe(Effect.catchAll(() => Effect.void))
-        }
-
-        // Create OpenCode session
+        // Create OpenCode session (model is passed per-prompt, not via config)
         const sessionId = yield* Effect.tryPromise({
           try: async () => {
             const r = await fetch(`http://localhost:${tunnel.agentPort}/session`, {
@@ -283,16 +262,29 @@ export function createOpenCodeProvider(deps: OpenCodeProviderDeps): AgentFactory
         }
         connectSse()
 
+        // Track active model — split "provider/model" into providerID + modelID for prompt_async
+        let activeModel = ctx.model ?? ""
+
+        function buildModelPayload(): Record<string, unknown> | undefined {
+          if (!activeModel || !activeModel.includes("/")) return undefined
+          const [providerID, ...rest] = activeModel.split("/")
+          return { providerID, modelID: rest.join("/") }
+        }
+
         const handle: AgentHandle = {
           sendPrompt(text: string) {
             return Effect.tryPromise({
               try: async () => {
+                const body: Record<string, unknown> = { parts: [{ type: "text", text }] }
+                const modelPayload = buildModelPayload()
+                if (modelPayload) body.model = modelPayload
+
                 const res = await fetch(
                   `http://localhost:${tunnel.agentPort}/session/${sessionId}/prompt_async`,
                   {
                     method: "POST",
                     headers: { "Content-Type": "application/json" },
-                    body: JSON.stringify({ parts: [{ type: "text", text }] }),
+                    body: JSON.stringify(body),
                   },
                 )
                 if (!res.ok) {
@@ -320,52 +312,15 @@ export function createOpenCodeProvider(deps: OpenCodeProviderDeps): AgentFactory
           },
 
           updateConfig(config: import("./provider").AgentConfig) {
-            return Effect.tryPromise({
-              try: async () => {
-                const configUpdate: Record<string, unknown> = {}
-
-                if (config.model) {
-                  configUpdate.model = config.model
-                }
-
-                // Map reasoning effort to provider-specific options
-                if (config.reasoningEffort) {
-                  const activeModel = config.model ?? ctx.model ?? ""
-                  const providerPrefix = activeModel.split("/")[0] ?? ""
-                  const modelName = activeModel.split("/").slice(1).join("/")
-
-                  if (providerPrefix === "anthropic") {
-                    // Anthropic: thinking.budgetTokens
-                    const budgetMap: Record<string, number> = { low: 4000, medium: 16000, high: 32000 }
-                    const budget = budgetMap[config.reasoningEffort] ?? 16000
-                    configUpdate.provider = {
-                      [providerPrefix]: {
-                        models: { [modelName]: { options: { thinking: { type: "enabled", budgetTokens: budget } } } },
-                      },
-                    }
-                  } else {
-                    // OpenAI/others: reasoningEffort string
-                    configUpdate.provider = {
-                      [providerPrefix]: {
-                        models: { [modelName]: { options: { reasoningEffort: config.reasoningEffort } } },
-                      },
-                    }
-                  }
-                }
-
-                if (Object.keys(configUpdate).length === 0) return true
-
-                const res = await fetch(`http://localhost:${tunnel.agentPort}/config`, {
-                  method: "PUT",
-                  headers: { "Content-Type": "application/json" },
-                  body: JSON.stringify(configUpdate),
-                })
-                if (!res.ok) throw new Error(`Config update failed: ${res.status}`)
-                taskLog.info("Config updated via API", config)
-                return true
-              },
-              catch: (e) =>
-                new AgentError({ message: `Config update failed: ${e}`, taskId: ctx.taskId }),
+            // Model is passed per-prompt via prompt_async — just update the tracked value
+            return Effect.sync(() => {
+              if (config.model) {
+                activeModel = config.model
+                taskLog.info("Model updated", { model: activeModel })
+              }
+              // Reasoning effort for OpenCode would need provider-specific config,
+              // but prompt_async doesn't support it directly — silently accepted
+              return true
             })
           },
 
