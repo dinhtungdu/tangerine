@@ -2,7 +2,7 @@ import { useState } from "react"
 import { Link } from "react-router-dom"
 import type { Task, TaskStatus } from "@tangerine/shared"
 import { getStatusConfig } from "../lib/status"
-import { formatDuration } from "../lib/format"
+import { formatDuration, formatDate } from "../lib/format"
 import { cancelTask, deleteTask } from "../lib/api"
 
 type StatusFilter = "all" | "running" | "done" | "failed" | "created"
@@ -15,27 +15,10 @@ const STATUS_FILTERS: { key: StatusFilter; label: string }[] = [
   { key: "created", label: "Queued" },
 ]
 
-interface RunsTableProps {
-  tasks: Task[]
-  searchQuery: string
-  onSearchChange: (q: string) => void
-  onRefetch: () => void
-}
-
 function StatusBadge({ status }: { status: TaskStatus }) {
-  const colors: Record<string, { bg: string; text: string }> = {
-    running:      { bg: "bg-blue-500",    text: "text-white" },
-    done:         { bg: "bg-green-500",   text: "text-white" },
-    completed:    { bg: "bg-green-500",   text: "text-white" },
-    failed:       { bg: "bg-red-500",     text: "text-white" },
-    cancelled:    { bg: "bg-neutral-400", text: "text-white" },
-    created:      { bg: "bg-amber-500",   text: "text-white" },
-    provisioning: { bg: "bg-amber-500",   text: "text-white" },
-  }
-  const { label } = getStatusConfig(status)
-  const c = colors[status] ?? { bg: "bg-neutral-400", text: "text-white" }
+  const { label, textClass, bgClass } = getStatusConfig(status)
   return (
-    <span className={`inline-flex rounded-full px-2 py-0.5 text-[12px] font-semibold leading-tight ${c.bg} ${c.text}`}>
+    <span className={`inline-flex rounded-full px-2 py-0.5 text-[11px] font-semibold leading-tight ${textClass} ${bgClass}`}>
       {label}
     </span>
   )
@@ -47,10 +30,11 @@ function formatStartedAt(iso: string | null, created: string): string {
     ", " + d.toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit" })
 }
 
-function SourceLabel({ source }: { source: string }) {
-  if (source === "github") return <>GitHub Push</>
-  if (source === "linear") return <>Linear</>
-  return <>Manual</>
+interface RunsTableProps {
+  tasks: Task[]
+  searchQuery: string
+  onSearchChange: (q: string) => void
+  onRefetch: () => void
 }
 
 export function RunsTable({ tasks, searchQuery, onSearchChange, onRefetch }: RunsTableProps) {
@@ -68,26 +52,30 @@ export function RunsTable({ tasks, searchQuery, onSearchChange, onRefetch }: Run
     try { await deleteTask(id); onRefetch() } catch { /* ignore */ }
   }
 
+  const isTerminal = (s: string) => ["done", "failed", "cancelled"].includes(s)
+
   return (
-    <div className="flex flex-col gap-4">
-      {/* Filter bar */}
-      <div className="flex items-center gap-2">
-        {STATUS_FILTERS.map(({ key, label }) => (
-          <button
-            key={key}
-            onClick={() => setStatusFilter(key)}
-            className={`rounded-md px-3.5 py-1.5 text-[13px] font-medium ${
-              statusFilter === key
-                ? "bg-neutral-900 text-neutral-50"
-                : "bg-neutral-50 text-neutral-900 border border-neutral-200"
-            }`}
-          >
-            {label}
-          </button>
-        ))}
-        <div className="flex-1" />
-        <div className="flex h-7 w-[200px] items-center gap-2 rounded-md border border-neutral-200 bg-neutral-50 px-2.5">
-          <svg className="h-3.5 w-3.5 shrink-0 text-neutral-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+    <div className="flex flex-col gap-3 md:gap-4">
+      {/* Filter + Search bar */}
+      <div className="flex flex-col gap-2 md:flex-row md:items-center md:gap-2">
+        <div className="flex gap-1.5 overflow-x-auto">
+          {STATUS_FILTERS.map(({ key, label }) => (
+            <button
+              key={key}
+              onClick={() => setStatusFilter(key)}
+              className={`shrink-0 rounded-full px-3 py-1.5 text-[12px] font-medium md:rounded-md md:px-3.5 md:text-[13px] ${
+                statusFilter === key
+                  ? "bg-surface-dark text-white"
+                  : "border border-edge bg-surface text-fg-muted"
+              }`}
+            >
+              {label}
+            </button>
+          ))}
+        </div>
+        <div className="md:flex-1" />
+        <div className="flex h-9 items-center gap-2 rounded-lg border border-edge px-2.5 md:w-[220px]">
+          <svg className="h-3.5 w-3.5 shrink-0 text-fg-muted" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
             <path strokeLinecap="round" strokeLinejoin="round" d="m21 21-5.197-5.197m0 0A7.5 7.5 0 1 0 5.196 5.196a7.5 7.5 0 0 0 10.607 10.607Z" />
           </svg>
           <input
@@ -95,69 +83,47 @@ export function RunsTable({ tasks, searchQuery, onSearchChange, onRefetch }: Run
             value={searchQuery}
             onChange={(e) => onSearchChange(e.target.value)}
             placeholder="Search runs..."
-            className="min-w-0 flex-1 bg-transparent text-[16px] text-fg placeholder-neutral-500 outline-none md:text-[13px]"
+            className="min-w-0 flex-1 bg-transparent text-[16px] text-fg placeholder-fg-muted outline-none md:text-[13px]"
           />
         </div>
       </div>
 
-      {/* Table */}
-      <div className="overflow-hidden rounded-lg border border-neutral-200">
+      {/* Desktop: table layout */}
+      <div className="hidden overflow-hidden rounded-lg border border-edge md:block">
         {/* Header */}
-        <div className="flex bg-neutral-100 text-[14px] text-neutral-500">
-          <div className="flex-1 px-3 py-3">Run Name</div>
-          <div className="w-[140px] px-3 py-3">Status</div>
-          <div className="w-[120px] px-3 py-3">Duration</div>
-          <div className="w-[160px] px-3 py-3">Triggered By</div>
-          <div className="w-[180px] px-3 py-3">Started At</div>
-          <div className="w-[80px] px-3 py-3 text-right">Actions</div>
+        <div className="flex bg-surface-secondary text-[13px] text-fg-muted">
+          <div className="flex-1 px-3 py-2.5">Run Name</div>
+          <div className="w-[120px] px-3 py-2.5">Status</div>
+          <div className="w-[100px] px-3 py-2.5">Duration</div>
+          <div className="w-[100px] px-3 py-2.5">Source</div>
+          <div className="w-[160px] px-3 py-2.5">Started</div>
+          <div className="w-[70px] px-3 py-2.5 text-right">Actions</div>
         </div>
-
-        {/* Rows */}
         {filtered.length === 0 ? (
-          <div className="py-12 text-center text-[13px] text-neutral-400">
-            No runs found
-          </div>
+          <div className="py-12 text-center text-[13px] text-fg-muted">No runs found</div>
         ) : (
           filtered.map((task) => (
             <Link
               key={task.id}
               to={`/tasks/${task.id}`}
-              className="flex items-center border-t border-neutral-200 text-[14px] hover:bg-neutral-50"
+              className="flex items-center border-t border-edge text-[13px] hover:bg-surface-secondary/50"
             >
-              <div className="flex-1 truncate px-3 py-3 font-medium text-neutral-900">
-                {task.title}
-              </div>
-              <div className="w-[140px] px-3 py-3">
-                <StatusBadge status={task.status} />
-              </div>
-              <div className="w-[120px] px-3 py-3 text-neutral-900">
-                {formatDuration(task.startedAt, task.completedAt, task.createdAt)}
-              </div>
-              <div className="w-[160px] px-3 py-3 text-neutral-900">
-                <SourceLabel source={task.source} />
-              </div>
-              <div className="w-[180px] px-3 py-3 text-neutral-500">
-                {formatStartedAt(task.startedAt, task.createdAt)}
-              </div>
-              <div className="flex w-[80px] items-center justify-end gap-0.5 px-2 py-1">
+              <div className="flex-1 truncate px-3 py-2.5 font-medium text-fg">{task.title}</div>
+              <div className="w-[120px] px-3 py-2.5"><StatusBadge status={task.status} /></div>
+              <div className="w-[100px] px-3 py-2.5 text-fg-muted">{formatDuration(task.startedAt, task.completedAt, task.createdAt)}</div>
+              <div className="w-[100px] px-3 py-2.5 text-fg-muted capitalize">{task.source}</div>
+              <div className="w-[160px] px-3 py-2.5 text-fg-muted">{formatStartedAt(task.startedAt, task.createdAt)}</div>
+              <div className="flex w-[70px] items-center justify-end px-2">
                 {task.status === "running" && (
-                  <button
-                    onClick={(e) => { e.preventDefault(); handleCancel(task.id) }}
-                    className="rounded-md p-2 hover:bg-neutral-100"
-                    title="Cancel"
-                  >
-                    <svg className="h-4 w-4 text-neutral-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                  <button onClick={(e) => { e.preventDefault(); handleCancel(task.id) }} className="rounded p-1.5 hover:bg-surface-secondary" title="Cancel">
+                    <svg className="h-4 w-4 text-fg-muted" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                       <path strokeLinecap="round" strokeLinejoin="round" d="M6 18 18 6M6 6l12 12" />
                     </svg>
                   </button>
                 )}
-                {task.status !== "running" && task.status !== "provisioning" && (
-                  <button
-                    onClick={(e) => { e.preventDefault(); handleDelete(task.id) }}
-                    className="rounded-md p-2 hover:bg-neutral-100"
-                    title="Delete"
-                  >
-                    <svg className="h-4 w-4 text-neutral-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                {isTerminal(task.status) && (
+                  <button onClick={(e) => { e.preventDefault(); handleDelete(task.id) }} className="rounded p-1.5 hover:bg-surface-secondary" title="Delete">
+                    <svg className="h-4 w-4 text-fg-muted" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                       <path strokeLinecap="round" strokeLinejoin="round" d="m14.74 9-.346 9m-4.788 0L9.26 9m9.968-3.21c.342.052.682.107 1.022.166m-1.022-.165L18.16 19.673a2.25 2.25 0 0 1-2.244 2.077H8.084a2.25 2.25 0 0 1-2.244-2.077L4.772 5.79m14.456 0a48.108 48.108 0 0 0-3.478-.397m-12 .562c.34-.059.68-.114 1.022-.165m0 0a48.11 48.11 0 0 1 3.478-.397m7.5 0v-.916c0-1.18-.91-2.164-2.09-2.201a51.964 51.964 0 0 0-3.32 0c-1.18.037-2.09 1.022-2.09 2.201v.916m7.5 0a48.667 48.667 0 0 0-7.5 0" />
                     </svg>
                   </button>
@@ -168,9 +134,61 @@ export function RunsTable({ tasks, searchQuery, onSearchChange, onRefetch }: Run
         )}
       </div>
 
+      {/* Mobile: card layout */}
+      <div className="flex flex-col gap-2.5 md:hidden">
+        {filtered.length === 0 ? (
+          <div className="py-12 text-center text-[13px] text-fg-muted">No runs found</div>
+        ) : (
+          filtered.map((task) => (
+            <Link
+              key={task.id}
+              to={`/tasks/${task.id}`}
+              className="rounded-[10px] border border-edge p-3.5 active:bg-surface-secondary/50"
+            >
+              <div className="flex items-center justify-between gap-3">
+                <span className="min-w-0 truncate text-[14px] font-medium text-fg">{task.title}</span>
+                <StatusBadge status={task.status} />
+              </div>
+              <div className="mt-2 flex flex-wrap items-center gap-x-4 gap-y-1 text-[12px] text-fg-muted">
+                <span>{formatDuration(task.startedAt, task.completedAt, task.createdAt)}</span>
+                <span className="capitalize">{task.source}</span>
+                <span>{formatDate(task.createdAt)}</span>
+              </div>
+              {/* Actions */}
+              {(task.status === "running" || isTerminal(task.status)) && (
+                <div className="mt-2 flex gap-2">
+                  {task.status === "running" && (
+                    <button
+                      onClick={(e) => { e.preventDefault(); handleCancel(task.id) }}
+                      className="flex items-center gap-1 rounded-md border border-edge px-2.5 py-1 text-[11px] text-fg-muted active:bg-surface-secondary"
+                    >
+                      <svg className="h-3 w-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                        <path strokeLinecap="round" strokeLinejoin="round" d="M6 18 18 6M6 6l12 12" />
+                      </svg>
+                      Cancel
+                    </button>
+                  )}
+                  {isTerminal(task.status) && (
+                    <button
+                      onClick={(e) => { e.preventDefault(); handleDelete(task.id) }}
+                      className="flex items-center gap-1 rounded-md border border-edge px-2.5 py-1 text-[11px] text-fg-muted active:bg-surface-secondary"
+                    >
+                      <svg className="h-3 w-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                        <path strokeLinecap="round" strokeLinejoin="round" d="m14.74 9-.346 9m-4.788 0L9.26 9m9.968-3.21c.342.052.682.107 1.022.166m-1.022-.165L18.16 19.673a2.25 2.25 0 0 1-2.244 2.077H8.084a2.25 2.25 0 0 1-2.244-2.077L4.772 5.79m14.456 0a48.108 48.108 0 0 0-3.478-.397m-12 .562c.34-.059.68-.114 1.022-.165m0 0a48.11 48.11 0 0 1 3.478-.397m7.5 0v-.916c0-1.18-.91-2.164-2.09-2.201a51.964 51.964 0 0 0-3.32 0c-1.18.037-2.09 1.022-2.09 2.201v.916m7.5 0a48.667 48.667 0 0 0-7.5 0" />
+                      </svg>
+                      Delete
+                    </button>
+                  )}
+                </div>
+              )}
+            </Link>
+          ))
+        )}
+      </div>
+
       {/* Footer */}
-      <div className="text-[14px] text-neutral-500">
-        Showing {filtered.length} records
+      <div className="text-[12px] text-fg-muted md:text-[13px]">
+        Showing {filtered.length} of {tasks.length} runs
       </div>
     </div>
   )
