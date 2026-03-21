@@ -137,13 +137,34 @@ export function createOpenCodeProvider(deps: OpenCodeProviderDeps): AgentFactory
             }),
         })
 
+        // Set model via config API if specified (session creation doesn't support model field)
+        if (ctx.model) {
+          yield* Effect.tryPromise({
+            try: async () => {
+              const res = await fetch(`http://localhost:${tunnel.agentPort}/config`, {
+                method: "PUT",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ model: ctx.model }),
+              })
+              if (!res.ok) taskLog.warn("Config model update failed", { status: res.status })
+              else taskLog.info("Model set via config", { model: ctx.model })
+            },
+            catch: () => new SessionStartError({
+              message: `Config update failed`,
+              taskId: ctx.taskId,
+              phase: "set-model",
+              cause: new Error("Config update failed"),
+            }),
+          }).pipe(Effect.catchAll(() => Effect.void))
+        }
+
         // Create OpenCode session
         const sessionId = yield* Effect.tryPromise({
           try: async () => {
             const r = await fetch(`http://localhost:${tunnel.agentPort}/session`, {
               method: "POST",
               headers: { "Content-Type": "application/json" },
-              body: JSON.stringify({ title: ctx.title, ...(ctx.model ? { model: ctx.model } : {}) }),
+              body: JSON.stringify({ title: ctx.title }),
             })
             if (!r.ok) throw new Error(`Session create failed: ${r.status}`)
             const body = (await r.json()) as { id: string }

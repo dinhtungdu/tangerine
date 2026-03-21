@@ -74,10 +74,7 @@ export function TaskDetail() {
     el?.scrollIntoView({ behavior: "smooth", block: "start" })
   }, [])
 
-  // Only Claude Code supports mid-task model/reasoning changes (via CLI flags).
-  // OpenCode uses its own config — model switching requires restarting the server.
-  const isClaudeCode = task?.provider === "claude-code"
-  const providerModels = isClaudeCode && task ? (modelsByProvider[task.provider] ?? []) : []
+  const providerModels = task ? (modelsByProvider[task.provider] ?? []) : []
 
   const handleModelChange = useCallback(async (model: string) => {
     if (!id || !task) return
@@ -277,8 +274,8 @@ export function TaskDetail() {
                 reasoningEffort={task.reasoningEffort}
                 onSend={session.sendPrompt}
                 onAbort={session.abort}
-                onModelChange={isClaudeCode ? handleModelChange : undefined}
-                onReasoningEffortChange={isClaudeCode ? handleReasoningEffortChange : undefined}
+                onModelChange={handleModelChange}
+                onReasoningEffortChange={task.provider === "claude-code" ? handleReasoningEffortChange : undefined}
               />
             </div>
           )}
@@ -344,8 +341,8 @@ export function TaskDetail() {
                 reasoningEffort={task.reasoningEffort}
                 onSend={session.sendPrompt}
                 onAbort={session.abort}
-                onModelChange={isClaudeCode ? handleModelChange : undefined}
-                onReasoningEffortChange={isClaudeCode ? handleReasoningEffortChange : undefined}
+                onModelChange={handleModelChange}
+                onReasoningEffortChange={task.provider === "claude-code" ? handleReasoningEffortChange : undefined}
               />
             </div>
           )}
