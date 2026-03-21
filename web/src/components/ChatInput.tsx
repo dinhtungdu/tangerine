@@ -106,7 +106,7 @@ export function ChatInput({ onSend, disabled, queueLength, isWorking, onAbort, m
           {canChangeModel ? (
             <ModelSelector
               models={providerModels}
-              model={model ?? ""}
+              model={model ?? providerModels[0] ?? ""}
               onModelChange={onModelChange}
             />
           ) : model ? (
