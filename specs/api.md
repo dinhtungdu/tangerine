@@ -13,7 +13,7 @@ Hono server on Bun. REST + WebSocket + webhook handlers.
 | POST | `/api/tasks` | Create task manually |
 | POST | `/api/tasks/:id/cancel` | Cancel a task |
 | POST | `/api/tasks/:id/done` | Mark task as done |
-| POST | `/api/tasks/:id/retry` | Retry a failed task (creates new task) |
+| POST | `/api/tasks/:id/retry` | Retry a failed or cancelled task (creates new task) |
 | DELETE | `/api/tasks/:id` | Delete a terminal task |
 
 #### POST /api/tasks
