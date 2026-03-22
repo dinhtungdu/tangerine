@@ -40,7 +40,14 @@ export function TerminalPane({ taskId }: TerminalPaneProps) {
     ws.onmessage = (event) => {
       try {
         const msg = JSON.parse(event.data as string)
-        if (msg.type === "output") {
+        if (msg.type === "connected") {
+          // Send resize immediately so tmux gets the right size
+          const fit = fitRef.current
+          if (fit) {
+            fit.fit()
+            ws.send(JSON.stringify({ type: "resize", cols: term.cols, rows: term.rows }))
+          }
+        } else if (msg.type === "output") {
           term.write(msg.data)
         } else if (msg.type === "exit") {
           term.writeln(`\r\n[Process exited with code ${msg.code}]`)

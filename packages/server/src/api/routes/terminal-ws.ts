@@ -36,10 +36,9 @@ export function terminalWsRoutes(deps: AppDeps, upgradeWebSocket: UpgradeWebSock
               const worktree = task.worktree_path ?? "/workspace/repo"
               const sessionName = `task-${taskId.slice(0, 12)}`
 
-              // Set large default size; client sends actual size on connect
-              const cols = pendingSize?.cols ?? 200
-              const rows = pendingSize?.rows ?? 50
-              const remoteCmd = `stty cols ${cols} rows ${rows}; cd ${worktree} && tmux new-session -A -s ${sessionName} -x ${cols} -y ${rows}`
+              // tmux new-session -A: attach if exists, create if not
+              // Client sends resize immediately after connect to set proper size
+              const remoteCmd = `cd ${worktree} && tmux new-session -A -s ${sessionName}`
 
               log.info("Terminal session starting", { taskId, vm: vm.ip, worktree })
 
