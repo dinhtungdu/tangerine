@@ -181,6 +181,10 @@ export interface BuildStatus {
   error?: string
 }
 
+export async function destroyVm(vmId: string): Promise<{ reprovisioned: number; failed: number }> {
+  return request<{ reprovisioned: number; failed: number }>(`/api/vms/${vmId}`, { method: "DELETE" })
+}
+
 export async function triggerBaseBuild(): Promise<void> {
   await request<unknown>("/api/images/build-base", { method: "POST" })
 }

@@ -54,7 +54,7 @@ export function ActiveRunsCard({ tasks }: { tasks: Task[] }) {
   )
 }
 
-export function VmSummaryCard({ vms }: { vms: VmInfo[] }) {
+export function VmSummaryCard({ vms, onRebuildVm }: { vms: VmInfo[]; onRebuildVm: (vmId: string) => void }) {
   const vm = vms[0]
   const status = vm?.status ?? "none"
   const isActive = status === "active" || status === "ready" || status === "assigned"
@@ -77,9 +77,22 @@ export function VmSummaryCard({ vms }: { vms: VmInfo[] }) {
         </span>
       </div>
       {vm ? (
-        <div className="flex flex-col gap-1">
-          <span className="text-[15px] font-semibold text-fg">{vm.id}</span>
-          <span className="text-[12px] text-fg-muted">{vm.ip ?? "No IP"}</span>
+        <div className="flex flex-col gap-2">
+          <div className="flex flex-col gap-1">
+            <span className="text-[15px] font-semibold text-fg">{vm.id}</span>
+            <span className="text-[12px] text-fg-muted">{vm.ip ?? "No IP"}</span>
+          </div>
+          <div className="flex justify-end">
+            <button
+              onClick={() => onRebuildVm(vm.id)}
+              className="flex items-center gap-1.5 rounded-md bg-surface-secondary px-3 py-1 text-[12px] font-medium text-fg-muted hover:text-fg"
+            >
+              <svg className="h-3 w-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M16.023 9.348h4.992v-.001M2.985 19.644v-4.992m0 0h4.992m-4.993 0 3.181 3.183a8.25 8.25 0 0 0 13.803-3.7M4.031 9.865a8.25 8.25 0 0 1 13.803-3.7l3.181 3.182" />
+              </svg>
+              Rebuild VM
+            </button>
+          </div>
         </div>
       ) : (
         <p className="text-[13px] text-fg-muted">No VM provisioned yet.</p>

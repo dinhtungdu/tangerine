@@ -4,7 +4,7 @@ import { useProject } from "../context/ProjectContext"
 import { useTaskSearch } from "../hooks/useTaskSearch"
 import { TasksSidebar } from "../components/TasksSidebar"
 import { ActiveRunsCard, VmSummaryCard, ImageCard, VmList, BuildLog, SystemLog } from "../components/StatusWidgets"
-import { fetchVms, fetchImages, fetchBuildStatus, triggerBaseBuild, type VmInfo, type ImageInfo, type BuildStatus } from "../lib/api"
+import { fetchVms, fetchImages, fetchBuildStatus, triggerBaseBuild, destroyVm, type VmInfo, type ImageInfo, type BuildStatus } from "../lib/api"
 
 export function StatusPage() {
   const navigate = useNavigate()
@@ -29,6 +29,15 @@ export function StatusPage() {
     loadAll()
     const interval = setInterval(loadAll, 10000)
     return () => clearInterval(interval)
+  }, [loadAll])
+
+  const handleRebuildVm = useCallback(async (vmId: string) => {
+    const confirmed = window.confirm(
+      "Destroy this VM and re-provision from base? Active tasks with pushed branches will be reprovisioned. Unpushed work will be lost.\n\nContinue?"
+    )
+    if (!confirmed) return
+    await destroyVm(vmId).catch(() => {})
+    loadAll()
   }, [loadAll])
 
   const handleBuildBase = useCallback(async () => {
@@ -72,7 +81,7 @@ export function StatusPage() {
             {/* Cards — horizontal on desktop, stacked on mobile */}
             <div className="flex flex-col gap-4 md:flex-row md:gap-4">
               <ActiveRunsCard tasks={tasks} />
-              <VmSummaryCard vms={vms} />
+              <VmSummaryCard vms={vms} onRebuildVm={handleRebuildVm} />
               <ImageCard image={images[0] ?? null} projectImage={current?.image} buildStatus={buildStatus} onBuildBase={handleBuildBase} />
             </div>
 
