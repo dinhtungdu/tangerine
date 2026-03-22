@@ -40,13 +40,13 @@ export function TaskDetail() {
   const [diffComments, setDiffComments] = useState<DiffComment[]>([])
 
   const dimsKey = `tangerine:pane-dims:${id}`
-  const dimsRef = useRef<{ chat: number; terminal: number; activity: number }>(() => {
+  const dimsRef = useRef<{ chat: number; terminal: number; activity: number }>((() => {
     try {
       const s = localStorage.getItem(dimsKey)
       if (s) return JSON.parse(s)
     } catch { /* ignore */ }
     return { chat: 480, terminal: 400, activity: 250 }
-  })
+  })())
   const saveDims = useCallback(() => {
     try { localStorage.setItem(dimsKey, JSON.stringify(dimsRef.current)) } catch { /* ignore */ }
   }, [dimsKey])
