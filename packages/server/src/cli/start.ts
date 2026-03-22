@@ -335,13 +335,29 @@ export async function start(): Promise<void> {
               message: e.message,
             })),
           ),
-        reprovisionTasksForVm: (vmId: string) =>
-          taskManager.reprovisionTasksForVm(tmDeps, vmId).pipe(
+        reprovisionTasksForVm: (vmId: string) => {
+          // Check if branch exists on remote using git ls-remote from host
+          const checkRemoteBranch = (branch: string) =>
+            Effect.tryPromise({
+              try: async () => {
+                // Find the repo URL from any task referencing this VM
+                const task = db.prepare("SELECT repo_url FROM tasks WHERE vm_id = ? AND branch = ? LIMIT 1").get(vmId, branch) as { repo_url: string } | null
+                if (!task?.repo_url) return false
+                const proc = Bun.spawn(["git", "ls-remote", "--heads", task.repo_url, branch], { stdout: "pipe", stderr: "pipe" })
+                const stdout = await new Response(proc.stdout).text()
+                await proc.exited
+                return stdout.trim().length > 0
+              },
+              catch: () => new Error("ls-remote failed"),
+            })
+
+          return taskManager.reprovisionTasksForVm(tmDeps, vmId, checkRemoteBranch).pipe(
             Effect.mapError((e): { _tag: string; message?: string } => ({
               _tag: "TaskError",
               message: e.message,
             })),
-          ),
+          )
+        },
         reconcile: () => Effect.void,
       },
       imageBuild: {
