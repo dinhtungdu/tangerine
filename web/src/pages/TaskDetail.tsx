@@ -192,7 +192,7 @@ export function TaskDetail() {
     return (
       <div className="flex h-full">
         <div className="hidden md:block">
-          <TasksSidebar tasks={tasks} searchQuery={query} onSearchChange={setQuery} onNewAgent={() => navigate("/")} />
+          <TasksSidebar tasks={tasks} searchQuery={query} onSearchChange={setQuery} onNewAgent={() => navigate("/new")} />
         </div>
         <div className="flex flex-1 items-center justify-center text-[13px] text-fg-muted">
           Loading...
@@ -205,7 +205,7 @@ export function TaskDetail() {
     return (
       <div className="flex h-full">
         <div className="hidden md:block">
-          <TasksSidebar tasks={tasks} searchQuery={query} onSearchChange={setQuery} onNewAgent={() => navigate("/")} />
+          <TasksSidebar tasks={tasks} searchQuery={query} onSearchChange={setQuery} onNewAgent={() => navigate("/new")} />
         </div>
         <div className="flex flex-1 items-center justify-center text-[13px] text-fg-muted">
           Task not found
@@ -224,7 +224,7 @@ export function TaskDetail() {
     <div className="flex h-full">
       {/* Sidebar — desktop only */}
       <div className="hidden md:block">
-        <TasksSidebar tasks={tasks} searchQuery={query} onSearchChange={setQuery} onNewAgent={() => navigate("/")} />
+        <TasksSidebar tasks={tasks} searchQuery={query} onSearchChange={setQuery} onNewAgent={() => navigate("/new")} />
       </div>
 
       {/* Main column */}
