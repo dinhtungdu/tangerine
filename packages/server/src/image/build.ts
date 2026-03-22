@@ -83,9 +83,16 @@ async function ensureBase(provider: LimaProvider, logFile: string, log: Logger):
   // Verify key tools installed
   const verifyResult = await Effect.runPromise(sshExec(
     instance.ip, instance.sshPort ?? 22,
-    "node --version && docker --version && opencode --version 2>/dev/null || echo 'opencode not found'",
+    [
+      "echo 'node:' $(node --version)",
+      "echo 'npm:' $(npm --version)",
+      "echo 'gh:' $(gh --version 2>/dev/null | head -1 || echo 'not found')",
+      "echo 'tmux:' $(tmux -V 2>/dev/null || echo 'not found')",
+      "echo 'opencode:' $(which opencode 2>/dev/null || echo 'not found')",
+      "echo 'claude:' $(which claude 2>/dev/null || echo 'not found')",
+    ].join(" && "),
   ));
-  appendLog(logFile, `Base VM tools: ${verifyResult.trim()}`);
+  appendLog(logFile, `Base VM tools:\n${verifyResult.trim()}`);
 
   // Stop for cloning
   await Effect.runPromise(provider.stopInstance(BASE_VM_NAME));
