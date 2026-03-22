@@ -20,6 +20,8 @@ export function terminalWsRoutes(deps: AppDeps, upgradeWebSocket: UpgradeWebSock
       const taskId = c.req.param("id")!
       let proc: ReturnType<typeof Bun.spawn> | null = null
       let alive = true
+      // Track desired size from client; applied on first resize message
+      let pendingSize: { cols: number; rows: number } | null = null
 
       return {
         onOpen(_event, ws) {
@@ -34,8 +36,10 @@ export function terminalWsRoutes(deps: AppDeps, upgradeWebSocket: UpgradeWebSock
               const worktree = task.worktree_path ?? "/workspace/repo"
               const sessionName = `task-${taskId.slice(0, 12)}`
 
-              // tmux new-session -A: attach if exists, create if not
-              const remoteCmd = `cd ${worktree} && tmux new-session -A -s ${sessionName}`
+              // Set large default size; client sends actual size on connect
+              const cols = pendingSize?.cols ?? 200
+              const rows = pendingSize?.rows ?? 50
+              const remoteCmd = `stty cols ${cols} rows ${rows}; cd ${worktree} && tmux new-session -A -s ${sessionName} -x ${cols} -y ${rows}`
 
               log.info("Terminal session starting", { taskId, vm: vm.ip, worktree })
 
@@ -129,7 +133,8 @@ export function terminalWsRoutes(deps: AppDeps, upgradeWebSocket: UpgradeWebSock
             const stdin = proc.stdin as import("bun").FileSink
             stdin.write(parsed.data)
           } else if (parsed.type === "resize" && parsed.cols && parsed.rows) {
-            // Resize via tmux (works without local PTY)
+            pendingSize = { cols: parsed.cols, rows: parsed.rows }
+            // Resize tmux via side-channel SSH
             const sessionName = `task-${taskId.slice(0, 12)}`
             Effect.runPromise(
               Effect.gen(function* () {
@@ -138,8 +143,7 @@ export function terminalWsRoutes(deps: AppDeps, upgradeWebSocket: UpgradeWebSock
                 const vm = yield* getVm(deps.db, task.vm_id)
                 if (!vm?.ip || !vm.ssh_port) return
 
-                // Use tmux's refresh-client to set the size
-                const resizeCmd = `tmux resize-window -t ${sessionName} -x ${parsed.cols} -y ${parsed.rows} 2>/dev/null; stty cols ${parsed.cols} rows ${parsed.rows} 2>/dev/null || true`
+                const resizeCmd = `tmux resize-window -t ${sessionName} -x ${parsed.cols} -y ${parsed.rows} 2>/dev/null; tmux refresh-client -t ${sessionName} -C ${parsed.cols},${parsed.rows} 2>/dev/null || true`
                 yield* deps.sshExec(vm.ip, vm.ssh_port, resizeCmd).pipe(Effect.catchAll(() => Effect.void))
               })
             ).catch(() => {

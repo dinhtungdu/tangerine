@@ -27,12 +27,14 @@ export function TerminalPane({ taskId }: TerminalPaneProps) {
 
     ws.onopen = () => {
       backoffRef.current = 1000
-      // Send initial size
-      const fit = fitRef.current
-      if (fit) {
-        fit.fit()
-        ws.send(JSON.stringify({ type: "resize", cols: term.cols, rows: term.rows }))
-      }
+      // Send initial size after a tick so the container is measured
+      requestAnimationFrame(() => {
+        const fit = fitRef.current
+        if (fit) {
+          fit.fit()
+          ws.send(JSON.stringify({ type: "resize", cols: term.cols, rows: term.rows }))
+        }
+      })
     }
 
     ws.onmessage = (event) => {
