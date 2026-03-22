@@ -39,29 +39,56 @@ export function TaskDetail() {
   const { files: diffFiles } = useDiffFiles(id ?? "")
   const [diffComments, setDiffComments] = useState<DiffComment[]>([])
 
-  const [chatWidth, setChatWidth] = useState(480)
-  const [terminalWidth, setTerminalWidth] = useState(400)
-  const [activityWidth, setActivityWidth] = useState(250)
+  const dimsKey = `tangerine:pane-dims:${id}`
+  const dimsRef = useRef<{ chat: number; terminal: number; activity: number }>(() => {
+    try {
+      const s = localStorage.getItem(dimsKey)
+      if (s) return JSON.parse(s)
+    } catch { /* ignore */ }
+    return { chat: 480, terminal: 400, activity: 250 }
+  })
+  const saveDims = useCallback(() => {
+    try { localStorage.setItem(dimsKey, JSON.stringify(dimsRef.current)) } catch { /* ignore */ }
+  }, [dimsKey])
+
+  const [chatWidth, setChatWidth] = useState(dimsRef.current.chat)
+  const [terminalWidth, setTerminalWidth] = useState(dimsRef.current.terminal)
+  const [activityWidth, setActivityWidth] = useState(dimsRef.current.activity)
   const containerRef = useRef<HTMLDivElement>(null)
 
   const MIN_PANE = 200
 
   const chatResize = useResizable({
     onResize: useCallback((delta: number) => {
-      setChatWidth((w) => Math.max(MIN_PANE, w + delta))
-    }, []),
+      setChatWidth((w) => {
+        const next = Math.max(MIN_PANE, w + delta)
+        dimsRef.current.chat = next
+        saveDims()
+        return next
+      })
+    }, [saveDims]),
   })
 
   const terminalResize = useResizable({
     onResize: useCallback((delta: number) => {
-      setTerminalWidth((w) => Math.max(MIN_PANE, w - delta))
-    }, []),
+      setTerminalWidth((w) => {
+        const next = Math.max(MIN_PANE, w - delta)
+        dimsRef.current.terminal = next
+        saveDims()
+        return next
+      })
+    }, [saveDims]),
   })
 
   const activityResize = useResizable({
     onResize: useCallback((delta: number) => {
-      setActivityWidth((w) => Math.max(MIN_PANE, w - delta))
-    }, []),
+      setActivityWidth((w) => {
+        const next = Math.max(MIN_PANE, w - delta)
+        dimsRef.current.activity = next
+        saveDims()
+        return next
+      })
+    }, [saveDims]),
   })
 
   const togglePane = useCallback((pane: PaneId) => {
