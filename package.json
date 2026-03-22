@@ -1,10 +1,15 @@
 {
   "name": "tangerine",
-  "private": true,
+  "devDependencies": {
+    "@eslint/js": "^10.0.1",
+    "eslint": "^10.0.3",
+    "eslint-plugin-import-x": "^4.16.2",
+    "typescript-eslint": "^8.57.0"
+  },
   "bin": {
     "tangerine": "bin/tangerine"
   },
-  "workspaces": ["packages/*", "web"],
+  "private": true,
   "scripts": {
     "dev": "bun run --filter '*' dev",
     "dev:api": "bun run --filter tangerine-server dev",
@@ -14,10 +19,8 @@
     "check": "bun run --filter '*' check && bun run lint",
     "test": "bun run --filter '*' test"
   },
-  "devDependencies": {
-    "@eslint/js": "^10.0.1",
-    "eslint": "^10.0.3",
-    "eslint-plugin-import-x": "^4.16.2",
-    "typescript-eslint": "^8.57.0"
+  "workspaces": ["packages/*", "web"],
+  "dependencies": {
+    "bun-pty": "^0.4.8"
   }
 }
