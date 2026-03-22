@@ -181,18 +181,8 @@ export interface BuildStatus {
   error?: string
 }
 
-export async function triggerImageBuild(project?: string): Promise<void> {
-  await request<unknown>("/api/images/build", {
-    method: "POST",
-    body: JSON.stringify({ project }),
-  })
-}
-
-export async function triggerBaseBuild(project?: string): Promise<void> {
-  await request<unknown>("/api/images/build-base", {
-    method: "POST",
-    body: JSON.stringify({ project }),
-  })
+export async function triggerBaseBuild(): Promise<void> {
+  await request<unknown>("/api/images/build-base", { method: "POST" })
 }
 
 export async function fetchBuildStatus(): Promise<BuildStatus> {

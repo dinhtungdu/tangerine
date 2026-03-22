@@ -88,11 +88,10 @@ export function VmSummaryCard({ vms }: { vms: VmInfo[] }) {
   )
 }
 
-export function ImageCard({ image, projectImage, buildStatus, onBuild, onBuildBase }: {
+export function ImageCard({ image, projectImage, buildStatus, onBuildBase }: {
   image: ImageInfo | null
   projectImage?: string
   buildStatus: BuildStatus
-  onBuild: () => void
   onBuildBase: () => void
 }) {
   const isBuilding = buildStatus.status === "building"
@@ -148,11 +147,8 @@ export function ImageCard({ image, projectImage, buildStatus, onBuild, onBuildBa
           {buildStatus.error && (
             <span className="text-[12px] text-status-error">{buildStatus.error}</span>
           )}
-          <div className="flex justify-end gap-2 md:justify-end">
-            <button onClick={onBuildBase} className="flex items-center gap-1.5 rounded-md bg-surface-secondary px-3 py-1.5 text-[13px] font-medium text-fg-muted hover:text-fg">
-              Rebuild Base
-            </button>
-            <button onClick={onBuild} className="flex items-center gap-1.5 rounded-md bg-fg px-3.5 py-1.5 text-[13px] font-medium text-bg">
+          <div className="flex justify-end md:justify-end">
+            <button onClick={onBuildBase} className="flex items-center gap-1.5 rounded-md bg-fg px-3.5 py-1.5 text-[13px] font-medium text-bg">
               <svg className="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                 <path strokeLinecap="round" strokeLinejoin="round" d="M16.023 9.348h4.992v-.001M2.985 19.644v-4.992m0 0h4.992m-4.993 0 3.181 3.183a8.25 8.25 0 0 0 13.803-3.7M4.031 9.865a8.25 8.25 0 0 1 13.803-3.7l3.181 3.182" />
               </svg>
@@ -171,15 +167,12 @@ export function ImageCard({ image, projectImage, buildStatus, onBuild, onBuildBa
             </div>
             <span className="text-[12px] text-fg-muted">{image.snapshotId.slice(0, 9)} · {formatRelativeTime(image.createdAt)}</span>
           </div>
-          <div className="flex justify-end gap-2">
+          <div className="flex justify-end">
             <button onClick={onBuildBase} disabled={isBuilding} className="flex items-center gap-1.5 rounded-md bg-surface-secondary px-3 py-1 text-[12px] font-medium text-fg-muted hover:text-fg disabled:opacity-50">
-              Rebuild Base
-            </button>
-            <button onClick={onBuild} disabled={isBuilding} className="flex items-center gap-1.5 rounded-md bg-surface-secondary px-3 py-1 text-[12px] font-medium text-fg-muted hover:text-fg disabled:opacity-50">
               <svg className="h-3 w-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                 <path strokeLinecap="round" strokeLinejoin="round" d="M16.023 9.348h4.992v-.001M2.985 19.644v-4.992m0 0h4.992m-4.993 0 3.181 3.183a8.25 8.25 0 0 0 13.803-3.7M4.031 9.865a8.25 8.25 0 0 1 13.803-3.7l3.181 3.182" />
               </svg>
-              Rebuild
+              Rebuild Base
             </button>
           </div>
         </div>
@@ -189,15 +182,12 @@ export function ImageCard({ image, projectImage, buildStatus, onBuild, onBuildBa
             <span className="text-[13px] text-fg-muted">{projectImage ?? "No image configured"}</span>
             <span className="text-[12px] text-fg-faint">No image built yet. Build one to start provisioning VMs.</span>
           </div>
-          <div className="flex gap-2 md:justify-end">
-            <button onClick={onBuildBase} className="flex items-center gap-1.5 rounded-md bg-surface-secondary px-3 py-1.5 text-[13px] font-medium text-fg-muted hover:text-fg md:w-auto">
-              Build Base
-            </button>
-            <button onClick={onBuild} className="flex w-full items-center justify-center gap-1.5 rounded-md bg-fg px-3.5 py-1.5 text-[13px] font-medium text-bg md:w-auto">
+          <div className="flex md:justify-end">
+            <button onClick={onBuildBase} className="flex w-full items-center justify-center gap-1.5 rounded-md bg-fg px-3.5 py-1.5 text-[13px] font-medium text-bg md:w-auto">
               <svg className="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                 <path strokeLinecap="round" strokeLinejoin="round" d="M11.42 15.17 17.25 21A2.652 2.652 0 0 0 21 17.25l-5.877-5.877M11.42 15.17l2.496-3.03c.317-.384.74-.626 1.208-.766M11.42 15.17l-4.655 5.653a2.548 2.548 0 1 1-3.586-3.586l6.837-5.63m5.108-.233c.55-.164 1.163-.188 1.743-.14a4.5 4.5 0 0 0 4.486-6.336l-3.276 3.277a3.004 3.004 0 0 1-2.25-2.25l3.276-3.276a4.5 4.5 0 0 0-6.336 4.486c.091 1.076-.071 2.264-.904 2.95l-.102.085" />
               </svg>
-              Build Image
+              Build Base
             </button>
           </div>
         </div>

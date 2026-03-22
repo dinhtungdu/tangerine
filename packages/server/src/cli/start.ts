@@ -21,8 +21,7 @@ import { createProvider } from "../vm/providers/index"
 import type { ProviderType as VmProviderType } from "../vm/providers/index"
 import { SshError, AgentError, PromptError } from "../errors"
 import { initSystemLog, cleanupSystemLogs } from "../system-log"
-import { startBuild, startBaseBuild, getBuildStatus } from "../image/build-service"
-import { reconcileImages } from "../image/build"
+import { startBaseBuild, getBuildStatus } from "../image/build-service"
 import { createOpenCodeProvider } from "../agent/opencode-provider"
 import { createClaudeCodeProvider } from "../agent/claude-code-provider"
 import type { AgentHandle } from "../agent/provider"
@@ -339,7 +338,6 @@ export async function start(): Promise<void> {
         reconcile: () => Effect.void,
       },
       imageBuild: {
-        start: startBuild,
         startBase: startBaseBuild,
         getStatus: getBuildStatus,
       },
@@ -393,18 +391,6 @@ export async function start(): Promise<void> {
             }
           }).pipe(Effect.catchAll(() => Effect.succeed({ running: false }))),
       },
-      preTeardown: {
-        listTasks: (filter) => listTasks(db, filter).pipe(
-          Effect.mapError((e) => new Error(e.message))
-        ),
-        getVm: (vmId) => getVm(db, vmId).pipe(
-          Effect.map((vm) => vm ? { ip: vm.ip, ssh_port: vm.ssh_port } : null),
-          Effect.mapError((e) => new Error(e.message))
-        ),
-        sshExec: (host, port, command) => sshExec(host, port, command).pipe(
-          Effect.mapError((e) => new Error(e.message))
-        ),
-      },
       sshExec: (host, port, command) =>
         sshExec(host, port, command).pipe(
           Effect.mapError((e) => ({ _tag: "SshError" as const, message: e.message }))
@@ -438,15 +424,6 @@ export async function start(): Promise<void> {
       if (alive > 0 || dead > 0) log.info("VM reconciliation complete", { alive, dead })
     } catch (err) {
       log.error("VM reconciliation failed", { error: String(err) })
-    }
-
-    // Reconcile golden images: detect existing golden VMs missing from DB
-    try {
-      const projectImages = config.config.projects.map((p) => p.image)
-      const reconciledImages = await reconcileImages(db, vmProvider, projectImages, log)
-      if (reconciledImages > 0) log.info("Image reconciliation complete", { reconciled: reconciledImages })
-    } catch (err) {
-      log.error("Image reconciliation failed", { error: String(err) })
     }
 
     // Resume orphaned tasks

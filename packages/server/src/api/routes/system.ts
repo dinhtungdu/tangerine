@@ -81,33 +81,8 @@ export function systemRoutes(deps: AppDeps): Hono {
     )
   })
 
-  app.post("/images/build", async (c) => {
-    const body = await c.req.json().catch(() => ({})) as { project?: string }
-    const projectId = body.project
-    const project = projectId
-      ? deps.config.config.projects.find((p) => p.name === projectId)
-      : deps.config.config.projects[0]
-    if (!project) {
-      return c.json({ error: "Unknown project" }, 400)
-    }
-    const result = deps.imageBuild.start(project.image)
-    if (!result.ok) {
-      return c.json({ error: result.reason }, 409)
-    }
-    return c.json({ status: "building", imageName: project.image }, 202)
-  })
-
-  // Build base image (optionally chain project rebuild, with pre-teardown branch push)
-  app.post("/images/build-base", async (c) => {
-    const body = await c.req.json<{ project?: string }>().catch(() => ({} as { project?: string }))
-    const project = body.project
-      ? deps.config.config.projects.find((p) => p.name === body.project)
-      : undefined
-    const projectImage = project?.image
-    const preTeardownDeps = body.project
-      ? { projectId: body.project, deps: deps.preTeardown }
-      : undefined
-    const result = deps.imageBuild.startBase(projectImage, preTeardownDeps)
+  app.post("/images/build-base", (c) => {
+    const result = deps.imageBuild.startBase()
     if (!result.ok) {
       return c.json({ error: result.reason }, 409)
     }

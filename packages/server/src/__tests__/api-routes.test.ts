@@ -85,11 +85,6 @@ function createMockDeps(db: Database, configOverrides?: Partial<AppDeps["config"
         return Effect.succeed(undefined as void)
       },
     },
-    preTeardown: {
-      listTasks: () => Effect.succeed([]),
-      getVm: () => Effect.succeed(null),
-      sshExec: () => Effect.succeed(""),
-    },
     sshExec() { return Effect.succeed("") },
     devServer: {
       start() { return Effect.succeed(undefined as void) },
@@ -112,7 +107,6 @@ function createMockDeps(db: Database, configOverrides?: Partial<AppDeps["config"
       },
     } satisfies AppDeps["config"],
     imageBuild: {
-      start() { return { ok: true } },
       startBase() { return { ok: true } },
       getStatus() { return { status: "idle" } },
     },

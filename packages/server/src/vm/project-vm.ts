@@ -6,7 +6,7 @@ import type { Database } from "bun:sqlite"
 import { createLogger } from "../logger"
 import { waitForSsh } from "./ssh"
 import type { Provider } from "./providers/types"
-import { goldenVmName } from "../image/build"
+import { BASE_VM_NAME, runProjectSetup } from "../image/build"
 
 const log = createLogger("project-vm")
 
@@ -47,7 +47,8 @@ export class ProjectVmManager {
 
   /**
    * Get existing active VM for a project, or provision a new one.
-   * The snapshotId comes from the project's golden image.
+   * New VMs are cloned directly from the base image. Project-specific
+   * setup (build.sh) runs on first provisioning and is cached on the VM.
    */
   getOrCreateVm(projectId: string, imageName: string): Effect.Effect<ProjectVmRow, Error> {
     return Effect.gen(this, function* (_) {
@@ -70,8 +71,8 @@ export class ProjectVmManager {
         return existing
       }
 
-      // Provision new VM from golden image clone
-      const snapshotId = `clone:${goldenVmName(imageName)}`
+      // Clone directly from base VM
+      const snapshotId = `clone:${BASE_VM_NAME}`
       const label = `tangerine-${projectId}-${crypto.randomUUID().slice(0, 8)}`
 
       log.info("Provisioning VM for project", { projectId, label, snapshotId })
@@ -103,6 +104,12 @@ export class ProjectVmManager {
         yield* waitForSsh(instance.ip, instance.sshPort ?? 22).pipe(
           Effect.mapError((e) => new Error(`SSH not available: ${e.message}`)),
         )
+
+        // Run project-specific setup (build.sh) on first provision
+        yield* Effect.tryPromise({
+          try: () => runProjectSetup(imageName, instance.ip, instance.sshPort ?? 22, log),
+          catch: (e) => new Error(`Project setup failed: ${e}`),
+        })
 
         // Mark active
         this.db

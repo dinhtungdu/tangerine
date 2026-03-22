@@ -1,12 +1,12 @@
 /**
- * Golden image build script.
+ * Base image build + project VM setup.
  *
- * Two-layer approach for fast builds:
+ * Single-layer approach:
  * 1. Base layer (tangerine-base): built from tangerine.yaml with cloud-init.
- *    Contains all common tools (Node.js, Docker, OpenCode, etc.).
+ *    Contains all common tools (Node.js, OpenCode, Claude Code, etc.).
  *    Only rebuilt when tangerine.yaml changes (~10 min).
- * 2. Project layer (tangerine-golden-<name>): cloned from base, runs build.sh.
- *    Only project-specific setup (PHP, repo clone, deps). Fast (~2-5 min).
+ * 2. Project VMs clone directly from base. Project-specific setup (build.sh)
+ *    runs on first provisioning and is cached on the persistent VM.
  *
  * `limactl clone` uses APFS clonefile(2) for instant, space-efficient copies.
  */
@@ -16,15 +16,11 @@ import { existsSync, mkdirSync, appendFileSync, writeFileSync } from "fs";
 import { Effect } from "effect";
 import { LimaProvider } from "../vm/providers/lima.ts";
 import { sshExec, sshExecStreaming, waitForSsh } from "../vm/ssh.ts";
-import { getDb } from "../db/index.ts";
-import { createImage, listImages, listVms, pruneOldImages, updateVmStatus } from "../db/queries.ts";
 import { TANGERINE_HOME, VM_USER } from "../config.ts";
 import type { Logger } from "../logger.ts";
-import type { Database } from "bun:sqlite";
-import type { Provider } from "../vm/providers/types.ts";
 
 const TEMPLATE_PATH = resolve(import.meta.dir, "tangerine.yaml");
-const BASE_VM_NAME = "tangerine-base";
+export const BASE_VM_NAME = "tangerine-base";
 
 /** Log directory for build output */
 const LOG_DIR = join(TANGERINE_HOME, "logs");
@@ -32,11 +28,6 @@ const LOG_DIR = join(TANGERINE_HOME, "logs");
 /** Path to the build log file for a given image */
 export function buildLogPath(imageName: string): string {
   return join(LOG_DIR, `image-build-${imageName}.log`);
-}
-
-/** Name convention for golden VMs kept as clone sources */
-export function goldenVmName(imageName: string): string {
-  return `tangerine-golden-${imageName}`;
 }
 
 /** Directory for a given image's assets (build.sh, etc.) */
@@ -48,33 +39,6 @@ export function imageDir(imageName: string): string {
 function appendLog(logFile: string, line: string): void {
   const ts = new Date().toISOString().slice(11, 23);
   appendFileSync(logFile, `[${ts}] ${line}\n`);
-}
-
-export async function cleanupUnassignedVmsForImage(
-  db: Database,
-  provider: Provider,
-  snapshotId: string,
-  logFile: string,
-  log: Logger,
-): Promise<number> {
-  const readyVms = Effect.runSync(listVms(db, "ready")).filter((vm) => vm.snapshot_id === snapshotId);
-
-  let destroyed = 0;
-  for (const vm of readyVms) {
-    try {
-      await Effect.runPromise(provider.destroyInstance(vm.id));
-    } catch (err) {
-      appendLog(logFile, `WARN: Failed to destroy stale ready VM ${vm.id}: ${String(err)}`);
-      log.warn("Failed to destroy stale ready VM", { vmId: vm.id, snapshotId, error: String(err) });
-      continue;
-    }
-
-    Effect.runSync(updateVmStatus(db, vm.id, "destroyed"));
-    appendLog(logFile, `Destroyed stale ready VM: ${vm.id}`);
-    destroyed++;
-  }
-
-  return destroyed;
 }
 
 /**
@@ -130,7 +94,7 @@ async function ensureBase(provider: LimaProvider, logFile: string, log: Logger):
 }
 
 /**
- * Build only the base VM from template. Called from CLI.
+ * Build only the base VM from template. Called from CLI and dashboard.
  * This is the slow step (~10 min) that installs all common tools.
  * Always destroys and recreates the base VM to pick up template changes.
  */
@@ -162,247 +126,87 @@ export async function buildBase(log: Logger): Promise<void> {
 }
 
 /**
- * Build a project golden image. If `requireBase` is true (default for dashboard),
- * fails if the base VM doesn't exist instead of building it on the fly.
+ * Run project-specific setup (build.sh) inside a VM on first provisioning.
+ * Checks for a marker file to skip if already done.
+ * Called by ProjectVmManager after cloning from base.
  */
-export async function buildImage(imageName: string, log: Logger, opts?: { requireBase?: boolean }): Promise<void> {
-  const buildScriptPath = join(imageDir(imageName), "build.sh");
-  const goldenName = goldenVmName(imageName);
-  const provider = new LimaProvider({ templatePath: TEMPLATE_PATH });
-  const db = getDb();
-  const logFile = buildLogPath(imageName);
+export async function runProjectSetup(
+  imageName: string,
+  ip: string,
+  sshPort: number,
+  log: Logger,
+): Promise<void> {
+  const markerFile = `/home/${VM_USER}/.tangerine-setup-done`;
 
-  // Ensure log directory exists and start fresh
-  mkdirSync(LOG_DIR, { recursive: true });
-  writeFileSync(logFile, `=== Golden image build: ${imageName} ===\n`);
-  appendLog(logFile, `Template: ${TEMPLATE_PATH}`);
-  appendLog(logFile, `Golden VM: ${goldenName}`);
-
-  log.info("Building golden image", { imageName, template: TEMPLATE_PATH, goldenVm: goldenName });
-
-  // Step 1: Check base VM exists
-  if (opts?.requireBase) {
-    try {
-      await Effect.runPromise(provider.getInstance(BASE_VM_NAME));
-    } catch {
-      throw new Error(`Base VM "${BASE_VM_NAME}" not found. Run "tangerine image build-base" first.`);
-    }
-    // Ensure it's stopped for cloning
-    const base = await Effect.runPromise(provider.getInstance(BASE_VM_NAME));
-    if (base.status === "active") {
-      await Effect.runPromise(provider.stopInstance(BASE_VM_NAME));
-    }
-  } else {
-    await ensureBase(provider, logFile, log);
-  }
-
-  // Step 2: Destroy existing golden VM if any
+  // Check if setup already ran
   try {
-    const existing = await Effect.runPromise(provider.getInstance(goldenName));
-    if (existing) {
-      appendLog(logFile, "Destroying existing golden VM...");
-      log.info("Destroying existing golden VM", { goldenVm: goldenName });
-      await Effect.runPromise(provider.destroyInstance(goldenName));
-      appendLog(logFile, "Existing VM destroyed");
+    const result = await Effect.runPromise(sshExec(ip, sshPort, `test -f ${markerFile} && echo "done" || echo "needed"`));
+    if (result.trim() === "done") {
+      log.info("Project setup already complete, skipping", { imageName });
+      return;
     }
   } catch {
-    // Doesn't exist, that's fine
+    // SSH might fail if VM is still booting — proceed with setup
   }
 
-  // Step 3: Clone from base (instant via APFS CoW)
-  appendLog(logFile, `Cloning base VM → ${goldenName}...`);
-  log.info("Cloning base VM", { from: BASE_VM_NAME, to: goldenName });
-  const instance = await Effect.runPromise(provider.createInstance({
-    region: "local",
-    plan: "4cpu-8gb",
-    label: goldenName,
-    snapshotId: `clone:${BASE_VM_NAME}`,
-  }));
-  appendLog(logFile, `Golden VM cloned: ${instance.id} (ip: ${instance.ip}, port: ${instance.sshPort})`);
-  log.info("Golden VM cloned", { id: instance.id, ip: instance.ip, sshPort: instance.sshPort });
+  const buildScriptPath = join(imageDir(imageName), "build.sh");
+  const logFile = buildLogPath(imageName);
 
-  // Step 4: Wait for SSH
-  appendLog(logFile, "Waiting for SSH...");
-  log.info("Waiting for SSH");
-  await Effect.runPromise(waitForSsh(instance.ip, instance.sshPort ?? 22));
-  appendLog(logFile, "SSH ready");
-  log.info("SSH ready");
+  mkdirSync(LOG_DIR, { recursive: true });
+  appendFileSync(logFile, `\n=== Project setup: ${imageName} ===\n`);
 
-  // Step 5: Run project's build script if it exists
-  if (existsSync(buildScriptPath)) {
-    appendLog(logFile, `Running build script: ${buildScriptPath}`);
-    log.info("Running build script", { path: buildScriptPath });
-    const scriptContent = await Bun.file(buildScriptPath).text();
-    const scriptBase64 = Buffer.from(scriptContent).toString("base64");
+  if (!existsSync(buildScriptPath)) {
+    appendLog(logFile, `No build script at ${buildScriptPath}, skipping project setup`);
+    log.info("No build script found, skipping project setup", { imageName });
+    // Still write marker so we don't check again
+    await Effect.runPromise(sshExec(ip, sshPort, `touch ${markerFile}`));
+    return;
+  }
 
-    // Upload build script to VM via stdin
-    const uploadProc = Bun.spawn(
-      ["ssh", "-o", "StrictHostKeyChecking=no", "-p", String(instance.sshPort ?? 22),
-       `${VM_USER}@${instance.ip}`, "base64 -d > /tmp/build.sh && chmod +x /tmp/build.sh"],
-      {
-        stdin: Buffer.from(scriptBase64),
-        stdout: "pipe",
-        stderr: "pipe",
-      }
-    );
-    const uploadExit = await uploadProc.exited;
-    if (uploadExit !== 0) {
-      const stderr = await new Response(uploadProc.stderr).text();
-      appendLog(logFile, `ERROR: Failed to upload build script: ${stderr}`);
-      throw new Error(`Failed to upload build script: ${stderr}`);
+  appendLog(logFile, `Running build script: ${buildScriptPath}`);
+  log.info("Running project setup", { imageName, path: buildScriptPath });
+
+  const scriptContent = await Bun.file(buildScriptPath).text();
+  const scriptBase64 = Buffer.from(scriptContent).toString("base64");
+
+  // Upload build script to VM
+  const uploadProc = Bun.spawn(
+    ["ssh", "-o", "StrictHostKeyChecking=no", "-p", String(sshPort),
+     `${VM_USER}@${ip}`, "base64 -d > /tmp/build.sh && chmod +x /tmp/build.sh"],
+    {
+      stdin: Buffer.from(scriptBase64),
+      stdout: "pipe",
+      stderr: "pipe",
     }
-
-    // Execute the build script with streaming output to log file
-    appendLog(logFile, "--- build script output ---");
-    const exitCode = await Effect.runPromise(sshExecStreaming(
-      instance.ip,
-      instance.sshPort ?? 22,
-      "bash -l /tmp/build.sh",
-      (chunk) => {
-        const lines = chunk.split("\n");
-        for (const line of lines) {
-          if (line.length > 0) appendFileSync(logFile, line + "\n");
-        }
-      },
-    ));
-    appendLog(logFile, `--- build script finished (exit ${exitCode}) ---`);
-
-    if (exitCode !== 0) {
-      appendLog(logFile, `ERROR: Build script failed with exit code ${exitCode}`);
-      throw new Error(`Build script failed with exit code ${exitCode}`);
-    }
-
-    // Clean up build script
-    await Effect.runPromise(sshExec(
-      instance.ip,
-      instance.sshPort ?? 22,
-      "rm -f /tmp/build.sh",
-    ));
-  } else {
-    appendLog(logFile, `No build script at ${buildScriptPath}, using base image only`);
-    log.info("No build script found, using base image only", { path: buildScriptPath });
-  }
-
-  // Step 6: Stop the VM — keep it as the golden source for cloning
-  appendLog(logFile, "Stopping golden VM...");
-  log.info("Stopping golden VM");
-  await Effect.runPromise(provider.stopInstance(goldenName));
-  appendLog(logFile, "Golden VM stopped (kept as clone source)");
-  log.info("Golden VM stopped (kept as clone source)");
-
-  // Step 7: Record in DB
-  const imageId = `img-${imageName}-${Date.now()}`;
-  Effect.runSync(createImage(db, {
-    id: imageId,
-    name: imageName,
-    provider: "lima",
-    snapshot_id: `clone:${goldenName}`,
-  }));
-  const pruned = Effect.runSync(pruneOldImages(db, imageName, imageId));
-  appendLog(logFile, `Image recorded: ${imageId}`);
-  if (pruned > 0) {
-    appendLog(logFile, `Pruned ${pruned} outdated image record(s)`);
-  }
-  const cleanedReadyVms = await cleanupUnassignedVmsForImage(db, provider, `clone:${goldenName}`, logFile, log);
-  if (cleanedReadyVms > 0) {
-    appendLog(logFile, `Destroyed ${cleanedReadyVms} stale ready VM(s) using previous image`);
-  }
-
-  // Destroy active project VMs so next task provisions from the new image
-  const cleanedActiveVms = await cleanupProjectVmsForImage(db, provider, imageName, logFile, log);
-  if (cleanedActiveVms > 0) {
-    appendLog(logFile, `Destroyed ${cleanedActiveVms} active project VM(s) using previous image`);
-  }
-  appendLog(logFile, `\n=== Build complete ===`);
-  log.info("Golden image built successfully", { imageId, cloneSource: goldenName, pruned, cleanedReadyVms });
-}
-
-/**
- * Destroy active/stopped project VMs that were cloned from the old golden image.
- * After rebuilding a golden image, these VMs are stale and need re-provisioning.
- * Also fails any tasks referencing these VMs so they can be retried on the new image.
- */
-async function cleanupProjectVmsForImage(
-  db: Database,
-  provider: Provider,
-  imageName: string,
-  logFile: string,
-  log: Logger,
-): Promise<number> {
-  const snapshotId = `clone:${goldenVmName(imageName)}`;
-  const allVms = Effect.runSync(listVms(db));
-  const staleVms = allVms.filter(
-    (vm) => vm.snapshot_id === snapshotId && ["active", "stopped"].includes(vm.status)
   );
-
-  let destroyed = 0;
-  for (const vm of staleVms) {
-    // Fail any tasks referencing this VM before destroying it
-    const affectedTasks = db
-      .prepare("SELECT id, status FROM tasks WHERE vm_id = ? AND status IN ('running', 'provisioning', 'created')")
-      .all(vm.id) as Array<{ id: string; status: string }>;
-
-    for (const task of affectedTasks) {
-      db.prepare("UPDATE tasks SET status = 'failed', error = 'VM destroyed for image rebuild', updated_at = datetime('now') WHERE id = ?")
-        .run(task.id);
-      appendLog(logFile, `Failed task ${task.id} (was ${task.status}) — VM being destroyed`);
-      log.info("Failed task due to image rebuild", { taskId: task.id, vmId: vm.id });
-    }
-
-    try {
-      await Effect.runPromise(provider.destroyInstance(vm.id));
-    } catch (err) {
-      appendLog(logFile, `WARN: Failed to destroy project VM ${vm.id}: ${String(err)}`);
-      log.warn("Failed to destroy project VM", { vmId: vm.id, error: String(err) });
-      continue;
-    }
-
-    Effect.runSync(updateVmStatus(db, vm.id, "destroyed"));
-    appendLog(logFile, `Destroyed project VM: ${vm.id}`);
-    log.info("Destroyed stale project VM", { vmId: vm.id, projectId: vm.project_id });
-    destroyed++;
+  const uploadExit = await uploadProc.exited;
+  if (uploadExit !== 0) {
+    const stderr = await new Response(uploadProc.stderr).text();
+    appendLog(logFile, `ERROR: Failed to upload build script: ${stderr}`);
+    throw new Error(`Failed to upload build script: ${stderr}`);
   }
 
-  return destroyed;
-}
+  // Execute with streaming output
+  appendLog(logFile, "--- build script output ---");
+  const exitCode = await Effect.runPromise(sshExecStreaming(
+    ip, sshPort,
+    "bash -l /tmp/build.sh",
+    (chunk) => {
+      const lines = chunk.split("\n");
+      for (const line of lines) {
+        if (line.length > 0) appendFileSync(logFile, line + "\n");
+      }
+    },
+  ));
+  appendLog(logFile, `--- build script finished (exit ${exitCode}) ---`);
 
-/**
- * Reconcile golden images: if a golden VM exists in the provider but has no
- * matching DB record (e.g. DB was wiped, or image was built before tracking),
- * insert a synthetic record so the UI shows "Built" instead of "Not Built".
- */
-export async function reconcileImages(
-  db: Database,
-  provider: Provider,
-  projectImages: string[],
-  log: Logger,
-): Promise<number> {
-  let reconciled = 0;
-  const existing = Effect.runSync(listImages(db));
-
-  for (const imageName of projectImages) {
-    // Skip if DB already has a record for this image
-    if (existing.some((r) => r.name === imageName)) continue;
-
-    // Check if the golden VM exists in the provider
-    const golden = goldenVmName(imageName);
-    try {
-      await Effect.runPromise(provider.getInstance(golden));
-    } catch {
-      continue; // Golden VM doesn't exist — genuinely not built
-    }
-
-    // Golden VM exists but no DB record — insert one
-    const imageId = `img-${imageName}-reconciled-${Date.now()}`;
-    Effect.runSync(createImage(db, {
-      id: imageId,
-      name: imageName,
-      provider: "lima",
-      snapshot_id: `clone:${golden}`,
-    }));
-    log.info("Reconciled golden image", { imageName, imageId, goldenVm: golden });
-    reconciled++;
+  if (exitCode !== 0) {
+    appendLog(logFile, `ERROR: Build script failed with exit code ${exitCode}`);
+    throw new Error(`Build script failed with exit code ${exitCode}`);
   }
 
-  return reconciled;
+  // Cleanup and mark as done
+  await Effect.runPromise(sshExec(ip, sshPort, `rm -f /tmp/build.sh && touch ${markerFile}`));
+  appendLog(logFile, "Project setup complete");
+  log.info("Project setup complete", { imageName });
 }

@@ -45,11 +45,9 @@ export interface AppDeps {
     reconcile(): Effect.Effect<void, TaggedError>
   }
   imageBuild: {
-    start(imageName: string): { ok: true } | { ok: false; reason: string }
-    startBase(projectImageName?: string, preTeardownDeps?: { projectId: string; deps: import("../image/build-service").PreTeardownDeps }): { ok: true } | { ok: false; reason: string }
+    startBase(): { ok: true } | { ok: false; reason: string }
     getStatus(): { status: "idle" } | { status: "building" | "success" | "failed"; imageName: string; startedAt: string; finishedAt?: string; error?: string }
   }
-  preTeardown: import("../image/build-service").PreTeardownDeps
   sshExec(host: string, port: number, command: string): Effect.Effect<string, TaggedError>
   devServer: {
     start(taskId: string): Effect.Effect<void, TaggedError>
