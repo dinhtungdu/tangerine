@@ -4,7 +4,7 @@
     "outDir": "dist",
     "jsx": "react-jsx",
     "lib": ["DOM", "DOM.Iterable", "ESNext"],
-    "types": []
+    "types": ["vite/client"]
   },
   "include": ["src", "vite.config.ts"],
     "exclude": ["dist", "src/__tests__"]

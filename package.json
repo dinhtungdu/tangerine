@@ -4,6 +4,7 @@
     "@eslint/js": "^10.0.1",
     "eslint": "^10.0.3",
     "eslint-plugin-import-x": "^4.16.2",
+    "husky": "^9.1.7",
     "typescript-eslint": "^8.57.0"
   },
   "bin": {
@@ -17,10 +18,11 @@
     "build": "bun run --filter tangerine-web build",
     "lint": "eslint 'packages/*/src/**/*.ts' 'web/src/**/*.{ts,tsx}'",
     "check": "bun run --filter '*' check && bun run lint",
-    "test": "bun run --filter '*' test"
+    "test": "bun run --filter '*' test",
+    "prepare": "husky"
   },
-  "workspaces": ["packages/*", "web"],
-  "dependencies": {
-    "bun-pty": "^0.4.8"
-  }
+  "workspaces": [
+    "packages/*",
+    "web"
+  ]
 }

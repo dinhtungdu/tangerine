@@ -131,6 +131,7 @@ export function makeTask(overrides?: Partial<Task>): Task {
     status: "created",
     provider: "opencode",
     model: null,
+    reasoningEffort: null,
     vmId: null,
     branch: null,
     worktreePath: null,

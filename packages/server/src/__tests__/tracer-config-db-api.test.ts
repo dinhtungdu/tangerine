@@ -255,6 +255,7 @@ describe("tracer: config -> db -> api", () => {
       status: "running",
       provider: "opencode",
       model: null,
+      reasoning_effort: null,
       vm_id: "vm-1",
       branch: "feat/test",
       worktree_path: null,
