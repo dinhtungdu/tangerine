@@ -20,8 +20,8 @@ export function terminalWsRoutes(deps: AppDeps, upgradeWebSocket: UpgradeWebSock
       const taskId = c.req.param("id")!
       let proc: ReturnType<typeof Bun.spawn> | null = null
       let alive = true
-      // Track desired size from client; applied on first resize message
       let pendingSize: { cols: number; rows: number } | null = null
+      let resizeTimer: ReturnType<typeof setTimeout> | null = null
 
       return {
         onOpen(_event, ws) {
@@ -133,26 +133,32 @@ export function terminalWsRoutes(deps: AppDeps, upgradeWebSocket: UpgradeWebSock
             stdin.write(parsed.data)
           } else if (parsed.type === "resize" && parsed.cols && parsed.rows) {
             pendingSize = { cols: parsed.cols, rows: parsed.rows }
-            // Resize tmux via side-channel SSH
-            const sessionName = `task-${taskId.slice(0, 12)}`
-            Effect.runPromise(
-              Effect.gen(function* () {
-                const task = yield* getTask(deps.db, taskId)
-                if (!task?.vm_id) return
-                const vm = yield* getVm(deps.db, task.vm_id)
-                if (!vm?.ip || !vm.ssh_port) return
 
-                const resizeCmd = `tmux resize-window -t ${sessionName} -x ${parsed.cols} -y ${parsed.rows} 2>/dev/null; tmux refresh-client -t ${sessionName} -C ${parsed.cols},${parsed.rows} 2>/dev/null || true`
-                yield* deps.sshExec(vm.ip, vm.ssh_port, resizeCmd).pipe(Effect.catchAll(() => Effect.void))
-              })
-            ).catch(() => {
-              // Resize is best-effort
-            })
+            // Debounce resize — only fire after 150ms of no resize events
+            if (resizeTimer) clearTimeout(resizeTimer)
+            resizeTimer = setTimeout(() => {
+              if (!proc || !alive) return
+              const sessionName = `task-${taskId.slice(0, 12)}`
+              Effect.runPromise(
+                Effect.gen(function* () {
+                  const task = yield* getTask(deps.db, taskId)
+                  if (!task?.vm_id) return
+                  const vm = yield* getVm(deps.db, task.vm_id)
+                  if (!vm?.ip || !vm.ssh_port) return
+
+                  // Resize tmux window + all panes, then force refresh
+                  const { cols, rows } = pendingSize!
+                  const resizeCmd = `tmux set-option -t ${sessionName} force-width ${cols} \\; set-option -t ${sessionName} force-height ${rows} \\; resize-window -t ${sessionName} -x ${cols} -y ${rows} 2>/dev/null || true`
+                  yield* deps.sshExec(vm.ip, vm.ssh_port, resizeCmd).pipe(Effect.catchAll(() => Effect.void))
+                })
+              ).catch(() => { /* resize is best-effort */ })
+            }, 150)
           }
         },
 
         onClose() {
           alive = false
+          if (resizeTimer) clearTimeout(resizeTimer)
           if (proc) {
             try {
               proc.kill()
