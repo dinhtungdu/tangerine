@@ -202,7 +202,6 @@ export function createClaudeCodeProvider(): AgentFactory {
             get: () => ({
               sessionId: resolvedSessionId,
               agentPort: null as number | null,
-              previewPort: ctx.previewPort,
             }),
           })
 

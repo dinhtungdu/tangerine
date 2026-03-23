@@ -8,7 +8,6 @@ export interface SessionTunnel {
   vmIp: string;
   sshPort: number;
   agentPort: number;
-  previewPort: number;
   process: Subprocess;
 }
 
@@ -17,17 +16,13 @@ export function createTunnel(opts: {
   sshPort: number;
   user?: string;
   remoteOpencodePort?: number;
-  remotePreviewPort: number;
 }): Effect.Effect<SessionTunnel, TunnelError> {
   return Effect.tryPromise({
     try: async () => {
       const user = opts.user ?? VM_USER;
       const remoteOpencodePort = opts.remoteOpencodePort ?? 4096;
 
-      const [agentPort, previewPort] = await Promise.all([
-        Effect.runPromise(allocatePort()),
-        Effect.runPromise(allocatePort()),
-      ]);
+      const agentPort = await Effect.runPromise(allocatePort());
 
       const args = [
         "ssh",
@@ -38,10 +33,7 @@ export function createTunnel(opts: {
         "-o", "LogLevel=ERROR",
         "-o", "ExitOnForwardFailure=yes",
         "-p", String(opts.sshPort),
-        // Forward OpenCode port
         "-L", `${agentPort}:127.0.0.1:${remoteOpencodePort}`,
-        // Forward preview port
-        "-L", `${previewPort}:127.0.0.1:${opts.remotePreviewPort}`,
         `${user}@${opts.vmIp}`,
       ];
 
@@ -70,11 +62,68 @@ export function createTunnel(opts: {
         vmIp: opts.vmIp,
         sshPort: opts.sshPort,
         agentPort,
-        previewPort,
         process,
       };
     },
     catch: (e) => new TunnelError({ message: `Tunnel creation failed: ${e}`, vmIp: opts.vmIp, cause: e }),
+  });
+}
+
+export interface PreviewTunnel {
+  localPort: number;
+  vmIp: string;
+  sshPort: number;
+  process: Subprocess;
+}
+
+/** On-demand SSH -L tunnel for preview port forwarding. */
+export function createPreviewTunnel(opts: {
+  vmIp: string;
+  sshPort: number;
+  remotePort: number;
+  user?: string;
+}): Effect.Effect<PreviewTunnel, TunnelError> {
+  return Effect.tryPromise({
+    try: async () => {
+      const user = opts.user ?? VM_USER;
+      const localPort = await Effect.runPromise(allocatePort());
+
+      const args = [
+        "ssh",
+        "-N",
+        "-o", "StrictHostKeyChecking=no",
+        "-o", "UserKnownHostsFile=/dev/null",
+        "-o", "BatchMode=yes",
+        "-o", "LogLevel=ERROR",
+        "-o", "ExitOnForwardFailure=yes",
+        "-p", String(opts.sshPort),
+        "-L", `${localPort}:127.0.0.1:${opts.remotePort}`,
+        `${user}@${opts.vmIp}`,
+      ];
+
+      const process = Bun.spawn(args, {
+        stdin: "ignore",
+        stdout: "ignore",
+        stderr: "pipe",
+      });
+
+      const settled = await Promise.race([
+        new Promise<"exited">((resolve) => {
+          process.exited.then(() => resolve("exited"));
+        }),
+        new Promise<"ok">((resolve) => {
+          setTimeout(() => resolve("ok"), 2_000);
+        }),
+      ]);
+
+      if (settled === "exited") {
+        const stderr = await new Response(process.stderr).text();
+        throw new Error(`Preview tunnel exited immediately: ${stderr}`);
+      }
+
+      return { localPort, vmIp: opts.vmIp, sshPort: opts.sshPort, process };
+    },
+    catch: (e) => new TunnelError({ message: `Preview tunnel creation failed: ${e}`, vmIp: opts.vmIp, cause: e }),
   });
 }
 

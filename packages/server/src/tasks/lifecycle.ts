@@ -17,7 +17,6 @@ export interface SessionInfo {
   vmId: string
   agentHandle: import("../agent/provider").AgentHandle
   agentPort: number | null
-  previewPort: number
   branch: string
   worktreePath: string
   proxyTunnel: ProxyTunnel | null
@@ -370,7 +369,6 @@ export function startSession(
       sshPort: vm.ssh_port!,
       workdir: worktreePath,
       title: task.title,
-      previewPort: config.preview.port,
       model: task.model ?? undefined,
       reasoningEffort: task.reasoning_effort ?? undefined,
     })
@@ -378,13 +376,11 @@ export function startSession(
 
     const meta = getHandleMeta(agentHandle)
     const agentPort = meta?.agentPort ?? null
-    const previewPort = meta?.previewPort ?? config.preview.port
     const agentSessionId = meta?.sessionId ?? null
 
     yield* deps.updateTask(task.id, {
       agent_session_id: agentSessionId,
       agent_port: agentPort,
-      preview_port: previewPort,
       status: "running",
       started_at: new Date().toISOString(),
     }).pipe(
@@ -397,7 +393,7 @@ export function startSession(
     )
 
     yield* activity("session.ready", "Session ready", {
-      vmId: vm.id, agentSessionId, agentPort, previewPort, branch, worktreePath,
+      vmId: vm.id, agentSessionId, agentPort, branch, worktreePath,
     })
     vmLog.info("Session ready", { agentSessionId, worktreePath })
     sessionSpan.end({ vmId: vm.id, agentSessionId })
@@ -406,7 +402,6 @@ export function startSession(
       vmId: vm.id,
       agentHandle,
       agentPort,
-      previewPort,
       branch,
       worktreePath,
       proxyTunnel,
@@ -562,7 +557,6 @@ export function reconnectSession(
       sshPort: vm.ssh_port!,
       workdir: worktreePath,
       title: task.title,
-      previewPort: config.preview.port,
       model: task.model ?? undefined,
       reasoningEffort: task.reasoning_effort ?? undefined,
       resumeSessionId: task.agent_session_id ?? undefined,
@@ -571,13 +565,11 @@ export function reconnectSession(
 
     const meta = getHandleMeta(agentHandle)
     const agentPort = meta?.agentPort ?? null
-    const previewPort = meta?.previewPort ?? config.preview.port
     const agentSessionId = meta?.sessionId ?? task.agent_session_id
 
     yield* deps.updateTask(task.id, {
       agent_session_id: agentSessionId,
       agent_port: agentPort,
-      preview_port: previewPort,
       status: "running",
     }).pipe(
       Effect.mapError((e) => new SessionStartError({
@@ -589,14 +581,13 @@ export function reconnectSession(
     )
 
     yield* activity("session.reconnected", "Session reconnected", {
-      vmId: vm.id, agentSessionId, agentPort, previewPort,
+      vmId: vm.id, agentSessionId, agentPort,
     })
 
     return {
       vmId: vm.id,
       agentHandle,
       agentPort,
-      previewPort,
       branch,
       worktreePath,
       proxyTunnel,

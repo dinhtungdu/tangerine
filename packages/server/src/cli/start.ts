@@ -20,8 +20,8 @@ import type { CleanupDeps } from "../tasks/cleanup"
 import { startOrphanCleanup, findOrphans, cleanupOrphans } from "../tasks/orphan-cleanup"
 import type { OrphanCleanupDeps } from "../tasks/orphan-cleanup"
 import { sshExec, waitForSsh } from "../vm/ssh"
-import { createTunnel, createProxyTunnel } from "../vm/tunnel"
-import type { ProxyTunnel } from "../vm/tunnel"
+import { createTunnel, createProxyTunnel, createPreviewTunnel } from "../vm/tunnel"
+import type { ProxyTunnel, PreviewTunnel } from "../vm/tunnel"
 import { createProvider } from "../vm/providers/index"
 import type { ProviderType as VmProviderType } from "../vm/providers/index"
 import { SshError, AgentError, PromptError } from "../errors"
@@ -53,6 +53,8 @@ const agentHandles = new Map<string, AgentHandle>()
 const proxyTunnels = new Map<string, ProxyTunnel>()
 // In-memory map of taskId → active API reverse tunnel (for cleanup)
 const apiTunnels = new Map<string, ProxyTunnel>()
+// In-memory map of taskId → lazy preview tunnel (created on first /preview/:id access)
+const previewTunnels = new Map<string, PreviewTunnel>()
 
 export async function start(): Promise<void> {
   const startSpan = log.startOp("server-start")
@@ -134,6 +136,7 @@ export async function start(): Promise<void> {
       getAgentHandle: (taskId) => agentHandles.get(taskId) ?? null,
       getProxyTunnel: (taskId) => proxyTunnels.get(taskId) ?? null,
       getApiTunnel: (taskId) => apiTunnels.get(taskId) ?? null,
+      getPreviewTunnel: (taskId) => previewTunnels.get(taskId) ?? null,
     }
 
     const tmDeps: TaskManagerDeps = {
@@ -451,8 +454,8 @@ export async function start(): Promise<void> {
         start: (taskId) =>
           Effect.gen(function* () {
             const task = yield* getTask(db, taskId)
-            if (!task?.vm_id || !task.preview_port) {
-              return yield* Effect.fail({ _tag: "TaskNotFoundError" as const, message: "Task has no VM or preview port" })
+            if (!task?.vm_id) {
+              return yield* Effect.fail({ _tag: "TaskNotFoundError" as const, message: "Task has no VM" })
             }
             const vm = yield* getVm(db, task.vm_id)
             if (!vm?.ip || !vm.ssh_port) {
@@ -497,6 +500,36 @@ export async function start(): Promise<void> {
             }
           }).pipe(Effect.catchAll(() => Effect.succeed({ running: false }))),
       },
+      getOrCreatePreviewPort: (taskId) =>
+        Effect.gen(function* () {
+          const task = yield* getTask(db, taskId)
+          if (!task) return yield* Effect.fail({ _tag: "TaskNotFoundError" as const, message: "Task not found" })
+
+          // Return cached port if tunnel already exists
+          if (task.preview_port) {
+            const existing = previewTunnels.get(taskId)
+            if (existing) return task.preview_port
+          }
+
+          if (!task.vm_id) return yield* Effect.fail({ _tag: "TaskNotFoundError" as const, message: "Task has no VM" })
+          const vm = yield* getVm(db, task.vm_id)
+          if (!vm?.ip || !vm.ssh_port) return yield* Effect.fail({ _tag: "VmNotFoundError" as const, message: "VM not found" })
+
+          const project = getProjectConfig(config.config, task.project_id)
+          const remotePort = project?.preview?.port ?? 3000
+
+          const tunnel = yield* createPreviewTunnel({
+            vmIp: vm.ip,
+            sshPort: vm.ssh_port,
+            remotePort,
+          }).pipe(Effect.mapError((e) => ({ _tag: "TunnelError" as const, message: e.message })))
+
+          previewTunnels.set(taskId, tunnel)
+          yield* updateTask(db, taskId, { preview_port: tunnel.localPort }).pipe(
+            Effect.catchAll(() => Effect.void)
+          )
+          return tunnel.localPort
+        }),
       sshExec: (host, port, command) =>
         sshExec(host, port, command).pipe(
           Effect.mapError((e) => ({ _tag: "SshError" as const, message: e.message }))

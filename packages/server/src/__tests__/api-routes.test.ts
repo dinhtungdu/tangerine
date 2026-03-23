@@ -97,6 +97,7 @@ function createMockDeps(db: Database, configOverrides?: Partial<AppDeps["config"
       findOrphans() { return Effect.succeed([]) },
       cleanupOrphans() { return Effect.succeed(0) },
     },
+    getOrCreatePreviewPort() { return Effect.fail({ _tag: "TaskNotFoundError" as const, message: "No preview in tests" }) },
     devServer: {
       start() { return Effect.succeed(undefined as void) },
       stop() { return Effect.succeed(undefined as void) },

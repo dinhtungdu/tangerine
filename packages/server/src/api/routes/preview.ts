@@ -1,35 +1,30 @@
 import { Effect } from "effect"
 import { Hono } from "hono"
 import type { AppDeps } from "../app"
-import { getTask } from "../../db/queries"
 import { runEffect } from "../effect-helpers"
 import { AgentError } from "../../errors"
 
 export function previewRoutes(deps: AppDeps): Hono {
   const app = new Hono()
 
-  // Proxy all methods to the task's preview port
+  // Proxy all methods to the task's preview port (tunnel created lazily on first access)
   app.all("/:id/*", async (c) => {
     const id = c.req.param("id")
 
     return runEffect(c,
       Effect.gen(function* () {
-        const task = yield* getTask(deps.db, id)
-
-        if (!task || !task.preview_port) {
-          return yield* Effect.fail(
-            new AgentError({ message: "No preview available for this task", taskId: id })
-          )
-        }
+        const previewPort = yield* deps.getOrCreatePreviewPort(id).pipe(
+          Effect.mapError((e) => new AgentError({ message: e.message ?? "No preview available", taskId: id }))
+        )
 
         // Strip the /preview/:id prefix to get the downstream path
         const url = new URL(c.req.url)
         const prefix = `/preview/${id}`
         const downstreamPath = url.pathname.slice(prefix.length) || "/"
-        const target = `http://localhost:${task.preview_port}${downstreamPath}${url.search}`
+        const target = `http://localhost:${previewPort}${downstreamPath}${url.search}`
 
         const headers = new Headers(c.req.raw.headers)
-        headers.set("Host", `localhost:${task.preview_port}`)
+        headers.set("Host", `localhost:${previewPort}`)
         // Remove hop-by-hop headers that shouldn't be forwarded
         headers.delete("connection")
         headers.delete("keep-alive")

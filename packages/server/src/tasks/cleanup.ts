@@ -6,7 +6,7 @@ import type { Database } from "bun:sqlite"
 import { createLogger } from "../logger"
 import { SessionCleanupError } from "../errors"
 import type { TaskRow } from "../db/types"
-import type { ProxyTunnel } from "../vm/tunnel"
+import type { ProxyTunnel, PreviewTunnel } from "../vm/tunnel"
 import { releaseSlot } from "./worktree-pool"
 
 const log = createLogger("cleanup")
@@ -22,6 +22,7 @@ export interface CleanupDeps {
   getAgentHandle(taskId: string): import("../agent/provider").AgentHandle | null
   getProxyTunnel(taskId: string): ProxyTunnel | null
   getApiTunnel(taskId: string): ProxyTunnel | null
+  getPreviewTunnel(taskId: string): PreviewTunnel | null
 }
 
 export function cleanupSession(
@@ -82,6 +83,15 @@ export function cleanupSession(
         try { apiTunnel.process.kill() } catch { /* already dead */ }
       }))
       taskLog.debug("API tunnel killed")
+    }
+
+    // 2d. Kill preview tunnel (lazy SSH -L for dev server)
+    const previewTunnel = deps.getPreviewTunnel(taskId)
+    if (previewTunnel) {
+      Effect.runSync(Effect.sync(() => {
+        try { previewTunnel.process.kill() } catch { /* already dead */ }
+      }))
+      taskLog.debug("Preview tunnel killed")
     }
 
     // 3. Release worktree slot back to pool (resets to detached HEAD, best-effort)

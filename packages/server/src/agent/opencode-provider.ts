@@ -17,7 +17,6 @@ export interface OpenCodeProviderDeps {
     sshPort: number
     user?: string
     remoteOpencodePort?: number
-    remotePreviewPort: number
   }): Effect.Effect<SessionTunnel, import("../errors").TunnelError>
 }
 
@@ -89,13 +88,12 @@ export function createOpenCodeProvider(deps: OpenCodeProviderDeps): AgentFactory
         })
         taskLog.info("OpenCode started")
 
-        // Establish SSH tunnel for OpenCode API and preview
+        // Establish SSH tunnel for OpenCode API
         const tunnel = yield* deps
           .createTunnel({
             vmIp: ctx.vmIp,
             sshPort: ctx.sshPort,
             remoteOpencodePort: opencodeVmPort,
-            remotePreviewPort: ctx.previewPort,
           })
           .pipe(
             Effect.mapError(
@@ -110,7 +108,6 @@ export function createOpenCodeProvider(deps: OpenCodeProviderDeps): AgentFactory
           )
         taskLog.info("Tunnel established", {
           agentPort: tunnel.agentPort,
-          previewPort: tunnel.previewPort,
         })
 
         // Wait for OpenCode health
@@ -351,7 +348,6 @@ export function createOpenCodeProvider(deps: OpenCodeProviderDeps): AgentFactory
         ;(handle as AgentHandleWithMeta).__meta = {
           sessionId,
           agentPort: tunnel.agentPort,
-          previewPort: tunnel.previewPort,
         }
 
         return handle
@@ -365,11 +361,10 @@ export interface AgentHandleWithMeta extends AgentHandle {
   __meta: {
     sessionId: string
     agentPort: number
-    previewPort: number
   }
 }
 
-export function getHandleMeta(handle: AgentHandle): { sessionId: string; agentPort: number; previewPort: number } | null {
+export function getHandleMeta(handle: AgentHandle): { sessionId: string; agentPort: number } | null {
   const meta = (handle as AgentHandleWithMeta).__meta
   return meta ?? null
 }

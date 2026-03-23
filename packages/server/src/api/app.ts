@@ -60,6 +60,7 @@ export interface AppDeps {
     findOrphans(): Effect.Effect<Array<{ id: string; title: string; status: string; worktreePath: string }>, TaggedError>
     cleanupOrphans(): Effect.Effect<number, TaggedError>
   }
+  getOrCreatePreviewPort(taskId: string): Effect.Effect<number, TaggedError>
   configStore: {
     read(): import("../config").RawConfig
     write(config: import("../config").RawConfig): void
