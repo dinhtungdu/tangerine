@@ -56,8 +56,9 @@ Set up a project to run on the Tangerine coding agent platform. Generates config
 
 The Debian 13 base VM already has these — do NOT add them to build.sh:
 - git, curl, wget, jq, build-essential, openssh-server
-- Node.js (via nvm), npm
-- OpenCode (pre-installed)
+- Node.js 22 (via nvm), npm
+- Bun runtime
+- OpenCode + Claude Code (both pre-installed globally)
 - gh CLI
 - ripgrep, fd-find
 - Docker + Docker Compose
@@ -112,23 +113,31 @@ After writing the config files, guide the user through the next steps.
 - **Bun** installed
 - **Lima** installed (`brew install lima` on macOS)
 - **tangerine** CLI available globally (`bun link` from the tangerine repo, or `npm i -g tangerine`)
-- **LLM credentials**: either run `opencode auth login` or set `ANTHROPIC_API_KEY` env var
-- **GitHub token**: set `GITHUB_TOKEN` env var (for PR creation and repo cloning)
+- **LLM credentials**: `tangerine config set CLAUDE_CODE_OAUTH_TOKEN=...` (or `ANTHROPIC_API_KEY`, or `opencode auth login`)
+- **GitHub token**: `tangerine config set GITHUB_TOKEN=ghp_...` (for PR creation and repo cloning)
 
 ### First-time Setup
 
 ```bash
-# 1. Register the project (done by this skill via tangerine project add)
+# 1. Set credentials (stored in ~/tangerine/.credentials, mode 0600)
+tangerine config set CLAUDE_CODE_OAUTH_TOKEN=...
+tangerine config set GITHUB_TOKEN=ghp_...
+# Optional: ANTHROPIC_API_KEY, GH_ENTERPRISE_TOKEN, GH_HOST
+
+# 2. Register the project (done by this skill via tangerine project add)
 tangerine project add --name my-app --repo https://github.com/me/my-app --image node-dev --setup "npm install && npm run dev"
 
-# 2. Scaffold and edit the build script
+# 3. Scaffold and edit the build script
 tangerine image init node-dev
 # Edit ~/tangerine/images/node-dev/build.sh
 
-# 3. Build the golden image
+# 4. Build the base image (one-time, ~10 min)
+tangerine image build-base
+
+# 5. Build the project golden image (clones base + runs build.sh, ~2-5 min)
 tangerine image build
 
-# 4. Start the server + web dashboard
+# 6. Start the server + web dashboard
 tangerine start
 ```
 
@@ -142,6 +151,7 @@ tangerine start
 # - Select project from dropdown
 # - View tasks (sourced from GitHub issues or created manually)
 # - Click a task to open the chat UI + live preview
+# - Choose agent provider: OpenCode or Claude Code
 # - The agent runs in an isolated VM with full access to the project
 
 # Manage projects
@@ -152,8 +162,10 @@ tangerine project remove old-app
 # Create tasks manually
 tangerine task create --project my-app --title "Fix bug"
 
-# Check warm pool status
-tangerine pool status
+# Manage credentials
+tangerine config list
+tangerine config set CLAUDE_CODE_OAUTH_TOKEN=...
+tangerine config unset GH_ENTERPRISE_TOKEN
 
 # Rebuild the image when project dependencies change
 tangerine image build
@@ -161,18 +173,20 @@ tangerine image build
 
 ### How It Works
 
-1. **Task created** (from GitHub webhook or manually)
-2. **VM acquired** from warm pool (cloned from golden image snapshot)
-3. **Repo cloned** + feature branch created inside VM
-4. **Credentials injected** (OpenCode auth + GitHub token)
-5. **OpenCode agent starts** inside VM, accessible via SSH tunnel
+1. **Task created** (from GitHub webhook or manually via dashboard/CLI)
+2. **Per-project VM** acquired (one persistent VM per project, cloned from golden image)
+3. **Git worktree created** for task isolation (branch: `tangerine/<task-prefix>`)
+4. **Credentials injected** (LLM API key + GitHub token via `tangerine config`)
+5. **Agent starts** inside VM — OpenCode (SSE over SSH tunnel) or Claude Code (NDJSON over SSH stdin/stdout)
 6. **User chats** with the agent through the web dashboard
 7. **Agent works** — edits code, runs tests, creates PRs
-8. **VM released** back to pool when task completes
+8. **Worktree cleaned up** on completion — VM persists for the next task
 
 ### Key Concepts
 
-- **Golden image**: a VM snapshot with your project's runtimes and tools pre-installed (built from `~/tangerine/images/<name>/build.sh`). Rebuild when deps change.
-- **Warm pool**: pre-provisioned VMs ready to go, so tasks start instantly instead of waiting for a VM to boot.
+- **Golden image**: a VM snapshot with your project's runtimes and tools pre-installed (built from `~/tangerine/images/<name>/build.sh`). Two-layer: base image (slow, shared) + project image (fast, project-specific). Rebuild when deps change.
+- **Per-project VMs**: one persistent VM per project (not pooled). VMs survive task completion and server restarts. Tasks use git worktrees for isolation, not separate VMs.
+- **Multi-provider agents**: choose OpenCode or Claude Code per task. Both pre-installed in base image. Credentials managed via `tangerine config set`. Claude Code uses `CLAUDE_CODE_OAUTH_TOKEN` or `ANTHROPIC_API_KEY`; OpenCode uses `auth.json` or `ANTHROPIC_API_KEY`.
 - **Multi-project**: tangerine supports multiple projects from a single server. Register projects with `tangerine project add`.
-- **Terminal attach**: devs can join any running session from terminal with `opencode attach`.
+- **Health monitoring**: background health checks every 30s detect dead VMs or unresponsive agents, auto-recover or fail gracefully.
+- **Retry**: failed or cancelled tasks can be retried from the web dashboard — creates a fresh task with the same params.

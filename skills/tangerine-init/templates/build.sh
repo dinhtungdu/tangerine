@@ -6,8 +6,8 @@ set -euo pipefail
 #
 # Base image already provides:
 #   git, curl, wget, jq, build-essential, openssh-server,
-#   Node.js (nvm), npm, OpenCode, gh CLI, ripgrep, fd-find,
-#   Docker, Docker Compose
+#   Node.js 22 (nvm), npm, Bun, OpenCode, Claude Code,
+#   gh CLI, ripgrep, fd-find, Docker, Docker Compose
 
 export DEBIAN_FRONTEND=noninteractive
 
