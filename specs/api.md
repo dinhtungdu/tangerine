@@ -99,10 +99,13 @@ Single WebSocket per task view. Multiplexes:
 ```typescript
 type WsServerMessage =
   | { type: "connected" }
-  | { type: "event"; data: unknown }       // AgentEvent from provider
-  | { type: "status"; status: TaskStatus }  // task status change
+  | { type: "event"; data: unknown }            // AgentEvent from provider
+  | { type: "activity"; entry: ActivityEntry }   // Activity log entry (real-time)
+  | { type: "status"; status: TaskStatus }       // task status change
   | { type: "error"; message: string }
 ```
+
+Activity entries are broadcast over WebSocket as they're logged — no polling needed. The web dashboard receives lifecycle events, file changes, and tool calls in real-time.
 
 ### Messages (client → server)
 
@@ -111,6 +114,52 @@ type WsClientMessage =
   | { type: "prompt"; text: string }
   | { type: "abort" }
 ```
+
+## Activity Log
+
+Activity entries track task lifecycle events and agent tool usage. Stored in `activity_log` table, broadcast via WebSocket.
+
+### Activity Types
+
+| Type | Events | Description |
+|------|--------|-------------|
+| `lifecycle` | `task.created`, `task.cancelled`, `task.completed`, `task.failed`, `task.reprovisioning` | Task state changes |
+| `lifecycle` | `vm.acquiring`, `vm.acquired`, `ssh.waiting`, `ssh.ready`, `repo.cloning`, `worktree.creating`, `setup.started`, `agent.starting`, `session.ready` | Provisioning steps |
+| `lifecycle` | `session.reconnecting`, `session.reconnected`, `agent.reconnecting` | Server restart recovery |
+| `lifecycle` | `creds.injected`, `creds.missing` | Credential injection status |
+| `lifecycle` | `config.changed` | Model/reasoning config hot-swap |
+| `file` | `tool.read`, `tool.write` | Agent file operations (Read, Glob, Grep, Write, Edit) |
+| `system` | `tool.bash`, `tool.other` | Agent system operations (Bash, other tools) |
+
+### Tool Tracking (Claude Code)
+
+Claude Code NDJSON events are parsed for `tool_use` content blocks. Each tool call is classified:
+
+```typescript
+function classifyTool(toolName: string): { activityType, activityEvent }
+  Read/Glob/Grep  → { "file", "tool.read" }
+  Write/Edit      → { "file", "tool.write" }
+  Bash            → { "system", "tool.bash" }
+  *               → { "system", "tool.other" }
+```
+
+### DB Schema
+
+```sql
+CREATE TABLE activity_log (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  task_id TEXT NOT NULL,
+  type TEXT NOT NULL,        -- lifecycle|file|system
+  event TEXT NOT NULL,       -- e.g. "tool.read", "task.created"
+  content TEXT NOT NULL,     -- human-readable description
+  metadata TEXT,             -- JSON blob (tool args, durations, etc.)
+  timestamp TEXT NOT NULL DEFAULT (datetime('now'))
+);
+```
+
+### System Log Correlation
+
+System logs (`system_logs` table) have a `task_id` column, enabling correlation between structured system logs and task-specific activity.
 
 ## SSE Bridge (OpenCode)
 

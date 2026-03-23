@@ -7,11 +7,11 @@ How API keys and tokens flow from host to VM. Never baked into images.
 | Credential | Purpose | Source |
 |------------|---------|--------|
 | OpenCode `auth.json` | LLM provider auth for OpenCode (API keys or OAuth tokens) | Host's `~/.local/share/opencode/auth.json` |
-| `CLAUDE_CODE_OAUTH_TOKEN` | Claude Code OAuth authentication | Host env var |
-| `ANTHROPIC_API_KEY` | Direct Anthropic API key (both providers) | Host env var |
-| `GITHUB_TOKEN` | git push, `gh pr create` on github.com | Static PAT (v0) / User OAuth (hosted) |
-| `GH_ENTERPRISE_TOKEN` | git push, `gh pr create` on GHE | Host env var |
-| `GH_HOST` | GitHub Enterprise hostname | Host env var (default: `github.com`) |
+| `CLAUDE_CODE_OAUTH_TOKEN` | Claude Code OAuth authentication | Dotfile or env var |
+| `ANTHROPIC_API_KEY` | Direct Anthropic API key (both providers) | Dotfile or env var |
+| `GITHUB_TOKEN` | git push, `gh pr create` on github.com | Dotfile or env var |
+| `GH_ENTERPRISE_TOKEN` | git push, `gh pr create` on GHE | Dotfile or env var |
+| `GH_HOST` | GitHub Enterprise hostname | Dotfile or env var (default: `github.com`) |
 
 ## Injection Flow
 
@@ -105,11 +105,52 @@ Future (hosted): user OAuth tokens per user.
 
 ## Credential Storage (v0)
 
-Three sources on the host:
+Four sources on the host (in priority order — first match wins):
 
-1. **OpenCode auth.json** (`~/.local/share/opencode/auth.json`) — LLM provider credentials for OpenCode
-2. **Environment variables** — `GITHUB_TOKEN`, `GH_HOST`, `ANTHROPIC_API_KEY`
-3. **`CLAUDE_CODE_OAUTH_TOKEN`** — OAuth token for Claude Code provider
+1. **Environment variables** — `ANTHROPIC_API_KEY`, `CLAUDE_CODE_OAUTH_TOKEN`, `GITHUB_TOKEN`, etc.
+2. **Dotfile** (`~/tangerine/.credentials`) — managed via CLI, mode 0600
+3. **OpenCode auth.json** (`~/.local/share/opencode/auth.json`) — LLM provider credentials for OpenCode
+4. **`CLAUDE_CODE_OAUTH_TOKEN`** — OAuth token for Claude Code provider
+
+### Credential Dotfile
+
+`~/tangerine/.credentials` stores credentials as `KEY=VALUE` lines (mode 0600). Managed via CLI:
+
+```bash
+tangerine config set ANTHROPIC_API_KEY=sk-ant-...
+tangerine config get ANTHROPIC_API_KEY
+tangerine config unset ANTHROPIC_API_KEY
+tangerine config list                          # shows all keys, values masked
+```
+
+Allowed keys: `ANTHROPIC_API_KEY`, `CLAUDE_CODE_OAUTH_TOKEN`, `GITHUB_TOKEN`, `GH_ENTERPRISE_TOKEN`, `GH_HOST`.
+
+Env vars override dotfile values. Server reads dotfile at startup via `loadConfig()`.
+
+### Refreshing Credentials on Running VMs
+
+After changing credentials (via `config set` or env var change), running VMs still have stale `~/.env`. To re-inject:
+
+```bash
+curl -X POST http://localhost:4100/api/credentials/refresh
+```
+
+This re-reads credentials from dotfile + env, updates the server's in-memory config, and SSHes into all active VMs to overwrite `~/.env`.
+
+### Per-Provider Validation
+
+Task creation validates that credentials exist for the requested provider:
+
+- `claude-code` → requires `CLAUDE_CODE_OAUTH_TOKEN` or `ANTHROPIC_API_KEY`
+- `opencode` → requires `auth.json` or `ANTHROPIC_API_KEY`
+
+Missing credentials fail fast with an actionable error message before provisioning starts.
+
+### Credential Activity Logging
+
+The lifecycle logs credential injection status as task activities:
+- `creds.injected` — which LLM keys were injected into the VM
+- `creds.missing` — no LLM credentials available (agent will likely fail)
 
 ## Security Notes
 
@@ -118,4 +159,5 @@ Three sources on the host:
 - Golden images never contain credentials
 - Credential injection happens per-session, not at image build time
 - `auth.json` is copied with mode 0600
+- Dotfile stored with mode 0600
 - VM persists between tasks — credentials persist too (acceptable for local single-user)

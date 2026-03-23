@@ -61,6 +61,37 @@ VMs are created via `limactl clone` from the golden source VM (APFS copy-on-writ
 2. For each, check if provider reports it alive
 3. Dead VMs marked as `error` with message `"VM not running on startup"`
 
+### Health Checks
+
+Background fiber (`startHealthMonitor`) checks all running tasks every 30 seconds:
+
+1. **VM reachability**: `checkVmHealth(vmId)` — is the VM still alive?
+   - If unreachable → fail task → `cleanupSession` (worktree removal + path clearing)
+2. **Agent responsiveness** (OpenCode only): `checkAgentHealth(agentPort)` — is the server responding?
+   - If unresponsive → attempt `restartOpencode`
+   - If restart fails → fail task → `cleanupSession`
+
+Health check errors are caught per-task — one failing task doesn't block checks on others.
+
+### VM Rebuild + Task Reprovisioning
+
+When a VM is destroyed and rebuilt (`reprovisionTasksForVm`):
+
+1. Find all non-terminal tasks (`running`, `provisioning`, `created`) attached to the old VM
+2. For tasks with a branch:
+   - SSH into new VM and check if branch exists on remote (`git ls-remote`)
+   - If branch exists → reset task to `created` (keeps branch name for worktree reuse from remote)
+   - If branch not found → mark `failed` ("work is lost")
+3. For tasks without a branch → safe to reprovision (never started)
+4. Reset reprovisioned tasks: clear `vm_id`, `agent_session_id`, `agent_port`, `preview_port`, `worktree_path`
+5. Fire `resumeOrphanedTasks()` to kick off provisioning on the new VM
+
+Stale agent processes are killed before starting new ones:
+```bash
+pkill -f "claude.*<worktreePath>" 2>/dev/null
+pkill -f "opencode.*<worktreePath>" 2>/dev/null
+```
+
 ## Git Worktrees
 
 Tasks use `git worktree add` for isolation instead of full clones.
@@ -81,7 +112,9 @@ Tasks use `git worktree add` for isolation instead of full clones.
 
 ### Worktree Cleanup (in cleanup.ts)
 
-On task completion: `git worktree remove <path> --force` (falls back to `rm -rf`). VM persists.
+On task completion/cancellation/failure/retry: `git worktree remove <path> --force` (falls back to `rm -rf`). Clears `worktree_path` in DB to prevent orphan detection. Skips SSH if VM is destroyed. VM persists.
+
+See [tasks.md](./tasks.md#cleanup) for full cleanup flow and orphan detection.
 
 ## SSH Agent Forwarding
 

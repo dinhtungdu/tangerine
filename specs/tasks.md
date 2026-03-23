@@ -36,6 +36,10 @@ POST /api/tasks { title, description, projectId, provider }
 created → provisioning → running → done
                                  → failed
          → cancelled (from any non-terminal state)
+
+Retry (from terminal):
+  failed ──→ cancelled (old) + created (new task, same params)
+  cancelled ──→ cancelled (old) + created (new task, same params)
 ```
 
 | Status | Description |
@@ -55,8 +59,20 @@ created → provisioning → running → done
 | provisioning | running | Agent started, session ready |
 | provisioning | failed | VM, worktree, or agent setup error |
 | running | done | User marks done / PR merged |
-| running | failed | VM died, unrecoverable error |
+| running | failed | VM died, health check failure, unrecoverable error |
 | any active | cancelled | User cancels |
+| failed/cancelled | new task (created) | User retries via `POST /api/tasks/:id/retry` |
+
+### Retry
+
+`POST /api/tasks/:id/retry` on a `failed` or `cancelled` task:
+
+1. Clean up old task's worktree (via `cleanupSession`)
+2. Mark old task as `cancelled`
+3. Create a new task with the same params (title, description, project, provider, model, source)
+4. New task enters normal `created → provisioning → running` flow
+
+The old task remains in the DB for audit. The new task gets a fresh ID, branch, and worktree.
 
 ## Task Data
 
@@ -111,11 +127,37 @@ Future (hosted): PRs created as the user who triggered the task (GitHub OAuth).
 
 ## Cleanup
 
-On task completion/cancellation:
-1. Persist chat messages (best-effort)
+`cleanupSession()` runs on completion, cancellation, health-check failure, retry, and delete:
+
+1. Persist chat messages (best-effort — skipped if no agent port/session)
 2. Shutdown agent handle (kills process, closes tunnel/SSE)
-3. Remove worktree from VM (`git worktree remove --force`)
-4. VM persists for the project — not destroyed
+3. Remove worktree from VM (`git worktree remove --force`, falls back to `rm -rf`)
+   - Skipped if VM is destroyed or unavailable
+4. Clear `worktree_path` in DB (prevents orphan detection from re-triggering)
+5. VM persists for the project — not destroyed
+
+### worktree_path Lifecycle
+
+- **Set** during provisioning (`startSession` → step 5)
+- **Cleared** by `cleanupSession` after worktree removal (or if VM unavailable)
+- Terminal tasks with `worktree_path` still set are considered **orphans** (see below)
+
+### Orphan Cleanup
+
+Safety net for crashes, SSH failures, or bugs that prevent normal cleanup. Modeled after Orange's `cleanupOrphans()`.
+
+- **Detection**: terminal tasks (`done`, `failed`, `cancelled`) with `worktree_path` still set
+- **Interval**: every 30 seconds (background fiber via `startOrphanCleanup`)
+- **Action**: calls `cleanupSession` for each orphan → removes worktree + clears path
+- **Errors**: caught and logged per-task, never crashes the loop
+
+### Health Check → Cleanup
+
+When health checks detect failure (VM unreachable, OpenCode unresponsive + restart failed):
+
+1. Mark task as `failed` with reason
+2. Call `cleanupSession` → removes worktree, clears path
+3. Orphan cleanup catches any that slip through
 
 ## GitHub Integration
 
@@ -150,6 +192,23 @@ See [credentials.md](./credentials.md#git-authentication) for full details. Two 
 ### GHE (GitHub Enterprise)
 
 Supported via `GH_ENTERPRISE_TOKEN` + `GH_HOST` env vars. Both are injected into the VM and used by `gh` CLI and git credential helper.
+
+## Session Retry (provisioning)
+
+`startSessionWithRetry` wraps `startSession` with exponential backoff (1s, 2s, 4s — max 3 attempts). On exhaustion: task marked `failed`, worktree cleaned up.
+
+`reconnectSessionWithRetry` does the same for `reconnectSession` (lightweight reconnect — skips worktree/setup, just restarts agent with `--resume`).
+
+## Server Restart Recovery
+
+`resumeOrphanedTasks()` runs on startup (and after VM rebuild):
+
+| Task status | Recovery action |
+|-------------|-----------------|
+| `created` / `provisioning` | Reset to `created`, full `startSessionWithRetry` |
+| `running` | Lightweight `reconnectSessionWithRetry` (reuse worktree, `--resume`) |
+
+Tasks with unknown projects are marked `failed`.
 
 ## Concurrency
 

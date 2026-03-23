@@ -86,7 +86,7 @@ packages/
         client.ts      # Per-task agent client instances
         events.ts      # SSE subscription for OpenCode
         prompt-queue.ts # Prompt queue (per-task)
-      tasks/           # Task lifecycle, cleanup, health, retry
+      tasks/           # Task lifecycle, cleanup, health, retry, orphan-cleanup
       integrations/    # GitHub polling
       db/              # SQLite schema + queries
       image/           # Golden image build (two-layer: base + project)
@@ -104,8 +104,9 @@ specs/                 # Architecture and design docs
 | [project.md](./project.md) | Project config, golden images, setup |
 | [vm.md](./vm.md) | Per-project VMs, ProjectVmManager, worktrees |
 | [agent.md](./agent.md) | Multi-provider agent abstraction, AgentHandle API |
-| [tasks.md](./tasks.md) | Task lifecycle, worktree isolation, webhook sources |
-| [api.md](./api.md) | HTTP + WebSocket API surface |
+| [tasks.md](./tasks.md) | Task lifecycle, retry, cleanup, orphan detection, webhook sources |
+| [api.md](./api.md) | HTTP + WebSocket API surface, activity log |
+| [cli.md](./cli.md) | CLI commands, credential management |
 | [web.md](./web.md) | Dashboard UI, chat, preview, provider selector |
 | [credentials.md](./credentials.md) | Auth, token injection, Claude Code OAuth |
 | [testing.md](./testing.md) | Testing inside VMs |
