@@ -122,7 +122,11 @@ After writing the config files, guide the user through the next steps.
 # 1. Set credentials (stored in ~/tangerine/.credentials, mode 0600)
 tangerine config set CLAUDE_CODE_OAUTH_TOKEN=...
 tangerine config set GITHUB_TOKEN=ghp_...
-# Optional: ANTHROPIC_API_KEY, GH_ENTERPRISE_TOKEN, GH_HOST
+# Optional: ANTHROPIC_API_KEY
+# Optional for GitHub Enterprise (requires local SOCKS proxy):
+# tangerine config set GH_ENTERPRISE_TOKEN=ghe_...
+# tangerine config set GH_HOST=github.a8c.com
+# tangerine config set PROXY_PORT=8080
 
 # 2. Register the project (done by this skill via tangerine project add)
 tangerine project add --name my-app --repo https://github.com/me/my-app --image node-dev --setup "npm install && npm run dev"
