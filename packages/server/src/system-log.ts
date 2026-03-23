@@ -6,7 +6,6 @@ import type { LogLevel, SystemLogEntry } from "@tangerine/shared"
 
 export const INFRA_LOGGERS = new Set([
   "pool",
-  "lifecycle",
   "ssh",
   "health",
   "cleanup",
@@ -34,9 +33,10 @@ export function writeSystemLog(
 ): void {
   if (!_db) return
   try {
+    const taskId = (context?.taskId as string) ?? null
     _db.run(
-      "INSERT INTO system_logs (level, logger, message, context, timestamp) VALUES (?, ?, ?, ?, ?)",
-      [level, logger, message, context ? JSON.stringify(context) : null, new Date().toISOString()],
+      "INSERT INTO system_logs (level, logger, message, context, task_id, timestamp) VALUES (?, ?, ?, ?, ?, ?)",
+      [level, logger, message, context ? JSON.stringify(context) : null, taskId, new Date().toISOString()],
     )
   } catch {
     // Silent — logging must never crash the app
@@ -46,6 +46,7 @@ export function writeSystemLog(
 export interface LogFilter {
   level?: string[]
   logger?: string[]
+  taskId?: string
   limit?: number
   since?: string
 }
@@ -62,6 +63,10 @@ export function querySystemLogs(db: Database, filter?: LogFilter): SystemLogEntr
     conditions.push(`logger IN (${filter.logger.map(() => "?").join(",")})`)
     params.push(...filter.logger)
   }
+  if (filter?.taskId) {
+    conditions.push("task_id = ?")
+    params.push(filter.taskId)
+  }
   if (filter?.since) {
     conditions.push("timestamp >= ?")
     params.push(filter.since)
@@ -72,13 +77,14 @@ export function querySystemLogs(db: Database, filter?: LogFilter): SystemLogEntr
   params.push(limit)
 
   const rows = db.query(
-    `SELECT id, level, logger, message, context, timestamp FROM system_logs ${where} ORDER BY id DESC LIMIT ?`,
+    `SELECT id, level, logger, message, context, task_id, timestamp FROM system_logs ${where} ORDER BY id DESC LIMIT ?`,
   ).all(...params) as Array<{
     id: number
     level: string
     logger: string
     message: string
     context: string | null
+    task_id: string | null
     timestamp: string
   }>
 
@@ -89,6 +95,7 @@ export function querySystemLogs(db: Database, filter?: LogFilter): SystemLogEntr
     logger: r.logger,
     message: r.message,
     context: r.context ? (JSON.parse(r.context) as Record<string, unknown>) : null,
+    taskId: r.task_id,
   }))
 }
 

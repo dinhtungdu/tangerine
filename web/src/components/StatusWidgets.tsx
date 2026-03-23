@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback, useRef } from "react"
 import type { Task, SystemLogEntry } from "@tangerine/shared"
-import { fetchSystemLogs, fetchBuildLog, type VmInfo, type ImageInfo, type BuildStatus } from "../lib/api"
+import { fetchSystemLogs, fetchBuildLog, fetchOrphans, cleanupOrphans as apiCleanupOrphans, type VmInfo, type ImageInfo, type BuildStatus } from "../lib/api"
 import { formatRelativeTime } from "../lib/format"
 
 /* ── Status badge ── */
@@ -27,6 +27,28 @@ export function ActiveRunsCard({ tasks }: { tasks: Task[] }) {
   const running = tasks.filter((t) => t.status === "running").length
   const queued = tasks.filter((t) => t.status === "created" || t.status === "provisioning").length
   const done = tasks.filter((t) => t.status === "done").length
+  const [orphanCount, setOrphanCount] = useState(0)
+  const [cleaning, setCleaning] = useState(false)
+
+  useEffect(() => {
+    let cancelled = false
+    async function poll() {
+      const orphans = await fetchOrphans().catch(() => [])
+      if (!cancelled) setOrphanCount(orphans.length)
+    }
+    poll()
+    const interval = setInterval(poll, 10000)
+    return () => { cancelled = true; clearInterval(interval) }
+  }, [])
+
+  const handleCleanup = useCallback(async () => {
+    setCleaning(true)
+    try {
+      const result = await apiCleanupOrphans()
+      setOrphanCount((prev) => Math.max(0, prev - result.cleaned))
+    } catch { /* ignore */ }
+    setCleaning(false)
+  }, [])
 
   return (
     <div className="flex flex-1 flex-col gap-2.5 rounded-[10px] border border-edge p-3.5 md:gap-3 md:p-4">
@@ -50,6 +72,20 @@ export function ActiveRunsCard({ tasks }: { tasks: Task[] }) {
           <span className="text-[11px] font-medium text-status-success md:text-[12px]">Done</span>
         </div>
       </div>
+      {orphanCount > 0 && (
+        <div className="flex items-center justify-between rounded-lg bg-status-warning-bg px-3 py-2">
+          <span className="text-[12px] font-medium text-status-warning-text">
+            {orphanCount} orphaned worktree{orphanCount !== 1 ? "s" : ""}
+          </span>
+          <button
+            onClick={handleCleanup}
+            disabled={cleaning}
+            className="flex items-center gap-1 rounded-md bg-status-warning-text px-2 py-0.5 text-[11px] font-medium text-white disabled:opacity-50"
+          >
+            {cleaning ? "Cleaning…" : "Clean up"}
+          </button>
+        </div>
+      )}
     </div>
   )
 }
@@ -330,6 +366,24 @@ export function BuildLog({ project, buildStatus }: { project?: string; buildStat
 
 /* ── Log level badge ── */
 
+const LOG_CONTEXT_SKIP_KEYS = new Set(["taskId"])
+
+function LogContext({ context }: { context: Record<string, unknown> }) {
+  const entries = Object.entries(context).filter(([k]) => !LOG_CONTEXT_SKIP_KEYS.has(k))
+  if (entries.length === 0) return null
+  return (
+    <span className="ml-1.5 text-fg-muted">
+      {entries.map(([k, v], i) => (
+        <span key={k}>
+          {i > 0 && " "}
+          <span className="text-fg-faint">{k}=</span>
+          {String(v)}
+        </span>
+      ))}
+    </span>
+  )
+}
+
 function LogLevelBadge({ level }: { level: string }) {
   const styles: Record<string, { color: string; bg: string }> = {
     debug: { color: "var(--color-fg-muted)", bg: "var(--color-surface-secondary)" },
@@ -351,7 +405,6 @@ function LogLevelBadge({ level }: { level: string }) {
 const LOG_FILTERS: Array<{ label: string; value: string[] | null; level?: string[] }> = [
   { label: "All", value: null },
   { label: "Pool", value: ["pool", "cli:pool"] },
-  { label: "Lifecycle", value: ["lifecycle"] },
   { label: "Image", value: ["cli:image", "image:build"] },
   { label: "SSH", value: ["ssh"] },
   { label: "Errors", value: null, level: ["error"] },
@@ -431,7 +484,10 @@ export function SystemLog() {
                   <div><LogLevelBadge level={log.level} /></div>
                   <span className="truncate text-[12px] font-medium text-fg-muted">{log.logger}</span>
                   <span className="truncate font-mono text-[11px] text-fg-faint">{taskId}</span>
-                  <span className="truncate text-[12px] text-fg">{log.message}</span>
+                  <span className="min-w-0 text-[12px] text-fg">
+                    <span className="truncate">{log.message}</span>
+                    {ctx && <LogContext context={ctx} />}
+                  </span>
                 </div>
               )
             })}
@@ -451,6 +507,7 @@ export function SystemLog() {
                     {taskId && <span className="font-mono text-[10px] text-fg-faint">{taskId}</span>}
                   </div>
                   <span className="text-[12px] text-fg">{log.message}</span>
+                  {ctx && <LogContext context={ctx} />}
                 </div>
               )
             })}

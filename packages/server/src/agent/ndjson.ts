@@ -80,93 +80,123 @@ export function parseNdjsonStream(
 // ---------------------------------------------------------------------------
 
 /**
- * Maps a raw Claude Code stream-json event to a normalized AgentEvent.
- * Returns null for events we don't care about.
+ * Maps a raw Claude Code stream-json event to normalized AgentEvents.
+ * Returns an array — one raw event can produce multiple AgentEvents
+ * (e.g. an assistant message with text + tool_use + thinking blocks).
  *
  * Claude Code event types (from protocol spike):
  * - system (init): session metadata — ignored
- * - assistant: complete assistant message (text + tool_use content blocks)
- * - user: tool results — signals "working"
+ * - assistant: complete assistant message (text + tool_use + thinking content blocks)
+ * - user: tool results — emits tool.end
  * - rate_limit_event: ignored
  * - stream_event: token-level streaming (only with --include-partial-messages)
  * - result: final event with aggregated stats
  */
-export function mapClaudeCodeEvent(raw: Record<string, unknown>): AgentEvent | null {
+export function mapClaudeCodeEvent(raw: Record<string, unknown>): AgentEvent[] {
   const type = raw.type as string | undefined
-  if (!type) return null
+  if (!type) return []
 
   switch (type) {
     case "assistant": {
-      // Complete assistant message. Content may include text and/or tool_use blocks.
       const message = raw.message as Record<string, unknown> | undefined
-      if (!message) return null
+      if (!message) return []
 
-      const content = extractContent(message.content)
-      const hasToolUse = hasToolUseBlock(message.content)
+      const events: AgentEvent[] = []
+      const blocks = Array.isArray(message.content) ? message.content : []
 
-      if (hasToolUse) {
-        // Assistant is about to use tools — signal working status
-        return { kind: "status", status: "working" }
-      }
+      for (const block of blocks) {
+        if (typeof block !== "object" || block === null) continue
+        const b = block as Record<string, unknown>
 
-      if (content) {
-        return {
-          kind: "message.streaming",
-          content,
-          messageId: optStr(message.id),
+        if (b.type === "thinking" && typeof b.thinking === "string") {
+          events.push({ kind: "thinking", content: truncate(b.thinking, 300) })
+        } else if (b.type === "tool_use" && typeof b.name === "string") {
+          events.push({
+            kind: "tool.start",
+            toolName: b.name,
+            toolInput: b.input ? truncate(JSON.stringify(b.input), 500) : undefined,
+          })
+        } else if (b.type === "text" && typeof b.text === "string" && b.text.length > 0) {
+          events.push({
+            kind: "message.streaming",
+            content: b.text,
+            messageId: optStr(message.id),
+          })
         }
       }
-      return null
+
+      // Signal working if there are tool calls
+      if (blocks.some((b: unknown) => typeof b === "object" && b !== null && (b as Record<string, unknown>).type === "tool_use")) {
+        events.push({ kind: "status", status: "working" })
+      }
+
+      return events
     }
 
     case "user": {
-      // Tool result being fed back — agent is actively working
-      return { kind: "status", status: "working" }
+      // Tool results being fed back — extract tool name and result content
+      const events: AgentEvent[] = []
+      const message = raw.message as Record<string, unknown> | undefined
+      const blocks = Array.isArray(message?.content) ? message!.content : []
+
+      for (const block of blocks) {
+        if (typeof block !== "object" || block === null) continue
+        const b = block as Record<string, unknown>
+        if (b.type === "tool_result" && typeof b.tool_use_id === "string") {
+          const resultText = typeof b.content === "string" ? b.content
+            : Array.isArray(b.content) ? extractContent(b.content) ?? ""
+            : ""
+          events.push({
+            kind: "tool.end",
+            toolName: typeof b.name === "string" ? b.name : "unknown",
+            toolResult: truncate(resultText, 500),
+          })
+        }
+      }
+
+      events.push({ kind: "status", status: "working" })
+      return events
     }
 
     case "result": {
-      // Final event. Contains aggregated result text and stop_reason.
       const subtype = raw.subtype as string | undefined
       const content = typeof raw.result === "string" ? raw.result : ""
 
       if (subtype === "error" || raw.is_error === true) {
-        return { kind: "error", message: content || "Agent error" }
+        return [{ kind: "error", message: content || "Agent error" }]
       }
 
-      return {
+      return [{
         kind: "message.complete",
         role: "assistant",
         content,
         messageId: optStr(raw.session_id),
-      }
+      }]
     }
 
     case "stream_event": {
-      // Token-level streaming (only with --include-partial-messages).
-      // Extract text deltas for real-time display.
       const event = raw.event as Record<string, unknown> | undefined
-      if (!event) return null
+      if (!event) return []
 
       if (event.type === "content_block_delta") {
         const delta = event.delta as Record<string, unknown> | undefined
         if (delta?.type === "text_delta" && typeof delta.text === "string") {
-          return { kind: "message.streaming", content: delta.text }
+          return [{ kind: "message.streaming", content: delta.text }]
         }
       }
-      return null
+      return []
     }
 
     case "system": {
-      // Init event — session started, agent is working
       const subtype = raw.subtype as string | undefined
       if (subtype === "init") {
-        return { kind: "status", status: "working" }
+        return [{ kind: "status", status: "working" }]
       }
-      return null
+      return []
     }
 
     default:
-      return null
+      return []
   }
 }
 
@@ -174,15 +204,9 @@ export function mapClaudeCodeEvent(raw: Record<string, unknown>): AgentEvent | n
 // Helpers
 // ---------------------------------------------------------------------------
 
-/** Check if content blocks contain a tool_use block */
-function hasToolUseBlock(content: unknown): boolean {
-  if (!Array.isArray(content)) return false
-  return content.some(
-    (block) =>
-      typeof block === "object" &&
-      block !== null &&
-      (block as Record<string, unknown>).type === "tool_use",
-  )
+/** Truncate string to maxLen, appending "…" if truncated */
+function truncate(s: string, maxLen: number): string {
+  return s.length <= maxLen ? s : s.slice(0, maxLen) + "…"
 }
 
 /** Extract text content from Claude message content (string or content blocks) */

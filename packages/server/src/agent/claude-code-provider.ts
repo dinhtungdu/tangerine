@@ -98,8 +98,8 @@ export function createClaudeCodeProvider(): AgentFactory {
                   for (const cb of subscribers) cb(idle)
                 }
 
-                const event = mapClaudeCodeEvent(raw)
-                if (event) {
+                const events = mapClaudeCodeEvent(raw)
+                for (const event of events) {
                   for (const cb of subscribers) cb(event)
                 }
                 // result event signals end of turn — emit idle after message.complete

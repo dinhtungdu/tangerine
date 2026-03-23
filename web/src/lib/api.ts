@@ -161,12 +161,14 @@ export async function fetchImages(project?: string): Promise<ImageInfo[]> {
 export async function fetchSystemLogs(filter?: {
   level?: string[]
   logger?: string[]
+  taskId?: string
   limit?: number
   since?: string
 }): Promise<SystemLogEntry[]> {
   const params = new URLSearchParams()
   if (filter?.level?.length) params.set("level", filter.level.join(","))
   if (filter?.logger?.length) params.set("logger", filter.logger.join(","))
+  if (filter?.taskId) params.set("taskId", filter.taskId)
   if (filter?.limit) params.set("limit", String(filter.limit))
   if (filter?.since) params.set("since", filter.since)
   const query = params.toString() ? `?${params}` : ""
@@ -199,6 +201,21 @@ export async function retryTask(id: string): Promise<Task> {
 
 export async function deleteTask(id: string): Promise<void> {
   return request<void>(`/api/tasks/${id}`, { method: "DELETE" })
+}
+
+export interface OrphanInfo {
+  id: string
+  title: string
+  status: string
+  worktreePath: string
+}
+
+export async function fetchOrphans(): Promise<OrphanInfo[]> {
+  return request<OrphanInfo[]>("/api/cleanup/orphans")
+}
+
+export async function cleanupOrphans(): Promise<{ cleaned: number }> {
+  return request<{ cleaned: number }>("/api/cleanup/orphans", { method: "POST" })
 }
 
 export async function fetchBuildLog(project?: string, offset = 0): Promise<{ content: string; size: number }> {

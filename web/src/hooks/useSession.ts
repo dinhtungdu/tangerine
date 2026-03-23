@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback, useRef } from "react"
-import type { WsServerMessage, TaskStatus } from "@tangerine/shared"
-import { fetchMessages, type SessionLog } from "../lib/api"
+import type { WsServerMessage, TaskStatus, ActivityEntry } from "@tangerine/shared"
+import { fetchMessages, fetchActivities, type SessionLog } from "../lib/api"
 import { useWebSocket } from "./useWebSocket"
 
 export interface ChatMessage {
@@ -12,6 +12,7 @@ export interface ChatMessage {
 
 interface UseSessionResult {
   messages: ChatMessage[]
+  activities: ActivityEntry[]
   agentStatus: "idle" | "working"
   queueLength: number
   connected: boolean
@@ -22,13 +23,14 @@ interface UseSessionResult {
 
 export function useSession(taskId: string): UseSessionResult {
   const [messages, setMessages] = useState<ChatMessage[]>([])
+  const [activities, setActivities] = useState<ActivityEntry[]>([])
   const [agentStatus, setAgentStatus] = useState<"idle" | "working">("idle")
   const [queueLength, setQueueLength] = useState(0)
   const [taskStatus, setTaskStatus] = useState<TaskStatus | null>(null)
   const { connected, messages: wsMessages, send } = useWebSocket(taskId)
   const processedCountRef = useRef(0)
 
-  // Load initial messages via REST
+  // Load initial messages + activities via REST
   useEffect(() => {
     let cancelled = false
     async function loadMessages() {
@@ -47,7 +49,16 @@ export function useSession(taskId: string): UseSessionResult {
         // Messages may not be available yet
       }
     }
+    async function loadActivities() {
+      try {
+        const data = await fetchActivities(taskId)
+        if (!cancelled) setActivities(data)
+      } catch {
+        // Activities may not be available yet
+      }
+    }
     loadMessages()
+    loadActivities()
     return () => {
       cancelled = true
     }
@@ -88,6 +99,9 @@ export function useSession(taskId: string): UseSessionResult {
         }
         break
       }
+      case "activity":
+        setActivities((prev) => [...prev, msg.entry])
+        break
       case "status":
         setTaskStatus(msg.status)
         if (msg.status === "done" || msg.status === "failed" || msg.status === "cancelled") {
@@ -137,5 +151,5 @@ export function useSession(taskId: string): UseSessionResult {
     setQueueLength(0)
   }, [send])
 
-  return { messages, agentStatus, queueLength, connected, taskStatus, sendPrompt, abort }
+  return { messages, activities, agentStatus, queueLength, connected, taskStatus, sendPrompt, abort }
 }

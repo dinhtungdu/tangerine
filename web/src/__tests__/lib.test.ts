@@ -7,7 +7,7 @@ import {
   formatTimestamp,
 } from "../lib/format"
 import { getStatusConfig, STATUS_CONFIG } from "../lib/status"
-import { getEventType, getEventStyle, EVENT_STYLES } from "../lib/activity"
+import { getActivityStyle, getActivityDetail } from "../lib/activity"
 
 describe("format", () => {
   describe("formatModelName", () => {
@@ -120,44 +120,43 @@ describe("status", () => {
 })
 
 describe("activity", () => {
-  test("getEventType detects read events", () => {
-    expect(getEventType("Read file src/index.ts")).toBe("read")
-    expect(getEventType("file-search for config")).toBe("read")
+  test("getActivityStyle returns style for tool events", () => {
+    const readStyle = getActivityStyle("tool.read")
+    expect(readStyle.label).toBe("Read file")
+    expect(readStyle.color).toBe("#3b82f6")
+
+    const writeStyle = getActivityStyle("tool.write")
+    expect(writeStyle.label).toBe("Write file")
+
+    const bashStyle = getActivityStyle("tool.bash")
+    expect(bashStyle.label).toBe("Bash")
+
+    const thinkStyle = getActivityStyle("agent.thinking")
+    expect(thinkStyle.label).toBe("Thinking")
   })
 
-  test("getEventType detects write events", () => {
-    expect(getEventType("Write file src/app.tsx")).toBe("write")
-    expect(getEventType("file-pen update")).toBe("write")
+  test("getActivityStyle returns fallback for unknown events", () => {
+    const style = getActivityStyle("unknown.event")
+    expect(style.color).toBeDefined()
+    expect(style.iconPaths.length).toBeGreaterThan(0)
   })
 
-  test("getEventType detects bash events", () => {
-    expect(getEventType("Bash: npm install")).toBe("bash")
-    expect(getEventType("Terminal command executed")).toBe("bash")
+  test("getActivityDetail extracts file path from tool input", () => {
+    const detail = getActivityDetail("tool.read", "Read", {
+      toolInput: JSON.stringify({ file_path: "src/index.ts" }),
+    })
+    expect(detail).toBe("src/index.ts")
   })
 
-  test("getEventType detects search events", () => {
-    expect(getEventType("Search for pattern")).toBe("search")
-    expect(getEventType("Grep results")).toBe("search")
+  test("getActivityDetail extracts command from bash input", () => {
+    const detail = getActivityDetail("tool.bash", "Bash", {
+      toolInput: JSON.stringify({ command: "npm test" }),
+    })
+    expect(detail).toBe("npm test")
   })
 
-  test("getEventType detects test events", () => {
-    expect(getEventType("Running test suite")).toBe("test")
-  })
-
-  test("getEventType returns default for unknown", () => {
-    expect(getEventType("Some random message")).toBe("default")
-  })
-
-  test("getEventStyle returns classes for all types", () => {
-    const style = getEventStyle("Read file foo")
-    expect(style.bgClass).toBeDefined()
-    expect(style.dotClass).toBeDefined()
-  })
-
-  test("all event styles have bgClass and dotClass", () => {
-    for (const [, style] of Object.entries(EVENT_STYLES)) {
-      expect(style.bgClass).toBeDefined()
-      expect(style.dotClass).toBeDefined()
-    }
+  test("getActivityDetail falls back to content", () => {
+    const detail = getActivityDetail("tool.other", "Some content", null)
+    expect(detail).toBe("Some content")
   })
 })

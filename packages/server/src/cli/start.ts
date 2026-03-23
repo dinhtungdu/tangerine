@@ -3,10 +3,10 @@
 
 import { Effect } from "effect"
 import { createLogger } from "../logger"
-import { loadConfig, getProjectConfig, TANGERINE_HOME, VM_AUTH_RELPATH, VM_USER, readRawConfig, writeRawConfig } from "../config"
+import { loadConfig, getProjectConfig, TANGERINE_HOME, VM_AUTH_RELPATH, VM_USER, readRawConfig, writeRawConfig, readCredentialsFile } from "../config"
 import { getDb } from "../db/index"
 import { createTask as dbCreateTask, getTask, getVm, listTasks, updateTask, insertSessionLog } from "../db/queries"
-import { logActivity } from "../activity"
+import { logActivity, cleanupActivities } from "../activity"
 import type { TaskRow } from "../db/types"
 import { ProjectVmManager } from "../vm/project-vm"
 import { createApp } from "../api/app"
@@ -15,6 +15,10 @@ import { DEFAULT_API_PORT } from "@tangerine/shared"
 import * as taskManager from "../tasks/manager"
 import type { TaskManagerDeps } from "../tasks/manager"
 import { onTaskEvent, onStatusChange, emitTaskEvent } from "../tasks/events"
+import { cleanupSession } from "../tasks/cleanup"
+import type { CleanupDeps } from "../tasks/cleanup"
+import { startOrphanCleanup, findOrphans, cleanupOrphans } from "../tasks/orphan-cleanup"
+import type { OrphanCleanupDeps } from "../tasks/orphan-cleanup"
 import { sshExec, waitForSsh } from "../vm/ssh"
 import { createTunnel } from "../vm/tunnel"
 import { createProvider } from "../vm/providers/index"
@@ -27,6 +31,20 @@ import { createClaudeCodeProvider } from "../agent/claude-code-provider"
 import type { AgentHandle } from "../agent/provider"
 
 const log = createLogger("cli")
+
+/** Classify agent tool name → activity type + event name */
+function classifyTool(toolName: string): { activityType: "file" | "system"; activityEvent: string } {
+  switch (toolName) {
+    case "Read": case "Glob": case "Grep":
+      return { activityType: "file", activityEvent: "tool.read" }
+    case "Write": case "Edit":
+      return { activityType: "file", activityEvent: "tool.write" }
+    case "Bash":
+      return { activityType: "system", activityEvent: "tool.bash" }
+    default:
+      return { activityType: "system", activityEvent: "tool.other" }
+  }
+}
 
 // In-memory map of taskId → active AgentHandle (for cleanup and abort)
 const agentHandles = new Map<string, AgentHandle>()
@@ -42,6 +60,7 @@ export async function start(): Promise<void> {
     const db = getDb()
     initSystemLog(db)
     cleanupSystemLogs(db)
+    cleanupActivities(db)
     log.info("Database initialized")
 
     const vmProviderName: VmProviderType = process.platform === "darwin" ? "lima" : "incus"
@@ -66,7 +85,49 @@ export async function start(): Promise<void> {
     const getAgentFactory = (provider: string) =>
       provider === "claude-code" ? claudeCodeFactory : openCodeFactory
 
-    // Wire task manager
+    // Wire task manager — extract cleanupDeps so retryDeps can reference it
+    const cleanupDeps: CleanupDeps = {
+      getSessionMessages: (agentPort, sessionId) =>
+        Effect.tryPromise({
+          try: async () => {
+            const res = await fetch(`http://localhost:${agentPort}/session/${sessionId}/message`)
+            if (!res.ok) throw new Error(`Failed to get messages: ${res.status}`)
+            return res.json() as Promise<unknown[]>
+          },
+          catch: (e) => new AgentError({ message: `Failed to get messages: ${e}`, taskId: "unknown" }),
+        }),
+      persistMessages: (taskId, messages) =>
+        Effect.gen(function* () {
+          for (const msg of messages) {
+            const m = msg as { info?: { role?: string }; parts?: Array<{ type: string; text?: string }> }
+            const role = m.info?.role ?? "assistant"
+            const content = m.parts
+              ?.filter((p) => p.type === "text" && p.text)
+              .map((p) => p.text)
+              .join("\n") ?? ""
+            if (!content) continue
+            yield* insertSessionLog(db, { task_id: taskId, role, content }).pipe(
+              Effect.catchAll(() => Effect.void)
+            )
+          }
+        }),
+      sshExec: (host, port, command) =>
+        sshExec(host, port, command).pipe(
+          Effect.map((stdout) => ({ stdout, stderr: "", exitCode: 0 }))
+        ),
+      getTask: (taskId) => getTask(db, taskId),
+      updateTask: (taskId, updates) => updateTask(db, taskId, updates),
+      getVmForTask: (taskId) =>
+        Effect.gen(function* () {
+          const task = yield* getTask(db, taskId)
+          if (!task?.vm_id) return null
+          const vm = yield* getVm(db, task.vm_id)
+          if (!vm?.ip || !vm.ssh_port) return null
+          return { ip: vm.ip, sshPort: vm.ssh_port, status: vm.status }
+        }),
+      getAgentHandle: (taskId) => agentHandles.get(taskId) ?? null,
+    }
+
     const tmDeps: TaskManagerDeps = {
       insertTask: (task) => dbCreateTask(db, task),
       updateTask: (taskId, updates) => updateTask(db, taskId, updates) as Effect.Effect<TaskRow | null, Error>,
@@ -114,48 +175,10 @@ export async function start(): Promise<void> {
         updateTask: (taskId, updates) => updateTask(db, taskId, updates).pipe(Effect.asVoid),
         logActivity: (taskId, type, event, content, metadata) => logActivity(db, taskId, type, event, content, metadata),
       },
-      cleanupDeps: {
-        getSessionMessages: (agentPort, sessionId) =>
-          Effect.tryPromise({
-            try: async () => {
-              const res = await fetch(`http://localhost:${agentPort}/session/${sessionId}/message`)
-              if (!res.ok) throw new Error(`Failed to get messages: ${res.status}`)
-              return res.json() as Promise<unknown[]>
-            },
-            catch: (e) => new AgentError({ message: `Failed to get messages: ${e}`, taskId: "unknown" }),
-          }),
-        persistMessages: (taskId, messages) =>
-          Effect.gen(function* () {
-            for (const msg of messages) {
-              const m = msg as { info?: { role?: string }; parts?: Array<{ type: string; text?: string }> }
-              const role = m.info?.role ?? "assistant"
-              const content = m.parts
-                ?.filter((p) => p.type === "text" && p.text)
-                .map((p) => p.text)
-                .join("\n") ?? ""
-              if (!content) continue
-              yield* insertSessionLog(db, { task_id: taskId, role, content }).pipe(
-                Effect.catchAll(() => Effect.void)
-              )
-            }
-          }),
-        sshExec: (host, port, command) =>
-          sshExec(host, port, command).pipe(
-            Effect.map((stdout) => ({ stdout, stderr: "", exitCode: 0 }))
-          ),
-        getTask: (taskId) => getTask(db, taskId),
-        getVmForTask: (taskId) =>
-          Effect.gen(function* () {
-            const task = yield* getTask(db, taskId)
-            if (!task?.vm_id) return null
-            const vm = yield* getVm(db, task.vm_id)
-            if (!vm?.ip || !vm.ssh_port) return null
-            return { ip: vm.ip, sshPort: vm.ssh_port }
-          }),
-        getAgentHandle: (taskId) => agentHandles.get(taskId) ?? null,
-      },
+      cleanupDeps,
       retryDeps: {
         updateTask: (taskId, updates) => updateTask(db, taskId, updates).pipe(Effect.asVoid),
+        cleanupDeps,
         onSessionReady: (taskId, session) => {
           // Store handle for cleanup/abort
           agentHandles.set(taskId, session.agentHandle)
@@ -219,6 +242,31 @@ export async function start(): Promise<void> {
                 }
                 break
               }
+              case "tool.start": {
+                const { activityType, activityEvent } = classifyTool(event.toolName)
+                Effect.runPromise(
+                  logActivity(db, taskId, activityType, activityEvent, event.toolName, {
+                    toolName: event.toolName,
+                    toolInput: event.toolInput,
+                    status: "running",
+                  }).pipe(Effect.catchAll(() => Effect.void))
+                )
+                break
+              }
+              case "tool.end": {
+                // Don't persist — tool.start already logged the action.
+                // Just emit for real-time WS updates (e.g. clearing "in progress").
+                emitTaskEvent(taskId, { event: "tool.end", toolName: event.toolName })
+                break
+              }
+              case "thinking": {
+                Effect.runPromise(
+                  logActivity(db, taskId, "system", "agent.thinking", event.content).pipe(
+                    Effect.catchAll(() => Effect.void)
+                  )
+                )
+                break
+              }
               case "error": {
                 log.error("Agent event error", { taskId, message: event.message })
                 break
@@ -238,6 +286,11 @@ export async function start(): Promise<void> {
           catch: (e) => new AgentError({ message: `Abort failed: ${e}`, taskId: "unknown" }),
         }),
       getAgentFactory,
+    }
+
+    const orphanDeps: OrphanCleanupDeps = {
+      listTasks: (filter) => listTasks(db, filter),
+      cleanupDeps,
     }
 
     const deps: AppDeps = {
@@ -322,6 +375,10 @@ export async function start(): Promise<void> {
         changeConfig: (taskId, config) =>
           taskManager.changeConfig(tmDeps, taskId, config).pipe(
             Effect.mapError((e) => ({ _tag: "TaskError" as const, message: e instanceof Error ? e.message : String(e) }))
+          ),
+        cleanupTask: (taskId) =>
+          cleanupSession(taskId, cleanupDeps).pipe(
+            Effect.mapError((e) => ({ _tag: e._tag, message: e.message }))
           ),
         onTaskEvent,
         onStatusChange,
@@ -425,10 +482,69 @@ export async function start(): Promise<void> {
         sshExec(host, port, command).pipe(
           Effect.mapError((e) => ({ _tag: "SshError" as const, message: e.message }))
         ),
+      orphanCleanup: {
+        findOrphans: () =>
+          findOrphans(orphanDeps).pipe(
+            Effect.map((tasks) => tasks.map((t) => ({
+              id: t.id,
+              title: t.title,
+              status: t.status,
+              worktreePath: t.worktree_path!,
+            }))),
+            Effect.mapError((e) => ({ _tag: "TaskError" as const, message: e.message })),
+          ),
+        cleanupOrphans: () =>
+          cleanupOrphans(orphanDeps).pipe(
+            Effect.mapError(() => ({ _tag: "TaskError" as const, message: "Cleanup failed" })),
+          ),
+      },
       configStore: {
         read: readRawConfig,
         write: writeRawConfig,
       },
+      refreshCredentials: () =>
+        Effect.gen(function* () {
+          // Re-read credentials from dotfile + env
+          const dotfile = readCredentialsFile()
+          const freshCreds: Record<string, string> = {}
+          const apiKey = process.env["ANTHROPIC_API_KEY"] ?? dotfile.ANTHROPIC_API_KEY
+          const oauthToken = process.env["CLAUDE_CODE_OAUTH_TOKEN"] ?? dotfile.CLAUDE_CODE_OAUTH_TOKEN
+          const ghToken = process.env["GITHUB_TOKEN"] ?? dotfile.GITHUB_TOKEN
+          const gheToken = process.env["GH_ENTERPRISE_TOKEN"] ?? dotfile.GH_ENTERPRISE_TOKEN
+          const ghHost = process.env["GH_HOST"] ?? dotfile.GH_HOST
+
+          if (apiKey) freshCreds.ANTHROPIC_API_KEY = apiKey
+          if (oauthToken) freshCreds.CLAUDE_CODE_OAUTH_TOKEN = oauthToken
+          if (ghToken) { freshCreds.GITHUB_TOKEN = ghToken; freshCreds.GH_TOKEN = ghToken }
+          if (gheToken) freshCreds.GH_ENTERPRISE_TOKEN = gheToken
+          if (ghHost && ghHost !== "github.com") freshCreds.GH_HOST = ghHost
+
+          // Update in-memory config so new tasks use fresh creds
+          config.credentials.anthropicApiKey = apiKey ?? null
+          config.credentials.claudeOauthToken = oauthToken ?? null
+          config.credentials.githubToken = ghToken ?? null
+          config.credentials.gheToken = gheToken ?? null
+          config.credentials.ghHost = ghHost ?? "github.com"
+
+          // Find all running VMs and re-inject
+          const vms = db.prepare(
+            "SELECT id, ip, ssh_port FROM vms WHERE status IN ('running', 'active') AND ip IS NOT NULL AND ssh_port IS NOT NULL"
+          ).all() as Array<{ id: string; ip: string; ssh_port: number }>
+
+          let updated = 0
+          let failed = 0
+          for (const vm of vms) {
+            const envLines = Object.entries(freshCreds).map(([k, v]) => `${k}=${v}`).join("\n")
+            const result = yield* sshExec(vm.ip, vm.ssh_port, `printf '%s\\n' '${envLines}' > ~/.env`).pipe(
+              Effect.map(() => true),
+              Effect.catchAll(() => Effect.succeed(false)),
+            )
+            if (result) { updated++ } else { failed++ }
+          }
+
+          log.info("Credentials refreshed", { updated, failed, totalVms: vms.length })
+          return { updated, failed }
+        }).pipe(Effect.mapError((e) => ({ _tag: "CredentialError" as const, message: String(e) }))),
       config,
     }
 
@@ -463,6 +579,10 @@ export async function start(): Promise<void> {
     } catch (err) {
       log.error("Failed to resume orphaned tasks", { error: String(err) })
     }
+
+    // Start periodic orphan worktree cleanup (every 30s)
+    await Effect.runPromise(startOrphanCleanup(orphanDeps))
+    log.info("Orphan worktree cleanup started")
 
     const shutdown = async (signal: string) => {
       log.info("Shutdown signal received", { signal })

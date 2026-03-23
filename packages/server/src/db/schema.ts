@@ -88,9 +88,11 @@ export const SCHEMA = `
     logger TEXT NOT NULL,
     message TEXT NOT NULL,
     context TEXT,
+    task_id TEXT,
     timestamp TEXT NOT NULL DEFAULT (datetime('now'))
   );
 
   CREATE INDEX IF NOT EXISTS idx_system_logs_logger ON system_logs(logger);
   CREATE INDEX IF NOT EXISTS idx_system_logs_timestamp ON system_logs(timestamp);
+  CREATE INDEX IF NOT EXISTS idx_system_logs_task_id ON system_logs(task_id);
 `

@@ -2,7 +2,7 @@ import { describe, test, expect, beforeEach } from "bun:test"
 import { Database } from "bun:sqlite"
 import { Effect, Exit, Cause, Option } from "effect"
 import { SCHEMA } from "../schema"
-import { getDb, resetDb, autoMigrate } from "../index"
+import { resetDb, autoMigrate } from "../index"
 import {
   createTask,
   getTask,

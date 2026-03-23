@@ -46,6 +46,7 @@ export interface ActivityEntry {
 export type WsServerMessage =
   | { type: "connected" }
   | { type: "event"; data: unknown }
+  | { type: "activity"; entry: ActivityEntry }
   | { type: "status"; status: TaskStatus }
   | { type: "error"; message: string }
 
@@ -63,4 +64,5 @@ export interface SystemLogEntry {
   logger: string
   message: string
   context: Record<string, unknown> | null
+  taskId: string | null
 }

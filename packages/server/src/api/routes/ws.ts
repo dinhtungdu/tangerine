@@ -32,7 +32,11 @@ export function wsRoutes(deps: AppDeps, upgradeWebSocket: UpgradeWebSocket): Hon
 
               // Relay agent events to this client
               unsubEvent = deps.taskManager.onTaskEvent(taskId, (data: unknown) => {
-                const msg: WsServerMessage = { type: "event", data }
+                // Activity events get their own WS message type
+                const d = data as Record<string, unknown>
+                const msg: WsServerMessage = d.type === "activity"
+                  ? { type: "activity", entry: d.entry as import("@tangerine/shared").ActivityEntry }
+                  : { type: "event", data }
                 try {
                   ws.send(JSON.stringify(msg))
                 } catch {

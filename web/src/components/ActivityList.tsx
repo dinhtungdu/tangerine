@@ -1,6 +1,6 @@
 import type { ActivityEntry } from "@tangerine/shared"
-import { getEventStyle } from "../lib/activity"
-import { formatTimestamp, formatRelativeTime } from "../lib/format"
+import { getActivityStyle, getActivityDetail } from "../lib/activity"
+import { formatTimestamp } from "../lib/format"
 
 interface ActivityListProps {
   activities: ActivityEntry[]
@@ -12,40 +12,115 @@ export function ActivityList({ activities, variant = "compact" }: ActivityListPr
     return <div className="py-8 text-center text-[12px] text-fg-muted">No activity yet</div>
   }
 
-  if (variant === "compact") {
-    return (
+  if (variant === "timeline") {
+    return <TimelineView activities={activities} />
+  }
+
+  return (
+    <div className="flex flex-col">
+      <div className="flex items-center justify-between px-4 py-3">
+        <span className="font-mono text-[11px] font-semibold tracking-wider text-fg-muted">ACTIVITY</span>
+        <span className="font-mono text-[11px] font-medium text-fg-muted">{activities.length}</span>
+      </div>
       <div className="flex flex-col">
-        <div className="flex h-7 items-center justify-between">
-          <span className="font-mono text-[10px] font-medium tracking-wider text-fg-muted">ACTIVITY</span>
-          <div className="flex items-center justify-center rounded-sm bg-surface-secondary px-1.5">
-            <span className="font-mono text-[10px] font-medium text-fg-muted">{activities.length}</span>
-          </div>
-        </div>
-        <div className="flex flex-col">
-          {activities.map((entry) => {
-            const style = getEventStyle(entry.content)
-            return (
-              <div key={entry.id} className="flex gap-3 py-2">
-                <span className="w-11 shrink-0 text-[11px] text-fg-muted">
-                  {formatTimestamp(entry.timestamp)}
-                </span>
-                <div
-                  className={`flex h-4 w-4 shrink-0 items-center justify-center rounded-lg ${style.bgClass}`}
-                >
-                  <div className={`h-1.5 w-1.5 rounded-full ${style.dotClass}`} />
-                </div>
-                <div className="min-w-0 flex-1">
-                  <p className="text-[12px] leading-relaxed text-fg">{entry.content}</p>
-                </div>
-              </div>
-            )
-          })}
-        </div>
+        {activities.map((entry, i) => (
+          <ActivityItem
+            key={entry.id}
+            entry={entry}
+            isLast={i === activities.length - 1}
+          />
+        ))}
+      </div>
+    </div>
+  )
+}
+
+function ActivityItem({ entry, isLast }: { entry: ActivityEntry; isLast: boolean }) {
+  const style = getActivityStyle(entry.event)
+  const detail = getActivityDetail(entry.event, entry.content, entry.metadata)
+  const isRunning = entry.metadata?.status === "running"
+  const meta = entry.metadata as Record<string, unknown> | null
+
+  return (
+    <div className="flex gap-2.5 px-4 py-1.5">
+      <span className="w-[42px] shrink-0 pt-0.5 text-[11px] text-fg-faint">
+        {formatTimestamp(entry.timestamp)}
+      </span>
+      <div
+        className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full"
+        style={{ backgroundColor: style.bg }}
+      >
+        <svg width="12" height="12" viewBox="0 0 12 12" fill="none" stroke={style.color} strokeWidth="1.2" strokeLinecap="round" strokeLinejoin="round">
+          {style.iconPaths.map((d, i) => (
+            <path key={i} d={d} />
+          ))}
+        </svg>
+      </div>
+      <div className="min-w-0 flex-1">
+        {style.label ? (
+          <>
+            <p className="text-[12px] font-medium leading-tight text-fg">{style.label}</p>
+            <p className="mt-0.5 truncate text-[11px] text-fg-muted">{detail}</p>
+          </>
+        ) : (
+          <p className="text-[12px] leading-tight text-fg">{detail}</p>
+        )}
+        <StatusRow meta={meta} isRunning={isRunning && isLast} />
+      </div>
+    </div>
+  )
+}
+
+function StatusRow({ meta, isRunning }: { meta: Record<string, unknown> | null; isRunning: boolean }) {
+  if (!meta && !isRunning) return null
+
+  const testPassed = meta?.testPassed as number | undefined
+  const testFailed = meta?.testFailed as number | undefined
+  const linesAdded = meta?.linesAdded as number | undefined
+  const linesRemoved = meta?.linesRemoved as number | undefined
+
+  // Test results
+  if (testPassed !== undefined || testFailed !== undefined) {
+    return (
+      <div className="mt-1 flex gap-1">
+        {testPassed !== undefined && (
+          <span className="text-[11px] font-medium text-green-500">{testPassed} passed{testFailed !== undefined ? "," : ""}</span>
+        )}
+        {testFailed !== undefined && testFailed > 0 && (
+          <span className="text-[11px] font-medium text-red-500">{testFailed} failed</span>
+        )}
+        {testFailed === 0 && testPassed !== undefined && (
+          <span className="text-[11px] font-medium text-green-500">0 failed</span>
+        )}
       </div>
     )
   }
 
-  // Timeline variant — group by day
+  // Diff stats
+  if (linesAdded !== undefined || linesRemoved !== undefined) {
+    return (
+      <div className="mt-1 flex gap-1.5">
+        {linesAdded !== undefined && <span className="text-[11px] font-semibold text-green-500">+{linesAdded}</span>}
+        {linesRemoved !== undefined && <span className="text-[11px] font-semibold text-red-500">-{linesRemoved}</span>}
+      </div>
+    )
+  }
+
+  // In progress badge
+  if (isRunning) {
+    return (
+      <div className="mt-1">
+        <span className="rounded bg-blue-500/10 px-1.5 py-0.5 text-[10px] font-medium text-blue-500">
+          in progress
+        </span>
+      </div>
+    )
+  }
+
+  return null
+}
+
+function TimelineView({ activities }: { activities: ActivityEntry[] }) {
   const groups: { label: string; items: ActivityEntry[] }[] = []
   let currentLabel = ""
 
@@ -73,20 +148,32 @@ export function ActivityList({ activities, variant = "compact" }: ActivityListPr
           <div className="mb-3 text-[12px] font-semibold text-fg-faint">{group.label}</div>
           <div className="flex flex-col gap-4">
             {group.items.map((entry) => {
-              const style = getEventStyle(entry.content)
+              const style = getActivityStyle(entry.event)
+              const detail = getActivityDetail(entry.event, entry.content, entry.metadata)
               return (
                 <div key={entry.id} className="flex gap-3">
                   <div className="flex flex-col items-center pt-1">
-                    <div className={`flex h-6 w-6 items-center justify-center rounded-full ${style.bgClass}`}>
-                      <div className={`h-2 w-2 rounded-full ${style.dotClass}`} />
+                    <div
+                      className="flex h-6 w-6 items-center justify-center rounded-full"
+                      style={{ backgroundColor: style.bg }}
+                    >
+                      <svg width="12" height="12" viewBox="0 0 12 12" fill="none" stroke={style.color} strokeWidth="1.2" strokeLinecap="round" strokeLinejoin="round">
+                        {style.iconPaths.map((d, i) => (
+                          <path key={i} d={d} />
+                        ))}
+                      </svg>
                     </div>
                     <div className="mt-1 w-px flex-1 bg-edge" />
                   </div>
                   <div className="min-w-0 flex-1 pb-2">
-                    <p className="text-[13px] font-medium leading-tight text-fg">
-                      {entry.content}
-                    </p>
-                    <span className="mt-1 text-[11px] text-fg-faint">{formatRelativeTime(entry.timestamp)}</span>
+                    {style.label ? (
+                      <>
+                        <p className="text-[13px] font-medium leading-tight text-fg">{style.label}</p>
+                        <p className="mt-0.5 text-[11px] text-fg-faint">{detail}</p>
+                      </>
+                    ) : (
+                      <p className="text-[13px] leading-tight text-fg">{detail}</p>
+                    )}
                   </div>
                 </div>
               )

@@ -104,32 +104,33 @@ describe("ActivityList", () => {
     expect(screen.getByText("No activity yet")).toBeTruthy()
   })
 
-  test("compact variant shows content", () => {
+  test("compact variant shows label and detail", () => {
     const activities = [
-      makeActivity({ content: "Read file src/index.ts" }),
+      makeActivity({ event: "tool.read", content: "Read", metadata: { toolInput: JSON.stringify({ file_path: "src/index.ts" }) } }),
     ]
     render(<ActivityList activities={activities} variant="compact" />)
-    expect(screen.getByText(/Read file src\/index.ts/)).toBeTruthy()
+    expect(screen.getByText("Read file")).toBeTruthy()
+    expect(screen.getByText("src/index.ts")).toBeTruthy()
   })
 
   test("timeline variant groups by day", () => {
     const activities = [
-      makeActivity({ content: "First activity", timestamp: new Date().toISOString() }),
+      makeActivity({ event: "tool.bash", content: "npm test", timestamp: new Date().toISOString() }),
     ]
     render(<ActivityList activities={activities} variant="timeline" />)
     expect(screen.getByText("Today")).toBeTruthy()
-    expect(screen.getByText(/First activity/)).toBeTruthy()
+    expect(screen.getByText("Bash")).toBeTruthy()
   })
 
   test("renders multiple activities", () => {
     const activities = [
-      makeActivity({ content: "VM acquired" }),
-      makeActivity({ content: "Worktree created" }),
-      makeActivity({ content: "Agent started" }),
+      makeActivity({ event: "vm.acquiring", content: "VM acquired" }),
+      makeActivity({ event: "worktree.created", content: "Worktree created" }),
+      makeActivity({ event: "agent.thinking", content: "Analyzing code" }),
     ]
     render(<ActivityList activities={activities} variant="compact" />)
     expect(screen.getByText(/VM acquired/)).toBeTruthy()
     expect(screen.getByText(/Worktree created/)).toBeTruthy()
-    expect(screen.getByText(/Agent started/)).toBeTruthy()
+    expect(screen.getByText("Thinking")).toBeTruthy()
   })
 })

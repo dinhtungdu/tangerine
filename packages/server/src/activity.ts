@@ -3,6 +3,7 @@
 
 import { Effect } from "effect"
 import type { Database } from "bun:sqlite"
+import { emitTaskEvent } from "./tasks/events"
 export type ActivityType = "lifecycle" | "file" | "system"
 
 export interface ActivityEntry {
@@ -48,7 +49,10 @@ export function logActivity(
         $metadata: metadata ? JSON.stringify(metadata) : null,
       })
       const row = db.prepare("SELECT * FROM activity_log WHERE id = ?").get(result.lastInsertRowid) as ActivityLogRow
-      return mapRow(row)
+      const entry = mapRow(row)
+      // Broadcast to connected WS clients
+      emitTaskEvent(taskId, { type: "activity", entry })
+      return entry
     },
     catch: (e) => new Error(`Failed to log activity: ${e}`),
   })
@@ -66,6 +70,15 @@ export function getActivities(
     },
     catch: (e) => new Error(`Failed to get activities: ${e}`),
   })
+}
+
+/** Delete activity entries for tasks that no longer exist. Silent on error. */
+export function cleanupActivities(db: Database): void {
+  try {
+    db.run("DELETE FROM activity_log WHERE task_id NOT IN (SELECT id FROM tasks)")
+  } catch {
+    // Silent — cleanup must never crash the app
+  }
 }
 
 function mapRow(row: ActivityLogRow): ActivityEntry {

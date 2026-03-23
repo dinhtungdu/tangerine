@@ -13,7 +13,7 @@ export default tseslint.config(
     rules: {
       // Flag imports not listed in package.json
       "import-x/no-extraneous-dependencies": "error",
-      "@typescript-eslint/no-unused-vars": ["warn", { argsIgnorePattern: "^_" }],
+      "@typescript-eslint/no-unused-vars": ["error", { argsIgnorePattern: "^_" }],
       "@typescript-eslint/no-this-alias": "off",
       "import-x/no-unresolved": "off",
       "import-x/named": "off",

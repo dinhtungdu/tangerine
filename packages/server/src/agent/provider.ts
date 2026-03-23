@@ -12,6 +12,9 @@ export type AgentEvent =
   | { kind: "message.complete"; role: "assistant" | "user"; content: string; messageId?: string }
   | { kind: "status"; status: "idle" | "working" }
   | { kind: "error"; message: string }
+  | { kind: "tool.start"; toolName: string; toolInput?: string }
+  | { kind: "tool.end"; toolName: string; toolResult?: string }
+  | { kind: "thinking"; content: string }
 
 /** Runtime config that can be changed mid-session */
 export interface AgentConfig {

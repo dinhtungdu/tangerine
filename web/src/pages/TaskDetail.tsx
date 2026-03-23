@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback, useRef } from "react"
 import { useParams, useNavigate } from "react-router-dom"
-import type { Task, ActivityEntry } from "@tangerine/shared"
-import { fetchTask, fetchActivities, changeTaskConfig } from "../lib/api"
+import type { Task } from "@tangerine/shared"
+import { fetchTask, changeTaskConfig } from "../lib/api"
 import { getStatusConfig } from "../lib/status"
 import { useSession } from "../hooks/useSession"
 import { useTaskSearch } from "../hooks/useTaskSearch"
@@ -34,7 +34,6 @@ export function TaskDetail() {
 
   const { current, modelsByProvider } = useProject()
   const session = useSession(id ?? "")
-  const [activities, setActivities] = useState<ActivityEntry[]>([])
   const { query, setQuery, tasks } = useTaskSearch(current?.name)
   const { files: diffFiles } = useDiffFiles(id ?? "")
   const [diffComments, setDiffComments] = useState<DiffComment[]>([])
@@ -165,20 +164,6 @@ export function TaskDetail() {
     }
     load()
     const interval = setInterval(load, 10000)
-    return () => { cancelled = true; clearInterval(interval) }
-  }, [id])
-
-  useEffect(() => {
-    if (!id) return
-    let cancelled = false
-    async function load() {
-      try {
-        const data = await fetchActivities(id!)
-        if (!cancelled) setActivities(data)
-      } catch { /* ignore */ }
-    }
-    load()
-    const interval = setInterval(load, 5000)
     return () => { cancelled = true; clearInterval(interval) }
   }, [id])
 
@@ -380,7 +365,7 @@ export function TaskDetail() {
                 <span className="text-[13px] font-semibold text-fg">Activity</span>
               </div>
               <div className="min-h-0 flex-1 overflow-y-auto px-4">
-                <ActivityList activities={activities} variant="compact" />
+                <ActivityList activities={session.activities} variant="compact" />
               </div>
             </div>
           )}
@@ -430,7 +415,7 @@ export function TaskDetail() {
                 <span className="text-[13px] font-semibold text-fg">Activity</span>
               </div>
               <div className="min-h-0 flex-1 overflow-y-auto px-4">
-                <ActivityList activities={activities} variant="compact" />
+                <ActivityList activities={session.activities} variant="compact" />
               </div>
             </div>
           )}

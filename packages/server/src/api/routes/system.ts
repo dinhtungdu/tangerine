@@ -126,10 +126,11 @@ export function systemRoutes(deps: AppDeps): Hono {
   app.get("/logs", (c) => {
     const level = c.req.query("level")?.split(",").filter(Boolean)
     const logger = c.req.query("logger")?.split(",").filter(Boolean)
+    const taskId = c.req.query("taskId") || undefined
     const limit = c.req.query("limit") ? Number(c.req.query("limit")) : undefined
     const since = c.req.query("since") || undefined
 
-    const logs = querySystemLogs(deps.db, { level, logger, limit, since })
+    const logs = querySystemLogs(deps.db, { level, logger, taskId, limit, since })
     return c.json(logs.map(normalizeTimestamps))
   })
 
@@ -137,6 +138,24 @@ export function systemRoutes(deps: AppDeps): Hono {
   app.delete("/logs", (c) => {
     deps.db.run("DELETE FROM system_logs")
     return c.json({ ok: true })
+  })
+
+  // Orphaned worktrees — terminal tasks with worktree_path still set
+  app.get("/cleanup/orphans", (c) => {
+    return runEffect(c, deps.orphanCleanup.findOrphans())
+  })
+
+  app.post("/cleanup/orphans", (c) => {
+    return runEffect(c,
+      deps.orphanCleanup.cleanupOrphans().pipe(
+        Effect.map((cleaned) => ({ cleaned }))
+      )
+    )
+  })
+
+  // Re-read credentials from dotfile/env and re-inject into all running VMs
+  app.post("/credentials/refresh", (c) => {
+    return runEffect(c, deps.refreshCredentials())
   })
 
   // Read full config (no credentials)
