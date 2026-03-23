@@ -49,6 +49,7 @@ specs/             # Architecture and design docs
 - Commits: `type(scope): msg`
 - Comments explain "why" not "what"
 - **Keep specs up to date**: When changing architecture, DB schema, APIs, or agent providers, update the corresponding file in `specs/`. Specs are the source of truth for design decisions — stale specs cause bugs.
+- **Spec-first for new features**: New features or architecture changes → write/update the spec before coding. Bug fixes, small refactors, spikes → code first, update specs if architecture changed. At the start of each task, ask: "Does this need a spec update first?"
 
 ## Web UI Rules
 
