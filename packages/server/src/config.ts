@@ -55,6 +55,7 @@ export interface AppConfig {
     ghHost: string
     proxyPort: number | null
     serverPort: number
+    externalHost: string
   }
 }
 
@@ -65,6 +66,7 @@ export const ALLOWED_CREDENTIAL_KEYS = [
   "GH_ENTERPRISE_TOKEN",
   "GH_HOST",
   "PROXY_PORT",
+  "EXTERNAL_HOST",
 ] as const
 
 export type CredentialKey = (typeof ALLOWED_CREDENTIAL_KEYS)[number]
@@ -173,6 +175,7 @@ export function loadConfig(): AppConfig {
       ghHost: process.env["GH_HOST"] ?? dotfile.GH_HOST ?? "github.com",
       proxyPort: proxyPort && !isNaN(proxyPort) ? proxyPort : null,
       serverPort: parseInt(process.env["PORT"] ?? "", 10) || DEFAULT_API_PORT,
+      externalHost: process.env["EXTERNAL_HOST"] ?? dotfile.EXTERNAL_HOST ?? "localhost",
     },
   }
 }

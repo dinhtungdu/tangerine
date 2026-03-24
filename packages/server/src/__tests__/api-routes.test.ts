@@ -119,6 +119,7 @@ function createMockDeps(db: Database, configOverrides?: Partial<AppDeps["config"
         ghHost: "github.com",
         proxyPort: null,
         serverPort: 3456,
+        externalHost: "localhost",
       },
     } satisfies AppDeps["config"],
     imageBuild: {

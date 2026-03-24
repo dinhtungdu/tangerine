@@ -464,9 +464,10 @@ export async function start(): Promise<void> {
             const project = getProjectConfig(config.config, task.project_id)
             const previewPort = project?.preview?.port ?? 3000
             const workdir = task.worktree_path ?? "/workspace/repo"
+            const previewCommand = project?.preview?.command ?? "node server.js"
             yield* sshExec(vm.ip, vm.ssh_port, `fuser -k ${previewPort}/tcp 2>/dev/null || true`).pipe(Effect.catchAll(() => Effect.void))
             yield* sshExec(vm.ip, vm.ssh_port,
-              `cd ${workdir} && nohup node server.js > /tmp/dev-server.log 2>&1 &`
+              `cd ${workdir} && nohup ${previewCommand} > /tmp/dev-server.log 2>&1 &`
             ).pipe(Effect.asVoid)
           }).pipe(Effect.mapError((e) => "_tag" in e ? e : { _tag: "TaskNotFoundError" as const, message: String(e) })),
 
@@ -506,9 +507,8 @@ export async function start(): Promise<void> {
           if (!task) return yield* Effect.fail({ _tag: "TaskNotFoundError" as const, message: "Task not found" })
 
           // Return cached port if tunnel already exists
-          if (task.preview_port) {
-            const existing = previewTunnels.get(taskId)
-            if (existing) return task.preview_port
+          if (task.preview_port && previewTunnels.has(taskId)) {
+            return task.preview_port
           }
 
           if (!task.vm_id) return yield* Effect.fail({ _tag: "TaskNotFoundError" as const, message: "Task has no VM" })
@@ -518,16 +518,31 @@ export async function start(): Promise<void> {
           const project = getProjectConfig(config.config, task.project_id)
           const remotePort = project?.preview?.port ?? 3000
 
+          // Use pre-allocated port from session start, or allocate fresh
           const tunnel = yield* createPreviewTunnel({
             vmIp: vm.ip,
             sshPort: vm.ssh_port,
             remotePort,
+            localPort: task.preview_port ?? undefined,
           }).pipe(Effect.mapError((e) => ({ _tag: "TunnelError" as const, message: e.message })))
 
           previewTunnels.set(taskId, tunnel)
           yield* updateTask(db, taskId, { preview_port: tunnel.localPort }).pipe(
             Effect.catchAll(() => Effect.void)
           )
+
+          // Run preview command if configured (kill existing process on the port first)
+          const previewCommand = project?.preview?.command
+          if (previewCommand) {
+            const workdir = task.worktree_path ?? "/workspace/repo"
+            yield* sshExec(vm.ip, vm.ssh_port,
+              `fuser -k ${remotePort}/tcp 2>/dev/null || true`
+            ).pipe(Effect.catchAll(() => Effect.void))
+            yield* sshExec(vm.ip, vm.ssh_port,
+              `cd ${workdir} && nohup ${previewCommand} > /tmp/preview-server.log 2>&1 &`
+            ).pipe(Effect.catchAll(() => Effect.void))
+          }
+
           return tunnel.localPort
         }),
       sshExec: (host, port, command) =>
