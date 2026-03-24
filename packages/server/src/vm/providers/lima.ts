@@ -129,21 +129,22 @@ export class LimaProvider implements Provider {
     return Effect.try({
       try: () => {
         const configPath = `${process.env.HOME}/.lima/${name}/lima.yaml`;
-        const content = readFileSync(configPath, "utf-8");
-        if (!content.includes("portForwards")) {
-          const patch = [
-            "",
-            "portForwards:",
-            "  - guestIP: \"0.0.0.0\"",
-            "    guestPortRange: [1, 65535]",
-            "    ignore: true",
-            "  - guestIP: \"127.0.0.1\"",
-            "    guestPortRange: [1, 65535]",
-            "    ignore: true",
-            "",
-          ].join("\n");
-          writeFileSync(configPath, content + patch);
+        let content = readFileSync(configPath, "utf-8");
+        const correctRules = [
+          "portForwards:",
+          "  - guestIP: \"0.0.0.0\"",
+          "    guestPortRange: [1, 65535]",
+          "    ignore: true",
+          "  - guestIP: \"127.0.0.1\"",
+          "    guestPortRange: [1, 65535]",
+          "    ignore: true",
+        ].join("\n");
+        if (content.includes(correctRules)) {
+          return; // Already correct
         }
+        // Remove any existing portForwards block and append correct one
+        content = content.replace(/portForwards:[\s\S]*?(?=\n\S|\n*$)/, "");
+        writeFileSync(configPath, content.trimEnd() + "\n\n" + correctRules + "\n");
       },
       catch: (e) => new ProviderError({ message: `Failed to patch clone config: ${e}`, provider: "lima", operation: "patchCloneConfig", cause: e }),
     });
