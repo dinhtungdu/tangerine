@@ -1,13 +1,13 @@
 import { useState, useEffect, useCallback } from "react"
-import { useNavigate } from "react-router-dom"
 import { useProject } from "../context/ProjectContext"
 import { useTaskSearch } from "../hooks/useTaskSearch"
+import { useProjectNav } from "../hooks/useProjectNav"
 import { TasksSidebar } from "../components/TasksSidebar"
 import { ActiveRunsCard, VmSummaryCard, ImageCard, VmList, BuildLog, SystemLog } from "../components/StatusWidgets"
-import { fetchVms, fetchImages, fetchBuildStatus, triggerBaseBuild, destroyVm, type VmInfo, type ImageInfo, type BuildStatus } from "../lib/api"
+import { fetchVms, fetchImages, fetchBuildStatus, triggerBaseBuild, destroyVm, provisionVm, type VmInfo, type ImageInfo, type BuildStatus } from "../lib/api"
 
 export function StatusPage() {
-  const navigate = useNavigate()
+  const { navigate } = useProjectNav()
   const { current } = useProject()
   const { query, setQuery, tasks } = useTaskSearch(current?.name)
   const [vms, setVms] = useState<VmInfo[]>([])
@@ -16,7 +16,7 @@ export function StatusPage() {
 
   const loadAll = useCallback(async () => {
     const [vmData, imgData, bsData] = await Promise.all([
-      fetchVms().catch(() => []),
+      fetchVms(current?.name).catch(() => []),
       fetchImages(current?.name).catch(() => []),
       fetchBuildStatus().catch(() => ({ status: "idle" as const })),
     ])
@@ -39,6 +39,12 @@ export function StatusPage() {
     await destroyVm(vmId).catch(() => {})
     loadAll()
   }, [loadAll])
+
+  const handleProvisionVm = useCallback(async () => {
+    if (!current) return
+    await provisionVm(current.name).catch(() => {})
+    loadAll()
+  }, [current, loadAll])
 
   const handleBuildBase = useCallback(async () => {
     const confirmed = window.confirm(
@@ -81,7 +87,7 @@ export function StatusPage() {
             {/* Cards — horizontal on desktop, stacked on mobile */}
             <div className="flex flex-col gap-4 md:flex-row md:gap-4">
               <ActiveRunsCard tasks={tasks} />
-              <VmSummaryCard vms={vms} onRebuildVm={handleRebuildVm} />
+              <VmSummaryCard vms={vms} onRebuildVm={handleRebuildVm} onProvisionVm={handleProvisionVm} />
               <ImageCard image={images[0] ?? null} projectImage={current?.image} buildStatus={buildStatus} onBuildBase={handleBuildBase} />
             </div>
 
@@ -92,7 +98,7 @@ export function StatusPage() {
             <BuildLog project={current?.name} buildStatus={buildStatus} />
 
             {/* System log */}
-            <SystemLog />
+            <SystemLog project={current?.name} />
           </div>
         </div>
       </div>

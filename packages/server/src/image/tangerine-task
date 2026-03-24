@@ -4,7 +4,7 @@
 set -euo pipefail
 
 PORT="${TANGERINE_SERVER_PORT:-3456}"
-BASE="http://127.0.0.1:${PORT}"
+BASE="http://127.0.0.2:${PORT}"
 TASK_ID="${TANGERINE_TASK_ID:-}"
 
 usage() {

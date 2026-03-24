@@ -78,8 +78,16 @@ provision:
       apt-get update -qq
       apt-get install -y -qq gh
 
-      # SSH — key-only auth
+      # SSH — key-only auth, allow reverse tunnels to bind specific addresses
       sed -i 's/^#\?PasswordAuthentication.*/PasswordAuthentication no/' /etc/ssh/sshd_config
+      sed -i 's/^#\?GatewayPorts.*/GatewayPorts clientspecified/' /etc/ssh/sshd_config
+
+      # PHP + Composer (for projects like ciab-admin)
+      apt-get install -y -qq php-cli php-xml php-mbstring php-curl
+      curl -sS https://getcomposer.org/installer | php -- --install-dir=/usr/local/bin --filename=composer
+
+      # pnpm
+      npm install -g pnpm
 
       # Install OpenCode globally
       npm install -g opencode-ai
@@ -106,7 +114,7 @@ provision:
       set -euo pipefail
 
       PORT="${TANGERINE_SERVER_PORT:-3456}"
-      BASE="http://127.0.0.1:${PORT}"
+      BASE="http://127.0.0.2:${PORT}"
       TASK_ID="${TANGERINE_TASK_ID:-}"
 
       usage() {

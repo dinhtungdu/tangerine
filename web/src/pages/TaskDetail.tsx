@@ -1,11 +1,12 @@
 import { useState, useEffect, useCallback, useRef } from "react"
-import { useParams, useNavigate } from "react-router-dom"
+import { useParams } from "react-router-dom"
 import type { Task } from "@tangerine/shared"
 import { fetchTask, changeTaskConfig } from "../lib/api"
 import { getStatusConfig } from "../lib/status"
 import { useSession } from "../hooks/useSession"
 import { useTaskSearch } from "../hooks/useTaskSearch"
 import { useProject } from "../context/ProjectContext"
+import { useProjectNav } from "../hooks/useProjectNav"
 import { useDiffFiles } from "../hooks/useDiffFiles"
 import { useResizable } from "../hooks/useResizable"
 import { TasksSidebar } from "../components/TasksSidebar"
@@ -20,7 +21,7 @@ type PaneId = "chat" | "diff" | "terminal" | "activity"
 
 export function TaskDetail() {
   const { id } = useParams<{ id: string }>()
-  const navigate = useNavigate()
+  const { navigate } = useProjectNav()
   const [task, setTask] = useState<Task | null>(null)
   const [loading, setLoading] = useState(true)
   const [visiblePanes, setVisiblePanes] = useState<Set<PaneId>>(() => {

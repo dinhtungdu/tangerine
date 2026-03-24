@@ -1,7 +1,7 @@
 import { useState, useCallback } from "react"
-import { useNavigate } from "react-router-dom"
 import type { ProviderType } from "@tangerine/shared"
 import { useProject } from "../context/ProjectContext"
+import { useProjectNav } from "../hooks/useProjectNav"
 import { ModelSelector } from "./ModelSelector"
 import { HarnessSelector } from "./HarnessSelector"
 import { ReasoningEffortSelector, type ReasoningEffort } from "./ReasoningEffortSelector"
@@ -72,7 +72,7 @@ function TaskIcon({ icon }: { icon: string }) {
 /* -- Main form -- */
 
 export function NewAgentForm({ onSubmit }: NewAgentFormProps) {
-  const navigate = useNavigate()
+  const { navigate } = useProjectNav()
   const { current, modelsByProvider } = useProject()
   const [description, setDescription] = useState("")
   const PREFS_KEY = "tangerine:agent-prefs"

@@ -1,11 +1,11 @@
-import { useNavigate } from "react-router-dom"
 import { useProject } from "../context/ProjectContext"
 import { useTaskSearch } from "../hooks/useTaskSearch"
+import { useProjectNav } from "../hooks/useProjectNav"
 import { ProjectSwitcher } from "../components/ProjectSwitcher"
 import { RunsTable } from "../components/RunsTable"
 
 export function RunsPage() {
-  const navigate = useNavigate()
+  const { navigate } = useProjectNav()
   const { current } = useProject()
   const { query, setQuery, tasks, refetch } = useTaskSearch(current?.name)
 

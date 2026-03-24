@@ -2,7 +2,7 @@
 // If the server restarts mid-build, state resets to idle — acceptable for local-first.
 
 import { createLogger } from "../logger"
-import { buildBase } from "./build"
+import { buildBase, BASE_VM_NAME } from "./build"
 
 export interface BuildState {
   status: "building" | "success" | "failed"
@@ -45,5 +45,17 @@ export function startBaseBuild(): { ok: true } | { ok: false; reason: string } {
 }
 
 export function getBuildStatus(): BuildState | { status: "idle" } {
-  return currentBuild ?? { status: "idle" }
+  if (currentBuild) return currentBuild
+  // Check if base VM exists on disk (survives server restarts)
+  try {
+    const proc = Bun.spawnSync(["limactl", "list", "--json"])
+    const stdout = new TextDecoder().decode(proc.stdout).trim()
+    // limactl outputs NDJSON (one JSON object per line)
+    const instances = stdout.split("\n").filter(Boolean).map((line) => JSON.parse(line) as { name: string; status: string })
+    const base = instances.find((i) => i.name === BASE_VM_NAME)
+    if (base) {
+      return { status: "success", imageName: "base", startedAt: "", finishedAt: "" }
+    }
+  } catch { /* ignore — limactl not available */ }
+  return { status: "idle" }
 }

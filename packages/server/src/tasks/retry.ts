@@ -27,6 +27,7 @@ export function startSessionWithRetry(
   lifecycleDeps: LifecycleDeps,
   retryDeps: RetryDeps,
 ): Effect.Effect<void, never> {
+  let attempt = 0
   return startSession(task, config, creds, lifecycleDeps).pipe(
     Effect.tap((session) =>
       Effect.sync(() => {
@@ -35,6 +36,16 @@ export function startSessionWithRetry(
     ),
     // Discard the SessionInfo on success since callers only care about side effects
     Effect.asVoid,
+    Effect.tapError(() =>
+      // Clean up partial resources (tunnels, agent handles) before retry
+      cleanupSession(task.id, retryDeps.cleanupDeps).pipe(
+        Effect.tap(() => Effect.sync(() => {
+          attempt++
+          log.info("Cleaned up before retry", { taskId: task.id, attempt })
+        })),
+        Effect.ignoreLogged,
+      )
+    ),
     Effect.retry(
       Schedule.exponential("1 second").pipe(
         Schedule.compose(Schedule.recurs(MAX_RETRY_ATTEMPTS - 1))
@@ -77,6 +88,9 @@ export function reconnectSessionWithRetry(
       })
     ),
     Effect.asVoid,
+    Effect.tapError(() =>
+      cleanupSession(task.id, retryDeps.cleanupDeps).pipe(Effect.ignoreLogged)
+    ),
     Effect.retry(
       Schedule.exponential("1 second").pipe(
         Schedule.compose(Schedule.recurs(MAX_RETRY_ATTEMPTS - 1))

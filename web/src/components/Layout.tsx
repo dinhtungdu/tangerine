@@ -1,8 +1,10 @@
 import { Link, Outlet, useLocation } from "react-router-dom"
 import { Topbar } from "./Topbar"
+import { useProjectNav } from "../hooks/useProjectNav"
 
 export function Layout() {
   const location = useLocation()
+  const { link } = useProjectNav()
   const isTaskDetail = location.pathname.startsWith("/tasks/")
   const isRuns = location.pathname === "/" || location.pathname.startsWith("/tasks") || location.pathname === "/new"
   const isStatus = location.pathname === "/status"
@@ -27,7 +29,7 @@ export function Layout() {
           </div>
           <nav className="flex items-center gap-0.5">
             <Link
-              to="/"
+              to={link("/")}
               className={`rounded-md px-3 py-1.5 text-[13px] font-medium ${
                 isRuns ? "bg-surface-secondary text-fg" : "text-fg-muted hover:text-fg"
               }`}
@@ -35,7 +37,7 @@ export function Layout() {
               Runs
             </Link>
             <Link
-              to="/status"
+              to={link("/status")}
               className={`rounded-md px-3 py-1.5 text-[13px] font-medium ${
                 isStatus ? "bg-surface-secondary text-fg" : "text-fg-muted hover:text-fg"
               }`}

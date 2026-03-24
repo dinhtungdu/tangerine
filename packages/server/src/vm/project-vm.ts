@@ -87,7 +87,7 @@ export class ProjectVmManager {
         )
         .run(vmId, label, this.config.providerName, projectId, snapshotId, this.config.region, this.config.plan, now, now)
 
-      try {
+      const provision = Effect.gen(this, function* () {
         const instance = yield* this.config.provider
           .createInstance({
             region: this.config.region,
@@ -120,13 +120,16 @@ export class ProjectVmManager {
 
         log.info("VM provisioned", { vmId, projectId, ip: instance.ip })
         return this.db.prepare("SELECT * FROM vms WHERE id = ?").get(vmId) as ProjectVmRow
-      } catch (err) {
-        // Mark error on failure
-        this.db
-          .prepare("UPDATE vms SET status = 'error', error = ?, updated_at = datetime('now') WHERE id = ?")
-          .run(String(err), vmId)
-        throw err
-      }
+      })
+
+      return yield* provision.pipe(
+        Effect.catchAll((err) => {
+          this.db
+            .prepare("UPDATE vms SET status = 'error', error = ?, updated_at = datetime('now') WHERE id = ?")
+            .run(String(err), vmId)
+          return Effect.fail(err)
+        }),
+      )
     })
   }
 
@@ -229,24 +232,31 @@ export class ProjectVmManager {
    */
   reconcileOnStartup(): Effect.Effect<{ alive: number; dead: number }, never> {
     return Effect.gen(this, function* (_) {
-      const activeVms = this.db
-        .prepare("SELECT * FROM vms WHERE status = 'active'")
+      const vms = this.db
+        .prepare("SELECT * FROM vms WHERE status IN ('active', 'provisioning')")
         .all() as ProjectVmRow[]
 
       let alive = 0
       let dead = 0
 
-      for (const vm of activeVms) {
+      for (const vm of vms) {
         const instance = yield* this.config.provider.getInstance(vm.id).pipe(
           Effect.catchAll(() => Effect.succeed(null)),
         )
 
         if (!instance || instance.status === "error" || instance.status === "stopped") {
-          log.warn("VM no longer alive, marking error", { vmId: vm.id, projectId: vm.project_id })
+          log.warn("VM no longer alive, marking error", { vmId: vm.id, projectId: vm.project_id, previousStatus: vm.status })
           this.db
             .prepare("UPDATE vms SET status = 'error', error = 'VM not running on startup', updated_at = datetime('now') WHERE id = ?")
             .run(vm.id)
           dead++
+        } else if (vm.status === "provisioning" && instance.ip) {
+          // Stale provisioning — VM is actually running, update to active
+          log.info("Stale provisioning VM is running, marking active", { vmId: vm.id, projectId: vm.project_id, ip: instance.ip })
+          this.db
+            .prepare("UPDATE vms SET status = 'active', ip = ?, ssh_port = ?, updated_at = datetime('now') WHERE id = ?")
+            .run(instance.ip, instance.sshPort ?? null, vm.id)
+          alive++
         } else {
           alive++
         }

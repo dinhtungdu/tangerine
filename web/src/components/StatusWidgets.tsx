@@ -90,19 +90,23 @@ export function ActiveRunsCard({ tasks }: { tasks: Task[] }) {
   )
 }
 
-export function VmSummaryCard({ vms, onRebuildVm }: { vms: VmInfo[]; onRebuildVm: (vmId: string) => void }) {
+export function VmSummaryCard({ vms, onRebuildVm, onProvisionVm }: { vms: VmInfo[]; onRebuildVm: (vmId: string) => void; onProvisionVm: () => void }) {
   const vm = vms[0]
   const status = vm?.status ?? "none"
   const isActive = status === "active" || status === "ready" || status === "assigned"
   const isProvisioning = status === "provisioning"
 
+  const isError = status === "error"
+
   const badge = isActive
     ? { label: "Active", cls: "bg-status-success-bg text-status-success-text" }
     : isProvisioning
       ? { label: "Provisioning", cls: "bg-status-warning-bg text-status-warning-text" }
-      : vm
-        ? { label: "Stopped", cls: "bg-surface-secondary text-fg-muted" }
-        : { label: "No VM", cls: "bg-surface-secondary text-fg-muted" }
+      : isError
+        ? { label: "Error", cls: "bg-status-error-bg text-status-error-text" }
+        : vm
+          ? { label: "Stopped", cls: "bg-surface-secondary text-fg-muted" }
+          : { label: "No VM", cls: "bg-surface-secondary text-fg-muted" }
 
   return (
     <div className="flex flex-1 flex-col gap-2.5 rounded-[10px] border border-edge p-3.5 md:gap-3 md:p-4">
@@ -131,7 +135,20 @@ export function VmSummaryCard({ vms, onRebuildVm }: { vms: VmInfo[]; onRebuildVm
           </div>
         </div>
       ) : (
-        <p className="text-[13px] text-fg-muted">No VM provisioned yet.</p>
+        <div className="flex flex-col gap-2">
+          <p className="text-[13px] text-fg-muted">No VM provisioned yet.</p>
+          <div className="flex md:justify-end">
+            <button
+              onClick={onProvisionVm}
+              className="flex w-full items-center justify-center gap-1.5 rounded-md bg-fg px-3.5 py-1.5 text-[13px] font-medium text-bg md:w-auto"
+            >
+              <svg className="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M5.25 14.25h13.5m-13.5 0a3 3 0 0 1-3-3m3 3a3 3 0 1 0 0 6h13.5a3 3 0 1 0 0-6m-16.5-3a3 3 0 0 1 3-3h13.5a3 3 0 0 1 3 3m-19.5 0a4.5 4.5 0 0 1 .9-2.7L5.737 5.1a3.375 3.375 0 0 1 2.7-1.35h7.126c1.062 0 2.062.5 2.7 1.35l2.587 3.45a4.5 4.5 0 0 1 .9 2.7" />
+              </svg>
+              Provision VM
+            </button>
+          </div>
+        </div>
       )}
     </div>
   )
@@ -145,7 +162,7 @@ export function ImageCard({ image, projectImage, buildStatus, onBuildBase }: {
 }) {
   const isBuilding = buildStatus.status === "building"
   const isFailed = buildStatus.status === "failed"
-  const built = !!image
+  const built = !!image || buildStatus.status === "success"
 
   // Badge state
   const badge = isBuilding
@@ -160,7 +177,7 @@ export function ImageCard({ image, projectImage, buildStatus, onBuildBase }: {
     <div className="flex flex-1 flex-col gap-2.5 rounded-[10px] border border-edge p-3.5 md:gap-3 md:p-4">
       {/* Header */}
       <div className="flex items-center justify-between">
-        <span className="text-[13px] font-medium text-fg-muted">Golden Image</span>
+        <span className="text-[13px] font-medium text-fg-muted">Base Image</span>
         <span className="flex items-center gap-1.5 rounded-xl px-2.5 py-0.5 text-[11px] font-semibold" style={{ color: badge.color, backgroundColor: badge.bg }}>
           {badge.icon && (
             <svg className="h-3 w-3 animate-spin" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2.5}>
@@ -212,9 +229,9 @@ export function ImageCard({ image, projectImage, buildStatus, onBuildBase }: {
               <svg className="h-3.5 w-3.5 text-fg-muted" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.8}>
                 <path strokeLinecap="round" strokeLinejoin="round" d="M20.25 7.5l-.625 10.632a2.25 2.25 0 01-2.247 2.118H6.622a2.25 2.25 0 01-2.247-2.118L3.75 7.5M10 11.25h4M3.375 7.5h17.25c.621 0 1.125-.504 1.125-1.125v-1.5c0-.621-.504-1.125-1.125-1.125H3.375c-.621 0-1.125.504-1.125 1.125v1.5c0 .621.504 1.125 1.125 1.125z" />
               </svg>
-              <span className="text-[13px] font-medium text-fg">{image.name}</span>
+              <span className="text-[13px] font-medium text-fg">{image?.name ?? "tangerine-base"}</span>
             </div>
-            <span className="text-[12px] text-fg-muted">{image.snapshotId.slice(0, 9)} · {formatRelativeTime(image.createdAt)}</span>
+            {image && <span className="text-[12px] text-fg-muted">{image.snapshotId.slice(0, 9)} · {formatRelativeTime(image.createdAt)}</span>}
           </div>
           <div className="flex justify-end">
             <button onClick={onBuildBase} disabled={isBuilding} className="flex items-center gap-1.5 rounded-md bg-surface-secondary px-3 py-1 text-[12px] font-medium text-fg-muted hover:text-fg disabled:opacity-50">
@@ -228,8 +245,8 @@ export function ImageCard({ image, projectImage, buildStatus, onBuildBase }: {
       ) : (
         <div className="flex flex-col gap-2">
           <div className="flex flex-col gap-1">
-            <span className="text-[13px] text-fg-muted">{projectImage ?? "No image configured"}</span>
-            <span className="text-[12px] text-fg-faint">No image built yet. Build one to start provisioning VMs.</span>
+            <span className="text-[13px] text-fg-muted">tangerine-base</span>
+            <span className="text-[12px] text-fg-faint">No base image yet. Build one to start provisioning project VMs.</span>
           </div>
           <div className="flex md:justify-end">
             <button onClick={onBuildBase} className="flex w-full items-center justify-center gap-1.5 rounded-md bg-fg px-3.5 py-1.5 text-[13px] font-medium text-bg md:w-auto">
@@ -417,18 +434,18 @@ function formatLogTimestamp(iso: string): string {
 
 /* ── System Log ── */
 
-export function SystemLog() {
+export function SystemLog({ project }: { project?: string }) {
   const [logs, setLogs] = useState<SystemLogEntry[]>([])
   const [activeFilter, setActiveFilter] = useState(0)
 
   const loadLogs = useCallback(async () => {
     const filter = LOG_FILTERS[activeFilter]!
-    const params: { level?: string[]; logger?: string[]; limit?: number } = { limit: 500 }
+    const params: { level?: string[]; logger?: string[]; project?: string; limit?: number } = { limit: 500, project }
     if (filter.level) params.level = [...filter.level]
     if (filter.value) params.logger = [...filter.value]
     const data = await fetchSystemLogs(params).catch(() => [])
     setLogs(data)
-  }, [activeFilter])
+  }, [activeFilter, project])
 
   useEffect(() => {
     loadLogs()

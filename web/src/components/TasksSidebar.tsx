@@ -2,6 +2,7 @@ import { Link, useParams } from "react-router-dom"
 import type { Task } from "@tangerine/shared"
 import { getStatusConfig } from "../lib/status"
 import { formatRelativeTime } from "../lib/format"
+import { useProjectNav } from "../hooks/useProjectNav"
 
 interface TasksSidebarProps {
   tasks: Task[]
@@ -14,6 +15,7 @@ const TERMINAL_STATUSES = new Set(["done", "completed", "cancelled"])
 
 export function TasksSidebar({ tasks, searchQuery, onSearchChange, onNewAgent }: TasksSidebarProps) {
   const { id: activeId } = useParams<{ id: string }>()
+  const { link } = useProjectNav()
   const activeTasks = tasks.filter((t) => !TERMINAL_STATUSES.has(t.status))
 
   return (
@@ -68,7 +70,7 @@ export function TasksSidebar({ tasks, searchQuery, onSearchChange, onNewAgent }:
           return (
             <Link
               key={task.id}
-              to={`/tasks/${task.id}`}
+              to={link(`/tasks/${task.id}`)}
               className={`flex gap-2.5 px-4 py-2.5 ${
                 isActive
                   ? "bg-surface-secondary border-l-[3px] border-l-red-600"

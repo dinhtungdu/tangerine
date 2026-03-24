@@ -149,8 +149,9 @@ export interface ImageInfo {
   createdAt: string
 }
 
-export async function fetchVms(): Promise<VmInfo[]> {
-  return request<VmInfo[]>("/api/vms")
+export async function fetchVms(project?: string): Promise<VmInfo[]> {
+  const params = project ? `?project=${encodeURIComponent(project)}` : ""
+  return request<VmInfo[]>(`/api/vms${params}`)
 }
 
 export async function fetchImages(project?: string): Promise<ImageInfo[]> {
@@ -162,6 +163,7 @@ export async function fetchSystemLogs(filter?: {
   level?: string[]
   logger?: string[]
   taskId?: string
+  project?: string
   limit?: number
   since?: string
 }): Promise<SystemLogEntry[]> {
@@ -169,6 +171,7 @@ export async function fetchSystemLogs(filter?: {
   if (filter?.level?.length) params.set("level", filter.level.join(","))
   if (filter?.logger?.length) params.set("logger", filter.logger.join(","))
   if (filter?.taskId) params.set("taskId", filter.taskId)
+  if (filter?.project) params.set("project", filter.project)
   if (filter?.limit) params.set("limit", String(filter.limit))
   if (filter?.since) params.set("since", filter.since)
   const query = params.toString() ? `?${params}` : ""
@@ -185,6 +188,14 @@ export interface BuildStatus {
 
 export async function destroyVm(vmId: string): Promise<{ reprovisioned: number; failed: number }> {
   return request<{ reprovisioned: number; failed: number }>(`/api/vms/${vmId}`, { method: "DELETE" })
+}
+
+export async function provisionVm(projectId: string): Promise<{ id: string; status: string; ip: string | null }> {
+  return request<{ id: string; status: string; ip: string | null }>("/api/vms/provision", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ projectId }),
+  })
 }
 
 export async function triggerBaseBuild(): Promise<void> {

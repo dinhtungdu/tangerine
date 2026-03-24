@@ -414,6 +414,19 @@ export async function start(): Promise<void> {
               message: e.message,
             })),
           ),
+        provisionVm: (projectId: string) => {
+          const project = config.config.projects.find((p) => p.name === projectId)
+          if (!project) {
+            return Effect.fail({ _tag: "ProjectNotFoundError" as const, message: `Unknown project: ${projectId}` })
+          }
+          return vmManager.getOrCreateVm(projectId, project.image).pipe(
+            Effect.map((vm) => ({ id: vm.id, status: vm.status, ip: vm.ip })),
+            Effect.mapError((e): { _tag: string; message?: string } => ({
+              _tag: "ProvisionError",
+              message: e.message,
+            })),
+          )
+        },
         reprovisionTasksForVm: (vmId: string) => {
           // Check if branch exists on remote using git ls-remote from host
           const checkRemoteBranch = (branch: string) =>

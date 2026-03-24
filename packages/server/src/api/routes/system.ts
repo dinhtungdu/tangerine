@@ -20,14 +20,21 @@ export function systemRoutes(deps: AppDeps): Hono {
   })
 
   app.get("/vms", (c) => {
+    const project = c.req.query("project") || undefined
     return runEffect(c,
       Effect.sync(() => {
+        const conditions = ["status != 'destroyed'"]
+        const params: Record<string, string> = {}
+        if (project) {
+          conditions.push("project_id = $project")
+          params.$project = project
+        }
         const rows = deps.db.prepare(`
           SELECT *
           FROM vms
-          WHERE status != 'destroyed'
+          WHERE ${conditions.join(" AND ")}
           ORDER BY created_at DESC
-        `).all() as Array<{ id: string; status: string; ip: string | null; project_id: string; provider: string; created_at: string }>
+        `).all(params) as Array<{ id: string; status: string; ip: string | null; project_id: string; provider: string; created_at: string }>
         return rows.map((r) => ({
           id: r.id,
           status: r.status,
@@ -37,6 +44,21 @@ export function systemRoutes(deps: AppDeps): Hono {
           createdAt: r.created_at,
         }))
       })
+    )
+  })
+
+  // Provision a VM for a project (creates from base image if none exists)
+  app.post("/vms/provision", async (c) => {
+    const body = await c.req.json<{ projectId?: string }>().catch(() => ({ projectId: undefined }))
+    const projectId = body.projectId || c.req.query("project")
+    if (!projectId) {
+      return c.json({ error: "projectId is required" }, 400)
+    }
+    return runEffect(c,
+      deps.pool.provisionVm(projectId).pipe(
+        Effect.map((vm) => ({ id: vm.id, status: vm.status, ip: vm.ip }))
+      ),
+      { status: 201 }
     )
   })
 
@@ -127,10 +149,11 @@ export function systemRoutes(deps: AppDeps): Hono {
     const level = c.req.query("level")?.split(",").filter(Boolean)
     const logger = c.req.query("logger")?.split(",").filter(Boolean)
     const taskId = c.req.query("taskId") || undefined
+    const projectId = c.req.query("project") || undefined
     const limit = c.req.query("limit") ? Number(c.req.query("limit")) : undefined
     const since = c.req.query("since") || undefined
 
-    const logs = querySystemLogs(deps.db, { level, logger, taskId, limit, since })
+    const logs = querySystemLogs(deps.db, { level, logger, taskId, projectId, limit, since })
     return c.json(logs.map(normalizeTimestamps))
   })
 

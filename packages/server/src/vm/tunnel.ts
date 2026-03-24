@@ -137,7 +137,10 @@ export interface ProxyTunnel {
 }
 
 /** Persistent reverse tunnel: forwards a host port into the VM via SSH -R.
- *  Used to give the VM access to a local SOCKS proxy for GHE. */
+ *  Used to give the VM access to a local SOCKS proxy for GHE.
+ *  Binds to 127.0.0.2 inside the VM to avoid Lima's auto port-forwarding
+ *  (Lima watches 127.0.0.1 listeners and forwards them back to the host,
+ *  which would steal the port from the dashboard server). */
 export function createProxyTunnel(opts: {
   vmIp: string;
   sshPort: number;
@@ -157,7 +160,7 @@ export function createProxyTunnel(opts: {
         "-o", "LogLevel=ERROR",
         "-o", "ExitOnForwardFailure=yes",
         "-p", String(opts.sshPort),
-        "-R", `${opts.localPort}:127.0.0.1:${opts.localPort}`,
+        "-R", `127.0.0.2:${opts.localPort}:127.0.0.1:${opts.localPort}`,
         `${user}@${opts.vmIp}`,
       ];
 

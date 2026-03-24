@@ -47,6 +47,7 @@ export interface LogFilter {
   level?: string[]
   logger?: string[]
   taskId?: string
+  projectId?: string
   limit?: number
   since?: string
 }
@@ -54,21 +55,27 @@ export interface LogFilter {
 export function querySystemLogs(db: Database, filter?: LogFilter): SystemLogEntry[] {
   const conditions: string[] = []
   const params: (string | number)[] = []
+  let join = ""
 
   if (filter?.level?.length) {
-    conditions.push(`level IN (${filter.level.map(() => "?").join(",")})`)
+    conditions.push(`sl.level IN (${filter.level.map(() => "?").join(",")})`)
     params.push(...filter.level)
   }
   if (filter?.logger?.length) {
-    conditions.push(`logger IN (${filter.logger.map(() => "?").join(",")})`)
+    conditions.push(`sl.logger IN (${filter.logger.map(() => "?").join(",")})`)
     params.push(...filter.logger)
   }
   if (filter?.taskId) {
-    conditions.push("task_id = ?")
+    conditions.push("sl.task_id = ?")
     params.push(filter.taskId)
   }
+  if (filter?.projectId) {
+    join = "LEFT JOIN tasks t ON sl.task_id = t.id"
+    conditions.push("(t.project_id = ? OR sl.task_id IS NULL)")
+    params.push(filter.projectId)
+  }
   if (filter?.since) {
-    conditions.push("timestamp >= ?")
+    conditions.push("sl.timestamp >= ?")
     params.push(filter.since)
   }
 
@@ -77,7 +84,7 @@ export function querySystemLogs(db: Database, filter?: LogFilter): SystemLogEntr
   params.push(limit)
 
   const rows = db.query(
-    `SELECT id, level, logger, message, context, task_id, timestamp FROM system_logs ${where} ORDER BY id DESC LIMIT ?`,
+    `SELECT sl.id, sl.level, sl.logger, sl.message, sl.context, sl.task_id, sl.timestamp FROM system_logs sl ${join} ${where} ORDER BY sl.id DESC LIMIT ?`,
   ).all(...params) as Array<{
     id: number
     level: string

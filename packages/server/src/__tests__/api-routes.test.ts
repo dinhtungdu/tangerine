@@ -82,6 +82,9 @@ function createMockDeps(db: Database, configOverrides?: Partial<AppDeps["config"
           db.prepare("UPDATE vms SET status = 'destroyed' WHERE id = ?").run(vmId)
         }).pipe(Effect.mapError((e) => ({ _tag: "VmNotFoundError" as const, message: String(e) })))
       },
+      provisionVm() {
+        return Effect.succeed({ id: "test-vm", status: "active", ip: "127.0.0.1" })
+      },
       reprovisionTasksForVm() {
         return Effect.succeed({ reprovisioned: 0, failed: 0 })
       },

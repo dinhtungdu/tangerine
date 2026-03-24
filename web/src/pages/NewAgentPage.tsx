@@ -1,10 +1,10 @@
-import { useNavigate } from "react-router-dom"
 import { useProject } from "../context/ProjectContext"
+import { useProjectNav } from "../hooks/useProjectNav"
 import { NewAgentForm } from "../components/NewAgentForm"
 import { createTask } from "../lib/api"
 
 export function NewAgentPage() {
-  const navigate = useNavigate()
+  const { navigate } = useProjectNav()
   const { current } = useProject()
 
   const handleSubmit = async (data: { projectId: string; title: string; description?: string; provider?: string; model?: string; reasoningEffort?: string }) => {

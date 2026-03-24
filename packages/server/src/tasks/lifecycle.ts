@@ -197,6 +197,10 @@ export function startSession(
     let proxyTunnel: ProxyTunnel | null = null
     if (creds.proxyPort && creds.ghHost !== "github.com") {
       yield* activity("proxy.starting", `Starting reverse proxy tunnel on port ${creds.proxyPort}`)
+      // Kill stale listeners from previous failed attempts (needs sudo for 127.0.0.2-bound ports)
+      yield* deps.sshExec(vm.ip!, vm.ssh_port!,
+        `sudo fuser -k -n tcp ${creds.proxyPort} 2>/dev/null; true`
+      ).pipe(Effect.catchAll(() => Effect.void))
       proxyTunnel = yield* deps.createProxyTunnel({
         vmIp: vm.ip!,
         sshPort: vm.ssh_port!,
@@ -210,10 +214,11 @@ export function startSession(
         }))
       )
 
-      // Set git proxy for the enterprise host and inject env vars
-      const proxyUrl = `socks5://127.0.0.1:${creds.proxyPort}`
+      // Rewrite GHE SSH URLs to HTTPS (SSH needs Enclave which the VM doesn't have)
+      // HTTPS goes through the SOCKS proxy and uses stored git credentials
+      const proxyUrl = `socks5://127.0.0.2:${creds.proxyPort}`
       yield* deps.sshExec(vm.ip!, vm.ssh_port!,
-        `git config --global http.https://${creds.ghHost}/.proxy ${proxyUrl}`
+        `git config --global http.https://${creds.ghHost}/.proxy ${proxyUrl} && git config --global url."https://${creds.ghHost}/".insteadOf "git@${creds.ghHost}:"`
       ).pipe(
         Effect.mapError((e) => new SessionStartError({
           message: `Git proxy config failed: ${e.message}`,
@@ -240,6 +245,9 @@ export function startSession(
 
     // 3c. Reverse tunnel for Tangerine API (cross-project task creation)
     yield* activity("api-tunnel.starting", `Starting API reverse tunnel on port ${creds.serverPort}`)
+    yield* deps.sshExec(vm.ip!, vm.ssh_port!,
+      `sudo fuser -k -n tcp ${creds.serverPort} 2>/dev/null; true`
+    ).pipe(Effect.catchAll(() => Effect.void))
     const apiTunnel = yield* deps.createProxyTunnel({
       vmIp: vm.ip!,
       sshPort: vm.ssh_port!,
@@ -517,6 +525,9 @@ export function reconnectSession(
     // 3b. Re-establish reverse proxy tunnel for GHE access (if configured)
     let proxyTunnel: ProxyTunnel | null = null
     if (creds.proxyPort && creds.ghHost !== "github.com") {
+      yield* deps.sshExec(vm.ip!, vm.ssh_port!,
+        `sudo fuser -k -n tcp ${creds.proxyPort} 2>/dev/null; true`
+      ).pipe(Effect.catchAll(() => Effect.void))
       proxyTunnel = yield* deps.createProxyTunnel({
         vmIp: vm.ip!,
         sshPort: vm.ssh_port!,
@@ -530,9 +541,9 @@ export function reconnectSession(
         }))
       )
 
-      const proxyUrl = `socks5://127.0.0.1:${creds.proxyPort}`
+      const proxyUrl = `socks5://127.0.0.2:${creds.proxyPort}`
       yield* deps.sshExec(vm.ip!, vm.ssh_port!,
-        `git config --global http.https://${creds.ghHost}/.proxy ${proxyUrl}`
+        `git config --global http.https://${creds.ghHost}/.proxy ${proxyUrl} && git config --global url."https://${creds.ghHost}/".insteadOf "git@${creds.ghHost}:"`
       ).pipe(Effect.catchAll(() => Effect.void))
 
       yield* deps.injectCredentials(vm.ip!, vm.ssh_port!, {
@@ -544,6 +555,9 @@ export function reconnectSession(
     }
 
     // 3c. Re-establish API reverse tunnel for cross-project task creation
+    yield* deps.sshExec(vm.ip!, vm.ssh_port!,
+      `sudo fuser -k -n tcp ${creds.serverPort} 2>/dev/null; true`
+    ).pipe(Effect.catchAll(() => Effect.void))
     const apiTunnel = yield* deps.createProxyTunnel({
       vmIp: vm.ip!,
       sshPort: vm.ssh_port!,

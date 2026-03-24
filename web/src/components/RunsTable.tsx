@@ -3,6 +3,7 @@ import { Link } from "react-router-dom"
 import type { Task, TaskStatus } from "@tangerine/shared"
 import { getStatusConfig } from "../lib/status"
 import { formatDuration } from "../lib/format"
+import { useProjectNav } from "../hooks/useProjectNav"
 import { cancelTask, deleteTask, retryTask } from "../lib/api"
 import { RunCard } from "./RunCard"
 
@@ -39,6 +40,7 @@ interface RunsTableProps {
 }
 
 export function RunsTable({ tasks, searchQuery, onSearchChange, onRefetch }: RunsTableProps) {
+  const { link } = useProjectNav()
   const [statusFilter, setStatusFilter] = useState<StatusFilter>("all")
 
   const filtered = statusFilter === "all"
@@ -111,7 +113,7 @@ export function RunsTable({ tasks, searchQuery, onSearchChange, onRefetch }: Run
           filtered.map((task) => (
             <Link
               key={task.id}
-              to={`/tasks/${task.id}`}
+              to={link(`/tasks/${task.id}`)}
               className="flex items-center border-t border-edge text-[13px] hover:bg-surface-secondary/50"
             >
               <div className="flex-1 truncate px-3 py-2.5 font-medium text-fg">{task.title}</div>
