@@ -34,11 +34,9 @@ portForwards:
     guestPortRange: [1, 65535]
     ignore: true
 
-# Mount home directory — gives VM access to SSH keys, git config, and tangerine data.
-# ~/tangerine writable for DB persistence. Rest read-only for safety.
+# Mount tangerine data — DB, config, credentials survive VM rebuilds.
+# SSH keys handled by Lima's forwardAgent + loadDotSSHPubKeys.
 mounts:
-  - location: "~"
-    writable: false
   - location: "~/tangerine"
     writable: true
 
