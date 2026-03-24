@@ -4,6 +4,7 @@
 import { Effect } from "effect"
 import type { Database } from "bun:sqlite"
 import { createLogger } from "../logger"
+import { VM_USER } from "../config"
 import { SessionStartError } from "../errors"
 import type { TaskRow } from "../db/types"
 import type { ProjectVmRow } from "../vm/project-vm"
@@ -27,7 +28,7 @@ export interface SessionInfo {
 
 export interface LifecycleDeps {
   db: Database
-  getOrCreateVm(projectId: string, imageName: string): Effect.Effect<ProjectVmRow, Error>
+  getOrCreateVm(projectId: string, imageName: string, onProvision?: (ip: string, sshPort: number) => Effect.Effect<void, Error>): Effect.Effect<ProjectVmRow, Error>
   sshExec(host: string, port: number, command: string): Effect.Effect<{ stdout: string; stderr: string; exitCode: number }, import("../errors").SshError>
   waitForSsh(host: string, port: number): Effect.Effect<void, import("../errors").SshTimeoutError>
   copyAuthJson(host: string, port: number, authJsonPath: string): Effect.Effect<void, import("../errors").SshError>
@@ -81,9 +82,51 @@ export function startSession(
     const branch = task.branch ?? `tangerine/${taskPrefix}`
 
     // 1. Get or create persistent project VM
+    // On first provision: inject credentials, set up proxy, clone repo
     taskLog.info("Getting VM for project", { projectId: task.project_id })
     yield* activity("vm.acquiring", "Getting VM for project")
-    const vm = yield* deps.getOrCreateVm(task.project_id, config.image).pipe(
+    const onProvision = (ip: string, sshPort: number) =>
+      Effect.gen(function* () {
+        // Inject git credentials for HTTPS cloning
+        if (creds.githubToken || creds.gheToken) {
+          const credLines: string[] = []
+          if (creds.githubToken) credLines.push(`https://x-access-token:${creds.githubToken}@github.com`)
+          if (creds.gheToken && creds.ghHost !== "github.com") credLines.push(`https://x-access-token:${creds.gheToken}@${creds.ghHost}`)
+          yield* deps.sshExec(ip, sshPort,
+            `git config --global credential.helper store && printf '%b\\n' '${credLines.join("\\n")}' > ~/.git-credentials && chmod 600 ~/.git-credentials`
+          ).pipe(Effect.catchAll(() => Effect.void))
+        }
+        // Set up SOCKS proxy + SSH→HTTPS rewrite for GHE
+        if (creds.proxyPort && creds.ghHost !== "github.com") {
+          const proxyUrl = `socks5://127.0.0.2:${creds.proxyPort}`
+          // Start a temporary reverse tunnel for the clone
+          const tunnelProc = Bun.spawn([
+            "ssh", "-N",
+            "-o", "StrictHostKeyChecking=no", "-o", "UserKnownHostsFile=/dev/null",
+            "-o", "BatchMode=yes", "-o", "LogLevel=ERROR",
+            "-p", String(sshPort),
+            "-R", `127.0.0.2:${creds.proxyPort}:127.0.0.1:${creds.proxyPort}`,
+            `${VM_USER}@${ip}`,
+          ], { stdin: "ignore", stdout: "ignore", stderr: "ignore" })
+          // Wait for tunnel to establish
+          yield* Effect.sleep("2 seconds")
+          yield* deps.sshExec(ip, sshPort,
+            `git config --global http.https://${creds.ghHost}/.proxy ${proxyUrl} && git config --global url."https://${creds.ghHost}/".insteadOf "git@${creds.ghHost}:"`
+          ).pipe(Effect.catchAll(() => Effect.void))
+          // Clone repo
+          yield* deps.sshExec(ip, sshPort,
+            `git clone ${task.repo_url} /workspace/repo`
+          ).pipe(Effect.mapError((e) => new Error(`Repo pre-clone failed: ${e.message}`)))
+          // Kill temporary tunnel
+          try { tunnelProc.kill() } catch { /* already dead */ }
+        } else {
+          // No proxy needed — clone directly
+          yield* deps.sshExec(ip, sshPort,
+            `git clone ${task.repo_url} /workspace/repo`
+          ).pipe(Effect.mapError((e) => new Error(`Repo pre-clone failed: ${e.message}`)))
+        }
+      })
+    const vm = yield* deps.getOrCreateVm(task.project_id, config.image, onProvision).pipe(
       Effect.tapError((e) => activity("vm.acquire_failed", `VM acquisition failed: ${e.message}`)),
       Effect.mapError((e) => new SessionStartError({
         message: `VM acquisition failed: ${e.message}`,
@@ -294,7 +337,7 @@ export function startSession(
     yield* deps.sshExec(
       vm.ip!,
       vm.ssh_port!,
-      `sudo mkdir -p /workspace && sudo chown $(whoami) /workspace && if [ -d /workspace/repo/.git ]; then
+      `if [ -d /workspace/repo/.git ]; then
         cd /workspace/repo && git fetch origin
       else
         rm -rf /workspace/repo

@@ -4,7 +4,7 @@
 import { Effect } from "effect"
 import type { Database } from "bun:sqlite"
 import { createLogger } from "../logger"
-import { waitForSsh } from "./ssh"
+import { waitForSsh, sshExec } from "./ssh"
 import type { Provider } from "./providers/types"
 import { BASE_VM_NAME, runProjectSetup } from "../image/build"
 
@@ -50,7 +50,11 @@ export class ProjectVmManager {
    * New VMs are cloned directly from the base image. Project-specific
    * setup (build.sh) runs on first provisioning and is cached on the VM.
    */
-  getOrCreateVm(projectId: string, imageName: string): Effect.Effect<ProjectVmRow, Error> {
+  getOrCreateVm(
+    projectId: string,
+    imageName: string,
+    onProvision?: (ip: string, sshPort: number) => Effect.Effect<void, Error>,
+  ): Effect.Effect<ProjectVmRow, Error> {
     return Effect.gen(this, function* (_) {
       // Check for existing active VM
       const existing = this.db
@@ -110,6 +114,16 @@ export class ProjectVmManager {
           try: () => runProjectSetup(imageName, instance.ip, instance.sshPort ?? 22, log),
           catch: (e) => new Error(`Project setup failed: ${e}`),
         })
+
+        // Ensure /workspace exists (limactl clone doesn't re-run provision scripts)
+        yield* sshExec(instance.ip, instance.sshPort ?? 22,
+          "sudo mkdir -p /workspace && sudo chown $(whoami) /workspace"
+        ).pipe(Effect.asVoid, Effect.catchAll(() => Effect.void))
+
+        // Run caller-provided setup (proxy tunnels, credentials, repo clone)
+        if (onProvision) {
+          yield* onProvision(instance.ip, instance.sshPort ?? 22)
+        }
 
         // Mark active
         this.db
@@ -258,6 +272,13 @@ export class ProjectVmManager {
             .run(instance.ip, instance.sshPort ?? null, vm.id)
           alive++
         } else {
+          // Update IP/port in case VM was restarted (Lima assigns new SSH port)
+          if (instance.ip && (instance.ip !== vm.ip || instance.sshPort !== vm.ssh_port)) {
+            log.info("Updating VM connection info", { vmId: vm.id, oldPort: vm.ssh_port, newPort: instance.sshPort })
+            this.db
+              .prepare("UPDATE vms SET ip = ?, ssh_port = ?, updated_at = datetime('now') WHERE id = ?")
+              .run(instance.ip, instance.sshPort ?? null, vm.id)
+          }
           alive++
         }
       }

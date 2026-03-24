@@ -153,7 +153,7 @@ export async function start(): Promise<void> {
       credentialConfig: config.credentials,
       lifecycleDeps: {
         db,
-        getOrCreateVm: (projectId, imageName) => vmManager.getOrCreateVm(projectId, imageName),
+        getOrCreateVm: (projectId, imageName, onProvision) => vmManager.getOrCreateVm(projectId, imageName, onProvision),
         sshExec: (host, port, command) =>
           sshExec(host, port, command).pipe(
             Effect.map((stdout) => ({ stdout, stderr: "", exitCode: 0 }))
@@ -419,7 +419,42 @@ export async function start(): Promise<void> {
           if (!project) {
             return Effect.fail({ _tag: "ProjectNotFoundError" as const, message: `Unknown project: ${projectId}` })
           }
-          return vmManager.getOrCreateVm(projectId, project.image).pipe(
+          const creds = config.credentials
+          const onProvision = (ip: string, port: number) =>
+            Effect.gen(function* () {
+              // Inject git credentials
+              if (creds.githubToken || creds.gheToken) {
+                const credLines: string[] = []
+                if (creds.githubToken) credLines.push(`https://x-access-token:${creds.githubToken}@github.com`)
+                if (creds.gheToken && creds.ghHost !== "github.com") credLines.push(`https://x-access-token:${creds.gheToken}@${creds.ghHost}`)
+                yield* sshExec(ip, port,
+                  `git config --global credential.helper store && printf '%b\\n' '${credLines.join("\\n")}' > ~/.git-credentials && chmod 600 ~/.git-credentials`
+                ).pipe(Effect.asVoid, Effect.catchAll(() => Effect.void))
+              }
+              // Set up SOCKS proxy for GHE
+              if (creds.proxyPort && creds.ghHost !== "github.com") {
+                const proxyUrl = `socks5://127.0.0.2:${creds.proxyPort}`
+                const tunnelProc = Bun.spawn([
+                  "ssh", "-N", "-o", "StrictHostKeyChecking=no", "-o", "UserKnownHostsFile=/dev/null",
+                  "-o", "BatchMode=yes", "-o", "LogLevel=ERROR",
+                  "-p", String(port), "-R", `127.0.0.2:${creds.proxyPort}:127.0.0.1:${creds.proxyPort}`,
+                  `${VM_USER}@${ip}`,
+                ], { stdin: "ignore", stdout: "ignore", stderr: "ignore" })
+                yield* Effect.sleep("2 seconds")
+                yield* sshExec(ip, port,
+                  `git config --global http.https://${creds.ghHost}/.proxy ${proxyUrl} && git config --global url."https://${creds.ghHost}/".insteadOf "git@${creds.ghHost}:"`
+                ).pipe(Effect.asVoid, Effect.catchAll(() => Effect.void))
+                yield* sshExec(ip, port, `git clone ${project.repo} /workspace/repo`).pipe(
+                  Effect.asVoid, Effect.mapError((e) => new Error(`Repo clone failed: ${e.message}`))
+                )
+                try { tunnelProc.kill() } catch { /* already dead */ }
+              } else {
+                yield* sshExec(ip, port, `git clone ${project.repo} /workspace/repo`).pipe(
+                  Effect.asVoid, Effect.mapError((e) => new Error(`Repo clone failed: ${e.message}`))
+                )
+              }
+            })
+          return vmManager.getOrCreateVm(projectId, project.image, onProvision).pipe(
             Effect.map((vm) => ({ id: vm.id, status: vm.status, ip: vm.ip })),
             Effect.mapError((e): { _tag: string; message?: string } => ({
               _tag: "ProvisionError",
