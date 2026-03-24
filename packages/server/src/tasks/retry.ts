@@ -1,11 +1,11 @@
 // Retry wrapper using Effect.retry with exponential backoff.
-// Logs each attempt so failures can be diagnosed from the timeline.
+// v1: No tunnel cleanup between retries — just agent + worktree.
 
 import { Effect, Schedule } from "effect"
 import { createLogger } from "../logger"
 
 import type { TaskRow } from "../db/types"
-import type { CredentialConfig, LifecycleDeps, ProjectConfig, SessionInfo } from "./lifecycle"
+import type { LifecycleDeps, ProjectConfig, SessionInfo } from "./lifecycle"
 import type { CleanupDeps } from "./cleanup"
 import { startSession, reconnectSession } from "./lifecycle"
 import { cleanupSession } from "./cleanup"
@@ -23,21 +23,18 @@ export interface RetryDeps {
 export function startSessionWithRetry(
   task: TaskRow,
   config: ProjectConfig,
-  creds: CredentialConfig,
   lifecycleDeps: LifecycleDeps,
   retryDeps: RetryDeps,
 ): Effect.Effect<void, never> {
   let attempt = 0
-  return startSession(task, config, creds, lifecycleDeps).pipe(
+  return startSession(task, config, lifecycleDeps).pipe(
     Effect.tap((session) =>
       Effect.sync(() => {
         retryDeps.onSessionReady?.(task.id, session)
       })
     ),
-    // Discard the SessionInfo on success since callers only care about side effects
     Effect.asVoid,
     Effect.tapError(() =>
-      // Clean up partial resources (tunnels, agent handles) before retry
       cleanupSession(task.id, retryDeps.cleanupDeps).pipe(
         Effect.tap(() => Effect.sync(() => {
           attempt++
@@ -61,7 +58,6 @@ export function startSessionWithRetry(
       })
     ),
     Effect.catchAll((error) =>
-      // After all retries exhausted, mark task as failed and clean up worktree
       Effect.gen(function* () {
         yield* retryDeps.updateTask(task.id, { status: "failed" }).pipe(Effect.ignoreLogged)
         yield* retryDeps.updateTask(task.id, {
@@ -77,11 +73,10 @@ export function startSessionWithRetry(
 export function reconnectSessionWithRetry(
   task: TaskRow,
   config: ProjectConfig,
-  creds: CredentialConfig,
   lifecycleDeps: LifecycleDeps,
   retryDeps: RetryDeps,
 ): Effect.Effect<void, never> {
-  return reconnectSession(task, config, creds, lifecycleDeps).pipe(
+  return reconnectSession(task, config, lifecycleDeps).pipe(
     Effect.tap((session) =>
       Effect.sync(() => {
         retryDeps.onSessionReady?.(task.id, session)

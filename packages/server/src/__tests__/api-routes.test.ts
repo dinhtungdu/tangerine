@@ -10,7 +10,7 @@ import type { RawConfig } from "../config"
 function createMockDeps(db: Database, configOverrides?: Partial<AppDeps["config"]["config"]>): AppDeps {
   const configData = {
     projects: [
-      { name: "test-project", repo: "test/repo", defaultBranch: "main", image: "test", setup: "echo ok", defaultProvider: "opencode" as const },
+      { name: "test-project", repo: "test/repo", defaultBranch: "main", setup: "echo ok", defaultProvider: "opencode" as const },
     ],
     integrations: {},
     model: "openai/gpt-4o",
@@ -71,48 +71,16 @@ function createMockDeps(db: Database, configOverrides?: Partial<AppDeps["config"
       onTaskEvent() { return () => {} },
       onStatusChange() { return () => {} },
     },
-    pool: {
-      getPoolStats() {
-        return Effect.succeed({ active: 2, stopped: 1, provisioning: 0, total: 3 })
-      },
-      destroyVm(vmId) {
-        return Effect.sync(() => {
-          const vm = db.prepare("SELECT * FROM vms WHERE id = ?").get(vmId)
-          if (!vm) throw new Error(`VM ${vmId} not found`)
-          db.prepare("UPDATE vms SET status = 'destroyed' WHERE id = ?").run(vmId)
-        }).pipe(Effect.mapError((e) => ({ _tag: "VmNotFoundError" as const, message: String(e) })))
-      },
-      provisionVm() {
-        return Effect.succeed({ id: "test-vm", status: "active", ip: "127.0.0.1" })
-      },
-      reprovisionTasksForVm() {
-        return Effect.succeed({ reprovisioned: 0, failed: 0 })
-      },
-      resumeOrphanedTasks() {
-        return Effect.succeed(0)
-      },
-      reconcile() {
-        return Effect.succeed(undefined as void)
-      },
-    },
-    sshExec() { return Effect.succeed("") },
     orphanCleanup: {
       findOrphans() { return Effect.succeed([]) },
       cleanupOrphans() { return Effect.succeed(0) },
-    },
-    getOrCreatePreviewPort() { return Effect.fail({ _tag: "TaskNotFoundError" as const, message: "No preview in tests" }) },
-    devServer: {
-      start() { return Effect.succeed(undefined as void) },
-      stop() { return Effect.succeed(undefined as void) },
-      status() { return Effect.succeed({ running: false }) },
     },
     configStore: {
       read: () => rawConfig,
       write: (config: RawConfig) => { rawConfig = config },
     },
-    refreshCredentials: () => Effect.succeed({ updated: 0, failed: 0 }),
     config: {
-      config: configData,
+      config: configData as AppDeps["config"]["config"],
       credentials: {
         opencodeAuthPath: null,
         claudeOauthToken: null,
@@ -125,10 +93,6 @@ function createMockDeps(db: Database, configOverrides?: Partial<AppDeps["config"
         externalHost: "localhost",
       },
     } satisfies AppDeps["config"],
-    imageBuild: {
-      startBase() { return { ok: true } },
-      getStatus() { return { status: "idle" } },
-    },
   }
 }
 
@@ -144,27 +108,6 @@ function seedTask(db: Database, overrides?: Partial<Parameters<typeof dbCreateTa
     description: null,
     ...overrides,
   }))
-}
-
-function seedVm(db: Database, overrides?: Record<string, unknown>): { id: string } {
-  const id = `vm-${crypto.randomUUID().slice(0, 8)}`
-  db.prepare(`
-    INSERT INTO vms (id, label, provider, ip, ssh_port, status, project_id, snapshot_id, region, plan)
-    VALUES ($id, $label, $provider, $ip, $ssh_port, $status, $project_id, $snapshot_id, $region, $plan)
-  `).run({
-    $id: id,
-    $label: id,
-    $provider: "lima",
-    $ip: "10.0.0.1",
-    $ssh_port: 22,
-    $status: "active",
-    $project_id: "test-project",
-    $snapshot_id: "snap-test",
-    $region: "local",
-    $plan: "4cpu-8gb",
-    ...overrides,
-  })
-  return { id }
 }
 
 describe("API routes", () => {
@@ -184,16 +127,6 @@ describe("API routes", () => {
       expect(res.status).toBe(200)
       const body = await res.json() as { status: string }
       expect(body.status).toBe("ok")
-    })
-  })
-
-  describe("GET /api/pool", () => {
-    test("returns pool stats", async () => {
-      const res = await app.fetch(new Request("http://localhost/api/pool"))
-      expect(res.status).toBe(200)
-      const body = await res.json() as { active: number; total: number }
-      expect(body.active).toBe(2)
-      expect(body.total).toBe(3)
     })
   })
 
@@ -437,31 +370,6 @@ describe("API routes", () => {
         body: JSON.stringify({}),
       }))
       expect(res.status).toBe(400)
-    })
-  })
-
-  describe("DELETE /api/vms/:id", () => {
-    test("destroys a VM and reprovisions tasks", async () => {
-      const vm = seedVm(db)
-      const res = await app.fetch(new Request(`http://localhost/api/vms/${vm.id}`, { method: "DELETE" }))
-      expect(res.status).toBe(200)
-      const body = await res.json() as { reprovisioned: number; failed: number }
-      expect(body.reprovisioned).toBe(0)
-      expect(body.failed).toBe(0)
-    })
-
-    test("returns 500 for unknown VM", async () => {
-      const res = await app.fetch(new Request("http://localhost/api/vms/nonexistent", { method: "DELETE" }))
-      expect(res.status).not.toBe(200)
-    })
-  })
-
-  describe("POST /api/pool/reconcile", () => {
-    test("triggers pool reconciliation", async () => {
-      const res = await app.fetch(new Request("http://localhost/api/pool/reconcile", { method: "POST" }))
-      expect(res.status).toBe(200)
-      const body = await res.json() as { ok: boolean }
-      expect(body.ok).toBe(true)
     })
   })
 

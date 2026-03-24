@@ -1,6 +1,6 @@
 // Periodic orphan cleanup: finds terminal tasks with worktree_path still set
-// and cleans them up. Safety net for crashes, SSH failures, or bugs in
-// transition hooks. Modeled after Orange's cleanupOrphans().
+// and cleans them up. Safety net for crashes or bugs in transition hooks.
+// v1: All local — no SSH-based cleanup.
 
 import { Effect, Schedule } from "effect"
 import { createLogger } from "../logger"
@@ -39,15 +39,15 @@ export function cleanupOrphans(
 ): Effect.Effect<number, never> {
   return Effect.gen(function* () {
     // Reconcile stale worktree pool slots before checking orphans
-    const allVmIds = yield* Effect.try(() => {
+    const allProjectIds = yield* Effect.try(() => {
       const rows = deps.cleanupDeps.db.prepare(
-        "SELECT DISTINCT vm_id FROM worktree_slots WHERE status = 'bound'",
-      ).all() as { vm_id: string }[]
-      return rows.map((r) => r.vm_id)
+        "SELECT DISTINCT project_id FROM worktree_slots WHERE status = 'bound'",
+      ).all() as { project_id: string }[]
+      return rows.map((r) => r.project_id)
     }).pipe(Effect.catchAll(() => Effect.succeed([] as string[])))
 
-    for (const vmId of allVmIds) {
-      yield* reconcileStaleSlots(deps.cleanupDeps.db, vmId, deps.cleanupDeps.getTask).pipe(
+    for (const projectId of allProjectIds) {
+      yield* reconcileStaleSlots(deps.cleanupDeps.db, projectId, deps.cleanupDeps.getTask).pipe(
         Effect.ignoreLogged,
       )
     }
@@ -64,7 +64,6 @@ export function cleanupOrphans(
     for (const task of orphans) {
       const taskLog = log.child({ taskId: task.id, worktree: task.worktree_path })
 
-      // cleanupSession clears worktree_path in the DB after cleanup
       yield* cleanupSession(task.id, deps.cleanupDeps).pipe(
         Effect.tap(() => Effect.sync(() => {
           taskLog.info("Orphaned worktree cleaned")

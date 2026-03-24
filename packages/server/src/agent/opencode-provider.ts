@@ -1,24 +1,12 @@
-// OpenCode agent provider: spawns OpenCode server inside VM, establishes SSH tunnel,
+// OpenCode agent provider: spawns OpenCode server as a local process,
 // creates a session, and bridges SSE events to the normalized AgentEvent stream.
 
 import { Effect } from "effect"
 import { createLogger } from "../logger"
 import { AgentError, PromptError, SessionStartError } from "../errors"
-import { VM_USER } from "../config"
 import type { AgentFactory, AgentHandle, AgentEvent, AgentStartContext } from "./provider"
-import type { SessionTunnel } from "../vm/tunnel"
 
 const log = createLogger("opencode-provider")
-
-export interface OpenCodeProviderDeps {
-  sshExec(host: string, port: number, command: string): Effect.Effect<string, import("../errors").SshError>
-  createTunnel(opts: {
-    vmIp: string
-    sshPort: number
-    user?: string
-    remoteOpencodePort?: number
-  }): Effect.Effect<SessionTunnel, import("../errors").TunnelError>
-}
 
 /** Maps OpenCode SSE events to normalized AgentEvents */
 function mapSseEvent(data: Record<string, unknown>): AgentEvent | null {
@@ -56,59 +44,26 @@ function mapSseEvent(data: Record<string, unknown>): AgentEvent | null {
   }
 }
 
-export function createOpenCodeProvider(deps: OpenCodeProviderDeps): AgentFactory {
+export function createOpenCodeProvider(): AgentFactory {
   return {
     start(ctx: AgentStartContext): Effect.Effect<AgentHandle, SessionStartError> {
       const taskLog = log.child({ taskId: ctx.taskId })
 
       return Effect.gen(function* () {
-        const opencodeVmPort = 4096
+        const opencodePort = 4096
 
-        // Start OpenCode server inside the VM (fire-and-forget)
-        yield* Effect.tryPromise({
-          try: async () => {
-            Bun.spawn(
-              [
-                "ssh", "-o", "StrictHostKeyChecking=no",
-                "-p", String(ctx.sshPort),
-                `${VM_USER}@${ctx.vmIp}`,
-                `test -f ~/.env && set -a && . ~/.env && set +a; cd ${ctx.workdir} && opencode serve --port ${opencodeVmPort} --hostname 0.0.0.0 > /tmp/opencode.log 2>&1`,
-              ],
-              { stdout: "ignore", stderr: "ignore", stdin: "ignore" },
-            )
-            await new Promise((r) => setTimeout(r, 1000))
+        // Start OpenCode server as a local process
+        const proc = Bun.spawn(
+          ["opencode", "serve", "--port", String(opencodePort), "--hostname", "127.0.0.1"],
+          {
+            cwd: ctx.workdir,
+            stdout: "ignore",
+            stderr: "ignore",
+            stdin: "ignore",
+            env: { ...process.env, ...ctx.env },
           },
-          catch: (e) =>
-            new SessionStartError({
-              message: `OpenCode start failed: ${e}`,
-              taskId: ctx.taskId,
-              phase: "start-opencode",
-              cause: e instanceof Error ? e : new Error(String(e)),
-            }),
-        })
-        taskLog.info("OpenCode started")
-
-        // Establish SSH tunnel for OpenCode API
-        const tunnel = yield* deps
-          .createTunnel({
-            vmIp: ctx.vmIp,
-            sshPort: ctx.sshPort,
-            remoteOpencodePort: opencodeVmPort,
-          })
-          .pipe(
-            Effect.mapError(
-              (e) =>
-                new SessionStartError({
-                  message: `Tunnel creation failed: ${e.message}`,
-                  taskId: ctx.taskId,
-                  phase: "create-tunnel",
-                  cause: e,
-                }),
-            ),
-          )
-        taskLog.info("Tunnel established", {
-          agentPort: tunnel.agentPort,
-        })
+        )
+        taskLog.info("OpenCode started", { port: opencodePort, pid: proc.pid })
 
         // Wait for OpenCode health
         yield* Effect.tryPromise({
@@ -116,7 +71,7 @@ export function createOpenCodeProvider(deps: OpenCodeProviderDeps): AgentFactory
             const maxAttempts = 30
             for (let i = 0; i < maxAttempts; i++) {
               try {
-                const res = await fetch(`http://localhost:${tunnel.agentPort}/global/health`)
+                const res = await fetch(`http://localhost:${opencodePort}/global/health`)
                 if (res.ok) return
               } catch {
                 // not ready yet
@@ -137,7 +92,7 @@ export function createOpenCodeProvider(deps: OpenCodeProviderDeps): AgentFactory
         // Create OpenCode session (model is passed per-prompt, not via config)
         const sessionId = yield* Effect.tryPromise({
           try: async () => {
-            const r = await fetch(`http://localhost:${tunnel.agentPort}/session`, {
+            const r = await fetch(`http://localhost:${opencodePort}/session`, {
               method: "POST",
               headers: { "Content-Type": "application/json" },
               body: JSON.stringify({ title: ctx.title }),
@@ -212,7 +167,7 @@ export function createOpenCodeProvider(deps: OpenCodeProviderDeps): AgentFactory
           const doConnect = async (): Promise<void> => {
             if (sseAborted) return
             try {
-              const response = await fetch(`http://localhost:${tunnel.agentPort}/event`, {
+              const response = await fetch(`http://localhost:${opencodePort}/event`, {
                 headers: { Accept: "text/event-stream" },
               })
               if (!response.ok || !response.body) {
@@ -277,7 +232,7 @@ export function createOpenCodeProvider(deps: OpenCodeProviderDeps): AgentFactory
                 if (modelPayload) body.model = modelPayload
 
                 const res = await fetch(
-                  `http://localhost:${tunnel.agentPort}/session/${sessionId}/prompt_async`,
+                  `http://localhost:${opencodePort}/session/${sessionId}/prompt_async`,
                   {
                     method: "POST",
                     headers: { "Content-Type": "application/json" },
@@ -298,7 +253,7 @@ export function createOpenCodeProvider(deps: OpenCodeProviderDeps): AgentFactory
             return Effect.tryPromise({
               try: async () => {
                 const res = await fetch(
-                  `http://localhost:${tunnel.agentPort}/session/${sessionId}/abort`,
+                  `http://localhost:${opencodePort}/session/${sessionId}/abort`,
                   { method: "POST" },
                 )
                 if (!res.ok) throw new Error(`Abort failed: ${res.status}`)
@@ -335,9 +290,9 @@ export function createOpenCodeProvider(deps: OpenCodeProviderDeps): AgentFactory
               sseAborted = true
               subscribers.clear()
               try {
-                tunnel.process.kill()
+                proc.kill()
               } catch {
-                // tunnel may already be dead
+                // process may already be dead
               }
               taskLog.info("Agent shutdown")
             })
@@ -347,7 +302,7 @@ export function createOpenCodeProvider(deps: OpenCodeProviderDeps): AgentFactory
         // Attach metadata so callers can read session/port info
         ;(handle as AgentHandleWithMeta).__meta = {
           sessionId,
-          agentPort: tunnel.agentPort,
+          agentPort: opencodePort,
         }
 
         return handle

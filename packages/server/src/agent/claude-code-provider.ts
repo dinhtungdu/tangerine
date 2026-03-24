@@ -1,10 +1,9 @@
-// Claude Code agent provider: spawns `claude` CLI inside VM via SSH with stdin/stdout piping.
+// Claude Code agent provider: spawns `claude` CLI as a local process with stdin/stdout piping.
 // No tunnel, no HTTP, no port allocation — just subprocess I/O.
 
 import { Effect } from "effect"
 import { createLogger } from "../logger"
 import { AgentError, PromptError, SessionStartError } from "../errors"
-import { VM_USER } from "../config"
 import type { AgentFactory, AgentHandle, AgentEvent, AgentStartContext } from "./provider"
 import { parseNdjsonStream, mapClaudeCodeEvent } from "./ndjson"
 
@@ -18,31 +17,23 @@ export function createClaudeCodeProvider(): AgentFactory {
       return Effect.tryPromise({
         try: async () => {
           const spawnClaude = (sessionFlag: string) => {
-            const claudeArgs = [
-              `test -f ~/.env && set -a && . ~/.env && set +a;`,
-              `cd ${ctx.workdir} &&`,
-              `claude`,
-              `--output-format stream-json`,
-              `--input-format stream-json`,
-              `--verbose`,
-              sessionFlag,
-              ...(ctx.model ? [`--model ${ctx.model}`] : []),
-              ...(ctx.reasoningEffort ? [`--reasoning-effort ${ctx.reasoningEffort}`] : []),
-              `--dangerously-skip-permissions`,
+            const args = [
+              "claude",
+              "--output-format", "stream-json",
+              "--input-format", "stream-json",
+              "--verbose",
+              ...sessionFlag.split(" "),
+              ...(ctx.model ? ["--model", ctx.model] : []),
+              ...(ctx.reasoningEffort ? ["--reasoning-effort", ctx.reasoningEffort] : []),
+              "--dangerously-skip-permissions",
             ]
-            return Bun.spawn(
-              [
-                "ssh",
-                "-T",
-                "-o", "StrictHostKeyChecking=no",
-                "-o", "UserKnownHostsFile=/dev/null",
-                "-o", "LogLevel=ERROR",
-                "-p", String(ctx.sshPort),
-                `${VM_USER}@${ctx.vmIp}`,
-                claudeArgs.join(" "),
-              ],
-              { stdin: "pipe", stdout: "pipe", stderr: "pipe" },
-            )
+            return Bun.spawn(args, {
+              cwd: ctx.workdir,
+              stdin: "pipe",
+              stdout: "pipe",
+              stderr: "pipe",
+              env: { ...process.env, ...ctx.env },
+            })
           }
 
           // Start with --resume if we have a previous session, else fresh
@@ -160,7 +151,7 @@ export function createClaudeCodeProvider(): AgentFactory {
             abort() {
               return Effect.try({
                 try: () => {
-                  // Send SIGINT to the SSH process, which forwards to claude
+                  // Send SIGINT to interrupt the current turn
                   proc.kill("SIGINT")
                 },
                 catch: (e) =>

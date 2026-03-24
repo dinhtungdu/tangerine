@@ -1,6 +1,5 @@
 export type {
   TaskStatus,
-  VmStatus,
   TaskSource,
   Task,
   ProviderType,

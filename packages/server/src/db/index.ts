@@ -117,23 +117,13 @@ export function resetDb(): void {
 }
 
 export { SCHEMA } from "./schema"
-export type { VmRow, TaskRow, SessionLogRow, ImageRow } from "./types"
+export type { TaskRow, SessionLogRow } from "./types"
 export {
   createTask,
   getTask,
   listTasks,
   updateTask,
   updateTaskStatus,
-  createVm,
-  getVm,
-  listVms,
-  updateVm,
-  updateVmStatus,
-  getVmByProject,
   insertSessionLog,
   getSessionLogs,
-  createImage,
-  getImage,
-  listImages,
-  pruneOldImages,
 } from "./queries"

@@ -15,11 +15,6 @@ async function main(): Promise<void> {
       await start()
       break
     }
-    case "image": {
-      const { runImage } = await import("./image.ts")
-      await runImage(args.slice(1))
-      break
-    }
     case "task": {
       const { runTask } = await import("./task.ts")
       await runTask(args.slice(1))
@@ -28,11 +23,6 @@ async function main(): Promise<void> {
     case "project": {
       const { runProject } = await import("./project.ts")
       await runProject(args.slice(1))
-      break
-    }
-    case "pool": {
-      const { runPool } = await import("./pool.ts")
-      await runPool(args.slice(1))
       break
     }
     case "config": {

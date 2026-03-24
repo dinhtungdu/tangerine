@@ -7,17 +7,16 @@ import {
   acquireSlot,
   releaseSlot,
   reconcileStaleSlots,
-  deletePoolForVm,
+  deletePoolForProject,
   getSlotForTask,
 } from "../tasks/worktree-pool"
 import type { WorktreeSlotRow } from "../db/types"
 
-const VM_ID = "vm-1"
-const VM_IP = "10.0.0.1"
-const SSH_PORT = 22
+const PROJECT_ID = "proj-1"
+const REPO_PATH = "/workspace/repo"
 
-// Mock SSH that always succeeds
-const mockSshExec = () =>
+// Mock local exec that always succeeds
+const mockExec = () =>
   Effect.succeed({ stdout: "", stderr: "", exitCode: 0 })
 
 // Mock getTask that returns a status
@@ -35,19 +34,15 @@ describe("worktree-pool", () => {
 
   beforeEach(() => {
     db = createTestDb()
-    // Insert a VM row so FK constraints pass
-    db.prepare(
-      "INSERT INTO vms (id, label, provider, ip, ssh_port, status, project_id, snapshot_id, region, plan) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
-    ).run(VM_ID, "test-vm", "lima", VM_IP, SSH_PORT, "active", "proj-1", "snap-1", "local", "4cpu")
   })
 
   describe("initPool", () => {
     test("creates N slots", async () => {
       const slots = await Effect.runPromise(
-        initPool(db, VM_ID, mockSshExec, VM_IP, SSH_PORT, 3),
+        initPool(db, PROJECT_ID, mockExec, REPO_PATH, 3),
       )
       expect(slots).toHaveLength(3)
-      expect(slots.map((s) => s.id)).toEqual(["vm-1-slot-0", "vm-1-slot-1", "vm-1-slot-2"])
+      expect(slots.map((s) => s.id)).toEqual(["proj-1-slot-0", "proj-1-slot-1", "proj-1-slot-2"])
       expect(slots.every((s) => s.status === "available")).toBe(true)
 
       const dbSlots = getSlots(db)
@@ -55,20 +50,20 @@ describe("worktree-pool", () => {
     })
 
     test("is idempotent — skips existing slots", async () => {
-      await Effect.runPromise(initPool(db, VM_ID, mockSshExec, VM_IP, SSH_PORT, 2))
+      await Effect.runPromise(initPool(db, PROJECT_ID, mockExec, REPO_PATH, 2))
       const slots = await Effect.runPromise(
-        initPool(db, VM_ID, mockSshExec, VM_IP, SSH_PORT, 2),
+        initPool(db, PROJECT_ID, mockExec, REPO_PATH, 2),
       )
       expect(slots).toHaveLength(2)
       expect(getSlots(db)).toHaveLength(2)
     })
 
     test("grows pool when size increases", async () => {
-      await Effect.runPromise(initPool(db, VM_ID, mockSshExec, VM_IP, SSH_PORT, 1))
+      await Effect.runPromise(initPool(db, PROJECT_ID, mockExec, REPO_PATH, 1))
       expect(getSlots(db)).toHaveLength(1)
 
       const slots = await Effect.runPromise(
-        initPool(db, VM_ID, mockSshExec, VM_IP, SSH_PORT, 3),
+        initPool(db, PROJECT_ID, mockExec, REPO_PATH, 3),
       )
       expect(slots).toHaveLength(3)
       expect(getSlots(db)).toHaveLength(3)
@@ -78,22 +73,22 @@ describe("worktree-pool", () => {
   function insertTask(id: string, status = "running") {
     db.prepare(
       "INSERT INTO tasks (id, project_id, source, repo_url, title, status) VALUES (?, ?, ?, ?, ?, ?)",
-    ).run(id, "proj-1", "manual", "https://github.com/t/r", "Test", status)
+    ).run(id, PROJECT_ID, "manual", "https://github.com/t/r", "Test", status)
   }
 
   describe("acquireSlot", () => {
     beforeEach(async () => {
-      await Effect.runPromise(initPool(db, VM_ID, mockSshExec, VM_IP, SSH_PORT, 2))
+      await Effect.runPromise(initPool(db, PROJECT_ID, mockExec, REPO_PATH, 2))
     })
 
     test("returns available slot and marks bound", async () => {
       insertTask("task-1")
       const slot = await Effect.runPromise(
-        acquireSlot(db, VM_ID, "task-1", mockGetTask({})),
+        acquireSlot(db, PROJECT_ID, "task-1", mockGetTask({})),
       )
       expect(slot.status).toBe("bound")
       expect(slot.task_id).toBe("task-1")
-      expect(slot.path).toMatch(/\/workspace\/worktrees\/vm-1-slot-\d/)
+      expect(slot.path).toMatch(/\/workspace\/repo\/worktrees\/proj-1-slot-\d/)
     })
 
     test("fails when pool exhausted", async () => {
@@ -101,11 +96,11 @@ describe("worktree-pool", () => {
       insertTask("task-2")
       insertTask("task-3")
 
-      await Effect.runPromise(acquireSlot(db, VM_ID, "task-1", mockGetTask({ "task-1": "running", "task-2": "running" })))
-      await Effect.runPromise(acquireSlot(db, VM_ID, "task-2", mockGetTask({ "task-1": "running", "task-2": "running" })))
+      await Effect.runPromise(acquireSlot(db, PROJECT_ID, "task-1", mockGetTask({ "task-1": "running", "task-2": "running" })))
+      await Effect.runPromise(acquireSlot(db, PROJECT_ID, "task-2", mockGetTask({ "task-1": "running", "task-2": "running" })))
 
       const result = Effect.runPromise(
-        acquireSlot(db, VM_ID, "task-3", mockGetTask({ "task-1": "running", "task-2": "running" })),
+        acquireSlot(db, PROJECT_ID, "task-3", mockGetTask({ "task-1": "running", "task-2": "running" })),
       )
       await expect(result).rejects.toThrow(/No worktree slots available/)
     })
@@ -114,12 +109,12 @@ describe("worktree-pool", () => {
       insertTask("task-1")
       insertTask("task-2")
 
-      await Effect.runPromise(acquireSlot(db, VM_ID, "task-1", mockGetTask({ "task-1": "running" })))
-      await Effect.runPromise(acquireSlot(db, VM_ID, "task-2", mockGetTask({ "task-1": "running", "task-2": "running" })))
+      await Effect.runPromise(acquireSlot(db, PROJECT_ID, "task-1", mockGetTask({ "task-1": "running" })))
+      await Effect.runPromise(acquireSlot(db, PROJECT_ID, "task-2", mockGetTask({ "task-1": "running", "task-2": "running" })))
 
       // task-1 is now "done" — stale reconciliation should free its slot
       const slot = await Effect.runPromise(
-        acquireSlot(db, VM_ID, "task-2", mockGetTask({ "task-1": "done", "task-2": "done" })),
+        acquireSlot(db, PROJECT_ID, "task-2", mockGetTask({ "task-1": "done", "task-2": "done" })),
       )
       expect(slot.status).toBe("bound")
     })
@@ -127,14 +122,14 @@ describe("worktree-pool", () => {
 
   describe("releaseSlot", () => {
     test("resets slot to available", async () => {
-      await Effect.runPromise(initPool(db, VM_ID, mockSshExec, VM_IP, SSH_PORT, 1))
+      await Effect.runPromise(initPool(db, PROJECT_ID, mockExec, REPO_PATH, 1))
       insertTask("task-1")
-      await Effect.runPromise(acquireSlot(db, VM_ID, "task-1", mockGetTask({})))
+      await Effect.runPromise(acquireSlot(db, PROJECT_ID, "task-1", mockGetTask({})))
 
       const before = getSlots(db)
       expect(before[0]!.status).toBe("bound")
 
-      await Effect.runPromise(releaseSlot(db, "task-1", mockSshExec, VM_IP, SSH_PORT))
+      await Effect.runPromise(releaseSlot(db, "task-1", mockExec))
 
       const after = getSlots(db)
       expect(after[0]!.status).toBe("available")
@@ -143,22 +138,22 @@ describe("worktree-pool", () => {
 
     test("no-ops when task has no slot", async () => {
       // Should not throw
-      await Effect.runPromise(releaseSlot(db, "nonexistent", mockSshExec, VM_IP, SSH_PORT))
+      await Effect.runPromise(releaseSlot(db, "nonexistent", mockExec))
     })
   })
 
   describe("reconcileStaleSlots", () => {
     test("releases slots bound to terminal tasks", async () => {
-      await Effect.runPromise(initPool(db, VM_ID, mockSshExec, VM_IP, SSH_PORT, 2))
+      await Effect.runPromise(initPool(db, PROJECT_ID, mockExec, REPO_PATH, 2))
       insertTask("task-1")
       insertTask("task-2")
 
-      await Effect.runPromise(acquireSlot(db, VM_ID, "task-1", mockGetTask({ "task-1": "running", "task-2": "running" })))
-      await Effect.runPromise(acquireSlot(db, VM_ID, "task-2", mockGetTask({ "task-1": "running", "task-2": "running" })))
+      await Effect.runPromise(acquireSlot(db, PROJECT_ID, "task-1", mockGetTask({ "task-1": "running", "task-2": "running" })))
+      await Effect.runPromise(acquireSlot(db, PROJECT_ID, "task-2", mockGetTask({ "task-1": "running", "task-2": "running" })))
 
       // Both tasks now done
       const released = await Effect.runPromise(
-        reconcileStaleSlots(db, VM_ID, mockGetTask({ "task-1": "done", "task-2": "cancelled" })),
+        reconcileStaleSlots(db, PROJECT_ID, mockGetTask({ "task-1": "done", "task-2": "cancelled" })),
       )
       expect(released).toBe(2)
 
@@ -167,12 +162,12 @@ describe("worktree-pool", () => {
     })
   })
 
-  describe("deletePoolForVm", () => {
-    test("removes all slots for a VM", async () => {
-      await Effect.runPromise(initPool(db, VM_ID, mockSshExec, VM_IP, SSH_PORT, 3))
+  describe("deletePoolForProject", () => {
+    test("removes all slots for a project", async () => {
+      await Effect.runPromise(initPool(db, PROJECT_ID, mockExec, REPO_PATH, 3))
       expect(getSlots(db)).toHaveLength(3)
 
-      const deleted = await Effect.runPromise(deletePoolForVm(db, VM_ID))
+      const deleted = await Effect.runPromise(deletePoolForProject(db, PROJECT_ID))
       expect(deleted).toBe(3)
       expect(getSlots(db)).toHaveLength(0)
     })
@@ -180,9 +175,9 @@ describe("worktree-pool", () => {
 
   describe("getSlotForTask", () => {
     test("returns slot bound to task", async () => {
-      await Effect.runPromise(initPool(db, VM_ID, mockSshExec, VM_IP, SSH_PORT, 1))
+      await Effect.runPromise(initPool(db, PROJECT_ID, mockExec, REPO_PATH, 1))
       insertTask("task-1")
-      await Effect.runPromise(acquireSlot(db, VM_ID, "task-1", mockGetTask({})))
+      await Effect.runPromise(acquireSlot(db, PROJECT_ID, "task-1", mockGetTask({})))
 
       const slot = await Effect.runPromise(getSlotForTask(db, "task-1"))
       expect(slot).not.toBeNull()

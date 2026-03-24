@@ -1,5 +1,5 @@
 # Tangerine Lima VM Template
-# Minimal VM config — provisioning handled by base-setup.sh + project build.sh via SSH.
+# Minimal — just boots a Debian VM. Run base-setup.sh via SSH to install tools.
 
 # Debian 13 (Trixie) cloud images
 images:
@@ -38,4 +38,7 @@ portForwards:
 mounts: []
 
 message: |
-  Tangerine VM created. Run base-setup.sh to install tools.
+  Tangerine VM ready. Next steps:
+    1. scp deploy/base-setup.sh <vm>:/tmp/
+    2. ssh <vm> sudo bash /tmp/base-setup.sh
+    3. Clone tangerine repo and run: bun install && tangerine start

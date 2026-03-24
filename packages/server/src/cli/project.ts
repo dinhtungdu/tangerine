@@ -20,16 +20,14 @@ Subcommands:
 Options for add:
   --name <name>           Project name (required)
   --repo <url>            Git repo URL (required)
-  --image <name>          Golden image name (required)
   --setup <cmd>           Setup command run each session (required)
   --branch <branch>       Default branch (default: main)
   --preview-command <cmd> Command to start preview server (optional)
   --test <cmd>            Test command (optional)
-  --extra-ports <ports>   Extra forwarded ports, comma-separated (optional)
 
 Examples:
-  tangerine project add --name my-app --repo https://github.com/me/my-app --image node-dev --setup "npm install && npm run dev"
-  tangerine project add --name wp --repo https://github.com/me/wp --image wordpress-dev --setup "npm run env:start" --branch trunk --extra-ports 8086,3306
+  tangerine project add --name my-app --repo https://github.com/me/my-app --setup "npm install && npm run dev"
+  tangerine project add --name wp --repo https://github.com/me/wp --setup "npm run env:start" --branch trunk
   tangerine project list
   tangerine project show my-app
   tangerine project remove my-app
@@ -61,22 +59,18 @@ async function addProject(argv: string[]): Promise<void> {
   const parsed = parseArgs(argv, {
     name: { alias: "n", required: true },
     repo: { alias: "r", required: true },
-    image: { alias: "i", required: true },
     setup: { alias: "s", required: true },
     branch: { alias: "b" },
     "preview-command": {},
     test: { alias: "t" },
-    "extra-ports": {},
   })
 
   const name = parsed.flags["name"]!
   const repo = parsed.flags["repo"]!
-  const image = parsed.flags["image"]!
   const setup = parsed.flags["setup"]!
   const defaultBranch = parsed.flags["branch"] ?? "main"
   const previewCommand = parsed.flags["preview-command"]
   const test = parsed.flags["test"]
-  const extraPortsRaw = parsed.flags["extra-ports"]
 
   const config = readRawConfig()
 
@@ -94,7 +88,6 @@ async function addProject(argv: string[]): Promise<void> {
     name,
     repo,
     defaultBranch,
-    image,
     setup,
   }
 
@@ -106,15 +99,11 @@ async function addProject(argv: string[]): Promise<void> {
     project.test = test
   }
 
-  if (extraPortsRaw) {
-    project.extraPorts = extraPortsRaw.split(",").map((p) => Number(p.trim()))
-  }
-
   config.projects.push(project)
   writeRawConfig(config)
 
   console.log(`Project "${name}" added to ${CONFIG_PATH}`)
-  log.info("Project registered", { name, repo, image })
+  log.info("Project registered", { name, repo })
 }
 
 function listProjects(): void {
@@ -127,11 +116,10 @@ function listProjects(): void {
   }
 
   printTable(
-    ["NAME", "REPO", "IMAGE", "BRANCH"],
+    ["NAME", "REPO", "BRANCH"],
     projects.map((p) => [
       String(p.name ?? ""),
       String(p.repo ?? ""),
-      String(p.image ?? ""),
       String(p.defaultBranch ?? "main"),
     ])
   )

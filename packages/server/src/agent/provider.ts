@@ -39,8 +39,6 @@ export interface AgentHandle {
 /** Context passed to AgentFactory.start() to bootstrap an agent session */
 export interface AgentStartContext {
   taskId: string
-  vmIp: string
-  sshPort: number
   workdir: string
   title: string
   /** Model ID to use (e.g. "claude-sonnet-4-6" for Claude Code, "anthropic/claude-sonnet-4-6" for OpenCode) */
@@ -49,8 +47,8 @@ export interface AgentStartContext {
   reasoningEffort?: string
   /** If set, resume an existing session instead of creating a new one */
   resumeSessionId?: string
-  /** Setup command running in background — agent should wait before building/testing */
-  setupCommand?: string
+  /** Extra environment variables merged into the spawned process env */
+  env?: Record<string, string>
 }
 
 /** Factory that creates agent sessions — one implementation per provider */
