@@ -32,7 +32,13 @@ ssh:
 
 # Disable Lima auto port-forwarding — VM services (MariaDB, Apache, etc.)
 # must not steal host ports. Tangerine manages its own tunnels explicitly.
-portForwards: []
+portForwards:
+  - guestIP: "0.0.0.0"
+    guestPortRange: [1, 65535]
+    ignore: true
+  - guestIP: "127.0.0.1"
+    guestPortRange: [1, 65535]
+    ignore: true
 
 # No host mounts — repos are cloned inside the VM
 mounts: []

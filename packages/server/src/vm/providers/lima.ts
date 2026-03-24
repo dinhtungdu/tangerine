@@ -1,3 +1,4 @@
+import { readFileSync, writeFileSync } from "fs";
 import { Effect } from "effect";
 import type {
   Provider,
@@ -123,6 +124,31 @@ export class LimaProvider implements Provider {
     });
   }
 
+  /** Patch a cloned VM's lima.yaml to disable auto port-forwarding */
+  private patchCloneConfig(name: string): Effect.Effect<void, ProviderError> {
+    return Effect.try({
+      try: () => {
+        const configPath = `${process.env.HOME}/.lima/${name}/lima.yaml`;
+        const content = readFileSync(configPath, "utf-8");
+        if (!content.includes("portForwards")) {
+          const patch = [
+            "",
+            "portForwards:",
+            "  - guestIP: \"0.0.0.0\"",
+            "    guestPortRange: [1, 65535]",
+            "    ignore: true",
+            "  - guestIP: \"127.0.0.1\"",
+            "    guestPortRange: [1, 65535]",
+            "    ignore: true",
+            "",
+          ].join("\n");
+          writeFileSync(configPath, content + patch);
+        }
+      },
+      catch: (e) => new ProviderError({ message: `Failed to patch clone config: ${e}`, provider: "lima", operation: "patchCloneConfig", cause: e }),
+    });
+  }
+
   private getLimaInstance(name: string): Effect.Effect<LimaInstance | null, ProviderError> {
     return Effect.gen(this, function* () {
       const result = yield* this.exec(["list", name, "--json"]);
@@ -190,9 +216,14 @@ export class LimaProvider implements Provider {
         const goldenName = template.slice("clone:".length);
         if (verbose) {
           yield* this.execInherit(["clone", "--tty=false", goldenName, name], 120_000);
-          yield* this.execInherit(["start", name, "--tty=false"], 240_000);
         } else {
           yield* this.execOrThrow(["clone", "--tty=false", goldenName, name], 120_000);
+        }
+        // limactl clone doesn't copy portForwards — patch before start
+        yield* this.patchCloneConfig(name);
+        if (verbose) {
+          yield* this.execInherit(["start", name, "--tty=false"], 240_000);
+        } else {
           yield* this.execOrThrow(["start", name, "--tty=false"], 240_000);
         }
       } else {
