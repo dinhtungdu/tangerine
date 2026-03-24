@@ -34,8 +34,11 @@ portForwards:
     guestPortRange: [1, 65535]
     ignore: true
 
-# No host mounts — repos are cloned inside the VM
-mounts: []
+# Mount tangerine data directory — DB and config survive VM rebuilds
+mounts:
+  - location: "~/tangerine"
+    mountPoint: "/home/{{.User}}/tangerine"
+    writable: true
 
 message: |
   Tangerine VM ready. Next steps:
