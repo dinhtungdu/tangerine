@@ -148,7 +148,7 @@ export async function start(): Promise<void> {
       getProjectConfig: (projectId) => {
         const p = getProjectConfig(config.config, projectId)
         if (!p) return undefined
-        return { ...p, preview: p.preview ?? { port: 3000 } }
+        return { ...p, previewCommand: p.previewCommand }
       },
       credentialConfig: config.credentials,
       lifecycleDeps: {
@@ -454,18 +454,20 @@ export async function start(): Promise<void> {
         start: (taskId) =>
           Effect.gen(function* () {
             const task = yield* getTask(db, taskId)
-            if (!task?.vm_id) {
-              return yield* Effect.fail({ _tag: "TaskNotFoundError" as const, message: "Task has no VM" })
+            if (!task?.vm_id || !task.preview_port) {
+              return yield* Effect.fail({ _tag: "TaskNotFoundError" as const, message: "Task has no VM or preview port" })
             }
             const vm = yield* getVm(db, task.vm_id)
             if (!vm?.ip || !vm.ssh_port) {
               return yield* Effect.fail({ _tag: "VmNotFoundError" as const, message: "VM not found" })
             }
             const project = getProjectConfig(config.config, task.project_id)
-            const previewPort = project?.preview?.port ?? 3000
+            const previewCommand = project?.previewCommand
+            if (!previewCommand) {
+              return yield* Effect.fail({ _tag: "TaskError" as const, message: "No previewCommand configured for this project" })
+            }
             const workdir = task.worktree_path ?? "/workspace/repo"
-            const previewCommand = project?.preview?.command ?? "node server.js"
-            yield* sshExec(vm.ip, vm.ssh_port, `fuser -k ${previewPort}/tcp 2>/dev/null || true`).pipe(Effect.catchAll(() => Effect.void))
+            yield* sshExec(vm.ip, vm.ssh_port, `fuser -k ${task.preview_port}/tcp 2>/dev/null || true`).pipe(Effect.catchAll(() => Effect.void))
             yield* sshExec(vm.ip, vm.ssh_port,
               `cd ${workdir} && nohup ${previewCommand} > /tmp/dev-server.log 2>&1 &`
             ).pipe(Effect.asVoid)
@@ -474,16 +476,14 @@ export async function start(): Promise<void> {
         stop: (taskId) =>
           Effect.gen(function* () {
             const task = yield* getTask(db, taskId)
-            if (!task?.vm_id) {
-              return yield* Effect.fail({ _tag: "TaskNotFoundError" as const, message: "Task has no VM" })
+            if (!task?.vm_id || !task.preview_port) {
+              return yield* Effect.fail({ _tag: "TaskNotFoundError" as const, message: "Task has no VM or preview port" })
             }
             const vm = yield* getVm(db, task.vm_id)
             if (!vm?.ip || !vm.ssh_port) {
               return yield* Effect.fail({ _tag: "VmNotFoundError" as const, message: "VM not found" })
             }
-            const project = getProjectConfig(config.config, task.project_id)
-            const previewPort = project?.preview?.port ?? 3000
-            yield* sshExec(vm.ip, vm.ssh_port, `fuser -k ${previewPort}/tcp 2>/dev/null || true`).pipe(Effect.asVoid)
+            yield* sshExec(vm.ip, vm.ssh_port, `fuser -k ${task.preview_port}/tcp 2>/dev/null || true`).pipe(Effect.asVoid)
           }).pipe(Effect.mapError((e) => "_tag" in e ? e : { _tag: "TaskNotFoundError" as const, message: String(e) })),
 
         status: (taskId) =>
@@ -512,38 +512,31 @@ export async function start(): Promise<void> {
           }
 
           if (!task.vm_id) return yield* Effect.fail({ _tag: "TaskNotFoundError" as const, message: "Task has no VM" })
+          if (!task.preview_port) return yield* Effect.fail({ _tag: "TaskNotFoundError" as const, message: "Task has no preview port allocated" })
           const vm = yield* getVm(db, task.vm_id)
           if (!vm?.ip || !vm.ssh_port) return yield* Effect.fail({ _tag: "VmNotFoundError" as const, message: "VM not found" })
 
           const project = getProjectConfig(config.config, task.project_id)
-          const remotePort = project?.preview?.port ?? 3000
 
-          // Use pre-allocated port from session start, or allocate fresh
-          const tunnel = yield* createPreviewTunnel({
-            vmIp: vm.ip,
-            sshPort: vm.ssh_port,
-            remotePort,
-            localPort: task.preview_port ?? undefined,
-          }).pipe(Effect.mapError((e) => ({ _tag: "TunnelError" as const, message: e.message })))
-
-          previewTunnels.set(taskId, tunnel)
-          yield* updateTask(db, taskId, { preview_port: tunnel.localPort }).pipe(
-            Effect.catchAll(() => Effect.void)
-          )
-
-          // Run preview command if configured (kill existing process on the port first)
-          const previewCommand = project?.preview?.command
+          // Run preview command before creating tunnel (e.g. setup vhost, start server)
+          const previewCommand = project?.previewCommand
           if (previewCommand) {
             const workdir = task.worktree_path ?? "/workspace/repo"
             yield* sshExec(vm.ip, vm.ssh_port,
-              `fuser -k ${remotePort}/tcp 2>/dev/null || true`
-            ).pipe(Effect.catchAll(() => Effect.void))
-            yield* sshExec(vm.ip, vm.ssh_port,
-              `cd ${workdir} && nohup ${previewCommand} > /tmp/preview-server.log 2>&1 &`
-            ).pipe(Effect.catchAll(() => Effect.void))
+              `cd ${workdir} && ${previewCommand}`
+            ).pipe(Effect.mapError((e) => ({ _tag: "PreviewError" as const, message: `Preview command failed: ${e.message}` })))
           }
 
-          return tunnel.localPort
+          // Same port on both sides — host binds on 0.0.0.0, VM listens on 127.0.0.1
+          const tunnel = yield* createPreviewTunnel({
+            vmIp: vm.ip,
+            sshPort: vm.ssh_port,
+            remotePort: task.preview_port,
+            localPort: task.preview_port,
+          }).pipe(Effect.mapError((e) => ({ _tag: "TunnelError" as const, message: e.message })))
+
+          previewTunnels.set(taskId, tunnel)
+          return task.preview_port
         }),
       sshExec: (host, port, command) =>
         sshExec(host, port, command).pipe(

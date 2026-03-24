@@ -1,11 +1,5 @@
 import { z } from "zod"
 
-const previewConfigSchema = z.object({
-  port: z.number().default(3000),
-  path: z.string().default("/"),
-  command: z.string().optional(),
-})
-
 const poolConfigSchema = z.object({
   maxPoolSize: z.number().default(2),
   minReady: z.number().default(1),
@@ -18,7 +12,7 @@ export const projectConfigSchema = z.object({
   defaultBranch: z.string().default("main"),
   image: z.string(),
   setup: z.string(),
-  preview: previewConfigSchema.optional(),
+  previewCommand: z.string().optional(),
   test: z.string().optional(),
   extraPorts: z.array(z.number()).optional(),
   env: z.record(z.string()).optional(),

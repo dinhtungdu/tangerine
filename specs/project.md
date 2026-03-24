@@ -15,10 +15,7 @@ Stored in `tangerine.json` at the project root (or `~/.config/tangerine/config.j
     "image": "wordpress-dev",
     "setup": "npm install && npx wp-env start",
     "defaultProvider": "opencode",
-    "preview": {
-      "port": 8888,
-      "path": "/"
-    },
+    "previewCommand": "setup-vhost.sh $TANGERINE_PREVIEW_PORT",
     "test": "npx wp-env run tests-wordpress phpunit",
     "env": {
       "PHP_VERSION": "8.2"
@@ -37,9 +34,7 @@ Stored in `tangerine.json` at the project root (or `~/.config/tangerine/config.j
 | `image` | string | yes | Golden image name (built from image assets dir) |
 | `setup` | string | yes | Shell commands to run after clone (install deps, start dev server) |
 | `defaultProvider` | `"opencode" \| "claude-code"` | no | Default agent provider. Default: `"opencode"` |
-| `preview.port` | number | no | Port to forward for browser preview. Default: 3000 |
-| `preview.path` | string | no | URL path for preview. Default: `/` |
-| `preview.command` | string | no | Command to start preview server (run in worktree on first preview access) |
+| `previewCommand` | string | no | Command to run on first preview access (e.g. setup vhost, start server). Port available via `$TANGERINE_PREVIEW_PORT` |
 | `test` | string | no | Command to run tests |
 | `extraPorts` | number[] | no | Additional ports to forward |
 | `env` | object | no | Extra env vars passed to VM |

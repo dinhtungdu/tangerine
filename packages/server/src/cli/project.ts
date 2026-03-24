@@ -23,8 +23,7 @@ Options for add:
   --image <name>          Golden image name (required)
   --setup <cmd>           Setup command run each session (required)
   --branch <branch>       Default branch (default: main)
-  --preview-port <port>   Preview port (optional)
-  --preview-path <path>   Preview path (default: /)
+  --preview-command <cmd> Command to start preview server (optional)
   --test <cmd>            Test command (optional)
   --extra-ports <ports>   Extra forwarded ports, comma-separated (optional)
 
@@ -65,8 +64,7 @@ async function addProject(argv: string[]): Promise<void> {
     image: { alias: "i", required: true },
     setup: { alias: "s", required: true },
     branch: { alias: "b" },
-    "preview-port": {},
-    "preview-path": {},
+    "preview-command": {},
     test: { alias: "t" },
     "extra-ports": {},
   })
@@ -76,8 +74,7 @@ async function addProject(argv: string[]): Promise<void> {
   const image = parsed.flags["image"]!
   const setup = parsed.flags["setup"]!
   const defaultBranch = parsed.flags["branch"] ?? "main"
-  const previewPort = parsed.flags["preview-port"]
-  const previewPath = parsed.flags["preview-path"]
+  const previewCommand = parsed.flags["preview-command"]
   const test = parsed.flags["test"]
   const extraPortsRaw = parsed.flags["extra-ports"]
 
@@ -101,11 +98,8 @@ async function addProject(argv: string[]): Promise<void> {
     setup,
   }
 
-  if (previewPort || previewPath) {
-    project.preview = {
-      port: previewPort ? Number(previewPort) : 3000,
-      path: previewPath ?? "/",
-    }
+  if (previewCommand) {
+    project.previewCommand = previewCommand
   }
 
   if (test) {
