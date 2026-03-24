@@ -4,7 +4,7 @@ import { homedir, userInfo } from "os"
 import { tangerineConfigSchema, DEFAULT_API_PORT } from "@tangerine/shared"
 import type { TangerineConfig, ProjectConfig } from "@tangerine/shared"
 
-export const TANGERINE_HOME = join(homedir(), "tangerine")
+export const TANGERINE_HOME = process.env.TANGERINE_HOME ?? join(homedir(), "tangerine")
 export const CONFIG_PATH = join(TANGERINE_HOME, "config.json")
 export const CREDENTIALS_PATH = join(TANGERINE_HOME, ".credentials")
 
