@@ -57,7 +57,7 @@ export function initPool(
     const existingIds = new Set(existing.map((s) => s.id))
 
     for (let i = 0; i < poolSize; i++) {
-      const slotId = `slot-${i}`
+      const slotId = `${vmId}-slot-${i}`
       if (existingIds.has(slotId)) continue
 
       const path = `/workspace/worktrees/${slotId}`
@@ -70,7 +70,7 @@ export function initPool(
 
       const row = yield* dbTry(() => {
         db.prepare(
-          "INSERT INTO worktree_slots (id, vm_id, path, status) VALUES ($id, $vm_id, $path, 'available')",
+          "INSERT OR IGNORE INTO worktree_slots (id, vm_id, path, status) VALUES ($id, $vm_id, $path, 'available')",
         ).run({ $id: slotId, $vm_id: vmId, $path: path })
         return db.prepare("SELECT * FROM worktree_slots WHERE id = ?").get(slotId) as WorktreeSlotRow
       })

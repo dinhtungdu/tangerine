@@ -406,20 +406,49 @@ export function startSession(
       }))
     )
 
-    // 6. Run setup in worktree directory
+    // 6. Run setup in background — agent starts immediately while setup runs
+    const setupStatusFile = `/tmp/tangerine-setup-${task.id.slice(0, 8)}.status`
+    const setupLogFile = `/tmp/tangerine-setup-${task.id.slice(0, 8)}.log`
     const setupSpan = vmLog.startOp("setup")
-    yield* activity("setup.started", `Running setup: ${config.setup}`)
-    yield* deps.sshExec(vm.ip!, vm.ssh_port!, `cd ${worktreePath} && ${config.setup}`).pipe(
-      Effect.tap(() => activity("setup.completed", "Setup completed")),
-      Effect.tap(() => Effect.sync(() => setupSpan.end())),
-      Effect.tapError((e) => activity("setup.failed", `Setup failed: ${e.message}`)),
-      Effect.tapError((e) => Effect.sync(() => setupSpan.fail(e))),
-      Effect.mapError((e) => new SessionStartError({
-        message: `Setup failed: ${e.message}`,
-        taskId: task.id,
-        phase: "setup",
-        cause: e,
-      }))
+    yield* activity("setup.started", `Running setup (background): ${config.setup}`)
+
+    // Launch setup as background process, track status via files
+    const setupCmd = [
+      `echo running > ${setupStatusFile};`,
+      `( cd ${worktreePath} && ${config.setup} ) > ${setupLogFile} 2>&1;`,
+      `if [ $? -eq 0 ]; then echo done > ${setupStatusFile}; else echo failed > ${setupStatusFile}; fi`,
+    ].join(" ")
+    yield* deps.sshExec(vm.ip!, vm.ssh_port!, `nohup bash -c '${setupCmd.replace(/'/g, "'\\''")}' &`).pipe(
+      Effect.catchAll(() => Effect.void)
+    )
+
+    // Monitor setup completion in background (for activity log, not blocking)
+    yield* Effect.forkDaemon(
+      Effect.gen(function* () {
+        // Poll until setup finishes (max 10 min)
+        for (let i = 0; i < 120; i++) {
+          yield* Effect.sleep("5 seconds")
+          const result = yield* deps.sshExec(vm.ip!, vm.ssh_port!, `cat ${setupStatusFile} 2>/dev/null || echo running`).pipe(
+            Effect.catchAll(() => Effect.succeed({ stdout: "running", stderr: "", exitCode: 0 }))
+          )
+          const status = result.stdout.trim()
+          if (status === "done") {
+            yield* activity("setup.completed", "Setup completed")
+            setupSpan.end()
+            return
+          }
+          if (status === "failed") {
+            const logResult = yield* deps.sshExec(vm.ip!, vm.ssh_port!, `tail -20 ${setupLogFile} 2>/dev/null`).pipe(
+              Effect.catchAll(() => Effect.succeed({ stdout: "(no log)", stderr: "", exitCode: 0 }))
+            )
+            yield* activity("setup.failed", `Setup failed (non-blocking): ${logResult.stdout.trim().slice(0, 500)}`)
+            setupSpan.fail(new Error("Setup failed"))
+            return
+          }
+        }
+        yield* activity("setup.failed", "Setup timed out after 10 minutes")
+        setupSpan.fail(new Error("Setup timed out"))
+      })
     )
 
     // 7. Kill any stale agent processes in this worktree (from previous provisioning)
@@ -428,7 +457,7 @@ export function startSession(
       `pkill -f "claude.*${worktreePath}" 2>/dev/null; pkill -f "opencode.*${worktreePath}" 2>/dev/null; true`,
     ).pipe(Effect.catchAll(() => Effect.void))
 
-    // 8. Start agent in worktree directory
+    // 8. Start agent immediately — setup runs in parallel
     yield* activity("agent.starting", "Starting agent")
     const agentHandle = yield* deps.agentFactory.start({
       taskId: task.id,
@@ -438,6 +467,7 @@ export function startSession(
       title: task.title,
       model: task.model ?? undefined,
       reasoningEffort: task.reasoning_effort ?? undefined,
+      setupCommand: config.setup,
     })
     vmLog.info("Agent started")
 

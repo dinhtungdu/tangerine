@@ -47,7 +47,7 @@ describe("worktree-pool", () => {
         initPool(db, VM_ID, mockSshExec, VM_IP, SSH_PORT, 3),
       )
       expect(slots).toHaveLength(3)
-      expect(slots.map((s) => s.id)).toEqual(["slot-0", "slot-1", "slot-2"])
+      expect(slots.map((s) => s.id)).toEqual(["vm-1-slot-0", "vm-1-slot-1", "vm-1-slot-2"])
       expect(slots.every((s) => s.status === "available")).toBe(true)
 
       const dbSlots = getSlots(db)
@@ -93,7 +93,7 @@ describe("worktree-pool", () => {
       )
       expect(slot.status).toBe("bound")
       expect(slot.task_id).toBe("task-1")
-      expect(slot.path).toMatch(/\/workspace\/worktrees\/slot-\d/)
+      expect(slot.path).toMatch(/\/workspace\/worktrees\/vm-1-slot-\d/)
     })
 
     test("fails when pool exhausted", async () => {

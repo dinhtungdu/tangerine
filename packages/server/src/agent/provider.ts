@@ -49,6 +49,8 @@ export interface AgentStartContext {
   reasoningEffort?: string
   /** If set, resume an existing session instead of creating a new one */
   resumeSessionId?: string
+  /** Setup command running in background — agent should wait before building/testing */
+  setupCommand?: string
 }
 
 /** Factory that creates agent sessions — one implementation per provider */

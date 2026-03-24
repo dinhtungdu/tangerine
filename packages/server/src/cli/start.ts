@@ -49,6 +49,8 @@ function classifyTool(toolName: string): { activityType: "file" | "system"; acti
 
 // In-memory map of taskId → active AgentHandle (for cleanup and abort)
 const agentHandles = new Map<string, AgentHandle>()
+// Track which tasks have received their first prompt (for setup note injection)
+const firstPromptSent = new Set<string>()
 // In-memory map of taskId → active proxy tunnel (for cleanup)
 const proxyTunnels = new Map<string, ProxyTunnel>()
 // In-memory map of taskId → active API reverse tunnel (for cleanup)
@@ -344,17 +346,33 @@ export async function start(): Promise<void> {
               Effect.catchAll(() => Effect.void)
             )
 
+            // Prepend setup note to the first prompt for a task
+            let promptText = text
+            if (!firstPromptSent.has(taskId)) {
+              firstPromptSent.add(taskId)
+              const task = yield* getTask(db, taskId).pipe(Effect.catchAll(() => Effect.succeed(null)))
+              if (task?.project_id) {
+                const projConfig = getProjectConfig(config.config, task.project_id)
+                if (projConfig?.setup) {
+                  const prefix = task.id.slice(0, 8)
+                  promptText = `[NOTE: Project setup is running in the background (\`${projConfig.setup}\`). ` +
+                    `Before running builds, tests, or linters, check if setup is done: \`cat /tmp/tangerine-setup-${prefix}.status\` ` +
+                    `(running/done/failed). Log: \`cat /tmp/tangerine-setup-${prefix}.log\`]\n\n${text}`
+                }
+              }
+            }
+
             // Try agent handle first (works for both providers)
             const handle = agentHandles.get(taskId)
             if (handle) {
-              yield* handle.sendPrompt(text)
+              yield* handle.sendPrompt(promptText)
               return
             }
 
             // Fallback: task not yet running — queue for later
-            const task = yield* getTask(db, taskId)
-            if (!task?.agent_port || !task.agent_session_id) {
-              taskManager.queuePrompt(taskId, text)
+            const task2 = yield* getTask(db, taskId).pipe(Effect.catchAll(() => Effect.succeed(null)))
+            if (!task2?.agent_port || !task2.agent_session_id) {
+              taskManager.queuePrompt(taskId, promptText)
               return
             }
 
@@ -362,11 +380,11 @@ export async function start(): Promise<void> {
             yield* Effect.tryPromise({
               try: async () => {
                 const res = await fetch(
-                  `http://localhost:${task.agent_port}/session/${task.agent_session_id}/prompt_async`,
+                  `http://localhost:${task2.agent_port}/session/${task2.agent_session_id}/prompt_async`,
                   {
                     method: "POST",
                     headers: { "Content-Type": "application/json" },
-                    body: JSON.stringify({ parts: [{ type: "text", text }] }),
+                    body: JSON.stringify({ parts: [{ type: "text", text: promptText }] }),
                   },
                 )
                 if (!res.ok) {
