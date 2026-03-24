@@ -13,11 +13,6 @@ import type { TaskRow } from "../db/types"
  *
  * Validates the full data path: DB schema -> query functions ->
  * route handlers -> JSON serialization -> camelCase mapping.
- *
- * Since the actual app.ts is still a stub, we wire up a Hono app
- * manually using the same patterns as the route modules in
- * packages/server/src/api/routes/tasks.ts. This tests that the
- * DB queries, helpers, and HTTP layer all work together.
  */
 describe("tracer: config -> db -> api", () => {
   let db: Database
@@ -26,8 +21,7 @@ describe("tracer: config -> db -> api", () => {
   beforeEach(() => {
     db = createTestDb()
 
-    // Build a Hono app that mirrors the route structure from routes/tasks.ts
-    // and routes/system.ts, wired directly to the DB
+    // Build a Hono app that mirrors the route structure
     app = new Hono()
 
     app.get("/api/health", (c) => {
@@ -104,7 +98,6 @@ describe("tracer: config -> db -> api", () => {
     expect(task.title).toBe("Fix the bug")
     expect(task.description).toBe("Something is broken")
     expect(task.status).toBe("created")
-    expect(task.vmId).toBeNull()
     expect(task.branch).toBeNull()
     expect(task.prUrl).toBeNull()
     expect(task.createdAt).toBeDefined()
@@ -256,14 +249,13 @@ describe("tracer: config -> db -> api", () => {
       provider: "opencode",
       model: null,
       reasoning_effort: null,
-      vm_id: "vm-1",
       branch: "feat/test",
       worktree_path: null,
       pr_url: "https://github.com/owner/repo/pull/1",
       user_id: "user-1",
       agent_session_id: "session-1",
-      agent_port: 8080,
-      preview_port: 3000,
+      agent_pid: 12345,
+      preview_url: "http://localhost:3000",
       error: null,
       created_at: "2025-01-01T00:00:00Z",
       updated_at: "2025-01-01T01:00:00Z",
@@ -276,12 +268,11 @@ describe("tracer: config -> db -> api", () => {
     expect(mapped.provider).toBe("opencode")
     expect(mapped.sourceId).toBe("owner/repo#1")
     expect(mapped.sourceUrl).toBe("https://github.com/owner/repo/issues/1")
-    expect(mapped.vmId).toBe("vm-1")
     expect(mapped.prUrl).toBe("https://github.com/owner/repo/pull/1")
     expect(mapped.userId).toBe("user-1")
     expect(mapped.agentSessionId).toBe("session-1")
-    expect(mapped.agentPort).toBe(8080)
-    expect(mapped.previewPort).toBe(3000)
+    expect(mapped.agentPid).toBe(12345)
+    expect(mapped.previewUrl).toBe("http://localhost:3000")
     expect(mapped.createdAt).toBe("2025-01-01T00:00:00Z")
     expect(mapped.updatedAt).toBe("2025-01-01T01:00:00Z")
     expect(mapped.startedAt).toBe("2025-01-01T00:30:00Z")

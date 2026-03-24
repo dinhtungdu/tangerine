@@ -39,34 +39,14 @@ export interface AppDeps {
     onTaskEvent(taskId: string, handler: (data: unknown) => void): () => void
     onStatusChange(taskId: string, handler: (status: string) => void): () => void
   }
-  pool: {
-    getPoolStats(): Effect.Effect<unknown, TaggedError>
-    destroyVm(vmId: string): Effect.Effect<void, TaggedError>
-    provisionVm(projectId: string): Effect.Effect<{ id: string; status: string; ip: string | null }, TaggedError>
-    reprovisionTasksForVm(vmId: string): Effect.Effect<{ reprovisioned: number; failed: number }, TaggedError>
-    resumeOrphanedTasks(): Effect.Effect<number, TaggedError>
-    reconcile(): Effect.Effect<void, TaggedError>
-  }
-  imageBuild: {
-    startBase(): { ok: true } | { ok: false; reason: string }
-    getStatus(): { status: "idle" } | { status: "building" | "success" | "failed"; imageName: string; startedAt: string; finishedAt?: string; error?: string }
-  }
-  sshExec(host: string, port: number, command: string): Effect.Effect<string, TaggedError>
-  devServer: {
-    start(taskId: string): Effect.Effect<void, TaggedError>
-    stop(taskId: string): Effect.Effect<void, TaggedError>
-    status(taskId: string): Effect.Effect<{ running: boolean }, TaggedError>
-  }
   orphanCleanup: {
     findOrphans(): Effect.Effect<Array<{ id: string; title: string; status: string; worktreePath: string }>, TaggedError>
     cleanupOrphans(): Effect.Effect<number, TaggedError>
   }
-  getOrCreatePreviewPort(taskId: string): Effect.Effect<number, TaggedError>
   configStore: {
     read(): import("../config").RawConfig
     write(config: import("../config").RawConfig): void
   }
-  refreshCredentials(): Effect.Effect<{ updated: number; failed: number }, TaggedError>
   config: AppConfig
 }
 

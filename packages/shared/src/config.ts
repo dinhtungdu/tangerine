@@ -1,24 +1,22 @@
 import { z } from "zod"
 
-const poolConfigSchema = z.object({
-  maxPoolSize: z.number().default(2),
-  minReady: z.number().default(1),
-  idleTimeoutMs: z.number().default(600_000),
+const previewConfigSchema = z.object({
+  baseUrl: z.string(),
+  provision: z.string().optional(),
+  teardown: z.string().optional(),
+  urlPath: z.string().optional(),
 })
 
 export const projectConfigSchema = z.object({
   name: z.string(),
   repo: z.string(),
   defaultBranch: z.string().default("main"),
-  image: z.string(),
   setup: z.string(),
-  previewCommand: z.string().optional(),
   test: z.string().optional(),
-  extraPorts: z.array(z.number()).optional(),
+  preview: previewConfigSchema.optional(),
   env: z.record(z.string()).optional(),
   model: z.string().optional(),
-  defaultProvider: z.enum(["opencode", "claude-code"]).default("opencode"),
-  pool: poolConfigSchema.partial().optional(), // deprecated, kept for config compat
+  defaultProvider: z.enum(["opencode", "claude-code"]).default("claude-code"),
 })
 
 const githubTriggerSchema = z.object({
@@ -37,18 +35,18 @@ const integrationsSchema = z.object({
 })
 
 const defaultModels = [
-  "openai/gpt-5.4",
-  "anthropic/claude-sonnet-4-20250514",
+  "anthropic/claude-sonnet-4-6",
   "anthropic/claude-opus-4-20250514",
   "anthropic/claude-haiku-4-20250414",
+  "openai/gpt-5.4",
 ]
 
 export const tangerineConfigSchema = z.object({
   projects: z.array(projectConfigSchema).min(1),
-  model: z.string().default("openai/gpt-5.4"),
+  workspace: z.string().default("/workspace"),
+  model: z.string().default("anthropic/claude-sonnet-4-6"),
   models: z.array(z.string()).default(defaultModels),
   integrations: integrationsSchema.optional(),
-  pool: poolConfigSchema.default({}),
 })
 
 export type ProjectConfig = z.infer<typeof projectConfigSchema>

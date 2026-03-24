@@ -1,6 +1,6 @@
 import { Effect } from "effect"
 import type { Database } from "bun:sqlite"
-import type { VmRow, TaskRow, SessionLogRow, ImageRow } from "./types"
+import type { TaskRow, SessionLogRow } from "./types"
 import { DbError } from "../errors"
 
 function dbTry<T>(op: () => T): Effect.Effect<T, DbError> {
@@ -89,76 +89,6 @@ export function updateTaskStatus(db: Database, id: string, status: string): Effe
   return updateTask(db, id, { status })
 }
 
-// --- VMs ---
-
-export function createVm(
-  db: Database,
-  vm: Pick<VmRow, "id" | "label" | "provider" | "snapshot_id" | "region" | "plan" | "project_id"> &
-    Partial<Pick<VmRow, "ip" | "ssh_port" | "status">>
-): Effect.Effect<VmRow, DbError> {
-  return dbTry(() => {
-    const stmt = db.prepare(`
-      INSERT INTO vms (id, label, provider, ip, ssh_port, status, project_id, snapshot_id, region, plan)
-      VALUES ($id, $label, $provider, $ip, $ssh_port, $status, $project_id, $snapshot_id, $region, $plan)
-    `)
-    stmt.run({
-      $id: vm.id,
-      $label: vm.label,
-      $provider: vm.provider,
-      $ip: vm.ip ?? null,
-      $ssh_port: vm.ssh_port ?? null,
-      $status: vm.status ?? "provisioning",
-      $project_id: vm.project_id,
-      $snapshot_id: vm.snapshot_id,
-      $region: vm.region,
-      $plan: vm.plan,
-    })
-    return db.prepare("SELECT * FROM vms WHERE id = ?").get(vm.id) as VmRow
-  })
-}
-
-export function getVm(db: Database, id: string): Effect.Effect<VmRow | null, DbError> {
-  return dbTry(() => {
-    return db.prepare("SELECT * FROM vms WHERE id = ?").get(id) as VmRow | null
-  })
-}
-
-export function listVms(db: Database, status?: string): Effect.Effect<VmRow[], DbError> {
-  return dbTry(() => {
-    if (status) {
-      return db.prepare("SELECT * FROM vms WHERE status = ? ORDER BY created_at DESC").all(status) as VmRow[]
-    }
-    return db.prepare("SELECT * FROM vms ORDER BY created_at DESC").all() as VmRow[]
-  })
-}
-
-export function updateVm(db: Database, id: string, fields: Partial<Omit<VmRow, "id">>): Effect.Effect<VmRow | null, DbError> {
-  return dbTry(() => {
-    const keys = Object.keys(fields).filter((k) => k !== "id")
-    if (keys.length === 0) return db.prepare("SELECT * FROM vms WHERE id = ?").get(id) as VmRow | null
-
-    const sets = keys.map((k) => `${k} = $${k}`).join(", ")
-    const params: Record<string, string | number | null> = { $id: id }
-    for (const k of keys) {
-      const val = fields[k as keyof typeof fields]
-      params[`$${k}`] = val === undefined ? null : (val as string | number | null)
-    }
-
-    db.prepare(`UPDATE vms SET ${sets}, updated_at = datetime('now') WHERE id = $id`).run(params)
-    return db.prepare("SELECT * FROM vms WHERE id = ?").get(id) as VmRow | null
-  })
-}
-
-export function updateVmStatus(db: Database, id: string, status: string): Effect.Effect<VmRow | null, DbError> {
-  return updateVm(db, id, { status })
-}
-
-export function getVmByProject(db: Database, projectId: string): Effect.Effect<VmRow | null, DbError> {
-  return dbTry(() => {
-    return db.prepare("SELECT * FROM vms WHERE project_id = ? AND status != 'destroyed' ORDER BY created_at DESC LIMIT 1").get(projectId) as VmRow | null
-  })
-}
-
 // --- Session Logs ---
 
 export function insertSessionLog(
@@ -185,39 +115,6 @@ export function getSessionLogs(db: Database, taskId: string): Effect.Effect<Sess
   })
 }
 
-// --- Images ---
-
-export function createImage(
-  db: Database,
-  image: Pick<ImageRow, "id" | "name" | "provider" | "snapshot_id">
-): Effect.Effect<ImageRow, DbError> {
-  return dbTry(() => {
-    const stmt = db.prepare(`
-      INSERT INTO images (id, name, provider, snapshot_id)
-      VALUES ($id, $name, $provider, $snapshot_id)
-    `)
-    stmt.run({
-      $id: image.id,
-      $name: image.name,
-      $provider: image.provider,
-      $snapshot_id: image.snapshot_id,
-    })
-    return db.prepare("SELECT * FROM images WHERE id = ?").get(image.id) as ImageRow
-  })
-}
-
-export function getImage(db: Database, id: string): Effect.Effect<ImageRow | null, DbError> {
-  return dbTry(() => {
-    return db.prepare("SELECT * FROM images WHERE id = ?").get(id) as ImageRow | null
-  })
-}
-
-export function listImages(db: Database): Effect.Effect<ImageRow[], DbError> {
-  return dbTry(() => {
-    return db.prepare("SELECT * FROM images ORDER BY created_at DESC").all() as ImageRow[]
-  })
-}
-
 const TERMINAL_STATUSES = new Set(["done", "failed", "cancelled"])
 
 export function deleteTask(db: Database, id: string): Effect.Effect<void, DbError> {
@@ -230,13 +127,5 @@ export function deleteTask(db: Database, id: string): Effect.Effect<void, DbErro
     db.prepare("DELETE FROM activity_log WHERE task_id = ?").run(id)
     db.prepare("DELETE FROM session_logs WHERE task_id = ?").run(id)
     db.prepare("DELETE FROM tasks WHERE id = ?").run(id)
-  })
-}
-
-export function pruneOldImages(db: Database, name: string, keepId: string): Effect.Effect<number, DbError> {
-  return dbTry(() => {
-    const stmt = db.prepare("DELETE FROM images WHERE name = ? AND id != ?")
-    const result = stmt.run(name, keepId)
-    return Number(result.changes)
   })
 }

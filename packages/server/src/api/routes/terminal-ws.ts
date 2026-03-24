@@ -8,8 +8,7 @@ import type { UpgradeWebSocket } from "hono/ws"
 import { spawn } from "bun-pty"
 import type { IPty } from "bun-pty"
 import type { AppDeps } from "../app"
-import { getTask, getVm } from "../../db/queries"
-import { VM_USER } from "../../config"
+import { getTask } from "../../db/queries"
 import { createLogger } from "../../logger"
 
 const log = createLogger("terminal-ws")
@@ -29,24 +28,15 @@ export function terminalWsRoutes(deps: AppDeps, upgradeWebSocket: UpgradeWebSock
           Effect.runPromise(
             Effect.gen(function* () {
               const task = yield* getTask(deps.db, taskId)
-              if (!task?.vm_id) throw new Error("Task has no VM")
+              if (!task?.worktree_path) throw new Error("Task has no worktree")
 
-              const vm = yield* getVm(deps.db, task.vm_id)
-              if (!vm?.ip || !vm.ssh_port) throw new Error("VM not available")
+              const worktree = task.worktree_path
 
-              const worktree = task.worktree_path ?? "/workspace/repo"
-              const sessionName = `task-${taskId.slice(0, 12)}`
-              const remoteCmd = `cd ${worktree} && tmux new-session -A -s ${sessionName}`
+              log.info("Terminal session starting", { taskId, worktree })
 
-              log.info("Terminal session starting", { taskId, vm: vm.ip, worktree })
-
-              pty = spawn("ssh", [
-                "-tt",
-                "-o", "StrictHostKeyChecking=no",
-                "-o", "ServerAliveInterval=15",
-                "-p", String(vm.ssh_port),
-                `${VM_USER}@${vm.ip}`,
-                remoteCmd,
+              pty = spawn("bash", [
+                "-c",
+                `cd ${worktree} && exec bash`,
               ], {
                 cols: 80,
                 rows: 24,

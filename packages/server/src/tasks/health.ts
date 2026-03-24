@@ -1,5 +1,5 @@
 // Health checker: periodically verifies running tasks are alive.
-// Logs each check so recovery actions are traceable.
+// v1: Checks agent PID instead of SSH/tunnel health.
 
 import { Effect, Schedule } from "effect"
 import { createLogger } from "../logger"
@@ -14,9 +14,8 @@ const HEALTH_CHECK_INTERVAL_MS = 30_000
 
 export interface HealthCheckDeps {
   listRunningTasks(): Effect.Effect<TaskRow[], Error>
-  checkAgentHealth(agentPort: number): Effect.Effect<boolean, never>
-  checkVmHealth(vmId: string): Effect.Effect<boolean, never>
-  restartOpencode(task: TaskRow): Effect.Effect<void, import("../errors").SshError>
+  checkAgentAlive(taskId: string): Effect.Effect<boolean, never>
+  restartAgent(task: TaskRow): Effect.Effect<void, Error>
   failTask(taskId: string, reason: string): Effect.Effect<void, Error>
   cleanupDeps: CleanupDeps
 }
@@ -26,59 +25,39 @@ export function checkTask(
   deps: HealthCheckDeps,
 ): Effect.Effect<"healthy" | "recovered" | "failed", HealthCheckError> {
   return Effect.gen(function* () {
-    const taskLog = log.child({ taskId: task.id, vmId: task.vm_id })
+    const taskLog = log.child({ taskId: task.id })
 
-    // Check VM is still reachable
-    if (task.vm_id) {
-      const vmAlive = yield* deps.checkVmHealth(task.vm_id)
-      if (!vmAlive) {
-        taskLog.warn("Task unhealthy, recovering", { reason: "vm-unreachable" })
-        taskLog.error("Recovery failed, marking task failed", {
-          reason: "VM is unreachable, cannot recover",
-        })
-        yield* deps.failTask(task.id, "VM became unreachable").pipe(Effect.ignoreLogged)
-        yield* cleanupSession(task.id, deps.cleanupDeps).pipe(Effect.ignoreLogged)
-        return yield* new HealthCheckError({
-          message: "VM became unreachable",
-          taskId: task.id,
-          reason: "vm_dead",
-        })
-      }
-    }
+    // Check if agent process is alive (via PID or handle)
+    const alive = yield* deps.checkAgentAlive(task.id)
+    if (!alive) {
+      taskLog.warn("Agent not alive, attempting restart")
 
-    // Check OpenCode server is responding
-    if (task.agent_port) {
-      const healthy = yield* deps.checkAgentHealth(task.agent_port)
-      if (!healthy) {
-        taskLog.warn("Task unhealthy, recovering", { reason: "opencode-unresponsive" })
-
-        const restartResult = yield* deps.restartOpencode(task).pipe(
-          Effect.map(() => "recovered" as const),
-          Effect.catchAll((err) => {
-            taskLog.error("Recovery failed, marking task failed", {
-              reason: err.message,
-            })
-            return Effect.gen(function* () {
-              yield* deps.failTask(task.id, "OpenCode server unresponsive and restart failed").pipe(
-                Effect.ignoreLogged
-              )
-              yield* cleanupSession(task.id, deps.cleanupDeps).pipe(Effect.ignoreLogged)
-              return "failed" as const
-            })
+      const restartResult = yield* deps.restartAgent(task).pipe(
+        Effect.map(() => "recovered" as const),
+        Effect.catchAll((err) => {
+          taskLog.error("Recovery failed, marking task failed", {
+            reason: err.message,
           })
-        )
-
-        if (restartResult === "recovered") {
-          taskLog.info("Recovery succeeded", { action: "opencode-restart" })
-          return "recovered"
-        }
-
-        return yield* new HealthCheckError({
-          message: "OpenCode server unresponsive and restart failed",
-          taskId: task.id,
-          reason: "opencode_dead",
+          return Effect.gen(function* () {
+            yield* deps.failTask(task.id, "Agent process died and restart failed").pipe(
+              Effect.ignoreLogged
+            )
+            yield* cleanupSession(task.id, deps.cleanupDeps).pipe(Effect.ignoreLogged)
+            return "failed" as const
+          })
         })
+      )
+
+      if (restartResult === "recovered") {
+        taskLog.info("Recovery succeeded", { action: "agent-restart" })
+        return "recovered"
       }
+
+      return yield* new HealthCheckError({
+        message: "Agent process died and restart failed",
+        taskId: task.id,
+        reason: "agent_dead",
+      })
     }
 
     taskLog.debug("Task healthy")
@@ -120,7 +99,6 @@ export function startHealthMonitor(
     Effect.repeat(Schedule.fixed(`${HEALTH_CHECK_INTERVAL_MS} millis`)),
     Effect.catchAll(() => Effect.void),
     Effect.asVoid,
-    // Run in background fiber so caller isn't blocked
     Effect.fork,
     Effect.asVoid,
   )

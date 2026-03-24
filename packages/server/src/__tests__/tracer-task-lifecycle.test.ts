@@ -7,7 +7,6 @@ import {
   getTask,
   updateTask,
   updateTaskStatus,
-  createVm,
   insertSessionLog,
   getSessionLogs,
 } from "../db/queries"
@@ -16,7 +15,7 @@ import {
  * Tracer bullet: Task creation -> Status transitions -> Session logs
  *
  * Validates the full task lifecycle through DB state transitions,
- * including VM assignment, session tracking, and log retrieval.
+ * including session tracking and log retrieval.
  */
 describe("tracer: task lifecycle", () => {
   let db: Database
@@ -38,42 +37,27 @@ describe("tracer: task lifecycle", () => {
       source_url: "https://github.com/test/repo/issues/1",
     }))
     expect(task.status).toBe("created")
-    expect(task.vm_id).toBeNull()
     expect(task.agent_session_id).toBeNull()
 
     // 2. Simulate provisioning (update status)
     const provisioning = Effect.runSync(updateTaskStatus(db, "task-lifecycle", "provisioning"))
     expect(provisioning!.status).toBe("provisioning")
 
-    // 3. Provision and assign a VM
-    Effect.runSync(createVm(db, {
-      id: "vm-lc",
-      label: "lifecycle-vm",
-      provider: "lima",
-      project_id: "test",
-      snapshot_id: "snap-1",
-      region: "local",
-      plan: "default",
-      status: "active",
-    }))
-    const withVm = Effect.runSync(updateTask(db, "task-lifecycle", { vm_id: "vm-lc" }))
-    expect(withVm!.vm_id).toBe("vm-lc")
-
-    // 4. Simulate running (update opencode session fields)
+    // 3. Simulate running (update agent session fields)
     const running = Effect.runSync(updateTask(db, "task-lifecycle", {
       status: "running",
-      agent_session_id: "oc-session-123",
-      agent_port: 8080,
-      preview_port: 3000,
+      agent_session_id: "session-123",
+      agent_pid: 12345,
+      preview_url: "http://localhost:3000",
       started_at: new Date().toISOString(),
     }))
     expect(running!.status).toBe("running")
-    expect(running!.agent_session_id).toBe("oc-session-123")
-    expect(running!.agent_port).toBe(8080)
-    expect(running!.preview_port).toBe(3000)
+    expect(running!.agent_session_id).toBe("session-123")
+    expect(running!.agent_pid).toBe(12345)
+    expect(running!.preview_url).toBe("http://localhost:3000")
     expect(running!.started_at).toBeDefined()
 
-    // 5. Insert session logs (simulate chat messages)
+    // 4. Insert session logs (simulate chat messages)
     Effect.runSync(insertSessionLog(db, {
       task_id: "task-lifecycle",
       role: "user",
@@ -90,7 +74,7 @@ describe("tracer: task lifecycle", () => {
       content: "Feature implemented. Here's what I did...",
     }))
 
-    // 6. Retrieve session logs and verify order
+    // 5. Retrieve session logs and verify order
     const logs = Effect.runSync(getSessionLogs(db, "task-lifecycle"))
     expect(logs).toHaveLength(3)
     expect(logs[0]!.role).toBe("user")
@@ -101,7 +85,7 @@ describe("tracer: task lifecycle", () => {
     expect(logs[0]!.timestamp <= logs[1]!.timestamp).toBe(true)
     expect(logs[1]!.timestamp <= logs[2]!.timestamp).toBe(true)
 
-    // 7. Simulate completion (set status to done, set pr_url)
+    // 6. Simulate completion (set status to done, set pr_url)
     const done = Effect.runSync(updateTask(db, "task-lifecycle", {
       status: "done",
       pr_url: "https://github.com/test/repo/pull/42",
@@ -113,13 +97,12 @@ describe("tracer: task lifecycle", () => {
     expect(done!.branch).toBe("feat/feature-x")
     expect(done!.completed_at).toBeDefined()
 
-    // 8. Verify full task history is retrievable
+    // 7. Verify full task history is retrievable
     const final = Effect.runSync(getTask(db, "task-lifecycle"))!
     expect(final.source).toBe("github")
     expect(final.source_id).toBe("test/repo#1")
     expect(final.status).toBe("done")
-    expect(final.vm_id).toBe("vm-lc")
-    expect(final.agent_session_id).toBe("oc-session-123")
+    expect(final.agent_session_id).toBe("session-123")
     expect(final.pr_url).toBe("https://github.com/test/repo/pull/42")
     expect(final.created_at).toBeDefined()
     expect(final.started_at).toBeDefined()
@@ -173,16 +156,16 @@ describe("tracer: task lifecycle", () => {
     // Simulate failure during provisioning
     const failed = Effect.runSync(updateTask(db, "task-fail", {
       status: "failed",
-      error: "VM provisioning timed out after 300s",
+      error: "Agent process crashed with exit code 1",
       completed_at: new Date().toISOString(),
     }))
     expect(failed!.status).toBe("failed")
-    expect(failed!.error).toBe("VM provisioning timed out after 300s")
+    expect(failed!.error).toBe("Agent process crashed with exit code 1")
     expect(failed!.completed_at).toBeDefined()
 
     // Verify error is persisted
     const retrieved = Effect.runSync(getTask(db, "task-fail"))!
-    expect(retrieved.error).toBe("VM provisioning timed out after 300s")
+    expect(retrieved.error).toBe("Agent process crashed with exit code 1")
     expect(retrieved.status).toBe("failed")
   })
 

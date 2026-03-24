@@ -12,14 +12,13 @@ export const SCHEMA = `
     provider TEXT NOT NULL DEFAULT 'opencode',
     model TEXT,
     reasoning_effort TEXT,
-    vm_id TEXT,
     branch TEXT,
     worktree_path TEXT,
     pr_url TEXT,
     user_id TEXT,
     agent_session_id TEXT,
-    agent_port INTEGER,
-    preview_port INTEGER,
+    agent_pid INTEGER,
+    preview_url TEXT,
     error TEXT,
     created_at TEXT NOT NULL DEFAULT (datetime('now')),
     updated_at TEXT NOT NULL DEFAULT (datetime('now')),
@@ -29,26 +28,6 @@ export const SCHEMA = `
 
   CREATE INDEX IF NOT EXISTS idx_tasks_status ON tasks(status);
   CREATE INDEX IF NOT EXISTS idx_tasks_project_status ON tasks(project_id, status);
-  CREATE INDEX IF NOT EXISTS idx_tasks_vm_id ON tasks(vm_id);
-
-  CREATE TABLE IF NOT EXISTS vms (
-    id TEXT PRIMARY KEY,
-    label TEXT NOT NULL,
-    provider TEXT NOT NULL,
-    ip TEXT,
-    ssh_port INTEGER,
-    status TEXT NOT NULL DEFAULT 'provisioning',
-    project_id TEXT NOT NULL,
-    snapshot_id TEXT NOT NULL,
-    region TEXT NOT NULL,
-    plan TEXT NOT NULL,
-    created_at TEXT NOT NULL DEFAULT (datetime('now')),
-    updated_at TEXT NOT NULL DEFAULT (datetime('now')),
-    error TEXT
-  );
-
-  CREATE INDEX IF NOT EXISTS idx_vms_status ON vms(status);
-  CREATE INDEX IF NOT EXISTS idx_vms_project_id ON vms(project_id);
 
   CREATE TABLE IF NOT EXISTS session_logs (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -74,14 +53,6 @@ export const SCHEMA = `
 
   CREATE INDEX IF NOT EXISTS idx_activity_log_task_id ON activity_log(task_id);
 
-  CREATE TABLE IF NOT EXISTS images (
-    id TEXT PRIMARY KEY,
-    name TEXT NOT NULL,
-    provider TEXT NOT NULL,
-    snapshot_id TEXT NOT NULL,
-    created_at TEXT NOT NULL DEFAULT (datetime('now'))
-  );
-
   CREATE TABLE IF NOT EXISTS system_logs (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     level TEXT NOT NULL,
@@ -98,14 +69,13 @@ export const SCHEMA = `
 
   CREATE TABLE IF NOT EXISTS worktree_slots (
     id TEXT PRIMARY KEY,
-    vm_id TEXT NOT NULL,
+    project_id TEXT NOT NULL,
     path TEXT NOT NULL,
     status TEXT NOT NULL DEFAULT 'available',
     task_id TEXT,
     created_at TEXT NOT NULL DEFAULT (datetime('now')),
-    FOREIGN KEY (vm_id) REFERENCES vms(id),
     FOREIGN KEY (task_id) REFERENCES tasks(id)
   );
 
-  CREATE INDEX IF NOT EXISTS idx_worktree_slots_vm_status ON worktree_slots(vm_id, status);
+  CREATE INDEX IF NOT EXISTS idx_worktree_slots_project_status ON worktree_slots(project_id, status);
 `

@@ -1,5 +1,5 @@
 // Task manager: CRUD operations and state transitions for tasks.
-// Logs task creation, cancellation, completion, and prompt queueing for timeline reconstruction.
+// v1: No VM management — agents run as local processes.
 
 import { Effect } from "effect"
 import { createLogger } from "../logger"
@@ -10,13 +10,13 @@ import {
   AgentError,
 } from "../errors"
 import type { TaskRow } from "../db/types"
-import type { CredentialConfig, LifecycleDeps, ProjectConfig } from "./lifecycle"
+import type { LifecycleDeps, ProjectConfig } from "./lifecycle"
 import type { CleanupDeps } from "./cleanup"
 import type { RetryDeps } from "./retry"
 import { cleanupSession } from "./cleanup"
 import { startSessionWithRetry, reconnectSessionWithRetry } from "./retry"
 import { emitStatusChange } from "./events"
-import { deletePoolForVm, reconcileStaleSlots } from "./worktree-pool"
+import { deletePoolForProject, reconcileStaleSlots } from "./worktree-pool"
 
 const log = createLogger("tasks")
 
@@ -39,8 +39,7 @@ export interface TaskManagerDeps {
   cleanupDeps: CleanupDeps
   retryDeps: RetryDeps
   getProjectConfig(projectId: string): ProjectConfig | undefined
-  credentialConfig: CredentialConfig
-  abortAgent(agentPort: number, sessionId: string): Effect.Effect<void, AgentError>
+  abortAgent(taskId: string): Effect.Effect<void, AgentError>
   /** Select the correct agent factory for a given provider type */
   getAgentFactory?: (provider: string) => import("../agent/provider").AgentFactory
 }
@@ -66,22 +65,6 @@ export function createTask(
     const projectConfig = deps.getProjectConfig(params.projectId)
     if (!projectConfig) {
       return yield* Effect.fail(new Error(`Unknown project: ${params.projectId}`))
-    }
-
-    // Validate credentials for the requested provider
-    const provider = params.provider ?? "opencode"
-    const creds = deps.credentialConfig
-    if (provider === "claude-code" && !creds.claudeOauthToken && !creds.anthropicApiKey) {
-      return yield* Effect.fail(new Error(
-        "Claude Code requires CLAUDE_CODE_OAUTH_TOKEN or ANTHROPIC_API_KEY.\n" +
-        "Set via: tangerine config set ANTHROPIC_API_KEY=sk-ant-..."
-      ))
-    }
-    if (provider === "opencode" && !creds.opencodeAuthPath && !creds.anthropicApiKey) {
-      return yield* Effect.fail(new Error(
-        "OpenCode requires auth.json or ANTHROPIC_API_KEY.\n" +
-        "Run `opencode auth login` or: tangerine config set ANTHROPIC_API_KEY=..."
-      ))
     }
 
     const id = crypto.randomUUID()
@@ -112,7 +95,7 @@ export function createTask(
     // Kick off provisioning — per-task deps copy with correct agent factory
     const taskLifecycleDeps = depsForProvider(deps, params.provider ?? "opencode")
     yield* Effect.forkDaemon(
-      startSessionWithRetry(task, projectConfig, deps.credentialConfig, taskLifecycleDeps, deps.retryDeps)
+      startSessionWithRetry(task, projectConfig, taskLifecycleDeps, deps.retryDeps)
     )
 
     return task
@@ -222,8 +205,7 @@ export function dequeuePrompt(taskId: string): string | undefined {
 /**
  * Resume tasks orphaned by a server restart.
  * - "created"/"provisioning" tasks: full restart via startSessionWithRetry
- * - "running" tasks: lightweight reconnect via reconnectSessionWithRetry
- *   (skips worktree/setup, just restarts agent with --resume)
+ * - "running" tasks: lightweight reconnect by checking PIDs
  */
 export function resumeOrphanedTasks(
   deps: TaskManagerDeps,
@@ -233,18 +215,16 @@ export function resumeOrphanedTasks(
     const provisioning = yield* deps.listTasks({ status: "provisioning" })
     const running = yield* deps.listTasks({ status: "running" })
 
-    // "created"/"provisioning" tasks need full restart
     const needsFullRestart = [...created, ...provisioning]
-    // "running" tasks have worktree + session but lost their agent process
     const needsReconnect = running
 
     const total = needsFullRestart.length + needsReconnect.length
     if (total === 0) return 0
 
-    // Reconcile stale worktree slots before resuming — frees slots bound to terminal tasks
-    const allVmIds = new Set([...needsFullRestart, ...needsReconnect].map((t) => t.vm_id).filter(Boolean) as string[])
-    for (const vmId of allVmIds) {
-      yield* reconcileStaleSlots(deps.lifecycleDeps.db, vmId, deps.getTask).pipe(Effect.ignoreLogged)
+    // Reconcile stale worktree slots before resuming
+    const allProjectIds = new Set([...needsFullRestart, ...needsReconnect].map((t) => t.project_id).filter(Boolean))
+    for (const projectId of allProjectIds) {
+      yield* reconcileStaleSlots(deps.lifecycleDeps.db, projectId, deps.getTask).pipe(Effect.ignoreLogged)
     }
 
     for (const task of needsFullRestart) {
@@ -257,20 +237,18 @@ export function resumeOrphanedTasks(
 
       log.info("Resuming orphaned task", { taskId: task.id, status: task.status, title: task.title })
 
-      // Per-task copy of lifecycleDeps with the correct factory — avoids shared mutable state
       const taskLifecycleDeps = depsForProvider(deps, task.provider)
 
-      // Reset task state (VM persists per-project, no need to release)
+      // Reset task state
       yield* deps.updateTask(task.id, {
         status: "created",
         agent_session_id: null,
-        agent_port: null,
-        preview_port: null,
+        agent_pid: null,
         worktree_path: null,
       }).pipe(Effect.ignoreLogged)
 
       yield* Effect.forkDaemon(
-        startSessionWithRetry(task, projectConfig, deps.credentialConfig, taskLifecycleDeps, deps.retryDeps)
+        startSessionWithRetry(task, projectConfig, taskLifecycleDeps, deps.retryDeps)
       )
     }
 
@@ -287,7 +265,7 @@ export function resumeOrphanedTasks(
       const taskLifecycleDeps = depsForProvider(deps, task.provider)
 
       yield* Effect.forkDaemon(
-        reconnectSessionWithRetry(task, projectConfig, deps.credentialConfig, taskLifecycleDeps, deps.retryDeps)
+        reconnectSessionWithRetry(task, projectConfig, taskLifecycleDeps, deps.retryDeps)
       )
     }
 
@@ -365,7 +343,7 @@ export function changeConfig(
     const taskLifecycleDeps = depsForProvider(deps, updatedTask.provider)
     const taskWithSession = { ...updatedTask, agent_session_id: sessionId }
     yield* Effect.forkDaemon(
-      reconnectSessionWithRetry(taskWithSession, projectConfig, deps.credentialConfig, taskLifecycleDeps, deps.retryDeps)
+      reconnectSessionWithRetry(taskWithSession, projectConfig, taskLifecycleDeps, deps.retryDeps)
     )
   })
 }
@@ -377,8 +355,8 @@ function logConfigChange(
   prev: import("../db/types").TaskRow,
 ) {
   const changes = [
-    config.model && config.model !== prev.model && `model → ${config.model}`,
-    config.reasoningEffort && config.reasoningEffort !== prev.reasoning_effort && `reasoning → ${config.reasoningEffort}`,
+    config.model && config.model !== prev.model && `model -> ${config.model}`,
+    config.reasoningEffort && config.reasoningEffort !== prev.reasoning_effort && `reasoning -> ${config.reasoningEffort}`,
   ].filter(Boolean).join(", ")
   return deps.logActivity(taskId, "lifecycle", "config.changed", changes, {
     model: config.model ?? prev.model,
@@ -395,45 +373,40 @@ export function abortAgent(
       Effect.mapError(() => new TaskNotFoundError({ taskId }))
     )
 
-    if (!task?.agent_port || !task.agent_session_id) {
-      log.warn("Abort requested but no active session", { taskId })
+    if (!task) {
       return yield* new TaskNotFoundError({ taskId })
     }
 
     log.info("Agent aborted", { taskId })
-    yield* deps.abortAgent(task.agent_port, task.agent_session_id)
+    yield* deps.abortAgent(taskId)
   })
 }
 
 /**
- * Reprovision tasks after a VM is destroyed and rebuilt.
+ * Reprovision tasks after a project rebuild.
  * Tasks with a remote branch are reset to "created" for reprovisioning.
  * Tasks without a remote branch are marked "failed" (work is lost).
- *
- * checkRemoteBranch: SSH into the new VM to check if branch exists on remote.
- * If no VM is available yet, all tasks with branches are optimistically reset.
  */
-export function reprovisionTasksForVm(
+export function reprovisionTasksForProject(
   deps: TaskManagerDeps,
-  vmId: string,
+  projectId: string,
   checkRemoteBranch?: (branch: string) => Effect.Effect<boolean, Error>,
 ): Effect.Effect<{ reprovisioned: number; failed: number }, Error> {
   return Effect.gen(function* () {
     const allTasks = yield* deps.listTasks({})
     const affected = allTasks.filter(
-      (t) => t.vm_id === vmId && !["done", "cancelled"].includes(t.status)
+      (t) => t.project_id === projectId && !["done", "cancelled"].includes(t.status)
     )
 
     if (affected.length === 0) return { reprovisioned: 0, failed: 0 }
 
-    // Delete pool slots for the old VM — new VM will reinit on first task
-    yield* deletePoolForVm(deps.lifecycleDeps.db, vmId).pipe(Effect.ignoreLogged)
+    // Delete pool slots for the project
+    yield* deletePoolForProject(deps.lifecycleDeps.db, projectId).pipe(Effect.ignoreLogged)
 
     let reprovisioned = 0
     let failed = 0
 
     for (const task of affected) {
-      // If task has a branch, check if it exists on remote
       if (task.branch && checkRemoteBranch) {
         const exists = yield* checkRemoteBranch(task.branch).pipe(
           Effect.catchAll(() => Effect.succeed(false))
@@ -442,36 +415,32 @@ export function reprovisionTasksForVm(
         if (!exists) {
           yield* deps.updateTask(task.id, {
             status: "failed",
-            error: "VM rebuilt — branch was not pushed to remote, work is lost",
+            error: "Project rebuilt — branch was not pushed to remote, work is lost",
           }).pipe(Effect.ignoreLogged)
           yield* deps.logActivity(task.id, "lifecycle", "task.failed",
-            `Task failed: branch ${task.branch} not found on remote after VM rebuild`
+            `Task failed: branch ${task.branch} not found on remote after rebuild`
           ).pipe(Effect.catchAll(() => Effect.void))
           emitStatusChange(task.id, "failed")
           failed++
           continue
         }
-      } else if (!task.branch) {
-        // No branch at all — task never started, safe to reprovision
       }
 
-      // Reset for reprovisioning — keep branch so lifecycle picks it up from remote
+      // Reset for reprovisioning
       yield* deps.updateTask(task.id, {
         status: "created",
-        vm_id: null,
         agent_session_id: null,
-        agent_port: null,
-        preview_port: null,
+        agent_pid: null,
         worktree_path: null,
       }).pipe(Effect.ignoreLogged)
       yield* deps.logActivity(task.id, "lifecycle", "task.reprovisioning",
-        "Task reset for reprovisioning after VM rebuild"
+        "Task reset for reprovisioning after rebuild"
       ).pipe(Effect.catchAll(() => Effect.void))
       emitStatusChange(task.id, "created")
       reprovisioned++
     }
 
-    log.info("Tasks reprovisioned after VM rebuild", { vmId, reprovisioned, failed })
+    log.info("Tasks reprovisioned after rebuild", { projectId, reprovisioned, failed })
     return { reprovisioned, failed }
   })
 }

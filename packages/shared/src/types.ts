@@ -1,5 +1,4 @@
 export type TaskStatus = "created" | "provisioning" | "running" | "done" | "failed" | "cancelled"
-export type VmStatus = "provisioning" | "active" | "stopped" | "destroyed" | "error"
 export type ProviderType = "opencode" | "claude-code"
 export type TaskSource = "github" | "linear" | "manual" | "cross-project"
 
@@ -15,14 +14,13 @@ export interface Task {
   provider: ProviderType
   model: string | null
   reasoningEffort: string | null
-  vmId: string | null
   branch: string | null
   worktreePath: string | null
   prUrl: string | null
   userId: string | null
   agentSessionId: string | null
-  agentPort: number | null
-  previewPort: number | null
+  agentPid: number | null
+  previewUrl: string | null
   error: string | null
   createdAt: string
   updatedAt: string
