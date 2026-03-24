@@ -170,34 +170,38 @@ export async function runProjectSetup(
     return;
   }
 
+  const imgDir = imageDir(imageName);
   appendLog(logFile, `Running build script: ${buildScriptPath}`);
   log.info("Running project setup", { imageName, path: buildScriptPath });
 
-  const scriptContent = await Bun.file(buildScriptPath).text();
-  const scriptBase64 = Buffer.from(scriptContent).toString("base64");
-
-  // Upload build script to VM
+  // Upload entire image directory to VM via tar over SSH
+  const tarProc = Bun.spawn(
+    ["tar", "czf", "-", "-C", imgDir, "."],
+    { stdout: "pipe" },
+  );
   const uploadProc = Bun.spawn(
-    ["ssh", "-o", "StrictHostKeyChecking=no", "-p", String(sshPort),
-     `${VM_USER}@${ip}`, "base64 -d > /tmp/build.sh && chmod +x /tmp/build.sh"],
+    ["ssh", "-o", "StrictHostKeyChecking=no", "-o", "UserKnownHostsFile=/dev/null",
+     "-o", "LogLevel=ERROR", "-p", String(sshPort),
+     `${VM_USER}@${ip}`, "mkdir -p /tmp/image-build && tar xzf - -C /tmp/image-build"],
     {
-      stdin: Buffer.from(scriptBase64),
+      stdin: tarProc.stdout,
       stdout: "pipe",
       stderr: "pipe",
     }
   );
+  await tarProc.exited;
   const uploadExit = await uploadProc.exited;
   if (uploadExit !== 0) {
     const stderr = await new Response(uploadProc.stderr).text();
-    appendLog(logFile, `ERROR: Failed to upload build script: ${stderr}`);
-    throw new Error(`Failed to upload build script: ${stderr}`);
+    appendLog(logFile, `ERROR: Failed to upload image directory: ${stderr}`);
+    throw new Error(`Failed to upload image directory: ${stderr}`);
   }
 
   // Execute with streaming output
   appendLog(logFile, "--- build script output ---");
   const exitCode = await Effect.runPromise(sshExecStreaming(
     ip, sshPort,
-    "bash -l /tmp/build.sh",
+    "bash -l /tmp/image-build/build.sh",
     (chunk) => {
       const lines = chunk.split("\n");
       for (const line of lines) {
