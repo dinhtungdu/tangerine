@@ -34,10 +34,12 @@ portForwards:
     guestPortRange: [1, 65535]
     ignore: true
 
-# Mount tangerine data directory — DB and config survive VM rebuilds
+# Mount home directory — gives VM access to SSH keys, git config, and tangerine data.
+# ~/tangerine writable for DB persistence. Rest read-only for safety.
 mounts:
+  - location: "~"
+    writable: false
   - location: "~/tangerine"
-    mountPoint: "/home/{{.User}}/tangerine"
     writable: true
 
 message: |
