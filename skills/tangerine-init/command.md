@@ -1,21 +1,28 @@
 ---
-description: Set up a project for Tangerine — generate config, build image, and get started
+description: Set up Tangerine — create VM, install tools, configure projects, install agent skills
 ---
-Read ~/.claude/skills/tangerine-init/SKILL.md for the full skill instructions, then set up the current project for Tangerine.
+Read ~/.claude/skills/tangerine-init/SKILL.md for full instructions.
 
-**Step 0 — Check registration status first:**
-Run `tangerine project list` to see if this project is already registered. If it is, tell the user and ask what they'd like to do (rebuild image, update config, etc.) instead of re-scanning.
+**Step 0 — Detect environment:**
+- Are we on the HOST or INSIDE the VM? Check: `limactl list 2>/dev/null` works = host. `/workspace` exists = inside VM.
+- If on host: guide through VM creation + base setup (Mode 1)
+- If inside VM: guide through project setup (Mode 2)
 
-If the project is NOT registered, proceed:
+**Step 1 — Check existing setup:**
+- Check if `~/tangerine/config.json` exists. If yes, show registered projects and ask what the user wants to do.
+- Check if we're in a project directory with a git repo.
+
+**If setting up a new project:**
 
 Read the reference files before generating:
 - ~/.claude/skills/tangerine-init/references/stacks.md — stack detection patterns
-- ~/.claude/skills/tangerine-init/templates/build.sh — build script template
 
-Scan the codebase, present your findings and proposed config to the user, then after confirmation:
-1. Register the project using `tangerine project add` CLI command
-2. Scaffold the build script using `tangerine image init <image-name>`
-3. Edit `~/tangerine/images/<image-name>/build.sh` with detected dependencies
-4. Guide them through `tangerine image build` and `tangerine start`
+Scan the codebase, present findings, then after confirmation:
+1. Write project config to `~/tangerine/config.json`
+2. Clone repo to `/workspace/<project>/repo` (if not already cloned)
+3. Write `~/tangerine/images/<name>/build.sh` if project needs extra system packages
+4. Ask about preview setup (WordPress subdirectory or dev server)
+5. Ask about agent skills to install in `~/.claude/skills/`
+6. Guide through `bin/tangerine start`
 
 $ARGUMENTS
