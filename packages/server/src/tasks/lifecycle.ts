@@ -418,7 +418,7 @@ export function startSession(
       `( cd ${worktreePath} && ${config.setup} ) > ${setupLogFile} 2>&1;`,
       `if [ $? -eq 0 ]; then echo done > ${setupStatusFile}; else echo failed > ${setupStatusFile}; fi`,
     ].join(" ")
-    yield* deps.sshExec(vm.ip!, vm.ssh_port!, `nohup bash -c '${setupCmd.replace(/'/g, "'\\''")}' &`).pipe(
+    yield* deps.sshExec(vm.ip!, vm.ssh_port!, `nohup bash -c '${setupCmd.replace(/'/g, "'\\''")}' </dev/null >/dev/null 2>&1 &`).pipe(
       Effect.catchAll(() => Effect.void)
     )
 
