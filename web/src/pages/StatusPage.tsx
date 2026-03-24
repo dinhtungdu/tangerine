@@ -3,26 +3,17 @@ import { useProject } from "../context/ProjectContext"
 import { useTaskSearch } from "../hooks/useTaskSearch"
 import { useProjectNav } from "../hooks/useProjectNav"
 import { TasksSidebar } from "../components/TasksSidebar"
-import { ActiveRunsCard, VmSummaryCard, ImageCard, VmList, BuildLog, SystemLog } from "../components/StatusWidgets"
-import { fetchVms, fetchImages, fetchBuildStatus, triggerBaseBuild, destroyVm, provisionVm, type VmInfo, type ImageInfo, type BuildStatus } from "../lib/api"
+import { ActiveRunsCard, VmSummaryCard, VmList, BuildLog, SystemLog } from "../components/StatusWidgets"
+import { fetchVms, destroyVm, provisionVm, type VmInfo } from "../lib/api"
 
 export function StatusPage() {
   const { navigate } = useProjectNav()
   const { current } = useProject()
   const { query, setQuery, tasks } = useTaskSearch(current?.name)
   const [vms, setVms] = useState<VmInfo[]>([])
-  const [images, setImages] = useState<ImageInfo[]>([])
-  const [buildStatus, setBuildStatus] = useState<BuildStatus>({ status: "idle" })
-
   const loadAll = useCallback(async () => {
-    const [vmData, imgData, bsData] = await Promise.all([
-      fetchVms(current?.name).catch(() => []),
-      fetchImages(current?.name).catch(() => []),
-      fetchBuildStatus().catch(() => ({ status: "idle" as const })),
-    ])
+    const vmData = await fetchVms(current?.name).catch(() => [])
     setVms(vmData as VmInfo[])
-    setImages(imgData as ImageInfo[])
-    setBuildStatus(bsData)
   }, [current?.name])
 
   useEffect(() => {
@@ -45,16 +36,6 @@ export function StatusPage() {
     await provisionVm(current.name).catch(() => {})
     loadAll()
   }, [current, loadAll])
-
-  const handleBuildBase = useCallback(async () => {
-    const confirmed = window.confirm(
-      "Rebuild base image? This is a slow operation (~10 min). Existing project VMs are not affected — destroy them manually to re-provision from the new base.\n\nContinue?"
-    )
-    if (!confirmed) return
-    await triggerBaseBuild().catch(() => {})
-    const bs = await fetchBuildStatus().catch(() => ({ status: "idle" as const }))
-    setBuildStatus(bs)
-  }, [])
 
   return (
     <div className="flex h-full">
@@ -88,14 +69,13 @@ export function StatusPage() {
             <div className="flex flex-col gap-4 md:flex-row md:gap-4">
               <ActiveRunsCard tasks={tasks} />
               <VmSummaryCard vms={vms} onRebuildVm={handleRebuildVm} onProvisionVm={handleProvisionVm} />
-              <ImageCard image={images[0] ?? null} projectImage={current?.image} buildStatus={buildStatus} onBuildBase={handleBuildBase} />
             </div>
 
             {/* VM list */}
             <VmList vms={vms} />
 
             {/* Build log */}
-            <BuildLog project={current?.name} buildStatus={buildStatus} />
+            <BuildLog project={current?.name} buildStatus={{ status: "idle" }} />
 
             {/* System log */}
             <SystemLog project={current?.name} />

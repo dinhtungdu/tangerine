@@ -4,9 +4,9 @@
 import { Effect } from "effect"
 import type { Database } from "bun:sqlite"
 import { createLogger } from "../logger"
-import { waitForSsh, sshExec } from "./ssh"
+import { waitForSsh } from "./ssh"
 import type { Provider } from "./providers/types"
-import { BASE_VM_NAME, runProjectSetup } from "../image/build"
+import { TEMPLATE_PATH, runProjectSetup } from "../image/build"
 
 const log = createLogger("project-vm")
 
@@ -47,8 +47,7 @@ export class ProjectVmManager {
 
   /**
    * Get existing active VM for a project, or provision a new one.
-   * New VMs are cloned directly from the base image. Project-specific
-   * setup (build.sh) runs on first provisioning and is cached on the VM.
+   * New VMs are created from template + provisioned via base-setup.sh + build.sh.
    */
   getOrCreateVm(
     projectId: string,
@@ -75,11 +74,11 @@ export class ProjectVmManager {
         return existing
       }
 
-      // Clone directly from base VM
-      const snapshotId = `clone:${BASE_VM_NAME}`
+      // Create VM from template (each project gets its own full VM)
+      const snapshotId = `template:${TEMPLATE_PATH}`
       const label = `tangerine-${projectId}-${crypto.randomUUID().slice(0, 8)}`
 
-      log.info("Provisioning VM for project", { projectId, label, snapshotId })
+      log.info("Provisioning VM for project", { projectId, label })
 
       // Insert provisioning record first
       const now = new Date().toISOString()
@@ -96,7 +95,6 @@ export class ProjectVmManager {
           .createInstance({
             region: this.config.region,
             plan: this.config.plan,
-            snapshotId,
             label,
           })
           .pipe(Effect.mapError((e) => new Error(`VM provisioning failed: ${e.message}`)))
@@ -114,11 +112,6 @@ export class ProjectVmManager {
           try: () => runProjectSetup(imageName, instance.ip, instance.sshPort ?? 22, log),
           catch: (e) => new Error(`Project setup failed: ${e}`),
         })
-
-        // Ensure /workspace exists (limactl clone doesn't re-run provision scripts)
-        yield* sshExec(instance.ip, instance.sshPort ?? 22,
-          "sudo mkdir -p /workspace && sudo chown $(whoami) /workspace"
-        ).pipe(Effect.asVoid, Effect.catchAll(() => Effect.void))
 
         // Run caller-provided setup (proxy tunnels, credentials, repo clone)
         if (onProvision) {

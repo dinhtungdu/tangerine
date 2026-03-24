@@ -131,9 +131,6 @@ export function TerminalPane({ taskId }: TerminalPaneProps) {
 
   return (
     <div className="flex h-full flex-col">
-      <div className="flex h-11 items-center border-b border-edge px-4">
-        <span className="text-[13px] font-semibold text-fg">Terminal</span>
-      </div>
       <div ref={containerRef} className="min-h-0 flex-1 bg-[#1a1a1a] p-1" />
     </div>
   )

@@ -111,14 +111,6 @@ export function systemRoutes(deps: AppDeps): Hono {
     )
   })
 
-  app.post("/images/build-base", (c) => {
-    const result = deps.imageBuild.startBase()
-    if (!result.ok) {
-      return c.json({ error: result.reason }, 409)
-    }
-    return c.json({ status: "building", imageName: "base" }, 202)
-  })
-
   app.get("/images/build-status", (c) => {
     return c.json(deps.imageBuild.getStatus())
   })

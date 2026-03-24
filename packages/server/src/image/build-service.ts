@@ -1,8 +1,5 @@
-// In-memory build state manager for base image builds.
-// If the server restarts mid-build, state resets to idle — acceptable for local-first.
-
-import { createLogger } from "../logger"
-import { buildBase, BASE_VM_NAME } from "./build"
+// Build service — placeholder. Base image concept removed; each project VM
+// provisions from template + base-setup.sh + build.sh on first use.
 
 export interface BuildState {
   status: "building" | "success" | "failed"
@@ -12,50 +9,6 @@ export interface BuildState {
   error?: string
 }
 
-let currentBuild: BuildState | null = null
-
-export function startBaseBuild(): { ok: true } | { ok: false; reason: string } {
-  if (currentBuild?.status === "building") {
-    return { ok: false, reason: `Already building image "${currentBuild.imageName}"` }
-  }
-
-  currentBuild = {
-    status: "building",
-    imageName: "base",
-    startedAt: new Date().toISOString(),
-  }
-
-  const log = createLogger("image:build")
-
-  buildBase(log)
-    .then(() => {
-      if (currentBuild?.imageName === "base" && currentBuild.status === "building") {
-        currentBuild = { ...currentBuild, status: "success", finishedAt: new Date().toISOString() }
-      }
-    })
-    .catch((err) => {
-      const errorMessage = err instanceof Error ? err.message : String(err)
-      log.error("Base build failed", { error: errorMessage })
-      if (currentBuild?.imageName === "base" && currentBuild.status === "building") {
-        currentBuild = { ...currentBuild, status: "failed", finishedAt: new Date().toISOString(), error: errorMessage }
-      }
-    })
-
-  return { ok: true }
-}
-
-export function getBuildStatus(): BuildState | { status: "idle" } {
-  if (currentBuild) return currentBuild
-  // Check if base VM exists on disk (survives server restarts)
-  try {
-    const proc = Bun.spawnSync(["limactl", "list", "--json"])
-    const stdout = new TextDecoder().decode(proc.stdout).trim()
-    // limactl outputs NDJSON (one JSON object per line)
-    const instances = stdout.split("\n").filter(Boolean).map((line) => JSON.parse(line) as { name: string; status: string })
-    const base = instances.find((i) => i.name === BASE_VM_NAME)
-    if (base) {
-      return { status: "success", imageName: "base", startedAt: "", finishedAt: "" }
-    }
-  } catch { /* ignore — limactl not available */ }
+export function getBuildStatus(): { status: "idle" } {
   return { status: "idle" }
 }

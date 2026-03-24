@@ -26,7 +26,7 @@ import { createProvider } from "../vm/providers/index"
 import type { ProviderType as VmProviderType } from "../vm/providers/index"
 import { SshError, AgentError, PromptError } from "../errors"
 import { initSystemLog, cleanupSystemLogs } from "../system-log"
-import { startBaseBuild, getBuildStatus } from "../image/build-service"
+import { getBuildStatus } from "../image/build-service"
 import { createOpenCodeProvider } from "../agent/opencode-provider"
 import { createClaudeCodeProvider } from "../agent/claude-code-provider"
 import type { AgentHandle } from "../agent/provider"
@@ -513,7 +513,7 @@ export async function start(): Promise<void> {
         reconcile: () => Effect.void,
       },
       imageBuild: {
-        startBase: startBaseBuild,
+        startBase: () => ({ ok: false as const, reason: "Base image builds removed — VMs provision from template directly" }),
         getStatus: getBuildStatus,
       },
       devServer: {

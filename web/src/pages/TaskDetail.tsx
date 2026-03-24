@@ -29,7 +29,7 @@ export function TaskDetail() {
       const saved = localStorage.getItem(`tangerine:panes:${id}`)
       if (saved) return new Set(JSON.parse(saved) as PaneId[])
     } catch { /* ignore */ }
-    return new Set(["chat", "diff"])
+    return new Set<PaneId>(["chat", "activity"])
   })
   const [mobilePane, setMobilePane] = useState<PaneId>("chat")
 
@@ -45,7 +45,7 @@ export function TaskDetail() {
       const s = localStorage.getItem(dimsKey)
       if (s) return JSON.parse(s)
     } catch { /* ignore */ }
-    return { chat: 480, terminal: 400, activity: 250 }
+    return { chat: 480, terminal: Math.round((window.innerWidth - 240) / 2), activity: 250 }
   })())
   const saveDims = useCallback(() => {
     try { localStorage.setItem(dimsKey, JSON.stringify(dimsRef.current)) } catch { /* ignore */ }
@@ -362,10 +362,7 @@ export function TaskDetail() {
               className={`flex flex-col bg-neutral-100${desktopIsSolo ? " flex-1" : ""}`}
               style={desktopIsSolo ? undefined : { width: activityWidth, flexShrink: 0 }}
             >
-              <div className="flex h-11 items-center border-b border-edge px-4">
-                <span className="text-[13px] font-semibold text-fg">Activity</span>
-              </div>
-              <div className="min-h-0 flex-1 overflow-y-auto px-4">
+              <div className="min-h-0 flex-1 overflow-y-auto px-4 pt-3">
                 <ActivityList activities={session.activities} variant="compact" />
               </div>
             </div>
@@ -412,10 +409,7 @@ export function TaskDetail() {
           )}
           {mobilePane === "activity" && (
             <div className="flex flex-1 flex-col bg-neutral-100">
-              <div className="flex h-11 items-center border-b border-edge px-4">
-                <span className="text-[13px] font-semibold text-fg">Activity</span>
-              </div>
-              <div className="min-h-0 flex-1 overflow-y-auto px-4">
+              <div className="min-h-0 flex-1 overflow-y-auto px-4 pt-3">
                 <ActivityList activities={session.activities} variant="compact" />
               </div>
             </div>

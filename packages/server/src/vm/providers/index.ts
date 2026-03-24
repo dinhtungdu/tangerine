@@ -1,6 +1,7 @@
 import type { Provider } from "./types.ts";
 import { LimaProvider } from "./lima.ts";
 import { IncusProvider } from "./incus.ts";
+import { TEMPLATE_PATH } from "../../image/build.ts";
 
 export type ProviderType = "lima" | "incus";
 
@@ -13,7 +14,7 @@ export function createProvider(
       const templatePath =
         config?.templatePath ??
         process.env.TANGERINE_LIMA_TEMPLATE ??
-        "tangerine.yaml";
+        TEMPLATE_PATH;
       return new LimaProvider({ templatePath });
     }
     case "incus": {

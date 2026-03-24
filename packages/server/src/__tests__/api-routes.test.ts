@@ -465,16 +465,6 @@ describe("API routes", () => {
     })
   })
 
-  describe("POST /api/images/build-base", () => {
-    test("starts base image build", async () => {
-      const res = await app.fetch(new Request("http://localhost/api/images/build-base", { method: "POST" }))
-      expect(res.status).toBe(202)
-      const body = await res.json() as { status: string; imageName: string }
-      expect(body.status).toBe("building")
-      expect(body.imageName).toBe("base")
-    })
-  })
-
   describe("GET /api/config", () => {
     test("returns full config without credentials", async () => {
       const res = await app.fetch(new Request("http://localhost/api/config"))

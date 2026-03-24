@@ -2,10 +2,7 @@ import { existsSync } from "fs"
 import { getDb } from "../db/index.ts"
 import { listImages } from "../db/queries.ts"
 import { Effect } from "effect"
-import { createLogger } from "../logger.ts"
 import { printTable } from "./helpers.ts"
-
-const log = createLogger("cli:image")
 
 export async function runImage(argv: string[]): Promise<void> {
   const subcommand = argv[0]
@@ -15,20 +12,16 @@ export async function runImage(argv: string[]): Promise<void> {
 Usage: tangerine image <subcommand>
 
 Subcommands:
-  build-base                 Build the base VM from tangerine.yaml (~10 min)
   list                       List available images
   init <image-name>          Create a build.sh template for project setup
 
 Build script location: ~/tangerine/images/<image-name>/build.sh
-Project setup runs automatically on first VM provisioning.
+Project setup (base-setup.sh + build.sh) runs automatically on first VM provisioning.
 `)
     process.exit(0)
   }
 
   switch (subcommand) {
-    case "build-base":
-      await buildBaseCmd()
-      break
     case "list":
       await listAvailableImages()
       break
@@ -38,22 +31,6 @@ Project setup runs automatically on first VM provisioning.
     default:
       console.error(`Unknown image subcommand: ${subcommand}`)
       process.exit(1)
-  }
-}
-
-async function buildBaseCmd(): Promise<void> {
-  log.info("Building base VM from template")
-  try {
-    const { buildBase } = await import("../image/build.ts")
-    await buildBase(log)
-    log.info("Base VM built successfully")
-  } catch (err) {
-    if ((err as NodeJS.ErrnoException).code === "MODULE_NOT_FOUND" ||
-        (err as NodeJS.ErrnoException).code === "ERR_MODULE_NOT_FOUND") {
-      console.error("Image build module not available (Phase 2 not yet built)")
-      process.exit(1)
-    }
-    throw err
   }
 }
 
@@ -79,11 +56,11 @@ async function initImage(imageName: string | undefined): Promise<void> {
 set -euo pipefail
 
 # ${imageName} project setup script.
-# Runs inside the project VM on first provisioning (after cloning from base).
+# Runs inside the project VM after base-setup.sh installs common tools.
 #
-# Base image already provides:
+# Base setup provides:
 #   git, curl, jq, openssh-server, tmux,
-#   Node.js 22, npm, OpenCode, Claude Code, gh CLI
+#   Node.js 22, npm, pnpm, OpenCode, Claude Code, gh CLI
 
 export DEBIAN_FRONTEND=noninteractive
 
@@ -113,7 +90,7 @@ async function listAvailableImages(): Promise<void> {
   const images = Effect.runSync(listImages(db))
 
   if (images.length === 0) {
-    console.log("No images found. Build base with: tangerine image build-base")
+    console.log("No images found.")
     return
   }
 
