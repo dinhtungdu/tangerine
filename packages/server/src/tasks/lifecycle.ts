@@ -44,7 +44,7 @@ export interface ProjectConfig {
   defaultBranch?: string
   image: string
   setup: string
-  preview: { port: number }
+  previewCommand?: string
   poolSize?: number
 }
 

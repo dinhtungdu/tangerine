@@ -43,7 +43,6 @@ export interface AgentStartContext {
   sshPort: number
   workdir: string
   title: string
-  previewPort?: number
   /** Model ID to use (e.g. "claude-sonnet-4-6" for Claude Code, "anthropic/claude-sonnet-4-6" for OpenCode) */
   model?: string
   /** Reasoning effort level: "low", "medium", "high" */
