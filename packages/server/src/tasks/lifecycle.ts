@@ -294,7 +294,7 @@ export function startSession(
     yield* deps.sshExec(
       vm.ip!,
       vm.ssh_port!,
-      `if [ -d /workspace/repo/.git ]; then
+      `sudo mkdir -p /workspace && sudo chown $(whoami) /workspace && if [ -d /workspace/repo/.git ]; then
         cd /workspace/repo && git fetch origin
       else
         rm -rf /workspace/repo

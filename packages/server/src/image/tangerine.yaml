@@ -30,6 +30,10 @@ ssh:
 # Lima injects SSH keys and grants passwordless sudo automatically.
 # No custom user block needed — Lima handles everything.
 
+# Disable Lima auto port-forwarding — VM services (MariaDB, Apache, etc.)
+# must not steal host ports. Tangerine manages its own tunnels explicitly.
+portForwards: []
+
 # No host mounts — repos are cloned inside the VM
 mounts: []
 
