@@ -24,7 +24,7 @@ export function previewRoutes(deps: AppDeps): Hono {
         const target = `http://localhost:${previewPort}${downstreamPath}${url.search}`
 
         const headers = new Headers(c.req.raw.headers)
-        headers.set("Host", `localhost:${previewPort}`)
+        headers.set("Host", c.req.header("host") ?? `localhost:${previewPort}`)
         // Remove hop-by-hop headers that shouldn't be forwarded
         headers.delete("connection")
         headers.delete("keep-alive")

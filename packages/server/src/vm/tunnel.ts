@@ -81,12 +81,14 @@ export function createPreviewTunnel(opts: {
   vmIp: string;
   sshPort: number;
   remotePort: number;
+  /** Pre-allocated local port. If omitted, a new port is allocated. */
+  localPort?: number;
   user?: string;
 }): Effect.Effect<PreviewTunnel, TunnelError> {
   return Effect.tryPromise({
     try: async () => {
       const user = opts.user ?? VM_USER;
-      const localPort = await Effect.runPromise(allocatePort());
+      const localPort = opts.localPort ?? await Effect.runPromise(allocatePort());
 
       const args = [
         "ssh",
@@ -97,7 +99,7 @@ export function createPreviewTunnel(opts: {
         "-o", "LogLevel=ERROR",
         "-o", "ExitOnForwardFailure=yes",
         "-p", String(opts.sshPort),
-        "-L", `${localPort}:127.0.0.1:${opts.remotePort}`,
+        "-L", `0.0.0.0:${localPort}:127.0.0.1:${opts.remotePort}`,
         `${user}@${opts.vmIp}`,
       ];
 

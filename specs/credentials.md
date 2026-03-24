@@ -12,6 +12,7 @@ How API keys and tokens flow from host to VM. Never baked into images.
 | `GITHUB_TOKEN` | git push, `gh pr create` on github.com | Dotfile or env var |
 | `GH_ENTERPRISE_TOKEN` | git push, `gh pr create` on GHE | Dotfile or env var |
 | `GH_HOST` | GitHub Enterprise hostname | Dotfile or env var (default: `github.com`) |
+| `EXTERNAL_HOST` | External hostname for preview access (e.g. Tailscale hostname) | Dotfile or env var (default: `localhost`) |
 
 ## Injection Flow
 
@@ -45,6 +46,10 @@ GH_ENTERPRISE_TOKEN=ghe_...    # only if GHE configured
 GH_HOST=github.corp.com        # only if not github.com
 ANTHROPIC_API_KEY=sk-ant-...
 CLAUDE_CODE_OAUTH_TOKEN=...
+TANGERINE_TASK_ID=task-abc123
+TANGERINE_SERVER_PORT=3456
+TANGERINE_PREVIEW_PORT=58432     # pre-allocated, tunnel created lazily
+TANGERINE_HOST=mybox.ts.net      # from EXTERNAL_HOST config
 ```
 
 The agent start commands all include: `test -f ~/.env && set -a && . ~/.env && set +a`

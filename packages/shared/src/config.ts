@@ -3,6 +3,7 @@ import { z } from "zod"
 const previewConfigSchema = z.object({
   port: z.number().default(3000),
   path: z.string().default("/"),
+  command: z.string().optional(),
 })
 
 const poolConfigSchema = z.object({

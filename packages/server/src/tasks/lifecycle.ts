@@ -8,6 +8,7 @@ import { SessionStartError } from "../errors"
 import type { TaskRow } from "../db/types"
 import type { ProjectVmRow } from "../vm/project-vm"
 import type { ProxyTunnel } from "../vm/tunnel"
+import { allocatePort } from "../vm/tunnel"
 import { getHandleMeta } from "../agent/opencode-provider"
 import { initPool, acquireSlot } from "./worktree-pool"
 
@@ -17,6 +18,7 @@ export interface SessionInfo {
   vmId: string
   agentHandle: import("../agent/provider").AgentHandle
   agentPort: number | null
+  previewPort: number
   branch: string
   worktreePath: string
   proxyTunnel: ProxyTunnel | null
@@ -58,6 +60,8 @@ export interface CredentialConfig {
   proxyPort: number | null
   /** Tangerine server port — reverse-tunneled into VM for cross-project task creation */
   serverPort: number
+  /** External hostname for preview access (e.g. Tailscale hostname). Default: localhost */
+  externalHost: string
 }
 
 export function startSession(
@@ -249,10 +253,22 @@ export function startSession(
       }))
     )
 
-    // Inject task ID and server port so tangerine-task CLI can reach the host
+    // 3d. Allocate preview port (tunnel created lazily on first preview access)
+    const previewPort = yield* allocatePort().pipe(
+      Effect.mapError((e) => new SessionStartError({
+        message: `Preview port allocation failed: ${e.message}`,
+        taskId: task.id,
+        phase: "preview-port",
+        cause: e,
+      }))
+    )
+
+    // Inject task ID, server port, and preview env vars
     yield* deps.injectCredentials(vm.ip!, vm.ssh_port!, {
       TANGERINE_TASK_ID: task.id,
       TANGERINE_SERVER_PORT: String(creds.serverPort),
+      TANGERINE_PREVIEW_PORT: String(previewPort),
+      TANGERINE_HOST: creds.externalHost,
     }).pipe(
       Effect.mapError((e) => new SessionStartError({
         message: `API env injection failed: ${e.message}`,
@@ -381,6 +397,7 @@ export function startSession(
     yield* deps.updateTask(task.id, {
       agent_session_id: agentSessionId,
       agent_port: agentPort,
+      preview_port: previewPort,
       status: "running",
       started_at: new Date().toISOString(),
     }).pipe(
@@ -393,7 +410,7 @@ export function startSession(
     )
 
     yield* activity("session.ready", "Session ready", {
-      vmId: vm.id, agentSessionId, agentPort, branch, worktreePath,
+      vmId: vm.id, agentSessionId, agentPort, previewPort, branch, worktreePath,
     })
     vmLog.info("Session ready", { agentSessionId, worktreePath })
     sessionSpan.end({ vmId: vm.id, agentSessionId })
@@ -402,6 +419,7 @@ export function startSession(
       vmId: vm.id,
       agentHandle,
       agentPort,
+      previewPort,
       branch,
       worktreePath,
       proxyTunnel,
@@ -539,9 +557,21 @@ export function reconnectSession(
       }))
     )
 
+    // 3d. Re-allocate preview port
+    const previewPort = yield* allocatePort().pipe(
+      Effect.mapError((e) => new SessionStartError({
+        message: `Preview port allocation failed: ${e.message}`,
+        taskId: task.id,
+        phase: "preview-port",
+        cause: e,
+      }))
+    )
+
     yield* deps.injectCredentials(vm.ip!, vm.ssh_port!, {
       TANGERINE_TASK_ID: task.id,
       TANGERINE_SERVER_PORT: String(creds.serverPort),
+      TANGERINE_PREVIEW_PORT: String(previewPort),
+      TANGERINE_HOST: creds.externalHost,
     }).pipe(Effect.catchAll(() => Effect.void))
 
     // 4. Kill any lingering agent process in the worktree
@@ -570,6 +600,7 @@ export function reconnectSession(
     yield* deps.updateTask(task.id, {
       agent_session_id: agentSessionId,
       agent_port: agentPort,
+      preview_port: previewPort,
       status: "running",
     }).pipe(
       Effect.mapError((e) => new SessionStartError({
@@ -581,13 +612,14 @@ export function reconnectSession(
     )
 
     yield* activity("session.reconnected", "Session reconnected", {
-      vmId: vm.id, agentSessionId, agentPort,
+      vmId: vm.id, agentSessionId, agentPort, previewPort,
     })
 
     return {
       vmId: vm.id,
       agentHandle,
       agentPort,
+      previewPort,
       branch,
       worktreePath,
       proxyTunnel,

@@ -39,6 +39,7 @@ Stored in `tangerine.json` at the project root (or `~/.config/tangerine/config.j
 | `defaultProvider` | `"opencode" \| "claude-code"` | no | Default agent provider. Default: `"opencode"` |
 | `preview.port` | number | no | Port to forward for browser preview. Default: 3000 |
 | `preview.path` | string | no | URL path for preview. Default: `/` |
+| `preview.command` | string | no | Command to start preview server (run in worktree on first preview access) |
 | `test` | string | no | Command to run tests |
 | `extraPorts` | number[] | no | Additional ports to forward |
 | `env` | object | no | Extra env vars passed to VM |
