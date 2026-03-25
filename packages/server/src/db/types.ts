@@ -30,6 +30,7 @@ export interface SessionLogRow {
   task_id: string
   role: string
   content: string
+  images: string | null
   timestamp: string
 }
 

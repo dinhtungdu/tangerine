@@ -3,11 +3,16 @@ import type { WsServerMessage, TaskStatus, ActivityEntry, PromptImage } from "@t
 import { fetchMessages, fetchActivities, type SessionLog } from "../lib/api"
 import { useWebSocket } from "./useWebSocket"
 
+export interface ChatMessageImage {
+  src: string
+}
+
 export interface ChatMessage {
   id: string
   role: string
   content: string
   timestamp: string
+  images?: ChatMessageImage[]
 }
 
 interface UseSessionResult {
@@ -38,12 +43,21 @@ export function useSession(taskId: string): UseSessionResult {
         const logs = await fetchMessages(taskId)
         if (cancelled) return
         setMessages(
-          logs.map((log: SessionLog) => ({
-            id: String(log.id),
-            role: log.role,
-            content: log.content,
-            timestamp: log.timestamp,
-          })),
+          logs.map((log: SessionLog) => {
+            const msg: ChatMessage = {
+              id: String(log.id),
+              role: log.role,
+              content: log.content,
+              timestamp: log.timestamp,
+            }
+            if (log.images) {
+              try {
+                const filenames = JSON.parse(log.images) as string[]
+                msg.images = filenames.map((f) => ({ src: `/api/tasks/${taskId}/images/${f}` }))
+              } catch { /* ignore malformed */ }
+            }
+            return msg
+          }),
         )
       } catch {
         // Messages may not be available yet
@@ -127,15 +141,18 @@ export function useSession(taskId: string): UseSessionResult {
   const sendPrompt = useCallback(
     (text: string, images?: PromptImage[]) => {
       // Add user message optimistically
-      setMessages((prev) => [
-        ...prev,
-        {
-          id: `user-${Date.now()}`,
-          role: "user",
-          content: text,
-          timestamp: new Date().toISOString(),
-        },
-      ])
+      if (text || images?.length) {
+        setMessages((prev) => [
+          ...prev,
+          {
+            id: `user-${Date.now()}`,
+            role: "user",
+            content: text,
+            timestamp: new Date().toISOString(),
+            images: images?.map((img) => ({ src: `data:${img.mediaType};base64,${img.data}` })),
+          },
+        ])
+      }
       setAgentStatus("working")
       setQueueLength((q) => q + 1)
       send({ type: "prompt", text, images })

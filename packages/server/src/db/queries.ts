@@ -93,17 +93,18 @@ export function updateTaskStatus(db: Database, id: string, status: string): Effe
 
 export function insertSessionLog(
   db: Database,
-  log: Pick<SessionLogRow, "task_id" | "role" | "content">
+  log: Pick<SessionLogRow, "task_id" | "role" | "content"> & { images?: string | null }
 ): Effect.Effect<SessionLogRow, DbError> {
   return dbTry(() => {
     const stmt = db.prepare(`
-      INSERT INTO session_logs (task_id, role, content)
-      VALUES ($task_id, $role, $content)
+      INSERT INTO session_logs (task_id, role, content, images)
+      VALUES ($task_id, $role, $content, $images)
     `)
     const result = stmt.run({
       $task_id: log.task_id,
       $role: log.role,
       $content: log.content,
+      $images: log.images ?? null,
     })
     return db.prepare("SELECT * FROM session_logs WHERE id = ?").get(result.lastInsertRowid) as SessionLogRow
   })

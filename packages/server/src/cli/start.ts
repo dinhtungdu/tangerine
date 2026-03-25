@@ -231,7 +231,36 @@ export async function start(): Promise<void> {
         ),
         sendPrompt: (taskId, text, images) =>
           Effect.gen(function* () {
-            yield* insertSessionLog(db, { task_id: taskId, role: "user", content: text }).pipe(
+            // Save images to disk and store filenames in session_logs
+            let imageFilenames: string[] | undefined
+            if (images && images.length > 0) {
+              const imagesDir = `${TANGERINE_HOME}/images/${taskId}`
+              yield* Effect.tryPromise({
+                try: () => Bun.write(`${imagesDir}/.keep`, ""),
+                catch: () => new Error("mkdir"),
+              }).pipe(Effect.catchAll(() => Effect.void))
+
+              imageFilenames = []
+              for (const img of images) {
+                const ext = img.mediaType.split("/")[1] ?? "png"
+                const filename = `${Date.now()}-${Math.random().toString(36).slice(2, 8)}.${ext}`
+                yield* Effect.tryPromise({
+                  try: () => Bun.write(
+                    `${imagesDir}/${filename}`,
+                    Buffer.from(img.data, "base64"),
+                  ),
+                  catch: () => new Error("write image"),
+                }).pipe(Effect.catchAll(() => Effect.void))
+                imageFilenames.push(filename)
+              }
+            }
+
+            yield* insertSessionLog(db, {
+              task_id: taskId,
+              role: "user",
+              content: text,
+              images: imageFilenames ? JSON.stringify(imageFilenames) : null,
+            }).pipe(
               Effect.catchAll(() => Effect.void)
             )
 

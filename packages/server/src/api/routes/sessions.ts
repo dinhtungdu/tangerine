@@ -6,7 +6,7 @@ import { getActivities } from "../../activity"
 import { runEffect, runEffectVoid } from "../effect-helpers"
 import { normalizeTimestamps } from "../helpers"
 import { TaskNotFoundError } from "../../errors"
-import { getProjectConfig } from "../../config"
+import { getProjectConfig, TANGERINE_HOME } from "../../config"
 
 export function sessionRoutes(deps: AppDeps): Hono {
   const app = new Hono()
@@ -17,6 +17,23 @@ export function sessionRoutes(deps: AppDeps): Hono {
         Effect.map((rows) => rows.map(normalizeTimestamps))
       )
     )
+  })
+
+  app.get("/:id/images/:filename", async (c) => {
+    const taskId = c.req.param("id")
+    const filename = c.req.param("filename")
+    // Prevent path traversal
+    if (filename.includes("/") || filename.includes("..")) {
+      return c.json({ error: "invalid filename" }, 400)
+    }
+    const filePath = `${TANGERINE_HOME}/images/${taskId}/${filename}`
+    const file = Bun.file(filePath)
+    if (!(await file.exists())) {
+      return c.json({ error: "not found" }, 404)
+    }
+    return new Response(file, {
+      headers: { "Content-Type": file.type, "Cache-Control": "public, max-age=31536000, immutable" },
+    })
   })
 
   app.post("/:id/prompt", async (c) => {
