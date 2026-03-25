@@ -12,8 +12,11 @@ export function ActivityList({ activities, variant = "compact" }: ActivityListPr
     return <div className="py-8 text-center text-[12px] text-fg-muted">No activity yet</div>
   }
 
+  // Show newest activity first so users don't have to scroll to see latest events
+  const reversed = [...activities].reverse()
+
   if (variant === "timeline") {
-    return <TimelineView activities={activities} />
+    return <TimelineView activities={reversed} />
   }
 
   return (
@@ -23,11 +26,11 @@ export function ActivityList({ activities, variant = "compact" }: ActivityListPr
         <span className="font-mono text-[11px] font-medium text-fg-muted">{activities.length}</span>
       </div>
       <div className="flex flex-col">
-        {activities.map((entry, i) => (
+        {reversed.map((entry, i) => (
           <ActivityItem
             key={entry.id}
             entry={entry}
-            isLast={i === activities.length - 1}
+            isLast={i === 0}
           />
         ))}
       </div>
