@@ -48,6 +48,37 @@ const agentHandles = new Map<string, AgentHandle>()
 const firstPromptSent = new Set<string>()
 // Track tasks that already have a PR URL saved (avoid redundant DB writes)
 const prUrlSaved = new Set<string>()
+// Track tasks that have been nudged about missing PR (avoid repeated nudges)
+const prNudgeSent = new Set<string>()
+// Debounce timers for PR nudge (cancelled if agent goes back to working)
+const prNudgeTimers = new Map<string, Timer>()
+
+/** Delay before nudging an idle agent about missing PR (ms) */
+const PR_NUDGE_DELAY_MS = 15_000
+
+/**
+ * Check if the task's branch has commits ahead of the default branch.
+ * Returns true if there are commits that could warrant a PR.
+ */
+async function branchHasCommits(db: import("bun:sqlite").Database, taskId: string, projectConfig: { defaultBranch?: string } | undefined): Promise<boolean> {
+  const task = db.prepare("SELECT branch, worktree_path FROM tasks WHERE id = ?").get(taskId) as { branch: string | null; worktree_path: string | null } | null
+  if (!task?.branch || !task?.worktree_path) return false
+
+  const defaultBranch = projectConfig?.defaultBranch ?? "main"
+  try {
+    const proc = Bun.spawn(["git", "rev-list", "--count", `origin/${defaultBranch}..HEAD`], {
+      cwd: task.worktree_path,
+      stdout: "pipe",
+      stderr: "pipe",
+    })
+    const stdout = await new Response(proc.stdout).text()
+    const exitCode = await proc.exited
+    if (exitCode !== 0) return false
+    return parseInt(stdout.trim(), 10) > 0
+  } catch {
+    return false
+  }
+}
 
 export async function start(): Promise<void> {
   const startSpan = log.startOp("server-start")
@@ -126,6 +157,7 @@ export async function start(): Promise<void> {
 
               const nudge = [
                 `[TANGERINE: Server restarted. You are working on: ${originalTask}]`,
+                `[NOTE: When your work is complete, you MUST push your branch and create a pull request. Use \`git push origin HEAD\` then \`gh pr create\`.]`,
                 unansweredUserMsg
                   ? `The last message you had not yet responded to was: ${unansweredUserMsg}\n\nPlease continue.`
                   : "Please continue where you left off.",
@@ -176,6 +208,7 @@ export async function start(): Promise<void> {
                   const prefix = taskId.slice(0, 8)
                   notes.push(`[NOTE: Project setup is running in the background (\`${projConfig.setup}\`). Before running builds, tests, or linters, check if setup is done: \`cat /tmp/tangerine-setup-${prefix}.status\` (running/done/failed). Log: \`cat /tmp/tangerine-setup-${prefix}.log\`]`)
                 }
+                notes.push(`[NOTE: When your work is complete, you MUST push your branch and create a pull request. This is required for the task to be considered done. Use \`git push origin HEAD\` then \`gh pr create\`. Do not stop at just committing.]`)
                 firstPromptSent.add(taskId)
                 const fullPrompt = notes.join("\n") + "\n\n" + initialPrompt
 
@@ -251,8 +284,47 @@ export async function start(): Promise<void> {
               case "status": {
                 if (event.status === "working") {
                   emitTaskEvent(taskId, { event: "agent.start" })
+                  // Cancel pending PR nudge — agent is still working
+                  const pendingTimer = prNudgeTimers.get(taskId)
+                  if (pendingTimer) {
+                    clearTimeout(pendingTimer)
+                    prNudgeTimers.delete(taskId)
+                  }
                 } else if (event.status === "idle") {
                   emitTaskEvent(taskId, { event: "agent.idle" })
+
+                  // Schedule PR nudge if agent has commits but no PR
+                  if (!prUrlSaved.has(taskId) && !prNudgeSent.has(taskId)) {
+                    const timer = setTimeout(async () => {
+                      prNudgeTimers.delete(taskId)
+                      if (prUrlSaved.has(taskId) || prNudgeSent.has(taskId)) return
+
+                      const task = db.prepare("SELECT project_id FROM tasks WHERE id = ?").get(taskId) as { project_id: string } | null
+                      const projConfig = task?.project_id ? getProjectConfig(config.config, task.project_id) : undefined
+
+                      const hasCommits = await branchHasCommits(db, taskId, projConfig)
+                      if (!hasCommits || prUrlSaved.has(taskId)) return
+
+                      prNudgeSent.add(taskId)
+                      const handle = agentHandles.get(taskId)
+                      if (handle) {
+                        log.info("Nudging agent to create PR", { taskId })
+                        Effect.runPromise(
+                          handle.sendPrompt(
+                            "[TANGERINE: You have commits on your branch but no pull request has been created. " +
+                            "Please push your branch and create a PR with `git push origin HEAD` and `gh pr create`. " +
+                            "A PR is required for the task to be considered complete.]"
+                          ).pipe(Effect.catchAll(() => Effect.void))
+                        )
+                        Effect.runPromise(
+                          logActivity(db, taskId, "system", "pr.nudge", "Agent nudged to create PR").pipe(
+                            Effect.catchAll(() => Effect.void)
+                          )
+                        )
+                      }
+                    }, PR_NUDGE_DELAY_MS)
+                    prNudgeTimers.set(taskId, timer)
+                  }
                 }
                 break
               }
@@ -417,6 +489,8 @@ export async function start(): Promise<void> {
                     `(running/done/failed). Log: \`cat /tmp/tangerine-setup-${prefix}.log\`]`)
                 }
               }
+
+              notes.push(`[NOTE: When your work is complete, you MUST push your branch and create a pull request. This is required for the task to be considered done. Use \`git push origin HEAD\` then \`gh pr create\`. Do not stop at just committing.]`)
 
               if (notes.length > 0) {
                 promptText = notes.join("\n") + "\n\n" + text
