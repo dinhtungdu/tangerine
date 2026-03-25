@@ -34,13 +34,12 @@ portForwards:
     guestPortRange: [1, 65535]
     ignore: true
 
-# Mount tangerine data — DB, config, credentials survive VM rebuilds.
-# Uses fixed guest path /data/tangerine (Lima mirrors host paths by default,
-# which doesn't match guest $HOME). Set TANGERINE_HOME=/data/tangerine.
+# Mount tangerine data at guest $HOME/tangerine — DB and config persist across VM rebuilds.
+# Lima guest home is /home/<user>.linux — mountPoint must match.
 # SSH keys handled by Lima's forwardAgent + loadDotSSHPubKeys.
 mounts:
   - location: "~/tangerine"
-    mountPoint: "/data/tangerine"
+    mountPoint: "/home/{{.User}}.linux/tangerine"
     writable: true
 
 message: |
