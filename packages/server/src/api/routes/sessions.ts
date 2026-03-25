@@ -105,7 +105,7 @@ export function sessionRoutes(deps: AppDeps): Hono {
   })
 
   // Returns git diff of all changes on the task branch vs origin/{defaultBranch}.
-  // Priority: worktree (live) > branch ref (post-cleanup) > diff_snapshot (branch deleted).
+  // Priority: worktree (live, includes uncommitted) > branch ref (post-cleanup).
   app.get("/:id/diff", (c) => {
     return runEffect(c,
       Effect.gen(function* () {
@@ -118,17 +118,10 @@ export function sessionRoutes(deps: AppDeps): Hono {
         let raw = ""
 
         if (task.worktree_path) {
-          // Active worktree — includes uncommitted changes
           raw = yield* gitDiff(`git diff origin/${defaultBranch}...HEAD`, task.worktree_path)
         } else if (task.branch) {
-          // Worktree released — diff from the main repo clone
           const repoDir = `/workspace/${task.project_id}/repo`
           raw = yield* gitDiff(`git diff origin/${defaultBranch}...${task.branch}`, repoDir)
-        }
-
-        // Branch may have been deleted (e.g. after PR merge) — fall back to stored snapshot
-        if (!raw && task.diff_snapshot) {
-          raw = task.diff_snapshot
         }
 
         if (!raw) return { files: [] }
