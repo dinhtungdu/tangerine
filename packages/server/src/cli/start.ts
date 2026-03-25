@@ -19,7 +19,7 @@ import type { CleanupDeps } from "../tasks/cleanup"
 import { startOrphanCleanup, findOrphans, cleanupOrphans } from "../tasks/orphan-cleanup"
 import type { OrphanCleanupDeps } from "../tasks/orphan-cleanup"
 import { AgentError } from "../errors"
-import { extractPrUrl, startPrMonitor } from "../tasks/pr-monitor"
+import { extractPrUrl, verifyPrBranch, startPrMonitor } from "../tasks/pr-monitor"
 import type { PrMonitorDeps } from "../tasks/pr-monitor"
 import { initSystemLog, cleanupSystemLogs } from "../system-log"
 import { createOpenCodeProvider } from "../agent/opencode-provider"
@@ -217,16 +217,18 @@ export async function start(): Promise<void> {
                   if (event.content && !prUrlSaved.has(taskId)) {
                     const prUrl = extractPrUrl(event.content)
                     if (prUrl) {
-                      prUrlSaved.add(taskId)
+                      const taskBranch = (db.prepare("SELECT branch FROM tasks WHERE id = ?").get(taskId) as { branch: string | null } | null)?.branch
                       Effect.runPromise(
-                        updateTask(db, taskId, { pr_url: prUrl }).pipe(Effect.catchAll(() => Effect.void))
-                      )
-                      Effect.runPromise(
-                        logActivity(db, taskId, "lifecycle", "pr.created", `PR created: ${prUrl}`, { prUrl }).pipe(
-                          Effect.catchAll(() => Effect.void)
+                        verifyPrBranch(prUrl, taskBranch ?? "").pipe(
+                          Effect.tap((matches) => Effect.sync(() => {
+                            if (!matches) { log.warn("PR branch mismatch, ignoring", { taskId, prUrl, taskBranch }); return }
+                            prUrlSaved.add(taskId)
+                            Effect.runPromise(updateTask(db, taskId, { pr_url: prUrl }).pipe(Effect.catchAll(() => Effect.void)))
+                            Effect.runPromise(logActivity(db, taskId, "lifecycle", "pr.created", `PR created: ${prUrl}`, { prUrl }).pipe(Effect.catchAll(() => Effect.void)))
+                            log.info("PR URL detected from message", { taskId, prUrl })
+                          }))
                         )
                       )
-                      log.info("PR URL detected from message", { taskId, prUrl })
                     }
                   }
                 }
@@ -260,16 +262,18 @@ export async function start(): Promise<void> {
                 if (event.toolResult && !prUrlSaved.has(taskId)) {
                   const prUrl = extractPrUrl(event.toolResult)
                   if (prUrl) {
-                    prUrlSaved.add(taskId)
+                    const taskBranch = (db.prepare("SELECT branch FROM tasks WHERE id = ?").get(taskId) as { branch: string | null } | null)?.branch
                     Effect.runPromise(
-                      updateTask(db, taskId, { pr_url: prUrl }).pipe(Effect.catchAll(() => Effect.void))
-                    )
-                    Effect.runPromise(
-                      logActivity(db, taskId, "lifecycle", "pr.created", `PR created: ${prUrl}`, { prUrl }).pipe(
-                        Effect.catchAll(() => Effect.void)
+                      verifyPrBranch(prUrl, taskBranch ?? "").pipe(
+                        Effect.tap((matches) => Effect.sync(() => {
+                          if (!matches) { log.warn("PR branch mismatch, ignoring", { taskId, prUrl, taskBranch }); return }
+                          prUrlSaved.add(taskId)
+                          Effect.runPromise(updateTask(db, taskId, { pr_url: prUrl }).pipe(Effect.catchAll(() => Effect.void)))
+                          Effect.runPromise(logActivity(db, taskId, "lifecycle", "pr.created", `PR created: ${prUrl}`, { prUrl }).pipe(Effect.catchAll(() => Effect.void)))
+                          log.info("PR URL detected from tool result", { taskId, prUrl })
+                        }))
                       )
                     )
-                    log.info("PR URL detected from tool result", { taskId, prUrl })
                   }
                 }
                 break

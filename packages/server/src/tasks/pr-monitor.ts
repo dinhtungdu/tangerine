@@ -52,6 +52,26 @@ export function checkPrState(prUrl: string): Effect.Effect<PrState | null, never
 }
 
 /**
+ * Verify a PR URL actually belongs to the given branch.
+ * Prevents false positives when an agent mentions another task's PR in its output.
+ */
+export function verifyPrBranch(prUrl: string, expectedBranch: string): Effect.Effect<boolean, never> {
+  return Effect.tryPromise({
+    try: async () => {
+      const proc = Bun.spawn(
+        ["gh", "pr", "view", prUrl, "--json", "headRefName", "--jq", ".headRefName"],
+        { stdout: "pipe", stderr: "pipe" },
+      )
+      const text = await new Response(proc.stdout).text()
+      const exitCode = await proc.exited
+      if (exitCode !== 0) return false
+      return text.trim() === expectedBranch
+    },
+    catch: () => false,
+  }).pipe(Effect.catchAll(() => Effect.succeed(false)))
+}
+
+/**
  * Look up an open PR for a branch on GitHub. Returns the PR URL if found, null otherwise.
  * Uses `gh pr list --head <branch> --repo <owner/repo>`.
  */
