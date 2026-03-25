@@ -33,7 +33,7 @@ export function RunCard({ task, onCancel, onRetry, onDelete }: RunCardProps) {
   return (
     <Link
       to={`/tasks/${task.id}`}
-      className={`rounded-[10px] border border-edge p-3.5 transition active:bg-surface${task.status === "done" ? " bg-blue-50" : ""}`}
+      className="rounded-[10px] border border-edge p-3.5 transition active:bg-surface"
     >
       <div className="flex items-center justify-between gap-3">
         <span className="min-w-0 truncate text-[14px] font-medium text-fg">{task.title}</span>
