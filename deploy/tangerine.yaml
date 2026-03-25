@@ -30,8 +30,11 @@ mounts:
   - location: "~/tangerine"
     mountPoint: "/home/tung.linux/tangerine"
     writable: true
-  - location: "~/.config"
-    mountPoint: "/home/tung.linux/.config"
+  - location: "~/.config/gh"
+    mountPoint: "/home/tung.linux/.config/gh"
+    writable: false
+  - location: "~/.config/tmux"
+    mountPoint: "/home/tung.linux/.config/tmux"
     writable: false
 
 provision:

@@ -4,6 +4,7 @@
 # Must be run as root (sudo).
 set -eux -o pipefail
 export DEBIAN_FRONTEND=noninteractive
+export HOME="${HOME:-/root}"
 
 # --- IPv6 workaround (Lima VZ shared networking has broken IPv6) ---
 sysctl -w net.ipv6.conf.all.disable_ipv6=1
@@ -59,9 +60,9 @@ npm install -g @anthropic-ai/claude-code
 
 # --- Bun runtime ---
 curl -fsSL https://bun.sh/install | bash
-# Make bun available system-wide
-ln -sf /root/.bun/bin/bun /usr/local/bin/bun
-ln -sf /root/.bun/bin/bunx /usr/local/bin/bunx
+# Make bun available system-wide (copy, not symlink — /root is 700)
+cp /root/.bun/bin/bun /usr/local/bin/bun
+cp /root/.bun/bin/bunx /usr/local/bin/bunx
 
 # --- Workspace directory ---
 REAL_USER="${SUDO_USER:-$(logname 2>/dev/null || echo root)}"
