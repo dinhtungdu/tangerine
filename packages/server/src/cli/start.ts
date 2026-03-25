@@ -229,7 +229,7 @@ export async function start(): Promise<void> {
         completeTask: (taskId) => taskManager.completeTask(tmDeps, taskId).pipe(
           Effect.mapError((e) => ({ _tag: e._tag, message: e.message }))
         ),
-        sendPrompt: (taskId, text) =>
+        sendPrompt: (taskId, text, images) =>
           Effect.gen(function* () {
             yield* insertSessionLog(db, { task_id: taskId, role: "user", content: text }).pipe(
               Effect.catchAll(() => Effect.void)
@@ -254,7 +254,7 @@ export async function start(): Promise<void> {
             // Try agent handle first (works for both providers)
             const handle = agentHandles.get(taskId)
             if (handle) {
-              yield* handle.sendPrompt(promptText)
+              yield* handle.sendPrompt(promptText, images)
               return
             }
 

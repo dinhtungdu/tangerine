@@ -107,23 +107,16 @@ Example `config.json`:
   "workspace": "/workspace",
   "projects": [
     {
-      "name": "ciab-admin",
-      "repo": "git@github.a8c.com:Automattic/ciab-admin.git",
-      "defaultBranch": "trunk",
-      "setup": "pnpm install && composer install && pnpm build:all",
-      "test": "pnpm test:unit",
+      "name": "my-project",
+      "repo": "git@github.com:org/my-project.git",
+      "defaultBranch": "main",
+      "setup": "npm install",
+      "test": "npm test",
       "preview": {
-        "baseUrl": "http://woo-next.test",
+        "baseUrl": "http://localhost:3000",
         "provision": "$HOME/worktree-scripts/provision.sh",
         "teardown": "$HOME/worktree-scripts/teardown.sh"
       },
-      "defaultProvider": "claude-code"
-    },
-    {
-      "name": "dummy-node-app",
-      "repo": "https://github.com/dinhtungdu/dummy-node-app",
-      "defaultBranch": "main",
-      "setup": "npm install",
       "defaultProvider": "claude-code"
     }
   ],
@@ -476,10 +469,9 @@ deploy/              # Deployment scripts (NEW — extracted from server)
   tangerine.yaml     # Lima VM template (minimal)
   base-setup.sh      # Common tool installation
   images/            # Per-project build scripts
-    ciab-dev/
+    my-project/
       build.sh
       provision.sh
-      wordpress/
 ```
 
 ## Migration Checklist

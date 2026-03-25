@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback, useRef } from "react"
-import type { WsServerMessage, TaskStatus, ActivityEntry } from "@tangerine/shared"
+import type { WsServerMessage, TaskStatus, ActivityEntry, PromptImage } from "@tangerine/shared"
 import { fetchMessages, fetchActivities, type SessionLog } from "../lib/api"
 import { useWebSocket } from "./useWebSocket"
 
@@ -17,7 +17,7 @@ interface UseSessionResult {
   queueLength: number
   connected: boolean
   taskStatus: TaskStatus | null
-  sendPrompt: (text: string) => void
+  sendPrompt: (text: string, images?: PromptImage[]) => void
   abort: () => void
 }
 
@@ -125,7 +125,7 @@ export function useSession(taskId: string): UseSessionResult {
   }
 
   const sendPrompt = useCallback(
-    (text: string) => {
+    (text: string, images?: PromptImage[]) => {
       // Add user message optimistically
       setMessages((prev) => [
         ...prev,
@@ -138,7 +138,7 @@ export function useSession(taskId: string): UseSessionResult {
       ])
       setAgentStatus("working")
       setQueueLength((q) => q + 1)
-      send({ type: "prompt", text })
+      send({ type: "prompt", text, images })
       // Decrement queue after a short delay (server will process)
       setTimeout(() => setQueueLength((q) => Math.max(0, q - 1)), 500)
     },

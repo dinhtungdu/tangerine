@@ -7,6 +7,7 @@ export type {
   ActivityEntry,
   WsServerMessage,
   WsClientMessage,
+  PromptImage,
   LogLevel,
   SystemLogEntry,
 } from "./types"

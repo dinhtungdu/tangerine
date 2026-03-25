@@ -5,6 +5,7 @@
 import { Effect } from "effect"
 import { createLogger, truncate } from "../logger"
 import { PromptError } from "../errors"
+import type { PromptImage } from "./provider"
 
 const log = createLogger("prompt-queue")
 
@@ -12,6 +13,7 @@ type AgentState = "idle" | "busy"
 
 interface QueueEntry {
   text: string
+  images?: PromptImage[]
   enqueuedAt: number
 }
 
@@ -31,12 +33,12 @@ function getQueue(taskId: string): TaskQueue {
   return q
 }
 
-export type SendPromptFn = (taskId: string, text: string) => Promise<void>
+export type SendPromptFn = (taskId: string, text: string, images?: PromptImage[]) => Promise<void>
 
-export function enqueue(taskId: string, text: string): Effect.Effect<number, never> {
+export function enqueue(taskId: string, text: string, images?: PromptImage[]): Effect.Effect<number, never> {
   return Effect.sync(() => {
     const q = getQueue(taskId)
-    q.entries.push({ text, enqueuedAt: Date.now() })
+    q.entries.push({ text, images, enqueuedAt: Date.now() })
     log.debug("Prompt enqueued", { taskId, queueLength: q.entries.length })
     return q.entries.length
   })
@@ -76,7 +78,7 @@ export function drainNext(
     })
 
     yield* Effect.tryPromise({
-      try: () => sendPrompt(taskId, entry.text),
+      try: () => sendPrompt(taskId, entry.text, entry.images),
       catch: (e) => {
         // Put it back at the front on failure so no prompts are lost
         q.entries.unshift(entry)
