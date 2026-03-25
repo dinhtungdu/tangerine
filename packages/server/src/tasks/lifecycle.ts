@@ -5,6 +5,7 @@ import { Effect } from "effect"
 import type { Database } from "bun:sqlite"
 import { createLogger } from "../logger"
 import { SessionStartError } from "../errors"
+import { getHandleMeta as getOpenCodeHandleMeta } from "../agent/opencode-provider"
 import type { TaskRow } from "../db/types"
 import { initPool, acquireSlot } from "./worktree-pool"
 
@@ -14,6 +15,7 @@ export interface SessionInfo {
   agentHandle: import("../agent/provider").AgentHandle
   branch: string
   worktreePath: string
+  agentSessionId: string | null
   agentPid: number | null
 }
 
@@ -210,10 +212,10 @@ export function startSession(
     taskLog.info("Agent started")
 
     // Extract PID from handle if available
-    const agentPid = getAgentPid(agentHandle)
+    const { agentPid, agentSessionId } = getAgentRuntimeMeta(agentHandle)
 
     yield* deps.updateTask(task.id, {
-      agent_session_id: null,
+      agent_session_id: agentSessionId,
       agent_pid: agentPid,
       status: "running",
       started_at: new Date().toISOString(),
@@ -227,12 +229,12 @@ export function startSession(
     )
 
     yield* activity("session.ready", "Session ready", {
-      agentPid, branch, worktreePath,
+      agentPid, agentSessionId, branch, worktreePath,
     })
-    taskLog.info("Session ready", { agentPid, worktreePath })
-    sessionSpan.end({ agentPid })
+    taskLog.info("Session ready", { agentPid, agentSessionId, worktreePath })
+    sessionSpan.end({ agentPid, agentSessionId })
 
-    return { agentHandle, branch, worktreePath, agentPid }
+    return { agentHandle, branch, worktreePath, agentSessionId, agentPid }
   })
 }
 
@@ -289,10 +291,10 @@ export function reconnectSession(
     })
     taskLog.info("Agent reconnected")
 
-    const agentPid = getAgentPid(agentHandle)
+    const { agentPid, agentSessionId } = getAgentRuntimeMeta(agentHandle)
 
     yield* deps.updateTask(task.id, {
-      agent_session_id: null,
+      agent_session_id: agentSessionId,
       agent_pid: agentPid,
       status: "running",
     }).pipe(
@@ -304,15 +306,17 @@ export function reconnectSession(
       }))
     )
 
-    yield* activity("session.reconnected", "Session reconnected", { agentPid })
+    yield* activity("session.reconnected", "Session reconnected", { agentPid, agentSessionId })
 
-    return { agentHandle, branch, worktreePath, agentPid }
+    return { agentHandle, branch, worktreePath, agentSessionId, agentPid }
   })
 }
 
-/** Extract PID from agent handle if available (provider-specific) */
-function getAgentPid(handle: import("../agent/provider").AgentHandle): number | null {
-  // Agent providers can attach __pid to the handle
-  const h = handle as { __pid?: number }
-  return h.__pid ?? null
+export function getAgentRuntimeMeta(handle: import("../agent/provider").AgentHandle): { agentPid: number | null; agentSessionId: string | null } {
+  const processMeta = handle as { __pid?: number }
+  const openCodeMeta = getOpenCodeHandleMeta(handle)
+  return {
+    agentPid: processMeta.__pid ?? null,
+    agentSessionId: openCodeMeta?.sessionId ?? null,
+  }
 }

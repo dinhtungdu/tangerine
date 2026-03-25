@@ -2,38 +2,86 @@
 // creates a session, and bridges SSE events to the normalized AgentEvent stream.
 
 import { Effect } from "effect"
-import { createLogger } from "../logger"
+import { createLogger, truncate } from "../logger"
 import { AgentError, PromptError, SessionStartError } from "../errors"
 import type { AgentFactory, AgentHandle, AgentEvent, AgentStartContext } from "./provider"
 
 const log = createLogger("opencode-provider")
 
+function asRecord(value: unknown): Record<string, unknown> | null {
+  return typeof value === "object" && value !== null ? value as Record<string, unknown> : null
+}
+
+function getSessionId(data: Record<string, unknown>): string | null {
+  const properties = asRecord(data.properties)
+  const part = asRecord(properties?.part)
+  const info = asRecord(properties?.info)
+  const sessionID = part?.sessionID ?? info?.sessionID ?? properties?.sessionID
+  return typeof sessionID === "string" ? sessionID : null
+}
+
+function getTextSnapshotEvent(data: Record<string, unknown>, currentText: string): AgentEvent | null {
+  const part = asRecord(asRecord(data.properties)?.part)
+  if (part?.type !== "text") return null
+
+  const text = typeof part.text === "string" ? part.text : ""
+  const messageId = typeof part.messageID === "string" ? part.messageID : undefined
+  if (!messageId || !text.startsWith(currentText)) return null
+
+  const delta = text.slice(currentText.length)
+  if (!delta) return null
+  return { kind: "message.streaming", content: delta, messageId }
+}
+
+function getTextDeltaEvent(data: Record<string, unknown>): AgentEvent | null {
+  const properties = asRecord(data.properties)
+  if (properties?.field !== "text" || typeof properties.delta !== "string") return null
+  return {
+    kind: "message.streaming",
+    content: properties.delta,
+    messageId: typeof properties.messageID === "string" ? properties.messageID : undefined,
+  }
+}
+
+function getToolEvent(data: Record<string, unknown>, previousStatus?: string): AgentEvent | null {
+  const part = asRecord(asRecord(data.properties)?.part)
+  if (part?.type !== "tool") return null
+
+  const toolName = typeof part.tool === "string" ? part.tool : "unknown"
+  const state = asRecord(part.state)
+  const status = typeof state?.status === "string" ? state.status : ""
+
+  if ((status === "pending" || status === "running") && previousStatus !== status) {
+    const input = state?.input ? truncate(JSON.stringify(state.input), 500) : undefined
+    return { kind: "tool.start", toolName, toolInput: input }
+  }
+
+  if (status === "completed" && previousStatus !== "completed") {
+    const output = typeof state?.output === "string"
+      ? state.output
+      : typeof state?.metadata === "object" && state.metadata !== null && typeof (state.metadata as Record<string, unknown>).output === "string"
+        ? (state.metadata as Record<string, unknown>).output as string
+        : undefined
+    return { kind: "tool.end", toolName, toolResult: output ? truncate(output, 500) : undefined }
+  }
+
+  return null
+}
+
 /** Maps OpenCode SSE events to normalized AgentEvents */
-function mapSseEvent(data: Record<string, unknown>): AgentEvent | null {
+export function mapSseEvent(data: Record<string, unknown>, state?: { currentText?: string; previousToolStatus?: string }): AgentEvent | null {
   const type = data.type as string | undefined
   if (!type) return null
 
   switch (type) {
-    case "message.part.updated": {
-      const part = (data.properties as Record<string, unknown>)?.part as
-        | { type: string; text?: string; messageID?: string }
-        | undefined
-      if (part?.type === "text" && part.text) {
-        return { kind: "message.streaming", content: part.text, messageId: part.messageID }
-      }
-      return null
-    }
+    case "message.part.delta":
+      return getTextDeltaEvent(data)
 
-    case "message.updated": {
-      // Handled by the provider's internal accumulator — not mapped here.
-      // The provider emits message.complete after assembling text from streaming events.
-      return null
-    }
+    case "message.part.updated":
+      return getToolEvent(data, state?.previousToolStatus) ?? getTextSnapshotEvent(data, state?.currentText ?? "")
 
     case "session.status": {
-      const status = (data.properties as Record<string, unknown>)?.status as
-        | { type?: string }
-        | undefined
+      const status = asRecord(asRecord(data.properties)?.status)
       if (status?.type === "busy") return { kind: "status", status: "working" }
       if (status?.type === "idle") return { kind: "status", status: "idle" }
       return null
@@ -89,16 +137,22 @@ export function createOpenCodeProvider(): AgentFactory {
             }),
         })
 
-        // Create OpenCode session (model is passed per-prompt, not via config)
+        // Create or resume OpenCode session (model is passed per-prompt, not via config)
         const sessionId = yield* Effect.tryPromise({
           try: async () => {
-            const r = await fetch(`http://localhost:${opencodePort}/session`, {
+            if (ctx.resumeSessionId) {
+              const existing = await fetch(`http://localhost:${opencodePort}/session/${ctx.resumeSessionId}`)
+              if (existing.ok) return ctx.resumeSessionId
+              taskLog.warn("Resume session not found, creating a new OpenCode session", { resumeSessionId: ctx.resumeSessionId })
+            }
+
+            const created = await fetch(`http://localhost:${opencodePort}/session`, {
               method: "POST",
               headers: { "Content-Type": "application/json" },
               body: JSON.stringify({ title: ctx.title }),
             })
-            if (!r.ok) throw new Error(`Session create failed: ${r.status}`)
-            const body = (await r.json()) as { id: string }
+            if (!created.ok) throw new Error(`Session create failed: ${created.status}`)
+            const body = (await created.json()) as { id: string }
             return body.id
           },
           catch: (e) =>
@@ -116,6 +170,7 @@ export function createOpenCodeProvider(): AgentFactory {
         let sseAborted = false
         // Accumulate text parts per message ID to assemble complete messages
         const textParts = new Map<string, string>()
+        const toolStates = new Map<string, string>()
 
         const emit = (event: AgentEvent) => {
           for (const cb of subscribers) cb(event)
@@ -123,37 +178,60 @@ export function createOpenCodeProvider(): AgentFactory {
 
         /** Process raw OpenCode SSE event — handles message accumulation internally */
         const processRawEvent = (raw: Record<string, unknown>) => {
+          if (getSessionId(raw) !== sessionId) return
+
           const type = raw.type as string | undefined
           if (!type) return
 
-          // Accumulate streaming text
-          if (type === "message.part.updated") {
-            const part = (raw.properties as Record<string, unknown>)?.part as
-              | { type: string; text?: string; messageID?: string }
-              | undefined
-            if (part?.type === "text" && part.text && part.messageID) {
-              textParts.set(part.messageID, part.text)
-              emit({ kind: "message.streaming", content: part.text, messageId: part.messageID })
+          if (type === "message.part.delta") {
+            const properties = asRecord(raw.properties)
+            const messageId = typeof properties?.messageID === "string" ? properties.messageID : undefined
+            const delta = typeof properties?.delta === "string" ? properties.delta : undefined
+            if (messageId && delta && properties?.field === "text") {
+              textParts.set(messageId, (textParts.get(messageId) ?? "") + delta)
             }
-            return
+          }
+
+          if (type === "message.part.updated") {
+            const part = asRecord(asRecord(raw.properties)?.part)
+            const messageId = typeof part?.messageID === "string" ? part.messageID : undefined
+
+            if (part?.type === "text" && messageId && typeof part.text === "string") {
+              const currentText = textParts.get(messageId) ?? ""
+              if (part.text.startsWith(currentText)) {
+                textParts.set(messageId, part.text)
+              }
+            }
+
+            if (part?.type === "tool") {
+              const callId = typeof part.callID === "string" ? part.callID : undefined
+              const status = typeof asRecord(part.state)?.status === "string" ? asRecord(part.state)?.status as string : undefined
+              const mapped = mapSseEvent(raw, {
+                currentText: messageId ? (textParts.get(messageId) ?? "") : "",
+                previousToolStatus: callId ? toolStates.get(callId) : undefined,
+              })
+              if (callId && status) toolStates.set(callId, status)
+              if (mapped) emit(mapped)
+              return
+            }
           }
 
           // Emit complete message when assistant message finishes
           if (type === "message.updated") {
-            const info = (raw.properties as Record<string, unknown>)?.info as
-              | { id: string; role: string; time?: { completed?: number } }
-              | undefined
+            const info = asRecord(asRecord(raw.properties)?.info) as
+              | { id?: string; role?: string; time?: { completed?: number } }
+              | null
             if (info?.role === "assistant" && info.time?.completed) {
-              const text = textParts.get(info.id)
-              if (text) {
-                emit({ kind: "message.complete", role: "assistant", content: text, messageId: info.id })
-                textParts.delete(info.id)
+              const messageId = typeof info.id === "string" ? info.id : undefined
+              const text = messageId ? textParts.get(messageId) : undefined
+              if (text && messageId) {
+                emit({ kind: "message.complete", role: "assistant", content: text, messageId })
+                textParts.delete(messageId)
               }
             }
             return
           }
 
-          // Status events
           const mapped = mapSseEvent(raw)
           if (mapped) emit(mapped)
         }
@@ -311,6 +389,7 @@ export function createOpenCodeProvider(): AgentFactory {
           sessionId,
           agentPort: opencodePort,
         }
+        ;(handle as { __pid?: number }).__pid = proc.pid
 
         return handle
       })
