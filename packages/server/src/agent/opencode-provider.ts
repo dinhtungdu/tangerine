@@ -24,7 +24,8 @@ function getSessionId(data: Record<string, unknown>): string | null {
   const properties = asRecord(data.properties)
   const part = asRecord(properties?.part)
   const info = asRecord(properties?.info)
-  const sessionID = part?.sessionID ?? info?.sessionID ?? properties?.sessionID
+  const status = asRecord(properties?.status)
+  const sessionID = part?.sessionID ?? info?.sessionID ?? status?.sessionID ?? properties?.sessionID
   return typeof sessionID === "string" ? sessionID : null
 }
 
@@ -186,7 +187,10 @@ export function createOpenCodeProvider(): AgentFactory {
 
         /** Process raw OpenCode SSE event — handles message accumulation internally */
         const processRawEvent = (raw: Record<string, unknown>) => {
-          if (getSessionId(raw) !== sessionId) return
+          const eventSessionId = getSessionId(raw)
+          // Filter by session ID, but allow events with no session ID (e.g. session.status)
+          // since they may be global events that still apply to our session
+          if (eventSessionId !== null && eventSessionId !== sessionId) return
 
           const type = raw.type as string | undefined
           if (!type) return
