@@ -25,6 +25,11 @@ ssh:
   loadDotSSHPubKeys: true
   forwardAgent: true
 
+portForwards:
+  - guestPort: 3456
+    hostIP: "0.0.0.0"
+    hostPort: 3456
+
 # Mount tangerine data — DB, config, credentials survive VM rebuilds.
 mounts:
   - location: "~/tangerine"
