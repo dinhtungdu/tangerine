@@ -85,33 +85,42 @@ export function sessionRoutes(deps: AppDeps): Hono {
   })
 
   // Returns git diff of all changes on the task branch vs origin/{defaultBranch}.
-  // For active tasks: runs git diff against the worktree.
-  // For completed tasks: returns the cached diff_snapshot from the database.
+  // For active tasks: runs git diff against the worktree (includes uncommitted changes).
+  // For completed tasks: diffs the branch from the main repo clone.
   app.get("/:id/diff", (c) => {
     return runEffect(c,
       Effect.gen(function* () {
         const task = yield* getTask(deps.db, c.req.param("id"))
         if (!task) return yield* Effect.fail(new TaskNotFoundError({ taskId: c.req.param("id") }))
 
-        let raw: string | undefined
+        const project = getProjectConfig(deps.config.config, task.project_id)
+        const defaultBranch = project?.defaultBranch ?? "main"
+
+        let cwd: string
+        let diffCmd: string
 
         if (task.worktree_path) {
-          const project = getProjectConfig(deps.config.config, task.project_id)
-          const defaultBranch = project?.defaultBranch ?? "main"
-
-          raw = yield* Effect.tryPromise({
-            try: async () => {
-              const proc = Bun.spawn(
-                ["bash", "-c", `git diff origin/${defaultBranch}...HEAD`],
-                { cwd: task.worktree_path!, stdout: "pipe", stderr: "pipe" },
-              )
-              return new Response(proc.stdout).text()
-            },
-            catch: () => new Error("git diff failed"),
-          })
-        } else if (task.diff_snapshot) {
-          raw = task.diff_snapshot
+          // Active worktree — diff includes uncommitted changes
+          cwd = task.worktree_path
+          diffCmd = `git diff origin/${defaultBranch}...HEAD`
+        } else if (task.branch) {
+          // Worktree released — diff committed changes on the branch from the main repo
+          cwd = `/workspace/${task.project_id}/repo`
+          diffCmd = `git diff origin/${defaultBranch}...${task.branch}`
+        } else {
+          return { files: [] }
         }
+
+        const raw = yield* Effect.tryPromise({
+          try: async () => {
+            const proc = Bun.spawn(
+              ["bash", "-c", diffCmd],
+              { cwd, stdout: "pipe", stderr: "pipe" },
+            )
+            return new Response(proc.stdout).text()
+          },
+          catch: () => new Error("git diff failed"),
+        }).pipe(Effect.catchAll(() => Effect.succeed("")))
 
         if (!raw) return { files: [] }
 

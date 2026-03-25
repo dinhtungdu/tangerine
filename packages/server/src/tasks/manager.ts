@@ -16,7 +16,6 @@ import type { RetryDeps } from "./retry"
 import { cleanupSession } from "./cleanup"
 import { startSessionWithRetry, reconnectSessionWithRetry } from "./retry"
 import { emitStatusChange } from "./events"
-import { snapshotDiff } from "./diff-snapshot"
 import { deletePoolForProject, reconcileStaleSlots } from "./worktree-pool"
 
 const log = createLogger("tasks")
@@ -130,16 +129,6 @@ export function cancelTask(
 
     emitStatusChange(taskId, "cancelled")
 
-    // Snapshot the diff before cleanup clears the worktree_path
-    if (task.status === "running" || task.status === "provisioning") {
-      yield* snapshotDiff(task, deps).pipe(
-        Effect.catchAll((e) => {
-          log.warn("Failed to snapshot diff on cancel", { taskId, error: String(e) })
-          return Effect.void
-        })
-      )
-    }
-
     // Clean up running session if active
     if (task.status === "running" || task.status === "provisioning") {
       yield* cleanupSession(taskId, deps.cleanupDeps).pipe(
@@ -184,14 +173,6 @@ export function completeTask(
 
     emitStatusChange(taskId, "done")
     log.info("Task completed", { taskId, durationMs })
-
-    // Snapshot the diff before cleanup clears the worktree_path
-    yield* snapshotDiff(task, deps).pipe(
-      Effect.catchAll((e) => {
-        log.warn("Failed to snapshot diff", { taskId, error: String(e) })
-        return Effect.void
-      })
-    )
 
     yield* cleanupSession(taskId, deps.cleanupDeps).pipe(
       Effect.catchTag("SessionCleanupError", (e) => {
