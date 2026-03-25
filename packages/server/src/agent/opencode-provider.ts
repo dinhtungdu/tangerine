@@ -224,10 +224,17 @@ export function createOpenCodeProvider(): AgentFactory {
         }
 
         const handle: AgentHandle = {
-          sendPrompt(text: string, _images?: import("./provider").PromptImage[]) {
+          sendPrompt(text: string, images?: import("./provider").PromptImage[]) {
             return Effect.tryPromise({
               try: async () => {
-                const body: Record<string, unknown> = { parts: [{ type: "text", text }] }
+                const fileParts = images
+                  ? images.map((img) => ({
+                      type: "file",
+                      mime: img.mediaType,
+                      url: `data:${img.mediaType};base64,${img.data}`,
+                    }))
+                  : []
+                const body: Record<string, unknown> = { parts: [...fileParts, { type: "text", text }] }
                 const modelPayload = buildModelPayload()
                 if (modelPayload) body.model = modelPayload
 
