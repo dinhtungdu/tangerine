@@ -11,7 +11,7 @@ const log = createLogger("self-update")
 
 // Repo root is 3 levels up from packages/server/src/
 const REPO_DIR = resolve(import.meta.dir, "../../..")
-const POLL_INTERVAL_MS = 60_000
+const POLL_INTERVAL_MS = 5 * 60_000
 
 function exec(cmd: string): Effect.Effect<string, Error> {
   return Effect.tryPromise({
