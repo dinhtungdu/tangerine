@@ -2,7 +2,7 @@ import { describe, test, expect, beforeEach } from "bun:test"
 import { Effect } from "effect"
 import type { Database } from "bun:sqlite"
 import { createTestDb } from "./helpers"
-import { extractPrUrl, pollPrStatuses } from "../tasks/pr-monitor"
+import { extractPrUrl, extractGithubSlug, pollPrStatuses } from "../tasks/pr-monitor"
 import type { PrMonitorDeps, PrState } from "../tasks/pr-monitor"
 import type { TaskRow } from "../db/types"
 
@@ -50,6 +50,28 @@ describe("extractPrUrl", () => {
 })
 
 // ---------------------------------------------------------------------------
+// extractGithubSlug
+// ---------------------------------------------------------------------------
+
+describe("extractGithubSlug", () => {
+  test("extracts slug from https URL", () => {
+    expect(extractGithubSlug("https://github.com/owner/repo")).toBe("owner/repo")
+  })
+
+  test("strips .git suffix", () => {
+    expect(extractGithubSlug("https://github.com/owner/repo.git")).toBe("owner/repo")
+  })
+
+  test("handles SSH remote URL", () => {
+    expect(extractGithubSlug("git@github.com:owner/repo.git")).toBe("owner/repo")
+  })
+
+  test("returns null for non-github URLs", () => {
+    expect(extractGithubSlug("https://gitlab.com/owner/repo")).toBeNull()
+  })
+})
+
+// ---------------------------------------------------------------------------
 // pollPrStatuses
 // ---------------------------------------------------------------------------
 
@@ -90,6 +112,7 @@ describe("pollPrStatuses", () => {
   function makeDeps(
     tasks: TaskRow[],
     prStates: Record<string, PrState | null>,
+    branchPrs: Record<string, string | null> = {},
   ): PrMonitorDeps & { updates: Array<{ taskId: string; updates: Partial<TaskRow> }>; activities: Array<{ taskId: string; event: string; content: string }> } {
     const updates: Array<{ taskId: string; updates: Partial<TaskRow> }> = []
     const activities: Array<{ taskId: string; event: string; content: string }> = []
@@ -113,6 +136,7 @@ describe("pollPrStatuses", () => {
         getAgentHandle: () => null,
       },
       checkPrState: (url) => Effect.succeed(prStates[url] ?? null),
+      lookupPrByBranch: (_repoUrl, branch) => Effect.succeed(branchPrs[branch] ?? null),
     }
   }
 
@@ -205,6 +229,52 @@ describe("pollPrStatuses", () => {
     await Effect.runPromise(pollPrStatuses(deps))
 
     expect(deps.updates).toHaveLength(0)
+  })
+
+  test("discovers pr_url from branch when task has none", async () => {
+    const prUrl = "https://github.com/test/repo/pull/5"
+    const task = makeTaskRow({ pr_url: null, branch: "tangerine/abc123" })
+    const deps = makeDeps([task], { [prUrl]: "open" }, { "tangerine/abc123": prUrl })
+
+    await Effect.runPromise(pollPrStatuses(deps))
+
+    const prUpdate = deps.updates.find((u) => u.updates.pr_url)
+    expect(prUpdate).toBeDefined()
+    expect(prUpdate!.updates.pr_url).toBe(prUrl)
+    expect(deps.activities.some((a) => a.event === "pr.discovered")).toBe(true)
+  })
+
+  test("discovered PR is acted on in the same cycle when merged", async () => {
+    const prUrl = "https://github.com/test/repo/pull/6"
+    const task = makeTaskRow({ pr_url: null, branch: "tangerine/abc123" })
+    const deps = makeDeps([task], { [prUrl]: "merged" }, { "tangerine/abc123": prUrl })
+
+    await Effect.runPromise(pollPrStatuses(deps))
+
+    const statusUpdate = deps.updates.find((u) => u.updates.status)
+    expect(statusUpdate?.updates.status).toBe("done")
+  })
+
+  test("does not look up branch PR when task already has pr_url", async () => {
+    const prUrl = "https://github.com/test/repo/pull/7"
+    const task = makeTaskRow({ pr_url: prUrl, branch: "tangerine/abc123" })
+    let lookupCalled = false
+    const deps = makeDeps([task], { [prUrl]: "open" })
+    deps.lookupPrByBranch = (_r, _b) => { lookupCalled = true; return Effect.succeed(null) }
+
+    await Effect.runPromise(pollPrStatuses(deps))
+
+    expect(lookupCalled).toBe(false)
+  })
+
+  test("does nothing when branch lookup returns null", async () => {
+    const task = makeTaskRow({ pr_url: null, branch: "tangerine/abc123" })
+    const deps = makeDeps([task], {}, { "tangerine/abc123": null })
+
+    await Effect.runPromise(pollPrStatuses(deps))
+
+    expect(deps.updates).toHaveLength(0)
+    expect(deps.activities).toHaveLength(0)
   })
 
   test("handles listTasks failure gracefully", async () => {

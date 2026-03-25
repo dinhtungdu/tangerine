@@ -1,5 +1,7 @@
 // PR monitor: extracts PR URLs from agent events and polls PR status.
 // When a PR is merged → complete task. When closed without merge → cancel task.
+// Also discovers PRs by polling the remote for each task's branch (catches PRs
+// created outside the agent, e.g. manually or by another tool).
 
 import { Effect, Schedule } from "effect"
 import type { Database } from "bun:sqlite"
@@ -18,6 +20,12 @@ const GITHUB_PR_URL_RE = /https:\/\/github\.com\/[\w.-]+\/[\w.-]+\/pull\/\d+/
 export function extractPrUrl(text: string): string | null {
   const match = text.match(GITHUB_PR_URL_RE)
   return match ? match[0] : null
+}
+
+/** Extract `owner/repo` slug from a GitHub repo URL. Returns null for non-GitHub URLs. */
+export function extractGithubSlug(repoUrl: string): string | null {
+  const match = repoUrl.match(/github\.com[/:]([^/]+\/[^/.]+?)(?:\.git)?$/)
+  return match ? match[1]! : null
 }
 
 export type PrState = "open" | "merged" | "closed"
@@ -43,6 +51,30 @@ export function checkPrState(prUrl: string): Effect.Effect<PrState | null, never
   }).pipe(Effect.catchAll(() => Effect.succeed(null)))
 }
 
+/**
+ * Look up an open PR for a branch on GitHub. Returns the PR URL if found, null otherwise.
+ * Uses `gh pr list --head <branch> --repo <owner/repo>`.
+ */
+export function lookupPrByBranch(repoUrl: string, branch: string): Effect.Effect<string | null, never> {
+  const slug = extractGithubSlug(repoUrl)
+  if (!slug) return Effect.succeed(null)
+
+  return Effect.tryPromise({
+    try: async () => {
+      const proc = Bun.spawn(
+        ["gh", "pr", "list", "--head", branch, "--repo", slug, "--json", "url", "--jq", ".[0].url"],
+        { stdout: "pipe", stderr: "pipe" },
+      )
+      const text = await new Response(proc.stdout).text()
+      const exitCode = await proc.exited
+      if (exitCode !== 0) return null
+      const url = text.trim()
+      return url.startsWith("https://") ? url : null
+    },
+    catch: () => null,
+  }).pipe(Effect.catchAll(() => Effect.succeed(null)))
+}
+
 export interface PrMonitorDeps {
   db: Database
   listTasks(filter?: { status?: string }): Effect.Effect<TaskRow[], Error>
@@ -51,6 +83,8 @@ export interface PrMonitorDeps {
   cleanupDeps: CleanupDeps
   /** Override PR state checker for testing. Defaults to `checkPrState` (shells out to `gh`). */
   checkPrState?: (prUrl: string) => Effect.Effect<PrState | null, never>
+  /** Override branch PR lookup for testing. Defaults to `lookupPrByBranch` (shells out to `gh`). */
+  lookupPrByBranch?: (repoUrl: string, branch: string) => Effect.Effect<string | null, never>
 }
 
 /** Poll all running tasks with pr_url and act on merged/closed PRs. */
@@ -60,6 +94,26 @@ export function pollPrStatuses(deps: PrMonitorDeps): Effect.Effect<void, never> 
       Effect.catchAll(() => Effect.succeed([] as TaskRow[]))
     )
 
+    // Phase 1: discover PR URLs for tasks that don't have one yet
+    const withoutPr = running.filter((t) => !t.pr_url && t.branch && t.repo_url)
+    if (withoutPr.length > 0) {
+      const lookup = deps.lookupPrByBranch ?? lookupPrByBranch
+      log.debug("Discovering PRs for tasks without pr_url", { count: withoutPr.length })
+      for (const task of withoutPr) {
+        const prUrl = yield* lookup(task.repo_url, task.branch!)
+        if (prUrl) {
+          log.info("Discovered PR for task branch", { taskId: task.id, branch: task.branch, prUrl })
+          yield* deps.updateTask(task.id, { pr_url: prUrl }).pipe(Effect.ignoreLogged)
+          yield* deps.logActivity(task.id, "lifecycle", "pr.discovered", `PR discovered for branch ${task.branch}: ${prUrl}`).pipe(
+            Effect.catchAll(() => Effect.void)
+          )
+          // Update in-memory so Phase 2 picks it up this cycle
+          task.pr_url = prUrl
+        }
+      }
+    }
+
+    // Phase 2: check state of all tasks that now have a pr_url
     const withPr = running.filter((t) => t.pr_url)
     if (withPr.length === 0) return
 
