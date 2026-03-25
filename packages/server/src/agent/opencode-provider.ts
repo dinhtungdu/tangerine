@@ -8,6 +8,14 @@ import type { AgentFactory, AgentHandle, AgentEvent, AgentStartContext } from ".
 
 const log = createLogger("opencode-provider")
 
+/** Extract the data payload from an SSE block, handling multi-line formats like "event: foo\ndata: {...}" */
+export function extractSseData(block: string): string | null {
+  for (const line of block.split("\n")) {
+    if (line.startsWith("data: ")) return line.slice(6)
+  }
+  return null
+}
+
 function asRecord(value: unknown): Record<string, unknown> | null {
   return typeof value === "object" && value !== null ? value as Record<string, unknown> : null
 }
@@ -224,8 +232,9 @@ export function createOpenCodeProvider(): AgentFactory {
             if (info?.role === "assistant" && info.time?.completed) {
               const messageId = typeof info.id === "string" ? info.id : undefined
               const text = messageId ? textParts.get(messageId) : undefined
-              if (text && messageId) {
-                emit({ kind: "message.complete", role: "assistant", content: text, messageId })
+              // Emit message.complete even for empty text (tool-only messages)
+              if (messageId) {
+                emit({ kind: "message.complete", role: "assistant", content: text ?? "", messageId })
                 textParts.delete(messageId)
               }
             }
@@ -266,14 +275,24 @@ export function createOpenCodeProvider(): AgentFactory {
                 buffer = lines.pop() ?? ""
 
                 for (const block of lines) {
-                  if (!block.startsWith("data: ")) continue
+                  // Extract data line from SSE block — handles both
+                  // "data: {...}" and "event: foo\ndata: {...}" formats
+                  const dataLine = extractSseData(block)
+                  if (!dataLine) continue
                   try {
-                    const raw = JSON.parse(block.slice(6)) as Record<string, unknown>
+                    const raw = JSON.parse(dataLine) as Record<string, unknown>
                     processRawEvent(raw)
                   } catch {
                     // skip malformed
                   }
                 }
+              }
+
+              // Stream ended gracefully (server closed connection) — reconnect
+              if (!sseAborted) {
+                taskLog.debug("SSE stream ended, reconnecting")
+                await new Promise((r) => setTimeout(r, 500))
+                return doConnect()
               }
             } catch {
               if (sseAborted) return
@@ -306,15 +325,22 @@ export function createOpenCodeProvider(): AgentFactory {
             return Effect.tryPromise({
               try: async () => {
                 const fileParts = images
-                  ? images.map((img) => ({
-                      type: "file",
+                  ? images.map((img, i) => ({
+                      type: "file" as const,
                       mime: img.mediaType,
+                      filename: `image-${i}.${img.mediaType.split("/")[1] ?? "png"}`,
                       url: `data:${img.mediaType};base64,${img.data}`,
                     }))
                   : []
                 const body: Record<string, unknown> = { parts: [...fileParts, { type: "text", text }] }
                 const modelPayload = buildModelPayload()
                 if (modelPayload) body.model = modelPayload
+
+                taskLog.debug("Sending prompt", {
+                  hasImages: fileParts.length > 0,
+                  imageCount: fileParts.length,
+                  textLength: text.length,
+                })
 
                 const res = await fetch(
                   `http://localhost:${opencodePort}/session/${sessionId}/prompt_async`,
@@ -326,6 +352,7 @@ export function createOpenCodeProvider(): AgentFactory {
                 )
                 if (!res.ok) {
                   const err = await res.text()
+                  taskLog.error("OpenCode prompt failed", { status: res.status, error: err, hasImages: fileParts.length > 0 })
                   throw new Error(`OpenCode prompt failed (${res.status}): ${err}`)
                 }
               },

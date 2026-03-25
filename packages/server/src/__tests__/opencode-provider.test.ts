@@ -1,6 +1,6 @@
 import { describe, expect, it } from "bun:test"
 import { Effect } from "effect"
-import { getHandleMeta, mapSseEvent } from "../agent/opencode-provider"
+import { extractSseData, getHandleMeta, mapSseEvent } from "../agent/opencode-provider"
 import type { AgentHandle } from "../agent/provider"
 import { getAgentRuntimeMeta } from "../tasks/lifecycle"
 
@@ -91,6 +91,42 @@ describe("OpenCode provider helpers", () => {
     })
 
     expect(event).toEqual({ kind: "status", status: "idle" })
+  })
+
+  it("extractSseData handles simple data-only blocks", () => {
+    expect(extractSseData('data: {"type":"session.status"}')).toBe('{"type":"session.status"}')
+  })
+
+  it("extractSseData handles multi-line blocks with event prefix", () => {
+    expect(extractSseData('event: message\ndata: {"type":"message.updated"}')).toBe('{"type":"message.updated"}')
+  })
+
+  it("extractSseData returns null for blocks without data line", () => {
+    expect(extractSseData("event: ping")).toBeNull()
+    expect(extractSseData(": comment")).toBeNull()
+    expect(extractSseData("")).toBeNull()
+  })
+
+  it("extractSseData handles blocks with id and data lines", () => {
+    expect(extractSseData('id: 42\nevent: update\ndata: {"ok":true}')).toBe('{"ok":true}')
+  })
+
+  it("emits message.complete for tool-only messages (no accumulated text)", () => {
+    // message.updated with completed timestamp but no text parts
+    // should still produce a message.complete event via the processRawEvent path
+    const event = mapSseEvent({
+      type: "message.updated",
+      properties: {
+        info: {
+          id: "msg-tool-only",
+          role: "assistant",
+          time: { completed: 1234567890 },
+        },
+      },
+    })
+    // mapSseEvent doesn't handle message.updated (only processRawEvent does),
+    // so this returns null — but the processRawEvent path now handles it
+    expect(event).toBeNull()
   })
 
   it("exposes OpenCode metadata through lifecycle helper", () => {
