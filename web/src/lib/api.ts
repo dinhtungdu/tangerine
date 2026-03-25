@@ -15,6 +15,7 @@ export interface SessionLog {
   taskId: string
   role: string
   content: string
+  images: string | null
   timestamp: string
 }
 

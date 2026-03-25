@@ -15,7 +15,7 @@ export function useProjectNav() {
   const project = searchParams.get("project")
 
   const navigate = useCallback(
-    (path: string) => nav(withProject(path, project)),
+    (path: string, options?: { state?: unknown }) => nav(withProject(path, project), options),
     [nav, project],
   )
 

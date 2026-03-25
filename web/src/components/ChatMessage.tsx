@@ -1,5 +1,7 @@
+import { useState } from "react"
 import type { ChatMessage as ChatMessageType } from "../hooks/useSession"
 import { ToolCallDisplay } from "./ToolCallDisplay"
+import { ImageLightbox } from "./ImageLightbox"
 
 interface ChatMessageProps {
   message: ChatMessageType
@@ -25,6 +27,7 @@ function renderMarkdown(text: string): string {
 }
 
 export function ChatMessage({ message }: ChatMessageProps) {
+  const [lightboxIndex, setLightboxIndex] = useState<number | null>(null)
   const isUser = message.role === "user"
   const isSystem = message.role === "system"
   const isTool = !isUser && !isSystem && isToolCall(message.content)
@@ -41,7 +44,31 @@ export function ChatMessage({ message }: ChatMessageProps) {
     return (
       <div className="animate-fade-in flex justify-end">
         <div className="max-w-[280px] rounded-xl bg-surface-dark px-3.5 py-2.5">
-          <p className="whitespace-pre-wrap text-[13px] leading-[1.5] text-surface">{message.content}</p>
+          {message.images && message.images.length > 0 && (
+            <>
+              <div className="mb-2 flex flex-wrap gap-1">
+                {message.images.map((img, i) => (
+                  <button key={i} onClick={() => setLightboxIndex(i)} className="cursor-zoom-in">
+                    <img
+                      src={img.src}
+                      alt="Attached image"
+                      className="h-16 w-16 rounded-md object-cover"
+                    />
+                  </button>
+                ))}
+              </div>
+              {lightboxIndex !== null && (
+                <ImageLightbox
+                  images={message.images}
+                  initialIndex={lightboxIndex}
+                  onClose={() => setLightboxIndex(null)}
+                />
+              )}
+            </>
+          )}
+          {message.content && (
+            <p className="whitespace-pre-wrap text-[13px] leading-[1.5] text-surface">{message.content}</p>
+          )}
         </div>
       </div>
     )

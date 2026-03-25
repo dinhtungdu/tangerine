@@ -7,11 +7,12 @@ export function NewAgentPage() {
   const { navigate } = useProjectNav()
   const { current } = useProject()
 
-  const handleSubmit = async (data: { projectId: string; title: string; description?: string; provider?: string; model?: string; reasoningEffort?: string }) => {
+  const handleSubmit = async (data: { projectId: string; title: string; description?: string; provider?: string; model?: string; reasoningEffort?: string; images?: import("@tangerine/shared").PromptImage[] }) => {
     if (!current) return
     try {
-      const task = await createTask(data)
-      navigate(`/tasks/${task.id}`)
+      const { images, ...taskData } = data
+      const task = await createTask(taskData)
+      navigate(`/tasks/${task.id}`, { state: images && images.length > 0 ? { pendingImages: images } : undefined })
     } catch {
       // TODO: error toast
     }

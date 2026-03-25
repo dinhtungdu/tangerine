@@ -34,6 +34,7 @@ export const SCHEMA = `
     task_id TEXT NOT NULL,
     role TEXT NOT NULL,
     content TEXT NOT NULL,
+    images TEXT,
     timestamp TEXT NOT NULL DEFAULT (datetime('now')),
     FOREIGN KEY (task_id) REFERENCES tasks(id)
   );

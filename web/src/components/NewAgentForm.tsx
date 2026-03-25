@@ -1,5 +1,5 @@
-import { useState, useCallback } from "react"
-import type { ProviderType } from "@tangerine/shared"
+import { useState, useCallback, type ClipboardEvent } from "react"
+import type { ProviderType, PromptImage } from "@tangerine/shared"
 import { useProject } from "../context/ProjectContext"
 import { useProjectNav } from "../hooks/useProjectNav"
 import { ModelSelector } from "./ModelSelector"
@@ -7,7 +7,11 @@ import { HarnessSelector } from "./HarnessSelector"
 import { ReasoningEffortSelector, type ReasoningEffort } from "./ReasoningEffortSelector"
 
 interface NewAgentFormProps {
-  onSubmit: (data: { projectId: string; title: string; description?: string; branch?: string; provider?: string; model?: string; reasoningEffort?: string }) => void
+  onSubmit: (data: { projectId: string; title: string; description?: string; branch?: string; provider?: string; model?: string; reasoningEffort?: string; images?: PromptImage[] }) => void
+}
+
+interface PendingImage extends PromptImage {
+  dataUrl: string
 }
 
 const suggestedTasks = [
@@ -75,6 +79,7 @@ export function NewAgentForm({ onSubmit }: NewAgentFormProps) {
   const { navigate } = useProjectNav()
   const { current, modelsByProvider } = useProject()
   const [description, setDescription] = useState("")
+  const [pendingImages, setPendingImages] = useState<PendingImage[]>([])
   const PREFS_KEY = "tangerine:agent-prefs"
 
   const loadPrefs = (): { provider?: string; models?: Record<string, string>; reasoningEffort?: string } => {
@@ -111,22 +116,52 @@ export function NewAgentForm({ onSubmit }: NewAgentFormProps) {
     })
   }, [provider, savePrefs])
 
+  const MAX_IMAGES = 5
+
+  const handlePaste = useCallback((e: ClipboardEvent<HTMLTextAreaElement>) => {
+    for (const item of e.clipboardData.items) {
+      if (item.type.startsWith("image/")) {
+        const file = item.getAsFile()
+        if (!file) continue
+        const reader = new FileReader()
+        reader.onload = () => {
+          const dataUrl = reader.result as string
+          const commaIdx = dataUrl.indexOf(",")
+          const mediaType = dataUrl.slice(5, commaIdx).split(";")[0] as PromptImage["mediaType"]
+          const data = dataUrl.slice(commaIdx + 1)
+          setPendingImages((prev) => prev.length >= MAX_IMAGES ? prev : [...prev, { dataUrl, mediaType, data }])
+        }
+        reader.readAsDataURL(file)
+      }
+    }
+  }, [])
+
+  const removeImage = useCallback((index: number) => {
+    setPendingImages((prev) => prev.filter((_, i) => i !== index))
+  }, [])
+
+  const canSubmit = (!!description.trim() || pendingImages.length > 0) && !!current && !submitting
+
   const handleSubmit = useCallback(() => {
     const trimmed = description.trim()
-    if (!trimmed || !current || submitting) return
+    if ((!trimmed && pendingImages.length === 0) || !current || submitting) return
     setSubmitting(true)
+    const images = pendingImages.length > 0
+      ? pendingImages.map(({ dataUrl: _, ...img }) => img)
+      : undefined
     onSubmit({
       projectId: current.name,
-      title: trimmed.slice(0, 80),
-      description: trimmed,
+      title: trimmed.slice(0, 80) || "New task",
+      description: trimmed || undefined,
       branch,
       provider,
       model: activeModel || undefined,
       reasoningEffort: reasoningEffort !== "medium" ? reasoningEffort : undefined,
+      images,
     })
     // Parent navigates on success; reset submitting if it fails
     setTimeout(() => setSubmitting(false), 3000)
-  }, [description, current, branch, provider, activeModel, reasoningEffort, submitting, onSubmit])
+  }, [description, pendingImages, current, branch, provider, activeModel, reasoningEffort, submitting, onSubmit])
 
   return (
     <div className="flex h-full flex-1 flex-col bg-surface">
@@ -155,9 +190,24 @@ export function NewAgentForm({ onSubmit }: NewAgentFormProps) {
 
           {/* Input card */}
           <div className="overflow-hidden rounded-xl border border-edge bg-surface">
+            {pendingImages.length > 0 && (
+              <div className="flex flex-wrap gap-1.5 px-4 pt-3">
+                {pendingImages.map((img, i) => (
+                  <div key={i} className="relative">
+                    <img src={img.dataUrl} alt="Pasted image" className="h-14 w-14 rounded-md border border-edge object-cover" />
+                    <button
+                      onClick={() => removeImage(i)}
+                      aria-label="Remove image"
+                      className="absolute -right-1 -top-1 flex h-4 w-4 items-center justify-center rounded-full bg-fg text-[10px] text-surface"
+                    >×</button>
+                  </div>
+                ))}
+              </div>
+            )}
             <textarea
               value={description}
               onChange={(e) => setDescription(e.target.value)}
+              onPaste={handlePaste}
               placeholder="Describe the task or paste an issue URL..."
               rows={4}
               className="w-full resize-none border-0 bg-transparent px-4 pt-4 pb-2 text-[16px] leading-[1.6] text-fg placeholder-fg-muted outline-none md:text-[14px]"
@@ -181,7 +231,7 @@ export function NewAgentForm({ onSubmit }: NewAgentFormProps) {
               </div>
               <button
                 onClick={handleSubmit}
-                disabled={!description.trim() || !current || submitting}
+                disabled={!canSubmit}
                 className="flex items-center gap-1.5 rounded-md bg-surface-dark px-4 py-2 text-white transition hover:bg-neutral-800 disabled:opacity-30"
               >
                 <svg className="h-3 w-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
@@ -222,7 +272,7 @@ export function NewAgentForm({ onSubmit }: NewAgentFormProps) {
             </div>
             <button
               onClick={handleSubmit}
-              disabled={!description.trim() || !current || submitting}
+              disabled={!canSubmit}
               className="flex h-12 w-full items-center justify-center gap-2 rounded-[10px] bg-surface-dark text-white transition hover:bg-neutral-800 disabled:opacity-30"
             >
               <svg className="h-[18px] w-[18px]" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
