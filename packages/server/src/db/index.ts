@@ -88,6 +88,21 @@ export function autoMigrate(db: Database): void {
   }
 }
 
+/**
+ * v0→v1 schema migration for worktree_slots.
+ * The v0 schema had `vm_id TEXT NOT NULL` which blocks v1 INSERTs (no vm_id provided).
+ * INSERT OR IGNORE silently drops the row, so initPool creates no slots and acquireSlot fails.
+ * Slots are transient — safe to drop and recreate.
+ */
+function migrateWorktreeSlots(db: Database): void {
+  const cols = db.prepare("PRAGMA table_info(worktree_slots)").all() as { name: string; notnull: number }[]
+  const hasVmIdNotNull = cols.some((c) => c.name === "vm_id" && c.notnull === 1)
+  if (!hasVmIdNotNull) return
+
+  db.exec("DROP TABLE IF EXISTS worktree_slots")
+  console.error("[db] Migrated worktree_slots: dropped v0 table (vm_id NOT NULL → project_id)")
+}
+
 /** Returns a singleton DB connection, creating it if needed. Pass ":memory:" for tests. */
 export function getDb(path?: string): Database {
   if (instance) return instance
@@ -98,6 +113,11 @@ export function getDb(path?: string): Database {
   // WAL mode for better concurrent read performance
   db.run("PRAGMA journal_mode = WAL")
   db.run("PRAGMA foreign_keys = ON")
+
+  // v0→v1 migration: worktree_slots changed vm_id→project_id.
+  // The old schema has vm_id TEXT NOT NULL which silently blocks v1 INSERTs.
+  // Since slots are transient (rebuilt by initPool), we can safely recreate the table.
+  migrateWorktreeSlots(db)
 
   // autoMigrate first — adds missing columns to existing tables so that
   // CREATE INDEX statements in SCHEMA don't fail on new columns
