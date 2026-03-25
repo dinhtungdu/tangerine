@@ -39,9 +39,24 @@ interface RunsTableProps {
   onRefetch: () => void
 }
 
+const STATUS_FILTER_KEY = "runs-status-filter"
+
+function readStoredFilter(): StatusFilter {
+  try {
+    const v = localStorage.getItem(STATUS_FILTER_KEY)
+    if (v && STATUS_FILTERS.some((f) => f.key === v)) return v as StatusFilter
+  } catch { /* ignore */ }
+  return "all"
+}
+
 export function RunsTable({ tasks, searchQuery, onSearchChange, onRefetch }: RunsTableProps) {
   const { link } = useProjectNav()
-  const [statusFilter, setStatusFilter] = useState<StatusFilter>("all")
+  const [statusFilter, setStatusFilter] = useState<StatusFilter>(readStoredFilter)
+
+  function handleFilterChange(key: StatusFilter) {
+    setStatusFilter(key)
+    try { localStorage.setItem(STATUS_FILTER_KEY, key) } catch { /* ignore */ }
+  }
 
   const filtered = statusFilter === "all"
     ? tasks
@@ -70,7 +85,7 @@ export function RunsTable({ tasks, searchQuery, onSearchChange, onRefetch }: Run
           {STATUS_FILTERS.map(({ key, label }) => (
             <button
               key={key}
-              onClick={() => setStatusFilter(key)}
+              onClick={() => handleFilterChange(key)}
               className={`shrink-0 rounded-full px-3 py-1.5 text-[12px] font-medium md:rounded-md md:px-3.5 md:text-[13px] ${
                 statusFilter === key
                   ? "bg-surface-dark text-white"
