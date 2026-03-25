@@ -107,7 +107,7 @@ export function startSession(
     )
 
     yield* activity("worktree.acquiring", "Acquiring worktree slot")
-    const slot = yield* acquireSlot(deps.db, task.project_id, task.id, deps.getTask).pipe(
+    const slot = yield* acquireSlot(deps.db, task.project_id, task.id, deps.getTask, exec).pipe(
       Effect.mapError((e) => new SessionStartError({
         message: `Slot acquisition failed: ${e.message}`,
         taskId: task.id,

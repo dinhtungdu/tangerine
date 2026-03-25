@@ -84,7 +84,7 @@ describe("worktree-pool", () => {
     test("returns available slot and marks bound", async () => {
       insertTask("task-1")
       const slot = await Effect.runPromise(
-        acquireSlot(db, PROJECT_ID, "task-1", mockGetTask({})),
+        acquireSlot(db, PROJECT_ID, "task-1", mockGetTask({}), mockExec),
       )
       expect(slot.status).toBe("bound")
       expect(slot.task_id).toBe("task-1")
@@ -96,11 +96,11 @@ describe("worktree-pool", () => {
       insertTask("task-2")
       insertTask("task-3")
 
-      await Effect.runPromise(acquireSlot(db, PROJECT_ID, "task-1", mockGetTask({ "task-1": "running", "task-2": "running" })))
-      await Effect.runPromise(acquireSlot(db, PROJECT_ID, "task-2", mockGetTask({ "task-1": "running", "task-2": "running" })))
+      await Effect.runPromise(acquireSlot(db, PROJECT_ID, "task-1", mockGetTask({ "task-1": "running", "task-2": "running" }), mockExec))
+      await Effect.runPromise(acquireSlot(db, PROJECT_ID, "task-2", mockGetTask({ "task-1": "running", "task-2": "running" }), mockExec))
 
       const result = Effect.runPromise(
-        acquireSlot(db, PROJECT_ID, "task-3", mockGetTask({ "task-1": "running", "task-2": "running" })),
+        acquireSlot(db, PROJECT_ID, "task-3", mockGetTask({ "task-1": "running", "task-2": "running" }), mockExec),
       )
       await expect(result).rejects.toThrow(/No worktree slots available/)
     })
@@ -109,12 +109,12 @@ describe("worktree-pool", () => {
       insertTask("task-1")
       insertTask("task-2")
 
-      await Effect.runPromise(acquireSlot(db, PROJECT_ID, "task-1", mockGetTask({ "task-1": "running" })))
-      await Effect.runPromise(acquireSlot(db, PROJECT_ID, "task-2", mockGetTask({ "task-1": "running", "task-2": "running" })))
+      await Effect.runPromise(acquireSlot(db, PROJECT_ID, "task-1", mockGetTask({ "task-1": "running" }), mockExec))
+      await Effect.runPromise(acquireSlot(db, PROJECT_ID, "task-2", mockGetTask({ "task-1": "running", "task-2": "running" }), mockExec))
 
       // task-1 is now "done" — stale reconciliation should free its slot
       const slot = await Effect.runPromise(
-        acquireSlot(db, PROJECT_ID, "task-2", mockGetTask({ "task-1": "done", "task-2": "done" })),
+        acquireSlot(db, PROJECT_ID, "task-2", mockGetTask({ "task-1": "done", "task-2": "done" }), mockExec),
       )
       expect(slot.status).toBe("bound")
     })
@@ -124,7 +124,7 @@ describe("worktree-pool", () => {
     test("resets slot to available", async () => {
       await Effect.runPromise(initPool(db, PROJECT_ID, mockExec, REPO_PATH, 1))
       insertTask("task-1")
-      await Effect.runPromise(acquireSlot(db, PROJECT_ID, "task-1", mockGetTask({})))
+      await Effect.runPromise(acquireSlot(db, PROJECT_ID, "task-1", mockGetTask({}), mockExec))
 
       const before = getSlots(db)
       expect(before[0]!.status).toBe("bound")
@@ -148,8 +148,8 @@ describe("worktree-pool", () => {
       insertTask("task-1")
       insertTask("task-2")
 
-      await Effect.runPromise(acquireSlot(db, PROJECT_ID, "task-1", mockGetTask({ "task-1": "running", "task-2": "running" })))
-      await Effect.runPromise(acquireSlot(db, PROJECT_ID, "task-2", mockGetTask({ "task-1": "running", "task-2": "running" })))
+      await Effect.runPromise(acquireSlot(db, PROJECT_ID, "task-1", mockGetTask({ "task-1": "running", "task-2": "running" }), mockExec))
+      await Effect.runPromise(acquireSlot(db, PROJECT_ID, "task-2", mockGetTask({ "task-1": "running", "task-2": "running" }), mockExec))
 
       // Both tasks now done
       const released = await Effect.runPromise(
@@ -177,7 +177,7 @@ describe("worktree-pool", () => {
     test("returns slot bound to task", async () => {
       await Effect.runPromise(initPool(db, PROJECT_ID, mockExec, REPO_PATH, 1))
       insertTask("task-1")
-      await Effect.runPromise(acquireSlot(db, PROJECT_ID, "task-1", mockGetTask({})))
+      await Effect.runPromise(acquireSlot(db, PROJECT_ID, "task-1", mockGetTask({}), mockExec))
 
       const slot = await Effect.runPromise(getSlotForTask(db, "task-1"))
       expect(slot).not.toBeNull()
