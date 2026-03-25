@@ -273,7 +273,7 @@ export function NewAgentForm({ onSubmit, refTaskId, refTaskTitle }: NewAgentForm
               <button
                 onClick={handleSubmit}
                 disabled={!canSubmit}
-                className="flex w-full items-center justify-center gap-1.5 rounded-md bg-surface-dark px-4 py-2 text-white transition hover:bg-neutral-800 disabled:opacity-30"
+                className="flex w-full items-center justify-center gap-1.5 rounded-md bg-surface-dark px-4 py-2 text-white transition hover:opacity-80 disabled:opacity-30"
               >
                 <svg className="h-3 w-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                   <path strokeLinecap="round" strokeLinejoin="round" d="M5.25 5.653c0-.856.917-1.398 1.667-.986l11.54 6.347a1.125 1.125 0 0 1 0 1.972l-11.54 6.347a1.125 1.125 0 0 1-1.667-.986V5.653Z" />
@@ -322,7 +322,7 @@ export function NewAgentForm({ onSubmit, refTaskId, refTaskTitle }: NewAgentForm
             <button
               onClick={handleSubmit}
               disabled={!canSubmit}
-              className="flex h-12 w-full items-center justify-center gap-2 rounded-[10px] bg-surface-dark text-white transition hover:bg-neutral-800 disabled:opacity-30"
+              className="flex h-12 w-full items-center justify-center gap-2 rounded-[10px] bg-surface-dark text-white transition hover:opacity-80 disabled:opacity-30"
             >
               <svg className="h-[18px] w-[18px]" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                 <path strokeLinecap="round" strokeLinejoin="round" d="M5.25 5.653c0-.856.917-1.398 1.667-.986l11.54 6.347a1.125 1.125 0 0 1 0 1.972l-11.54 6.347a1.125 1.125 0 0 1-1.667-.986V5.653Z" />
@@ -357,7 +357,7 @@ export function NewAgentForm({ onSubmit, refTaskId, refTaskTitle }: NewAgentForm
                   <button
                     key={task.label}
                     onClick={() => setDescription(task.label)}
-                    className="flex h-9 items-center rounded-[18px] bg-surface-secondary px-3.5 text-[13px] text-fg transition active:bg-neutral-200"
+                    className="flex h-9 items-center rounded-[18px] bg-surface-secondary px-3.5 text-[13px] text-fg transition active:bg-edge"
                   >
                     {task.label}
                   </button>
@@ -368,7 +368,7 @@ export function NewAgentForm({ onSubmit, refTaskId, refTaskTitle }: NewAgentForm
                   <button
                     key={task.label}
                     onClick={() => setDescription(task.label)}
-                    className="flex h-9 items-center rounded-[18px] bg-surface-secondary px-3.5 text-[13px] text-fg transition active:bg-neutral-200"
+                    className="flex h-9 items-center rounded-[18px] bg-surface-secondary px-3.5 text-[13px] text-fg transition active:bg-edge"
                   >
                     {task.label}
                   </button>

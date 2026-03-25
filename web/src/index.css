@@ -7,7 +7,7 @@
 
   --font-mono: "JetBrains Mono", "IBM Plex Mono", ui-monospace, monospace;
 
-  /* Semantic surface colors — override these for dark mode */
+  /* Semantic surface colors */
   --color-surface: #fafafa;
   --color-surface-secondary: #f5f5f5;
   --color-surface-dark: #171717;
@@ -36,7 +36,29 @@
   --color-status-error-bg: #fecaca;
 }
 
-/* Light theme base */
+/* Dark mode overrides */
+.dark {
+  --color-surface: #0a0a0a;
+  --color-surface-secondary: #171717;
+  --color-surface-dark: #262626;
+  --color-surface-card: #141414;
+
+  --color-fg: #f5f5f5;
+  --color-fg-muted: #a3a3a3;
+  --color-fg-faint: #737373;
+
+  --color-edge: #262626;
+
+  --color-status-success-text: #4ade80;
+  --color-status-success-bg: #052e16;
+  --color-status-info-text: #60a5fa;
+  --color-status-info-bg: #172554;
+  --color-status-warning-text: #fbbf24;
+  --color-status-warning-bg: #422006;
+  --color-status-error-text: #f87171;
+  --color-status-error-bg: #450a0a;
+}
+
 body {
   font-family: "Inter", system-ui, -apple-system, sans-serif;
   -webkit-font-smoothing: antialiased;
@@ -59,6 +81,14 @@ body {
 
 ::-webkit-scrollbar-thumb:hover {
   background: #a3a3a3;
+}
+
+.dark ::-webkit-scrollbar-thumb {
+  background: #404040;
+}
+
+.dark ::-webkit-scrollbar-thumb:hover {
+  background: #525252;
 }
 
 /* Pulse animation for running status */

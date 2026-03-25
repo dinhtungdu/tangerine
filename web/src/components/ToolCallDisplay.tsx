@@ -83,20 +83,20 @@ export function ToolCallDisplay({ content }: ToolCallDisplayProps) {
         <div className="border-t border-edge p-3">
           {toolData.command && (
             <div className="mb-2">
-              <pre className="overflow-x-auto rounded bg-white p-2 font-mono text-[11px] leading-[1.6] text-fg">
+              <pre className="overflow-x-auto rounded bg-surface-secondary p-2 font-mono text-[11px] leading-[1.6] text-fg">
                 $ {toolData.command}
               </pre>
             </div>
           )}
 
           {toolData.output && (
-            <pre className="max-h-48 overflow-auto rounded bg-white p-2 font-mono text-[11px] leading-[1.6] text-fg-muted">
+            <pre className="max-h-48 overflow-auto rounded bg-surface-secondary p-2 font-mono text-[11px] leading-[1.6] text-fg-muted">
               {toolData.output}
             </pre>
           )}
 
           {toolData.diff && (
-            <pre className="overflow-x-auto rounded bg-white p-2 font-mono text-[11px] leading-[1.6]">
+            <pre className="overflow-x-auto rounded bg-surface-secondary p-2 font-mono text-[11px] leading-[1.6]">
               {toolData.diff.split("\n").map((line, i) => (
                 <div
                   key={i}
@@ -115,7 +115,7 @@ export function ToolCallDisplay({ content }: ToolCallDisplayProps) {
           )}
 
           {toolData.input && !toolData.command && !toolData.diff && (
-            <pre className="overflow-x-auto rounded bg-white p-2 font-mono text-[11px] leading-[1.6] text-fg-muted">
+            <pre className="overflow-x-auto rounded bg-surface-secondary p-2 font-mono text-[11px] leading-[1.6] text-fg-muted">
               {JSON.stringify(toolData.input, null, 2)}
             </pre>
           )}

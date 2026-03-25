@@ -131,7 +131,7 @@ export function TerminalPane({ taskId }: TerminalPaneProps) {
 
   return (
     <div className="flex h-full flex-col">
-      <div ref={containerRef} className="min-h-0 flex-1 bg-[#1a1a1a] p-1" />
+      <div ref={containerRef} className="min-h-0 flex-1 bg-surface-card p-1" />
     </div>
   )
 }

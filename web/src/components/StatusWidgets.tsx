@@ -264,7 +264,7 @@ export function BuildLog({ project, buildStatus }: { project?: string; buildStat
       {open && (
         <pre
           ref={scrollRef}
-          className="max-h-[400px] overflow-auto rounded-lg border border-edge bg-[#1a1a1a] p-4 font-mono text-[12px] leading-[1.6] text-[#d4d4d4]"
+          className="max-h-[400px] overflow-auto rounded-lg border border-edge bg-surface-card p-4 font-mono text-[12px] leading-[1.6] text-fg-muted"
         >
           {log || "No build log available"}
         </pre>

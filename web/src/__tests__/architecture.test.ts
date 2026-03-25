@@ -58,8 +58,9 @@ describe("architecture", () => {
     const violations: string[] = []
 
     for (const file of files) {
-      // Skip test files
+      // Skip test files and theme hook (uses matchMedia for prefers-color-scheme, not viewport)
       if (file.includes("__tests__")) continue
+      if (file.endsWith("useTheme.ts")) continue
 
       const content = await Bun.file(file).text()
       const relativePath = file.replace(WEB_SRC + "/", "")

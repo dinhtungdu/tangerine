@@ -34,7 +34,7 @@ export function ReasoningEffortSelector({ value, onChange }: ReasoningEffortSele
     <div className="relative" ref={ref}>
       <button
         onClick={() => setOpen(!open)}
-        className="flex items-center gap-1.5 rounded-md border border-edge bg-surface-secondary px-2 py-1 transition hover:bg-neutral-200"
+        className="flex items-center gap-1.5 rounded-md border border-edge bg-surface-secondary px-2 py-1 transition hover:bg-surface"
       >
         <svg className="h-3 w-3 text-fg-muted" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.8}>
           <path strokeLinecap="round" strokeLinejoin="round" d="M3.75 13.5l10.5-11.25L12 10.5h8.25L9.75 21.75 12 13.5H3.75z" />
@@ -49,7 +49,7 @@ export function ReasoningEffortSelector({ value, onChange }: ReasoningEffortSele
       </button>
 
       {open && (
-        <div className="absolute bottom-full left-0 z-50 mb-1 min-w-[180px] overflow-hidden rounded-lg border border-edge bg-white shadow-lg">
+        <div className="absolute bottom-full left-0 z-50 mb-1 min-w-[180px] overflow-hidden rounded-lg border border-edge bg-surface-card shadow-lg">
           {EFFORTS.map((e) => {
             const isActive = e.value === value
             return (
@@ -64,7 +64,7 @@ export function ReasoningEffortSelector({ value, onChange }: ReasoningEffortSele
                 }`}
               >
                 <div className="flex flex-col">
-                  <span className={`text-[12px] ${isActive ? "font-medium text-fg" : "text-neutral-600"}`}>
+                  <span className={`text-[12px] ${isActive ? "font-medium text-fg" : "text-fg-muted"}`}>
                     {e.label}
                   </span>
                   <span className="text-[10px] text-fg-muted">{e.description}</span>

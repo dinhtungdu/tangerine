@@ -42,7 +42,7 @@ export function ProjectSwitcher({ variant = "desktop" }: ProjectSwitcherProps) {
         className={
           isMobile
             ? "flex h-11 w-full items-center justify-between border-b border-edge px-4"
-            : "flex items-center gap-2 rounded-md bg-surface-secondary px-2.5 py-1.5 transition hover:bg-neutral-200"
+            : "flex items-center gap-2 rounded-md bg-surface-secondary px-2.5 py-1.5 transition hover:bg-surface"
         }
       >
         <div className="flex items-center gap-2">
@@ -71,7 +71,7 @@ export function ProjectSwitcher({ variant = "desktop" }: ProjectSwitcherProps) {
 
       {/* Dropdown */}
       {open && projects.length > 0 && (
-        <div className={`absolute z-50 overflow-hidden rounded-lg border border-edge bg-white shadow-lg ${
+        <div className={`absolute z-50 overflow-hidden rounded-lg border border-edge bg-surface-card shadow-lg ${
           isMobile ? "left-4 right-4 top-full" : "left-0 top-full mt-1 min-w-[220px]"
         }`}>
           {!isMobile && (
