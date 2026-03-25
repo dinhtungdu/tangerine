@@ -44,6 +44,9 @@ mounts:
   - location: "~/.claude"
     mountPoint: "/home/{{.User}}.linux/.claude"
     writable: true
+  - location: "~/.config"
+    mountPoint: "/home/{{.User}}.linux/.config"
+    writable: false
 
 message: |
   Tangerine VM ready. Next steps:
