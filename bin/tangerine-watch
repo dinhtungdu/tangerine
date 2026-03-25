@@ -1,0 +1,22 @@
+#!/bin/bash
+# Restart loop for self-updating Tangerine server.
+# Run this instead of `bin/tangerine start` when developing Tangerine itself.
+# The server polls git every 60s; on new commits it pulls and exits 0, which
+# causes this loop to restart it automatically.
+
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+
+echo "[tangerine-watch] Starting..."
+
+while true; do
+  TANGERINE_SELF_UPDATE=1 bun "$SCRIPT_DIR/tangerine" start
+  EXIT_CODE=$?
+
+  if [ "$EXIT_CODE" -eq 0 ]; then
+    echo "[tangerine-watch] Clean exit (self-update), restarting in 2s..."
+    sleep 2
+  else
+    echo "[tangerine-watch] Server exited with code $EXIT_CODE, stopping."
+    exit "$EXIT_CODE"
+  fi
+done

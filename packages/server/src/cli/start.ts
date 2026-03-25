@@ -459,6 +459,12 @@ export async function start(): Promise<void> {
     await Effect.runPromise(startOrphanCleanup(orphanDeps))
     log.info("Orphan worktree cleanup started")
 
+    // Start self-update poller when TANGERINE_SELF_UPDATE=1 (used with bin/tangerine-watch)
+    if (process.env.TANGERINE_SELF_UPDATE === "1") {
+      const { startSelfUpdate } = await import("../self-update")
+      await Effect.runPromise(startSelfUpdate())
+    }
+
     // Start PR status monitor (every 60s)
     const prMonitorDeps: PrMonitorDeps = {
       db,
