@@ -8,6 +8,26 @@ import { normalizeTimestamps } from "../helpers"
 import { TaskNotFoundError } from "../../errors"
 import { getProjectConfig, TANGERINE_HOME } from "../../config"
 
+function gitDiff(cmd: string, cwd: string): Effect.Effect<string, never> {
+  return Effect.tryPromise({
+    try: async () => {
+      const proc = Bun.spawn(["bash", "-c", cmd], { cwd, stdout: "pipe", stderr: "pipe" })
+      return new Response(proc.stdout).text()
+    },
+    catch: () => new Error("git diff failed"),
+  }).pipe(Effect.catchAll(() => Effect.succeed("")))
+}
+
+function parseDiffChunks(raw: string): { path: string; diff: string }[] {
+  const files: { path: string; diff: string }[] = []
+  const chunks = raw.split(/(?=^diff --git )/m).filter(Boolean)
+  for (const chunk of chunks) {
+    const match = chunk.match(/^diff --git a\/.+ b\/(.+)$/m)
+    if (match) files.push({ path: match[1]!, diff: chunk })
+  }
+  return files
+}
+
 export function sessionRoutes(deps: AppDeps): Hono {
   const app = new Hono()
 
@@ -85,39 +105,28 @@ export function sessionRoutes(deps: AppDeps): Hono {
   })
 
   // Returns git diff of all changes on the task branch vs origin/{defaultBranch}.
-  // Three-dot diff includes both committed and uncommitted changes made by the agent.
+  // Priority: worktree (live, includes uncommitted) > branch ref (post-cleanup).
   app.get("/:id/diff", (c) => {
     return runEffect(c,
       Effect.gen(function* () {
         const task = yield* getTask(deps.db, c.req.param("id"))
         if (!task) return yield* Effect.fail(new TaskNotFoundError({ taskId: c.req.param("id") }))
 
-        const worktreePath = task.worktree_path
-        if (!worktreePath) return { files: [] }
-
         const project = getProjectConfig(deps.config.config, task.project_id)
         const defaultBranch = project?.defaultBranch ?? "main"
 
-        const raw = yield* Effect.tryPromise({
-          try: async () => {
-            const proc = Bun.spawn(
-              ["bash", "-c", `git diff origin/${defaultBranch}...HEAD`],
-              { cwd: worktreePath, stdout: "pipe", stderr: "pipe" },
-            )
-            return new Response(proc.stdout).text()
-          },
-          catch: () => new Error("git diff failed"),
-        })
+        let raw = ""
 
-        // Split unified diff output into per-file chunks
-        const files: { path: string; diff: string }[] = []
-        const chunks = raw.split(/(?=^diff --git )/m).filter(Boolean)
-        for (const chunk of chunks) {
-          const match = chunk.match(/^diff --git a\/.+ b\/(.+)$/m)
-          if (match) files.push({ path: match[1]!, diff: chunk })
+        if (task.worktree_path) {
+          raw = yield* gitDiff(`git diff origin/${defaultBranch}...HEAD`, task.worktree_path)
+        } else if (task.branch) {
+          const repoDir = `/workspace/${task.project_id}/repo`
+          raw = yield* gitDiff(`git diff origin/${defaultBranch}...${task.branch}`, repoDir)
         }
 
-        return { files }
+        if (!raw) return { files: [] }
+
+        return { files: parseDiffChunks(raw) }
       })
     )
   })
