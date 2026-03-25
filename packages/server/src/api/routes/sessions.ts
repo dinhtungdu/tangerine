@@ -6,6 +6,7 @@ import { getActivities } from "../../activity"
 import { runEffect, runEffectVoid } from "../effect-helpers"
 import { normalizeTimestamps } from "../helpers"
 import { TaskNotFoundError } from "../../errors"
+import { getProjectConfig } from "../../config"
 
 export function sessionRoutes(deps: AppDeps): Hono {
   const app = new Hono()
@@ -63,6 +64,44 @@ export function sessionRoutes(deps: AppDeps): Hono {
     }
     return runEffectVoid(c,
       deps.taskManager.changeConfig(c.req.param("id"), { model: body.model, reasoningEffort: body.reasoningEffort })
+    )
+  })
+
+  // Returns git diff of task worktree vs origin/{defaultBranch}.
+  // Includes all uncommitted and committed changes made by the agent on this branch.
+  app.get("/:id/diff", (c) => {
+    return runEffect(c,
+      Effect.gen(function* () {
+        const task = yield* getTask(deps.db, c.req.param("id"))
+        if (!task) return yield* Effect.fail(new TaskNotFoundError({ taskId: c.req.param("id") }))
+
+        const worktreePath = task.worktree_path
+        if (!worktreePath) return { files: [] }
+
+        const project = getProjectConfig(deps.config.config, task.project_id)
+        const defaultBranch = project?.defaultBranch ?? "main"
+
+        const raw = yield* Effect.tryPromise({
+          try: async () => {
+            const proc = Bun.spawn(
+              ["bash", "-c", `git diff origin/${defaultBranch}`],
+              { cwd: worktreePath, stdout: "pipe", stderr: "pipe" },
+            )
+            return new Response(proc.stdout).text()
+          },
+          catch: () => new Error("git diff failed"),
+        })
+
+        // Split unified diff output into per-file chunks
+        const files: { path: string; diff: string }[] = []
+        const chunks = raw.split(/(?=^diff --git )/m).filter(Boolean)
+        for (const chunk of chunks) {
+          const match = chunk.match(/^diff --git a\/.+ b\/(.+)$/m)
+          if (match) files.push({ path: match[1]!, diff: chunk })
+        }
+
+        return { files }
+      })
     )
   })
 
