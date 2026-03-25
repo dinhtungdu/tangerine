@@ -108,20 +108,53 @@ export async function start(): Promise<void> {
             const task = db.prepare("SELECT description, title FROM tasks WHERE id = ?").get(taskId) as { description: string | null; title: string } | null
             const initialPrompt = task?.description || task?.title
             if (initialPrompt) {
-              // Emit user message via WebSocket so connected clients see it
-              emitTaskEvent(taskId, {
-                role: "user",
-                content: initialPrompt,
-                timestamp: new Date().toISOString(),
-              })
-              Effect.runPromise(
-                session.agentHandle.sendPrompt(initialPrompt).pipe(Effect.catchAll(() => Effect.void))
-              )
-              Effect.runPromise(
-                insertSessionLog(db, { task_id: taskId, role: "user", content: initialPrompt }).pipe(
-                  Effect.catchAll(() => Effect.void)
+              // Load initial images saved during task creation (if any)
+              const loadInitialImages = async () => {
+                const manifestPath = `${TANGERINE_HOME}/images/${taskId}/initial.json`
+                const file = Bun.file(manifestPath)
+                if (!(await file.exists())) return { images: undefined, filenames: undefined }
+                try {
+                  const manifest = JSON.parse(await file.text()) as Array<{ filename: string; mediaType: string }>
+                  if (!manifest.length) return { images: undefined, filenames: undefined }
+                  const images: import("../agent/provider").PromptImage[] = []
+                  const filenames: string[] = []
+                  for (const entry of manifest) {
+                    const imgFile = Bun.file(`${TANGERINE_HOME}/images/${taskId}/${entry.filename}`)
+                    if (await imgFile.exists()) {
+                      const buf = Buffer.from(await imgFile.arrayBuffer())
+                      images.push({ mediaType: entry.mediaType as import("../agent/provider").PromptImage["mediaType"], data: buf.toString("base64") })
+                      filenames.push(entry.filename)
+                    }
+                  }
+                  // Clean up manifest — only needed for initial send
+                  await Bun.file(manifestPath).writer().end()
+                  return { images: images.length > 0 ? images : undefined, filenames: filenames.length > 0 ? filenames : undefined }
+                } catch {
+                  return { images: undefined, filenames: undefined }
+                }
+              }
+
+              loadInitialImages().then(({ images, filenames }) => {
+                // Emit user message via WebSocket so connected clients see it
+                emitTaskEvent(taskId, {
+                  role: "user",
+                  content: initialPrompt,
+                  timestamp: new Date().toISOString(),
+                })
+                Effect.runPromise(
+                  session.agentHandle.sendPrompt(initialPrompt, images).pipe(Effect.catchAll(() => Effect.void))
                 )
-              )
+                Effect.runPromise(
+                  insertSessionLog(db, {
+                    task_id: taskId,
+                    role: "user",
+                    content: initialPrompt,
+                    images: filenames ? JSON.stringify(filenames) : null,
+                  }).pipe(
+                    Effect.catchAll(() => Effect.void)
+                  )
+                )
+              })
             }
           }
 
@@ -221,6 +254,25 @@ export async function start(): Promise<void> {
             model: params.model,
             reasoningEffort: params.reasoningEffort,
           }).pipe(
+            Effect.tap((task) => {
+              // Save initial images to disk so onSessionReady can include them
+              if (!params.images?.length) return Effect.void
+              return Effect.tryPromise({
+                try: async () => {
+                  const imagesDir = `${TANGERINE_HOME}/images/${task.id}`
+                  await Bun.write(`${imagesDir}/.keep`, "")
+                  const manifest: Array<{ filename: string; mediaType: string }> = []
+                  for (const img of params.images!) {
+                    const ext = img.mediaType.split("/")[1] ?? "png"
+                    const filename = `${Date.now()}-${Math.random().toString(36).slice(2, 8)}.${ext}`
+                    await Bun.write(`${imagesDir}/${filename}`, Buffer.from(img.data, "base64"))
+                    manifest.push({ filename, mediaType: img.mediaType })
+                  }
+                  await Bun.write(`${imagesDir}/initial.json`, JSON.stringify(manifest))
+                },
+                catch: () => new Error("Failed to save initial images"),
+              }).pipe(Effect.catchAll(() => Effect.void))
+            }),
             Effect.mapError((e) => ({ _tag: "TaskError" as const, message: e.message }))
           ),
         cancelTask: (taskId) => taskManager.cancelTask(tmDeps, taskId).pipe(
