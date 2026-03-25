@@ -31,7 +31,7 @@ export function taskRoutes(deps: AppDeps): Hono {
   })
 
   app.post("/", async (c) => {
-    const body = await c.req.json<{ projectId?: string; title?: string; description?: string; provider?: string; model?: string; reasoningEffort?: string; source?: string; sourceId?: string; sourceUrl?: string }>()
+    const body = await c.req.json<{ projectId?: string; title?: string; description?: string; provider?: string; model?: string; reasoningEffort?: string; source?: string; sourceId?: string; sourceUrl?: string; images?: import("../../agent/provider").PromptImage[] }>()
     if (!body.title) {
       return c.json({ error: "title is required" }, 400)
     }
@@ -44,7 +44,7 @@ export function taskRoutes(deps: AppDeps): Hono {
     const provider = body.provider === "claude-code" ? "claude-code" : "opencode"
     const source = body.source === "cross-project" ? "cross-project" : "manual"
     return runEffect(c,
-      deps.taskManager.createTask({ source, projectId, title: body.title, description: body.description, provider, model: body.model, reasoningEffort: body.reasoningEffort, sourceId: body.sourceId, sourceUrl: body.sourceUrl }).pipe(
+      deps.taskManager.createTask({ source, projectId, title: body.title, description: body.description, provider, model: body.model, reasoningEffort: body.reasoningEffort, sourceId: body.sourceId, sourceUrl: body.sourceUrl, images: body.images }).pipe(
         Effect.map(mapTaskRow)
       ),
       { status: 201 }

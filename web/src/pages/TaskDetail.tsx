@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback, useRef } from "react"
-import { useParams, useLocation } from "react-router-dom"
-import type { Task, PromptImage } from "@tangerine/shared"
+import { useParams } from "react-router-dom"
+import type { Task } from "@tangerine/shared"
 import { fetchTask, changeTaskConfig } from "../lib/api"
 import { getStatusConfig } from "../lib/status"
 import { useSession } from "../hooks/useSession"
@@ -21,12 +21,7 @@ type PaneId = "chat" | "diff" | "terminal" | "activity"
 
 export function TaskDetail() {
   const { id } = useParams<{ id: string }>()
-  const location = useLocation()
   const { navigate } = useProjectNav()
-  // Capture pending images from nav state once — cleared after first send
-  const pendingImagesRef = useRef<PromptImage[] | null>(
-    (location.state as { pendingImages?: PromptImage[] } | null)?.pendingImages ?? null,
-  )
   const [task, setTask] = useState<Task | null>(null)
   const [loading, setLoading] = useState(true)
   const [visiblePanes, setVisiblePanes] = useState<Set<PaneId>>(() => {
@@ -178,14 +173,6 @@ export function TaskDetail() {
       setTask((prev) => (prev ? { ...prev, status: session.taskStatus! } : prev))
     }
   }, [session.taskStatus])
-
-  // Auto-send images passed via nav state once the WS connects (at-most-once via ref)
-  useEffect(() => {
-    if (!session.connected || !pendingImagesRef.current) return
-    const images = pendingImagesRef.current
-    pendingImagesRef.current = null
-    session.sendPrompt("", images)
-  }, [session.connected]) // sendPrompt omitted — ref guarantees at-most-once
 
   if (loading) {
     return (
