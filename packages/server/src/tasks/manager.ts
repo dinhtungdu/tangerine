@@ -130,6 +130,16 @@ export function cancelTask(
 
     emitStatusChange(taskId, "cancelled")
 
+    // Snapshot the diff before cleanup clears the worktree_path
+    if (task.status === "running" || task.status === "provisioning") {
+      yield* snapshotDiff(task, deps).pipe(
+        Effect.catchAll((e) => {
+          log.warn("Failed to snapshot diff on cancel", { taskId, error: String(e) })
+          return Effect.void
+        })
+      )
+    }
+
     // Clean up running session if active
     if (task.status === "running" || task.status === "provisioning") {
       yield* cleanupSession(taskId, deps.cleanupDeps).pipe(
