@@ -1,5 +1,5 @@
 # Tangerine Lima VM Template
-# Minimal — just boots a Debian VM. Run base-setup.sh via SSH to install tools.
+# Boots a Debian VM and runs base-setup.sh to install all tools.
 
 # Debian 13 (Trixie) cloud images
 images:
@@ -26,19 +26,19 @@ ssh:
   forwardAgent: true
 
 # Mount tangerine data — DB, config, credentials survive VM rebuilds.
-# Mount tangerine data at guest $HOME/tangerine.
 mounts:
   - location: "~/tangerine"
     mountPoint: "/home/tung.linux/tangerine"
-    writable: true
-  - location: "~/.claude"
-    mountPoint: "/home/tung.linux/.claude"
     writable: true
   - location: "~/.config"
     mountPoint: "/home/tung.linux/.config"
     writable: false
 
 provision:
+  - mode: system
+    script: |
+      #!/bin/bash
+      /home/tung.linux/tangerine/base-setup.sh
   - mode: user
     script: |
       #!/bin/bash
@@ -62,5 +62,4 @@ provision:
 message: |
   Tangerine VM ready. Next steps:
     1. Clone tangerine repo.
-    2. Run base-setup.
-    3. Run: bun install && tangerine start.
+    2. Run: bun install && tangerine start.
