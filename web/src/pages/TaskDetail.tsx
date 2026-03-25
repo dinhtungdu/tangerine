@@ -306,6 +306,9 @@ export function TaskDetail() {
                 model={task.model}
                 providerModels={providerModels}
                 reasoningEffort={task.reasoningEffort}
+                taskStatus={task.status}
+                taskId={task.id}
+                taskTitle={task.title}
                 onSend={session.sendPrompt}
                 onAbort={session.abort}
                 onModelChange={handleModelChange}
@@ -380,6 +383,9 @@ export function TaskDetail() {
                 model={task.model}
                 providerModels={providerModels}
                 reasoningEffort={task.reasoningEffort}
+                taskStatus={task.status}
+                taskId={task.id}
+                taskTitle={task.title}
                 onSend={session.sendPrompt}
                 onAbort={session.abort}
                 onModelChange={handleModelChange}

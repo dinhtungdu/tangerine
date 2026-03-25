@@ -1,3 +1,4 @@
+import { useSearchParams } from "react-router-dom"
 import { useProject } from "../context/ProjectContext"
 import { useProjectNav } from "../hooks/useProjectNav"
 import { NewAgentForm } from "../components/NewAgentForm"
@@ -6,6 +7,10 @@ import { createTask } from "../lib/api"
 export function NewAgentPage() {
   const { navigate } = useProjectNav()
   const { current } = useProject()
+  const [searchParams] = useSearchParams()
+
+  const refTaskId = searchParams.get("ref") ?? undefined
+  const refTaskTitle = searchParams.get("refTitle") ?? undefined
 
   const handleSubmit = async (data: { projectId: string; title: string; description?: string; provider?: string; model?: string; reasoningEffort?: string; images?: import("@tangerine/shared").PromptImage[] }) => {
     if (!current) return
@@ -17,5 +22,5 @@ export function NewAgentPage() {
     }
   }
 
-  return <NewAgentForm onSubmit={handleSubmit} />
+  return <NewAgentForm onSubmit={handleSubmit} refTaskId={refTaskId} refTaskTitle={refTaskTitle} />
 }
