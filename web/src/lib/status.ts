@@ -12,8 +12,8 @@ export interface StatusConfig {
 
 export const STATUS_CONFIG: Record<string, StatusConfig> = {
   running:      { label: "Running",      textClass: "text-status-success-text", bgClass: "bg-status-success-bg", color: "var(--color-status-success)" },
-  done:         { label: "Completed",    textClass: "text-fg-muted",            bgClass: "bg-surface-secondary",  color: "var(--color-fg-muted)" },
-  completed:    { label: "Completed",    textClass: "text-fg-muted",            bgClass: "bg-surface-secondary",  color: "var(--color-fg-muted)" },
+  done:         { label: "Completed",    textClass: "text-status-info-text", bgClass: "bg-status-info-bg",  color: "var(--color-status-info)" },
+  completed:    { label: "Completed",    textClass: "text-status-info-text", bgClass: "bg-status-info-bg",  color: "var(--color-status-info)" },
   failed:       { label: "Failed",       textClass: "text-status-error-text",   bgClass: "bg-status-error-bg",    color: "var(--color-status-error)" },
   cancelled:    { label: "Cancelled",    textClass: "text-fg-muted",            bgClass: "bg-surface-secondary",  color: "var(--color-fg-muted)" },
   created:      { label: "Queued",       textClass: "text-status-warning-text", bgClass: "bg-status-warning-bg",  color: "var(--color-status-warning)" },

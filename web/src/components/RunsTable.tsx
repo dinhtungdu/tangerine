@@ -114,7 +114,7 @@ export function RunsTable({ tasks, searchQuery, onSearchChange, onRefetch }: Run
             <Link
               key={task.id}
               to={link(`/tasks/${task.id}`)}
-              className={`flex items-center border-t border-edge text-[13px] hover:bg-surface-secondary/50${task.status === "done" ? " bg-blue-50" : ""}`}
+              className="flex items-center border-t border-edge text-[13px] hover:bg-surface-secondary/50"
             >
               <div className="flex-1 truncate px-3 py-2.5 font-medium text-fg">{task.title}</div>
               <div className="w-[120px] px-3 py-2.5"><StatusBadge status={task.status} /></div>
