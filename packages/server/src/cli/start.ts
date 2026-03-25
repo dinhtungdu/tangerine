@@ -108,6 +108,22 @@ export async function start(): Promise<void> {
           // Send initial prompt immediately for new tasks (no existing logs).
           // Don't wait for idle event — it may have already fired before we subscribe.
           const hasLogs = db.prepare("SELECT 1 FROM session_logs WHERE task_id = ? LIMIT 1").get(taskId)
+          if (hasLogs) {
+            // Reconnect after server restart: agent started fresh (no resume session).
+            // Find the last user message — if the agent never replied to it, resend it.
+            // Otherwise nudge it to continue, since it was mid-work when the server died.
+            const lastLog = db.prepare(
+              "SELECT role, content FROM session_logs WHERE task_id = ? ORDER BY created_at DESC LIMIT 1"
+            ).get(taskId) as { role: string; content: string } | null
+
+            const nudge = lastLog?.role === "user"
+              ? lastLog.content  // agent never responded — resend the unanswered message
+              : "The server restarted. Please continue where you left off."
+
+            Effect.runPromise(
+              session.agentHandle.sendPrompt(nudge).pipe(Effect.catchAll(() => Effect.void))
+            )
+          }
           if (!hasLogs) {
             const task = db.prepare("SELECT description, title, project_id FROM tasks WHERE id = ?").get(taskId) as { description: string | null; title: string; project_id: string } | null
             const initialPrompt = task?.description || task?.title
