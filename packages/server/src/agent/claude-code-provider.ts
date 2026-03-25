@@ -4,7 +4,7 @@
 import { Effect } from "effect"
 import { createLogger } from "../logger"
 import { AgentError, PromptError, SessionStartError } from "../errors"
-import type { AgentFactory, AgentHandle, AgentEvent, AgentStartContext } from "./provider"
+import type { AgentFactory, AgentHandle, AgentEvent, AgentStartContext, PromptImage } from "./provider"
 import { parseNdjsonStream, mapClaudeCodeEvent } from "./ndjson"
 
 const log = createLogger("claude-code-provider")
@@ -133,12 +133,22 @@ export function createClaudeCodeProvider(): AgentFactory {
           })()
 
           const handle: AgentHandle = {
-            sendPrompt(text: string) {
+            sendPrompt(text: string, images?: PromptImage[]) {
               return Effect.try({
                 try: () => {
+                  // Build content as array when images are present, plain string otherwise
+                  const content: unknown = images && images.length > 0
+                    ? [
+                        ...images.map((img) => ({
+                          type: "image",
+                          source: { type: "base64", media_type: img.mediaType, data: img.data },
+                        })),
+                        { type: "text", text },
+                      ]
+                    : text
                   const msg = JSON.stringify({
                     type: "user",
-                    message: { role: "user", content: text },
+                    message: { role: "user", content },
                   }) + "\n"
                   proc.stdin.write(msg)
                   proc.stdin.flush()

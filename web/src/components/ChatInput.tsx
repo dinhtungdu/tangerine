@@ -1,9 +1,14 @@
-import { useState, useRef, useCallback, type KeyboardEvent } from "react"
+import { useState, useRef, useCallback, type KeyboardEvent, type ClipboardEvent } from "react"
+import type { PromptImage } from "@tangerine/shared"
 import { ModelSelector } from "./ModelSelector"
 import { ReasoningEffortSelector, type ReasoningEffort } from "./ReasoningEffortSelector"
 
+interface PendingImage extends PromptImage {
+  dataUrl: string // for thumbnail preview only
+}
+
 interface ChatInputProps {
-  onSend: (text: string) => void
+  onSend: (text: string, images?: PromptImage[]) => void
   disabled: boolean
   queueLength: number
   isWorking?: boolean
@@ -17,17 +22,22 @@ interface ChatInputProps {
 
 export function ChatInput({ onSend, disabled, queueLength, isWorking, onAbort, model, providerModels, reasoningEffort, onModelChange, onReasoningEffortChange }: ChatInputProps) {
   const [text, setText] = useState("")
+  const [pendingImages, setPendingImages] = useState<PendingImage[]>([])
   const textareaRef = useRef<HTMLTextAreaElement>(null)
 
   const handleSend = useCallback(() => {
     const trimmed = text.trim()
-    if (!trimmed || disabled) return
-    onSend(trimmed)
+    if ((!trimmed && pendingImages.length === 0) || disabled) return
+    const images = pendingImages.length > 0
+      ? pendingImages.map(({ dataUrl: _dataUrl, ...img }) => img)
+      : undefined
+    onSend(trimmed, images)
     setText("")
+    setPendingImages([])
     if (textareaRef.current) {
       textareaRef.current.style.height = "auto"
     }
-  }, [text, disabled, onSend])
+  }, [text, pendingImages, disabled, onSend])
 
   const handleKeyDown = useCallback(
     (e: KeyboardEvent<HTMLTextAreaElement>) => {
@@ -46,10 +56,57 @@ export function ChatInput({ onSend, disabled, queueLength, isWorking, onAbort, m
     textarea.style.height = `${Math.min(textarea.scrollHeight, 144)}px`
   }, [])
 
+  const handlePaste = useCallback((e: ClipboardEvent<HTMLTextAreaElement>) => {
+    const items = e.clipboardData.items
+    for (const item of items) {
+      if (item.type.startsWith("image/")) {
+        const file = item.getAsFile()
+        if (!file) continue
+        const reader = new FileReader()
+        reader.onload = () => {
+          const dataUrl = reader.result as string
+          const commaIdx = dataUrl.indexOf(",")
+          const meta = dataUrl.slice(5, commaIdx) // strip "data:"
+          const mediaType = meta.split(";")[0] as PromptImage["mediaType"]
+          const data = dataUrl.slice(commaIdx + 1)
+          setPendingImages((prev) => [...prev, { dataUrl, mediaType, data }])
+        }
+        reader.readAsDataURL(file)
+      }
+    }
+  }, [])
+
+  const removeImage = useCallback((index: number) => {
+    setPendingImages((prev) => prev.filter((_, i) => i !== index))
+  }, [])
+
+  const canSend = (text.trim().length > 0 || pendingImages.length > 0) && !disabled
   const canChangeModel = providerModels && providerModels.length > 1 && onModelChange
 
   return (
     <div className="border-t border-edge bg-surface px-3 py-2 md:bg-surface md:p-3 md:px-4">
+      {/* Pasted image thumbnails */}
+      {pendingImages.length > 0 && (
+        <div className="mb-2 flex flex-wrap gap-1.5">
+          {pendingImages.map((img, i) => (
+            <div key={i} className="relative">
+              <img
+                src={img.dataUrl}
+                alt="Pasted image"
+                className="h-14 w-14 rounded-md border border-edge object-cover"
+              />
+              <button
+                onClick={() => removeImage(i)}
+                aria-label="Remove image"
+                className="absolute -right-1 -top-1 flex h-4 w-4 items-center justify-center rounded-full bg-fg text-[10px] text-surface"
+              >
+                ×
+              </button>
+            </div>
+          ))}
+        </div>
+      )}
+
       <div className="flex items-start gap-2">
         <div className="relative min-w-0 flex-1">
           <textarea
@@ -60,6 +117,7 @@ export function ChatInput({ onSend, disabled, queueLength, isWorking, onAbort, m
               handleInput()
             }}
             onKeyDown={handleKeyDown}
+            onPaste={handlePaste}
             placeholder={isWorking ? "Agent is working... (messages will be queued)" : "Message agent..."}
             disabled={disabled}
             rows={1}
@@ -79,7 +137,7 @@ export function ChatInput({ onSend, disabled, queueLength, isWorking, onAbort, m
               <svg className="h-3.5 w-3.5" fill="currentColor" viewBox="0 0 24 24"><rect x="6" y="6" width="12" height="12" rx="1" /></svg>
             </button>
           ) : (
-            <button onClick={handleSend} disabled={disabled || !text.trim()} aria-label="Send message" className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-surface-dark text-white disabled:opacity-30">
+            <button onClick={handleSend} disabled={!canSend} aria-label="Send message" className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-surface-dark text-white disabled:opacity-30">
               <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                 <path strokeLinecap="round" strokeLinejoin="round" d="M4.5 10.5 12 3m0 0 7.5 7.5M12 3v18" />
               </svg>
@@ -90,7 +148,7 @@ export function ChatInput({ onSend, disabled, queueLength, isWorking, onAbort, m
         {/* Desktop: square send button */}
         <button
           onClick={handleSend}
-          disabled={disabled || !text.trim()}
+          disabled={!canSend}
           aria-label="Send message"
           className="hidden h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-surface-dark text-surface transition hover:bg-neutral-800 disabled:cursor-not-allowed disabled:opacity-30 md:flex"
         >

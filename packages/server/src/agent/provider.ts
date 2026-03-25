@@ -3,6 +3,9 @@
 
 import type { Effect } from "effect"
 import type { AgentError, PromptError, SessionStartError } from "../errors"
+import type { PromptImage } from "@tangerine/shared"
+
+export type { PromptImage }
 
 export type ProviderType = "opencode" | "claude-code"
 
@@ -24,7 +27,7 @@ export interface AgentConfig {
 
 /** Handle to a running agent session — owns the process, tunnel, and event subscription */
 export interface AgentHandle {
-  sendPrompt(text: string): Effect.Effect<void, PromptError>
+  sendPrompt(text: string, images?: PromptImage[]): Effect.Effect<void, PromptError>
   abort(): Effect.Effect<void, AgentError>
   subscribe(onEvent: (e: AgentEvent) => void): { unsubscribe(): void }
   shutdown(): Effect.Effect<void, never>

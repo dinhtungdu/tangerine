@@ -48,8 +48,13 @@ export type WsServerMessage =
   | { type: "status"; status: TaskStatus }
   | { type: "error"; message: string }
 
+export interface PromptImage {
+  mediaType: "image/png" | "image/jpeg" | "image/gif" | "image/webp"
+  data: string // base64-encoded bytes (no data: URL prefix)
+}
+
 export type WsClientMessage =
-  | { type: "prompt"; text: string }
+  | { type: "prompt"; text: string; images?: PromptImage[] }
   | { type: "abort" }
 
 // System logs
