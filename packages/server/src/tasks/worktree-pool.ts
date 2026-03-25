@@ -10,7 +10,7 @@ import { createLogger } from "../logger"
 
 const log = createLogger("worktree-pool")
 
-const DEFAULT_POOL_SIZE = 2
+const DEFAULT_POOL_SIZE = 10
 
 export type LocalExec = (
   command: string,
