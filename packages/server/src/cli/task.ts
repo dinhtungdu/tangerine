@@ -19,6 +19,7 @@ Options for create:
   --project <name>         Project name (defaults to first project)
   --title <title>          Task title (required)
   --description <desc>     Task description (optional)
+  --branch <branch>        Existing branch name, PR URL, or #number (optional)
 `)
     process.exit(0)
   }
@@ -38,10 +39,12 @@ async function createTask(argv: string[]): Promise<void> {
     project: { alias: "p" },
     title: { alias: "t", required: true },
     description: { alias: "d" },
+    branch: { alias: "b" },
   })
 
   const title = parsed.flags["title"]!
   const description = parsed.flags["description"]
+  const branch = parsed.flags["branch"]
 
   const config = loadConfig()
   const projectId = parsed.flags["project"] || config.config.projects[0]!.name
@@ -65,6 +68,7 @@ async function createTask(argv: string[]): Promise<void> {
     repo_url: project.repo,
     title,
     description,
+    branch,
   }))
 
   console.log(`Task created: ${task.id} (project: ${projectId})`)
