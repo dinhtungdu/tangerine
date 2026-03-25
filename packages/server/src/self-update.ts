@@ -69,6 +69,21 @@ export function checkAndUpdate(): Effect.Effect<void, never> {
       )
     }
 
+    // Rebuild web if any web sources changed
+    const webChanged = yield* exec(`git diff ${local}..HEAD --name-only -- web/`).pipe(
+      Effect.map((diff) => diff.length > 0),
+      Effect.orElse(() => Effect.succeed(false))
+    )
+    if (webChanged) {
+      log.info("Web sources changed, building...")
+      const buildResult = yield* exec("bun run build --filter 'tangerine-web'").pipe(
+        Effect.map(() => "ok" as const),
+        Effect.tapError((e) => Effect.sync(() => log.error("Web build failed, skipping restart", { error: e.message }))),
+        Effect.catchAll(() => Effect.succeed("failed" as const))
+      )
+      if (buildResult === "failed") return
+    }
+
     log.info("Update applied, restarting", { commit: pulled.slice(0, 8) })
     process.exit(0)
   }).pipe(Effect.catchAll(() => Effect.void))
