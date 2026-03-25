@@ -356,7 +356,7 @@ export function TaskDetail() {
             </div>
           )}
 
-          {visiblePanes.has("activity") && (visiblePanes.has("chat") || visiblePanes.has("diff") || visiblePanes.has("terminal")) && (
+          {visiblePanes.has("activity") && (visiblePanes.has("diff") || visiblePanes.has("terminal")) && (
             <ResizeHandle onMouseDown={activityResize.onMouseDown} />
           )}
 
