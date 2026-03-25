@@ -17,12 +17,24 @@ function isToolCall(content: string): boolean {
   }
 }
 
+function escapeHtml(text: string): string {
+  return text.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;")
+}
+
+function linkifyUrls(text: string): string {
+  return escapeHtml(text).replace(
+    /(https?:\/\/[^\s<]+)/g,
+    '<a href="$1" target="_blank" rel="noopener noreferrer">$1</a>',
+  )
+}
+
 function renderMarkdown(text: string): string {
   return text
     .replace(/```(\w*)\n([\s\S]*?)```/g, '<pre class="my-2 rounded-md bg-surface-secondary p-3 font-mono text-[11px] leading-[1.6] overflow-x-auto border border-edge"><code>$2</code></pre>')
     .replace(/`([^`]+)`/g, '<code class="rounded bg-surface-secondary px-1 py-0.5 font-mono text-[12px] border border-edge">$1</code>')
     .replace(/\*\*(.+?)\*\*/g, "<strong>$1</strong>")
     .replace(/\*(.+?)\*/g, "<em>$1</em>")
+    .replace(/(^|[^"=])(https?:\/\/[^\s<]+)/g, '$1<a href="$2" target="_blank" rel="noopener noreferrer" class="underline text-blue-600 hover:text-blue-800 break-all">$2</a>')
     .replace(/\n/g, "<br />")
 }
 
@@ -67,7 +79,10 @@ export function ChatMessage({ message }: ChatMessageProps) {
             </>
           )}
           {message.content && (
-            <p className="whitespace-pre-wrap text-[13px] leading-[1.5] text-surface">{message.content}</p>
+            <p
+              className="whitespace-pre-wrap text-[13px] leading-[1.5] text-surface [&_a]:underline [&_a]:text-blue-300 hover:[&_a]:text-blue-100 [&_a]:break-all"
+              dangerouslySetInnerHTML={{ __html: linkifyUrls(message.content) }}
+            />
           )}
         </div>
       </div>
