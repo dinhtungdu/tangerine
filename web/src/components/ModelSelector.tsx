@@ -9,9 +9,11 @@ interface ModelSelectorProps {
   model?: string
   /** Override the model change handler */
   onModelChange?: (model: string) => void
+  /** Controls whether the menu opens above or below the trigger */
+  menuPlacement?: "top" | "bottom"
 }
 
-export function ModelSelector({ models: propModels, model: propModel, onModelChange }: ModelSelectorProps = {}) {
+export function ModelSelector({ models: propModels, model: propModel, onModelChange, menuPlacement = "top" }: ModelSelectorProps = {}) {
   const ctx = useProject()
   const models = propModels ?? ctx.models
   const model = propModel ?? ctx.model
@@ -71,7 +73,7 @@ export function ModelSelector({ models: propModels, model: propModel, onModelCha
       </button>
 
       {open && models.length > 0 && (
-        <div className="absolute bottom-full left-0 z-50 mb-1 min-w-[260px] overflow-hidden rounded-lg border border-edge bg-white shadow-lg">
+        <div className={`absolute left-0 z-50 min-w-[260px] overflow-hidden rounded-lg border border-edge bg-white shadow-lg ${menuPlacement === "bottom" ? "top-full mt-1" : "bottom-full mb-1"}`}>
           {models.length > 5 && (
             <div className="border-b border-edge px-2 py-1.5">
               <input

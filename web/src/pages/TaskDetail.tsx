@@ -280,11 +280,6 @@ export function TaskDetail() {
               </PaneToggle>
             </div>
             <div className="h-5 w-px bg-edge" />
-            <button className="flex h-8 w-8 items-center justify-center rounded-md bg-[#e7000b]" aria-label="Stop preview">
-              <svg className="h-4 w-4 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                <path strokeLinecap="round" strokeLinejoin="round" d="M5.25 7.5A2.25 2.25 0 0 1 7.5 5.25h9a2.25 2.25 0 0 1 2.25 2.25v9a2.25 2.25 0 0 1-2.25 2.25h-9a2.25 2.25 0 0 1-2.25-2.25v-9Z" />
-              </svg>
-            </button>
             <button className="flex h-8 w-8 items-center justify-center rounded-md hover:bg-surface-secondary" aria-label="More options">
               <svg className="h-4 w-4 text-fg-muted" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                 <circle cx="12" cy="12" r="1" /><circle cx="19" cy="12" r="1" /><circle cx="5" cy="12" r="1" />
@@ -426,4 +421,3 @@ export function TaskDetail() {
     </div>
   )
 }
-
