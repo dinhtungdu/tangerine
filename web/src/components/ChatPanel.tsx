@@ -1,8 +1,12 @@
 import { useEffect, useRef } from "react"
-import type { PromptImage } from "@tangerine/shared"
+import type { PromptImage, TaskStatus } from "@tangerine/shared"
 import type { ChatMessage as ChatMessageType } from "../hooks/useSession"
 import { ChatMessage } from "./ChatMessage"
 import { ChatInput } from "./ChatInput"
+import { useProjectNav } from "../hooks/useProjectNav"
+import { getStatusConfig } from "../lib/status"
+
+const TERMINAL_STATUSES: TaskStatus[] = ["done", "failed", "cancelled"]
 
 interface ChatPanelProps {
   messages: ChatMessageType[]
@@ -11,6 +15,9 @@ interface ChatPanelProps {
   model?: string | null
   providerModels?: string[]
   reasoningEffort?: string | null
+  taskStatus?: TaskStatus | null
+  taskId?: string
+  taskTitle?: string
   onSend: (text: string, images?: PromptImage[]) => void
   onAbort: () => void
   onModelChange?: (model: string) => void
@@ -24,12 +31,17 @@ export function ChatPanel({
   model,
   providerModels,
   reasoningEffort,
+  taskStatus,
+  taskId,
+  taskTitle,
   onSend,
   onAbort,
   onModelChange,
   onReasoningEffortChange,
 }: ChatPanelProps) {
   const scrollRef = useRef<HTMLDivElement>(null)
+  const { navigate } = useProjectNav()
+  const isTerminal = taskStatus ? TERMINAL_STATUSES.includes(taskStatus) : false
 
   useEffect(() => {
     const el = scrollRef.current
@@ -71,19 +83,75 @@ export function ChatPanel({
         </div>
       </div>
 
-      {/* Input */}
-      <ChatInput
-        onSend={onSend}
-        disabled={false}
-        queueLength={queueLength}
-        isWorking={agentStatus === "working"}
-        onAbort={onAbort}
-        model={model}
-        providerModels={providerModels}
-        reasoningEffort={reasoningEffort}
-        onModelChange={onModelChange}
-        onReasoningEffortChange={onReasoningEffortChange}
-      />
+      {/* Input or terminal-state banner */}
+      {isTerminal ? (
+        <TerminalBanner
+          taskStatus={taskStatus!}
+          taskId={taskId}
+          taskTitle={taskTitle}
+          onContinue={(refTaskId, refTitle) => {
+            const params = new URLSearchParams()
+            if (refTaskId) params.set("ref", refTaskId)
+            if (refTitle) params.set("refTitle", refTitle)
+            navigate(`/new?${params}`)
+          }}
+        />
+      ) : (
+        <ChatInput
+          onSend={onSend}
+          disabled={false}
+          queueLength={queueLength}
+          isWorking={agentStatus === "working"}
+          onAbort={onAbort}
+          model={model}
+          providerModels={providerModels}
+          reasoningEffort={reasoningEffort}
+          onModelChange={onModelChange}
+          onReasoningEffortChange={onReasoningEffortChange}
+        />
+      )}
+    </div>
+  )
+}
+
+/* -- Banner shown when task is in a terminal state -- */
+
+function TerminalBanner({
+  taskStatus,
+  taskId,
+  taskTitle,
+  onContinue,
+}: {
+  taskStatus: TaskStatus
+  taskId?: string
+  taskTitle?: string
+  onContinue: (taskId?: string, title?: string) => void
+}) {
+  const { color, label } = getStatusConfig(taskStatus)
+
+  return (
+    <div className="border-t border-edge bg-surface px-4 py-3">
+      <div className="flex items-center justify-between gap-3">
+        <div className="flex items-center gap-2 text-[13px] text-fg-muted">
+          <span
+            className="inline-flex items-center gap-1 rounded px-1.5 py-0.5 text-[11px] font-medium"
+            style={{ backgroundColor: `color-mix(in srgb, ${color} 10%, transparent)`, color }}
+          >
+            <span className="h-1.5 w-1.5 rounded-full" style={{ backgroundColor: color }} />
+            {label}
+          </span>
+          <span>This task has ended.</span>
+        </div>
+        <button
+          onClick={() => onContinue(taskId, taskTitle)}
+          className="flex shrink-0 items-center gap-1.5 rounded-md bg-surface-dark px-3 py-1.5 text-[12px] font-medium text-white transition hover:bg-neutral-800"
+        >
+          <svg className="h-3 w-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+            <path strokeLinecap="round" strokeLinejoin="round" d="M12 4.5v15m7.5-7.5h-15" />
+          </svg>
+          Continue in new task
+        </button>
+      </div>
     </div>
   )
 }
