@@ -84,8 +84,8 @@ export function sessionRoutes(deps: AppDeps): Hono {
     )
   })
 
-  // Returns git diff of task worktree vs origin/{defaultBranch}.
-  // Includes all uncommitted and committed changes made by the agent on this branch.
+  // Returns git diff of all changes on the task branch vs origin/{defaultBranch}.
+  // Three-dot diff includes both committed and uncommitted changes made by the agent.
   app.get("/:id/diff", (c) => {
     return runEffect(c,
       Effect.gen(function* () {
@@ -101,7 +101,7 @@ export function sessionRoutes(deps: AppDeps): Hono {
         const raw = yield* Effect.tryPromise({
           try: async () => {
             const proc = Bun.spawn(
-              ["bash", "-c", `git diff origin/${defaultBranch}`],
+              ["bash", "-c", `git diff origin/${defaultBranch}...HEAD`],
               { cwd: worktreePath, stdout: "pipe", stderr: "pipe" },
             )
             return new Response(proc.stdout).text()
