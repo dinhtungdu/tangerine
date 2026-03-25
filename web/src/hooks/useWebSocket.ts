@@ -46,6 +46,11 @@ export function useWebSocket(taskId: string): UseWebSocketResult {
 
     ws.onclose = () => {
       if (unmountedRef.current) return
+      // Guard against stale close events from a previous connection. When the
+      // taskId changes, cleanup closes the old WS but the new one is already
+      // assigned to wsRef. Without this check the stale onclose would null out
+      // the new connection and schedule a reconnect to the wrong task.
+      if (wsRef.current !== ws) return
       setConnected(false)
       wsRef.current = null
 
@@ -59,6 +64,13 @@ export function useWebSocket(taskId: string): UseWebSocketResult {
       // onclose will fire after onerror, triggering reconnect
       ws.close()
     }
+  }, [taskId])
+
+  // Clear accumulated messages when switching to a different task so stale
+  // WS history from the previous task doesn't bleed into the new one.
+  useEffect(() => {
+    setMessages([])
+    setConnected(false)
   }, [taskId])
 
   useEffect(() => {

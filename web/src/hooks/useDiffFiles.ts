@@ -6,6 +6,11 @@ export function useDiffFiles(taskId: string) {
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
+    setFiles([])
+    setLoading(true)
+  }, [taskId])
+
+  useEffect(() => {
     let cancelled = false
     async function load() {
       try {
