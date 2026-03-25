@@ -109,7 +109,7 @@ export async function start(): Promise<void> {
           // Don't wait for idle event — it may have already fired before we subscribe.
           const hasLogs = db.prepare("SELECT 1 FROM session_logs WHERE task_id = ? LIMIT 1").get(taskId)
           if (!hasLogs) {
-            const task = db.prepare("SELECT description, title FROM tasks WHERE id = ?").get(taskId) as { description: string | null; title: string } | null
+            const task = db.prepare("SELECT description, title, project_id FROM tasks WHERE id = ?").get(taskId) as { description: string | null; title: string; project_id: string } | null
             const initialPrompt = task?.description || task?.title
             if (initialPrompt) {
               // Load initial images saved during task creation (if any)
@@ -139,6 +139,16 @@ export async function start(): Promise<void> {
               }
 
               loadInitialImages().then(({ images, filenames }) => {
+                const projConfig = task?.project_id ? getProjectConfig(config.config, task.project_id) : undefined
+                const notes: string[] = []
+                notes.push(`[TANGERINE: You are running inside a Tangerine task (task ID: ${taskId}). Use the \`tangerine\` CLI to interact with the system — list tasks, create cross-project tasks, mark your task done. Run \`/tangerine\` for full reference.]`)
+                if (projConfig?.setup) {
+                  const prefix = taskId.slice(0, 8)
+                  notes.push(`[NOTE: Project setup is running in the background (\`${projConfig.setup}\`). Before running builds, tests, or linters, check if setup is done: \`cat /tmp/tangerine-setup-${prefix}.status\` (running/done/failed). Log: \`cat /tmp/tangerine-setup-${prefix}.log\`]`)
+                }
+                firstPromptSent.add(taskId)
+                const fullPrompt = notes.join("\n") + "\n\n" + initialPrompt
+
                 // Emit user message via WebSocket so connected clients see it
                 emitTaskEvent(taskId, {
                   role: "user",
@@ -146,7 +156,7 @@ export async function start(): Promise<void> {
                   timestamp: new Date().toISOString(),
                 })
                 Effect.runPromise(
-                  session.agentHandle.sendPrompt(initialPrompt, images).pipe(Effect.catchAll(() => Effect.void))
+                  session.agentHandle.sendPrompt(fullPrompt, images).pipe(Effect.catchAll(() => Effect.void))
                 )
                 Effect.runPromise(
                   insertSessionLog(db, {
@@ -354,19 +364,28 @@ export async function start(): Promise<void> {
               Effect.catchAll(() => Effect.void)
             )
 
-            // Prepend setup note to the first prompt for a task
+            // Prepend system notes to the first prompt for a task
             let promptText = text
             if (!firstPromptSent.has(taskId)) {
               firstPromptSent.add(taskId)
               const task = yield* getTask(db, taskId).pipe(Effect.catchAll(() => Effect.succeed(null)))
+              const notes: string[] = []
+
+              // Always orient the agent within Tangerine
+              notes.push(`[TANGERINE: You are running inside a Tangerine task (task ID: ${taskId}). Use the \`tangerine\` CLI to interact with the system — list tasks, create cross-project tasks, mark your task done. Run \`/tangerine\` for full reference.]`)
+
               if (task?.project_id) {
                 const projConfig = getProjectConfig(config.config, task.project_id)
                 if (projConfig?.setup) {
                   const prefix = task.id.slice(0, 8)
-                  promptText = `[NOTE: Project setup is running in the background (\`${projConfig.setup}\`). ` +
+                  notes.push(`[NOTE: Project setup is running in the background (\`${projConfig.setup}\`). ` +
                     `Before running builds, tests, or linters, check if setup is done: \`cat /tmp/tangerine-setup-${prefix}.status\` ` +
-                    `(running/done/failed). Log: \`cat /tmp/tangerine-setup-${prefix}.log\`]\n\n${text}`
+                    `(running/done/failed). Log: \`cat /tmp/tangerine-setup-${prefix}.log\`]`)
                 }
+              }
+
+              if (notes.length > 0) {
+                promptText = notes.join("\n") + "\n\n" + text
               }
             }
 
