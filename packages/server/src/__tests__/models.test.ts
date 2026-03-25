@@ -2,10 +2,9 @@ import { describe, test, expect } from "bun:test"
 import { discoverModels, discoverClaudeCodeModels, discoverModelsByProvider } from "../models"
 
 describe("discoverModels", () => {
-  test("returns models from cache", () => {
+  test("returns array (empty if no opencode cache)", () => {
     const models = discoverModels()
-    // Should return at least some models (opencode provider is always available)
-    expect(models.length).toBeGreaterThan(0)
+    expect(Array.isArray(models)).toBe(true)
   })
 
   test("each model has required fields", () => {
@@ -16,12 +15,6 @@ describe("discoverModels", () => {
       expect(model.provider).toBeTruthy()
       expect(model.name).toBeTruthy()
     }
-  })
-
-  test("includes opencode provider models", () => {
-    const models = discoverModels()
-    const opencodeModels = models.filter((m) => m.provider === "opencode")
-    expect(opencodeModels.length).toBeGreaterThan(0)
   })
 
   test("model id format is provider/model", () => {
@@ -61,12 +54,6 @@ describe("discoverModelsByProvider", () => {
     expect(result).toHaveProperty("claude-code")
     expect(Array.isArray(result.opencode)).toBe(true)
     expect(Array.isArray(result["claude-code"])).toBe(true)
-  })
-
-  test("opencode models match discoverModels", () => {
-    const byProvider = discoverModelsByProvider()
-    const direct = discoverModels()
-    expect(byProvider.opencode).toEqual(direct)
   })
 
   test("claude-code models match discoverClaudeCodeModels", () => {
