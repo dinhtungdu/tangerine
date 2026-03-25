@@ -25,30 +25,42 @@ ssh:
   loadDotSSHPubKeys: true
   forwardAgent: true
 
-# Disable Lima auto port-forwarding — Tangerine manages its own tunnels.
-portForwards:
-  - guestIP: "0.0.0.0"
-    guestPortRange: [1, 65535]
-    ignore: true
-  - guestIP: "127.0.0.1"
-    guestPortRange: [1, 65535]
-    ignore: true
-
-# Mount tangerine data at guest $HOME/tangerine — DB and config persist across VM rebuilds.
-# Lima guest home is /home/<user>.linux — mountPoint must match.
-# SSH keys handled by Lima's forwardAgent + loadDotSSHPubKeys.
+# Mount tangerine data — DB, config, credentials survive VM rebuilds.
+# Mount tangerine data at guest $HOME/tangerine.
 mounts:
   - location: "~/tangerine"
-    mountPoint: "/home/{{.User}}.linux/tangerine"
+    mountPoint: "/home/tung.linux/tangerine"
     writable: true
   - location: "~/.claude"
-    mountPoint: "/home/{{.User}}.linux/.claude"
+    mountPoint: "/home/tung.linux/.claude"
     writable: true
   - location: "~/.config"
-    mountPoint: "/home/{{.User}}.linux/.config"
+    mountPoint: "/home/tung.linux/.config"
     writable: false
+
+provision:
+  - mode: user
+    script: |
+      #!/bin/bash
+      CREDS="/home/tung.linux/tangerine/.credentials"
+      if [ -f "$CREDS" ]; then
+        . "$CREDS"
+        HOST_IP=$(ip route | awk '/default/ {print $3}')
+
+        # GHE proxy + credentials
+        git config --global http.https://github.a8c.com.proxy "socks5://${HOST_IP}:${PROXY_PORT}"
+        git config --global credential.https://github.a8c.com.helper "store --file=/home/tung.linux/tangerine/.git-credentials"
+        echo "https://dinhtungdu:${GH_ENTERPRISE_TOKEN}@github.a8c.com" > /home/tung.linux/tangerine/.git-credentials
+        chmod 600 /home/tung.linux/tangerine/.git-credentials
+
+        # Export all credentials to shell
+        echo 'set -a' >> ~/.bashrc
+        echo '. /home/tung.linux/tangerine/.credentials' >> ~/.bashrc
+        echo 'set +a' >> ~/.bashrc
+      fi
 
 message: |
   Tangerine VM ready. Next steps:
-    1. Clone tangerine repo and run: bun install && tangerine start
-    2. Run base-setup.sh
+    1. Clone tangerine repo.
+    2. Run base-setup.
+    3. Run: bun install && tangerine start.
