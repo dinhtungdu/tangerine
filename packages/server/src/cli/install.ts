@@ -7,12 +7,15 @@ import { homedir } from "os"
 import { TANGERINE_HOME, OPENCODE_AUTH_PATH, readCredentialsFile } from "../config"
 
 const CLAUDE_SKILLS_DIR = join(homedir(), ".claude", "skills")
-const SKILL_NAME = "tangerine-init"
 
 // Resolve project root relative to this file:
 // packages/server/src/cli/install.ts → 4 levels up
 const PROJECT_ROOT = resolve(import.meta.dir, "../../../../")
-const SKILL_SOURCE = join(PROJECT_ROOT, "skills", SKILL_NAME)
+
+// Skills to symlink into ~/.claude/skills/:
+// - tangerine-init: for the operator to set up projects
+// - tangerine: for agents running inside tasks to understand the API
+const SKILLS_TO_INSTALL = ["tangerine-init", "tangerine"]
 
 function check(label: string, ok: boolean, hint?: string): void {
   if (ok) {
@@ -41,14 +44,15 @@ function ensureDir(dir: string): void {
   mkdirSync(dir, { recursive: true })
 }
 
-function symlinkSkill(): { created: boolean; skipped: string | null } {
-  const target = join(CLAUDE_SKILLS_DIR, SKILL_NAME)
+function symlinkSkill(skillName: string): { created: boolean; skipped: string | null } {
+  const skillSource = join(PROJECT_ROOT, "skills", skillName)
+  const target = join(CLAUDE_SKILLS_DIR, skillName)
 
   if (existsSync(target)) {
     // Check if it already points to the right place
     try {
       const current = readlinkSync(target)
-      if (resolve(current) === resolve(SKILL_SOURCE)) {
+      if (resolve(current) === resolve(skillSource)) {
         return { created: false, skipped: "already linked" }
       }
     } catch {
@@ -58,7 +62,7 @@ function symlinkSkill(): { created: boolean; skipped: string | null } {
   }
 
   ensureDir(CLAUDE_SKILLS_DIR)
-  symlinkSync(SKILL_SOURCE, target)
+  symlinkSync(skillSource, target)
   return { created: true, skipped: null }
 }
 
@@ -82,16 +86,19 @@ export async function install(): Promise<void> {
   ensureDir(join(TANGERINE_HOME, "images"))
   check(`${TANGERINE_HOME}/images`, true)
 
-  // 3. Claude Code skill
-  console.log("\nClaude Code skill:")
-  if (!existsSync(SKILL_SOURCE)) {
-    check(`${SKILL_NAME} skill`, false, `skill source not found at ${SKILL_SOURCE}`)
-  } else {
-    const result = symlinkSkill()
-    if (result.created) {
-      check(`${SKILL_NAME} skill → ${CLAUDE_SKILLS_DIR}/${SKILL_NAME}`, true)
+  // 3. Claude Code skills
+  console.log("\nClaude Code skills:")
+  for (const skillName of SKILLS_TO_INSTALL) {
+    const skillSource = join(PROJECT_ROOT, "skills", skillName)
+    if (!existsSync(skillSource)) {
+      check(`${skillName} skill`, false, `skill source not found at ${skillSource}`)
     } else {
-      check(`${SKILL_NAME} skill (${result.skipped})`, true)
+      const result = symlinkSkill(skillName)
+      if (result.created) {
+        check(`${skillName} skill → ${CLAUDE_SKILLS_DIR}/${skillName}`, true)
+      } else {
+        check(`${skillName} skill (${result.skipped})`, true)
+      }
     }
   }
 
