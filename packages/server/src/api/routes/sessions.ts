@@ -85,29 +85,35 @@ export function sessionRoutes(deps: AppDeps): Hono {
   })
 
   // Returns git diff of all changes on the task branch vs origin/{defaultBranch}.
-  // Three-dot diff includes both committed and uncommitted changes made by the agent.
+  // For active tasks: runs git diff against the worktree.
+  // For completed tasks: returns the cached diff_snapshot from the database.
   app.get("/:id/diff", (c) => {
     return runEffect(c,
       Effect.gen(function* () {
         const task = yield* getTask(deps.db, c.req.param("id"))
         if (!task) return yield* Effect.fail(new TaskNotFoundError({ taskId: c.req.param("id") }))
 
-        const worktreePath = task.worktree_path
-        if (!worktreePath) return { files: [] }
+        let raw: string | undefined
 
-        const project = getProjectConfig(deps.config.config, task.project_id)
-        const defaultBranch = project?.defaultBranch ?? "main"
+        if (task.worktree_path) {
+          const project = getProjectConfig(deps.config.config, task.project_id)
+          const defaultBranch = project?.defaultBranch ?? "main"
 
-        const raw = yield* Effect.tryPromise({
-          try: async () => {
-            const proc = Bun.spawn(
-              ["bash", "-c", `git diff origin/${defaultBranch}...HEAD`],
-              { cwd: worktreePath, stdout: "pipe", stderr: "pipe" },
-            )
-            return new Response(proc.stdout).text()
-          },
-          catch: () => new Error("git diff failed"),
-        })
+          raw = yield* Effect.tryPromise({
+            try: async () => {
+              const proc = Bun.spawn(
+                ["bash", "-c", `git diff origin/${defaultBranch}...HEAD`],
+                { cwd: task.worktree_path!, stdout: "pipe", stderr: "pipe" },
+              )
+              return new Response(proc.stdout).text()
+            },
+            catch: () => new Error("git diff failed"),
+          })
+        } else if (task.diff_snapshot) {
+          raw = task.diff_snapshot
+        }
+
+        if (!raw) return { files: [] }
 
         // Split unified diff output into per-file chunks
         const files: { path: string; diff: string }[] = []

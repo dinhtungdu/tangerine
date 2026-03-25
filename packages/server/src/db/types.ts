@@ -18,6 +18,7 @@ export interface TaskRow {
   agent_session_id: string | null
   agent_pid: number | null
   preview_url: string | null
+  diff_snapshot: string | null
   error: string | null
   created_at: string
   updated_at: string
