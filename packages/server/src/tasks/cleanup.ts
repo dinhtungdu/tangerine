@@ -58,13 +58,14 @@ export function cleanupSession(
       )
     }
 
-    // 2. Release worktree slot back to pool
-    if (task.worktree_path) {
-      yield* releaseSlot(deps.db, task.id, localExec).pipe(
-        Effect.tap(() => Effect.sync(() => taskLog.info("Worktree slot released", { path: task.worktree_path }))),
-        Effect.ignoreLogged,
-      )
-    }
+    // 2. Release worktree slot back to pool.
+    // Always attempt release — releaseSlot looks up by task_id and is a no-op if no slot is bound.
+    // Do NOT guard on task.worktree_path: the slot may be bound even if the path was never persisted
+    // (e.g. failure between acquireSlot and updateTask).
+    yield* releaseSlot(deps.db, task.id, localExec).pipe(
+      Effect.tap(() => Effect.sync(() => taskLog.info("Worktree slot released"))),
+      Effect.ignoreLogged,
+    )
 
     // 3. Clear worktree_path so task isn't flagged as orphaned
     if (task.worktree_path) {
