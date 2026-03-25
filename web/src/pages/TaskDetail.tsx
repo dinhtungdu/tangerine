@@ -318,7 +318,7 @@ export function TaskDetail() {
           )}
 
           {visiblePanes.has("chat") && (visiblePanes.has("diff") || visiblePanes.has("activity")) && (
-            <ResizeHandle onMouseDown={chatResize.onMouseDown} />
+            <ResizeHandle onMouseDown={visiblePanes.has("diff") ? chatResize.onMouseDown : activityResize.onMouseDown} />
           )}
 
           {visiblePanes.has("diff") && (
