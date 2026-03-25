@@ -19,6 +19,8 @@ import type { CleanupDeps } from "../tasks/cleanup"
 import { startOrphanCleanup, findOrphans, cleanupOrphans } from "../tasks/orphan-cleanup"
 import type { OrphanCleanupDeps } from "../tasks/orphan-cleanup"
 import { AgentError } from "../errors"
+import { extractPrUrl, startPrMonitor } from "../tasks/pr-monitor"
+import type { PrMonitorDeps } from "../tasks/pr-monitor"
 import { initSystemLog, cleanupSystemLogs } from "../system-log"
 import { createOpenCodeProvider } from "../agent/opencode-provider"
 import { createClaudeCodeProvider } from "../agent/claude-code-provider"
@@ -44,6 +46,8 @@ function classifyTool(toolName: string): { activityType: "file" | "system"; acti
 const agentHandles = new Map<string, AgentHandle>()
 // Track which tasks have received their first prompt (for setup note injection)
 const firstPromptSent = new Set<string>()
+// Track tasks that already have a PR URL saved (avoid redundant DB writes)
+const prUrlSaved = new Set<string>()
 
 export async function start(): Promise<void> {
   const startSpan = log.startOp("server-start")
@@ -182,6 +186,23 @@ export async function start(): Promise<void> {
                       Effect.catchAll(() => Effect.void)
                     )
                   )
+
+                  // Fallback PR URL detection from assistant message text
+                  if (event.content && !prUrlSaved.has(taskId)) {
+                    const prUrl = extractPrUrl(event.content)
+                    if (prUrl) {
+                      prUrlSaved.add(taskId)
+                      Effect.runPromise(
+                        updateTask(db, taskId, { pr_url: prUrl }).pipe(Effect.catchAll(() => Effect.void))
+                      )
+                      Effect.runPromise(
+                        logActivity(db, taskId, "lifecycle", "pr.created", `PR created: ${prUrl}`, { prUrl }).pipe(
+                          Effect.catchAll(() => Effect.void)
+                        )
+                      )
+                      log.info("PR URL detected from message", { taskId, prUrl })
+                    }
+                  }
                 }
                 break
               }
@@ -208,6 +229,23 @@ export async function start(): Promise<void> {
                 // Don't persist — tool.start already logged the action.
                 // Just emit for real-time WS updates (e.g. clearing "in progress").
                 emitTaskEvent(taskId, { event: "tool.end", toolName: event.toolName })
+
+                // Detect PR URL from Bash tool results (e.g. `gh pr create` output)
+                if (event.toolResult && !prUrlSaved.has(taskId)) {
+                  const prUrl = extractPrUrl(event.toolResult)
+                  if (prUrl) {
+                    prUrlSaved.add(taskId)
+                    Effect.runPromise(
+                      updateTask(db, taskId, { pr_url: prUrl }).pipe(Effect.catchAll(() => Effect.void))
+                    )
+                    Effect.runPromise(
+                      logActivity(db, taskId, "lifecycle", "pr.created", `PR created: ${prUrl}`, { prUrl }).pipe(
+                        Effect.catchAll(() => Effect.void)
+                      )
+                    )
+                    log.info("PR URL detected from tool result", { taskId, prUrl })
+                  }
+                }
                 break
               }
               case "thinking": {
@@ -420,6 +458,17 @@ export async function start(): Promise<void> {
     // Start periodic orphan worktree cleanup (every 30s)
     await Effect.runPromise(startOrphanCleanup(orphanDeps))
     log.info("Orphan worktree cleanup started")
+
+    // Start PR status monitor (every 60s)
+    const prMonitorDeps: PrMonitorDeps = {
+      db,
+      listTasks: (filter) => listTasks(db, filter),
+      updateTask: (taskId, updates) => updateTask(db, taskId, updates).pipe(Effect.asVoid, Effect.mapError((e) => new Error(String(e)))),
+      logActivity: (taskId, type, event, content, metadata) => logActivity(db, taskId, type, event, content, metadata),
+      cleanupDeps,
+    }
+    await Effect.runPromise(startPrMonitor(prMonitorDeps))
+    log.info("PR status monitor started")
 
     const shutdown = async (signal: string) => {
       log.info("Shutdown signal received", { signal })
