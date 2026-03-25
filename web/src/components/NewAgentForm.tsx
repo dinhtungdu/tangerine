@@ -246,7 +246,7 @@ export function NewAgentForm({ onSubmit, refTaskId, refTaskTitle }: NewAgentForm
             />
             {/* Desktop: inline controls below textarea */}
             <div className="hidden gap-2.5 border-t border-edge px-3 py-2.5 md:flex md:flex-col">
-              <div className="flex items-center gap-2 overflow-hidden">
+              <div className="flex items-center gap-2 overflow-visible">
                 <HarnessSelector value={provider} onChange={handleProviderChange} />
                 <div className="flex min-w-0 items-center gap-1.5 rounded-md border border-edge px-2 py-1">
                   <svg className="h-3 w-3 shrink-0 text-fg-muted" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>

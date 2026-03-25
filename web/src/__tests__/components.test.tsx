@@ -1,9 +1,13 @@
 import { describe, test, expect, afterEach } from "bun:test"
-import { render, screen, cleanup } from "@testing-library/react"
+import { render, screen, cleanup, fireEvent } from "@testing-library/react"
 import { MemoryRouter } from "react-router-dom"
 import { RunCard } from "../components/RunCard"
 import { ActivityList } from "../components/ActivityList"
+import { NewAgentForm } from "../components/NewAgentForm"
+import { ProjectProvider } from "../context/ProjectContext"
 import type { Task, ActivityEntry } from "@tangerine/shared"
+
+const originalFetch = global.fetch
 
 function makeTask(overrides?: Partial<Task>): Task {
   return {
@@ -48,7 +52,34 @@ function makeActivity(overrides?: Partial<ActivityEntry>): ActivityEntry {
   }
 }
 
-afterEach(cleanup)
+afterEach(() => {
+  cleanup()
+  global.fetch = originalFetch
+  globalThis.localStorage?.clear()
+})
+
+function mockProjectsFetch() {
+  global.fetch = async () => new Response(JSON.stringify({
+    projects: [
+      {
+        name: "test-project",
+        repo: "test/repo",
+        defaultBranch: "main",
+        setup: "echo ok",
+        defaultProvider: "claude-code",
+      },
+    ],
+    model: "anthropic/claude-sonnet-4-6",
+    models: ["anthropic/claude-sonnet-4-6", "openai/gpt-5.4"],
+    modelsByProvider: {
+      "claude-code": ["anthropic/claude-sonnet-4-6", "anthropic/claude-haiku-4-20250414"],
+      opencode: ["openai/gpt-5.4", "openai/gpt-5-mini"],
+    },
+  }), {
+    status: 200,
+    headers: { "Content-Type": "application/json" },
+  })
+}
 
 describe("RunCard", () => {
   test("renders task title and status", () => {
@@ -132,5 +163,34 @@ describe("ActivityList", () => {
     expect(screen.getByText(/VM acquired/)).toBeTruthy()
     expect(screen.getByText(/Worktree created/)).toBeTruthy()
     expect(screen.getByText("Thinking")).toBeTruthy()
+  })
+})
+
+describe("NewAgentForm", () => {
+  test("keeps desktop selector row unclipped so dropdowns can open", async () => {
+    mockProjectsFetch()
+
+    render(
+      <MemoryRouter initialEntries={["/?project=test-project"]}>
+        <ProjectProvider>
+          <NewAgentForm onSubmit={() => {}} />
+        </ProjectProvider>
+      </MemoryRouter>
+    )
+
+    await screen.findByText("What should the agent work on?")
+
+    const harnessButton = await screen.findByRole("button", { name: "Claude Code" })
+    const controlsRow = harnessButton.parentElement?.parentElement
+    expect(controlsRow?.className.includes("overflow-visible")).toBe(true)
+
+    fireEvent.click(harnessButton)
+    expect(screen.getByRole("button", { name: "OpenCode" })).toBeTruthy()
+
+    fireEvent.click(screen.getAllByRole("button", { name: "anthropic/claude-sonnet-4-6" })[0]!)
+    expect(screen.getByRole("button", { name: "anthropic/claude-haiku-4" })).toBeTruthy()
+
+    fireEvent.click(screen.getAllByRole("button", { name: "Medium" })[0]!)
+    expect(screen.getByRole("button", { name: /Extended reasoning/ })).toBeTruthy()
   })
 })
