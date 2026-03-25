@@ -23,7 +23,7 @@ export class Poller {
         Effect.repeat(Schedule.spaced(`${self.intervalMs} millis`)),
         Effect.catchAll(() => Effect.void),
         Effect.asVoid,
-        Effect.fork,
+        Effect.forkDaemon,
       )
     })
   }

@@ -166,7 +166,7 @@ export function startPrMonitor(deps: PrMonitorDeps): Effect.Effect<void, never> 
     Effect.repeat(Schedule.fixed(`${PR_POLL_INTERVAL_MS} millis`)),
     Effect.catchAll(() => Effect.void),
     Effect.asVoid,
-    Effect.fork,
+    Effect.forkDaemon,
     Effect.asVoid,
   )
 }
