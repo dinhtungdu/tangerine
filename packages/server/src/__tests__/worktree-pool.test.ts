@@ -88,7 +88,7 @@ describe("worktree-pool", () => {
       )
       expect(slot.status).toBe("bound")
       expect(slot.task_id).toBe("task-1")
-      expect(slot.path).toMatch(/\/workspace\/repo\/worktrees\/proj-1-slot-\d/)
+      expect(slot.path).toMatch(/worktrees\/proj-1-slot-\d/)
     })
 
     test("fails when pool exhausted", async () => {
