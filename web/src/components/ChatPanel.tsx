@@ -1,4 +1,5 @@
 import { useEffect, useRef } from "react"
+import type { PromptImage } from "@tangerine/shared"
 import type { ChatMessage as ChatMessageType } from "../hooks/useSession"
 import { ChatMessage } from "./ChatMessage"
 import { ChatInput } from "./ChatInput"
@@ -10,7 +11,7 @@ interface ChatPanelProps {
   model?: string | null
   providerModels?: string[]
   reasoningEffort?: string | null
-  onSend: (text: string) => void
+  onSend: (text: string, images?: PromptImage[]) => void
   onAbort: () => void
   onModelChange?: (model: string) => void
   onReasoningEffortChange?: (effort: string) => void

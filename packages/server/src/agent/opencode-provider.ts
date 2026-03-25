@@ -224,7 +224,7 @@ export function createOpenCodeProvider(): AgentFactory {
         }
 
         const handle: AgentHandle = {
-          sendPrompt(text: string) {
+          sendPrompt(text: string, _images?: import("./provider").PromptImage[]) {
             return Effect.tryPromise({
               try: async () => {
                 const body: Record<string, unknown> = { parts: [{ type: "text", text }] }

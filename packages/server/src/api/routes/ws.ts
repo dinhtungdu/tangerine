@@ -75,7 +75,7 @@ export function wsRoutes(deps: AppDeps, upgradeWebSocket: UpgradeWebSocket): Hon
 
           if (parsed.type === "prompt" && parsed.text) {
             Effect.runPromise(
-              deps.taskManager.sendPrompt(taskId, parsed.text)
+              deps.taskManager.sendPrompt(taskId, parsed.text, parsed.images)
             ).catch((err: unknown) => {
               const message = err instanceof Error ? err.message : String(err)
               const msg: WsServerMessage = { type: "error", message }

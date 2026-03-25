@@ -205,10 +205,9 @@ For repos on `github.a8c.com` behind a SOCKS proxy:
   config.json             # all projects (managed by tangerine CLI)
   tangerine.db            # task database
   images/
-    ciab-dev/
+    my-project/
       build.sh            # project-specific system setup (optional)
       provision.sh        # preview provisioning script
-      wordpress/           # seed data
 
 /workspace/
   project-a/
