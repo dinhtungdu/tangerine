@@ -8,6 +8,26 @@ import { normalizeTimestamps } from "../helpers"
 import { TaskNotFoundError } from "../../errors"
 import { getProjectConfig, TANGERINE_HOME } from "../../config"
 
+function gitDiff(cmd: string, cwd: string): Effect.Effect<string, never> {
+  return Effect.tryPromise({
+    try: async () => {
+      const proc = Bun.spawn(["bash", "-c", cmd], { cwd, stdout: "pipe", stderr: "pipe" })
+      return new Response(proc.stdout).text()
+    },
+    catch: () => new Error("git diff failed"),
+  }).pipe(Effect.catchAll(() => Effect.succeed("")))
+}
+
+function parseDiffChunks(raw: string): { path: string; diff: string }[] {
+  const files: { path: string; diff: string }[] = []
+  const chunks = raw.split(/(?=^diff --git )/m).filter(Boolean)
+  for (const chunk of chunks) {
+    const match = chunk.match(/^diff --git a\/.+ b\/(.+)$/m)
+    if (match) files.push({ path: match[1]!, diff: chunk })
+  }
+  return files
+}
+
 export function sessionRoutes(deps: AppDeps): Hono {
   const app = new Hono()
 
@@ -85,8 +105,7 @@ export function sessionRoutes(deps: AppDeps): Hono {
   })
 
   // Returns git diff of all changes on the task branch vs origin/{defaultBranch}.
-  // For active tasks: runs git diff against the worktree (includes uncommitted changes).
-  // For completed tasks: diffs the branch from the main repo clone.
+  // Priority: worktree (live) > branch ref (post-cleanup) > diff_snapshot (branch deleted).
   app.get("/:id/diff", (c) => {
     return runEffect(c,
       Effect.gen(function* () {
@@ -96,43 +115,25 @@ export function sessionRoutes(deps: AppDeps): Hono {
         const project = getProjectConfig(deps.config.config, task.project_id)
         const defaultBranch = project?.defaultBranch ?? "main"
 
-        let cwd: string
-        let diffCmd: string
+        let raw = ""
 
         if (task.worktree_path) {
-          // Active worktree — diff includes uncommitted changes
-          cwd = task.worktree_path
-          diffCmd = `git diff origin/${defaultBranch}...HEAD`
+          // Active worktree — includes uncommitted changes
+          raw = yield* gitDiff(`git diff origin/${defaultBranch}...HEAD`, task.worktree_path)
         } else if (task.branch) {
-          // Worktree released — diff committed changes on the branch from the main repo
-          cwd = `/workspace/${task.project_id}/repo`
-          diffCmd = `git diff origin/${defaultBranch}...${task.branch}`
-        } else {
-          return { files: [] }
+          // Worktree released — diff from the main repo clone
+          const repoDir = `/workspace/${task.project_id}/repo`
+          raw = yield* gitDiff(`git diff origin/${defaultBranch}...${task.branch}`, repoDir)
         }
 
-        const raw = yield* Effect.tryPromise({
-          try: async () => {
-            const proc = Bun.spawn(
-              ["bash", "-c", diffCmd],
-              { cwd, stdout: "pipe", stderr: "pipe" },
-            )
-            return new Response(proc.stdout).text()
-          },
-          catch: () => new Error("git diff failed"),
-        }).pipe(Effect.catchAll(() => Effect.succeed("")))
+        // Branch may have been deleted (e.g. after PR merge) — fall back to stored snapshot
+        if (!raw && task.diff_snapshot) {
+          raw = task.diff_snapshot
+        }
 
         if (!raw) return { files: [] }
 
-        // Split unified diff output into per-file chunks
-        const files: { path: string; diff: string }[] = []
-        const chunks = raw.split(/(?=^diff --git )/m).filter(Boolean)
-        for (const chunk of chunks) {
-          const match = chunk.match(/^diff --git a\/.+ b\/(.+)$/m)
-          if (match) files.push({ path: match[1]!, diff: chunk })
-        }
-
-        return { files }
+        return { files: parseDiffChunks(raw) }
       })
     )
   })

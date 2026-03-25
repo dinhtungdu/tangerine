@@ -97,6 +97,7 @@ function makeTaskRow(overrides?: Partial<TaskRow>): TaskRow {
     agent_session_id: null,
     agent_pid: null,
     preview_url: null,
+    diff_snapshot: null,
     error: null,
     created_at: now,
     updated_at: now,

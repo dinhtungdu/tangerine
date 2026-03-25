@@ -19,6 +19,7 @@ export const SCHEMA = `
     agent_session_id TEXT,
     agent_pid INTEGER,
     preview_url TEXT,
+    diff_snapshot TEXT,
     error TEXT,
     created_at TEXT NOT NULL DEFAULT (datetime('now')),
     updated_at TEXT NOT NULL DEFAULT (datetime('now')),
