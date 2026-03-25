@@ -63,7 +63,10 @@ export function initPool(
     }
 
     // Create missing slots
-    yield* exec(`mkdir -p ${repoPath}/worktrees`)
+    // Place worktrees as a sibling of the repo dir, not inside it.
+    // Inside the repo they appear as untracked paths and pollute git status.
+    const worktreesDir = `${repoPath}/../worktrees`
+    yield* exec(`mkdir -p ${worktreesDir}`)
 
     const slots: WorktreeSlotRow[] = [...existing]
     const existingIds = new Set(existing.map((s) => s.id))
@@ -72,7 +75,7 @@ export function initPool(
       const slotId = `${projectId}-slot-${i}`
       if (existingIds.has(slotId)) continue
 
-      const path = `${repoPath}/worktrees/${slotId}`
+      const path = `${worktreesDir}/${slotId}`
 
       yield* exec(
         `cd ${repoPath} && git worktree add --detach ${path} 2>/dev/null || true`,
