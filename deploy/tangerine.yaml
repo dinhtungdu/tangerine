@@ -41,9 +41,11 @@ mounts:
   - location: "~/tangerine"
     mountPoint: "/home/{{.User}}.linux/tangerine"
     writable: true
+  - location: "~/.claude"
+    mountPoint: "/home/{{.User}}.linux/.claude"
+    writable: true
 
 message: |
   Tangerine VM ready. Next steps:
-    1. scp deploy/base-setup.sh <vm>:/tmp/
-    2. ssh <vm> sudo bash /tmp/base-setup.sh
-    3. Clone tangerine repo and run: bun install && tangerine start
+    1. Clone tangerine repo and run: bun install && tangerine start
+    2. Run base-setup.sh
