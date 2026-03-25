@@ -215,7 +215,7 @@ export function NewAgentForm({ onSubmit, refTaskId, refTaskTitle }: NewAgentForm
           )}
 
           {/* Input card */}
-          <div className="overflow-hidden rounded-xl border border-edge bg-surface">
+          <div className="overflow-visible rounded-xl border border-edge bg-surface">
             {pendingImages.length > 0 && (
               <div className="flex flex-wrap gap-1.5 px-4 pt-3">
                 {pendingImages.map((img, i) => (
@@ -245,7 +245,7 @@ export function NewAgentForm({ onSubmit, refTaskId, refTaskTitle }: NewAgentForm
               className="w-full resize-none border-0 bg-transparent px-4 pt-4 pb-2 text-[16px] leading-[1.6] text-fg placeholder-fg-muted outline-none md:text-[14px]"
             />
             {/* Desktop: inline controls below textarea */}
-            <div className="hidden gap-2.5 border-t border-edge px-3 py-2.5 md:flex md:flex-col">
+            <div className="hidden gap-2.5 overflow-visible border-t border-edge px-3 py-2.5 md:flex md:flex-col">
               <div className="flex items-center gap-2 overflow-visible">
                 <HarnessSelector value={provider} onChange={handleProviderChange} />
                 <div className="flex min-w-0 items-center gap-1.5 rounded-md border border-edge px-2 py-1">
@@ -258,6 +258,7 @@ export function NewAgentForm({ onSubmit, refTaskId, refTaskTitle }: NewAgentForm
                   models={providerModels}
                   model={activeModel}
                   onModelChange={handleModelChange}
+                  menuPlacement="bottom"
                 />
                 <ReasoningEffortSelector value={reasoningEffort} onChange={(e) => { setReasoningEffort(e); savePrefs({ reasoningEffort: e }) }} />
               </div>
@@ -289,6 +290,7 @@ export function NewAgentForm({ onSubmit, refTaskId, refTaskTitle }: NewAgentForm
                     models={providerModels}
                     model={activeModel}
                     onModelChange={handleModelChange}
+                    menuPlacement="bottom"
                   />
                 </div>
               </div>
