@@ -1,0 +1,228 @@
+import { describe, test, expect, beforeEach } from "bun:test"
+import { Effect } from "effect"
+import type { Database } from "bun:sqlite"
+import { createTestDb } from "./helpers"
+import { extractPrUrl, pollPrStatuses } from "../tasks/pr-monitor"
+import type { PrMonitorDeps, PrState } from "../tasks/pr-monitor"
+import type { TaskRow } from "../db/types"
+
+// ---------------------------------------------------------------------------
+// extractPrUrl
+// ---------------------------------------------------------------------------
+
+describe("extractPrUrl", () => {
+  test("extracts PR URL from simple text", () => {
+    expect(extractPrUrl("https://github.com/owner/repo/pull/42")).toBe(
+      "https://github.com/owner/repo/pull/42",
+    )
+  })
+
+  test("extracts PR URL from surrounding text", () => {
+    const text = "Created PR: https://github.com/acme/widgets/pull/123 — please review"
+    expect(extractPrUrl(text)).toBe("https://github.com/acme/widgets/pull/123")
+  })
+
+  test("extracts PR URL from gh pr create output", () => {
+    const output = "https://github.com/dinhtungdu/tangerine/pull/4\n"
+    expect(extractPrUrl(output)).toBe("https://github.com/dinhtungdu/tangerine/pull/4")
+  })
+
+  test("handles repos with dots and hyphens", () => {
+    expect(extractPrUrl("https://github.com/my-org/my.repo-name/pull/7")).toBe(
+      "https://github.com/my-org/my.repo-name/pull/7",
+    )
+  })
+
+  test("returns null when no PR URL present", () => {
+    expect(extractPrUrl("No PR here")).toBeNull()
+    expect(extractPrUrl("")).toBeNull()
+    expect(extractPrUrl("https://github.com/owner/repo/issues/5")).toBeNull()
+  })
+
+  test("returns first PR URL when multiple present", () => {
+    const text = "See https://github.com/a/b/pull/1 and https://github.com/c/d/pull/2"
+    expect(extractPrUrl(text)).toBe("https://github.com/a/b/pull/1")
+  })
+
+  test("does not match non-github URLs", () => {
+    expect(extractPrUrl("https://gitlab.com/owner/repo/pull/1")).toBeNull()
+  })
+})
+
+// ---------------------------------------------------------------------------
+// pollPrStatuses
+// ---------------------------------------------------------------------------
+
+function makeTaskRow(overrides?: Partial<TaskRow>): TaskRow {
+  const now = new Date().toISOString()
+  return {
+    id: crypto.randomUUID(),
+    project_id: "test",
+    source: "manual",
+    source_id: null,
+    source_url: null,
+    repo_url: "https://github.com/test/repo",
+    title: "Test task",
+    description: null,
+    status: "running",
+    provider: "opencode",
+    model: null,
+    reasoning_effort: null,
+    branch: "tangerine/abc123",
+    worktree_path: "/workspace/worktrees/test-slot-0",
+    pr_url: null,
+    user_id: null,
+    agent_session_id: null,
+    agent_pid: null,
+    preview_url: null,
+    error: null,
+    created_at: now,
+    updated_at: now,
+    started_at: now,
+    completed_at: null,
+    ...overrides,
+  }
+}
+
+describe("pollPrStatuses", () => {
+  let db: Database
+
+  function makeDeps(
+    tasks: TaskRow[],
+    prStates: Record<string, PrState | null>,
+  ): PrMonitorDeps & { updates: Array<{ taskId: string; updates: Partial<TaskRow> }>; activities: Array<{ taskId: string; event: string; content: string }> } {
+    const updates: Array<{ taskId: string; updates: Partial<TaskRow> }> = []
+    const activities: Array<{ taskId: string; event: string; content: string }> = []
+    return {
+      updates,
+      activities,
+      db,
+      listTasks: () => Effect.succeed(tasks),
+      updateTask: (taskId, u) => {
+        updates.push({ taskId, updates: u as Partial<TaskRow> })
+        return Effect.succeed(null)
+      },
+      logActivity: (taskId, _type, event, content) => {
+        activities.push({ taskId, event, content })
+        return Effect.succeed(null)
+      },
+      cleanupDeps: {
+        db,
+        getTask: () => Effect.succeed(null),
+        updateTask: () => Effect.succeed(null),
+        getAgentHandle: () => null,
+      },
+      checkPrState: (url) => Effect.succeed(prStates[url] ?? null),
+    }
+  }
+
+  beforeEach(() => {
+    db = createTestDb()
+  })
+
+  test("does nothing when no running tasks have pr_url", async () => {
+    const task = makeTaskRow({ pr_url: null })
+    const deps = makeDeps([task], {})
+
+    await Effect.runPromise(pollPrStatuses(deps))
+
+    expect(deps.updates).toHaveLength(0)
+    expect(deps.activities).toHaveLength(0)
+  })
+
+  test("does nothing for open PRs", async () => {
+    const prUrl = "https://github.com/test/repo/pull/1"
+    const task = makeTaskRow({ pr_url: prUrl })
+    const deps = makeDeps([task], { [prUrl]: "open" })
+
+    await Effect.runPromise(pollPrStatuses(deps))
+
+    expect(deps.updates).toHaveLength(0)
+  })
+
+  test("completes task when PR is merged", async () => {
+    const prUrl = "https://github.com/test/repo/pull/1"
+    const task = makeTaskRow({ pr_url: prUrl })
+    const deps = makeDeps([task], { [prUrl]: "merged" })
+
+    await Effect.runPromise(pollPrStatuses(deps))
+
+    expect(deps.updates).toHaveLength(1)
+    expect(deps.updates[0]!.taskId).toBe(task.id)
+    expect(deps.updates[0]!.updates.status).toBe("done")
+    expect(deps.updates[0]!.updates.completed_at).toBeDefined()
+
+    expect(deps.activities).toHaveLength(1)
+    expect(deps.activities[0]!.event).toBe("task.completed")
+    expect(deps.activities[0]!.content).toContain("PR merged")
+  })
+
+  test("cancels task when PR is closed without merge", async () => {
+    const prUrl = "https://github.com/test/repo/pull/2"
+    const task = makeTaskRow({ pr_url: prUrl })
+    const deps = makeDeps([task], { [prUrl]: "closed" })
+
+    await Effect.runPromise(pollPrStatuses(deps))
+
+    expect(deps.updates).toHaveLength(1)
+    expect(deps.updates[0]!.taskId).toBe(task.id)
+    expect(deps.updates[0]!.updates.status).toBe("cancelled")
+    expect(deps.updates[0]!.updates.completed_at).toBeDefined()
+
+    expect(deps.activities).toHaveLength(1)
+    expect(deps.activities[0]!.event).toBe("task.cancelled")
+    expect(deps.activities[0]!.content).toContain("closed without merge")
+  })
+
+  test("handles multiple tasks with different PR states", async () => {
+    const pr1 = "https://github.com/test/repo/pull/10"
+    const pr2 = "https://github.com/test/repo/pull/11"
+    const pr3 = "https://github.com/test/repo/pull/12"
+    const tasks = [
+      makeTaskRow({ pr_url: pr1 }),
+      makeTaskRow({ pr_url: pr2 }),
+      makeTaskRow({ pr_url: pr3 }),
+    ]
+    const deps = makeDeps(tasks, {
+      [pr1]: "merged",
+      [pr2]: "open",
+      [pr3]: "closed",
+    })
+
+    await Effect.runPromise(pollPrStatuses(deps))
+
+    // merged + closed = 2 updates; open = no update
+    expect(deps.updates).toHaveLength(2)
+    expect(deps.updates[0]!.updates.status).toBe("done")
+    expect(deps.updates[1]!.updates.status).toBe("cancelled")
+  })
+
+  test("skips tasks when checkPrState returns null", async () => {
+    const prUrl = "https://github.com/test/repo/pull/99"
+    const task = makeTaskRow({ pr_url: prUrl })
+    const deps = makeDeps([task], { [prUrl]: null })
+
+    await Effect.runPromise(pollPrStatuses(deps))
+
+    expect(deps.updates).toHaveLength(0)
+  })
+
+  test("handles listTasks failure gracefully", async () => {
+    const deps: PrMonitorDeps = {
+      db,
+      listTasks: () => Effect.fail(new Error("db gone")),
+      updateTask: () => Effect.succeed(null),
+      logActivity: () => Effect.succeed(null),
+      cleanupDeps: {
+        db,
+        getTask: () => Effect.succeed(null),
+        updateTask: () => Effect.succeed(null),
+        getAgentHandle: () => null,
+      },
+      checkPrState: () => Effect.succeed(null),
+    }
+
+    // Should not throw
+    await Effect.runPromise(pollPrStatuses(deps))
+  })
+})

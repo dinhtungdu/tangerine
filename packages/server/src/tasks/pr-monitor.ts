@@ -49,6 +49,8 @@ export interface PrMonitorDeps {
   updateTask(taskId: string, updates: Partial<Omit<TaskRow, "id">>): Effect.Effect<unknown, Error>
   logActivity(taskId: string, type: "lifecycle" | "file" | "system", event: string, content: string, metadata?: Record<string, unknown>): Effect.Effect<unknown, Error>
   cleanupDeps: CleanupDeps
+  /** Override PR state checker for testing. Defaults to `checkPrState` (shells out to `gh`). */
+  checkPrState?: (prUrl: string) => Effect.Effect<PrState | null, never>
 }
 
 /** Poll all running tasks with pr_url and act on merged/closed PRs. */
@@ -63,8 +65,9 @@ export function pollPrStatuses(deps: PrMonitorDeps): Effect.Effect<void, never> 
 
     log.debug("Polling PR statuses", { count: withPr.length })
 
+    const checker = deps.checkPrState ?? checkPrState
     for (const task of withPr) {
-      const state = yield* checkPrState(task.pr_url!)
+      const state = yield* checker(task.pr_url!)
 
       if (!state || state === "open") continue
 
