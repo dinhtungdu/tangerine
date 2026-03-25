@@ -112,27 +112,31 @@ export async function start(): Promise<void> {
             // Reconnect after server restart with a fresh session (no resume).
             // Re-orient the agent by providing the original task description + last unanswered
             // user message (if any), so it has enough context to continue.
-            const taskRow = db.prepare(
-              "SELECT title, description FROM tasks WHERE id = ?"
-            ).get(taskId) as { title: string; description: string | null } | null
+            try {
+              const taskRow = db.prepare(
+                "SELECT title, description FROM tasks WHERE id = ?"
+              ).get(taskId) as { title: string; description: string | null } | null
 
-            const lastLog = db.prepare(
-              "SELECT role, content FROM session_logs WHERE task_id = ? ORDER BY created_at DESC LIMIT 1"
-            ).get(taskId) as { role: string; content: string } | null
+              const lastLog = db.prepare(
+                "SELECT role, content FROM session_logs WHERE task_id = ? ORDER BY timestamp DESC LIMIT 1"
+              ).get(taskId) as { role: string; content: string } | null
 
-            const originalTask = taskRow?.description || taskRow?.title || ""
-            const unansweredUserMsg = lastLog?.role === "user" ? lastLog.content : null
+              const originalTask = taskRow?.description || taskRow?.title || ""
+              const unansweredUserMsg = lastLog?.role === "user" ? lastLog.content : null
 
-            const nudge = [
-              `[TANGERINE: Server restarted. You are working on: ${originalTask}]`,
-              unansweredUserMsg
-                ? `The last message you had not yet responded to was: ${unansweredUserMsg}\n\nPlease continue.`
-                : "Please continue where you left off.",
-            ].join("\n\n")
+              const nudge = [
+                `[TANGERINE: Server restarted. You are working on: ${originalTask}]`,
+                unansweredUserMsg
+                  ? `The last message you had not yet responded to was: ${unansweredUserMsg}\n\nPlease continue.`
+                  : "Please continue where you left off.",
+              ].join("\n\n")
 
-            Effect.runPromise(
-              session.agentHandle.sendPrompt(nudge).pipe(Effect.catchAll(() => Effect.void))
-            )
+              Effect.runPromise(
+                session.agentHandle.sendPrompt(nudge).pipe(Effect.catchAll(() => Effect.void))
+              )
+            } catch (err) {
+              log.error("Failed to send reconnect nudge", { taskId, error: String(err) })
+            }
           }
           if (!hasLogs) {
             const task = db.prepare("SELECT description, title, project_id FROM tasks WHERE id = ?").get(taskId) as { description: string | null; title: string; project_id: string } | null
