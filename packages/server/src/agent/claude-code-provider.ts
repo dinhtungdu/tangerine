@@ -205,6 +205,8 @@ export function createClaudeCodeProvider(): AgentFactory {
               agentPort: null as number | null,
             }),
           })
+          // Attach PID so getAgentPid() can save it to the task record
+          ;(handle as { __pid?: number }).__pid = proc.pid
 
           return handle
         },
