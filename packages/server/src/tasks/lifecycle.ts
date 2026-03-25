@@ -68,7 +68,8 @@ export function startSession(
     const taskLog = log.child({ taskId: task.id })
     const sessionSpan = taskLog.startOp("session-start")
     const taskPrefix = task.id.slice(0, 8)
-    // Reuse existing branch name if task was reprovisioned
+    // Use pre-set branch (from PR/branch input) or generate one
+    const isExistingBranch = !!task.branch && !task.branch.startsWith("tangerine/")
     const branch = task.branch ?? `tangerine/${taskPrefix}`
     const defaultBranch = config.defaultBranch ?? "main"
     const repoDir = `/workspace/${task.project_id}/repo`
@@ -125,7 +126,9 @@ export function startSession(
         git fetch origin && git checkout -B ${branch} origin/${defaultBranch}
       fi`,
     ).pipe(
-      Effect.tap(() => activity("worktree.ready", "Worktree ready", { worktreePath, branch, slot: slot.id })),
+      Effect.tap(() => activity("worktree.ready",
+        isExistingBranch ? `Checked out existing branch: ${branch}` : "Worktree ready",
+        { worktreePath, branch, slot: slot.id, isExistingBranch })),
       Effect.mapError((e) => new SessionStartError({
         message: `Branch checkout failed: ${e.message}`,
         taskId: task.id,

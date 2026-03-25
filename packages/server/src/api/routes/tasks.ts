@@ -31,7 +31,7 @@ export function taskRoutes(deps: AppDeps): Hono {
   })
 
   app.post("/", async (c) => {
-    const body = await c.req.json<{ projectId?: string; title?: string; description?: string; provider?: string; model?: string; reasoningEffort?: string; source?: string; sourceId?: string; sourceUrl?: string; images?: import("../../agent/provider").PromptImage[] }>()
+    const body = await c.req.json<{ projectId?: string; title?: string; description?: string; provider?: string; model?: string; reasoningEffort?: string; source?: string; sourceId?: string; sourceUrl?: string; branch?: string; images?: import("../../agent/provider").PromptImage[] }>()
     if (!body.title) {
       return c.json({ error: "title is required" }, 400)
     }
@@ -43,8 +43,22 @@ export function taskRoutes(deps: AppDeps): Hono {
     }
     const provider = body.provider === "claude-code" ? "claude-code" : "opencode"
     const source = body.source === "cross-project" ? "cross-project" : "manual"
+
+    // Resolve branch from PR URL or direct branch name
+    let branch = body.branch
+    let sourceUrl = body.sourceUrl
+    let sourceId = body.sourceId
+    if (branch) {
+      const prInfo = await resolvePrBranch(branch, `/workspace/${projectId}/repo`)
+      if (prInfo) {
+        branch = prInfo.branch
+        sourceUrl = sourceUrl ?? prInfo.url
+        sourceId = sourceId ?? prInfo.sourceId
+      }
+    }
+
     return runEffect(c,
-      deps.taskManager.createTask({ source, projectId, title: body.title, description: body.description, provider, model: body.model, reasoningEffort: body.reasoningEffort, sourceId: body.sourceId, sourceUrl: body.sourceUrl, images: body.images }).pipe(
+      deps.taskManager.createTask({ source, projectId, title: body.title, description: body.description, provider, model: body.model, reasoningEffort: body.reasoningEffort, sourceId, sourceUrl, branch, images: body.images }).pipe(
         Effect.map(mapTaskRow)
       ),
       { status: 201 }
@@ -113,4 +127,46 @@ export function taskRoutes(deps: AppDeps): Hono {
   })
 
   return app
+}
+
+/** Patterns that look like a PR reference rather than a plain branch name */
+const PR_URL_RE = /github\.com\/([^/]+)\/([^/]+)\/pull\/(\d+)/
+const PR_NUM_RE = /^#?(\d+)$/
+
+interface PrInfo {
+  branch: string
+  url: string
+  sourceId: string
+}
+
+/**
+ * If the input looks like a GitHub PR URL or `#123`, resolve it to a branch name
+ * using `gh pr view`. Returns null if the input is a plain branch name.
+ */
+async function resolvePrBranch(input: string, repoDir: string): Promise<PrInfo | null> {
+  const urlMatch = input.match(PR_URL_RE)
+  const numMatch = input.match(PR_NUM_RE)
+  if (!urlMatch && !numMatch) return null
+
+  const prRef = urlMatch ? input : numMatch![1]!
+  try {
+    const proc = Bun.spawn(
+      ["gh", "pr", "view", prRef, "--json", "headRefName,url,number"],
+      { cwd: repoDir, stdout: "pipe", stderr: "pipe" },
+    )
+    const [stdout, , exitCode] = await Promise.all([
+      new Response(proc.stdout).text(),
+      new Response(proc.stderr).text(),
+      proc.exited,
+    ])
+    if (exitCode !== 0) return null
+    const data = JSON.parse(stdout) as { headRefName: string; url: string; number: number }
+    return {
+      branch: data.headRefName,
+      url: data.url,
+      sourceId: `github:pr#${data.number}`,
+    }
+  } catch {
+    return null
+  }
 }

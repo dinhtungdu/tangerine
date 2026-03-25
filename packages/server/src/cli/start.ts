@@ -407,6 +407,7 @@ export async function start(): Promise<void> {
             provider: params.provider,
             model: params.model,
             reasoningEffort: params.reasoningEffort,
+            branch: params.branch,
           }).pipe(
             Effect.tap((task) => {
               // Save initial images to disk so onSessionReady can include them
