@@ -509,6 +509,7 @@ export async function start(): Promise<void> {
           }).pipe(
             Effect.catchAll((e) => {
               log.error("sendPrompt failed", { taskId, error: String(e) })
+              emitTaskEvent(taskId, { event: "error", message: `Failed to send prompt: ${e instanceof Error ? e.message : String(e)}` })
               return Effect.void
             })
           ),
