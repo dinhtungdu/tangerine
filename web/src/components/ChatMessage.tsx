@@ -1,5 +1,6 @@
 import { useState } from "react"
 import type { ChatMessage as ChatMessageType } from "../hooks/useSession"
+import { formatTimestamp } from "../lib/format"
 import { ToolCallDisplay } from "./ToolCallDisplay"
 import { ImageLightbox } from "./ImageLightbox"
 
@@ -84,6 +85,9 @@ export function ChatMessage({ message }: ChatMessageProps) {
               dangerouslySetInnerHTML={{ __html: linkifyUrls(message.content) }}
             />
           )}
+          <span className="mt-1 block text-right text-[10px] text-fg-muted/50">
+            {formatTimestamp(message.timestamp)}
+          </span>
         </div>
       </div>
     )
@@ -110,6 +114,7 @@ export function ChatMessage({ message }: ChatMessageProps) {
           </svg>
         </div>
         <span className="text-[12px] font-semibold text-fg">Agent</span>
+        <span className="text-[10px] text-fg-muted/50">{formatTimestamp(message.timestamp)}</span>
       </div>
       <div
         className="text-[13px] leading-[1.6] text-fg"
