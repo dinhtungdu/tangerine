@@ -35,6 +35,18 @@ export function useSession(taskId: string): UseSessionResult {
   const { connected, messages: wsMessages, send } = useWebSocket(taskId)
   const processedCountRef = useRef(0)
 
+  // Clear all session state immediately when the task changes so the previous
+  // task's messages/activities/status don't leak into the new one while the
+  // REST fetch is in flight.
+  useEffect(() => {
+    setMessages([])
+    setActivities([])
+    setAgentStatus("idle")
+    setQueueLength(0)
+    setTaskStatus(null)
+    processedCountRef.current = 0
+  }, [taskId])
+
   // Load initial messages + activities via REST
   useEffect(() => {
     let cancelled = false
