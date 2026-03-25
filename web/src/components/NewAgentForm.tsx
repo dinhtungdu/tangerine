@@ -233,6 +233,12 @@ export function NewAgentForm({ onSubmit, refTaskId, refTaskTitle }: NewAgentForm
             <textarea
               value={description}
               onChange={(e) => setDescription(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === "Enter" && (e.metaKey || e.ctrlKey)) {
+                  e.preventDefault()
+                  handleSubmit()
+                }
+              }}
               onPaste={handlePaste}
               placeholder="Describe the task or paste an issue URL..."
               rows={4}

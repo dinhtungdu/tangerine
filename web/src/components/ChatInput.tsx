@@ -41,7 +41,7 @@ export function ChatInput({ onSend, disabled, queueLength, isWorking, onAbort, m
 
   const handleKeyDown = useCallback(
     (e: KeyboardEvent<HTMLTextAreaElement>) => {
-      if (e.key === "Enter" && !e.shiftKey) {
+      if (e.key === "Enter" && (e.metaKey || e.ctrlKey)) {
         e.preventDefault()
         handleSend()
       }
@@ -120,7 +120,7 @@ export function ChatInput({ onSend, disabled, queueLength, isWorking, onAbort, m
             onPaste={handlePaste}
             placeholder={isWorking ? "Agent is working... (messages will be queued)" : "Message agent..."}
             disabled={disabled}
-            rows={1}
+            rows={3}
             className="min-h-9 w-full resize-none rounded-lg border border-edge bg-surface px-3 py-2 text-[16px] text-fg placeholder-fg-faint outline-none transition focus:border-fg-faint disabled:cursor-not-allowed disabled:opacity-50 md:px-3.5 md:text-[13px] md:placeholder-fg-muted"
           />
           {queueLength > 0 && (
