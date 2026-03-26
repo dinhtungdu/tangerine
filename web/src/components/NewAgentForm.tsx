@@ -341,6 +341,7 @@ export function NewAgentForm({ onSubmit, refTaskId, refTaskTitle }: NewAgentForm
                     model={activeModel}
                     onModelChange={handleModelChange}
                     menuPlacement="bottom"
+                    borderless
                   />
                 </div>
               </div>
