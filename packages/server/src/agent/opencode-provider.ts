@@ -39,10 +39,17 @@ async function acquireServer(
   workdir: string,
   env: Record<string, string | undefined>,
 ): Promise<{ pid: number }> {
+  // Cancel any pending shutdown — a new task wants the server
+  if (shutdownTimer) {
+    clearTimeout(shutdownTimer)
+    shutdownTimer = null
+    log.debug("Cancelled pending OpenCode server shutdown")
+  }
+
   // Fast path: our tracked server is still alive
   if (sharedServer) {
     try {
-      process.kill(sharedServer.pid, 0)
+      if (sharedServer.pid > 0) process.kill(sharedServer.pid, 0)
       sharedServer.refCount++
       log.debug("Reusing shared OpenCode server", { pid: sharedServer.pid, refCount: sharedServer.refCount })
       return { pid: sharedServer.pid }
@@ -108,21 +115,34 @@ async function acquireServer(
   throw new Error(`OpenCode health check failed after ${maxAttempts} attempts`)
 }
 
-/** Decrement refCount. Only kill the server if we spawned it ourselves. */
+const SERVER_GRACE_PERIOD_MS = 10 * 60 * 1000 // 10 minutes
+let shutdownTimer: ReturnType<typeof setTimeout> | null = null
+
+/** Decrement refCount. Only kill the server if we spawned it ourselves, after a grace period. */
 function releaseServer(): void {
   if (!sharedServer) return
   sharedServer.refCount--
   log.debug("Released OpenCode server ref", { pid: sharedServer.pid, refCount: sharedServer.refCount })
   if (sharedServer.refCount <= 0) {
     if (sharedServer.proc) {
-      // We spawned this server — safe to kill
-      log.info("No more tasks using OpenCode server, shutting down", { pid: sharedServer.pid })
-      try { sharedServer.proc.kill() } catch { /* already dead */ }
+      // We spawned this server — schedule shutdown after grace period
+      // in case another task starts soon
+      log.info("No more tasks, scheduling OpenCode server shutdown in 10m", { pid: sharedServer.pid })
+      const serverToKill = sharedServer
+      shutdownTimer = setTimeout(() => {
+        // Only kill if still no tasks using it
+        if (sharedServer === serverToKill && serverToKill.refCount <= 0) {
+          log.info("Grace period expired, shutting down OpenCode server", { pid: serverToKill.pid })
+          try { serverToKill.proc!.kill() } catch { /* already dead */ }
+          sharedServer = null
+        }
+        shutdownTimer = null
+      }, SERVER_GRACE_PERIOD_MS)
     } else {
       // Adopted external server — leave it running for other consumers
       log.info("No more tasks using adopted OpenCode server, releasing ref", { pid: sharedServer.pid })
+      sharedServer = null
     }
-    sharedServer = null
   }
 }
 
