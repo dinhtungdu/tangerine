@@ -81,6 +81,7 @@ export function NewAgentForm({ onSubmit, refTaskId, refTaskTitle }: NewAgentForm
   const { navigate } = useProjectNav()
   const { current, modelsByProvider } = useProject()
   const [description, setDescription] = useState("")
+  const [customBranch, setCustomBranch] = useState("")
   const [pendingImages, setPendingImages] = useState<PendingImage[]>([])
   const PREFS_KEY = "tangerine:agent-prefs"
 
@@ -166,7 +167,7 @@ export function NewAgentForm({ onSubmit, refTaskId, refTaskTitle }: NewAgentForm
       projectId: current.name,
       title: trimmed.slice(0, 80) || (refTaskTitle ? `Continue: ${refTaskTitle}`.slice(0, 80) : "New task"),
       description: fullDescription || undefined,
-      branch,
+      branch: customBranch.trim() || undefined,
       provider,
       model: activeModel || undefined,
       reasoningEffort: reasoningEffort !== "medium" ? reasoningEffort : undefined,
@@ -174,7 +175,7 @@ export function NewAgentForm({ onSubmit, refTaskId, refTaskTitle }: NewAgentForm
     })
     // Parent navigates on success; reset submitting if it fails
     setTimeout(() => setSubmitting(false), 3000)
-  }, [description, pendingImages, current, branch, provider, activeModel, reasoningEffort, submitting, onSubmit, refTaskId, refTaskTitle])
+  }, [description, pendingImages, current, customBranch, provider, activeModel, reasoningEffort, submitting, onSubmit, refTaskId, refTaskTitle])
 
   return (
     <div className="flex h-full flex-1 flex-col bg-surface">
@@ -240,7 +241,7 @@ export function NewAgentForm({ onSubmit, refTaskId, refTaskTitle }: NewAgentForm
                 }
               }}
               onPaste={handlePaste}
-              placeholder="Describe the task or paste an issue URL..."
+              placeholder="Describe the task, paste an issue URL, or continue work on a branch/PR..."
               rows={4}
               className="w-full resize-none border-0 bg-transparent px-4 pt-4 pb-2 text-[16px] leading-[1.6] text-fg placeholder-fg-muted outline-none md:text-[14px]"
             />
@@ -252,7 +253,14 @@ export function NewAgentForm({ onSubmit, refTaskId, refTaskTitle }: NewAgentForm
                   <svg className="h-3 w-3 shrink-0 text-fg-muted" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                     <path strokeLinecap="round" strokeLinejoin="round" d="M7.217 10.907a2.25 2.25 0 1 0 0 2.186m0-2.186c.18.324.283.696.283 1.093s-.103.77-.283 1.093m0-2.186 9.566-5.314m-9.566 7.5 9.566 5.314m0-12.814a2.25 2.25 0 1 0 0-2.186m0 2.186a2.25 2.25 0 1 0 0 2.186" />
                   </svg>
-                  <span className="max-w-[120px] truncate text-[11px] text-fg">{branch}</span>
+                  <input
+                    type="text"
+                    value={customBranch}
+                    onChange={(e) => setCustomBranch(e.target.value)}
+                    placeholder={branch}
+                    aria-label="Branch or PR"
+                    className="max-w-[160px] bg-transparent text-[11px] text-fg placeholder-fg-muted outline-none"
+                  />
                 </div>
                 <ModelSelector
                   models={providerModels}
@@ -283,7 +291,14 @@ export function NewAgentForm({ onSubmit, refTaskId, refTaskTitle }: NewAgentForm
                   <svg className="h-4 w-4 shrink-0 text-fg-muted" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                     <path strokeLinecap="round" strokeLinejoin="round" d="M7.217 10.907a2.25 2.25 0 1 0 0 2.186m0-2.186c.18.324.283.696.283 1.093s-.103.77-.283 1.093m0-2.186 9.566-5.314m-9.566 7.5 9.566 5.314m0-12.814a2.25 2.25 0 1 0 0-2.186m0 2.186a2.25 2.25 0 1 0 0 2.186" />
                   </svg>
-                  <span className="text-[13px] text-fg">{branch}</span>
+                  <input
+                    type="text"
+                    value={customBranch}
+                    onChange={(e) => setCustomBranch(e.target.value)}
+                    placeholder={branch}
+                    aria-label="Branch or PR"
+                    className="min-w-0 flex-1 bg-transparent text-[13px] text-fg placeholder-fg-muted outline-none"
+                  />
                 </div>
                 <div className="flex h-10 flex-1 items-center rounded-lg border border-edge bg-surface px-3">
                   <ModelSelector

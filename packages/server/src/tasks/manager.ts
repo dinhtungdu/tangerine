@@ -59,6 +59,7 @@ export function createTask(
     provider?: string
     model?: string
     reasoningEffort?: string
+    branch?: string
   },
 ): Effect.Effect<TaskRow, Error> {
   return Effect.gen(function* () {
@@ -81,6 +82,7 @@ export function createTask(
       provider: params.provider ?? "opencode",
       model: params.model ?? null,
       reasoning_effort: params.reasoningEffort ?? null,
+      branch: params.branch ?? null,
     })
 
     log.info("Task created", { taskId: id, projectId: params.projectId, source: params.source, title: params.title })

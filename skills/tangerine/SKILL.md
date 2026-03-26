@@ -51,6 +51,25 @@ curl -X POST $API/api/tasks \
     "provider": "claude-code"
   }'
 
+# Create a task from an existing branch
+curl -X POST $API/api/tasks \
+  -H "Content-Type: application/json" \
+  -d '{
+    "projectId": "my-project",
+    "title": "Continue work on feature",
+    "description": "Pick up where we left off",
+    "branch": "feature/my-branch"
+  }'
+
+# Create a task from a PR (resolves to the PR's head branch)
+curl -X POST $API/api/tasks \
+  -H "Content-Type: application/json" \
+  -d '{
+    "projectId": "my-project",
+    "title": "Review and fix PR feedback",
+    "branch": "#123"
+  }'
+
 # Mark your task as done
 curl -X POST $API/api/tasks/$TANGERINE_TASK_ID/done
 
