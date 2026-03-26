@@ -219,7 +219,17 @@ export function getActivityDetail(event: string, content: string, metadata: Reco
     }
     case "agent.thinking":
       return content
-    default:
+    default: {
+      // Fallback: try to extract useful detail from toolInput for unclassified tools
+      if (toolInput) {
+        try {
+          const input = JSON.parse(toolInput)
+          return input.file_path ?? input.path ?? input.pattern ?? input.command ?? content
+        } catch {
+          return content
+        }
+      }
       return content
+    }
   }
 }
