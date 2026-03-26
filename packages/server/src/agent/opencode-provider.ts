@@ -314,7 +314,7 @@ export function createOpenCodeProvider(): AgentFactory {
             const created = await fetch(`http://localhost:${opencodePort}/session`, {
               method: "POST",
               headers: { "Content-Type": "application/json" },
-              body: JSON.stringify({ title: ctx.title }),
+              body: JSON.stringify({ title: ctx.title, directory: ctx.workdir }),
             })
             if (!created.ok) throw new Error(`Session create failed: ${created.status}`)
             const body = (await created.json()) as { id: string }
@@ -507,7 +507,7 @@ export function createOpenCodeProvider(): AgentFactory {
                 })
 
                 const res = await fetch(
-                  `http://localhost:${opencodePort}/session/${sessionId}/prompt_async`,
+                  `http://localhost:${opencodePort}/session/${sessionId}/prompt_async?directory=${encodeURIComponent(ctx.workdir)}`,
                   {
                     method: "POST",
                     headers: { "Content-Type": "application/json" },
@@ -529,7 +529,7 @@ export function createOpenCodeProvider(): AgentFactory {
             return Effect.tryPromise({
               try: async () => {
                 const res = await fetch(
-                  `http://localhost:${opencodePort}/session/${sessionId}/abort`,
+                  `http://localhost:${opencodePort}/session/${sessionId}/abort?directory=${encodeURIComponent(ctx.workdir)}`,
                   { method: "POST" },
                 )
                 if (!res.ok) throw new Error(`Abort failed: ${res.status}`)
