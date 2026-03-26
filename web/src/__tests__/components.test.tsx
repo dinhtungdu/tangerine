@@ -4,6 +4,7 @@ import { MemoryRouter } from "react-router-dom"
 import { RunCard } from "../components/RunCard"
 import { ActivityList } from "../components/ActivityList"
 import { NewAgentForm } from "../components/NewAgentForm"
+import { ChatInput } from "../components/ChatInput"
 import { ProjectProvider } from "../context/ProjectContext"
 import type { Task, ActivityEntry } from "@tangerine/shared"
 
@@ -192,6 +193,48 @@ describe("NewAgentForm", () => {
 
     fireEvent.click(screen.getAllByRole("button", { name: "Medium" })[0]!)
     expect(screen.getByRole("button", { name: /Extended reasoning/ })).toBeTruthy()
+  })
+
+  test("restores new agent draft text, branch, and images from localStorage", async () => {
+    mockProjectsFetch()
+    window.localStorage.setItem("tangerine:new-agent-draft:test-project:new", JSON.stringify({
+      description: "Restore this draft",
+      customBranch: "feature/persist-draft",
+      pendingImages: [{ mediaType: "image/png", data: "abc123", dataUrl: "data:image/png;base64,abc123" }],
+    }))
+
+    render(
+      <MemoryRouter initialEntries={["/?project=test-project"]}>
+        <ProjectProvider>
+          <NewAgentForm onSubmit={() => {}} />
+        </ProjectProvider>
+      </MemoryRouter>
+    )
+
+    expect(await screen.findByDisplayValue("Restore this draft")).toBeTruthy()
+    expect(screen.getAllByDisplayValue("feature/persist-draft")[0]).toBeTruthy()
+    expect(screen.getByAltText("Pasted image")).toBeTruthy()
+  })
+})
+
+describe("ChatInput", () => {
+  test("restores chat draft text and images from localStorage", () => {
+    window.localStorage.setItem("tangerine:chat-draft:task-123", JSON.stringify({
+      text: "Keep typing",
+      pendingImages: [{ mediaType: "image/png", data: "xyz987", dataUrl: "data:image/png;base64,xyz987" }],
+    }))
+
+    render(
+      <ChatInput
+        onSend={() => {}}
+        disabled={false}
+        queueLength={0}
+        taskId="task-123"
+      />
+    )
+
+    expect(screen.getByDisplayValue("Keep typing")).toBeTruthy()
+    expect(screen.getByAltText("Pasted image")).toBeTruthy()
   })
 })
 

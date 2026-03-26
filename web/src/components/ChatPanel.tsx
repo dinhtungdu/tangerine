@@ -101,6 +101,7 @@ export function ChatPanel({
           onSend={onSend}
           disabled={false}
           queueLength={queueLength}
+          taskId={taskId}
           isWorking={agentStatus === "working"}
           onAbort={onAbort}
           model={model}
