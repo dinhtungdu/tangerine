@@ -132,6 +132,8 @@ export function useSession(taskId: string): UseSessionResult {
         setTaskStatus(msg.status)
         if (msg.status === "done" || msg.status === "failed" || msg.status === "cancelled") {
           setAgentStatus("idle")
+        } else if (msg.status === "running") {
+          setAgentStatus("working")
         }
         break
       case "error":
