@@ -269,20 +269,21 @@ export async function start(): Promise<void> {
                 break
               }
               case "message.complete": {
-                if (event.role === "assistant" && event.content) {
+                if ((event.role === "assistant" || event.role === "narration") && event.content) {
+                  const role = event.role
                   emitTaskEvent(taskId, {
-                    role: "assistant",
+                    role,
                     content: event.content,
                     timestamp: new Date().toISOString(),
                   })
                   Effect.runPromise(
-                    insertSessionLog(db, { task_id: taskId, role: "assistant", content: event.content }).pipe(
+                    insertSessionLog(db, { task_id: taskId, role, content: event.content }).pipe(
                       Effect.catchAll(() => Effect.void)
                     )
                   )
 
-                  // Fallback PR URL detection from assistant message text
-                  if (event.content && !prUrlSaved.has(taskId)) {
+                  // Fallback PR URL detection from assistant/narration message text
+                  if (!prUrlSaved.has(taskId)) {
                     const prUrl = extractPrUrl(event.content)
                     if (prUrl) {
                       const taskBranch = (db.prepare("SELECT branch FROM tasks WHERE id = ?").get(taskId) as { branch: string | null } | null)?.branch
