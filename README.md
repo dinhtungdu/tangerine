@@ -44,6 +44,22 @@ Web Dashboard → API Server → SSH Tunnel → OpenCode (in VM)
 - [Testing](specs/testing.md)
 - [v0 Scope](specs/v0-scope.md)
 
+## Running
+
+Start the server directly:
+
+```bash
+bin/tangerine start
+```
+
+For auto-restart on updates (recommended for production), use the watch loop:
+
+```bash
+bin/tangerine-watch
+```
+
+The watch loop runs the server with `TANGERINE_SELF_UPDATE=1`, which enables a background poller that checks for new commits every 60 seconds. When an update is applied (via the dashboard's "Pull latest" button), the server exits cleanly and the watch loop restarts it automatically. Non-zero exits (crashes) stop the loop.
+
 ## Status
 
 Planning phase. See [v0 scope](specs/v0-scope.md) for implementation plan.
