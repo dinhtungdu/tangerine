@@ -1,4 +1,7 @@
 import { useState } from "react"
+import type { Components } from "react-markdown"
+import ReactMarkdown from "react-markdown"
+import remarkGfm from "remark-gfm"
 import type { ChatMessage as ChatMessageType } from "../hooks/useSession"
 import { formatTimestamp } from "../lib/format"
 import { ToolCallDisplay } from "./ToolCallDisplay"
@@ -29,15 +32,48 @@ function linkifyUrls(text: string): string {
   )
 }
 
-function renderMarkdown(text: string): string {
-  return text
-    .replace(/```(\w*)\n([\s\S]*?)```/g, '<pre class="my-2 rounded-md bg-surface-secondary p-3 font-mono text-[11px] leading-[1.6] overflow-x-auto border border-edge"><code>$2</code></pre>')
-    .replace(/`([^`]+)`/g, '<code class="rounded bg-surface-secondary px-1 py-0.5 font-mono text-[12px] border border-edge">$1</code>')
-    .replace(/\*\*(.+?)\*\*/g, "<strong>$1</strong>")
-    .replace(/\*(.+?)\*/g, "<em>$1</em>")
-    .replace(/(^|[^"=])(https?:\/\/[^\s<]+)/g, '$1<a href="$2" target="_blank" rel="noopener noreferrer" class="underline text-link hover:text-link-hover break-all">$2</a>')
-    .replace(/\n/g, "<br />")
+const markdownComponents: Components = {
+  h1: ({ children }) => <h1 className="mt-4 mb-1 text-[16px] font-bold">{children}</h1>,
+  h2: ({ children }) => <h2 className="mt-3 mb-1 text-[15px] font-bold">{children}</h2>,
+  h3: ({ children }) => <h3 className="mt-3 mb-1 text-[14px] font-semibold">{children}</h3>,
+  h4: ({ children }) => <h4 className="mt-3 mb-1 text-[13px] font-semibold">{children}</h4>,
+  p: ({ children }) => <p className="my-1">{children}</p>,
+  pre: ({ children }) => (
+    <pre className="my-2 rounded-md bg-surface-secondary p-3 font-mono text-[11px] leading-[1.6] overflow-x-auto border border-edge">
+      {children}
+    </pre>
+  ),
+  code: ({ children, className }) => {
+    // Inline code (no className means not inside a code block)
+    if (!className) {
+      return <code className="rounded bg-surface-secondary px-1 py-0.5 font-mono text-[12px] border border-edge">{children}</code>
+    }
+    return <code className={className}>{children}</code>
+  },
+  ul: ({ children }) => <ul className="my-1 ml-4 list-disc space-y-0.5">{children}</ul>,
+  ol: ({ children }) => <ol className="my-1 ml-4 list-decimal space-y-0.5">{children}</ol>,
+  blockquote: ({ children }) => (
+    <blockquote className="my-1 border-l-2 border-edge pl-3 text-fg-muted">{children}</blockquote>
+  ),
+  hr: () => <hr className="my-2 border-edge" />,
+  a: ({ href, children }) => (
+    <a href={href} target="_blank" rel="noopener noreferrer" className="underline text-link hover:text-link-hover break-all">
+      {children}
+    </a>
+  ),
+  table: ({ children }) => (
+    <div className="my-2 overflow-x-auto rounded-md border border-edge">
+      <table className="w-full border-collapse text-fg">{children}</table>
+    </div>
+  ),
+  th: ({ children }) => (
+    <th className="px-3 py-1.5 text-left text-[11px] font-semibold text-fg-muted">{children}</th>
+  ),
+  td: ({ children }) => <td className="px-3 py-1.5 text-[12px]">{children}</td>,
+  tr: ({ children }) => <tr className="border-t border-edge">{children}</tr>,
 }
+
+const remarkPlugins = [remarkGfm]
 
 export function ChatMessage({ message }: ChatMessageProps) {
   const [lightboxIndex, setLightboxIndex] = useState<number | null>(null)
@@ -116,10 +152,11 @@ export function ChatMessage({ message }: ChatMessageProps) {
         <span className="text-[12px] font-semibold text-fg">Agent</span>
         <span className="text-[10px] text-fg-muted/50">{formatTimestamp(message.timestamp)}</span>
       </div>
-      <div
-        className="text-[13px] leading-[1.6] text-fg"
-        dangerouslySetInnerHTML={{ __html: renderMarkdown(message.content) }}
-      />
+      <div className="text-[13px] leading-[1.6] text-fg">
+        <ReactMarkdown remarkPlugins={remarkPlugins} components={markdownComponents}>
+          {message.content}
+        </ReactMarkdown>
+      </div>
     </div>
   )
 }
