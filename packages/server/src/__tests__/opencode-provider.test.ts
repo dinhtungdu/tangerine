@@ -140,4 +140,23 @@ describe("OpenCode provider helpers", () => {
     expect(getHandleMeta(handle)).toEqual({ sessionId: "ses-123", agentPort: 4096 })
     expect(getAgentRuntimeMeta(handle)).toEqual({ agentPid: 4242, agentSessionId: "ses-123" })
   })
+
+  it("isAlive is optional on AgentHandle", () => {
+    const handle = createHandle()
+    // Base handle has no isAlive — health monitor should fall back to PID check
+    expect(handle.isAlive).toBeUndefined()
+  })
+
+  it("isAlive returns true when SSE connected and server alive", () => {
+    const handle = createHandle()
+    // Simulate an OpenCode handle with isAlive
+    handle.isAlive = () => true
+    expect(handle.isAlive()).toBe(true)
+  })
+
+  it("isAlive returns false when SSE disconnected", () => {
+    const handle = createHandle()
+    handle.isAlive = () => false
+    expect(handle.isAlive()).toBe(false)
+  })
 })

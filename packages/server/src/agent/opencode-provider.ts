@@ -276,6 +276,7 @@ export function createOpenCodeProvider(): AgentFactory {
         // Build the AgentHandle
         const subscribers = new Set<(e: AgentEvent) => void>()
         let sseAborted = false
+        let sseConnected = false
         // Accumulate text parts per message ID to assemble complete messages
         const textParts = new Map<string, string>()
         const toolStates = new Map<string, string>()
@@ -363,6 +364,7 @@ export function createOpenCodeProvider(): AgentFactory {
               if (!response.ok || !response.body) {
                 throw new Error(`SSE connect failed: ${response.status}`)
               }
+              sseConnected = true
               if (attempt > 0) taskLog.info("SSE reconnected", { previousAttempts: attempt })
               attempt = 0
 
@@ -392,12 +394,14 @@ export function createOpenCodeProvider(): AgentFactory {
               }
 
               // Stream ended gracefully (server closed connection) — reconnect
+              sseConnected = false
               if (!sseAborted) {
                 taskLog.debug("SSE stream ended, reconnecting")
                 await new Promise((r) => setTimeout(r, 500))
                 return doConnect()
               }
             } catch {
+              sseConnected = false
               if (sseAborted) return
               attempt++
               if (attempt <= maxAttempts) {
@@ -503,10 +507,22 @@ export function createOpenCodeProvider(): AgentFactory {
           shutdown() {
             return Effect.sync(() => {
               sseAborted = true
+              sseConnected = false
               subscribers.clear()
               releaseServer()
               taskLog.info("Agent shutdown")
             })
+          },
+
+          isAlive() {
+            // Check both: the shared server process is alive AND we have an SSE connection
+            if (!sseConnected) return false
+            try {
+              process.kill(serverPid, 0)
+              return true
+            } catch {
+              return false
+            }
           },
         }
 

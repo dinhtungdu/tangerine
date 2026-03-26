@@ -196,6 +196,15 @@ export function createClaudeCodeProvider(): AgentFactory {
                 taskLog.info("Claude Code shutdown")
               })
             },
+
+            isAlive() {
+              try {
+                process.kill(proc.pid, 0)
+                return true
+              } catch {
+                return false
+              }
+            },
           }
 
           // Attach metadata — uses getter so resolvedSessionId updates after init event
