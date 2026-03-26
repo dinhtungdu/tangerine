@@ -39,6 +39,21 @@ export function TaskDetail() {
   const { query, setQuery, tasks } = useTaskSearch(current?.name)
   const { files: diffFiles } = useDiffFiles(id ?? "")
   const [diffComments, setDiffComments] = useState<DiffComment[]>([])
+  const [copiedId, setCopiedId] = useState(false)
+  const handleCopyId = useCallback(() => {
+    if (!id) return
+    navigator.clipboard.writeText(id).then(() => {
+      setCopiedId(true)
+      setTimeout(() => setCopiedId(false), 1500)
+    })
+  }, [id])
+  const [copiedBranch, setCopiedBranch] = useState(false)
+  const handleCopyBranch = useCallback((branch: string) => {
+    navigator.clipboard.writeText(branch).then(() => {
+      setCopiedBranch(true)
+      setTimeout(() => setCopiedBranch(false), 1500)
+    })
+  }, [])
 
   const dimsKey = `tangerine:pane-dims:${id}`
   const dimsRef = useRef<{ chat: number; terminal: number; activity: number }>((() => {
@@ -226,14 +241,24 @@ export function TaskDetail() {
                 <path strokeLinecap="round" strokeLinejoin="round" d="M10.5 19.5 3 12m0 0 7.5-7.5M3 12h18" />
               </svg>
             </button>
-            <span className="min-w-0 truncate text-[14px] font-semibold text-fg">{task.title}</span>
+            <button
+              onClick={handleCopyId}
+              title="Click to copy task ID"
+              className="min-w-0 truncate text-[14px] font-semibold text-fg hover:text-fg-muted"
+            >
+              {copiedId ? "Copied ID!" : task.title}
+            </button>
             {task.branch && (
-              <div className="hidden shrink-0 items-center gap-1 md:flex">
+              <button
+                onClick={() => handleCopyBranch(task.branch!)}
+                title="Click to copy branch name"
+                className="hidden shrink-0 items-center gap-1 hover:text-fg md:flex"
+              >
                 <svg className="h-3.5 w-3.5 text-fg-muted" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                   <path strokeLinecap="round" strokeLinejoin="round" d="M6 3v12m0 0a3 3 0 1 0 3 3m-3-3a3 3 0 0 1 3 3m0 0h6a3 3 0 0 0 3-3V9m0 0a3 3 0 1 0 0-6 3 3 0 0 0 0 6Z" />
                 </svg>
-                <span className="font-mono text-[12px] text-fg-muted">{task.branch}</span>
-              </div>
+                <span className="font-mono text-[12px] text-fg-muted">{copiedBranch ? "Copied!" : task.branch}</span>
+              </button>
             )}
             {task.prUrl && (
               <a
@@ -252,6 +277,7 @@ export function TaskDetail() {
               <span className="h-1.5 w-1.5 rounded-full" style={{ backgroundColor: statusColor }} />
               {statusLabel}
             </span>
+
           </div>
 
           {/* Row 2 / Right: pane toggles + divider + stop + more */}

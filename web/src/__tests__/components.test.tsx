@@ -360,3 +360,4 @@ describe("ChatMessage", async () => {
     expect(document.querySelector("del")!.textContent).toBe("deleted")
   })
 })
+
