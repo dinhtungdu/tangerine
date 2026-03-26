@@ -142,20 +142,18 @@ No preview config needed — or provide a `command`:
 
 ## Agent Skills
 
-Install skills that agents inside the VM will use. These go in the VM's `~/.claude/skills/` directory.
-
-After setting up projects, ask the user which skills to install:
+Skills are installed by running `bin/tangerine install` inside the VM. This symlinks skill directories from `skills/` into `~/.claude/skills/`.
 
 ```bash
 # Inside the VM:
-claude skill install <skill-name>
-# Or copy skill directories to ~/.claude/skills/
+bin/tangerine install
 ```
 
-Common skills for agents:
-- Project-specific CLAUDE.md (copied from repo)
-- Code review skills
-- Testing skills
+This installs the built-in skills (`tangerine`, `tangerine-init`). For project-specific skills, symlink them manually:
+
+```bash
+ln -s /path/to/skill ~/.claude/skills/my-skill
+```
 
 ## Credentials
 
