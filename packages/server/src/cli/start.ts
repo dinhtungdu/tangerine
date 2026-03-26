@@ -18,6 +18,9 @@ import { cleanupSession } from "../tasks/cleanup"
 import type { CleanupDeps } from "../tasks/cleanup"
 import { startOrphanCleanup, findOrphans, cleanupOrphans } from "../tasks/orphan-cleanup"
 import type { OrphanCleanupDeps } from "../tasks/orphan-cleanup"
+import { startHealthMonitor } from "../tasks/health"
+import type { HealthCheckDeps } from "../tasks/health"
+import { reconnectSessionWithRetry } from "../tasks/retry"
 import { AgentError } from "../errors"
 import { extractPrUrl, verifyPrBranch, startPrMonitor } from "../tasks/pr-monitor"
 import type { PrMonitorDeps } from "../tasks/pr-monitor"
@@ -604,6 +607,41 @@ export async function start(): Promise<void> {
     }
     await Effect.runPromise(startPrMonitor(prMonitorDeps))
     log.info("PR status monitor started")
+
+    // Start health monitor (every 30s — detects dead agent processes)
+    const healthDeps: HealthCheckDeps = {
+      listRunningTasks: () => listTasks(db, { status: "running" }),
+      checkAgentAlive: (taskId) => Effect.sync(() => {
+        // Check via agent handle first (most reliable)
+        const handle = agentHandles.get(taskId)
+        if (!handle) return false
+
+        const pid = (handle as { __pid?: number }).__pid
+        if (!pid) return false
+        try {
+          process.kill(pid, 0)
+          return true
+        } catch {
+          return false
+        }
+      }),
+      restartAgent: (task) => {
+        const provider = task.provider ?? "opencode"
+        const factory = getAgentFactory(provider)
+        const lifecycleDeps = { ...tmDeps.lifecycleDeps, agentFactory: factory }
+        const projectConfig = task.project_id ? getProjectConfig(config.config, task.project_id) : undefined
+        if (!projectConfig) return Effect.fail(new Error(`No project config for ${task.project_id}`))
+        return reconnectSessionWithRetry(task, projectConfig, lifecycleDeps, tmDeps.retryDeps)
+      },
+      failTask: (taskId, reason) =>
+        updateTask(db, taskId, { status: "failed", error: reason }).pipe(
+          Effect.asVoid,
+          Effect.mapError((e) => new Error(String(e))),
+        ),
+      cleanupDeps,
+    }
+    await Effect.runPromise(startHealthMonitor(healthDeps))
+    log.info("Health monitor started")
 
     const shutdown = async (signal: string) => {
       log.info("Shutdown signal received", { signal })

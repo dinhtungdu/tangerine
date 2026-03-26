@@ -7,6 +7,7 @@ import { createLogger } from "../logger"
 import { SessionCleanupError } from "../errors"
 import type { TaskRow } from "../db/types"
 import { releaseSlot, localExec } from "./worktree-pool"
+import { isSharedServerPid } from "../agent/opencode-provider"
 
 const log = createLogger("cleanup")
 
@@ -47,9 +48,9 @@ export function cleanupSession(
       )
     }
 
-    // 1b. Kill agent by PID as fallback
+    // 1b. Kill agent by PID as fallback (skip shared OpenCode server — it serves other tasks)
     const agentPid = (task as TaskRow & { agent_pid?: number | null }).agent_pid
-    if (agentPid) {
+    if (agentPid && !isSharedServerPid(agentPid)) {
       yield* Effect.try(() => {
         process.kill(agentPid, "SIGTERM")
       }).pipe(

@@ -1,5 +1,9 @@
-// OpenCode agent provider: spawns OpenCode server as a local process,
-// creates a session, and bridges SSE events to the normalized AgentEvent stream.
+// OpenCode agent provider: manages a shared OpenCode server process,
+// creates per-task sessions, and bridges SSE events to the normalized AgentEvent stream.
+//
+// OpenCode runs as a single HTTP server on a fixed port. Multiple tasks
+// create separate sessions on the same server. The provider maintains a
+// module-level singleton to avoid spawning duplicate processes.
 
 import { Effect } from "effect"
 import { createLogger, truncate } from "../logger"
@@ -7,6 +11,125 @@ import { AgentError, PromptError, SessionStartError } from "../errors"
 import type { AgentFactory, AgentHandle, AgentEvent, AgentStartContext } from "./provider"
 
 const log = createLogger("opencode-provider")
+
+// -- Shared server singleton --------------------------------------------------
+// OpenCode is a single HTTP server shared across all tasks. We track the
+// process and a reference count so we only kill it when the last task shuts down.
+
+interface SharedServer {
+  pid: number
+  port: number
+  proc: ReturnType<typeof Bun.spawn> | null // null when we adopted an externally-started server
+  refCount: number
+}
+
+let sharedServer: SharedServer | null = null
+
+/** Check if a PID belongs to the shared OpenCode server (used by cleanup to avoid killing it) */
+export function isSharedServerPid(pid: number): boolean {
+  return sharedServer !== null && sharedServer.pid === pid
+}
+
+/**
+ * Acquire the shared OpenCode server. If already running (ours or external),
+ * increment refCount and return the PID. Otherwise spawn a new one.
+ */
+async function acquireServer(
+  port: number,
+  workdir: string,
+  env: Record<string, string | undefined>,
+): Promise<{ pid: number }> {
+  // Fast path: our tracked server is still alive
+  if (sharedServer) {
+    try {
+      process.kill(sharedServer.pid, 0)
+      sharedServer.refCount++
+      log.debug("Reusing shared OpenCode server", { pid: sharedServer.pid, refCount: sharedServer.refCount })
+      return { pid: sharedServer.pid }
+    } catch {
+      log.warn("Shared OpenCode server PID dead, will respawn", { stalePid: sharedServer.pid })
+      sharedServer = null
+    }
+  }
+
+  // Check if an external OpenCode server is already listening on the port
+  try {
+    const res = await fetch(`http://localhost:${port}/global/health`)
+    if (res.ok) {
+      // Find the PID of the existing server
+      const pid = await findListeningPid(port)
+      if (pid) {
+        sharedServer = { pid, port, proc: null, refCount: 1 }
+        log.info("Adopted existing OpenCode server", { pid, port })
+        return { pid }
+      }
+    }
+  } catch {
+    // Not running — we'll spawn below
+  }
+
+  // Spawn a new OpenCode server
+  const proc = Bun.spawn(
+    ["opencode", "serve", "--port", String(port), "--hostname", "127.0.0.1"],
+    {
+      cwd: workdir,
+      stdout: "ignore",
+      stderr: "ignore",
+      stdin: "ignore",
+      env: { ...process.env, ...env },
+    },
+  )
+  log.info("OpenCode server spawned", { pid: proc.pid, port })
+
+  // Wait for health
+  const maxAttempts = 30
+  for (let i = 0; i < maxAttempts; i++) {
+    try {
+      const res = await fetch(`http://localhost:${port}/global/health`)
+      if (res.ok) {
+        sharedServer = { pid: proc.pid, port, proc, refCount: 1 }
+        return { pid: proc.pid }
+      }
+    } catch {
+      // not ready yet
+    }
+    await new Promise((r) => setTimeout(r, 2000))
+  }
+
+  // Failed — kill the process we spawned
+  try { proc.kill() } catch { /* may already be dead */ }
+  throw new Error(`OpenCode health check failed after ${maxAttempts} attempts`)
+}
+
+/** Decrement refCount and kill the server when no tasks remain */
+function releaseServer(): void {
+  if (!sharedServer) return
+  sharedServer.refCount--
+  log.debug("Released OpenCode server ref", { pid: sharedServer.pid, refCount: sharedServer.refCount })
+  if (sharedServer.refCount <= 0) {
+    log.info("No more tasks using OpenCode server, shutting down", { pid: sharedServer.pid })
+    if (sharedServer.proc) {
+      try { sharedServer.proc.kill() } catch { /* already dead */ }
+    } else {
+      // Adopted external process — kill by PID
+      try { process.kill(sharedServer.pid, "SIGTERM") } catch { /* already dead */ }
+    }
+    sharedServer = null
+  }
+}
+
+/** Find the PID listening on a port via lsof */
+async function findListeningPid(port: number): Promise<number | null> {
+  try {
+    const proc = Bun.spawn(["lsof", "-ti", `:${port}`], { stdout: "pipe", stderr: "ignore" })
+    const stdout = await new Response(proc.stdout).text()
+    await proc.exited
+    const pid = parseInt(stdout.trim().split("\n")[0] ?? "", 10)
+    return Number.isFinite(pid) ? pid : null
+  } catch {
+    return null
+  }
+}
 
 /** Extract the data payload from an SSE block, handling multi-line formats like "event: foo\ndata: {...}" */
 export function extractSseData(block: string): string | null {
@@ -109,42 +232,18 @@ export function createOpenCodeProvider(): AgentFactory {
       return Effect.gen(function* () {
         const opencodePort = 4096
 
-        // Start OpenCode server as a local process
-        const proc = Bun.spawn(
-          ["opencode", "serve", "--port", String(opencodePort), "--hostname", "127.0.0.1"],
-          {
-            cwd: ctx.workdir,
-            stdout: "ignore",
-            stderr: "ignore",
-            stdin: "ignore",
-            env: { ...process.env, ...ctx.env },
-          },
-        )
-        taskLog.info("OpenCode started", { port: opencodePort, pid: proc.pid })
-
-        // Wait for OpenCode health
-        yield* Effect.tryPromise({
-          try: async () => {
-            const maxAttempts = 30
-            for (let i = 0; i < maxAttempts; i++) {
-              try {
-                const res = await fetch(`http://localhost:${opencodePort}/global/health`)
-                if (res.ok) return
-              } catch {
-                // not ready yet
-              }
-              await new Promise((r) => setTimeout(r, 2000))
-            }
-            throw new Error(`OpenCode health check failed after ${maxAttempts} attempts`)
-          },
+        // Acquire shared OpenCode server (spawns only if not already running)
+        const { pid: serverPid } = yield* Effect.tryPromise({
+          try: () => acquireServer(opencodePort, ctx.workdir, ctx.env ?? {}),
           catch: (e) =>
             new SessionStartError({
-              message: `Health check failed: ${e}`,
+              message: `Failed to acquire OpenCode server: ${e}`,
               taskId: ctx.taskId,
               phase: "health-check",
               cause: e instanceof Error ? e : new Error(String(e)),
             }),
         })
+        taskLog.info("OpenCode server acquired", { port: opencodePort, pid: serverPid })
 
         // Create or resume OpenCode session (model is passed per-prompt, not via config)
         const sessionId = yield* Effect.tryPromise({
@@ -405,11 +504,7 @@ export function createOpenCodeProvider(): AgentFactory {
             return Effect.sync(() => {
               sseAborted = true
               subscribers.clear()
-              try {
-                proc.kill()
-              } catch {
-                // process may already be dead
-              }
+              releaseServer()
               taskLog.info("Agent shutdown")
             })
           },
@@ -420,7 +515,7 @@ export function createOpenCodeProvider(): AgentFactory {
           sessionId,
           agentPort: opencodePort,
         }
-        ;(handle as { __pid?: number }).__pid = proc.pid
+        ;(handle as { __pid?: number }).__pid = serverPid
 
         return handle
       })
