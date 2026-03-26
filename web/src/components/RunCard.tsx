@@ -1,6 +1,6 @@
 import { Link } from "react-router-dom"
 import type { Task } from "@tangerine/shared"
-import { getStatusConfig } from "../lib/status"
+import { getStatusConfig, hasUnseenUpdates } from "../lib/status"
 import { formatDuration, formatDate, formatPrNumber } from "../lib/format"
 
 function SourceIcon({ source }: { source: string }) {
@@ -29,6 +29,7 @@ interface RunCardProps {
 export function RunCard({ task, onCancel, onRetry, onDelete }: RunCardProps) {
   const { label, textClass, bgClass } = getStatusConfig(task.status)
   const isTerminal = ["done", "failed", "cancelled"].includes(task.status)
+  const unseen = hasUnseenUpdates(task)
 
   return (
     <Link
@@ -37,6 +38,7 @@ export function RunCard({ task, onCancel, onRetry, onDelete }: RunCardProps) {
     >
       <div className="flex items-center justify-between gap-3">
         <div className="flex min-w-0 items-center gap-2">
+          {unseen && <span className="h-2 w-2 shrink-0 rounded-full bg-status-info" title="New activity" />}
           <span className="truncate text-[14px] font-medium text-fg">{task.title}</span>
           {task.prUrl && (
             <a

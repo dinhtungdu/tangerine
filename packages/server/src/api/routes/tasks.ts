@@ -103,6 +103,12 @@ export function taskRoutes(deps: AppDeps): Hono {
     )
   })
 
+  app.post("/:id/seen", (c) => {
+    return runEffectVoid(c,
+      updateTask(deps.db, c.req.param("id"), { last_seen_at: new Date().toISOString() })
+    )
+  })
+
   app.post("/:id/done", (c) => {
     return runEffectVoid(c,
       deps.taskManager.completeTask(c.req.param("id"))

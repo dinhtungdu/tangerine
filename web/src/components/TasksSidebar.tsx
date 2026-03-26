@@ -1,6 +1,6 @@
 import { Link, useParams } from "react-router-dom"
 import type { Task } from "@tangerine/shared"
-import { getStatusConfig } from "../lib/status"
+import { getStatusConfig, hasUnseenUpdates } from "../lib/status"
 import { formatRelativeTime } from "../lib/format"
 import { useProjectNav } from "../hooks/useProjectNav"
 
@@ -67,6 +67,7 @@ export function TasksSidebar({ tasks, searchQuery, onSearchChange, onNewAgent }:
         {activeTasks.map((task) => {
           const isActive = task.id === activeId
           const { color } = getStatusConfig(task.status)
+          const unseen = !isActive && hasUnseenUpdates(task)
           return (
             <Link
               key={task.id}
@@ -82,9 +83,14 @@ export function TasksSidebar({ tasks, searchQuery, onSearchChange, onNewAgent }:
                 <div className="h-2 w-2 rounded-full" style={{ backgroundColor: color }} />
               </div>
               <div className="flex min-w-0 flex-col gap-0.5">
-                <span className={`truncate text-[13px] text-fg ${isActive ? "font-semibold" : "font-medium"}`}>
-                  {task.title}
-                </span>
+                <div className="flex items-center gap-1.5">
+                  <span className={`truncate text-[13px] text-fg ${isActive ? "font-semibold" : "font-medium"}`}>
+                    {task.title}
+                  </span>
+                  {unseen && (
+                    <span className="h-2 w-2 shrink-0 rounded-full bg-status-info" title="New activity" />
+                  )}
+                </div>
                 <span className="font-mono text-[11px] text-fg-muted">
                   {formatRelativeTime(task.createdAt)} · {task.status}
                   {" · "}

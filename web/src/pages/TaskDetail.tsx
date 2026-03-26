@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback, useRef } from "react"
 import { useParams } from "react-router-dom"
 import type { Task } from "@tangerine/shared"
-import { fetchTask, changeTaskConfig } from "../lib/api"
+import { fetchTask, changeTaskConfig, markTaskSeen } from "../lib/api"
 import { getStatusConfig } from "../lib/status"
 import { useSession } from "../hooks/useSession"
 import { useTaskSearch } from "../hooks/useTaskSearch"
@@ -206,6 +206,11 @@ export function TaskDetail() {
     const interval = setInterval(load, 10000)
     return () => { cancelled = true; clearInterval(interval) }
   }, [id])
+
+  // Mark task as seen on view and whenever it updates while viewing
+  useEffect(() => {
+    if (id) markTaskSeen(id).catch(() => {})
+  }, [id, task?.updatedAt])
 
   useEffect(() => {
     if (session.taskStatus) {
