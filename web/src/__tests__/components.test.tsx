@@ -233,4 +233,63 @@ describe("ChatMessage", async () => {
     expect(document.body.textContent).toContain("Here is a comparison:")
     expect(document.body.textContent).toContain("Done.")
   })
+
+  test("renders headings", () => {
+    render(
+      <ChatMessage
+        message={{ role: "assistant", content: "# Title\n## Subtitle\n### Section", timestamp: "2026-03-17T10:00:00Z" }}
+      />,
+    )
+    expect(document.querySelector("h1")!.textContent).toBe("Title")
+    expect(document.querySelector("h2")!.textContent).toBe("Subtitle")
+    expect(document.querySelector("h3")!.textContent).toBe("Section")
+  })
+
+  test("renders unordered lists", () => {
+    render(
+      <ChatMessage
+        message={{ role: "assistant", content: "- First\n- Second\n- Third", timestamp: "2026-03-17T10:00:00Z" }}
+      />,
+    )
+    const items = document.querySelectorAll("li")
+    expect(items.length).toBe(3)
+    expect(items[0]!.textContent).toBe("First")
+  })
+
+  test("renders ordered lists", () => {
+    render(
+      <ChatMessage
+        message={{ role: "assistant", content: "1. One\n2. Two\n3. Three", timestamp: "2026-03-17T10:00:00Z" }}
+      />,
+    )
+    expect(document.querySelector("ol")).toBeTruthy()
+    expect(document.querySelectorAll("li").length).toBe(3)
+  })
+
+  test("renders blockquotes", () => {
+    render(
+      <ChatMessage
+        message={{ role: "assistant", content: "> This is a quote", timestamp: "2026-03-17T10:00:00Z" }}
+      />,
+    )
+    expect(document.querySelector("blockquote")!.textContent).toBe("This is a quote")
+  })
+
+  test("renders horizontal rules", () => {
+    render(
+      <ChatMessage
+        message={{ role: "assistant", content: "Above\n---\nBelow", timestamp: "2026-03-17T10:00:00Z" }}
+      />,
+    )
+    expect(document.querySelector("hr")).toBeTruthy()
+  })
+
+  test("renders strikethrough", () => {
+    render(
+      <ChatMessage
+        message={{ role: "assistant", content: "~~deleted~~", timestamp: "2026-03-17T10:00:00Z" }}
+      />,
+    )
+    expect(document.querySelector("del")!.textContent).toBe("deleted")
+  })
 })

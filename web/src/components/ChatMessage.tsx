@@ -91,8 +91,50 @@ function renderMarkdown(text: string): string {
     },
   )
 
+  // Render lists (unordered and ordered) — must happen before \n→<br>
+  processed = processed.replace(
+    /(^|\n)((?:[ ]*[-*][ ]+.+\n?)+)/g,
+    (_match, prefix, block) => {
+      const items = block.trim().split("\n").map((line: string) => {
+        const content = line.replace(/^[ ]*[-*][ ]+/, "")
+        return `<li>${content}</li>`
+      })
+      return `${prefix}<ul class="my-1 ml-4 list-disc space-y-0.5">${items.join("")}</ul>`
+    },
+  )
+  processed = processed.replace(
+    /(^|\n)((?:[ ]*\d+\.[ ]+.+\n?)+)/g,
+    (_match, prefix, block) => {
+      const items = block.trim().split("\n").map((line: string) => {
+        const content = line.replace(/^[ ]*\d+\.[ ]+/, "")
+        return `<li>${content}</li>`
+      })
+      return `${prefix}<ol class="my-1 ml-4 list-decimal space-y-0.5">${items.join("")}</ol>`
+    },
+  )
+
+  // Blockquotes — must happen before \n→<br>
+  processed = processed.replace(
+    /(^|\n)((?:>[ ]?.+\n?)+)/g,
+    (_match, prefix, block) => {
+      const content = block.trim().split("\n").map((line: string) => line.replace(/^>[ ]?/, "")).join("<br />")
+      return `${prefix}<blockquote class="my-1 border-l-2 border-edge pl-3 text-fg-muted">${content}</blockquote>`
+    },
+  )
+
+  // Headings — must happen before \n→<br>
+  processed = processed
+    .replace(/(^|\n)####[ ]+(.+)/g, '$1<h4 class="mt-3 mb-1 text-[13px] font-semibold">$2</h4>')
+    .replace(/(^|\n)###[ ]+(.+)/g, '$1<h3 class="mt-3 mb-1 text-[14px] font-semibold">$2</h3>')
+    .replace(/(^|\n)##[ ]+(.+)/g, '$1<h2 class="mt-3 mb-1 text-[15px] font-bold">$2</h2>')
+    .replace(/(^|\n)#[ ]+(.+)/g, '$1<h1 class="mt-4 mb-1 text-[16px] font-bold">$2</h1>')
+
+  // Horizontal rules
+  processed = processed.replace(/(^|\n)---+(\n|$)/g, '$1<hr class="my-2 border-edge" />$2')
+
   processed = processed
     .replace(/`([^`]+)`/g, '<code class="rounded bg-surface-secondary px-1 py-0.5 font-mono text-[12px] border border-edge">$1</code>')
+    .replace(/~~(.+?)~~/g, "<del>$1</del>")
     .replace(/\*\*(.+?)\*\*/g, "<strong>$1</strong>")
     .replace(/\*(.+?)\*/g, "<em>$1</em>")
     .replace(/(^|[^"=])(https?:\/\/[^\s<]+)/g, '$1<a href="$2" target="_blank" rel="noopener noreferrer" class="underline text-link hover:text-link-hover break-all">$2</a>')
