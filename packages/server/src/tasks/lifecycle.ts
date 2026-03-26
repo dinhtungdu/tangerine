@@ -70,10 +70,13 @@ export function startSession(
     const taskLog = log.child({ taskId: task.id })
     const sessionSpan = taskLog.startOp("session-start")
     const taskPrefix = task.id.slice(0, 8)
-    // Use pre-set branch (from PR/branch input) or generate one
-    const isExistingBranch = !!task.branch && !task.branch.startsWith("tangerine/")
-    const branch = task.branch ?? `tangerine/${taskPrefix}`
     const defaultBranch = config.defaultBranch ?? "main"
+    // Use pre-set branch (from PR/branch input) or generate one.
+    // Never work directly on the default branch — git worktrees can't share branches
+    // with the main repo, and agents should always work on isolated branches.
+    const taskBranch = task.branch === defaultBranch ? null : task.branch
+    const isExistingBranch = !!taskBranch && !taskBranch.startsWith("tangerine/")
+    const branch = taskBranch ?? `tangerine/${taskPrefix}`
     const repoDir = `/workspace/${task.project_id}/repo`
 
     yield* deps.updateTask(task.id, { status: "provisioning" }).pipe(
