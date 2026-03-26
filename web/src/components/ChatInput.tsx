@@ -130,29 +130,17 @@ export function ChatInput({ onSend, disabled, queueLength, isWorking, onAbort, m
           )}
         </div>
 
-        {/* Mobile: circle send/stop button */}
-        <div className="md:hidden">
-          {isWorking ? (
-            <button onClick={onAbort} aria-label="Stop agent" className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-status-error text-white">
-              <svg className="h-3.5 w-3.5" fill="currentColor" viewBox="0 0 24 24"><rect x="6" y="6" width="12" height="12" rx="1" /></svg>
-            </button>
-          ) : (
-            <button onClick={handleSend} disabled={!canSend} aria-label="Send message" className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-surface-dark text-white disabled:opacity-30">
-              <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                <path strokeLinecap="round" strokeLinejoin="round" d="M4.5 10.5 12 3m0 0 7.5 7.5M12 3v18" />
-              </svg>
-            </button>
-          )}
-        </div>
-
-        {/* Desktop: square send button */}
+        {/* Send button — always visible on all breakpoints */}
         <button
           onClick={handleSend}
           disabled={!canSend}
           aria-label="Send message"
-          className="hidden h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-surface-dark text-white transition hover:opacity-80 disabled:cursor-not-allowed disabled:opacity-30 md:flex"
+          className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-surface-dark text-white transition hover:opacity-80 disabled:cursor-not-allowed disabled:opacity-30 md:rounded-lg"
         >
-          <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+          <svg className="h-4 w-4 md:hidden" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+            <path strokeLinecap="round" strokeLinejoin="round" d="M4.5 10.5 12 3m0 0 7.5 7.5M12 3v18" />
+          </svg>
+          <svg className="hidden h-4 w-4 md:block" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
             <path strokeLinecap="round" strokeLinejoin="round" d="M6 12 3.269 3.125A59.769 59.769 0 0 1 21.485 12 59.768 59.768 0 0 1 3.27 20.875L5.999 12Zm0 0h7.5" />
           </svg>
         </button>
@@ -180,7 +168,7 @@ export function ChatInput({ onSend, disabled, queueLength, isWorking, onAbort, m
         {isWorking && (
           <button
             onClick={onAbort}
-            className="hidden items-center gap-1 rounded bg-status-error px-2 py-1 md:flex"
+            className="flex items-center gap-1 rounded bg-status-error px-2 py-1"
           >
             <svg className="h-2.5 w-2.5 text-white" fill="currentColor" viewBox="0 0 24 24">
               <rect x="6" y="6" width="12" height="12" rx="1" />
