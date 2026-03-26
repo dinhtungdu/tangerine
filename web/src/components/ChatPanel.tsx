@@ -1,4 +1,4 @@
-import { useEffect, useRef } from "react"
+import { useEffect, useRef, useState, useMemo } from "react"
 import type { PromptImage, TaskStatus } from "@tangerine/shared"
 import type { ChatMessage as ChatMessageType } from "../hooks/useSession"
 import { ChatMessage } from "./ChatMessage"
@@ -42,24 +42,49 @@ export function ChatPanel({
   const scrollRef = useRef<HTMLDivElement>(null)
   const { navigate } = useProjectNav()
   const isTerminal = taskStatus ? TERMINAL_STATUSES.includes(taskStatus) : false
+  const [showThinking, setShowThinking] = useState(false)
+
+  const thinkingCount = useMemo(
+    () => messages.filter((m) => m.role === "thinking").length,
+    [messages],
+  )
+
+  const visibleMessages = useMemo(
+    () => (showThinking ? messages : messages.filter((m) => m.role !== "thinking")),
+    [messages, showThinking],
+  )
 
   useEffect(() => {
     const el = scrollRef.current
     if (!el) return
     el.scrollTop = el.scrollHeight
-  }, [messages.length])
+  }, [visibleMessages.length])
 
   return (
     <div className="flex h-full flex-col bg-surface">
       {/* Messages */}
       <div ref={scrollRef} className="flex-1 overflow-y-auto">
         <div className="flex flex-col gap-3 p-4">
-          {messages.length === 0 ? (
+          {/* Thinking toggle */}
+          {thinkingCount > 0 && (
+            <div className="flex justify-end">
+              <button
+                onClick={() => setShowThinking((v) => !v)}
+                className="flex items-center gap-1.5 rounded-md px-2 py-1 text-[11px] text-fg-muted transition hover:bg-surface-secondary"
+              >
+                <svg className="h-3 w-3 text-amber-500/70" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M12 18v-5.25m0 0a6.01 6.01 0 0 0 1.5-.189m-1.5.189a6.01 6.01 0 0 1-1.5-.189m3.75 7.478a12.06 12.06 0 0 1-4.5 0m3.75 2.383a14.406 14.406 0 0 1-3 0M14.25 18v-.192c0-.983.658-1.823 1.508-2.316a7.5 7.5 0 1 0-7.517 0c.85.493 1.509 1.333 1.509 2.316V18" />
+                </svg>
+                {showThinking ? "Hide" : "Show"} thinking ({thinkingCount})
+              </button>
+            </div>
+          )}
+          {visibleMessages.length === 0 && thinkingCount === 0 ? (
             <div className="flex h-full items-center justify-center py-20 text-[13px] text-fg-muted">
               No messages yet. Send a prompt to start.
             </div>
           ) : (
-            messages.map((msg) => <ChatMessage key={msg.id} message={msg} />)
+            visibleMessages.map((msg) => <ChatMessage key={msg.id} message={msg} />)
           )}
 
           {/* Thinking indicator */}
