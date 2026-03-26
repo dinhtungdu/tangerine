@@ -17,6 +17,7 @@ import { ChangesPanel as DiffSidebar, type DiffComment } from "../components/Cha
 import { ResizeHandle, PaneToggle } from "../components/PaneControls"
 import { TerminalPane } from "../components/TerminalPane"
 import { formatPrNumber } from "../lib/format"
+import { CopyableId } from "../components/CopyableId"
 
 type PaneId = "chat" | "diff" | "terminal" | "activity"
 
@@ -252,6 +253,7 @@ export function TaskDetail() {
               <span className="h-1.5 w-1.5 rounded-full" style={{ backgroundColor: statusColor }} />
               {statusLabel}
             </span>
+            <CopyableId id={task.id} />
           </div>
 
           {/* Row 2 / Right: pane toggles + divider + stop + more */}
