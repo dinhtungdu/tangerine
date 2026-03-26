@@ -359,6 +359,10 @@ export function createOpenCodeProvider(): AgentFactory {
             if (messageId && delta && properties?.field === "text") {
               textParts.set(messageId, (textParts.get(messageId) ?? "") + delta)
             }
+            // Route thinking deltas to activity log, not chat
+            if (messageId && delta && properties?.field === "thinking") {
+              emit({ kind: "thinking", content: delta })
+            }
           }
 
           if (type === "message.part.updated") {
@@ -370,6 +374,12 @@ export function createOpenCodeProvider(): AgentFactory {
               if (part.text.startsWith(currentText)) {
                 textParts.set(messageId, part.text)
               }
+            }
+
+            // Route thinking snapshots to activity log, not chat
+            if (part?.type === "thinking" && typeof part.text === "string") {
+              emit({ kind: "thinking", content: truncate(part.text, 300) })
+              return
             }
 
             if (part?.type === "tool") {

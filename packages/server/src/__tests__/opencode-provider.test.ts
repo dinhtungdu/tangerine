@@ -111,6 +111,35 @@ describe("OpenCode provider helpers", () => {
     expect(extractSseData('id: 42\nevent: update\ndata: {"ok":true}')).toBe('{"ok":true}')
   })
 
+  it("does not map thinking deltas as text streaming", () => {
+    // Thinking deltas have field === "thinking", not "text" — mapSseEvent
+    // should return null so they don't get treated as regular text.
+    const event = mapSseEvent({
+      type: "message.part.delta",
+      properties: {
+        messageID: "msg-1",
+        field: "thinking",
+        delta: "Let me analyze this...",
+      },
+    })
+    expect(event).toBeNull()
+  })
+
+  it("does not map thinking part snapshots as text", () => {
+    // part.type === "thinking" should not be treated as text or tool
+    const event = mapSseEvent({
+      type: "message.part.updated",
+      properties: {
+        part: {
+          type: "thinking",
+          messageID: "msg-1",
+          text: "Analyzing the code structure...",
+        },
+      },
+    })
+    expect(event).toBeNull()
+  })
+
   it("skips message.complete for tool-only messages (no accumulated text)", () => {
     // message.updated with completed timestamp but no text parts should NOT
     // produce a message.complete — tool-only turns don't need a chat entry.
