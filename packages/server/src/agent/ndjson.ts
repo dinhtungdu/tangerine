@@ -103,6 +103,7 @@ export function mapClaudeCodeEvent(raw: Record<string, unknown>): AgentEvent[] {
 
       const events: AgentEvent[] = []
       const blocks = Array.isArray(message.content) ? message.content : []
+      const textParts: string[] = []
 
       for (const block of blocks) {
         if (typeof block !== "object" || block === null) continue
@@ -117,12 +118,20 @@ export function mapClaudeCodeEvent(raw: Record<string, unknown>): AgentEvent[] {
             toolInput: b.input ? truncate(JSON.stringify(b.input), 500) : undefined,
           })
         } else if (b.type === "text" && typeof b.text === "string" && b.text.length > 0) {
-          events.push({
-            kind: "message.streaming",
-            content: b.text,
-            messageId: optStr(message.id),
-          })
+          textParts.push(b.text)
         }
+      }
+
+      // Emit as message.complete — assistant events are complete messages, not
+      // streaming deltas. This ensures per-turn text is persisted to session_logs,
+      // matching OpenCode's behavior.
+      if (textParts.length > 0) {
+        events.push({
+          kind: "message.complete",
+          role: "assistant",
+          content: textParts.join(""),
+          messageId: optStr(message.id),
+        })
       }
 
       // Signal working if there are tool calls
@@ -165,6 +174,11 @@ export function mapClaudeCodeEvent(raw: Record<string, unknown>): AgentEvent[] {
       if (subtype === "error" || raw.is_error === true) {
         return [{ kind: "error", message: content || "Agent error" }]
       }
+
+      // Per-turn text is already emitted as message.complete from assistant
+      // events. Only emit the result summary if it has content (avoids empty
+      // duplicate messages).
+      if (!content) return []
 
       return [{
         kind: "message.complete",
