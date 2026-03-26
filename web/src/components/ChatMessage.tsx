@@ -1,4 +1,7 @@
 import { useState } from "react"
+import type { Components } from "react-markdown"
+import ReactMarkdown from "react-markdown"
+import remarkGfm from "remark-gfm"
 import type { ChatMessage as ChatMessageType } from "../hooks/useSession"
 import { formatTimestamp } from "../lib/format"
 import { ToolCallDisplay } from "./ToolCallDisplay"
@@ -29,124 +32,48 @@ function linkifyUrls(text: string): string {
   )
 }
 
-function renderMarkdownTable(block: string): string {
-  const rows = block.trim().split("\n")
-  if (rows.length < 2) return block
-
-  const parseRow = (row: string) =>
-    row.split("|").slice(1, -1).map((cell) => cell.trim())
-
-  const headerRow = rows[0]
-  const sepRow = rows[1]
-  if (!headerRow || !sepRow) return block
-
-  const headerCells = parseRow(headerRow)
-  if (headerCells.length === 0) return block
-
-  // Verify separator row (must be all dashes/colons)
-  const sepCells = parseRow(sepRow)
-  if (sepCells.length === 0 || !sepCells.every((c) => /^:?-+:?$/.test(c))) return block
-
-  const thClass = "px-3 py-1.5 text-left text-[11px] font-semibold text-fg-muted"
-  const tdClass = "px-3 py-1.5 text-[12px]"
-
-  let html = '<div class="my-2 overflow-x-auto rounded-md border border-edge"><table class="w-full border-collapse text-fg">'
-  html += "<thead><tr>"
-  for (const cell of headerCells) {
-    html += `<th class="${thClass}">${cell}</th>`
-  }
-  html += "</tr></thead><tbody>"
-
-  for (let i = 2; i < rows.length; i++) {
-    const row = rows[i]
-    if (!row) continue
-    const cells = parseRow(row)
-    if (cells.length === 0) continue
-    html += `<tr class="border-t border-edge">`
-    for (const cell of cells) {
-      html += `<td class="${tdClass}">${cell}</td>`
+const markdownComponents: Components = {
+  h1: ({ children }) => <h1 className="mt-4 mb-1 text-[16px] font-bold">{children}</h1>,
+  h2: ({ children }) => <h2 className="mt-3 mb-1 text-[15px] font-bold">{children}</h2>,
+  h3: ({ children }) => <h3 className="mt-3 mb-1 text-[14px] font-semibold">{children}</h3>,
+  h4: ({ children }) => <h4 className="mt-3 mb-1 text-[13px] font-semibold">{children}</h4>,
+  p: ({ children }) => <p className="my-1">{children}</p>,
+  pre: ({ children }) => (
+    <pre className="my-2 rounded-md bg-surface-secondary p-3 font-mono text-[11px] leading-[1.6] overflow-x-auto border border-edge">
+      {children}
+    </pre>
+  ),
+  code: ({ children, className }) => {
+    // Inline code (no className means not inside a code block)
+    if (!className) {
+      return <code className="rounded bg-surface-secondary px-1 py-0.5 font-mono text-[12px] border border-edge">{children}</code>
     }
-    html += "</tr>"
-  }
-
-  html += "</tbody></table></div>"
-  return html
+    return <code className={className}>{children}</code>
+  },
+  ul: ({ children }) => <ul className="my-1 ml-4 list-disc space-y-0.5">{children}</ul>,
+  ol: ({ children }) => <ol className="my-1 ml-4 list-decimal space-y-0.5">{children}</ol>,
+  blockquote: ({ children }) => (
+    <blockquote className="my-1 border-l-2 border-edge pl-3 text-fg-muted">{children}</blockquote>
+  ),
+  hr: () => <hr className="my-2 border-edge" />,
+  a: ({ href, children }) => (
+    <a href={href} target="_blank" rel="noopener noreferrer" className="underline text-link hover:text-link-hover break-all">
+      {children}
+    </a>
+  ),
+  table: ({ children }) => (
+    <div className="my-2 overflow-x-auto rounded-md border border-edge">
+      <table className="w-full border-collapse text-fg">{children}</table>
+    </div>
+  ),
+  th: ({ children }) => (
+    <th className="px-3 py-1.5 text-left text-[11px] font-semibold text-fg-muted">{children}</th>
+  ),
+  td: ({ children }) => <td className="px-3 py-1.5 text-[12px]">{children}</td>,
+  tr: ({ children }) => <tr className="border-t border-edge">{children}</tr>,
 }
 
-function renderMarkdown(text: string): string {
-  // Extract code blocks first to protect them from table/inline processing
-  const codeBlocks: string[] = []
-  let processed = text.replace(/```(\w*)\n([\s\S]*?)```/g, (_match, _lang, code) => {
-    const i = codeBlocks.length
-    codeBlocks.push(`<pre class="my-2 rounded-md bg-surface-secondary p-3 font-mono text-[11px] leading-[1.6] overflow-x-auto border border-edge"><code>${code}</code></pre>`)
-    return `\x00CODEBLOCK${i}\x00`
-  })
-
-  // Render markdown tables before line breaks replace newlines
-  processed = processed.replace(
-    /(^|\n)(\|.+\|)\n(\|[-:| ]+\|)\n((?:\|.+\|\n?)+)/g,
-    (_match, prefix, header, sep, body) => {
-      const block = `${header}\n${sep}\n${body}`
-      return `${prefix}${renderMarkdownTable(block)}`
-    },
-  )
-
-  // Render lists (unordered and ordered) — must happen before \n→<br>
-  processed = processed.replace(
-    /(^|\n)((?:[ ]*[-*][ ]+.+\n?)+)/g,
-    (_match, prefix, block) => {
-      const items = block.trim().split("\n").map((line: string) => {
-        const content = line.replace(/^[ ]*[-*][ ]+/, "")
-        return `<li>${content}</li>`
-      })
-      return `${prefix}<ul class="my-1 ml-4 list-disc space-y-0.5">${items.join("")}</ul>`
-    },
-  )
-  processed = processed.replace(
-    /(^|\n)((?:[ ]*\d+\.[ ]+.+\n?)+)/g,
-    (_match, prefix, block) => {
-      const items = block.trim().split("\n").map((line: string) => {
-        const content = line.replace(/^[ ]*\d+\.[ ]+/, "")
-        return `<li>${content}</li>`
-      })
-      return `${prefix}<ol class="my-1 ml-4 list-decimal space-y-0.5">${items.join("")}</ol>`
-    },
-  )
-
-  // Blockquotes — must happen before \n→<br>
-  processed = processed.replace(
-    /(^|\n)((?:>[ ]?.+\n?)+)/g,
-    (_match, prefix, block) => {
-      const content = block.trim().split("\n").map((line: string) => line.replace(/^>[ ]?/, "")).join("<br />")
-      return `${prefix}<blockquote class="my-1 border-l-2 border-edge pl-3 text-fg-muted">${content}</blockquote>`
-    },
-  )
-
-  // Headings — must happen before \n→<br>
-  processed = processed
-    .replace(/(^|\n)####[ ]+(.+)/g, '$1<h4 class="mt-3 mb-1 text-[13px] font-semibold">$2</h4>')
-    .replace(/(^|\n)###[ ]+(.+)/g, '$1<h3 class="mt-3 mb-1 text-[14px] font-semibold">$2</h3>')
-    .replace(/(^|\n)##[ ]+(.+)/g, '$1<h2 class="mt-3 mb-1 text-[15px] font-bold">$2</h2>')
-    .replace(/(^|\n)#[ ]+(.+)/g, '$1<h1 class="mt-4 mb-1 text-[16px] font-bold">$2</h1>')
-
-  // Horizontal rules
-  processed = processed.replace(/(^|\n)---+(\n|$)/g, '$1<hr class="my-2 border-edge" />$2')
-
-  processed = processed
-    .replace(/`([^`]+)`/g, '<code class="rounded bg-surface-secondary px-1 py-0.5 font-mono text-[12px] border border-edge">$1</code>')
-    .replace(/~~(.+?)~~/g, "<del>$1</del>")
-    .replace(/\*\*(.+?)\*\*/g, "<strong>$1</strong>")
-    .replace(/\*(.+?)\*/g, "<em>$1</em>")
-    .replace(/(^|[^"=])(https?:\/\/[^\s<]+)/g, '$1<a href="$2" target="_blank" rel="noopener noreferrer" class="underline text-link hover:text-link-hover break-all">$2</a>')
-    .replace(/\n/g, "<br />")
-
-  // Restore code blocks
-  for (let i = 0; i < codeBlocks.length; i++) {
-    processed = processed.replace(`\x00CODEBLOCK${i}\x00`, codeBlocks[i]!)
-  }
-
-  return processed
-}
+const remarkPlugins = [remarkGfm]
 
 export function ChatMessage({ message }: ChatMessageProps) {
   const [lightboxIndex, setLightboxIndex] = useState<number | null>(null)
@@ -225,10 +152,11 @@ export function ChatMessage({ message }: ChatMessageProps) {
         <span className="text-[12px] font-semibold text-fg">Agent</span>
         <span className="text-[10px] text-fg-muted/50">{formatTimestamp(message.timestamp)}</span>
       </div>
-      <div
-        className="text-[13px] leading-[1.6] text-fg"
-        dangerouslySetInnerHTML={{ __html: renderMarkdown(message.content) }}
-      />
+      <div className="text-[13px] leading-[1.6] text-fg">
+        <ReactMarkdown remarkPlugins={remarkPlugins} components={markdownComponents}>
+          {message.content}
+        </ReactMarkdown>
+      </div>
     </div>
   )
 }

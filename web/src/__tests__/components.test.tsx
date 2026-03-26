@@ -272,13 +272,13 @@ describe("ChatMessage", async () => {
         message={{ role: "assistant", content: "> This is a quote", timestamp: "2026-03-17T10:00:00Z" }}
       />,
     )
-    expect(document.querySelector("blockquote")!.textContent).toBe("This is a quote")
+    expect(document.querySelector("blockquote")!.textContent).toContain("This is a quote")
   })
 
   test("renders horizontal rules", () => {
     render(
       <ChatMessage
-        message={{ role: "assistant", content: "Above\n---\nBelow", timestamp: "2026-03-17T10:00:00Z" }}
+        message={{ role: "assistant", content: "Above\n\n---\n\nBelow", timestamp: "2026-03-17T10:00:00Z" }}
       />,
     )
     expect(document.querySelector("hr")).toBeTruthy()
