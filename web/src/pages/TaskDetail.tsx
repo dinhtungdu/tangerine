@@ -18,6 +18,29 @@ import { ResizeHandle, PaneToggle } from "../components/PaneControls"
 import { TerminalPane } from "../components/TerminalPane"
 import { formatPrNumber } from "../lib/format"
 
+// navigator.clipboard requires HTTPS; fall back to execCommand for HTTP (local network, mobile)
+function copyToClipboard(text: string): Promise<void> {
+  if (navigator.clipboard && window.isSecureContext) {
+    return navigator.clipboard.writeText(text)
+  }
+  return new Promise((resolve, reject) => {
+    const el = document.createElement("textarea")
+    el.value = text
+    el.style.cssText = "position:fixed;opacity:0;pointer-events:none"
+    document.body.appendChild(el)
+    el.focus()
+    el.select()
+    try {
+      document.execCommand("copy")
+      resolve()
+    } catch (err) {
+      reject(err)
+    } finally {
+      document.body.removeChild(el)
+    }
+  })
+}
+
 type PaneId = "chat" | "diff" | "terminal" | "activity"
 
 export function TaskDetail() {
@@ -42,14 +65,14 @@ export function TaskDetail() {
   const [copiedId, setCopiedId] = useState(false)
   const handleCopyId = useCallback(() => {
     if (!id) return
-    navigator.clipboard.writeText(id).then(() => {
+    copyToClipboard(id).then(() => {
       setCopiedId(true)
       setTimeout(() => setCopiedId(false), 1500)
     })
   }, [id])
   const [copiedBranch, setCopiedBranch] = useState(false)
   const handleCopyBranch = useCallback((branch: string) => {
-    navigator.clipboard.writeText(branch).then(() => {
+    copyToClipboard(branch).then(() => {
       setCopiedBranch(true)
       setTimeout(() => setCopiedBranch(false), 1500)
     })
