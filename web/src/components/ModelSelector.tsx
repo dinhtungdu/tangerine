@@ -12,9 +12,11 @@ interface ModelSelectorProps {
   onModelChange?: (model: string) => void
   /** Controls whether the menu opens above or below the trigger */
   menuPlacement?: "top" | "bottom"
+  /** Remove border/padding so parent container can provide them */
+  borderless?: boolean
 }
 
-export function ModelSelector({ models: propModels, model: propModel, onModelChange, menuPlacement = "top" }: ModelSelectorProps = {}) {
+export function ModelSelector({ models: propModels, model: propModel, onModelChange, menuPlacement = "top", borderless = false }: ModelSelectorProps = {}) {
   const ctx = useProject()
   const models = propModels ?? ctx.models
   const model = propModel ?? ctx.model
@@ -57,7 +59,7 @@ export function ModelSelector({ models: propModels, model: propModel, onModelCha
     <div className="relative" ref={ref}>
       <button
         onClick={() => setOpen(!open)}
-        className="flex items-center gap-1.5 rounded-md border border-edge px-2 py-1 transition hover:bg-surface-secondary"
+        className={`flex items-center gap-1.5 transition ${borderless ? "w-full" : "rounded-md border border-edge px-2 py-1 hover:bg-surface-secondary"}`}
       >
         <svg className="h-3 w-3 text-fg-muted" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
           <path strokeLinecap="round" strokeLinejoin="round" d="M9.813 15.904 9 18.75l-.813-2.846a4.5 4.5 0 0 0-3.09-3.09L2.25 12l2.846-.813a4.5 4.5 0 0 0 3.09-3.09L9 5.25l.813 2.846a4.5 4.5 0 0 0 3.09 3.09L15.75 12l-2.846.813a4.5 4.5 0 0 0-3.09 3.09Z" />
