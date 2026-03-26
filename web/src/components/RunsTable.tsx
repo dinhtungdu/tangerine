@@ -1,7 +1,7 @@
 import { useState } from "react"
 import { Link } from "react-router-dom"
 import type { Task, TaskStatus } from "@tangerine/shared"
-import { getStatusConfig } from "../lib/status"
+import { getStatusConfig, hasUnseenUpdates } from "../lib/status"
 import { formatDuration, formatPrNumber } from "../lib/format"
 import { useProjectNav } from "../hooks/useProjectNav"
 import { cancelTask, deleteTask, retryTask } from "../lib/api"
@@ -125,13 +125,16 @@ export function RunsTable({ tasks, searchQuery, onSearchChange, onRefetch }: Run
         {filtered.length === 0 ? (
           <div className="py-12 text-center text-[13px] text-fg-muted">No runs found</div>
         ) : (
-          filtered.map((task) => (
+          filtered.map((task) => {
+            const unseen = hasUnseenUpdates(task)
+            return (
             <Link
               key={task.id}
               to={link(`/tasks/${task.id}`)}
               className="flex items-center border-t border-edge text-[13px] hover:bg-surface-secondary/50"
             >
               <div className="flex flex-1 items-center gap-2 truncate px-3 py-2.5 font-medium text-fg">
+                {unseen && <span className="h-2 w-2 shrink-0 rounded-full bg-status-info" title="New activity" />}
                 <span className="truncate">{task.title}</span>
                 {task.prUrl && (
                   <a
@@ -173,7 +176,7 @@ export function RunsTable({ tasks, searchQuery, onSearchChange, onRefetch }: Run
                 )}
               </div>
             </Link>
-          ))
+          )})
         )}
       </div>
 
