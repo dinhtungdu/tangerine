@@ -200,9 +200,10 @@ export function startSession(
       })
     )
 
-    // 4. Kill any stale agent processes in this worktree
+    // 4. Kill any stale Claude Code processes in this worktree
+    // (OpenCode uses a shared server managed by the provider singleton — don't pkill it)
     yield* localExec(
-      `pkill -f "claude.*${worktreePath}" 2>/dev/null; pkill -f "opencode.*${worktreePath}" 2>/dev/null; true`,
+      `pkill -f "claude.*${worktreePath}" 2>/dev/null; true`,
     ).pipe(Effect.catchAll(() => Effect.void))
 
     // 5. Start agent locally
@@ -280,9 +281,10 @@ export function reconnectSession(
       }
     }
 
-    // 2. Kill any lingering agent process in the worktree
+    // 2. Kill any lingering Claude Code processes in the worktree
+    // (OpenCode uses a shared server managed by the provider singleton — don't pkill it)
     yield* localExec(
-      `pkill -f "claude.*${worktreePath}" 2>/dev/null; pkill -f "opencode.*${worktreePath}" 2>/dev/null; true`,
+      `pkill -f "claude.*${worktreePath}" 2>/dev/null; true`,
     ).pipe(Effect.catchAll(() => Effect.void))
 
     // 3. Start agent — resume session if we have a session ID
