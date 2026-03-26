@@ -29,14 +29,81 @@ function linkifyUrls(text: string): string {
   )
 }
 
+function renderMarkdownTable(block: string): string {
+  const rows = block.trim().split("\n")
+  if (rows.length < 2) return block
+
+  const parseRow = (row: string) =>
+    row.split("|").slice(1, -1).map((cell) => cell.trim())
+
+  const headerRow = rows[0]
+  const sepRow = rows[1]
+  if (!headerRow || !sepRow) return block
+
+  const headerCells = parseRow(headerRow)
+  if (headerCells.length === 0) return block
+
+  // Verify separator row (must be all dashes/colons)
+  const sepCells = parseRow(sepRow)
+  if (sepCells.length === 0 || !sepCells.every((c) => /^:?-+:?$/.test(c))) return block
+
+  const thClass = "px-3 py-1.5 text-left text-[11px] font-semibold text-fg-muted"
+  const tdClass = "px-3 py-1.5 text-[12px]"
+
+  let html = '<div class="my-2 overflow-x-auto rounded-md border border-edge"><table class="w-full border-collapse text-fg">'
+  html += "<thead><tr>"
+  for (const cell of headerCells) {
+    html += `<th class="${thClass}">${cell}</th>`
+  }
+  html += "</tr></thead><tbody>"
+
+  for (let i = 2; i < rows.length; i++) {
+    const row = rows[i]
+    if (!row) continue
+    const cells = parseRow(row)
+    if (cells.length === 0) continue
+    html += `<tr class="border-t border-edge">`
+    for (const cell of cells) {
+      html += `<td class="${tdClass}">${cell}</td>`
+    }
+    html += "</tr>"
+  }
+
+  html += "</tbody></table></div>"
+  return html
+}
+
 function renderMarkdown(text: string): string {
-  return text
-    .replace(/```(\w*)\n([\s\S]*?)```/g, '<pre class="my-2 rounded-md bg-surface-secondary p-3 font-mono text-[11px] leading-[1.6] overflow-x-auto border border-edge"><code>$2</code></pre>')
+  // Extract code blocks first to protect them from table/inline processing
+  const codeBlocks: string[] = []
+  let processed = text.replace(/```(\w*)\n([\s\S]*?)```/g, (_match, _lang, code) => {
+    const i = codeBlocks.length
+    codeBlocks.push(`<pre class="my-2 rounded-md bg-surface-secondary p-3 font-mono text-[11px] leading-[1.6] overflow-x-auto border border-edge"><code>${code}</code></pre>`)
+    return `\x00CODEBLOCK${i}\x00`
+  })
+
+  // Render markdown tables before line breaks replace newlines
+  processed = processed.replace(
+    /(^|\n)(\|.+\|)\n(\|[-:| ]+\|)\n((?:\|.+\|\n?)+)/g,
+    (_match, prefix, header, sep, body) => {
+      const block = `${header}\n${sep}\n${body}`
+      return `${prefix}${renderMarkdownTable(block)}`
+    },
+  )
+
+  processed = processed
     .replace(/`([^`]+)`/g, '<code class="rounded bg-surface-secondary px-1 py-0.5 font-mono text-[12px] border border-edge">$1</code>')
     .replace(/\*\*(.+?)\*\*/g, "<strong>$1</strong>")
     .replace(/\*(.+?)\*/g, "<em>$1</em>")
     .replace(/(^|[^"=])(https?:\/\/[^\s<]+)/g, '$1<a href="$2" target="_blank" rel="noopener noreferrer" class="underline text-link hover:text-link-hover break-all">$2</a>')
     .replace(/\n/g, "<br />")
+
+  // Restore code blocks
+  for (let i = 0; i < codeBlocks.length; i++) {
+    processed = processed.replace(`\x00CODEBLOCK${i}\x00`, codeBlocks[i]!)
+  }
+
+  return processed
 }
 
 export function ChatMessage({ message }: ChatMessageProps) {

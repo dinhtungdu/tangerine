@@ -194,3 +194,43 @@ describe("NewAgentForm", () => {
     expect(screen.getByRole("button", { name: /Extended reasoning/ })).toBeTruthy()
   })
 })
+
+describe("ChatMessage", async () => {
+  const { ChatMessage } = await import("../components/ChatMessage")
+
+  test("renders markdown tables as HTML tables", () => {
+    const tableContent = "| Feature | Status |\n|---|---|\n| Tables | Yes |\n| Bold | Yes |"
+    render(
+      <ChatMessage
+        message={{
+          role: "assistant",
+          content: tableContent,
+          timestamp: "2026-03-17T10:00:00Z",
+        }}
+      />,
+    )
+
+    const table = document.querySelector("table")
+    expect(table).toBeTruthy()
+    expect(table!.querySelectorAll("th").length).toBe(2)
+    expect(table!.querySelectorAll("td").length).toBe(4)
+    expect(table!.querySelector("th")!.textContent).toBe("Feature")
+  })
+
+  test("renders tables mixed with other markdown", () => {
+    const content = "Here is a comparison:\n\n| A | B |\n|---|---|\n| 1 | 2 |\n\nDone."
+    render(
+      <ChatMessage
+        message={{
+          role: "assistant",
+          content: content,
+          timestamp: "2026-03-17T10:00:00Z",
+        }}
+      />,
+    )
+
+    expect(document.querySelector("table")).toBeTruthy()
+    expect(document.body.textContent).toContain("Here is a comparison:")
+    expect(document.body.textContent).toContain("Done.")
+  })
+})
