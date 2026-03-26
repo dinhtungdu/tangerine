@@ -436,6 +436,19 @@ export function createOpenCodeProvider(): AgentFactory {
           const type = raw.type as string | undefined
           if (!type) return
 
+          // Surface session errors (e.g. model not found) in the chat
+          if (type === "session.error") {
+            const properties = asRecord(raw.properties)
+            const error = asRecord(properties?.error)
+            const message = typeof error?.data === "object" && error.data !== null
+              ? (error.data as Record<string, unknown>).message
+              : error?.message
+            if (typeof message === "string") {
+              emit({ kind: "error", message })
+            }
+            return
+          }
+
           // Auto-approve permission requests (sandbox VM — all ops are safe)
           if (type === "permission.asked") {
             const properties = asRecord(raw.properties)
@@ -528,7 +541,7 @@ export function createOpenCodeProvider(): AgentFactory {
           const doConnect = async (): Promise<void> => {
             if (sseAborted) return
             try {
-              const response = await fetch(`http://localhost:${opencodePort}/event`, {
+              const response = await fetch(`http://localhost:${opencodePort}/event?directory=${encodeURIComponent(ctx.workdir)}`, {
                 headers: { Accept: "text/event-stream" },
               })
               if (!response.ok || !response.body) {
