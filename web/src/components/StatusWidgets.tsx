@@ -69,7 +69,7 @@ export function ActiveRunsCard({ tasks }: { tasks: Task[] }) {
         </div>
         <div className="flex flex-col gap-0.5">
           <span className="text-[24px] font-bold text-fg md:text-[28px]">{done}</span>
-          <span className="text-[11px] font-medium text-status-success md:text-[12px]">Done</span>
+          <span className="text-[11px] font-medium text-status-success md:text-[12px]">Completed</span>
         </div>
       </div>
       {orphanCount > 0 && (

@@ -12,7 +12,7 @@ type StatusFilter = "all" | "running" | "done" | "failed" | "created"
 const STATUS_FILTERS: { key: StatusFilter; label: string }[] = [
   { key: "all", label: "All" },
   { key: "running", label: "Running" },
-  { key: "done", label: "Success" },
+  { key: "done", label: "Completed" },
   { key: "failed", label: "Failed" },
   { key: "created", label: "Queued" },
 ]
