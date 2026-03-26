@@ -17,9 +17,7 @@ Minimal viable version. Single project, single user, local VMs.
 - [x] OpenCode server mode inside VM (SSE events via tunnel)
 - [x] Claude Code CLI inside VM (NDJSON via stdin/stdout)
 - [x] Normalized `AgentEvent` stream from both providers
-- [x] Credential injection (ANTHROPIC_API_KEY, CLAUDE_CODE_OAUTH_TOKEN, GITHUB_TOKEN, GH_ENTERPRISE_TOKEN)
-- [x] SSH agent forwarding (host SSH keys available in VM)
-- [x] Git credential helper (HTTPS token auth for github.com and GHE)
+- [x] Credential injection (ANTHROPIC_API_KEY, CLAUDE_CODE_OAUTH_TOKEN, GITHUB_TOKEN)
 - [x] Terminal attach (`opencode attach`) for OpenCode tasks
 
 ### API Server
@@ -43,8 +41,7 @@ Minimal viable version. Single project, single user, local VMs.
 
 ### Integration
 - [x] GitHub issues as task source (polling + optional webhook, label/assignee trigger)
-- [x] GitHub Enterprise support (GH_ENTERPRISE_TOKEN, GH_HOST)
-- [x] PR creation via `gh` CLI in VM
+- [x] PR creation via `gh` CLI
 - [x] Branch management (auto-create per task via worktrees)
 
 ### CLI

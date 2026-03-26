@@ -20,17 +20,11 @@ Agent never talks to VM-B directly. Server is the coordinator — same as web da
 
 New reverse tunnel during session setup. Forwards the Tangerine API port into the VM:
 
-```
--R 3456:127.0.0.1:3456
-```
-
-Uses the configured server port (`DEFAULT_API_PORT = 3456`). Added alongside existing forward tunnels (agent port, preview port) and proxy tunnel (GHE).
-
-Lifecycle: created in `startSession` / `reconnectSession`, killed on `cleanupSession`. Reuses existing `createProxyTunnel` pattern — same SSH `-R` flag, same process management.
+The server listens on `DEFAULT_API_PORT = 3456`. Agents access it at `http://127.0.0.1:3456`.
 
 ### CLI: `tangerine-task`
 
-Lightweight shell script or binary installed in the golden base image. Talks to `http://127.0.0.1:3456` (reverse tunnel).
+Lightweight shell script or binary installed on the machine. Talks to `http://127.0.0.1:3456`.
 
 #### Commands
 

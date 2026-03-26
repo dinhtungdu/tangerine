@@ -28,8 +28,6 @@ Credentials stored in `~/tangerine/.credentials` (mode `0600`). Plain text, one 
 | `ANTHROPIC_API_KEY` | Claude Code, OpenCode | LLM API key |
 | `CLAUDE_CODE_OAUTH_TOKEN` | Claude Code | OAuth token (alternative to API key) |
 | `GITHUB_TOKEN` | All | GitHub API + git HTTPS auth |
-| `GH_ENTERPRISE_TOKEN` | All | GitHub Enterprise token |
-| `GH_HOST` | All | GitHub Enterprise hostname (default: `github.com`) |
 
 ### Subcommands
 
@@ -52,8 +50,6 @@ Resolved in `loadConfig()`:
 - `ANTHROPIC_API_KEY`: `$ANTHROPIC_API_KEY` → dotfile → (not set)
 - `CLAUDE_CODE_OAUTH_TOKEN`: `$CLAUDE_CODE_OAUTH_TOKEN` → dotfile → (not set)
 - `GITHUB_TOKEN`: `$GITHUB_TOKEN` → dotfile → (not set)
-- `GH_ENTERPRISE_TOKEN`: `$GH_ENTERPRISE_TOKEN` → dotfile → (not set)
-- `GH_HOST`: `$GH_HOST` → dotfile → `"github.com"`
 - OpenCode auth: existence check on `~/.local/share/opencode/auth.json`
 
 ### Validation
@@ -67,10 +63,4 @@ Missing credentials → 400 error with instructions to set them via `tangerine c
 
 ### Credential Injection
 
-During session start (`startSession`) and reconnect (`reconnectSession`), credentials are injected into the VM via SSH:
-
-1. Write env vars to `~/.env` in the VM
-2. Set up `~/.git-credentials` for HTTPS auth (if GitHub tokens present)
-3. Copy OpenCode `auth.json` if it exists on host
-
-Activity log records which credentials were injected (`creds.injected`) or missing (`creds.missing`).
+Agents run as local processes and inherit credential env vars from the server. Activity log records which credentials were available (`creds.injected`) or missing (`creds.missing`).

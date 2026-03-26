@@ -52,15 +52,6 @@ provision:
       #!/bin/bash
       CREDS="/home/tung.linux/tangerine/.credentials"
       if [ -f "$CREDS" ]; then
-        . "$CREDS"
-        HOST_IP=$(ip route | awk '/default/ {print $3}')
-
-        # GHE proxy + credentials
-        git config --global http.https://github.a8c.com.proxy "socks5://${HOST_IP}:${PROXY_PORT}"
-        git config --global credential.https://github.a8c.com.helper "store --file=/home/tung.linux/tangerine/.git-credentials"
-        echo "https://dinhtungdu:${GH_ENTERPRISE_TOKEN}@github.a8c.com" > /home/tung.linux/tangerine/.git-credentials
-        chmod 600 /home/tung.linux/tangerine/.git-credentials
-
         # Export all credentials to shell
         echo 'set -a' >> ~/.bashrc
         echo '. /home/tung.linux/tangerine/.credentials' >> ~/.bashrc

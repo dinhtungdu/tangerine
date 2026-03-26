@@ -51,9 +51,6 @@ export interface AppConfig {
     claudeOauthToken: string | null
     anthropicApiKey: string | null
     githubToken: string | null
-    gheToken: string | null
-    ghHost: string
-    proxyPort: number | null
     serverPort: number
     externalHost: string
   }
@@ -63,9 +60,6 @@ export const ALLOWED_CREDENTIAL_KEYS = [
   "ANTHROPIC_API_KEY",
   "CLAUDE_CODE_OAUTH_TOKEN",
   "GITHUB_TOKEN",
-  "GH_ENTERPRISE_TOKEN",
-  "GH_HOST",
-  "PROXY_PORT",
   "EXTERNAL_HOST",
 ] as const
 
@@ -161,9 +155,6 @@ export function loadConfig(): AppConfig {
     )
   }
 
-  const proxyPortRaw = process.env["PROXY_PORT"] ?? dotfile.PROXY_PORT
-  const proxyPort = proxyPortRaw ? parseInt(proxyPortRaw, 10) : null
-
   return {
     config,
     credentials: {
@@ -171,9 +162,6 @@ export function loadConfig(): AppConfig {
       claudeOauthToken,
       anthropicApiKey,
       githubToken: process.env["GITHUB_TOKEN"] ?? dotfile.GITHUB_TOKEN ?? null,
-      gheToken: process.env["GH_ENTERPRISE_TOKEN"] ?? dotfile.GH_ENTERPRISE_TOKEN ?? null,
-      ghHost: process.env["GH_HOST"] ?? dotfile.GH_HOST ?? "github.com",
-      proxyPort: proxyPort && !isNaN(proxyPort) ? proxyPort : null,
       serverPort: parseInt(process.env["PORT"] ?? "", 10) || DEFAULT_API_PORT,
       externalHost: process.env["EXTERNAL_HOST"] ?? dotfile.EXTERNAL_HOST ?? "localhost",
     },

@@ -184,14 +184,7 @@ POST /webhooks/github
 
 ### Git Authentication
 
-See [credentials.md](./credentials.md#git-authentication) for full details. Two mechanisms:
-
-- **SSH agent forwarding** (default): host's SSH agent socket forwarded into VM via Lima (`forwardAgent: true`). Works with hardware keys (YubiKey, 1Password).
-- **HTTPS credential helper**: `git credential.helper store` + `~/.git-credentials` with `GITHUB_TOKEN` and `GH_ENTERPRISE_TOKEN`.
-
-### GHE (GitHub Enterprise)
-
-Supported via `GH_ENTERPRISE_TOKEN` + `GH_HOST` env vars. Both are injected into the VM and used by `gh` CLI and git credential helper.
+See [credentials.md](./credentials.md) for full details. Git uses the machine's configured credentials (SSH keys, `GITHUB_TOKEN` env var).
 
 ## Session Retry (provisioning)
 

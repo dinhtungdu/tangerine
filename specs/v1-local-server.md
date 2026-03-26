@@ -395,29 +395,6 @@ tangerine start
 
 No Lima. Tangerine runs directly on the machine. Preview accessible at `http://vps-ip/` or via Tailscale.
 
-### GHE Access (one-time setup)
-
-For GitHub Enterprise behind a proxy:
-
-```bash
-# On the VM (or in base-setup.sh):
-
-# 1. Git credentials
-git config --global credential.helper store
-echo "https://x-access-token:$GHE_TOKEN@github.a8c.com" > ~/.git-credentials
-
-# 2. SOCKS proxy (if needed — reverse tunnel from host)
-# On host: ssh -fN -R 127.0.0.2:8080:127.0.0.1:8080 user@vm
-git config --global http.https://github.a8c.com/.proxy socks5://127.0.0.2:8080
-git config --global url."https://github.a8c.com/".insteadOf "git@github.a8c.com:"
-
-# 3. gh CLI
-export HTTPS_PROXY=socks5://127.0.0.2:8080
-export GH_HOST=github.a8c.com
-```
-
-This is a deployment concern, not a Tangerine feature. Tangerine just does `git clone` and it works.
-
 ## File Structure (After)
 
 ```

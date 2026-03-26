@@ -125,15 +125,6 @@ ln -s /path/to/skill ~/.claude/skills/my-skill
 Credentials are set up ONCE in the VM environment, not managed per-task:
 
 ```bash
-# Git credentials (for repo cloning)
-git config --global credential.helper store
-echo "https://x-access-token:$TOKEN@github.com" > ~/.git-credentials
-chmod 600 ~/.git-credentials
-
-# For GitHub Enterprise (with SOCKS proxy from host):
-git config --global http.https://github.a8c.com/.proxy socks5://127.0.0.2:8080
-git config --global url."https://github.a8c.com/".insteadOf "git@github.a8c.com:"
-
 # LLM API keys (in ~/.env or shell profile)
 export ANTHROPIC_API_KEY=sk-ant-...
 # Or for Claude Code OAuth:
@@ -142,24 +133,6 @@ export CLAUDE_CODE_OAUTH_TOKEN=...
 # gh CLI auth
 gh auth login
 ```
-
-## GHE (GitHub Enterprise) Access
-
-For repos on `github.a8c.com` behind a SOCKS proxy:
-
-1. **On the host**, the SOCKS proxy runs (e.g., AutoProxxy on port 8080)
-2. **Set up a persistent reverse tunnel** from host into VM:
-   ```bash
-   # On host (add to SSH config or run manually):
-   ssh -fN -R 127.0.0.2:8080:127.0.0.1:8080 <vm-user>@<vm-ip>
-   ```
-3. **Inside VM**, configure git:
-   ```bash
-   git config --global http.https://github.a8c.com/.proxy socks5://127.0.0.2:8080
-   git config --global url."https://github.a8c.com/".insteadOf "git@github.a8c.com:"
-   export HTTPS_PROXY=socks5://127.0.0.2:8080
-   export GH_HOST=github.a8c.com
-   ```
 
 ## File Locations
 
@@ -184,7 +157,6 @@ For repos on `github.a8c.com` behind a SOCKS proxy:
 
 Only ask if you can't determine from the codebase:
 - Repo URL (if no git remote found)
-- Whether it's a GHE repo (needs proxy setup)
 - Which agent skills to install
 
 ## After Init
