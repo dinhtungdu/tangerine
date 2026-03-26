@@ -1,4 +1,4 @@
-import { useState } from "react"
+import { memo, useState } from "react"
 import type { Components } from "react-markdown"
 import ReactMarkdown from "react-markdown"
 import remarkGfm from "remark-gfm"
@@ -75,7 +75,7 @@ const markdownComponents: Components = {
 
 const remarkPlugins = [remarkGfm]
 
-export function ChatMessage({ message }: ChatMessageProps) {
+export const ChatMessage = memo(function ChatMessage({ message }: ChatMessageProps) {
   const [lightboxIndex, setLightboxIndex] = useState<number | null>(null)
   const isUser = message.role === "user"
   const isSystem = message.role === "system"
@@ -180,4 +180,4 @@ export function ChatMessage({ message }: ChatMessageProps) {
       </div>
     </div>
   )
-}
+})
