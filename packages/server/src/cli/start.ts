@@ -140,6 +140,13 @@ export async function start(): Promise<void> {
           // Store handle for cleanup/abort
           agentHandles.set(taskId, session.agentHandle)
 
+          // Hydrate in-memory PR tracking from DB (lost on restart)
+          const taskPrUrl = db.prepare("SELECT pr_url FROM tasks WHERE id = ?").get(taskId) as { pr_url: string | null } | null
+          if (taskPrUrl?.pr_url) {
+            prUrlSaved.add(taskId)
+            prNudgeSent.add(taskId)
+          }
+
           // Send initial prompt immediately for new tasks (no existing logs).
           // Don't wait for idle event — it may have already fired before we subscribe.
           const hasLogs = db.prepare("SELECT 1 FROM session_logs WHERE task_id = ? LIMIT 1").get(taskId)
@@ -313,7 +320,12 @@ export async function start(): Promise<void> {
                       prNudgeTimers.delete(taskId)
                       if (prUrlSaved.has(taskId) || prNudgeSent.has(taskId)) return
 
-                      const task = db.prepare("SELECT project_id FROM tasks WHERE id = ?").get(taskId) as { project_id: string } | null
+                      // Check DB for existing pr_url (in-memory set is lost on restart)
+                      const task = db.prepare("SELECT project_id, pr_url FROM tasks WHERE id = ?").get(taskId) as { project_id: string; pr_url: string | null } | null
+                      if (task?.pr_url) {
+                        prUrlSaved.add(taskId)
+                        return
+                      }
                       const projConfig = task?.project_id ? getProjectConfig(config.config, task.project_id) : undefined
 
                       const hasCommits = await branchHasCommits(db, taskId, projConfig)
