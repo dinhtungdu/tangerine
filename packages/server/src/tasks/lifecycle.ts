@@ -265,24 +265,16 @@ export function reconnectSession(
     const worktreePath = task.worktree_path ?? `/workspace/worktrees/${task.id.slice(0, 8)}`
     const branch = task.branch ?? `tangerine/${task.id.slice(0, 8)}`
 
-    // 1. Check if agent PID is still alive
+    // 1. Kill any lingering agent processes in the worktree before spawning a new one.
+    // Without this, the old process stays alive and fights the new one over the same worktree.
+    // (OpenCode uses a shared server managed by the provider singleton — don't pkill it)
     const existingPid = (task as TaskRow & { agent_pid?: number | null }).agent_pid
     if (existingPid) {
-      const alive = yield* localExec(`kill -0 ${existingPid} 2>/dev/null && echo alive || echo dead`).pipe(
-        Effect.map((r) => r.stdout.trim() === "alive"),
-        Effect.catchAll(() => Effect.succeed(false)),
+      yield* localExec(`kill ${existingPid} 2>/dev/null; true`).pipe(
+        Effect.tap(() => Effect.sync(() => taskLog.info("Killed existing agent PID", { pid: existingPid }))),
+        Effect.catchAll(() => Effect.void),
       )
-
-      if (alive) {
-        taskLog.info("Agent PID still alive, skipping restart", { pid: existingPid })
-        yield* activity("agent.alive", `Agent PID ${existingPid} still running`)
-        // We can't recover the handle — but the process is alive.
-        // The manager will need to create a proxy handle or restart next health check.
-      }
     }
-
-    // 2. Kill any lingering Claude Code processes in the worktree
-    // (OpenCode uses a shared server managed by the provider singleton — don't pkill it)
     yield* localExec(
       `pkill -f "claude.*${worktreePath}" 2>/dev/null; true`,
     ).pipe(Effect.catchAll(() => Effect.void))
