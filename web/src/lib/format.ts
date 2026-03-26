@@ -38,3 +38,9 @@ export function formatRelativeTime(iso: string): string {
 export function formatTimestamp(iso: string): string {
   return new Date(iso).toLocaleTimeString("en-US", { hour12: false, hour: "2-digit", minute: "2-digit", second: "2-digit" })
 }
+
+/** Extract PR number from a GitHub PR URL, e.g. "https://github.com/owner/repo/pull/123" → "#123" */
+export function formatPrNumber(prUrl: string): string {
+  const match = prUrl.match(/\/pull\/(\d+)/)
+  return match ? `#${match[1]}` : "PR"
+}

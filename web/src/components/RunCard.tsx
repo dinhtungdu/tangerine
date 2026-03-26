@@ -1,7 +1,7 @@
 import { Link } from "react-router-dom"
 import type { Task } from "@tangerine/shared"
 import { getStatusConfig } from "../lib/status"
-import { formatDuration, formatDate } from "../lib/format"
+import { formatDuration, formatDate, formatPrNumber } from "../lib/format"
 
 function SourceIcon({ source }: { source: string }) {
   const cls = "h-[13px] w-[13px] text-fg-muted"
@@ -36,7 +36,20 @@ export function RunCard({ task, onCancel, onRetry, onDelete }: RunCardProps) {
       className="rounded-[10px] border border-edge p-3.5 transition active:bg-surface"
     >
       <div className="flex items-center justify-between gap-3">
-        <span className="min-w-0 truncate text-[14px] font-medium text-fg">{task.title}</span>
+        <div className="flex min-w-0 items-center gap-2">
+          <span className="truncate text-[14px] font-medium text-fg">{task.title}</span>
+          {task.prUrl && (
+            <a
+              href={task.prUrl}
+              target="_blank"
+              rel="noopener noreferrer"
+              onClick={(e) => e.stopPropagation()}
+              className="shrink-0 rounded bg-green-500/10 px-1.5 py-0.5 text-[10px] font-medium text-green-700"
+            >
+              {formatPrNumber(task.prUrl)}
+            </a>
+          )}
+        </div>
         <span
           className={`shrink-0 rounded-xl px-2.5 py-0.5 text-[11px] font-semibold ${textClass} ${bgClass}`}
         >

@@ -2,7 +2,7 @@ import { useState } from "react"
 import { Link } from "react-router-dom"
 import type { Task, TaskStatus } from "@tangerine/shared"
 import { getStatusConfig } from "../lib/status"
-import { formatDuration } from "../lib/format"
+import { formatDuration, formatPrNumber } from "../lib/format"
 import { useProjectNav } from "../hooks/useProjectNav"
 import { cancelTask, deleteTask, retryTask } from "../lib/api"
 import { RunCard } from "./RunCard"
@@ -131,7 +131,20 @@ export function RunsTable({ tasks, searchQuery, onSearchChange, onRefetch }: Run
               to={link(`/tasks/${task.id}`)}
               className="flex items-center border-t border-edge text-[13px] hover:bg-surface-secondary/50"
             >
-              <div className="flex-1 truncate px-3 py-2.5 font-medium text-fg">{task.title}</div>
+              <div className="flex flex-1 items-center gap-2 truncate px-3 py-2.5 font-medium text-fg">
+                <span className="truncate">{task.title}</span>
+                {task.prUrl && (
+                  <a
+                    href={task.prUrl}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    onClick={(e) => e.stopPropagation()}
+                    className="shrink-0 rounded bg-green-500/10 px-1.5 py-0.5 text-[10px] font-medium text-green-700 hover:bg-green-500/20"
+                  >
+                    {formatPrNumber(task.prUrl)}
+                  </a>
+                )}
+              </div>
               <div className="w-[120px] px-3 py-2.5"><StatusBadge status={task.status} /></div>
               <div className="w-[100px] px-3 py-2.5 text-fg-muted">{formatDuration(task.startedAt, task.completedAt, task.createdAt)}</div>
               <div className="w-[100px] px-3 py-2.5 text-fg-muted capitalize">{task.source}</div>
