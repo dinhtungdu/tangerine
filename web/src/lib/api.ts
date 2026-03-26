@@ -232,6 +232,31 @@ export async function cleanupOrphans(): Promise<{ cleaned: number }> {
   return request<{ cleaned: number }>("/api/cleanup/orphans", { method: "POST" })
 }
 
+export interface ProjectUpdateStatus {
+  available: boolean
+  local: string
+  remote: string
+  checkedAt: string | null
+}
+
+export interface ProjectUpdateResult {
+  updated: boolean
+  from: string
+  to: string
+  postUpdateOutput?: string
+  restart?: boolean
+}
+
+export async function fetchUpdateStatus(projectName: string): Promise<ProjectUpdateStatus> {
+  return request<ProjectUpdateStatus>(`/api/projects/${encodeURIComponent(projectName)}/update-status`)
+}
+
+export async function updateProjectRepo(projectName: string): Promise<ProjectUpdateResult> {
+  return request<ProjectUpdateResult>(`/api/projects/${encodeURIComponent(projectName)}/update`, {
+    method: "POST",
+  })
+}
+
 export async function fetchBuildLog(project?: string, offset = 0): Promise<{ content: string; size: number }> {
   const params = new URLSearchParams()
   if (project) params.set("project", project)

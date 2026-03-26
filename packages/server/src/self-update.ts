@@ -1,23 +1,30 @@
-// Self-update: polls git remote for new commits and restarts the server when behind.
-// Enabled by setting TANGERINE_SELF_UPDATE=1. Restart is via process.exit(0) — the
-// bin/tangerine-watch wrapper loop handles re-execution.
+// Self-update: polls git remote to detect available updates (check-only).
+// Actual updates are applied via the project update API endpoint.
+// Enabled by setting TANGERINE_SELF_UPDATE=1.
 
 import { Effect } from "effect"
-import { resolve } from "path"
 import { createLogger } from "./logger"
 import { Poller } from "./integrations/poller"
 
 const log = createLogger("self-update")
 
-// Repo root is 3 levels up from packages/server/src/
-const REPO_DIR = resolve(import.meta.dir, "../../..")
 const POLL_INTERVAL_MS = 5 * 60_000
 
-function exec(cmd: string): Effect.Effect<string, Error> {
+export interface UpdateStatus {
+  available: boolean
+  local: string
+  remote: string
+  checkedAt: string
+}
+
+// Per-project update status (keyed by repo dir)
+const updateStatuses = new Map<string, UpdateStatus>()
+
+function execInDir(cmd: string, cwd: string): Effect.Effect<string, Error> {
   return Effect.tryPromise({
     try: async () => {
       const proc = Bun.spawn(["bash", "-c", cmd], {
-        cwd: REPO_DIR,
+        cwd,
         stdout: "pipe",
         stderr: "pipe",
       })
@@ -32,65 +39,57 @@ function exec(cmd: string): Effect.Effect<string, Error> {
   })
 }
 
-export function checkAndUpdate(): Effect.Effect<void, never> {
+/** Check a project repo for available updates. Does NOT pull or restart. */
+export function checkForUpdate(repoDir: string, defaultBranch: string): Effect.Effect<UpdateStatus, never> {
   return Effect.gen(function* () {
-    yield* exec("git fetch origin").pipe(Effect.catchAll(() => Effect.void))
+    yield* execInDir("git fetch origin", repoDir).pipe(Effect.catchAll(() => Effect.void))
 
-    const local = yield* exec("git rev-parse HEAD").pipe(Effect.orElse(() => Effect.succeed("")))
-    // @{u} resolves to the upstream tracking branch (origin/main etc.)
-    const remote = yield* exec("git rev-parse @{u}").pipe(Effect.orElse(() => Effect.succeed("")))
+    const local = yield* execInDir("git rev-parse HEAD", repoDir).pipe(Effect.orElse(() => Effect.succeed("")))
+    const remote = yield* execInDir(`git rev-parse origin/${defaultBranch}`, repoDir).pipe(Effect.orElse(() => Effect.succeed("")))
 
-    if (!local || !remote || local === remote) return
-
-    log.info("New commits on remote, pulling...", { from: local.slice(0, 8), to: remote.slice(0, 8) })
-
-    yield* exec("git pull --rebase").pipe(
-      Effect.tapError((e) => Effect.sync(() => log.error("git pull failed", { error: e.message }))),
-      Effect.catchAll(() => Effect.void)
-    )
-
-    // Verify pull actually moved HEAD (rebase conflict or nothing to do)
-    const pulled = yield* exec("git rev-parse HEAD").pipe(Effect.orElse(() => Effect.succeed("")))
-    if (pulled === local) {
-      log.warn("Pull did not advance HEAD, skipping restart")
-      return
+    const status: UpdateStatus = {
+      available: !!(local && remote && local !== remote),
+      local: local.slice(0, 8),
+      remote: remote.slice(0, 8),
+      checkedAt: new Date().toISOString(),
     }
 
-    // Re-install only if lockfile changed in the pulled commits
-    const lockChanged = yield* exec(`git diff ${local}..HEAD -- bun.lockb`).pipe(
-      Effect.map((diff) => diff.length > 0),
-      Effect.orElse(() => Effect.succeed(false))
-    )
-    if (lockChanged) {
-      log.info("bun.lockb changed, running bun install")
-      yield* exec("bun install").pipe(
-        Effect.tapError((e) => Effect.sync(() => log.warn("bun install failed (non-fatal)", { error: e.message }))),
-        Effect.catchAll(() => Effect.void)
-      )
+    updateStatuses.set(repoDir, status)
+    if (status.available) {
+      log.info("Update available", { repoDir, from: status.local, to: status.remote })
     }
 
-    // Rebuild web if any web sources changed
-    const webChanged = yield* exec(`git diff ${local}..HEAD --name-only -- web/`).pipe(
-      Effect.map((diff) => diff.length > 0),
-      Effect.orElse(() => Effect.succeed(false))
-    )
-    if (webChanged) {
-      log.info("Web sources changed, building...")
-      const buildResult = yield* exec("bun run build --filter 'tangerine-web'").pipe(
-        Effect.map(() => "ok" as const),
-        Effect.tapError((e) => Effect.sync(() => log.error("Web build failed, skipping restart", { error: e.message }))),
-        Effect.catchAll(() => Effect.succeed("failed" as const))
-      )
-      if (buildResult === "failed") return
-    }
-
-    log.info("Update applied, restarting", { commit: pulled.slice(0, 8) })
-    process.exit(0)
-  }).pipe(Effect.catchAll(() => Effect.void))
+    return status
+  }).pipe(Effect.catchAll(() => Effect.succeed({
+    available: false,
+    local: "",
+    remote: "",
+    checkedAt: new Date().toISOString(),
+  })))
 }
 
-export function startSelfUpdate(): Effect.Effect<void, never> {
-  log.info("Self-update enabled", { repoDir: REPO_DIR, intervalMs: POLL_INTERVAL_MS })
-  const poller = new Poller(POLL_INTERVAL_MS, checkAndUpdate())
+/** Get cached update status for a repo dir. */
+export function getUpdateStatus(repoDir: string): UpdateStatus | null {
+  return updateStatuses.get(repoDir) ?? null
+}
+
+/** Clear cached status after an update is applied. */
+export function clearUpdateStatus(repoDir: string): void {
+  updateStatuses.delete(repoDir)
+}
+
+/** Start polling all project repos for updates. */
+export function startUpdateChecker(
+  projects: { name: string; repoDir: string; defaultBranch: string }[],
+): Effect.Effect<void, never> {
+  log.info("Update checker enabled", { projects: projects.map((p) => p.name), intervalMs: POLL_INTERVAL_MS })
+
+  const checkAll = Effect.gen(function* () {
+    for (const project of projects) {
+      yield* checkForUpdate(project.repoDir, project.defaultBranch)
+    }
+  }).pipe(Effect.catchAll(() => Effect.void))
+
+  const poller = new Poller(POLL_INTERVAL_MS, checkAll)
   return poller.start()
 }

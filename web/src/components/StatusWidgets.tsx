@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback, useRef } from "react"
 import type { Task, SystemLogEntry } from "@tangerine/shared"
-import { fetchSystemLogs, fetchBuildLog, fetchOrphans, cleanupOrphans as apiCleanupOrphans, type VmInfo, type BuildStatus } from "../lib/api"
+import { fetchSystemLogs, fetchBuildLog, fetchOrphans, cleanupOrphans as apiCleanupOrphans, fetchUpdateStatus, updateProjectRepo, type VmInfo, type BuildStatus, type ProjectUpdateStatus } from "../lib/api"
 import { formatRelativeTime } from "../lib/format"
 
 /* ── Status badge ── */
@@ -306,6 +306,122 @@ function LogLevelBadge({ level }: { level: string }) {
     <span className="rounded px-1.5 py-0.5 text-[10px] font-semibold uppercase" style={{ color: s.color, backgroundColor: s.bg }}>
       {level}
     </span>
+  )
+}
+
+/* ── Project Update Card ── */
+
+export function ProjectUpdateCard({ project }: { project?: string }) {
+  const [status, setStatus] = useState<ProjectUpdateStatus | null>(null)
+  const [updating, setUpdating] = useState(false)
+  const [result, setResult] = useState<string | null>(null)
+
+  useEffect(() => {
+    if (!project) return
+    let cancelled = false
+    async function poll() {
+      const s = await fetchUpdateStatus(project!).catch(() => null)
+      if (!cancelled) setStatus(s)
+    }
+    poll()
+    const interval = setInterval(poll, 30_000)
+    return () => { cancelled = true; clearInterval(interval) }
+  }, [project])
+
+  const handleUpdate = useCallback(async () => {
+    if (!project || updating) return
+    setUpdating(true)
+    setResult(null)
+    try {
+      const res = await updateProjectRepo(project)
+      if (res.restart) {
+        setResult("Server restarting\u2026")
+      } else if (res.updated) {
+        setResult(`Updated ${res.from} \u2192 ${res.to}`)
+      } else {
+        setResult("Already up to date")
+      }
+      const s = await fetchUpdateStatus(project).catch(() => null)
+      setStatus(s)
+    } catch (e) {
+      setResult(`Failed: ${e instanceof Error ? e.message : String(e)}`)
+    }
+    setUpdating(false)
+  }, [project, updating])
+
+  return (
+    <div className="flex flex-col gap-2.5 rounded-[10px] border border-edge p-3.5 md:gap-3 md:p-4">
+      <div className="flex items-center justify-between">
+        <span className="text-[13px] font-medium text-fg-muted">Repository</span>
+        {status?.available && (
+          <span className="rounded-xl bg-status-info-bg px-2.5 py-0.5 text-[11px] font-semibold text-status-info-text">
+            Update available
+          </span>
+        )}
+      </div>
+
+      <div className="flex items-center gap-3">
+        {status?.local && (
+          <div className="flex flex-col gap-0.5">
+            <span className="font-mono text-[13px] font-medium text-fg">{status.local}</span>
+            <span className="text-[11px] text-fg-muted">Current</span>
+          </div>
+        )}
+        {status?.available && status.remote && (
+          <>
+            <svg className="h-3.5 w-3.5 text-fg-muted" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+              <path strokeLinecap="round" strokeLinejoin="round" d="M13.5 4.5 21 12m0 0-7.5 7.5M21 12H3" />
+            </svg>
+            <div className="flex flex-col gap-0.5">
+              <span className="font-mono text-[13px] font-medium text-status-info">{status.remote}</span>
+              <span className="text-[11px] text-fg-muted">Latest</span>
+            </div>
+          </>
+        )}
+        <div className="ml-auto">
+          <button
+            onClick={handleUpdate}
+            disabled={updating}
+            className="flex items-center gap-1.5 rounded-md border border-edge px-3 py-1.5 text-[12px] font-medium text-fg transition hover:bg-surface-secondary active:bg-surface-secondary disabled:opacity-50"
+          >
+            {updating ? (
+              <>
+                <svg className="h-3 w-3 animate-spin" viewBox="0 0 24 24" fill="none">
+                  <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                  <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
+                </svg>
+                Updating\u2026
+              </>
+            ) : (
+              <>
+                <svg className="h-3 w-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M16.023 9.348h4.992v-.001M2.985 19.644v-4.992m0 0h4.992m-4.992 0 3.181 3.183a8.25 8.25 0 0 0 13.803-3.7M4.031 9.865a8.25 8.25 0 0 1 13.803-3.7l3.181 3.182" />
+                </svg>
+                Pull latest
+              </>
+            )}
+          </button>
+        </div>
+      </div>
+
+      {result && (
+        <div className={`rounded-lg px-3 py-2 text-[12px] font-medium ${
+          result.startsWith("Failed")
+            ? "bg-status-error-bg text-status-error-text"
+            : result.startsWith("Server")
+              ? "bg-status-warning-bg text-status-warning-text"
+              : "bg-status-success-bg text-status-success-text"
+        }`}>
+          {result}
+        </div>
+      )}
+
+      {status?.checkedAt && (
+        <span className="text-[11px] text-fg-faint">
+          Last checked {formatRelativeTime(status.checkedAt)}
+        </span>
+      )}
+    </div>
   )
 }
 

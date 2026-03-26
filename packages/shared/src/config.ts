@@ -17,6 +17,7 @@ export const projectConfigSchema = z.object({
   env: z.record(z.string()).optional(),
   model: z.string().optional(),
   defaultProvider: z.enum(["opencode", "claude-code"]).default("claude-code"),
+  postUpdateCommand: z.string().optional(),
 })
 
 const githubTriggerSchema = z.object({

@@ -626,10 +626,16 @@ export async function start(): Promise<void> {
     await Effect.runPromise(startOrphanCleanup(orphanDeps))
     log.info("Orphan worktree cleanup started")
 
-    // Start self-update poller when TANGERINE_SELF_UPDATE=1 (used with bin/tangerine-watch)
-    if (process.env.TANGERINE_SELF_UPDATE === "1") {
-      const { startSelfUpdate } = await import("../self-update")
-      await Effect.runPromise(startSelfUpdate())
+    // Start update checker (polls git remote for available updates, does not auto-apply)
+    {
+      const { startUpdateChecker } = await import("../self-update")
+      const workspace = config.config.workspace
+      const projectInfos = config.config.projects.map((p) => ({
+        name: p.name,
+        repoDir: `${workspace}/${p.name}/repo`,
+        defaultBranch: p.defaultBranch ?? "main",
+      }))
+      await Effect.runPromise(startUpdateChecker(projectInfos))
     }
 
     // Start PR status monitor (every 60s)

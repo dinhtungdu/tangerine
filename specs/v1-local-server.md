@@ -89,6 +89,7 @@ const projectConfigSchema = z.object({
   env: z.record(z.string()).optional(),   // extra env vars for agent
   model: z.string().optional(),
   defaultProvider: z.enum(["opencode", "claude-code"]).default("claude-code"),
+  postUpdateCommand: z.string().optional(),  // runs after git pull (e.g. "bun install && bun run build")
 })
 
 const tangerineConfigSchema = z.object({

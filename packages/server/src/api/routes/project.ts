@@ -5,6 +5,10 @@ import { runEffect, runEffectVoid } from "../effect-helpers"
 import { discoverModels, discoverModelsByProvider } from "../../models"
 import { projectConfigSchema, tangerineConfigSchema } from "@tangerine/shared"
 import { ProjectNotFoundError, ProjectExistsError, ConfigValidationError } from "../../errors"
+import { getUpdateStatus, clearUpdateStatus } from "../../self-update"
+import { createLogger } from "../../logger"
+
+const log = createLogger("project-routes")
 
 export function projectRoutes(deps: AppDeps): Hono {
   const app = new Hono()
@@ -144,6 +148,99 @@ export function projectRoutes(deps: AppDeps): Hono {
 
         deps.configStore.write(raw)
         deps.config.config = fullParsed.data
+      })
+    )
+  })
+
+  // Get update status for a project (from poller cache)
+  app.get("/:name/update-status", (c) => {
+    const name = c.req.param("name")
+    const project = deps.config.config.projects.find((p) => p.name === name)
+    if (!project) return c.json({ error: "Project not found" }, 404)
+
+    const workspace = deps.config.config.workspace
+    const repoDir = `${workspace}/${name}/repo`
+    const status = getUpdateStatus(repoDir)
+
+    return c.json(status ?? { available: false, local: "", remote: "", checkedAt: null })
+  })
+
+  // Pull latest from remote and run postUpdateCommand
+  app.post("/:name/update", async (c) => {
+    const name = c.req.param("name")
+    return runEffect(c,
+      Effect.gen(function* () {
+        const project = deps.config.config.projects.find((p) => p.name === name)
+        if (!project) return yield* Effect.fail(new ProjectNotFoundError({ name }))
+
+        const workspace = deps.config.config.workspace
+        const repoDir = `${workspace}/${name}/repo`
+        const defaultBranch = project.defaultBranch ?? "main"
+
+        const exec = (cmd: string) => Effect.tryPromise({
+          try: async () => {
+            const proc = Bun.spawn(["bash", "-c", cmd], {
+              cwd: repoDir,
+              stdout: "pipe",
+              stderr: "pipe",
+            })
+            const [stdout, stderr, exitCode] = await Promise.all([
+              new Response(proc.stdout).text(),
+              new Response(proc.stderr).text(),
+              proc.exited,
+            ])
+            if (exitCode !== 0) throw new Error(stderr.trim() || stdout.trim() || `exit ${exitCode}`)
+            return stdout.trim()
+          },
+          catch: (e) => e instanceof Error ? e : new Error(String(e)),
+        })
+
+        // Get current HEAD before pull
+        const from = yield* exec("git rev-parse --short HEAD").pipe(
+          Effect.orElse(() => Effect.succeed("unknown"))
+        )
+
+        // Fetch and pull
+        yield* exec("git fetch origin")
+        yield* exec(`git pull --rebase origin ${defaultBranch}`)
+
+        // Get new HEAD
+        const to = yield* exec("git rev-parse --short HEAD").pipe(
+          Effect.orElse(() => Effect.succeed("unknown"))
+        )
+
+        const updated = from !== to
+        clearUpdateStatus(repoDir)
+        log.info("Project updated", { name, from, to, updated })
+
+        // Run postUpdateCommand if configured
+        let postUpdateOutput: string | undefined
+        if (project.postUpdateCommand && updated) {
+          log.info("Running postUpdateCommand", { name, command: project.postUpdateCommand })
+          const output = yield* exec(project.postUpdateCommand).pipe(
+            Effect.catchAll((e) => {
+              log.error("postUpdateCommand failed", { name, error: e.message })
+              return Effect.succeed(`ERROR: ${e.message}`)
+            })
+          )
+          postUpdateOutput = output
+        }
+
+        // If the server's own code changed, schedule restart after response
+        let restart = false
+        if (updated) {
+          const serverChanged = yield* exec(`git diff ${from}..${to} --name-only -- packages/server/`).pipe(
+            Effect.map((diff) => diff.length > 0),
+            Effect.orElse(() => Effect.succeed(false))
+          )
+          if (serverChanged) {
+            restart = true
+            log.info("Server code changed, scheduling restart", { name })
+            setTimeout(() => process.exit(0), 1000)
+          }
+        }
+
+        return { updated, from, to, postUpdateOutput, restart }
       })
     )
   })

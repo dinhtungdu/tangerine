@@ -2,7 +2,7 @@ import { useProject } from "../context/ProjectContext"
 import { useTaskSearch } from "../hooks/useTaskSearch"
 import { useProjectNav } from "../hooks/useProjectNav"
 import { TasksSidebar } from "../components/TasksSidebar"
-import { ActiveRunsCard, BuildLog, SystemLog } from "../components/StatusWidgets"
+import { ActiveRunsCard, BuildLog, SystemLog, ProjectUpdateCard } from "../components/StatusWidgets"
 
 export function StatusPage() {
   const { navigate } = useProjectNav()
@@ -36,6 +36,9 @@ export function StatusPage() {
               <h1 className="text-[24px] font-semibold text-fg">System Status</h1>
               <p className="text-[14px] text-fg-muted">Infrastructure health for the current project</p>
             </div>
+
+            {/* Project update */}
+            <ProjectUpdateCard project={current?.name} />
 
             {/* Active runs card */}
             <ActiveRunsCard tasks={tasks} />
