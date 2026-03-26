@@ -23,7 +23,8 @@ export const SCHEMA = `
     created_at TEXT NOT NULL DEFAULT (datetime('now')),
     updated_at TEXT NOT NULL DEFAULT (datetime('now')),
     started_at TEXT,
-    completed_at TEXT
+    completed_at TEXT,
+    last_seen_at TEXT
   );
 
   CREATE INDEX IF NOT EXISTS idx_tasks_status ON tasks(status);

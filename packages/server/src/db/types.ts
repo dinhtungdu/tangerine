@@ -23,6 +23,7 @@ export interface TaskRow {
   updated_at: string
   started_at: string | null
   completed_at: string | null
+  last_seen_at: string | null
 }
 
 export interface SessionLogRow {

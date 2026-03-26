@@ -141,6 +141,10 @@ export async function fetchSystemLogs(filter?: {
   return request<SystemLogEntry[]>(`/api/logs${query}`)
 }
 
+export async function markTaskSeen(id: string): Promise<void> {
+  return request<void>(`/api/tasks/${id}/seen`, { method: "POST" })
+}
+
 export async function retryTask(id: string): Promise<Task> {
   return request<Task>(`/api/tasks/${id}/retry`, { method: "POST" })
 }

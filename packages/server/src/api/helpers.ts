@@ -40,6 +40,7 @@ export function mapTaskRow(row: TaskRow): Task {
     updatedAt: utc(row.updated_at)!,
     startedAt: utc(row.started_at),
     completedAt: utc(row.completed_at),
+    lastSeenAt: utc(row.last_seen_at),
   }
 }
 

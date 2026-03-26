@@ -29,3 +29,12 @@ const DEFAULT_STATUS: StatusConfig = {
 export function getStatusConfig(status: string): StatusConfig {
   return STATUS_CONFIG[status] ?? DEFAULT_STATUS
 }
+
+/** Returns true if the task has been updated since the user last viewed it */
+export function hasUnseenUpdates(task: { updatedAt: string; lastSeenAt: string | null; status: string }): boolean {
+  // Tasks still in initial states haven't produced agent output yet
+  if (task.status === "created" || task.status === "provisioning") return false
+  // Never viewed — unseen if agent has been active
+  if (!task.lastSeenAt) return true
+  return new Date(task.updatedAt) > new Date(task.lastSeenAt)
+}
