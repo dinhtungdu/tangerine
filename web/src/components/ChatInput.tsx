@@ -1,4 +1,4 @@
-import { useState, useRef, useCallback, type KeyboardEvent, type ClipboardEvent } from "react"
+import { useState, useRef, useCallback, useEffect, type KeyboardEvent, type ClipboardEvent } from "react"
 import type { PromptImage } from "@tangerine/shared"
 import { ModelSelector } from "./ModelSelector"
 import { ReasoningEffortSelector, type ReasoningEffort } from "./ReasoningEffortSelector"
@@ -11,6 +11,7 @@ interface ChatInputProps {
   onSend: (text: string, images?: PromptImage[]) => void
   disabled: boolean
   queueLength: number
+  taskId?: string
   isWorking?: boolean
   onAbort?: () => void
   model?: string | null
@@ -20,10 +21,22 @@ interface ChatInputProps {
   onReasoningEffortChange?: (effort: string) => void
 }
 
-export function ChatInput({ onSend, disabled, queueLength, isWorking, onAbort, model, providerModels, reasoningEffort, onModelChange, onReasoningEffortChange }: ChatInputProps) {
-  const [text, setText] = useState("")
-  const [pendingImages, setPendingImages] = useState<PendingImage[]>([])
+export function ChatInput({ onSend, disabled, queueLength, taskId, isWorking, onAbort, model, providerModels, reasoningEffort, onModelChange, onReasoningEffortChange }: ChatInputProps) {
+  const draftKey = taskId ? `tangerine:chat-draft:${taskId}` : null
+  const loadDraft = useCallback((): { text?: string; pendingImages?: PendingImage[] } => {
+    if (!draftKey) return {}
+    try {
+      return JSON.parse(localStorage.getItem(draftKey) ?? "{}") as { text?: string; pendingImages?: PendingImage[] }
+    } catch {
+      return {}
+    }
+  }, [draftKey])
+  const savedDraft = loadDraft()
+
+  const [text, setText] = useState(savedDraft.text ?? "")
+  const [pendingImages, setPendingImages] = useState<PendingImage[]>(savedDraft.pendingImages ?? [])
   const textareaRef = useRef<HTMLTextAreaElement>(null)
+  const hydratedDraftKeyRef = useRef<string | null>(null)
 
   const handleSend = useCallback(() => {
     const trimmed = text.trim()
@@ -34,10 +47,13 @@ export function ChatInput({ onSend, disabled, queueLength, isWorking, onAbort, m
     onSend(trimmed, images)
     setText("")
     setPendingImages([])
+    if (draftKey) {
+      try { localStorage.removeItem(draftKey) } catch { /* ignore */ }
+    }
     if (textareaRef.current) {
       textareaRef.current.style.height = "auto"
     }
-  }, [text, pendingImages, disabled, onSend])
+  }, [text, pendingImages, disabled, onSend, draftKey])
 
   const handleKeyDown = useCallback(
     (e: KeyboardEvent<HTMLTextAreaElement>) => {
@@ -79,6 +95,35 @@ export function ChatInput({ onSend, disabled, queueLength, isWorking, onAbort, m
   const removeImage = useCallback((index: number) => {
     setPendingImages((prev) => prev.filter((_, i) => i !== index))
   }, [])
+
+  useEffect(() => {
+    if (!draftKey || hydratedDraftKeyRef.current === draftKey) return
+    hydratedDraftKeyRef.current = draftKey
+    if (text || pendingImages.length > 0) return
+    const draft = loadDraft()
+    setText(draft.text ?? "")
+    setPendingImages(draft.pendingImages ?? [])
+  }, [draftKey, loadDraft, text, pendingImages.length])
+
+  useEffect(() => {
+    const textarea = textareaRef.current
+    if (!textarea) return
+    textarea.style.height = "auto"
+    textarea.style.height = `${Math.min(textarea.scrollHeight, 144)}px`
+  }, [text])
+
+  useEffect(() => {
+    if (!draftKey) return
+    try {
+      if (!text && pendingImages.length === 0) {
+        localStorage.removeItem(draftKey)
+      } else {
+        localStorage.setItem(draftKey, JSON.stringify({ text, pendingImages }))
+      }
+    } catch {
+      // ignore storage failures
+    }
+  }, [draftKey, text, pendingImages])
 
   const canSend = (text.trim().length > 0 || pendingImages.length > 0) && !disabled
   const canChangeModel = providerModels && providerModels.length > 1 && onModelChange
