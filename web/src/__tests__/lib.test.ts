@@ -8,6 +8,7 @@ import {
 } from "../lib/format"
 import { getStatusConfig, STATUS_CONFIG } from "../lib/status"
 import { getActivityStyle, getActivityDetail } from "../lib/activity"
+import { searchModels } from "../lib/model-search"
 
 describe("format", () => {
   describe("formatModelName", () => {
@@ -158,5 +159,21 @@ describe("activity", () => {
   test("getActivityDetail falls back to content", () => {
     const detail = getActivityDetail("tool.other", "Some content", null)
     expect(detail).toBe("Some content")
+  })
+})
+
+describe("model search", () => {
+  test("matches compact fuzzy queries", () => {
+    expect(searchModels(["openai/gpt-5.4", "openai/gpt-5-mini"], "g54")).toEqual(["openai/gpt-5.4"])
+  })
+
+  test("matches against formatted display names", () => {
+    expect(searchModels(["anthropic/claude-sonnet-4-20250514"], "sonnet4")).toEqual(["anthropic/claude-sonnet-4-20250514"])
+  })
+
+  test("prefers prefix matches over broader fuzzy matches", () => {
+    expect(searchModels(["openai/gpt-5-mini", "openai/gpt-5.4", "openrouter/gemma-3"], "gpt5m")).toEqual([
+      "openai/gpt-5-mini",
+    ])
   })
 })
