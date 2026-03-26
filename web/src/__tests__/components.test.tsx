@@ -5,6 +5,7 @@ import { RunCard } from "../components/RunCard"
 import { ActivityList } from "../components/ActivityList"
 import { NewAgentForm } from "../components/NewAgentForm"
 import { ChatInput } from "../components/ChatInput"
+import { ModelSelector } from "../components/ModelSelector"
 import { ProjectProvider } from "../context/ProjectContext"
 import type { Task, ActivityEntry } from "@tangerine/shared"
 
@@ -214,6 +215,29 @@ describe("NewAgentForm", () => {
     expect(await screen.findByDisplayValue("Restore this draft")).toBeTruthy()
     expect(screen.getAllByDisplayValue("feature/persist-draft")[0]).toBeTruthy()
     expect(screen.getByAltText("Pasted image")).toBeTruthy()
+  })
+
+  test("supports fuzzy model search in the selector", () => {
+    render(
+      <ModelSelector
+        model="anthropic/claude-sonnet-4-6"
+        models={[
+          "anthropic/claude-sonnet-4-6",
+          "anthropic/claude-haiku-4-20250414",
+          "openai/gpt-5.4",
+          "openai/gpt-5-mini",
+          "google/gemini-2.5-pro",
+          "openrouter/deepseek-r1",
+        ]}
+        onModelChange={() => {}}
+      />,
+    )
+
+    fireEvent.click(screen.getByRole("button", { name: "anthropic/claude-sonnet-4-6" }))
+    fireEvent.change(screen.getByPlaceholderText("Search models..."), { target: { value: "g54" } })
+
+    expect(screen.getByRole("button", { name: "openai/gpt-5.4" })).toBeTruthy()
+    expect(screen.queryByRole("button", { name: "openai/gpt-5-mini" })).toBeNull()
   })
 })
 
