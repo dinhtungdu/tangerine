@@ -1,6 +1,7 @@
 import { useState, useRef, useEffect, useCallback } from "react"
 import { useProject } from "../context/ProjectContext"
 import { formatModelName } from "../lib/format"
+import { searchModels } from "../lib/model-search"
 
 interface ModelSelectorProps {
   /** Override the model list (e.g. filtered by provider) */
@@ -43,9 +44,7 @@ export function ModelSelector({ models: propModels, model: propModel, onModelCha
     }
   }, [open])
 
-  const filtered = search
-    ? models.filter((m) => m.toLowerCase().includes(search.toLowerCase()))
-    : models
+  const filtered = searchModels(models, search)
 
   const handleSelect = useCallback((m: string) => {
     setModel(m)
