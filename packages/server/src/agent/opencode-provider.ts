@@ -52,17 +52,24 @@ async function acquireServer(
     }
   }
 
-  // Check if an external OpenCode server is already listening on the port
+  // Check if an external OpenCode server is already listening on the port.
+  // Must check BEFORE spawning — if we spawn while the port is taken, the
+  // new process dies but health checks hit the old server, recording a dead PID.
   try {
     const res = await fetch(`http://localhost:${port}/global/health`)
     if (res.ok) {
-      // Find the PID of the existing server
       const pid = await findListeningPid(port)
       if (pid) {
         sharedServer = { pid, port, proc: null, refCount: 1 }
         log.info("Adopted existing OpenCode server", { pid, port })
         return { pid }
       }
+      // Health responded but we can't find the PID — adopt anyway.
+      // Better to track without a PID than to spawn a competing server
+      // that can't bind the port and dies immediately.
+      sharedServer = { pid: 0, port, proc: null, refCount: 1 }
+      log.warn("Adopted OpenCode server without PID (health OK but PID lookup failed)")
+      return { pid: 0 }
     }
   } catch {
     // Not running — we'll spawn below
@@ -110,25 +117,54 @@ function releaseServer(): void {
     log.info("No more tasks using OpenCode server, shutting down", { pid: sharedServer.pid })
     if (sharedServer.proc) {
       try { sharedServer.proc.kill() } catch { /* already dead */ }
-    } else {
-      // Adopted external process — kill by PID
+    } else if (sharedServer.pid > 0) {
+      // Adopted external process — kill by PID (skip if PID unknown)
       try { process.kill(sharedServer.pid, "SIGTERM") } catch { /* already dead */ }
     }
     sharedServer = null
   }
 }
 
-/** Find the PID listening on a port via lsof */
+/** Find the PID listening on a port. Tries fuser first (most portable), then ss, then lsof. */
 async function findListeningPid(port: number): Promise<number | null> {
-  try {
-    const proc = Bun.spawn(["lsof", "-ti", `:${port}`], { stdout: "pipe", stderr: "ignore" })
-    const stdout = await new Response(proc.stdout).text()
-    await proc.exited
-    const pid = parseInt(stdout.trim().split("\n")[0] ?? "", 10)
-    return Number.isFinite(pid) ? pid : null
-  } catch {
-    return null
+  const strategies: { cmd: string[]; parse: (stdout: string) => number | null }[] = [
+    {
+      // fuser outputs PIDs directly, e.g. " 54997"
+      cmd: ["fuser", `${port}/tcp`],
+      parse: (s) => {
+        const pid = parseInt(s.trim().split(/\s+/)[0] ?? "", 10)
+        return Number.isFinite(pid) ? pid : null
+      },
+    },
+    {
+      // ss -tlnp shows: LISTEN 0 512 127.0.0.1:4096 ... users:((".opencode",pid=54997,fd=20))
+      cmd: ["ss", "-tlnp", `sport = :${port}`],
+      parse: (s) => {
+        const match = s.match(/pid=(\d+)/)
+        return match?.[1] ? parseInt(match[1], 10) : null
+      },
+    },
+    {
+      cmd: ["lsof", "-ti", `:${port}`],
+      parse: (s) => {
+        const pid = parseInt(s.trim().split("\n")[0] ?? "", 10)
+        return Number.isFinite(pid) ? pid : null
+      },
+    },
+  ]
+
+  for (const { cmd, parse } of strategies) {
+    try {
+      const proc = Bun.spawn(cmd, { stdout: "pipe", stderr: "ignore" })
+      const stdout = await new Response(proc.stdout).text()
+      await proc.exited
+      const pid = parse(stdout)
+      if (pid) return pid
+    } catch {
+      continue
+    }
   }
+  return null
 }
 
 /** Extract the data payload from an SSE block, handling multi-line formats like "event: foo\ndata: {...}" */
@@ -517,6 +553,8 @@ export function createOpenCodeProvider(): AgentFactory {
           isAlive() {
             // Check both: the shared server process is alive AND we have an SSE connection
             if (!sseConnected) return false
+            // PID 0 means we adopted a server without knowing its PID — trust SSE connection
+            if (serverPid === 0) return true
             try {
               process.kill(serverPid, 0)
               return true
