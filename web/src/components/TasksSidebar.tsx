@@ -73,7 +73,7 @@ export function TasksSidebar({ tasks, searchQuery, onSearchChange, onNewAgent }:
               to={link(`/tasks/${task.id}`)}
               className={`flex gap-2.5 px-4 py-2.5 ${
                 isActive
-                  ? "bg-surface-secondary border-l-[3px] border-l-red-600"
+                  ? "bg-surface-secondary border-l-[3px] border-l-status-error"
                   : "hover:bg-surface-secondary"
               }`}
               style={isActive ? {} : { borderLeft: "3px solid transparent" }}
@@ -82,7 +82,7 @@ export function TasksSidebar({ tasks, searchQuery, onSearchChange, onNewAgent }:
                 <div className="h-2 w-2 rounded-full" style={{ backgroundColor: color }} />
               </div>
               <div className="flex min-w-0 flex-col gap-0.5">
-                <span className={`truncate text-[13px] text-black ${isActive ? "font-semibold" : "font-medium"}`}>
+                <span className={`truncate text-[13px] text-fg ${isActive ? "font-semibold" : "font-medium"}`}>
                   {task.title}
                 </span>
                 <span className="font-mono text-[11px] text-fg-muted">

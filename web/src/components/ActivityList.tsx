@@ -87,13 +87,13 @@ function StatusRow({ meta, isRunning }: { meta: Record<string, unknown> | null; 
     return (
       <div className="mt-1 flex gap-1">
         {testPassed !== undefined && (
-          <span className="text-[11px] font-medium text-green-500">{testPassed} passed{testFailed !== undefined ? "," : ""}</span>
+          <span className="text-[11px] font-medium text-diff-add">{testPassed} passed{testFailed !== undefined ? "," : ""}</span>
         )}
         {testFailed !== undefined && testFailed > 0 && (
-          <span className="text-[11px] font-medium text-red-500">{testFailed} failed</span>
+          <span className="text-[11px] font-medium text-diff-remove">{testFailed} failed</span>
         )}
         {testFailed === 0 && testPassed !== undefined && (
-          <span className="text-[11px] font-medium text-green-500">0 failed</span>
+          <span className="text-[11px] font-medium text-diff-add">0 failed</span>
         )}
       </div>
     )
@@ -103,8 +103,8 @@ function StatusRow({ meta, isRunning }: { meta: Record<string, unknown> | null; 
   if (linesAdded !== undefined || linesRemoved !== undefined) {
     return (
       <div className="mt-1 flex gap-1.5">
-        {linesAdded !== undefined && <span className="text-[11px] font-semibold text-green-500">+{linesAdded}</span>}
-        {linesRemoved !== undefined && <span className="text-[11px] font-semibold text-red-500">-{linesRemoved}</span>}
+        {linesAdded !== undefined && <span className="text-[11px] font-semibold text-diff-add">+{linesAdded}</span>}
+        {linesRemoved !== undefined && <span className="text-[11px] font-semibold text-diff-remove">-{linesRemoved}</span>}
       </div>
     )
   }
@@ -113,7 +113,7 @@ function StatusRow({ meta, isRunning }: { meta: Record<string, unknown> | null; 
   if (isRunning) {
     return (
       <div className="mt-1">
-        <span className="rounded bg-blue-500/10 px-1.5 py-0.5 text-[10px] font-medium text-blue-500">
+        <span className="rounded bg-accent-bg px-1.5 py-0.5 text-[10px] font-medium text-accent">
           in progress
         </span>
       </div>

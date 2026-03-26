@@ -50,8 +50,8 @@ export function ChangesPanel({ files, comments, onRemoveComment, onSendComments,
                   <div className="truncate text-[11px] text-fg-muted">{fileDir(file.path)}</div>
                 </div>
                 <div className="flex shrink-0 items-center gap-1.5">
-                  <span className="text-[11px] font-semibold text-green-600">+{stats.added}</span>
-                  <span className="text-[11px] font-semibold text-red-500">&minus;{stats.removed}</span>
+                  <span className="text-[11px] font-semibold text-diff-add">+{stats.added}</span>
+                  <span className="text-[11px] font-semibold text-diff-remove">&minus;{stats.removed}</span>
                 </div>
                 {fileComments.length > 0 && (
                   <span className="flex h-4 min-w-4 items-center justify-center rounded-full bg-fg px-1 text-[10px] font-semibold text-surface">

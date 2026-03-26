@@ -240,7 +240,7 @@ export function TaskDetail() {
                 href={task.prUrl}
                 target="_blank"
                 rel="noopener noreferrer"
-                className="flex shrink-0 items-center gap-1 rounded bg-green-500/10 px-1.5 py-0.5 text-[10px] font-medium text-green-700"
+                className="flex shrink-0 items-center gap-1 rounded bg-status-success-bg px-1.5 py-0.5 text-[10px] font-medium text-status-success-text"
               >
                 {formatPrNumber(task.prUrl)}
               </a>

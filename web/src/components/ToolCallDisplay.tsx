@@ -74,7 +74,7 @@ export function ToolCallDisplay({ content }: ToolCallDisplayProps) {
           <span className="font-mono text-[12px] text-fg">{toolData.command}</span>
         )}
         {isWrite && toolData.path && (
-          <span className="ml-auto rounded bg-amber-400/20 px-1.5 py-0.5 text-[10px] font-medium text-amber-600">modified</span>
+          <span className="ml-auto rounded bg-modified-bg px-1.5 py-0.5 text-[10px] font-medium text-modified">modified</span>
         )}
       </button>
 
@@ -102,9 +102,9 @@ export function ToolCallDisplay({ content }: ToolCallDisplayProps) {
                   key={i}
                   className={
                     line.startsWith("+")
-                      ? "text-green-700"
+                      ? "text-diff-add"
                       : line.startsWith("-")
-                        ? "text-red-600"
+                        ? "text-diff-remove"
                         : "text-fg-muted"
                   }
                 >

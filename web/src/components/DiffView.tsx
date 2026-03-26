@@ -274,8 +274,8 @@ function SplitDiff({ diff, filePath, onAddComment }: { diff: string; filePath: s
         {lines.map((line, i) => {
           const l = line.left
           const r = line.right
-          const leftBg = l?.type === "remove" ? "bg-red-500/10" : ""
-          const rightBg = r?.type === "add" ? "bg-green-500/10" : ""
+          const leftBg = l?.type === "remove" ? "bg-diff-remove-bg" : ""
+          const rightBg = r?.type === "add" ? "bg-diff-add-bg" : ""
           const leftSelected = isInSelection(i, "left")
           const rightSelected = isInSelection(i, "right")
           return (
@@ -286,7 +286,7 @@ function SplitDiff({ diff, filePath, onAddComment }: { diff: string; filePath: s
                   onMouseEnter={() => handleLineMouseEnter(i, "left")}
                 >
                   <LineNum num={l?.num ?? ""} canComment={!!onAddComment} onMouseDown={() => handleGutterMouseDown(i, "left")} />
-                  <span className={`min-w-0 flex-1 whitespace-pre-wrap break-all px-2 ${l?.type === "remove" ? "text-red-600" : "text-fg-muted"}`}>
+                  <span className={`min-w-0 flex-1 whitespace-pre-wrap break-all px-2 ${l?.type === "remove" ? "text-diff-remove" : "text-fg-muted"}`}>
                     {l?.content ?? ""}
                   </span>
                 </div>
@@ -295,7 +295,7 @@ function SplitDiff({ diff, filePath, onAddComment }: { diff: string; filePath: s
                   onMouseEnter={() => handleLineMouseEnter(i, "right")}
                 >
                   <LineNum num={r?.num ?? ""} canComment={!!onAddComment} onMouseDown={() => handleGutterMouseDown(i, "right")} />
-                  <span className={`min-w-0 flex-1 whitespace-pre-wrap break-all px-2 ${r?.type === "add" ? "text-green-700" : "text-fg-muted"}`}>
+                  <span className={`min-w-0 flex-1 whitespace-pre-wrap break-all px-2 ${r?.type === "add" ? "text-diff-add" : "text-fg-muted"}`}>
                     {r?.content ?? ""}
                   </span>
                 </div>
@@ -337,9 +337,9 @@ function UnifiedDiff({ diff, filePath, onAddComment }: { diff: string; filePath:
       {rawLines.map((line, i) => {
         if (line.startsWith("---") || line.startsWith("+++")) return null
 
-        const color = line.startsWith("+") ? "text-green-700 bg-green-500/10"
-          : line.startsWith("-") ? "text-red-600 bg-red-500/10"
-          : line.startsWith("@@") ? "text-blue-600"
+        const color = line.startsWith("+") ? "text-diff-add bg-diff-add-bg"
+          : line.startsWith("-") ? "text-diff-remove bg-diff-remove-bg"
+          : line.startsWith("@@") ? "text-diff-hunk"
           : "text-fg-muted"
         const selected = isInSelection(i, "right")
         return (
@@ -386,8 +386,8 @@ function FileSection({ file, onAddComment }: { file: DiffFile; onAddComment?: (c
           </span>
         </button>
         <div className="flex shrink-0 items-center gap-2.5">
-          <span className="text-[12px] font-semibold text-green-600">+{stats.added}</span>
-          <span className="text-[12px] font-semibold text-red-500">&minus;{stats.removed}</span>
+          <span className="text-[12px] font-semibold text-diff-add">+{stats.added}</span>
+          <span className="text-[12px] font-semibold text-diff-remove">&minus;{stats.removed}</span>
           <div className="hidden overflow-hidden rounded-md border border-edge @min-[900px]:flex">
             <button
               onClick={() => setViewMode("split")}

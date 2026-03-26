@@ -4,7 +4,7 @@ export function ResizeHandle({ onMouseDown }: { onMouseDown: (e: MouseEvent) => 
   return (
     <div
       onMouseDown={onMouseDown}
-      className="flex w-0.5 shrink-0 cursor-col-resize bg-edge transition-colors hover:bg-blue-400"
+      className="flex w-0.5 shrink-0 cursor-col-resize bg-edge transition-colors hover:bg-accent"
     >
       <span />
     </div>

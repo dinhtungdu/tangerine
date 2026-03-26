@@ -204,14 +204,14 @@ export function NewAgentForm({ onSubmit, refTaskId, refTaskTitle }: NewAgentForm
 
           {/* Reference badge */}
           {refTaskId && (
-            <div className="flex items-center gap-2 rounded-lg border border-blue-200 bg-blue-50 px-3 py-2">
-              <svg className="h-3.5 w-3.5 shrink-0 text-blue-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+            <div className="flex items-center gap-2 rounded-lg border border-accent-border bg-accent-bg px-3 py-2">
+              <svg className="h-3.5 w-3.5 shrink-0 text-accent" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                 <path strokeLinecap="round" strokeLinejoin="round" d="M13.19 8.688a4.5 4.5 0 0 1 1.242 7.244l-4.5 4.5a4.5 4.5 0 0 1-6.364-6.364l1.757-1.757m13.35-.622 1.757-1.757a4.5 4.5 0 0 0-6.364-6.364l-4.5 4.5a4.5 4.5 0 0 0 1.242 7.244" />
               </svg>
-              <span className="min-w-0 truncate text-[12px] text-blue-700">
+              <span className="min-w-0 truncate text-[12px] text-accent-text">
                 Continuing from: <span className="font-medium">{refTaskTitle || refTaskId}</span>
               </span>
-              <span className="ml-auto font-mono text-[10px] text-blue-400">{refTaskId.slice(0, 8)}</span>
+              <span className="ml-auto font-mono text-[10px] text-accent-muted">{refTaskId.slice(0, 8)}</span>
             </div>
           )}
 
