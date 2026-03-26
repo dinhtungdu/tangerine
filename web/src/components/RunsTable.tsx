@@ -7,14 +7,13 @@ import { useProjectNav } from "../hooks/useProjectNav"
 import { cancelTask, deleteTask, retryTask } from "../lib/api"
 import { RunCard } from "./RunCard"
 
-type StatusFilter = "all" | "running" | "done" | "failed" | "created" | "provisioning"
+type StatusFilter = "all" | "running" | "done" | "failed" | "provisioning"
 
 const STATUS_FILTERS: { key: StatusFilter; label: string }[] = [
   { key: "all", label: "All" },
   { key: "running", label: "Running" },
   { key: "done", label: "Completed" },
   { key: "failed", label: "Failed" },
-  { key: "created", label: "Queued" },
   { key: "provisioning", label: "Provisioning" },
 ]
 
