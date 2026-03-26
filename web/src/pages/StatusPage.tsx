@@ -37,11 +37,11 @@ export function StatusPage() {
               <p className="text-[14px] text-fg-muted">Infrastructure health for the current project</p>
             </div>
 
-            {/* Project update */}
-            <ProjectUpdateCard project={current?.name} />
-
-            {/* Active runs card */}
-            <ActiveRunsCard tasks={tasks} />
+            {/* Project update + Active runs */}
+            <div className="flex flex-col gap-4 md:flex-row md:gap-6">
+              <ProjectUpdateCard project={current?.name} />
+              <ActiveRunsCard tasks={tasks} />
+            </div>
 
             {/* System log */}
             <SystemLog project={current?.name} />
