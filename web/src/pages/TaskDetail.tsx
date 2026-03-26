@@ -16,6 +16,7 @@ import { ActivityList } from "../components/ActivityList"
 import { ChangesPanel as DiffSidebar, type DiffComment } from "../components/ChangesPanel"
 import { ResizeHandle, PaneToggle } from "../components/PaneControls"
 import { TerminalPane } from "../components/TerminalPane"
+import { formatPrNumber } from "../lib/format"
 
 type PaneId = "chat" | "diff" | "terminal" | "activity"
 
@@ -239,9 +240,9 @@ export function TaskDetail() {
                 href={task.prUrl}
                 target="_blank"
                 rel="noopener noreferrer"
-                className="hidden shrink-0 items-center gap-1 rounded bg-green-500/10 px-1.5 py-0.5 text-[10px] font-medium text-green-700 md:flex"
+                className="flex shrink-0 items-center gap-1 rounded bg-green-500/10 px-1.5 py-0.5 text-[10px] font-medium text-green-700"
               >
-                PR
+                {formatPrNumber(task.prUrl)}
               </a>
             )}
             <span
