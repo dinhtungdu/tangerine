@@ -55,10 +55,12 @@ bin/tangerine start
 For auto-restart on updates (recommended for production), use the watch loop:
 
 ```bash
-bin/tangerine-watch
+tmux new-session -d -s tangerine 'bin/tangerine-watch'
 ```
 
-The watch loop runs the server with `TANGERINE_SELF_UPDATE=1`, which enables a background poller that checks for new commits every 60 seconds. When an update is applied (via the dashboard's "Pull latest" button), the server exits cleanly and the watch loop restarts it automatically. Non-zero exits (crashes) stop the loop.
+This starts the watch loop in a background tmux session. The server runs with `TANGERINE_SELF_UPDATE=1`, which enables a background poller that checks for new commits every 60 seconds. When an update is applied (via the dashboard's "Pull latest" button), the server exits cleanly and the watch loop restarts it automatically. Non-zero exits (crashes) stop the loop.
+
+To attach to the session: `tmux attach -t tangerine`
 
 ## Status
 
