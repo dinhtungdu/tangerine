@@ -251,7 +251,7 @@ export async function start(): Promise<void> {
                 break
               }
               case "message.complete": {
-                if (event.role === "assistant") {
+                if (event.role === "assistant" && event.content) {
                   emitTaskEvent(taskId, {
                     role: "assistant",
                     content: event.content,

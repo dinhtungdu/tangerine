@@ -111,9 +111,11 @@ describe("OpenCode provider helpers", () => {
     expect(extractSseData('id: 42\nevent: update\ndata: {"ok":true}')).toBe('{"ok":true}')
   })
 
-  it("emits message.complete for tool-only messages (no accumulated text)", () => {
-    // message.updated with completed timestamp but no text parts
-    // should still produce a message.complete event via the processRawEvent path
+  it("skips message.complete for tool-only messages (no accumulated text)", () => {
+    // message.updated with completed timestamp but no text parts should NOT
+    // produce a message.complete — tool-only turns don't need a chat entry.
+    // mapSseEvent doesn't handle message.updated (only processRawEvent does),
+    // and processRawEvent now skips empty-text messages.
     const event = mapSseEvent({
       type: "message.updated",
       properties: {
@@ -124,8 +126,6 @@ describe("OpenCode provider helpers", () => {
         },
       },
     })
-    // mapSseEvent doesn't handle message.updated (only processRawEvent does),
-    // so this returns null — but the processRawEvent path now handles it
     expect(event).toBeNull()
   })
 

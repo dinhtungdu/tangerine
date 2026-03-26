@@ -393,11 +393,13 @@ export function createOpenCodeProvider(): AgentFactory {
             if (info?.role === "assistant" && info.time?.completed) {
               const messageId = typeof info.id === "string" ? info.id : undefined
               const text = messageId ? textParts.get(messageId) : undefined
-              // Emit message.complete even for empty text (tool-only messages)
-              if (messageId) {
-                emit({ kind: "message.complete", role: "assistant", content: text ?? "", messageId })
-                textParts.delete(messageId)
+              // Only emit message.complete when there's actual text content —
+              // tool-only messages (no text) don't need a chat entry, matching
+              // Claude Code's behavior.
+              if (messageId && text) {
+                emit({ kind: "message.complete", role: "assistant", content: text, messageId })
               }
+              if (messageId) textParts.delete(messageId)
             }
             return
           }
