@@ -1,4 +1,4 @@
-import { useState, useCallback, type ClipboardEvent } from "react"
+import { useState, useCallback, useEffect, useRef, type ClipboardEvent } from "react"
 import type { ProviderType, PromptImage } from "@tangerine/shared"
 import { useProject } from "../context/ProjectContext"
 import { useProjectNav } from "../hooks/useProjectNav"
@@ -80,10 +80,21 @@ function TaskIcon({ icon }: { icon: string }) {
 export function NewAgentForm({ onSubmit, refTaskId, refTaskTitle }: NewAgentFormProps) {
   const { navigate } = useProjectNav()
   const { current, modelsByProvider } = useProject()
-  const [description, setDescription] = useState("")
-  const [customBranch, setCustomBranch] = useState("")
-  const [pendingImages, setPendingImages] = useState<PendingImage[]>([])
   const PREFS_KEY = "tangerine:agent-prefs"
+  const draftKey = `tangerine:new-agent-draft:${current?.name ?? "unknown"}:${refTaskId ?? "new"}`
+
+  const loadDraft = useCallback((): { description?: string; customBranch?: string; pendingImages?: PendingImage[] } => {
+    try {
+      return JSON.parse(localStorage.getItem(draftKey) ?? "{}") as { description?: string; customBranch?: string; pendingImages?: PendingImage[] }
+    } catch {
+      return {}
+    }
+  }, [draftKey])
+
+  const savedDraft = loadDraft()
+  const [description, setDescription] = useState(savedDraft.description ?? "")
+  const [customBranch, setCustomBranch] = useState(savedDraft.customBranch ?? "")
+  const [pendingImages, setPendingImages] = useState<PendingImage[]>(savedDraft.pendingImages ?? [])
 
   const loadPrefs = (): { provider?: string; models?: Record<string, string>; reasoningEffort?: string } => {
     try { return JSON.parse(localStorage.getItem(PREFS_KEY) ?? "{}") } catch { return {} }
@@ -94,6 +105,7 @@ export function NewAgentForm({ onSubmit, refTaskId, refTaskTitle }: NewAgentForm
   const [modelByProvider, setModelByProvider] = useState<Record<string, string>>(saved.models ?? {})
   const [reasoningEffort, setReasoningEffort] = useState<ReasoningEffort>((saved.reasoningEffort as ReasoningEffort) ?? "medium")
   const [submitting, setSubmitting] = useState(false)
+  const hydratedDraftKeyRef = useRef<string | null>(null)
   const branch = current?.defaultBranch ?? "main"
 
   const providerModels = modelsByProvider[provider] ?? []
@@ -143,6 +155,28 @@ export function NewAgentForm({ onSubmit, refTaskId, refTaskTitle }: NewAgentForm
     setPendingImages((prev) => prev.filter((_, i) => i !== index))
   }, [])
 
+  useEffect(() => {
+    if (hydratedDraftKeyRef.current === draftKey) return
+    hydratedDraftKeyRef.current = draftKey
+    if (description || customBranch || pendingImages.length > 0) return
+    const draft = loadDraft()
+    setDescription(draft.description ?? "")
+    setCustomBranch(draft.customBranch ?? "")
+    setPendingImages(draft.pendingImages ?? [])
+  }, [draftKey, loadDraft, description, customBranch, pendingImages.length])
+
+  useEffect(() => {
+    try {
+      if (!description && !customBranch && pendingImages.length === 0) {
+        localStorage.removeItem(draftKey)
+      } else {
+        localStorage.setItem(draftKey, JSON.stringify({ description, customBranch, pendingImages }))
+      }
+    } catch {
+      // ignore storage failures
+    }
+  }, [draftKey, description, customBranch, pendingImages])
+
   const canSubmit = (!!description.trim() || pendingImages.length > 0) && !!current && !submitting
 
   const handleSubmit = useCallback(() => {
@@ -173,9 +207,10 @@ export function NewAgentForm({ onSubmit, refTaskId, refTaskTitle }: NewAgentForm
       reasoningEffort: reasoningEffort !== "medium" ? reasoningEffort : undefined,
       images,
     })
+    try { localStorage.removeItem(draftKey) } catch { /* ignore */ }
     // Parent navigates on success; reset submitting if it fails
     setTimeout(() => setSubmitting(false), 3000)
-  }, [description, pendingImages, current, customBranch, provider, activeModel, reasoningEffort, submitting, onSubmit, refTaskId, refTaskTitle])
+  }, [description, pendingImages, current, customBranch, provider, activeModel, reasoningEffort, submitting, onSubmit, refTaskId, refTaskTitle, draftKey])
 
   return (
     <div className="flex h-full flex-1 flex-col bg-surface">
