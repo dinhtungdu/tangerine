@@ -37,6 +37,13 @@ export interface AgentHandle {
    * If not implemented, the manager falls back to shutdown + restart.
    */
   updateConfig?(config: AgentConfig): Effect.Effect<boolean, AgentError>
+  /**
+   * Session-level health check. Returns true if the agent session is responsive.
+   * For OpenCode: checks SSE connection + session responsiveness.
+   * For Claude Code: checks if the subprocess is alive.
+   * If not implemented, the health monitor falls back to PID-based checks.
+   */
+  isAlive?(): boolean
 }
 
 /** Context passed to AgentFactory.start() to bootstrap an agent session */

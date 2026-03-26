@@ -612,10 +612,13 @@ export async function start(): Promise<void> {
     const healthDeps: HealthCheckDeps = {
       listRunningTasks: () => listTasks(db, { status: "running" }),
       checkAgentAlive: (taskId) => Effect.sync(() => {
-        // Check via agent handle first (most reliable)
         const handle = agentHandles.get(taskId)
         if (!handle) return false
 
+        // Prefer session-level health check (covers SSE connectivity for OpenCode)
+        if (handle.isAlive) return handle.isAlive()
+
+        // Fallback to PID check for handles without isAlive
         const pid = (handle as { __pid?: number }).__pid
         if (!pid) return false
         try {
