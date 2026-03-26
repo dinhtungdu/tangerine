@@ -11,10 +11,14 @@ import { cleanupSession } from "./cleanup"
 const log = createLogger("health")
 
 const HEALTH_CHECK_INTERVAL_MS = 30_000
+// If no agent activity for this long, consider the session stalled and restart
+const STALL_THRESHOLD_MS = 5 * 60 * 1000 // 5 minutes
 
 export interface HealthCheckDeps {
   listRunningTasks(): Effect.Effect<TaskRow[], Error>
   checkAgentAlive(taskId: string): Effect.Effect<boolean, never>
+  /** Returns the timestamp of the last agent activity, or null if unknown */
+  getLastActivityTime?(taskId: string): Effect.Effect<Date | null, never>
   restartAgent(task: TaskRow): Effect.Effect<void, Error>
   failTask(taskId: string, reason: string): Effect.Effect<void, Error>
   cleanupDeps: CleanupDeps
@@ -31,38 +35,55 @@ export function checkTask(
     const alive = yield* deps.checkAgentAlive(task.id)
     if (!alive) {
       taskLog.warn("Agent not alive, attempting restart")
+      return yield* attemptRestart(task, deps, taskLog, "agent_dead")
+    }
 
-      const restartResult = yield* deps.restartAgent(task).pipe(
-        Effect.map(() => "recovered" as const),
-        Effect.catchAll((err) => {
-          taskLog.error("Recovery failed, marking task failed", {
-            reason: err.message,
+    // Agent is alive — but check for stalled sessions (alive but making no progress)
+    if (deps.getLastActivityTime) {
+      const lastActivity = yield* deps.getLastActivityTime(task.id)
+      if (lastActivity) {
+        const stalledMs = Date.now() - lastActivity.getTime()
+        if (stalledMs > STALL_THRESHOLD_MS) {
+          taskLog.warn("Agent stalled (no activity), attempting restart", {
+            stalledMs,
+            lastActivity: lastActivity.toISOString(),
           })
-          return Effect.gen(function* () {
-            yield* deps.failTask(task.id, "Agent process died and restart failed").pipe(
-              Effect.ignoreLogged
-            )
-            yield* cleanupSession(task.id, deps.cleanupDeps).pipe(Effect.ignoreLogged)
-            return "failed" as const
-          })
-        })
-      )
-
-      if (restartResult === "recovered") {
-        taskLog.info("Recovery succeeded", { action: "agent-restart" })
-        return "recovered"
+          return yield* attemptRestart(task, deps, taskLog, "agent_stalled")
+        }
       }
-
-      return yield* new HealthCheckError({
-        message: "Agent process died and restart failed",
-        taskId: task.id,
-        reason: "agent_dead",
-      })
     }
 
     taskLog.debug("Task healthy")
     return "healthy"
   })
+}
+
+function attemptRestart(
+  task: TaskRow,
+  deps: HealthCheckDeps,
+  taskLog: ReturnType<typeof log.child>,
+  reason: "agent_dead" | "agent_stalled",
+): Effect.Effect<"recovered" | "failed", HealthCheckError> {
+  return deps.restartAgent(task).pipe(
+    Effect.tap(() => Effect.sync(() => {
+      taskLog.info("Recovery succeeded", { action: "agent-restart", reason })
+    })),
+    Effect.map(() => "recovered" as const),
+    Effect.catchAll((err) =>
+      Effect.gen(function* () {
+        taskLog.error("Recovery failed, marking task failed", { reason: err.message })
+        yield* deps.failTask(task.id, `Agent ${reason} and restart failed`).pipe(
+          Effect.ignoreLogged
+        )
+        yield* cleanupSession(task.id, deps.cleanupDeps).pipe(Effect.ignoreLogged)
+        return yield* new HealthCheckError({
+          message: `Agent ${reason} and restart failed`,
+          taskId: task.id,
+          reason,
+        })
+      })
+    ),
+  )
 }
 
 export function checkAllTasks(
