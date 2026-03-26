@@ -14,7 +14,6 @@ import { verifyWebhookSignature } from "../integrations/github"
 import { taskRoutes } from "./routes/tasks"
 import { sessionRoutes } from "./routes/sessions"
 import { systemRoutes } from "./routes/system"
-import { previewRoutes } from "./routes/preview"
 import { projectRoutes } from "./routes/project"
 import { wsRoutes } from "./routes/ws"
 import { terminalWsRoutes } from "./routes/terminal-ws"
@@ -62,7 +61,6 @@ export function createApp(deps: AppDeps): { app: Hono; websocket: ReturnType<typ
   app.route("/api/tasks", taskRoutes(deps))
   app.route("/api/tasks", sessionRoutes(deps))
   app.route("/api/projects", projectRoutes(deps))
-  app.route("/preview", previewRoutes(deps))
 
   app.route("/api/tasks", wsRoutes(deps, upgradeWebSocket))
   app.route("/api/tasks", terminalWsRoutes(deps, upgradeWebSocket))

@@ -1,13 +1,5 @@
 import type { Task, ProjectConfig, SystemLogEntry, ActivityEntry } from "@tangerine/shared"
 
-export interface PoolStats {
-  provisioning: number
-  active: number
-  stopped: number
-  total: number
-  byProvider?: Record<string, number>
-}
-
 const BASE = ""
 
 export interface SessionLog {
@@ -126,40 +118,8 @@ export async function fetchDiff(id: string): Promise<DiffData> {
   return request<DiffData>(`/api/tasks/${id}/diff`)
 }
 
-export async function fetchPool(): Promise<PoolStats> {
-  return request<PoolStats>("/api/pool")
-}
-
 export async function fetchHealth(): Promise<{ status: string; uptime: number }> {
   return request<{ status: string; uptime: number }>("/api/health")
-}
-
-export interface VmInfo {
-  id: string
-  status: string
-  ip: string | null
-  taskId: string | null
-  taskTitle: string | null
-  provider: string
-  createdAt: string
-}
-
-export interface ImageInfo {
-  id: string
-  name: string
-  provider: string
-  snapshotId: string
-  createdAt: string
-}
-
-export async function fetchVms(project?: string): Promise<VmInfo[]> {
-  const params = project ? `?project=${encodeURIComponent(project)}` : ""
-  return request<VmInfo[]>(`/api/vms${params}`)
-}
-
-export async function fetchImages(project?: string): Promise<ImageInfo[]> {
-  const query = project ? `?project=${encodeURIComponent(project)}` : ""
-  return request<ImageInfo[]>(`/api/images${query}`)
 }
 
 export async function fetchSystemLogs(filter?: {
@@ -179,34 +139,6 @@ export async function fetchSystemLogs(filter?: {
   if (filter?.since) params.set("since", filter.since)
   const query = params.toString() ? `?${params}` : ""
   return request<SystemLogEntry[]>(`/api/logs${query}`)
-}
-
-export interface BuildStatus {
-  status: "idle" | "building" | "success" | "failed"
-  imageName?: string
-  startedAt?: string
-  finishedAt?: string
-  error?: string
-}
-
-export async function destroyVm(vmId: string): Promise<{ reprovisioned: number; failed: number }> {
-  return request<{ reprovisioned: number; failed: number }>(`/api/vms/${vmId}`, { method: "DELETE" })
-}
-
-export async function provisionVm(projectId: string): Promise<{ id: string; status: string; ip: string | null }> {
-  return request<{ id: string; status: string; ip: string | null }>("/api/vms/provision", {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ projectId }),
-  })
-}
-
-export async function triggerBaseBuild(): Promise<void> {
-  await request<unknown>("/api/images/build-base", { method: "POST" })
-}
-
-export async function fetchBuildStatus(): Promise<BuildStatus> {
-  return request<BuildStatus>("/api/images/build-status")
 }
 
 export async function retryTask(id: string): Promise<Task> {
@@ -257,10 +189,3 @@ export async function updateProjectRepo(projectName: string): Promise<ProjectUpd
   })
 }
 
-export async function fetchBuildLog(project?: string, offset = 0): Promise<{ content: string; size: number }> {
-  const params = new URLSearchParams()
-  if (project) params.set("project", project)
-  if (offset > 0) params.set("offset", String(offset))
-  const query = params.toString() ? `?${params}` : ""
-  return request<{ content: string; size: number }>(`/api/images/build-log${query}`)
-}

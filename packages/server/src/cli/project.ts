@@ -22,7 +22,6 @@ Options for add:
   --repo <url>            Git repo URL (required)
   --setup <cmd>           Setup command run each session (required)
   --branch <branch>       Default branch (default: main)
-  --preview-command <cmd> Command to start preview server (optional)
   --test <cmd>            Test command (optional)
 
 Examples:
@@ -61,7 +60,6 @@ async function addProject(argv: string[]): Promise<void> {
     repo: { alias: "r", required: true },
     setup: { alias: "s", required: true },
     branch: { alias: "b" },
-    "preview-command": {},
     test: { alias: "t" },
   })
 
@@ -69,7 +67,6 @@ async function addProject(argv: string[]): Promise<void> {
   const repo = parsed.flags["repo"]!
   const setup = parsed.flags["setup"]!
   const defaultBranch = parsed.flags["branch"] ?? "main"
-  const previewCommand = parsed.flags["preview-command"]
   const test = parsed.flags["test"]
 
   const config = readRawConfig()
@@ -89,10 +86,6 @@ async function addProject(argv: string[]): Promise<void> {
     repo,
     defaultBranch,
     setup,
-  }
-
-  if (previewCommand) {
-    project.previewCommand = previewCommand
   }
 
   if (test) {

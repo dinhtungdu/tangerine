@@ -26,20 +26,6 @@ function check(label: string, ok: boolean, hint?: string): void {
   }
 }
 
-async function checkLima(): Promise<boolean> {
-  if (process.platform !== "darwin") return true
-  const proc = Bun.spawn(["which", "lima"], { stdout: "pipe", stderr: "pipe" })
-  await proc.exited
-  return proc.exitCode === 0
-}
-
-async function checkIncus(): Promise<boolean> {
-  if (process.platform === "darwin") return true
-  const proc = Bun.spawn(["which", "incus"], { stdout: "pipe", stderr: "pipe" })
-  await proc.exited
-  return proc.exitCode === 0
-}
-
 function ensureDir(dir: string): void {
   mkdirSync(dir, { recursive: true })
 }
@@ -69,24 +55,12 @@ function symlinkSkill(skillName: string): { created: boolean; skipped: string | 
 export async function install(): Promise<void> {
   console.log("\nTangerine install\n")
 
-  // 1. System dependencies
-  console.log("System dependencies:")
-  if (process.platform === "darwin") {
-    const hasLima = await checkLima()
-    check("Lima", hasLima, "brew install lima")
-  } else {
-    const hasIncus = await checkIncus()
-    check("Incus", hasIncus, "See https://linuxcontainers.org/incus/docs/main/installing/")
-  }
-
-  // 2. Directory structure
-  console.log("\nDirectories:")
+  // 1. Directory structure
+  console.log("Directories:")
   ensureDir(TANGERINE_HOME)
   check(`${TANGERINE_HOME}`, true)
-  ensureDir(join(TANGERINE_HOME, "images"))
-  check(`${TANGERINE_HOME}/images`, true)
 
-  // 3. Claude Code skills
+  // 2. Claude Code skills
   console.log("\nClaude Code skills:")
   for (const skillName of SKILLS_TO_INSTALL) {
     const skillSource = join(PROJECT_ROOT, "skills", skillName)
@@ -102,7 +76,7 @@ export async function install(): Promise<void> {
     }
   }
 
-  // 4. Credentials (env vars override dotfile)
+  // 3. Credentials (env vars override dotfile)
   console.log("\nCredentials:")
   const dotfile = readCredentialsFile()
   const hasOpencode = existsSync(OPENCODE_AUTH_PATH)

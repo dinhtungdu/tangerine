@@ -1,19 +1,11 @@
 import { z } from "zod"
 
-const previewConfigSchema = z.object({
-  baseUrl: z.string(),
-  provision: z.string().optional(),
-  teardown: z.string().optional(),
-  urlPath: z.string().optional(),
-})
-
 export const projectConfigSchema = z.object({
   name: z.string(),
   repo: z.string(),
   defaultBranch: z.string().default("main"),
   setup: z.string(),
   test: z.string().optional(),
-  preview: previewConfigSchema.optional(),
   env: z.record(z.string()).optional(),
   model: z.string().optional(),
   defaultProvider: z.enum(["opencode", "claude-code"]).default("claude-code"),

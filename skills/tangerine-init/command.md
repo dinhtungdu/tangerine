@@ -20,9 +20,7 @@ Read the reference files before generating:
 Scan the codebase, present findings, then after confirmation:
 1. Write project config to `~/tangerine/config.json`
 2. Clone repo to `/workspace/<project>/repo` (if not already cloned)
-3. Write `~/tangerine/images/<name>/build.sh` if project needs extra system packages
-4. Ask about preview setup (WordPress subdirectory or dev server)
-5. Ask about agent skills to install in `~/.claude/skills/`
-6. Guide through `bin/tangerine start`
+3. Ask about agent skills to install in `~/.claude/skills/`
+5. Guide through `bin/tangerine start`
 
 $ARGUMENTS

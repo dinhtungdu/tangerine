@@ -1,6 +1,6 @@
 # Tangerine
 
-Local background coding agent platform. VMs + multi-provider agents (OpenCode, Claude Code) + web dashboard.
+Local background coding agent platform. Multi-provider agents (OpenCode, Claude Code) + web dashboard.
 
 ## Setup
 
@@ -15,12 +15,10 @@ packages/
   shared/src/      # @tangerine/shared — types, config schema, constants
   server/src/
     api/           # Hono server (REST + WebSocket + webhooks)
-    vm/            # Per-project VMs (ProjectVmManager, Lima provider, SSH, tunnel)
     agent/         # Agent providers (OpenCode, Claude Code) + provider abstraction
     tasks/         # Task lifecycle, cleanup, health, retry, worktree setup
     integrations/  # GitHub webhook handler
     db/            # SQLite schema + queries
-    image/         # Golden image build (two-layer: base + project)
 web/
   src/             # Vite + React dashboard
 specs/             # Architecture and design docs
@@ -29,15 +27,13 @@ specs/             # Architecture and design docs
 ## Key Decisions
 
 - Multi-provider: OpenCode (HTTP/SSE) and Claude Code (stdin/stdout NDJSON) behind AgentProvider abstraction
-- VM-per-project with git worktrees for task isolation (not per-task pooled VMs)
-- Project-agnostic: each project defines golden image + setup + preview + test
-- VM layer extracted from hal9999 (Lima/Incus providers, SSH)
+- Git worktrees for task isolation
+- Project-agnostic: each project defines setup + test commands
 - Multiplayer-ready data model (user_id nullable for v0)
 - Local-first, upgradeable to hosted
 
 ## Related Projects
 
-- hal9999: `~/workspace/hal9999/` — VM provisioning source
 - orange: `~/workspace/orange/` — workflow engine (future integration)
 - OpenCode: agent backend (server mode + SDK)
 - Claude Code: agent backend (CLI stdin/stdout with stream-json)
@@ -99,7 +95,6 @@ Use these skills when writing or reviewing web UI code:
 - **Components**: `web/src/__tests__/components.test.tsx` — render + interaction tests (uses happy-dom via preload)
 - **API**: `packages/server/src/__tests__/api-routes.test.ts` — Hono route contracts
 - **Models**: `packages/server/src/__tests__/models.test.ts` — per-provider model discovery
-- **Skipped**: `packages/server/src/vm/__tests__/pool.test.ts` — deprecated VMPoolManager (replaced by ProjectVmManager)
 
 <!-- gitnexus:start -->
 # GitNexus — Code Intelligence

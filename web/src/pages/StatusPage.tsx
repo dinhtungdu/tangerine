@@ -2,7 +2,7 @@ import { useProject } from "../context/ProjectContext"
 import { useTaskSearch } from "../hooks/useTaskSearch"
 import { useProjectNav } from "../hooks/useProjectNav"
 import { TasksSidebar } from "../components/TasksSidebar"
-import { ActiveRunsCard, BuildLog, SystemLog, ProjectUpdateCard } from "../components/StatusWidgets"
+import { ActiveRunsCard, SystemLog, ProjectUpdateCard } from "../components/StatusWidgets"
 
 export function StatusPage() {
   const { navigate } = useProjectNav()
@@ -42,9 +42,6 @@ export function StatusPage() {
 
             {/* Active runs card */}
             <ActiveRunsCard tasks={tasks} />
-
-            {/* Build log */}
-            <BuildLog project={current?.name} buildStatus={{ status: "idle" }} />
 
             {/* System log */}
             <SystemLog project={current?.name} />

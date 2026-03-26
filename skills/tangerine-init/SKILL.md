@@ -76,8 +76,8 @@ User runs `/tangerine-init` from INSIDE the VM in a project directory. You help 
    - Detected stack summary
    - Proposed project name
    - Setup command (runs per-task in worktree)
-   - Preview config (if WordPress or dev server)
    - Test command
+   - Post-update command (install deps + build, runs after git pull)
 4. **Write config** to `~/tangerine/config.json`:
    ```json
    {
@@ -86,12 +86,8 @@ User runs `/tangerine-init` from INSIDE the VM in a project directory. You help 
      "defaultBranch": "main",
      "setup": "pnpm install",
      "test": "pnpm test",
-     "preview": {
-       "baseUrl": "http://woo-next.test",
-       "provision": "$HOME/worktree-scripts/provision.sh",
-       "teardown": "$HOME/worktree-scripts/teardown.sh"
-     },
-     "defaultProvider": "claude-code"
+     "defaultProvider": "claude-code",
+     "postUpdateCommand": "pnpm install && pnpm build"
    }
    ```
 5. **Clone the repo**:
@@ -99,46 +95,15 @@ User runs `/tangerine-init` from INSIDE the VM in a project directory. You help 
    mkdir -p /workspace/my-project
    git clone <repo-url> /workspace/my-project/repo
    ```
-6. **Write build.sh** if project needs extra tools (optional):
-   - `~/tangerine/images/<project-name>/build.sh`
-   - Only for project-specific system packages (Apache, MariaDB, PHP extensions, etc.)
-   - Most projects don't need this — base setup covers common tools
-
-### setup vs build.sh
-
-- **`setup`** (runs per-task in worktree): `pnpm install`, `composer install` — fast, dependency-level
-- **`build.sh`** (runs once during VM provisioning): system packages, services — slow, machine-level
-
 ### Base Setup Includes
 
-The `deploy/base-setup.sh` installs these — do NOT add them to build.sh:
+The `deploy/base-setup.sh` installs these globally:
 - git, curl, jq, tmux, unzip
 - Node.js 22 LTS, npm, pnpm
 - Bun runtime
 - PHP CLI + common extensions, Composer
 - OpenCode + Claude Code (pre-installed globally)
 - gh CLI
-
-### Preview Config
-
-**WordPress (subdirectory sites)**:
-```json
-"preview": {
-  "baseUrl": "http://woo-next.test",
-  "provision": "$HOME/worktree-scripts/provision.sh",
-  "teardown": "$HOME/worktree-scripts/teardown.sh"
-}
-```
-Each task gets a subdirectory: `http://woo-next.test/{task-slug}/`
-
-**Dev server (Node/React/etc.)**:
-No preview config needed — or provide a `command`:
-```json
-"preview": {
-  "baseUrl": "http://localhost",
-  "command": "npm run dev -- --port $PORT"
-}
-```
 
 ## Agent Skills
 
@@ -202,11 +167,6 @@ For repos on `github.a8c.com` behind a SOCKS proxy:
 ~/tangerine/
   config.json             # all projects (managed by tangerine CLI)
   tangerine.db            # task database
-  images/
-    my-project/
-      build.sh            # project-specific system setup (optional)
-      provision.sh        # preview provisioning script
-
 /workspace/
   project-a/
     repo/                 # git clone
@@ -225,7 +185,6 @@ For repos on `github.a8c.com` behind a SOCKS proxy:
 Only ask if you can't determine from the codebase:
 - Repo URL (if no git remote found)
 - Whether it's a GHE repo (needs proxy setup)
-- Preview type (WordPress subdirectory vs dev server)
 - Which agent skills to install
 
 ## After Init
