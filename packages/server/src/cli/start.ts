@@ -379,6 +379,17 @@ export async function start(): Promise<void> {
                 break
               }
               case "thinking": {
+                // Persist thinking to chat and emit via WebSocket
+                emitTaskEvent(taskId, {
+                  role: "thinking",
+                  content: event.content,
+                  timestamp: new Date().toISOString(),
+                })
+                Effect.runPromise(
+                  insertSessionLog(db, { task_id: taskId, role: "thinking", content: event.content }).pipe(
+                    Effect.catchAll(() => Effect.void)
+                  )
+                )
                 Effect.runPromise(
                   logActivity(db, taskId, "system", "agent.thinking", event.content).pipe(
                     Effect.catchAll(() => Effect.void)
