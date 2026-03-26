@@ -1,41 +1,13 @@
-import { useState, useEffect, useCallback } from "react"
 import { useProject } from "../context/ProjectContext"
 import { useTaskSearch } from "../hooks/useTaskSearch"
 import { useProjectNav } from "../hooks/useProjectNav"
 import { TasksSidebar } from "../components/TasksSidebar"
-import { ActiveRunsCard, VmSummaryCard, VmList, BuildLog, SystemLog } from "../components/StatusWidgets"
-import { fetchVms, destroyVm, provisionVm, type VmInfo } from "../lib/api"
+import { ActiveRunsCard, BuildLog, SystemLog } from "../components/StatusWidgets"
 
 export function StatusPage() {
   const { navigate } = useProjectNav()
   const { current } = useProject()
   const { query, setQuery, tasks } = useTaskSearch(current?.name)
-  const [vms, setVms] = useState<VmInfo[]>([])
-  const loadAll = useCallback(async () => {
-    const vmData = await fetchVms(current?.name).catch(() => [])
-    setVms(vmData as VmInfo[])
-  }, [current?.name])
-
-  useEffect(() => {
-    loadAll()
-    const interval = setInterval(loadAll, 10000)
-    return () => clearInterval(interval)
-  }, [loadAll])
-
-  const handleRebuildVm = useCallback(async (vmId: string) => {
-    const confirmed = window.confirm(
-      "Destroy this VM and re-provision from base? Active tasks with pushed branches will be reprovisioned. Unpushed work will be lost.\n\nContinue?"
-    )
-    if (!confirmed) return
-    await destroyVm(vmId).catch(() => {})
-    loadAll()
-  }, [loadAll])
-
-  const handleProvisionVm = useCallback(async () => {
-    if (!current) return
-    await provisionVm(current.name).catch(() => {})
-    loadAll()
-  }, [current, loadAll])
 
   return (
     <div className="flex h-full">
@@ -65,14 +37,8 @@ export function StatusPage() {
               <p className="text-[14px] text-fg-muted">Infrastructure health for the current project</p>
             </div>
 
-            {/* Cards — horizontal on desktop, stacked on mobile */}
-            <div className="flex flex-col gap-4 md:flex-row md:gap-4">
-              <ActiveRunsCard tasks={tasks} />
-              <VmSummaryCard vms={vms} onRebuildVm={handleRebuildVm} onProvisionVm={handleProvisionVm} />
-            </div>
-
-            {/* VM list */}
-            <VmList vms={vms} />
+            {/* Active runs card */}
+            <ActiveRunsCard tasks={tasks} />
 
             {/* Build log */}
             <BuildLog project={current?.name} buildStatus={{ status: "idle" }} />
