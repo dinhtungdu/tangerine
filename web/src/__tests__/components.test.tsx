@@ -1,11 +1,12 @@
 import { describe, test, expect, afterEach } from "bun:test"
 import { render, screen, cleanup, fireEvent } from "@testing-library/react"
-import { MemoryRouter } from "react-router-dom"
+import { MemoryRouter, Route, Routes } from "react-router-dom"
 import { RunCard } from "../components/RunCard"
 import { ActivityList } from "../components/ActivityList"
 import { NewAgentForm } from "../components/NewAgentForm"
 import { ChatInput } from "../components/ChatInput"
 import { ModelSelector } from "../components/ModelSelector"
+import { StatusPage } from "../pages/StatusPage"
 import { ProjectProvider } from "../context/ProjectContext"
 import type { Task, ActivityEntry } from "@tangerine/shared"
 
@@ -80,6 +81,71 @@ function mockProjectsFetch() {
     status: 200,
     headers: { "Content-Type": "application/json" },
   })
+}
+
+function mockStatusPageFetch() {
+  global.fetch = async (input) => {
+    const url = typeof input === "string" ? input : input.url
+
+    if (url === "/api/projects") {
+      return new Response(JSON.stringify({
+        projects: [
+          {
+            name: "test-project",
+            repo: "test/repo",
+            defaultBranch: "main",
+            setup: "echo ok",
+            defaultProvider: "claude-code",
+          },
+        ],
+        model: "anthropic/claude-sonnet-4-6",
+        models: ["anthropic/claude-sonnet-4-6"],
+        modelsByProvider: {
+          "claude-code": ["anthropic/claude-sonnet-4-6"],
+        },
+      }), {
+        status: 200,
+        headers: { "Content-Type": "application/json" },
+      })
+    }
+
+    if (url.startsWith("/api/tasks")) {
+      return new Response(JSON.stringify([
+        makeTask({ id: "task-123", title: "Queued task", status: "provisioning" }),
+      ]), {
+        status: 200,
+        headers: { "Content-Type": "application/json" },
+      })
+    }
+
+    if (url === "/api/cleanup/orphans") {
+      return new Response(JSON.stringify([]), {
+        status: 200,
+        headers: { "Content-Type": "application/json" },
+      })
+    }
+
+    if (url === "/api/projects/test-project/update-status") {
+      return new Response(JSON.stringify({
+        available: false,
+        local: "abc12345",
+        remote: "abc12345",
+        checkedAt: "2026-03-17T10:00:00Z",
+      }), {
+        status: 200,
+        headers: { "Content-Type": "application/json" },
+      })
+    }
+
+    if (url.startsWith("/api/logs")) {
+      return new Response(JSON.stringify([]), {
+        status: 200,
+        headers: { "Content-Type": "application/json" },
+      })
+    }
+
+    return new Response("Not found", { status: 404 })
+  }
 }
 
 describe("RunCard", () => {
@@ -240,6 +306,29 @@ describe("NewAgentForm", () => {
   })
 })
 
+describe("StatusPage", () => {
+  test("sidebar New Agent button navigates to the new agent route", async () => {
+    mockStatusPageFetch()
+
+    render(
+      <MemoryRouter initialEntries={["/status?project=test-project"]}>
+        <ProjectProvider>
+          <Routes>
+            <Route path="/status" element={<StatusPage />} />
+            <Route path="/new" element={<div>New Agent Route</div>} />
+          </Routes>
+        </ProjectProvider>
+      </MemoryRouter>
+    )
+
+    await screen.findByText("System Status")
+
+    fireEvent.click(screen.getByRole("button", { name: "New Agent" }))
+
+    expect(await screen.findByText("New Agent Route")).toBeTruthy()
+  })
+})
+
 describe("ChatInput", () => {
   test("restores chat draft text and images from localStorage", () => {
     window.localStorage.setItem("tangerine:chat-draft:task-123", JSON.stringify({
@@ -359,4 +448,3 @@ describe("ChatMessage", async () => {
     expect(document.querySelector("del")!.textContent).toBe("deleted")
   })
 })
-
