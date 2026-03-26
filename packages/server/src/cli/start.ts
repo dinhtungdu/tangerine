@@ -31,14 +31,15 @@ import type { AgentHandle } from "../agent/provider"
 
 const log = createLogger("cli")
 
-/** Classify agent tool name -> activity type + event name */
+/** Classify agent tool name -> activity type + event name.
+ * Case-insensitive so both Claude Code (PascalCase) and OpenCode (lowercase) work. */
 function classifyTool(toolName: string): { activityType: "file" | "system"; activityEvent: string } {
-  switch (toolName) {
-    case "Read": case "Glob": case "Grep":
+  switch (toolName.toLowerCase()) {
+    case "read": case "glob": case "grep":
       return { activityType: "file", activityEvent: "tool.read" }
-    case "Write": case "Edit":
+    case "write": case "edit":
       return { activityType: "file", activityEvent: "tool.write" }
-    case "Bash":
+    case "bash":
       return { activityType: "system", activityEvent: "tool.bash" }
     default:
       return { activityType: "system", activityEvent: "tool.other" }
