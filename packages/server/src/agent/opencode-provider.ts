@@ -398,6 +398,8 @@ export function createOpenCodeProvider(): AgentFactory {
         // Accumulate text parts per message ID to assemble complete messages
         const textParts = new Map<string, string>()
         const toolStates = new Map<string, string>()
+        // Track last narration so we can promote it to "assistant" on idle
+        let lastNarration: { content: string; messageId?: string } | null = null
 
         const emit = (event: AgentEvent) => {
           for (const cb of subscribers) cb(event)
@@ -493,11 +495,12 @@ export function createOpenCodeProvider(): AgentFactory {
             if (info?.role === "assistant" && info.time?.completed) {
               const messageId = typeof info.id === "string" ? info.id : undefined
               const text = messageId ? textParts.get(messageId) : undefined
-              // Only emit message.complete when there's actual text content —
-              // tool-only messages (no text) don't need a chat entry, matching
-              // Claude Code's behavior.
+              // Per-turn text is narration (agent explaining what it's doing between
+              // tool calls). The final answer is promoted to "assistant" when idle.
+              // Tool-only messages (no text) don't need a chat entry.
               if (messageId && text) {
-                emit({ kind: "message.complete", role: "assistant", content: text, messageId })
+                lastNarration = { content: text, messageId }
+                emit({ kind: "message.complete", role: "narration", content: text, messageId })
               }
               if (messageId) textParts.delete(messageId)
             }
@@ -505,7 +508,15 @@ export function createOpenCodeProvider(): AgentFactory {
           }
 
           const mapped = mapSseEvent(raw)
-          if (mapped) emit(mapped)
+          if (mapped) {
+            // When agent goes idle, promote the last narration to "assistant"
+            // so there's always a visible final answer in chat
+            if (mapped.kind === "status" && mapped.status === "idle" && lastNarration) {
+              emit({ kind: "message.complete", role: "assistant", content: lastNarration.content, messageId: lastNarration.messageId })
+              lastNarration = null
+            }
+            emit(mapped)
+          }
         }
 
         // Start SSE subscription in background
