@@ -108,18 +108,19 @@ async function acquireServer(
   throw new Error(`OpenCode health check failed after ${maxAttempts} attempts`)
 }
 
-/** Decrement refCount and kill the server when no tasks remain */
+/** Decrement refCount. Only kill the server if we spawned it ourselves. */
 function releaseServer(): void {
   if (!sharedServer) return
   sharedServer.refCount--
   log.debug("Released OpenCode server ref", { pid: sharedServer.pid, refCount: sharedServer.refCount })
   if (sharedServer.refCount <= 0) {
-    log.info("No more tasks using OpenCode server, shutting down", { pid: sharedServer.pid })
     if (sharedServer.proc) {
+      // We spawned this server — safe to kill
+      log.info("No more tasks using OpenCode server, shutting down", { pid: sharedServer.pid })
       try { sharedServer.proc.kill() } catch { /* already dead */ }
-    } else if (sharedServer.pid > 0) {
-      // Adopted external process — kill by PID (skip if PID unknown)
-      try { process.kill(sharedServer.pid, "SIGTERM") } catch { /* already dead */ }
+    } else {
+      // Adopted external server — leave it running for other consumers
+      log.info("No more tasks using adopted OpenCode server, releasing ref", { pid: sharedServer.pid })
     }
     sharedServer = null
   }
