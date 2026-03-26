@@ -25,10 +25,17 @@ export function wsRoutes(deps: AppDeps, upgradeWebSocket: UpgradeWebSocket): Hon
         onOpen(_event, ws) {
           // Run Effect-based getTask inside callback via runPromise
           Effect.runPromise(getTask(deps.db, taskId)).then(
-            (_task) => {
+            (task) => {
               // Confirm connection
               const connected: WsServerMessage = { type: "connected" }
               ws.send(JSON.stringify(connected))
+
+              // Send current task status so the client knows immediately
+              // whether the agent is working (avoids delay before first event)
+              if (task) {
+                const statusMsg: WsServerMessage = { type: "status", status: task.status as TaskStatus }
+                ws.send(JSON.stringify(statusMsg))
+              }
 
               // Relay agent events to this client
               unsubEvent = deps.taskManager.onTaskEvent(taskId, (data: unknown) => {
