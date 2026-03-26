@@ -13,7 +13,7 @@ export function StatusPage() {
     <div className="flex h-full">
       {/* Desktop sidebar */}
       <div className="hidden md:block">
-        <TasksSidebar tasks={tasks} searchQuery={query} onSearchChange={setQuery} onNewAgent={() => navigate("/")} />
+        <TasksSidebar tasks={tasks} searchQuery={query} onSearchChange={setQuery} onNewAgent={() => navigate("/new")} />
       </div>
 
       {/* Main content */}
