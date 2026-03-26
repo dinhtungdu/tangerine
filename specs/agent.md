@@ -143,16 +143,24 @@ Both providers have access to:
 
 ## OpenCode Configuration
 
-Pre-baked in golden image at `/root/.config/opencode/opencode.json`:
+The OpenCode provider auto-creates `~/.config/opencode/opencode.json` before first server spawn with permissions that allow headless operation:
 
 ```json
 {
-  "model": "anthropic/claude-sonnet-4-20250514",
-  "permissions": {
-    "auto_approve": ["read", "write", "execute"]
+  "agent": {
+    "build": {
+      "permission": {
+        "external_directory": "allow",
+        "doom_loop": "allow"
+      }
+    }
   }
 }
 ```
+
+This allows the `build` agent to access paths outside the project dir (e.g. `/tmp/*`) and continue past doom-loop detection without user approval — both safe in a sandbox VM.
+
+As a safety net, the provider also subscribes to `permission.asked` SSE events and auto-approves them via `POST /session/{id}/permissions/{permissionId}` with `{"response": "always"}`.
 
 ## Model / Config Changes
 

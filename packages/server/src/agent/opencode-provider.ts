@@ -9,6 +9,8 @@ import { Effect } from "effect"
 import { createLogger, truncate } from "../logger"
 import { AgentError, PromptError, SessionStartError } from "../errors"
 import type { AgentFactory, AgentHandle, AgentEvent, AgentStartContext } from "./provider"
+import { homedir } from "node:os"
+import { join } from "node:path"
 
 const log = createLogger("opencode-provider")
 
@@ -81,6 +83,9 @@ async function acquireServer(
   } catch {
     // Not running — we'll spawn below
   }
+
+  // Ensure permissions config exists before first spawn
+  await ensureOpenCodeConfig()
 
   // Spawn a new OpenCode server
   const proc = Bun.spawn(
@@ -186,6 +191,62 @@ async function findListeningPid(port: number): Promise<number | null> {
     }
   }
   return null
+}
+
+// -- OpenCode permission config ------------------------------------------------
+// OpenCode's permission system blocks tools accessing paths outside the project dir
+// (e.g. /tmp/*). Since Tangerine runs in a sandbox VM, we auto-allow everything
+// by writing the config before starting the server.
+
+const OPENCODE_CONFIG: Record<string, unknown> = {
+  agent: {
+    build: {
+      permission: {
+        external_directory: "allow",
+        doom_loop: "allow",
+      },
+    },
+  },
+}
+
+let configEnsured = false
+
+async function ensureOpenCodeConfig(): Promise<void> {
+  if (configEnsured) return
+  const configDir = join(homedir(), ".config", "opencode")
+  const configPath = join(configDir, "opencode.json")
+
+  try {
+    const file = Bun.file(configPath)
+    if (await file.exists()) {
+      // Merge our permission config with existing config
+      const existing = JSON.parse(await file.text()) as Record<string, unknown>
+      const existingAgent = (existing.agent ?? {}) as Record<string, unknown>
+      const existingBuild = (existingAgent.build ?? {}) as Record<string, unknown>
+      const existingPerm = (existingBuild.permission ?? {}) as Record<string, unknown>
+      const ourPerm = (OPENCODE_CONFIG.agent as Record<string, unknown>).build as Record<string, unknown>
+      const merged = {
+        ...existing,
+        agent: {
+          ...existingAgent,
+          build: {
+            ...existingBuild,
+            permission: {
+              ...existingPerm,
+              ...(ourPerm.permission as Record<string, unknown>),
+            },
+          },
+        },
+      }
+      await Bun.write(configPath, JSON.stringify(merged, null, 2) + "\n")
+    } else {
+      await Bun.write(configPath, JSON.stringify(OPENCODE_CONFIG, null, 2) + "\n")
+    }
+    configEnsured = true
+    log.info("OpenCode config ensured", { path: configPath })
+  } catch (err) {
+    log.warn("Failed to write OpenCode config, permissions may prompt", { error: String(err) })
+  }
 }
 
 /** Extract the data payload from an SSE block, handling multi-line formats like "event: foo\ndata: {...}" */
@@ -342,6 +403,27 @@ export function createOpenCodeProvider(): AgentFactory {
           for (const cb of subscribers) cb(event)
         }
 
+        /** Auto-approve permission requests — Tangerine runs in a sandbox VM */
+        const autoApprovePermission = async (permissionId: string) => {
+          try {
+            const res = await fetch(
+              `http://localhost:${opencodePort}/session/${sessionId}/permissions/${permissionId}`,
+              {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ response: "always" }),
+              },
+            )
+            if (res.ok) {
+              taskLog.info("Auto-approved permission", { permissionId })
+            } else {
+              taskLog.warn("Failed to auto-approve permission", { permissionId, status: res.status })
+            }
+          } catch (err) {
+            taskLog.warn("Error auto-approving permission", { permissionId, error: String(err) })
+          }
+        }
+
         /** Process raw OpenCode SSE event — handles message accumulation internally */
         const processRawEvent = (raw: Record<string, unknown>) => {
           const eventSessionId = getSessionId(raw)
@@ -351,6 +433,14 @@ export function createOpenCodeProvider(): AgentFactory {
 
           const type = raw.type as string | undefined
           if (!type) return
+
+          // Auto-approve permission requests (sandbox VM — all ops are safe)
+          if (type === "permission.asked") {
+            const properties = asRecord(raw.properties)
+            const permissionId = typeof properties?.id === "string" ? properties.id : null
+            if (permissionId) autoApprovePermission(permissionId)
+            return
+          }
 
           if (type === "message.part.delta") {
             const properties = asRecord(raw.properties)
