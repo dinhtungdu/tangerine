@@ -122,13 +122,13 @@ export function mapClaudeCodeEvent(raw: Record<string, unknown>): AgentEvent[] {
         }
       }
 
-      // Emit as message.complete — assistant events are complete messages, not
-      // streaming deltas. This ensures per-turn text is persisted to session_logs,
-      // matching OpenCode's behavior.
+      // Per-turn text is narration (agent explaining what it's doing between tool
+      // calls). The final answer comes from the "result" event as role "assistant".
+      // Narration is persisted but collapsed in the UI alongside thinking.
       if (textParts.length > 0) {
         events.push({
           kind: "message.complete",
-          role: "assistant",
+          role: "narration",
           content: textParts.join(""),
           messageId: optStr(message.id),
         })

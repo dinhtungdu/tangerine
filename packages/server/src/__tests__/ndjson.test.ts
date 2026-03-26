@@ -3,7 +3,7 @@ import { mapClaudeCodeEvent } from "../agent/ndjson"
 
 describe("mapClaudeCodeEvent", () => {
   describe("assistant events", () => {
-    test("emits message.complete for text blocks (not message.streaming)", () => {
+    test("emits per-turn text as narration (not assistant)", () => {
       const events = mapClaudeCodeEvent({
         type: "assistant",
         message: {
@@ -16,7 +16,7 @@ describe("mapClaudeCodeEvent", () => {
       expect(complete).toBeDefined()
       expect(complete).toMatchObject({
         kind: "message.complete",
-        role: "assistant",
+        role: "narration",
         content: "Here is my response",
         messageId: "msg_123",
       })
@@ -25,7 +25,7 @@ describe("mapClaudeCodeEvent", () => {
       expect(streaming).toBeUndefined()
     })
 
-    test("concatenates multiple text blocks into one message.complete", () => {
+    test("concatenates multiple text blocks into one narration", () => {
       const events = mapClaudeCodeEvent({
         type: "assistant",
         message: {
@@ -40,12 +40,12 @@ describe("mapClaudeCodeEvent", () => {
       const complete = events.find((e) => e.kind === "message.complete")
       expect(complete).toMatchObject({
         kind: "message.complete",
-        role: "assistant",
+        role: "narration",
         content: "Part one. Part two.",
       })
     })
 
-    test("emits thinking and tool.start alongside message.complete", () => {
+    test("emits thinking and tool.start alongside narration", () => {
       const events = mapClaudeCodeEvent({
         type: "assistant",
         message: {
@@ -65,7 +65,7 @@ describe("mapClaudeCodeEvent", () => {
       })
       expect(events.find((e) => e.kind === "message.complete")).toMatchObject({
         kind: "message.complete",
-        role: "assistant",
+        role: "narration",
         content: "I will edit the file",
       })
       expect(events.find((e) => e.kind === "status")).toMatchObject({

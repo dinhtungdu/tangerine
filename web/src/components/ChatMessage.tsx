@@ -80,7 +80,8 @@ export function ChatMessage({ message }: ChatMessageProps) {
   const isUser = message.role === "user"
   const isSystem = message.role === "system"
   const isThinking = message.role === "thinking"
-  const isTool = !isUser && !isSystem && !isThinking && isToolCall(message.content)
+  const isNarration = message.role === "narration"
+  const isTool = !isUser && !isSystem && !isThinking && !isNarration && isToolCall(message.content)
 
   if (isTool) {
     return (
@@ -155,6 +156,26 @@ export function ChatMessage({ message }: ChatMessageProps) {
           <span className="text-[10px] text-fg-muted/50">{formatTimestamp(message.timestamp)}</span>
         </div>
         <div className="rounded-lg border border-amber-500/10 bg-amber-500/5 px-3 py-2 text-[12px] italic leading-[1.6] text-fg-muted">
+          {message.content}
+        </div>
+      </div>
+    )
+  }
+
+  // Narration — per-turn agent text (collapsed alongside thinking)
+  if (isNarration) {
+    return (
+      <div className="animate-fade-in flex flex-col gap-1">
+        <div className="flex items-center gap-2">
+          <div className="flex h-5 w-5 items-center justify-center rounded-[10px] bg-blue-500/15">
+            <svg className="h-2.5 w-2.5 text-blue-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+              <path strokeLinecap="round" strokeLinejoin="round" d="M7.5 8.25h9m-9 3H12m-9.75 1.51c0 1.6 1.123 2.994 2.707 3.227 1.129.166 2.27.293 3.423.379.35.026.67.21.865.501L12 21l2.755-4.133a1.14 1.14 0 0 1 .865-.501 48.172 48.172 0 0 0 3.423-.379c1.584-.233 2.707-1.626 2.707-3.228V6.741c0-1.602-1.123-2.995-2.707-3.228A48.394 48.394 0 0 0 12 3c-2.392 0-4.744.175-7.043.513C3.373 3.746 2.25 5.14 2.25 6.741v6.018Z" />
+            </svg>
+          </div>
+          <span className="text-[12px] font-medium text-blue-500/70">Narration</span>
+          <span className="text-[10px] text-fg-muted/50">{formatTimestamp(message.timestamp)}</span>
+        </div>
+        <div className="rounded-lg border border-blue-500/10 bg-blue-500/5 px-3 py-2 text-[12px] leading-[1.6] text-fg-muted">
           {message.content}
         </div>
       </div>
