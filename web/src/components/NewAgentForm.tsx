@@ -204,14 +204,14 @@ export function NewAgentForm({ onSubmit, refTaskId, refTaskTitle }: NewAgentForm
 
           {/* Reference badge */}
           {refTaskId && (
-            <div className="flex items-center gap-2 rounded-lg border border-blue-200 bg-blue-50 px-3 py-2">
-              <svg className="h-3.5 w-3.5 shrink-0 text-blue-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+            <div className="flex items-center gap-2 rounded-lg border border-accent-border bg-accent-bg px-3 py-2">
+              <svg className="h-3.5 w-3.5 shrink-0 text-accent" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                 <path strokeLinecap="round" strokeLinejoin="round" d="M13.19 8.688a4.5 4.5 0 0 1 1.242 7.244l-4.5 4.5a4.5 4.5 0 0 1-6.364-6.364l1.757-1.757m13.35-.622 1.757-1.757a4.5 4.5 0 0 0-6.364-6.364l-4.5 4.5a4.5 4.5 0 0 0 1.242 7.244" />
               </svg>
-              <span className="min-w-0 truncate text-[12px] text-blue-700">
+              <span className="min-w-0 truncate text-[12px] text-accent-text">
                 Continuing from: <span className="font-medium">{refTaskTitle || refTaskId}</span>
               </span>
-              <span className="ml-auto font-mono text-[10px] text-blue-400">{refTaskId.slice(0, 8)}</span>
+              <span className="ml-auto font-mono text-[10px] text-accent-muted">{refTaskId.slice(0, 8)}</span>
             </div>
           )}
 
@@ -273,7 +273,7 @@ export function NewAgentForm({ onSubmit, refTaskId, refTaskTitle }: NewAgentForm
               <button
                 onClick={handleSubmit}
                 disabled={!canSubmit}
-                className="flex w-full items-center justify-center gap-1.5 rounded-md bg-surface-dark px-4 py-2 text-white transition hover:bg-neutral-800 disabled:opacity-30"
+                className="flex w-full items-center justify-center gap-1.5 rounded-md bg-surface-dark px-4 py-2 text-white transition hover:opacity-80 disabled:opacity-30"
               >
                 <svg className="h-3 w-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                   <path strokeLinecap="round" strokeLinejoin="round" d="M5.25 5.653c0-.856.917-1.398 1.667-.986l11.54 6.347a1.125 1.125 0 0 1 0 1.972l-11.54 6.347a1.125 1.125 0 0 1-1.667-.986V5.653Z" />
@@ -322,7 +322,7 @@ export function NewAgentForm({ onSubmit, refTaskId, refTaskTitle }: NewAgentForm
             <button
               onClick={handleSubmit}
               disabled={!canSubmit}
-              className="flex h-12 w-full items-center justify-center gap-2 rounded-[10px] bg-surface-dark text-white transition hover:bg-neutral-800 disabled:opacity-30"
+              className="flex h-12 w-full items-center justify-center gap-2 rounded-[10px] bg-surface-dark text-white transition hover:opacity-80 disabled:opacity-30"
             >
               <svg className="h-[18px] w-[18px]" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                 <path strokeLinecap="round" strokeLinejoin="round" d="M5.25 5.653c0-.856.917-1.398 1.667-.986l11.54 6.347a1.125 1.125 0 0 1 0 1.972l-11.54 6.347a1.125 1.125 0 0 1-1.667-.986V5.653Z" />
@@ -357,7 +357,7 @@ export function NewAgentForm({ onSubmit, refTaskId, refTaskTitle }: NewAgentForm
                   <button
                     key={task.label}
                     onClick={() => setDescription(task.label)}
-                    className="flex h-9 items-center rounded-[18px] bg-surface-secondary px-3.5 text-[13px] text-fg transition active:bg-neutral-200"
+                    className="flex h-9 items-center rounded-[18px] bg-surface-secondary px-3.5 text-[13px] text-fg transition active:bg-edge"
                   >
                     {task.label}
                   </button>
@@ -368,7 +368,7 @@ export function NewAgentForm({ onSubmit, refTaskId, refTaskTitle }: NewAgentForm
                   <button
                     key={task.label}
                     onClick={() => setDescription(task.label)}
-                    className="flex h-9 items-center rounded-[18px] bg-surface-secondary px-3.5 text-[13px] text-fg transition active:bg-neutral-200"
+                    className="flex h-9 items-center rounded-[18px] bg-surface-secondary px-3.5 text-[13px] text-fg transition active:bg-edge"
                   >
                     {task.label}
                   </button>

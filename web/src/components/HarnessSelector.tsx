@@ -32,7 +32,7 @@ export function HarnessSelector({ value, onChange }: HarnessSelectorProps) {
     <div className="relative" ref={ref}>
       <button
         onClick={() => setOpen(!open)}
-        className="flex items-center gap-1.5 rounded-md border border-edge bg-surface-secondary px-2 py-1 transition hover:bg-neutral-200"
+        className="flex items-center gap-1.5 rounded-md border border-edge bg-surface-secondary px-2 py-1 transition hover:bg-surface"
       >
         <svg className="h-3 w-3 text-fg-muted" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.8}>
           <path strokeLinecap="round" strokeLinejoin="round" d="m5.25 4.5 7.5 7.5-7.5 7.5m6 0h6.75" />
@@ -47,7 +47,7 @@ export function HarnessSelector({ value, onChange }: HarnessSelectorProps) {
       </button>
 
       {open && (
-        <div className="absolute bottom-full left-0 z-50 mb-1 min-w-[160px] overflow-hidden rounded-lg border border-edge bg-white shadow-lg">
+        <div className="absolute bottom-full left-0 z-50 mb-1 min-w-[160px] overflow-hidden rounded-lg border border-edge bg-surface-card shadow-lg">
           {harnesses.map((h) => {
             const isActive = h.value === value
             return (
@@ -58,7 +58,7 @@ export function HarnessSelector({ value, onChange }: HarnessSelectorProps) {
                   setOpen(false)
                 }}
                 className={`flex w-full items-center justify-between px-3 py-2 text-left text-[12px] transition ${
-                  isActive ? "bg-surface-secondary font-medium text-fg" : "text-neutral-600 hover:bg-surface"
+                  isActive ? "bg-surface-secondary font-medium text-fg" : "text-fg-muted hover:bg-surface"
                 }`}
               >
                 <div className="flex items-center gap-2">

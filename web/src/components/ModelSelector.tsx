@@ -73,7 +73,7 @@ export function ModelSelector({ models: propModels, model: propModel, onModelCha
       </button>
 
       {open && models.length > 0 && (
-        <div className={`absolute left-0 z-50 min-w-[260px] overflow-hidden rounded-lg border border-edge bg-white shadow-lg ${menuPlacement === "bottom" ? "top-full mt-1" : "bottom-full mb-1"}`}>
+        <div className={`absolute left-0 z-50 min-w-[260px] overflow-hidden rounded-lg border border-edge bg-surface-card shadow-lg ${menuPlacement === "bottom" ? "top-full mt-1" : "bottom-full mb-1"}`}>
           {models.length > 5 && (
             <div className="border-b border-edge px-2 py-1.5">
               <input
@@ -97,7 +97,7 @@ export function ModelSelector({ models: propModels, model: propModel, onModelCha
                     key={m}
                     onClick={() => handleSelect(m)}
                     className={`flex w-full items-center justify-between px-3 py-2 text-left text-[12px] transition ${
-                      isActive ? "bg-surface-secondary font-medium text-fg" : "text-neutral-600 hover:bg-surface"
+                      isActive ? "bg-surface-secondary font-medium text-fg" : "text-fg-muted hover:bg-surface"
                     }`}
                   >
                     <span>{formatModelName(m)}</span>

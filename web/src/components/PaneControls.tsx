@@ -4,7 +4,7 @@ export function ResizeHandle({ onMouseDown }: { onMouseDown: (e: MouseEvent) => 
   return (
     <div
       onMouseDown={onMouseDown}
-      className="flex w-0.5 shrink-0 cursor-col-resize bg-edge transition-colors hover:bg-blue-400"
+      className="flex w-0.5 shrink-0 cursor-col-resize bg-edge transition-colors hover:bg-accent"
     >
       <span />
     </div>
@@ -18,8 +18,8 @@ export function PaneToggle({ desktopActive, mobileActive, onClick, label, childr
   label: string
   children: ReactNode
 }) {
-  const activeClass = "border border-edge bg-neutral-50 text-fg shadow-sm"
-  const inactiveClass = "text-neutral-500"
+  const activeClass = "border border-edge bg-surface-secondary text-fg shadow-sm"
+  const inactiveClass = "text-fg-muted"
 
   return (
     <>

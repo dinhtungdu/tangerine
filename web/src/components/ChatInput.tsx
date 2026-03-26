@@ -98,7 +98,7 @@ export function ChatInput({ onSend, disabled, queueLength, isWorking, onAbort, m
               <button
                 onClick={() => removeImage(i)}
                 aria-label="Remove image"
-                className="absolute -right-1 -top-1 flex h-4 w-4 items-center justify-center rounded-full bg-fg text-[10px] text-surface"
+                className="absolute -right-1 -top-1 flex h-4 w-4 items-center justify-center rounded-full bg-fg text-[10px] text-white"
               >
                 ×
               </button>
@@ -150,7 +150,7 @@ export function ChatInput({ onSend, disabled, queueLength, isWorking, onAbort, m
           onClick={handleSend}
           disabled={!canSend}
           aria-label="Send message"
-          className="hidden h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-surface-dark text-surface transition hover:bg-neutral-800 disabled:cursor-not-allowed disabled:opacity-30 md:flex"
+          className="hidden h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-surface-dark text-white transition hover:opacity-80 disabled:cursor-not-allowed disabled:opacity-30 md:flex"
         >
           <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
             <path strokeLinecap="round" strokeLinejoin="round" d="M6 12 3.269 3.125A59.769 59.769 0 0 1 21.485 12 59.768 59.768 0 0 1 3.27 20.875L5.999 12Zm0 0h7.5" />
