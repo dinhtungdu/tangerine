@@ -361,26 +361,3 @@ describe("ChatMessage", async () => {
   })
 })
 
-import { CopyableId } from "../components/CopyableId"
-
-describe("CopyableId", () => {
-
-  afterEach(cleanup)
-
-  test("renders truncated id", () => {
-    render(<CopyableId id="abcd1234-5678-9012-3456-7890abcdef12" />)
-    expect(screen.getByTitle("Copy task ID").textContent).toContain("abcd1234")
-  })
-
-  test("copies full id to clipboard on click", async () => {
-    let clipboardText = ""
-    Object.defineProperty(navigator, "clipboard", {
-      value: { writeText: (t: string) => { clipboardText = t; return Promise.resolve() } },
-      writable: true,
-      configurable: true,
-    })
-    render(<CopyableId id="abcd1234-5678-9012-3456-7890abcdef12" />)
-    fireEvent.click(screen.getByTitle("Copy task ID"))
-    expect(clipboardText).toBe("abcd1234-5678-9012-3456-7890abcdef12")
-  })
-})

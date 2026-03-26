@@ -17,7 +17,6 @@ import { ChangesPanel as DiffSidebar, type DiffComment } from "../components/Cha
 import { ResizeHandle, PaneToggle } from "../components/PaneControls"
 import { TerminalPane } from "../components/TerminalPane"
 import { formatPrNumber } from "../lib/format"
-import { CopyableId } from "../components/CopyableId"
 
 type PaneId = "chat" | "diff" | "terminal" | "activity"
 
@@ -40,6 +39,14 @@ export function TaskDetail() {
   const { query, setQuery, tasks } = useTaskSearch(current?.name)
   const { files: diffFiles } = useDiffFiles(id ?? "")
   const [diffComments, setDiffComments] = useState<DiffComment[]>([])
+  const [copiedId, setCopiedId] = useState(false)
+  const handleCopyId = useCallback(() => {
+    if (!id) return
+    navigator.clipboard.writeText(id).then(() => {
+      setCopiedId(true)
+      setTimeout(() => setCopiedId(false), 1500)
+    })
+  }, [id])
 
   const dimsKey = `tangerine:pane-dims:${id}`
   const dimsRef = useRef<{ chat: number; terminal: number; activity: number }>((() => {
@@ -227,7 +234,13 @@ export function TaskDetail() {
                 <path strokeLinecap="round" strokeLinejoin="round" d="M10.5 19.5 3 12m0 0 7.5-7.5M3 12h18" />
               </svg>
             </button>
-            <span className="min-w-0 truncate text-[14px] font-semibold text-fg">{task.title}</span>
+            <button
+              onClick={handleCopyId}
+              title="Click to copy task ID"
+              className="min-w-0 truncate text-[14px] font-semibold text-fg hover:text-fg-muted"
+            >
+              {copiedId ? "Copied ID!" : task.title}
+            </button>
             {task.branch && (
               <div className="hidden shrink-0 items-center gap-1 md:flex">
                 <svg className="h-3.5 w-3.5 text-fg-muted" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
@@ -253,7 +266,7 @@ export function TaskDetail() {
               <span className="h-1.5 w-1.5 rounded-full" style={{ backgroundColor: statusColor }} />
               {statusLabel}
             </span>
-            <CopyableId id={task.id} />
+
           </div>
 
           {/* Row 2 / Right: pane toggles + divider + stop + more */}
