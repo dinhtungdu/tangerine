@@ -70,9 +70,6 @@ curl -X POST $API/api/tasks \
     "branch": "#123"
   }'
 
-# Mark your task as done
-curl -X POST $API/api/tasks/$TANGERINE_TASK_ID/done
-
 # Cancel a task
 curl -X POST $API/api/tasks/<id>/cancel
 ```
@@ -116,14 +113,6 @@ curl -X POST http://localhost:3456/api/tasks \
     "source": "cross-project",
     "provider": "claude-code"
   }'
-```
-
-### Mark your task done
-
-When you've completed your work and pushed a branch/PR, signal completion:
-
-```bash
-curl -X POST http://localhost:3456/api/tasks/$TANGERINE_TASK_ID/done
 ```
 
 ### Check your worktree and branch

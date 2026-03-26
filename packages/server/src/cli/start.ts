@@ -203,12 +203,12 @@ export async function start(): Promise<void> {
               loadInitialImages().then(({ images, filenames }) => {
                 const projConfig = task?.project_id ? getProjectConfig(config.config, task.project_id) : undefined
                 const notes: string[] = []
-                notes.push(`[TANGERINE: You are running inside a Tangerine task (task ID: ${taskId}). Use the \`tangerine\` CLI to interact with the system — list tasks, create cross-project tasks, mark your task done. Run \`/tangerine\` for full reference.]`)
+                notes.push(`[TANGERINE: You are running inside a Tangerine task (task ID: ${taskId}). The Tangerine API is at http://localhost:3456. Run \`/tangerine\` for full API reference and common workflows.]`)
                 if (projConfig?.setup) {
                   const prefix = taskId.slice(0, 8)
                   notes.push(`[NOTE: Project setup is running in the background (\`${projConfig.setup}\`). Before running builds, tests, or linters, check if setup is done: \`cat /tmp/tangerine-setup-${prefix}.status\` (running/done/failed). Log: \`cat /tmp/tangerine-setup-${prefix}.log\`]`)
                 }
-                notes.push(`[NOTE: When your work is complete, you MUST push your branch and create a pull request. This is required for the task to be considered done. Use \`git push origin HEAD\` then \`gh pr create\`. Do not stop at just committing.]`)
+                notes.push(`[NOTE: When your work is complete, push your branch and create a pull request. Use \`git push origin HEAD\` then \`gh pr create\`. Do not stop at just committing.]`)
                 firstPromptSent.add(taskId)
                 const fullPrompt = notes.join("\n") + "\n\n" + initialPrompt
 
@@ -479,7 +479,7 @@ export async function start(): Promise<void> {
               const notes: string[] = []
 
               // Always orient the agent within Tangerine
-              notes.push(`[TANGERINE: You are running inside a Tangerine task (task ID: ${taskId}). Use the \`tangerine\` CLI to interact with the system — list tasks, create cross-project tasks, mark your task done. Run \`/tangerine\` for full reference.]`)
+              notes.push(`[TANGERINE: You are running inside a Tangerine task (task ID: ${taskId}). The Tangerine API is at http://localhost:3456. Run \`/tangerine\` for full API reference and common workflows.]`)
 
               if (task?.project_id) {
                 const projConfig = getProjectConfig(config.config, task.project_id)
@@ -491,7 +491,7 @@ export async function start(): Promise<void> {
                 }
               }
 
-              notes.push(`[NOTE: When your work is complete, you MUST push your branch and create a pull request. This is required for the task to be considered done. Use \`git push origin HEAD\` then \`gh pr create\`. Do not stop at just committing.]`)
+              notes.push(`[NOTE: When your work is complete, push your branch and create a pull request. Use \`git push origin HEAD\` then \`gh pr create\`. Do not stop at just committing.]`)
 
               if (notes.length > 0) {
                 promptText = notes.join("\n") + "\n\n" + text
