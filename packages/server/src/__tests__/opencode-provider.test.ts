@@ -163,10 +163,10 @@ describe("OpenCode provider helpers", () => {
       __meta: { sessionId: string; agentPort: number }
       __pid: number
     }
-    handle.__meta = { sessionId: "ses-123", agentPort: 4096 }
+    handle.__meta = { sessionId: "ses-123", agentPort: 14096 }
     handle.__pid = 4242
 
-    expect(getHandleMeta(handle)).toEqual({ sessionId: "ses-123", agentPort: 4096 })
+    expect(getHandleMeta(handle)).toEqual({ sessionId: "ses-123", agentPort: 14096 })
     expect(getAgentRuntimeMeta(handle)).toEqual({ agentPid: 4242, agentSessionId: "ses-123" })
   })
 
