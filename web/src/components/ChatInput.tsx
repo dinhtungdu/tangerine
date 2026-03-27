@@ -1,5 +1,5 @@
-import { useState, useRef, useCallback, useEffect, type KeyboardEvent, type ClipboardEvent } from "react"
-import type { PromptImage } from "@tangerine/shared"
+import { useState, useRef, useCallback, useEffect, type KeyboardEvent, type ClipboardEvent, type MouseEvent } from "react"
+import type { PromptImage, PredefinedPrompt } from "@tangerine/shared"
 import { ModelSelector } from "./ModelSelector"
 import { ReasoningEffortSelector, type ReasoningEffort } from "./ReasoningEffortSelector"
 
@@ -19,9 +19,10 @@ interface ChatInputProps {
   reasoningEffort?: string | null
   onModelChange?: (model: string) => void
   onReasoningEffortChange?: (effort: string) => void
+  predefinedPrompts?: PredefinedPrompt[]
 }
 
-export function ChatInput({ onSend, disabled, queueLength, taskId, isWorking, onAbort, model, providerModels, reasoningEffort, onModelChange, onReasoningEffortChange }: ChatInputProps) {
+export function ChatInput({ onSend, disabled, queueLength, taskId, isWorking, onAbort, model, providerModels, reasoningEffort, onModelChange, onReasoningEffortChange, predefinedPrompts }: ChatInputProps) {
   const draftKey = taskId ? `tangerine:chat-draft:${taskId}` : null
   const loadDraft = useCallback((): { text?: string; pendingImages?: PendingImage[] } => {
     if (!draftKey) return {}
@@ -125,11 +126,35 @@ export function ChatInput({ onSend, disabled, queueLength, taskId, isWorking, on
     }
   }, [draftKey, text, pendingImages])
 
+  const [isFocused, setIsFocused] = useState(false)
+
+  const handlePromptClick = useCallback((e: MouseEvent, promptText: string) => {
+    e.preventDefault()
+    onSend(promptText)
+  }, [onSend])
+
+  const showPrompts = isFocused && !text.trim() && predefinedPrompts && predefinedPrompts.length > 0
+
   const canSend = (text.trim().length > 0 || pendingImages.length > 0) && !disabled
   const canChangeModel = providerModels && providerModels.length > 1 && onModelChange
 
   return (
     <div className="border-t border-edge bg-surface px-3 py-2 md:bg-surface md:p-3 md:px-4">
+      {/* Predefined prompt chips */}
+      {showPrompts && (
+        <div className="mb-2 flex flex-wrap gap-1.5">
+          {predefinedPrompts.map((prompt, i) => (
+            <button
+              key={i}
+              onMouseDown={(e) => handlePromptClick(e, prompt.text)}
+              className="rounded-full border border-edge bg-surface-secondary px-3 py-1 text-[12px] text-fg-muted transition hover:bg-surface-dark hover:text-white"
+            >
+              {prompt.label}
+            </button>
+          ))}
+        </div>
+      )}
+
       {/* Pasted image thumbnails */}
       {pendingImages.length > 0 && (
         <div className="mb-2 flex flex-wrap gap-1.5">
@@ -163,6 +188,8 @@ export function ChatInput({ onSend, disabled, queueLength, taskId, isWorking, on
             }}
             onKeyDown={handleKeyDown}
             onPaste={handlePaste}
+            onFocus={() => setIsFocused(true)}
+            onBlur={() => setIsFocused(false)}
             placeholder={isWorking ? "Agent is working... (messages will be queued)" : "Message agent..."}
             disabled={disabled}
             rows={3}

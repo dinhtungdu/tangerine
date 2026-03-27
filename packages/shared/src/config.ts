@@ -1,5 +1,10 @@
 import { z } from "zod"
 
+export const predefinedPromptSchema = z.object({
+  label: z.string(),
+  text: z.string(),
+})
+
 export const projectConfigSchema = z.object({
   name: z.string(),
   repo: z.string(),
@@ -10,6 +15,7 @@ export const projectConfigSchema = z.object({
   model: z.string().optional(),
   defaultProvider: z.enum(["opencode", "claude-code"]).default("claude-code"),
   postUpdateCommand: z.string().optional(),
+  predefinedPrompts: z.array(predefinedPromptSchema).optional().default([]),
 })
 
 const githubTriggerSchema = z.object({
@@ -42,5 +48,6 @@ export const tangerineConfigSchema = z.object({
   integrations: integrationsSchema.optional(),
 })
 
+export type PredefinedPrompt = z.infer<typeof predefinedPromptSchema>
 export type ProjectConfig = z.infer<typeof projectConfigSchema>
 export type TangerineConfig = z.infer<typeof tangerineConfigSchema>
