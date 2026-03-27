@@ -342,6 +342,138 @@ export function mapSseEvent(data: Record<string, unknown>, state?: { currentText
   }
 }
 
+// ---------------------------------------------------------------------------
+// Extracted event processor — testable independently of the provider
+// ---------------------------------------------------------------------------
+
+export interface OpenCodeProcessorCallbacks {
+  emit: (event: AgentEvent) => void
+  onPermissionRequest?: (permissionId: string) => void
+}
+
+/**
+ * Creates a stateful SSE event processor for OpenCode. Manages text/image
+ * accumulation, message completion, and idle-promotion — everything that
+ * processRawEvent used to do inline inside start().
+ */
+export function createOpenCodeEventProcessor(sessionId: string, callbacks: OpenCodeProcessorCallbacks) {
+  const textParts = new Map<string, string>()
+  const toolStates = new Map<string, string>()
+  const imageParts = new Map<string, PromptImage[]>()
+  let lastNarration: { content: string; messageId?: string; images?: PromptImage[] } | null = null
+
+  const process = (raw: Record<string, unknown>) => {
+    const eventSessionId = getSessionId(raw)
+    if (eventSessionId !== null && eventSessionId !== sessionId) return
+
+    const type = raw.type as string | undefined
+    if (!type) return
+
+    if (type === "session.error") {
+      const properties = asRecord(raw.properties)
+      const error = asRecord(properties?.error)
+      const message = typeof error?.data === "object" && error.data !== null
+        ? (error.data as Record<string, unknown>).message
+        : error?.message
+      if (typeof message === "string") {
+        callbacks.emit({ kind: "error", message })
+      }
+      return
+    }
+
+    if (type === "permission.asked") {
+      const properties = asRecord(raw.properties)
+      const permissionId = typeof properties?.id === "string" ? properties.id : null
+      if (permissionId) callbacks.onPermissionRequest?.(permissionId)
+      return
+    }
+
+    if (type === "message.part.delta") {
+      const properties = asRecord(raw.properties)
+      const messageId = typeof properties?.messageID === "string" ? properties.messageID : undefined
+      const delta = typeof properties?.delta === "string" ? properties.delta : undefined
+      if (messageId && delta && properties?.field === "text") {
+        textParts.set(messageId, (textParts.get(messageId) ?? "") + delta)
+      }
+      if (messageId && delta && properties?.field === "thinking") {
+        callbacks.emit({ kind: "thinking", content: delta })
+      }
+    }
+
+    if (type === "message.part.updated") {
+      const part = asRecord(asRecord(raw.properties)?.part)
+      const messageId = typeof part?.messageID === "string" ? part.messageID : undefined
+
+      if (part?.type === "text" && messageId && typeof part.text === "string") {
+        const currentText = textParts.get(messageId) ?? ""
+        if (part.text.startsWith(currentText)) {
+          textParts.set(messageId, part.text)
+        }
+      }
+
+      if (part?.type === "thinking" && typeof part.text === "string") {
+        callbacks.emit({ kind: "thinking", content: truncate(part.text, 300) })
+        return
+      }
+
+      if (part?.type === "file" && messageId && typeof part.mime === "string" && part.mime.startsWith("image/") && typeof part.url === "string") {
+        const dataUrlMatch = (part.url as string).match(/^data:(image\/[\w+]+);base64,(.+)$/)
+        if (dataUrlMatch?.[1] && dataUrlMatch[2]) {
+          const mediaType = dataUrlMatch[1] as PromptImage["mediaType"]
+          const data = dataUrlMatch[2]
+          const existing = imageParts.get(messageId) ?? []
+          existing.push({ mediaType, data })
+          imageParts.set(messageId, existing)
+        }
+        return
+      }
+
+      if (part?.type === "tool") {
+        const callId = typeof part.callID === "string" ? part.callID : undefined
+        const status = typeof asRecord(part.state)?.status === "string" ? asRecord(part.state)?.status as string : undefined
+        const mapped = mapSseEvent(raw, {
+          currentText: messageId ? (textParts.get(messageId) ?? "") : "",
+          previousToolStatus: callId ? toolStates.get(callId) : undefined,
+        })
+        if (callId && status) toolStates.set(callId, status)
+        if (mapped) callbacks.emit(mapped)
+        return
+      }
+    }
+
+    if (type === "message.updated") {
+      const info = asRecord(asRecord(raw.properties)?.info) as
+        | { id?: string; role?: string; time?: { completed?: number } }
+        | null
+      if (info?.role === "assistant" && info.time?.completed) {
+        const messageId = typeof info.id === "string" ? info.id : undefined
+        const text = messageId ? textParts.get(messageId) : undefined
+        const images = messageId ? imageParts.get(messageId) : undefined
+        if (messageId && (text || images?.length)) {
+          lastNarration = { content: text ?? "", messageId, images }
+          callbacks.emit({ kind: "message.complete", role: "narration", content: text ?? "", messageId, images })
+        }
+        if (messageId) {
+          textParts.delete(messageId)
+          imageParts.delete(messageId)
+        }
+      }
+      return
+    }
+
+    const mapped = mapSseEvent(raw)
+    if (mapped) {
+      if (mapped.kind === "status" && mapped.status === "idle" && lastNarration) {
+        callbacks.emit({ kind: "message.complete", role: "assistant", content: lastNarration.content, messageId: lastNarration.messageId, images: lastNarration.images })
+        lastNarration = null
+      }
+      callbacks.emit(mapped)
+    }
+  }
+
+  return { process }
+}
+
 export function createOpenCodeProvider(): AgentFactory {
   return {
     start(ctx: AgentStartContext): Effect.Effect<AgentHandle, SessionStartError> {
@@ -395,13 +527,6 @@ export function createOpenCodeProvider(): AgentFactory {
         const subscribers = new Set<(e: AgentEvent) => void>()
         let sseAborted = false
         let sseConnected = false
-        // Accumulate text parts per message ID to assemble complete messages
-        const textParts = new Map<string, string>()
-        const toolStates = new Map<string, string>()
-        // Accumulate image parts per message ID (from FilePart with image mime)
-        const imageParts = new Map<string, PromptImage[]>()
-        // Track last narration so we can promote it to "assistant" on idle
-        let lastNarration: { content: string; messageId?: string; images?: PromptImage[] } | null = null
 
         const emit = (event: AgentEvent) => {
           for (const cb of subscribers) cb(event)
@@ -428,128 +553,11 @@ export function createOpenCodeProvider(): AgentFactory {
           }
         }
 
-        /** Process raw OpenCode SSE event — handles message accumulation internally */
-        const processRawEvent = (raw: Record<string, unknown>) => {
-          const eventSessionId = getSessionId(raw)
-          // Filter by session ID, but allow events with no session ID (e.g. session.status)
-          // since they may be global events that still apply to our session
-          if (eventSessionId !== null && eventSessionId !== sessionId) return
-
-          const type = raw.type as string | undefined
-          if (!type) return
-
-          // Surface session errors (e.g. model not found) in the chat
-          if (type === "session.error") {
-            const properties = asRecord(raw.properties)
-            const error = asRecord(properties?.error)
-            const message = typeof error?.data === "object" && error.data !== null
-              ? (error.data as Record<string, unknown>).message
-              : error?.message
-            if (typeof message === "string") {
-              emit({ kind: "error", message })
-            }
-            return
-          }
-
-          // Auto-approve permission requests (sandbox VM — all ops are safe)
-          if (type === "permission.asked") {
-            const properties = asRecord(raw.properties)
-            const permissionId = typeof properties?.id === "string" ? properties.id : null
-            if (permissionId) autoApprovePermission(permissionId)
-            return
-          }
-
-          if (type === "message.part.delta") {
-            const properties = asRecord(raw.properties)
-            const messageId = typeof properties?.messageID === "string" ? properties.messageID : undefined
-            const delta = typeof properties?.delta === "string" ? properties.delta : undefined
-            if (messageId && delta && properties?.field === "text") {
-              textParts.set(messageId, (textParts.get(messageId) ?? "") + delta)
-            }
-            // Route thinking deltas to activity log, not chat
-            if (messageId && delta && properties?.field === "thinking") {
-              emit({ kind: "thinking", content: delta })
-            }
-          }
-
-          if (type === "message.part.updated") {
-            const part = asRecord(asRecord(raw.properties)?.part)
-            const messageId = typeof part?.messageID === "string" ? part.messageID : undefined
-
-            if (part?.type === "text" && messageId && typeof part.text === "string") {
-              const currentText = textParts.get(messageId) ?? ""
-              if (part.text.startsWith(currentText)) {
-                textParts.set(messageId, part.text)
-              }
-            }
-
-            // Route thinking snapshots to activity log, not chat
-            if (part?.type === "thinking" && typeof part.text === "string") {
-              emit({ kind: "thinking", content: truncate(part.text, 300) })
-              return
-            }
-
-            // Collect image file parts (e.g. screenshots from browser tools)
-            if (part?.type === "file" && messageId && typeof part.mime === "string" && part.mime.startsWith("image/") && typeof part.url === "string") {
-              const dataUrlMatch = (part.url as string).match(/^data:(image\/\w+);base64,(.+)$/)
-              if (dataUrlMatch?.[1] && dataUrlMatch[2]) {
-                const mediaType = dataUrlMatch[1] as PromptImage["mediaType"]
-                const data = dataUrlMatch[2]
-                const existing = imageParts.get(messageId) ?? []
-                existing.push({ mediaType, data })
-                imageParts.set(messageId, existing)
-              }
-              return
-            }
-
-            if (part?.type === "tool") {
-              const callId = typeof part.callID === "string" ? part.callID : undefined
-              const status = typeof asRecord(part.state)?.status === "string" ? asRecord(part.state)?.status as string : undefined
-              const mapped = mapSseEvent(raw, {
-                currentText: messageId ? (textParts.get(messageId) ?? "") : "",
-                previousToolStatus: callId ? toolStates.get(callId) : undefined,
-              })
-              if (callId && status) toolStates.set(callId, status)
-              if (mapped) emit(mapped)
-              return
-            }
-          }
-
-          // Emit complete message when assistant message finishes
-          if (type === "message.updated") {
-            const info = asRecord(asRecord(raw.properties)?.info) as
-              | { id?: string; role?: string; time?: { completed?: number } }
-              | null
-            if (info?.role === "assistant" && info.time?.completed) {
-              const messageId = typeof info.id === "string" ? info.id : undefined
-              const text = messageId ? textParts.get(messageId) : undefined
-              const images = messageId ? imageParts.get(messageId) : undefined
-              // Per-turn text is narration (agent explaining what it's doing between
-              // tool calls). The final answer is promoted to "assistant" when idle.
-              // Tool-only messages (no text/images) don't need a chat entry.
-              if (messageId && (text || images?.length)) {
-                lastNarration = { content: text ?? "", messageId, images }
-                emit({ kind: "message.complete", role: "narration", content: text ?? "", messageId, images })
-              }
-              if (messageId) {
-                textParts.delete(messageId)
-                imageParts.delete(messageId)
-              }
-            }
-            return
-          }
-
-          const mapped = mapSseEvent(raw)
-          if (mapped) {
-            // When agent goes idle, promote the last narration to "assistant"
-            // so there's always a visible final answer in chat
-            if (mapped.kind === "status" && mapped.status === "idle" && lastNarration) {
-              emit({ kind: "message.complete", role: "assistant", content: lastNarration.content, messageId: lastNarration.messageId, images: lastNarration.images })
-              lastNarration = null
-            }
-            emit(mapped)
-          }
-        }
+        const eventProcessor = createOpenCodeEventProcessor(sessionId, {
+          emit,
+          onPermissionRequest: autoApprovePermission,
+        })
+        const processRawEvent = eventProcessor.process
 
         // Start SSE subscription in background
         const connectSse = async () => {

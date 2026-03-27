@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test"
-import { mapClaudeCodeEvent } from "../agent/ndjson"
+import { mapClaudeCodeEvent, createClaudeCodeMapper } from "../agent/ndjson"
 
 describe("mapClaudeCodeEvent", () => {
   describe("assistant events", () => {
@@ -135,5 +135,218 @@ describe("mapClaudeCodeEvent", () => {
         message: "Something went wrong",
       }])
     })
+  })
+})
+
+describe("createClaudeCodeMapper — image buffering", () => {
+  const fakeImage = {
+    type: "image",
+    source: { type: "base64", media_type: "image/png", data: "iVBOR..." },
+  }
+
+  test("buffers images from tool_result and attaches to next narration", () => {
+    const mapper = createClaudeCodeMapper()
+
+    // 1. User event with tool_result containing an image
+    const userEvents = mapper({
+      type: "user",
+      message: {
+        content: [{
+          type: "tool_result",
+          tool_use_id: "tu_1",
+          name: "Read",
+          content: [
+            { type: "text", text: "Screenshot taken" },
+            fakeImage,
+          ],
+        }],
+      },
+    })
+
+    // Should emit tool.end + status, no images yet
+    expect(userEvents.find((e) => e.kind === "tool.end")).toBeDefined()
+    expect(userEvents.find((e) => e.kind === "message.complete")).toBeUndefined()
+
+    // 2. Next assistant message picks up the buffered image
+    const assistantEvents = mapper({
+      type: "assistant",
+      message: {
+        id: "msg_img",
+        content: [{ type: "text", text: "Here is the screenshot" }],
+      },
+    })
+
+    const complete = assistantEvents.find((e) => e.kind === "message.complete")
+    expect(complete).toBeDefined()
+    expect(complete).toMatchObject({
+      kind: "message.complete",
+      role: "narration",
+      content: "Here is the screenshot",
+    })
+    // Image should be attached
+    expect((complete as { images?: unknown[] }).images).toHaveLength(1)
+    expect((complete as { images?: Array<{ mediaType: string }> }).images?.[0]?.mediaType).toBe("image/png")
+  })
+
+  test("attaches buffered images to result event if no assistant message follows", () => {
+    const mapper = createClaudeCodeMapper()
+
+    // User event with image in tool_result
+    mapper({
+      type: "user",
+      message: {
+        content: [{
+          type: "tool_result",
+          tool_use_id: "tu_2",
+          name: "Read",
+          content: [fakeImage],
+        }],
+      },
+    })
+
+    // Result event should pick up the buffered image
+    const resultEvents = mapper({
+      type: "result",
+      result: "Done",
+      session_id: "sess_1",
+    })
+
+    const complete = resultEvents.find((e) => e.kind === "message.complete")
+    expect(complete).toBeDefined()
+    expect((complete as { images?: unknown[] }).images).toHaveLength(1)
+  })
+
+  test("emits result with images even when result text is empty", () => {
+    const mapper = createClaudeCodeMapper()
+
+    mapper({
+      type: "user",
+      message: {
+        content: [{
+          type: "tool_result",
+          tool_use_id: "tu_3",
+          name: "Read",
+          content: [fakeImage],
+        }],
+      },
+    })
+
+    // Empty result text — should still emit because images are present
+    const resultEvents = mapper({
+      type: "result",
+      result: "",
+    })
+
+    expect(resultEvents).toHaveLength(1)
+    expect(resultEvents[0]).toMatchObject({
+      kind: "message.complete",
+      role: "assistant",
+      content: "",
+    })
+    expect((resultEvents[0] as { images?: unknown[] }).images).toHaveLength(1)
+  })
+
+  test("clears buffered images on error result", () => {
+    const mapper = createClaudeCodeMapper()
+
+    mapper({
+      type: "user",
+      message: {
+        content: [{
+          type: "tool_result",
+          tool_use_id: "tu_4",
+          name: "Read",
+          content: [fakeImage],
+        }],
+      },
+    })
+
+    // Error result should clear buffered images
+    const errorEvents = mapper({
+      type: "result",
+      subtype: "error",
+      result: "fail",
+    })
+    expect(errorEvents).toEqual([{ kind: "error", message: "fail" }])
+
+    // Subsequent assistant should have no images
+    const assistantEvents = mapper({
+      type: "assistant",
+      message: { id: "msg_after_error", content: [{ type: "text", text: "recovered" }] },
+    })
+    const complete = assistantEvents.find((e) => e.kind === "message.complete")
+    expect((complete as { images?: unknown[] }).images).toBeUndefined()
+  })
+
+  test("merges tool-result images with assistant-produced images", () => {
+    const mapper = createClaudeCodeMapper()
+
+    // Buffer an image from tool result
+    mapper({
+      type: "user",
+      message: {
+        content: [{
+          type: "tool_result",
+          tool_use_id: "tu_5",
+          name: "Read",
+          content: [fakeImage],
+        }],
+      },
+    })
+
+    // Assistant event also has an inline image
+    const events = mapper({
+      type: "assistant",
+      message: {
+        id: "msg_both",
+        content: [
+          { type: "text", text: "Two images" },
+          { type: "image", source: { type: "base64", media_type: "image/jpeg", data: "/9j/4AAQ..." } },
+        ],
+      },
+    })
+
+    const complete = events.find((e) => e.kind === "message.complete")
+    const images = (complete as { images?: Array<{ mediaType: string }> }).images
+    expect(images).toHaveLength(2)
+    // Tool-result image first, then inline image
+    expect(images?.[0]?.mediaType).toBe("image/png")
+    expect(images?.[1]?.mediaType).toBe("image/jpeg")
+  })
+
+  test("narration emitted for tool-result images even without text", () => {
+    const mapper = createClaudeCodeMapper()
+
+    mapper({
+      type: "user",
+      message: {
+        content: [{
+          type: "tool_result",
+          tool_use_id: "tu_6",
+          name: "Read",
+          content: [fakeImage],
+        }],
+      },
+    })
+
+    // Assistant with only tool_use (no text) — should still emit narration for the buffered image
+    const events = mapper({
+      type: "assistant",
+      message: {
+        id: "msg_tool_only",
+        content: [
+          { type: "tool_use", name: "Bash", input: { command: "ls" } },
+        ],
+      },
+    })
+
+    const complete = events.find((e) => e.kind === "message.complete")
+    expect(complete).toBeDefined()
+    expect(complete).toMatchObject({
+      kind: "message.complete",
+      role: "narration",
+      content: "",
+    })
+    expect((complete as { images?: unknown[] }).images).toHaveLength(1)
   })
 })
