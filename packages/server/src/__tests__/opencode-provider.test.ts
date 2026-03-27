@@ -249,19 +249,15 @@ describe("createOpenCodeEventProcessor — image handling", () => {
     }
   }
 
-  it("collects image from file part and attaches to completed message", () => {
+  it("collects image from file part and attaches to assistant on idle", () => {
     const { process, events } = createProcessor()
     const msgId = "msg-img-1"
 
-    // Text delta
     process(textDelta(msgId, "Here is the screenshot"))
-
-    // Image file part
     process(filePartEvent(msgId, "image/png", "data:image/png;base64,iVBOR..."))
-
-    // Message completes
     process(messageCompleted(msgId))
 
+    // Narration has text but no images
     const narration = events.find(
       (e) => e.kind === "message.complete" && e.role === "narration",
     )
@@ -272,30 +268,39 @@ describe("createOpenCodeEventProcessor — image handling", () => {
       content: "Here is the screenshot",
       messageId: msgId,
     })
-    const images = (narration as { images?: unknown[] })?.images
+    expect((narration as { images?: unknown[] })?.images).toBeUndefined()
+
+    // Images only appear on assistant after idle
+    process(sessionIdle())
+    const assistant = events.find(
+      (e) => e.kind === "message.complete" && e.role === "assistant",
+    )
+    expect(assistant).toBeDefined()
+    const images = (assistant as { images?: unknown[] })?.images
     expect(images).toHaveLength(1)
     expect((images as Array<{ mediaType: string }>)?.[0]?.mediaType).toBe("image/png")
   })
 
-  it("emits narration with images even without text (image-only message)", () => {
+  it("defers image-only message to assistant on idle (no narration)", () => {
     const { process, events } = createProcessor()
     const msgId = "msg-img-only"
 
-    // Only an image, no text
+    // Only an image, no text — no narration emitted
     process(filePartEvent(msgId, "image/jpeg", "data:image/jpeg;base64,/9j/4AAQ..."))
     process(messageCompleted(msgId))
 
     const narration = events.find(
       (e) => e.kind === "message.complete" && e.role === "narration",
     )
-    expect(narration).toBeDefined()
-    expect(narration).toMatchObject({
-      kind: "message.complete",
-      role: "narration",
-      content: "",
-      messageId: msgId,
-    })
-    expect((narration as { images?: unknown[] })?.images).toHaveLength(1)
+    expect(narration).toBeUndefined()
+
+    // Image appears on assistant after idle
+    process(sessionIdle())
+    const assistant = events.find(
+      (e) => e.kind === "message.complete" && e.role === "assistant",
+    )
+    expect(assistant).toBeDefined()
+    expect((assistant as { images?: unknown[] })?.images).toHaveLength(1)
   })
 
   it("does not emit narration for tool-only message (no text, no images)", () => {
@@ -345,7 +350,7 @@ describe("createOpenCodeEventProcessor — image handling", () => {
     expect((assistant as { images?: unknown[] })?.images).toHaveLength(1)
   })
 
-  it("collects multiple images per message", () => {
+  it("collects multiple images per message on assistant", () => {
     const { process, events } = createProcessor()
     const msgId = "msg-multi-img"
 
@@ -353,11 +358,12 @@ describe("createOpenCodeEventProcessor — image handling", () => {
     process(filePartEvent(msgId, "image/png", "data:image/png;base64,first"))
     process(filePartEvent(msgId, "image/jpeg", "data:image/jpeg;base64,second"))
     process(messageCompleted(msgId))
+    process(sessionIdle())
 
-    const narration = events.find(
-      (e) => e.kind === "message.complete" && e.role === "narration",
+    const assistant = events.find(
+      (e) => e.kind === "message.complete" && e.role === "assistant",
     )
-    const images = (narration as { images?: Array<{ mediaType: string }> })?.images
+    const images = (assistant as { images?: Array<{ mediaType: string }> })?.images
     expect(images).toHaveLength(2)
     expect(images?.[0]?.mediaType).toBe("image/png")
     expect(images?.[1]?.mediaType).toBe("image/jpeg")
@@ -398,12 +404,13 @@ describe("createOpenCodeEventProcessor — image handling", () => {
 
     process(filePartEvent(msgId, "image/svg+xml", "data:image/svg+xml;base64,PHN2Zz4="))
     process(messageCompleted(msgId))
+    process(sessionIdle())
 
-    const narration = events.find(
-      (e) => e.kind === "message.complete" && e.role === "narration",
+    const assistant = events.find(
+      (e) => e.kind === "message.complete" && e.role === "assistant",
     )
-    expect(narration).toBeDefined()
-    expect((narration as { images?: Array<{ mediaType: string }> })?.images?.[0]?.mediaType).toBe("image/svg+xml")
+    expect(assistant).toBeDefined()
+    expect((assistant as { images?: Array<{ mediaType: string }> })?.images?.[0]?.mediaType).toBe("image/svg+xml")
   })
 
   it("filters events by session ID", () => {
@@ -423,7 +430,7 @@ describe("createOpenCodeEventProcessor — image handling", () => {
     expect(events).toHaveLength(0)
   })
 
-  it("extracts images from tool result attachments", () => {
+  it("extracts images from tool result attachments to assistant", () => {
     const { process, events } = createProcessor()
     const msgId = "msg-tool-att"
 
@@ -460,17 +467,26 @@ describe("createOpenCodeEventProcessor — image handling", () => {
 
     process(messageCompleted(msgId))
 
+    // Narration has text but no images
     const narration = events.find(
       (e) => e.kind === "message.complete" && e.role === "narration",
     )
     expect(narration).toBeDefined()
-    const images = (narration as { images?: Array<{ mediaType: string; data: string }> })?.images
+    expect((narration as { images?: unknown[] })?.images).toBeUndefined()
+
+    // Images on assistant after idle
+    process(sessionIdle())
+    const assistant = events.find(
+      (e) => e.kind === "message.complete" && e.role === "assistant",
+    )
+    expect(assistant).toBeDefined()
+    const images = (assistant as { images?: Array<{ mediaType: string; data: string }> })?.images
     expect(images).toHaveLength(1)
     expect(images?.[0]?.mediaType).toBe("image/png")
     expect(images?.[0]?.data).toBe("iVBORw0KGgo")
   })
 
-  it("extracts multiple images from tool attachments across messages", () => {
+  it("extracts multiple images from tool attachments and file parts to assistant", () => {
     const { process, events } = createProcessor()
     const msgId = "msg-multi-att"
 
@@ -500,11 +516,12 @@ describe("createOpenCodeEventProcessor — image handling", () => {
     process(filePartEvent(msgId, "image/webp", "data:image/webp;base64,third"))
 
     process(messageCompleted(msgId))
+    process(sessionIdle())
 
-    const narration = events.find(
-      (e) => e.kind === "message.complete" && e.role === "narration",
+    const assistant = events.find(
+      (e) => e.kind === "message.complete" && e.role === "assistant",
     )
-    const images = (narration as { images?: Array<{ mediaType: string }> })?.images
+    const images = (assistant as { images?: Array<{ mediaType: string }> })?.images
     expect(images).toHaveLength(3)
     expect(images?.[0]?.mediaType).toBe("image/png")
     expect(images?.[1]?.mediaType).toBe("image/jpeg")

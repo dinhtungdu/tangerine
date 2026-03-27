@@ -337,7 +337,11 @@ export function createOpenCodeEventProcessor(sessionId: string, callbacks: OpenC
         const images = messageId ? imageParts.get(messageId) : undefined
         if (messageId && (text || images?.length)) {
           lastNarration = { content: text ?? "", messageId, images }
-          callbacks.emit({ kind: "message.complete", role: "narration", content: text ?? "", messageId, images })
+          // Images only go on the assistant message (idle promotion), not narration —
+          // matches Claude Code's behavior where images attach to the result, not narration.
+          if (text) {
+            callbacks.emit({ kind: "message.complete", role: "narration", content: text, messageId })
+          }
         }
         if (messageId) {
           textParts.delete(messageId)
