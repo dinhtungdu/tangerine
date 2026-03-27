@@ -147,12 +147,16 @@ export async function start(): Promise<void> {
             prNudgeSent.add(taskId)
           }
 
-          // Send initial prompt immediately for new tasks (no existing logs).
-          // Don't wait for idle event — it may have already fired before we subscribe.
+          // Send initial prompt for new tasks, or reconnect nudge for existing ones.
+          // Key distinction: if the agent never responded (e.g. killed by rapid model
+          // change before processing the prompt), re-send the full initial prompt —
+          // a nudge won't work because the new session has no conversation context.
           const hasLogs = db.prepare("SELECT 1 FROM session_logs WHERE task_id = ? LIMIT 1").get(taskId)
-          if (hasLogs) {
-            // Reconnect after server restart. The old session may have stuck tool
-            // calls (e.g. a bash command that was running when the server died).
+          const hasAssistantResponse = hasLogs
+            ? db.prepare("SELECT 1 FROM session_logs WHERE task_id = ? AND role IN ('assistant', 'narration') LIMIT 1").get(taskId)
+            : null
+          if (hasLogs && hasAssistantResponse) {
+            // Reconnect after server restart or model change — agent had conversation context.
             // Abort first to clear any pending work, then send a nudge to continue.
             const sendReconnectNudge = async () => {
               try {
@@ -191,12 +195,17 @@ export async function start(): Promise<void> {
             }
             sendReconnectNudge()
           }
-          if (!hasLogs) {
+          if (!hasLogs || (hasLogs && !hasAssistantResponse)) {
+            // No logs at all (fresh task) or logs exist but agent never responded
+            // (e.g. killed by model change before processing prompt). Either way,
+            // send the full initial prompt — don't resume a nonexistent conversation.
+            const isRetry = !!hasLogs // User message already saved, just re-deliver prompt
             const task = db.prepare("SELECT description, title, project_id FROM tasks WHERE id = ?").get(taskId) as { description: string | null; title: string; project_id: string } | null
             const initialPrompt = task?.description || task?.title
             if (initialPrompt) {
               // Load initial images saved during task creation (if any)
               const loadInitialImages = async () => {
+                if (isRetry) return { images: undefined, filenames: undefined } // images already saved
                 const manifestPath = `${TANGERINE_HOME}/images/${taskId}/initial.json`
                 const file = Bun.file(manifestPath)
                 if (!(await file.exists())) return { images: undefined, filenames: undefined }
@@ -233,25 +242,27 @@ export async function start(): Promise<void> {
                 firstPromptSent.add(taskId)
                 const fullPrompt = notes.join("\n") + "\n\n" + initialPrompt
 
-                // Emit user message via WebSocket so connected clients see it
-                emitTaskEvent(taskId, {
-                  role: "user",
-                  content: initialPrompt,
-                  timestamp: new Date().toISOString(),
-                })
                 Effect.runPromise(
                   session.agentHandle.sendPrompt(fullPrompt, images).pipe(Effect.catchAll(() => Effect.void))
                 )
-                Effect.runPromise(
-                  insertSessionLog(db, {
-                    task_id: taskId,
+                // Only save to session_logs and emit on first delivery — avoid duplicates on retry
+                if (!isRetry) {
+                  emitTaskEvent(taskId, {
                     role: "user",
                     content: initialPrompt,
-                    images: filenames ? JSON.stringify(filenames) : null,
-                  }).pipe(
-                    Effect.catchAll(() => Effect.void)
+                    timestamp: new Date().toISOString(),
+                  })
+                  Effect.runPromise(
+                    insertSessionLog(db, {
+                      task_id: taskId,
+                      role: "user",
+                      content: initialPrompt,
+                      images: filenames ? JSON.stringify(filenames) : null,
+                    }).pipe(
+                      Effect.catchAll(() => Effect.void)
+                    )
                   )
-                )
+                }
               })
             }
           }

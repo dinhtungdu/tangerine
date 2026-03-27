@@ -328,7 +328,12 @@ export function changeConfig(
     }
 
     // Fallback: restart agent process with new config
-    const sessionId = task.agent_session_id
+    // Only resume session if the agent actually had a conversation — otherwise
+    // --resume wastes time on a nonexistent session file and falls back to fresh.
+    const hasAssistantResponse = deps.cleanupDeps.db.prepare(
+      "SELECT 1 FROM session_logs WHERE task_id = ? AND role IN ('assistant', 'narration') LIMIT 1"
+    ).get(taskId)
+    const sessionId = hasAssistantResponse ? task.agent_session_id : null
     if (handle) {
       yield* handle.shutdown()
     }
