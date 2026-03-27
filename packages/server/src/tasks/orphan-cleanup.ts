@@ -87,7 +87,7 @@ export function startOrphanCleanup(
     Effect.repeat(Schedule.fixed(`${CLEANUP_INTERVAL_MS} millis`)),
     Effect.catchAll(() => Effect.void),
     Effect.asVoid,
-    Effect.fork,
+    Effect.forkDaemon,
     Effect.asVoid,
   )
 }
