@@ -197,7 +197,7 @@ export async function start(): Promise<void> {
                 const nudge = [
                   `[TANGERINE: Server restarted. You are working on: ${originalTask}]`,
                   isReview
-                    ? `[NOTE: This is a REVIEW task. Review the code and post your review using \`gh pr review\`. Do NOT push commits.]`
+                    ? `[NOTE: This is a REVIEW task. Review the code and share your findings here. Do NOT push commits or post reviews on GitHub.]`
                     : `[NOTE: When your work is complete, you MUST push your branch and create a pull request. Use \`git push origin HEAD\` then \`gh pr create\`.]`,
                   unansweredUserMsg
                     ? `The last message you had not yet responded to was: ${unansweredUserMsg}\n\nPlease continue.`
@@ -258,7 +258,7 @@ export async function start(): Promise<void> {
                   notes.push(`[NOTE: Project setup is running in the background (\`${projConfig.setup}\`). Before running builds, tests, or linters, check if setup is done: \`cat /tmp/tangerine-setup-${prefix}.status\` (running/done/failed). Log: \`cat /tmp/tangerine-setup-${prefix}.log\`]`)
                 }
                 if (isReviewTask) {
-                  notes.push(`[NOTE: This is a REVIEW task. Review the code, run tests if needed, then post your review using \`gh pr review\`. Do NOT push commits to this branch.]`)
+                  notes.push(`[NOTE: This is a REVIEW task. Review the code and run tests if needed. Share your findings here in the conversation. Do NOT push commits, create PRs, or post reviews on GitHub.]`)
                   if (task?.parent_task_id) {
                     notes.push(`[NOTE: After completing your review, forward your findings to the parent task by sending a POST to http://localhost:3456/api/tasks/${task.parent_task_id}/prompt with your review summary.]`)
                   }
@@ -609,7 +609,7 @@ export async function start(): Promise<void> {
               }
 
               if (task?.type === "review") {
-                notes.push(`[NOTE: This is a REVIEW task. Review the code, run tests if needed, then post your review using \`gh pr review\`. Do NOT push commits to this branch.]`)
+                notes.push(`[NOTE: This is a REVIEW task. Review the code and run tests if needed. Share your findings here in the conversation. Do NOT push commits, create PRs, or post reviews on GitHub.]`)
                 if (task?.parent_task_id) {
                   notes.push(`[NOTE: After completing your review, forward your findings to the parent task by sending a POST to http://localhost:3456/api/tasks/${task.parent_task_id}/prompt with your review summary.]`)
                 }
