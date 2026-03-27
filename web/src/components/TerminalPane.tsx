@@ -6,10 +6,11 @@ import "@xterm/xterm/css/xterm.css"
 import { TerminalToolbar } from "./TerminalToolbar"
 
 interface TerminalPaneProps {
-  taskId: string
+  /** WebSocket URL path (e.g. /api/tasks/{id}/terminal or /api/projects/{name}/terminal) */
+  wsPath: string
 }
 
-export function TerminalPane({ taskId }: TerminalPaneProps) {
+export function TerminalPane({ wsPath }: TerminalPaneProps) {
   const wrapperRef = useRef<HTMLDivElement>(null)
   const containerRef = useRef<HTMLDivElement>(null)
   const termRef = useRef<Terminal | null>(null)
@@ -30,7 +31,7 @@ export function TerminalPane({ taskId }: TerminalPaneProps) {
     if (!term) return
 
     const protocol = window.location.protocol === "https:" ? "wss:" : "ws:"
-    const url = `${protocol}//${window.location.host}/api/tasks/${taskId}/terminal`
+    const url = `${protocol}//${window.location.host}${wsPath}`
     const ws = new WebSocket(url)
     wsRef.current = ws
 
@@ -78,7 +79,7 @@ export function TerminalPane({ taskId }: TerminalPaneProps) {
     ws.onerror = () => {
       ws.close()
     }
-  }, [taskId])
+  }, [wsPath])
 
   // Track visual viewport height to handle mobile keyboard overlap.
   // When the virtual keyboard opens, visualViewport.height shrinks — we use

@@ -401,7 +401,7 @@ export function TaskDetail() {
 
           {visiblePanes.has("terminal") && (
             <div className={`flex min-w-0 flex-col${desktopIsSolo ? " flex-1" : ""}`} style={desktopIsSolo ? undefined : { width: terminalWidth, flexShrink: 0 }}>
-              <TerminalPane taskId={id!} />
+              <TerminalPane wsPath={`/api/tasks/${id}/terminal`} />
             </div>
           )}
 
@@ -460,7 +460,7 @@ export function TaskDetail() {
           )}
           {mobilePane === "terminal" && (
             <div className="flex min-w-0 flex-1 flex-col">
-              <TerminalPane taskId={id!} />
+              <TerminalPane wsPath={`/api/tasks/${id}/terminal`} />
             </div>
           )}
           {mobilePane === "activity" && (

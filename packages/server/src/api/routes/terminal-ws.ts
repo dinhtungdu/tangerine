@@ -34,6 +34,110 @@ async function ensureTmuxSession(sessionName: string, cwd: string): Promise<void
   }
 }
 
+/** tmux session name for a project's repo terminal */
+export function projectTmuxSessionName(projectName: string): string {
+  return `${projectName}-repo`
+}
+
+export function projectTerminalWsRoutes(deps: AppDeps, upgradeWebSocket: UpgradeWebSocket): Hono {
+  const app = new Hono()
+
+  app.get(
+    "/:name/terminal",
+    upgradeWebSocket((c) => {
+      const projectName = c.req.param("name")!
+      let pty: IPty | null = null
+      let alive = true
+
+      return {
+        onOpen(_event, ws) {
+          const project = deps.config.config.projects.find((p) => p.name === projectName)
+          if (!project) {
+            try {
+              ws.send(JSON.stringify({ type: "error", message: "Project not found" }))
+              ws.close(1011, "Project not found")
+            } catch { /* gone */ }
+            return
+          }
+
+          const workspace = deps.config.config.workspace
+          const repoDir = `${workspace}/${projectName}/repo`
+          const sessionName = projectTmuxSessionName(projectName)
+
+          log.info("Project terminal session starting", { projectName, repoDir, sessionName })
+
+          ensureTmuxSession(sessionName, repoDir)
+            .then(() => {
+              if (!alive) return
+
+              pty = spawn("tmux", [
+                "attach-session", "-t", sessionName,
+              ], {
+                cols: 80,
+                rows: 24,
+                name: "xterm-256color",
+              })
+
+              pty.onData((data) => {
+                if (!alive) return
+                try {
+                  ws.send(JSON.stringify({ type: "output", data }))
+                } catch { /* gone */ }
+              })
+
+              pty.onExit(({ exitCode }) => {
+                if (!alive) return
+                try {
+                  ws.send(JSON.stringify({ type: "exit", code: exitCode }))
+                } catch { /* gone */ }
+              })
+
+              ws.send(JSON.stringify({ type: "connected" }))
+            })
+            .catch((err) => {
+              log.error("Project terminal session failed", { projectName, error: String(err) })
+              try {
+                ws.send(JSON.stringify({ type: "error", message: String(err) }))
+                ws.close(1011, "Terminal setup failed")
+              } catch { /* gone */ }
+            })
+        },
+
+        onMessage(event) {
+          if (!pty) return
+
+          let parsed: { type: string; data?: string; cols?: number; rows?: number }
+          try {
+            const raw = typeof event.data === "string" ? event.data : event.data.toString()
+            parsed = JSON.parse(raw)
+          } catch {
+            return
+          }
+
+          if (parsed.type === "input" && parsed.data) {
+            pty.write(parsed.data)
+          } else if (parsed.type === "resize" && parsed.cols && parsed.rows) {
+            pty.resize(parsed.cols, parsed.rows)
+          }
+        },
+
+        onClose() {
+          alive = false
+          if (pty) {
+            try {
+              pty.kill()
+            } catch { /* dead */ }
+            pty = null
+          }
+          log.debug("Project terminal detached (tmux session preserved)", { projectName })
+        },
+      }
+    })
+  )
+
+  return app
+}
+
 export function terminalWsRoutes(deps: AppDeps, upgradeWebSocket: UpgradeWebSocket): Hono {
   const app = new Hono()
 
