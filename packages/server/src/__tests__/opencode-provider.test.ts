@@ -1,7 +1,7 @@
 import { describe, expect, it } from "bun:test"
 import { Effect } from "effect"
-import { extractSseData, getHandleMeta, mapSseEvent } from "../agent/opencode-provider"
-import type { AgentHandle } from "../agent/provider"
+import { extractSseData, getHandleMeta, mapSseEvent, createOpenCodeEventProcessor } from "../agent/opencode-provider"
+import type { AgentHandle, AgentEvent } from "../agent/provider"
 import { getAgentRuntimeMeta } from "../tasks/lifecycle"
 
 function createHandle(): AgentHandle {
@@ -187,5 +187,258 @@ describe("OpenCode provider helpers", () => {
     const handle = createHandle()
     handle.isAlive = () => false
     expect(handle.isAlive()).toBe(false)
+  })
+})
+
+describe("createOpenCodeEventProcessor — image handling", () => {
+  const SESSION = "sess-img-test"
+
+  function createProcessor() {
+    const events: AgentEvent[] = []
+    const processor = createOpenCodeEventProcessor(SESSION, {
+      emit: (e) => events.push(e),
+    })
+    return { process: processor.process, events }
+  }
+
+  function filePartEvent(messageId: string, mime: string, dataUrl: string) {
+    return {
+      type: "message.part.updated",
+      properties: {
+        part: {
+          type: "file",
+          messageID: messageId,
+          sessionID: SESSION,
+          mime,
+          url: dataUrl,
+        },
+      },
+    }
+  }
+
+  function textDelta(messageId: string, text: string) {
+    return {
+      type: "message.part.delta",
+      properties: {
+        messageID: messageId,
+        sessionID: SESSION,
+        field: "text",
+        delta: text,
+      },
+    }
+  }
+
+  function messageCompleted(messageId: string) {
+    return {
+      type: "message.updated",
+      properties: {
+        info: {
+          id: messageId,
+          role: "assistant",
+          sessionID: SESSION,
+          time: { completed: Date.now() },
+        },
+      },
+    }
+  }
+
+  function sessionIdle() {
+    return {
+      type: "session.status",
+      properties: { status: { type: "idle" } },
+    }
+  }
+
+  it("collects image from file part and attaches to completed message", () => {
+    const { process, events } = createProcessor()
+    const msgId = "msg-img-1"
+
+    // Text delta
+    process(textDelta(msgId, "Here is the screenshot"))
+
+    // Image file part
+    process(filePartEvent(msgId, "image/png", "data:image/png;base64,iVBOR..."))
+
+    // Message completes
+    process(messageCompleted(msgId))
+
+    const narration = events.find(
+      (e) => e.kind === "message.complete" && e.role === "narration",
+    )
+    expect(narration).toBeDefined()
+    expect(narration).toMatchObject({
+      kind: "message.complete",
+      role: "narration",
+      content: "Here is the screenshot",
+      messageId: msgId,
+    })
+    const images = (narration as { images?: unknown[] })?.images
+    expect(images).toHaveLength(1)
+    expect((images as Array<{ mediaType: string }>)?.[0]?.mediaType).toBe("image/png")
+  })
+
+  it("emits narration with images even without text (image-only message)", () => {
+    const { process, events } = createProcessor()
+    const msgId = "msg-img-only"
+
+    // Only an image, no text
+    process(filePartEvent(msgId, "image/jpeg", "data:image/jpeg;base64,/9j/4AAQ..."))
+    process(messageCompleted(msgId))
+
+    const narration = events.find(
+      (e) => e.kind === "message.complete" && e.role === "narration",
+    )
+    expect(narration).toBeDefined()
+    expect(narration).toMatchObject({
+      kind: "message.complete",
+      role: "narration",
+      content: "",
+      messageId: msgId,
+    })
+    expect((narration as { images?: unknown[] })?.images).toHaveLength(1)
+  })
+
+  it("does not emit narration for tool-only message (no text, no images)", () => {
+    const { process, events } = createProcessor()
+    const msgId = "msg-tool-only"
+
+    // Only a tool event, no text or images
+    process({
+      type: "message.part.updated",
+      properties: {
+        part: {
+          type: "tool",
+          messageID: msgId,
+          sessionID: SESSION,
+          tool: "bash",
+          state: { status: "running", input: { command: "ls" } },
+        },
+      },
+    })
+    process(messageCompleted(msgId))
+
+    const narration = events.find(
+      (e) => e.kind === "message.complete" && e.role === "narration",
+    )
+    expect(narration).toBeUndefined()
+  })
+
+  it("promotes narration with images to assistant on idle", () => {
+    const { process, events } = createProcessor()
+    const msgId = "msg-promoted"
+
+    process(textDelta(msgId, "Screenshot taken"))
+    process(filePartEvent(msgId, "image/png", "data:image/png;base64,abc123"))
+    process(messageCompleted(msgId))
+    process(sessionIdle())
+
+    const assistant = events.find(
+      (e) => e.kind === "message.complete" && e.role === "assistant",
+    )
+    expect(assistant).toBeDefined()
+    expect(assistant).toMatchObject({
+      kind: "message.complete",
+      role: "assistant",
+      content: "Screenshot taken",
+      messageId: msgId,
+    })
+    expect((assistant as { images?: unknown[] })?.images).toHaveLength(1)
+  })
+
+  it("collects multiple images per message", () => {
+    const { process, events } = createProcessor()
+    const msgId = "msg-multi-img"
+
+    process(textDelta(msgId, "Two screenshots"))
+    process(filePartEvent(msgId, "image/png", "data:image/png;base64,first"))
+    process(filePartEvent(msgId, "image/jpeg", "data:image/jpeg;base64,second"))
+    process(messageCompleted(msgId))
+
+    const narration = events.find(
+      (e) => e.kind === "message.complete" && e.role === "narration",
+    )
+    const images = (narration as { images?: Array<{ mediaType: string }> })?.images
+    expect(images).toHaveLength(2)
+    expect(images?.[0]?.mediaType).toBe("image/png")
+    expect(images?.[1]?.mediaType).toBe("image/jpeg")
+  })
+
+  it("ignores file parts with non-image mime types", () => {
+    const { process, events } = createProcessor()
+    const msgId = "msg-non-img"
+
+    process(textDelta(msgId, "A text file"))
+    process(filePartEvent(msgId, "text/plain", "data:text/plain;base64,aGVsbG8="))
+    process(messageCompleted(msgId))
+
+    const narration = events.find(
+      (e) => e.kind === "message.complete" && e.role === "narration",
+    )
+    expect(narration).toBeDefined()
+    expect((narration as { images?: unknown[] })?.images).toBeUndefined()
+  })
+
+  it("ignores file parts without a valid data URL", () => {
+    const { process, events } = createProcessor()
+    const msgId = "msg-bad-url"
+
+    process(textDelta(msgId, "Bad URL"))
+    process(filePartEvent(msgId, "image/png", "https://example.com/image.png"))
+    process(messageCompleted(msgId))
+
+    const narration = events.find(
+      (e) => e.kind === "message.complete" && e.role === "narration",
+    )
+    expect((narration as { images?: unknown[] })?.images).toBeUndefined()
+  })
+
+  it("handles image/svg+xml mime type (+ in mime)", () => {
+    const { process, events } = createProcessor()
+    const msgId = "msg-svg"
+
+    process(filePartEvent(msgId, "image/svg+xml", "data:image/svg+xml;base64,PHN2Zz4="))
+    process(messageCompleted(msgId))
+
+    const narration = events.find(
+      (e) => e.kind === "message.complete" && e.role === "narration",
+    )
+    expect(narration).toBeDefined()
+    expect((narration as { images?: Array<{ mediaType: string }> })?.images?.[0]?.mediaType).toBe("image/svg+xml")
+  })
+
+  it("filters events by session ID", () => {
+    const { process, events } = createProcessor()
+
+    // Event from a different session — should be ignored
+    process({
+      type: "message.part.delta",
+      properties: {
+        messageID: "msg-other",
+        sessionID: "other-session",
+        field: "text",
+        delta: "should be ignored",
+      },
+    })
+
+    expect(events).toHaveLength(0)
+  })
+
+  it("cleans up text and image parts after message completion", () => {
+    const { process, events } = createProcessor()
+    const msgId = "msg-cleanup"
+
+    // First message with image
+    process(textDelta(msgId, "First"))
+    process(filePartEvent(msgId, "image/png", "data:image/png;base64,abc"))
+    process(messageCompleted(msgId))
+
+    // Second message with same ID but no new content — should NOT have stale images
+    process(messageCompleted(msgId))
+
+    const narrations = events.filter(
+      (e) => e.kind === "message.complete" && e.role === "narration",
+    )
+    // Only one narration (the first one with content)
+    expect(narrations).toHaveLength(1)
   })
 })
