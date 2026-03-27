@@ -28,7 +28,7 @@ export function createClaudeCodeProvider(): AgentFactory {
               "--dangerously-skip-permissions",
               // Block interactive tools that expect user input — Tangerine can't
               // relay plan-mode or question prompts to the user.
-              "--disallowedTools", "EnterPlanMode,ExitPlanMode,AskUserQuestion",
+              "--disallowedTools", "EnterPlanMode", "ExitPlanMode", "AskUserQuestion",
             ]
             return Bun.spawn(args, {
               cwd: ctx.workdir,
