@@ -89,6 +89,16 @@ export function updateTaskStatus(db: Database, id: string, status: string): Effe
   return updateTask(db, id, { status })
 }
 
+/** Update last_seen_at without bumping updated_at */
+export function markTaskSeen(db: Database, id: string): Effect.Effect<void, DbError> {
+  return dbTry(() => {
+    db.prepare("UPDATE tasks SET last_seen_at = $ts WHERE id = $id").run({
+      $ts: new Date().toISOString(),
+      $id: id,
+    })
+  })
+}
+
 // --- Session Logs ---
 
 export function insertSessionLog(

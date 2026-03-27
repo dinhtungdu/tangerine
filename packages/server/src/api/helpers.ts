@@ -8,8 +8,8 @@ import type { TaskRow } from "../db/types"
  */
 function utc(ts: string | null): string | null {
   if (!ts) return null
-  // Already has timezone info (Z or +offset or T...Z from ISO strings)
-  if (/[Z+-]\d|T.*Z$/.test(ts)) return ts
+  // Already has timezone info (ends with Z, or +/-HH:MM offset)
+  if (/Z$|[+-]\d{2}:\d{2}$/.test(ts)) return ts
   // Bare SQLite timestamp — append Z
   return ts.replace(" ", "T") + "Z"
 }
