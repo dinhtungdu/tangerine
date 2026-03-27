@@ -279,6 +279,19 @@ export function reconnectSession(
       `pkill -f "claude.*${worktreePath}" 2>/dev/null; true`,
     ).pipe(Effect.catchAll(() => Effect.void))
 
+    // 2b. Bail out if the task was cancelled or failed while we were preparing.
+    // Health monitor restarts run async; a cancel/fail can race with reconnect and
+    // we must not overwrite the terminal status with "running".
+    const currentState = yield* deps.getTask(task.id).pipe(Effect.catchAll(() => Effect.succeed(null)))
+    if (currentState?.status === "cancelled" || currentState?.status === "failed") {
+      taskLog.info("Task was cancelled/failed before reconnect completed, aborting reconnect", { status: currentState.status })
+      return yield* Effect.fail(new SessionStartError({
+        message: `Task ${task.id} is ${currentState.status}, not reconnecting`,
+        taskId: task.id,
+        phase: "reconnect-guard",
+      }))
+    }
+
     // 3. Start agent — resume session if we have a session ID
     yield* activity("agent.reconnecting", "Restarting agent process")
     const agentHandle = yield* deps.agentFactory.start({

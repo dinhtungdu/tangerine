@@ -48,6 +48,12 @@ function classifyTool(toolName: string): { activityType: "file" | "system"; acti
 
 // In-memory map of taskId -> active AgentHandle (for cleanup and abort)
 const agentHandles = new Map<string, AgentHandle>()
+// Per-task reconnect lock — prevents resumeOrphanedTasks and health monitor from
+// spawning two Claude processes for the same task simultaneously.
+const reconnectingTasks = new Set<string>()
+// Track when each task was last reconnected so the stall detector gives it a grace period.
+// Without this, a just-reconnected task with old lastActivity gets flagged as stalled 30s later.
+const lastReconnectedAt = new Map<string, Date>()
 // Track which tasks have received their first prompt (for setup note injection)
 const firstPromptSent = new Set<string>()
 // Track tasks that already have a PR URL saved (avoid redundant DB writes)
@@ -137,8 +143,17 @@ export async function start(): Promise<void> {
         updateTask: (taskId, updates) => updateTask(db, taskId, updates).pipe(Effect.asVoid),
         cleanupDeps,
         onSessionReady: (taskId, session) => {
-          // Store handle for cleanup/abort
+          // Shut down any existing handle before storing the new one.
+          // Concurrent reconnects (e.g. resumeOrphanedTasks + health monitor firing
+          // simultaneously) can both call onSessionReady — the second must evict the
+          // first or the orphaned Claude process keeps running after cancel/cleanup.
+          const existingHandle = agentHandles.get(taskId)
+          if (existingHandle && existingHandle !== session.agentHandle) {
+            Effect.runPromise(existingHandle.shutdown().pipe(Effect.catchAll(() => Effect.void)))
+          }
           agentHandles.set(taskId, session.agentHandle)
+          reconnectingTasks.delete(taskId)
+          lastReconnectedAt.set(taskId, new Date())
 
           // Hydrate in-memory PR tracking from DB (lost on restart)
           const taskPrUrl = db.prepare("SELECT pr_url FROM tasks WHERE id = ?").get(taskId) as { pr_url: string | null } | null
@@ -157,15 +172,13 @@ export async function start(): Promise<void> {
             : null
           if (hasLogs && hasAssistantResponse) {
             // Reconnect after server restart or model change — agent had conversation context.
-            // Abort first to clear any pending work, then send a nudge to continue.
             const sendReconnectNudge = async () => {
               try {
-                // Abort clears stuck tool calls so the session can accept new prompts
-                await Effect.runPromise(
-                  session.agentHandle.abort().pipe(Effect.catchAll(() => Effect.void))
-                )
-                // Brief pause for the session to transition to idle
-                await new Promise((r) => setTimeout(r, 500))
+                // Wait for Claude Code to finish initializing before sending a prompt.
+                // Do NOT send abort/SIGINT here — Claude Code is idle after resume and
+                // SIGINT terminates an idle process rather than interrupting an in-progress turn,
+                // causing an immediate crash-restart loop.
+                await new Promise((r) => setTimeout(r, 1500))
 
                 const taskRow = db.prepare(
                   "SELECT title, description FROM tasks WHERE id = ?"
@@ -701,7 +714,13 @@ export async function start(): Promise<void> {
         const row = db.prepare(
           "SELECT MAX(timestamp) as ts FROM activity_log WHERE task_id = ? AND type != 'lifecycle'"
         ).get(taskId) as { ts: string | null } | null
-        return row?.ts ? new Date(row.ts) : null
+        const dbTime = row?.ts ? new Date(row.ts) : null
+        // A just-reconnected task has old lastActivity in the DB (from the previous session).
+        // Return the reconnect time when it's more recent so the stall detector doesn't
+        // immediately flag the task as stalled 30s after reconnect.
+        const reconnectTime = lastReconnectedAt.get(taskId) ?? null
+        if (dbTime && reconnectTime) return dbTime > reconnectTime ? dbTime : reconnectTime
+        return reconnectTime ?? dbTime
       }),
       checkAgentAlive: (taskId) => Effect.sync(() => {
         const handle = agentHandles.get(taskId)
@@ -721,12 +740,25 @@ export async function start(): Promise<void> {
         }
       }),
       restartAgent: (task) => {
+        // Per-task lock: skip if a reconnect is already in progress for this task.
+        // Health monitor and resumeOrphanedTasks can race — without this, both spawn
+        // a Claude process and only the second handle is tracked, leaving the first orphaned.
+        if (reconnectingTasks.has(task.id)) {
+          log.info("Reconnect already in progress, skipping duplicate", { taskId: task.id })
+          return Effect.void
+        }
+        reconnectingTasks.add(task.id)
         const provider = task.provider ?? "opencode"
         const factory = getAgentFactory(provider)
         const lifecycleDeps = { ...tmDeps.lifecycleDeps, agentFactory: factory }
         const projectConfig = task.project_id ? getProjectConfig(config.config, task.project_id) : undefined
-        if (!projectConfig) return Effect.fail(new Error(`No project config for ${task.project_id}`))
-        return reconnectSessionWithRetry(task, projectConfig, lifecycleDeps, tmDeps.retryDeps)
+        if (!projectConfig) {
+          reconnectingTasks.delete(task.id)
+          return Effect.fail(new Error(`No project config for ${task.project_id}`))
+        }
+        return reconnectSessionWithRetry(task, projectConfig, lifecycleDeps, tmDeps.retryDeps).pipe(
+          Effect.ensuring(Effect.sync(() => reconnectingTasks.delete(task.id)))
+        )
       },
       failTask: (taskId, reason) =>
         updateTask(db, taskId, { status: "failed", error: reason }).pipe(
