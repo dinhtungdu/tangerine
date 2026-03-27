@@ -1,7 +1,7 @@
 // NDJSON streaming line parser for Claude Code's stdout.
 // Buffers partial lines, parses complete JSON objects, maps to AgentEvent.
 
-import type { AgentEvent } from "./provider"
+import type { AgentEvent, PromptImage } from "./provider"
 
 export interface NdjsonParserOptions {
   onLine: (data: unknown) => void
@@ -104,6 +104,7 @@ export function mapClaudeCodeEvent(raw: Record<string, unknown>): AgentEvent[] {
       const events: AgentEvent[] = []
       const blocks = Array.isArray(message.content) ? message.content : []
       const textParts: string[] = []
+      const imageParts: PromptImage[] = []
 
       for (const block of blocks) {
         if (typeof block !== "object" || block === null) continue
@@ -119,18 +120,27 @@ export function mapClaudeCodeEvent(raw: Record<string, unknown>): AgentEvent[] {
           })
         } else if (b.type === "text" && typeof b.text === "string" && b.text.length > 0) {
           textParts.push(b.text)
+        } else if (b.type === "image") {
+          const source = b.source as Record<string, unknown> | undefined
+          if (source?.type === "base64" && typeof source.media_type === "string" && typeof source.data === "string") {
+            imageParts.push({
+              mediaType: source.media_type as PromptImage["mediaType"],
+              data: source.data,
+            })
+          }
         }
       }
 
       // Per-turn text is narration (agent explaining what it's doing between tool
       // calls). The final answer comes from the "result" event as role "assistant".
       // Narration is persisted but collapsed in the UI alongside thinking.
-      if (textParts.length > 0) {
+      if (textParts.length > 0 || imageParts.length > 0) {
         events.push({
           kind: "message.complete",
           role: "narration",
           content: textParts.join(""),
           messageId: optStr(message.id),
+          images: imageParts.length > 0 ? imageParts : undefined,
         })
       }
 

@@ -12,7 +12,7 @@ export type ProviderType = "opencode" | "claude-code"
 /** Normalized events emitted by all agent providers */
 export type AgentEvent =
   | { kind: "message.streaming"; content: string; messageId?: string }
-  | { kind: "message.complete"; role: "assistant" | "user" | "narration"; content: string; messageId?: string }
+  | { kind: "message.complete"; role: "assistant" | "user" | "narration"; content: string; messageId?: string; images?: PromptImage[] }
   | { kind: "status"; status: "idle" | "working" }
   | { kind: "error"; message: string }
   | { kind: "tool.start"; toolName: string; toolInput?: string }

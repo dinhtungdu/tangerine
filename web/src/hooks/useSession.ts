@@ -120,6 +120,11 @@ export function useSession(taskId: string): UseSessionResult {
             content: String(data.content),
             timestamp: typeof data.timestamp === "string" ? data.timestamp : new Date().toISOString(),
           }
+          // Handle agent-produced images (filenames saved by server)
+          const imgData = (data as Record<string, unknown>).images
+          if (Array.isArray(imgData)) {
+            newMsg.images = (imgData as string[]).map((f) => ({ src: `/api/tasks/${taskId}/images/${f}` }))
+          }
           setMessages((prev) => [...prev, newMsg])
         }
         // Track agent working state from events
