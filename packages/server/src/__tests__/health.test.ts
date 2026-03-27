@@ -1,6 +1,6 @@
 import { describe, test, expect, mock } from "bun:test"
 import { Effect } from "effect"
-import { checkTask } from "../tasks/health"
+import { checkTask, startHealthMonitor } from "../tasks/health"
 import type { HealthCheckDeps } from "../tasks/health"
 import type { TaskRow } from "../db/types"
 
@@ -104,6 +104,20 @@ describe("health check", () => {
     const result = await Effect.runPromise(checkTask(task, deps))
     expect(result).toBe("recovered")
     expect(restartFn).toHaveBeenCalledTimes(1)
+  })
+
+  test("startHealthMonitor fiber survives after runPromise resolves", async () => {
+    let checkCount = 0
+    const deps = makeDeps({
+      listRunningTasks: () => {
+        checkCount++
+        return Effect.succeed([])
+      },
+    })
+    await Effect.runPromise(startHealthMonitor(deps))
+    // Fiber must keep running after runPromise resolves — wait for at least one tick
+    await new Promise((r) => setTimeout(r, 200))
+    expect(checkCount).toBeGreaterThanOrEqual(1)
   })
 
   test("stall detection does not trigger for recently started tasks with no activity", async () => {
