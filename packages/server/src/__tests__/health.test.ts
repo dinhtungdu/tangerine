@@ -40,6 +40,7 @@ function makeDeps(overrides?: Partial<HealthCheckDeps>): HealthCheckDeps {
   return {
     listRunningTasks: () => Effect.succeed([]),
     checkAgentAlive: () => Effect.succeed(true),
+    shouldTreatInactivityAsStall: () => Effect.succeed(true),
     getLastActivityTime: () => Effect.succeed(new Date()),
     restartAgent: () => Effect.void,
     failTask: () => Effect.void,
@@ -129,6 +130,22 @@ describe("health check", () => {
       getLastActivityTime: () => Effect.succeed(null),
       restartAgent: restartFn,
     })
+    const result = await Effect.runPromise(checkTask(task, deps))
+    expect(result).toBe("healthy")
+    expect(restartFn).toHaveBeenCalledTimes(0)
+  })
+
+  test("stall detection skips tasks waiting for user input", async () => {
+    const tenMinutesAgo = new Date(Date.now() - 10 * 60 * 1000).toISOString()
+    const task = makeTask({ started_at: tenMinutesAgo })
+    const restartFn = mock(() => Effect.void)
+    const deps = makeDeps({
+      checkAgentAlive: () => Effect.succeed(true),
+      shouldTreatInactivityAsStall: () => Effect.succeed(false),
+      getLastActivityTime: () => Effect.succeed(new Date(tenMinutesAgo)),
+      restartAgent: restartFn,
+    })
+
     const result = await Effect.runPromise(checkTask(task, deps))
     expect(result).toBe("healthy")
     expect(restartFn).toHaveBeenCalledTimes(0)
