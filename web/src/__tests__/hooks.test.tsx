@@ -10,6 +10,7 @@ const mockTasks = [
     agentPid: null, previewUrl: null, error: null,
     createdAt: "2026-03-17T10:00:00Z", updatedAt: "2026-03-17T10:00:00Z",
     startedAt: "2026-03-17T10:01:00Z", completedAt: null,
+    lastSeenAt: null, lastResultAt: null,
   },
   {
     id: "2", projectId: "proj", source: "github" as const, sourceId: null, sourceUrl: null,
@@ -18,6 +19,7 @@ const mockTasks = [
     agentPid: null, previewUrl: null, error: null,
     createdAt: "2026-03-16T10:00:00Z", updatedAt: "2026-03-16T12:00:00Z",
     startedAt: "2026-03-16T10:01:00Z", completedAt: "2026-03-16T12:00:00Z",
+    lastSeenAt: null, lastResultAt: null,
   },
 ]
 

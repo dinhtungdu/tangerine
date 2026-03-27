@@ -30,13 +30,15 @@ export function getStatusConfig(status: string): StatusConfig {
   return STATUS_CONFIG[status] ?? DEFAULT_STATUS
 }
 
-/** Returns true if the task has been updated since the user last viewed it */
-export function hasUnseenUpdates(task: { updatedAt: string; lastSeenAt: string | null; status: string }): boolean {
+/** Returns true if the agent has produced a result since the user last viewed the task */
+export function hasUnseenUpdates(task: { lastResultAt: string | null; lastSeenAt: string | null; status: string }): boolean {
   // Only show for active tasks — completed/cancelled tasks don't need attention
   if (task.status === "done" || task.status === "cancelled") return false
   // Tasks still in initial states haven't produced agent output yet
   if (task.status === "created" || task.status === "provisioning") return false
-  // Never viewed — unseen if agent has been active
+  // No result yet — nothing to show
+  if (!task.lastResultAt) return false
+  // Never viewed — unseen if agent has produced a result
   if (!task.lastSeenAt) return true
-  return new Date(task.updatedAt) > new Date(task.lastSeenAt)
+  return new Date(task.lastResultAt) > new Date(task.lastSeenAt)
 }

@@ -5,7 +5,7 @@ import { Effect } from "effect"
 import { createLogger } from "../logger"
 import { loadConfig, getProjectConfig, TANGERINE_HOME, readRawConfig, writeRawConfig } from "../config"
 import { getDb } from "../db/index"
-import { createTask as dbCreateTask, getTask, listTasks, updateTask, insertSessionLog } from "../db/queries"
+import { createTask as dbCreateTask, getTask, listTasks, updateTask, insertSessionLog, markTaskResult } from "../db/queries"
 import { logActivity, cleanupActivities } from "../activity"
 import type { TaskRow } from "../db/types"
 import { createApp } from "../api/app"
@@ -336,6 +336,13 @@ export async function start(): Promise<void> {
                     saveImages().then(emitAndInsert)
                   } else {
                     emitAndInsert()
+                  }
+
+                  // Track when agent produces a final result (not narration/thinking)
+                  if (role === "assistant") {
+                    Effect.runPromise(
+                      markTaskResult(db, taskId).pipe(Effect.catchAll(() => Effect.void))
+                    )
                   }
 
                   // Fallback PR URL detection from assistant/narration message text

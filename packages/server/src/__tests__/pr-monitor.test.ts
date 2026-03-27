@@ -103,6 +103,7 @@ function makeTaskRow(overrides?: Partial<TaskRow>): TaskRow {
     started_at: now,
     completed_at: null,
     last_seen_at: null,
+    last_result_at: null,
     ...overrides,
   }
 }
