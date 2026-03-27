@@ -5,11 +5,12 @@ import { WebLinksAddon } from "@xterm/addon-web-links"
 import "@xterm/xterm/css/xterm.css"
 import { TerminalToolbar } from "./TerminalToolbar"
 
-interface TerminalPaneProps {
-  taskId: string
-}
+type TerminalPaneProps =
+  | { taskId: string; wsUrl?: never }
+  | { taskId?: never; wsUrl: string }
 
-export function TerminalPane({ taskId }: TerminalPaneProps) {
+export function TerminalPane(props: TerminalPaneProps) {
+  const wsPath = props.wsUrl ?? `/api/tasks/${props.taskId}/terminal`
   const wrapperRef = useRef<HTMLDivElement>(null)
   const containerRef = useRef<HTMLDivElement>(null)
   const termRef = useRef<Terminal | null>(null)
@@ -30,7 +31,7 @@ export function TerminalPane({ taskId }: TerminalPaneProps) {
     if (!term) return
 
     const protocol = window.location.protocol === "https:" ? "wss:" : "ws:"
-    const url = `${protocol}//${window.location.host}/api/tasks/${taskId}/terminal`
+    const url = `${protocol}//${window.location.host}${wsPath}`
     const ws = new WebSocket(url)
     wsRef.current = ws
 
@@ -78,7 +79,7 @@ export function TerminalPane({ taskId }: TerminalPaneProps) {
     ws.onerror = () => {
       ws.close()
     }
-  }, [taskId])
+  }, [wsPath])
 
   // Track visual viewport height to handle mobile keyboard overlap.
   // When the virtual keyboard opens, visualViewport.height shrinks — we use
