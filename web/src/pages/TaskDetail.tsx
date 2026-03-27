@@ -79,34 +79,22 @@ export function TaskDetail() {
   }, [])
 
   const dimsKey = `tangerine:pane-dims:${id}`
-  const dimsRef = useRef<{ chat: number; terminal: number; activity: number }>((() => {
+  const dimsRef = useRef<{ terminal: number; activity: number }>((() => {
     try {
       const s = localStorage.getItem(dimsKey)
       if (s) return JSON.parse(s)
     } catch { /* ignore */ }
-    return { chat: 480, terminal: 480, activity: 250 }
+    return { terminal: 480, activity: 250 }
   })())
   const saveDims = useCallback(() => {
     try { localStorage.setItem(dimsKey, JSON.stringify(dimsRef.current)) } catch { /* ignore */ }
   }, [dimsKey])
 
-  const [chatWidth, setChatWidth] = useState(dimsRef.current.chat)
   const [terminalWidth, setTerminalWidth] = useState(dimsRef.current.terminal)
   const [activityWidth, setActivityWidth] = useState(dimsRef.current.activity)
   const containerRef = useRef<HTMLDivElement>(null)
 
   const MIN_PANE = 200
-
-  const chatResize = useResizable({
-    onResize: useCallback((delta: number) => {
-      setChatWidth((w) => {
-        const next = Math.max(MIN_PANE, w + delta)
-        dimsRef.current.chat = next
-        saveDims()
-        return next
-      })
-    }, [saveDims]),
-  })
 
   const terminalResize = useResizable({
     onResize: useCallback((delta: number) => {
@@ -358,10 +346,7 @@ export function TaskDetail() {
         {/* Desktop pane layout — multi-pane with resize handles */}
         <div ref={containerRef} className="hidden min-h-0 flex-1 md:flex">
           {visiblePanes.has("chat") && (
-            <div
-              className={`flex min-w-0 flex-col${desktopIsSolo || !visiblePanes.has("diff") ? " flex-1" : ""}`}
-              style={desktopIsSolo || !visiblePanes.has("diff") ? undefined : { width: chatWidth, flexShrink: 0 }}
-            >
+            <div className="flex min-w-0 flex-1 flex-col">
               <ChatPanel
                 messages={session.messages}
                 agentStatus={session.agentStatus}
@@ -380,8 +365,8 @@ export function TaskDetail() {
             </div>
           )}
 
-          {visiblePanes.has("chat") && (visiblePanes.has("diff") || visiblePanes.has("activity")) && (
-            <ResizeHandle onMouseDown={visiblePanes.has("diff") ? chatResize.onMouseDown : activityResize.onMouseDown} />
+          {visiblePanes.has("chat") && !visiblePanes.has("diff") && visiblePanes.has("activity") && (
+            <ResizeHandle onMouseDown={activityResize.onMouseDown} />
           )}
 
           {visiblePanes.has("diff") && (
