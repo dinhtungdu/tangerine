@@ -10,6 +10,7 @@ interface TerminalPaneProps {
 }
 
 export function TerminalPane({ taskId }: TerminalPaneProps) {
+  const wrapperRef = useRef<HTMLDivElement>(null)
   const containerRef = useRef<HTMLDivElement>(null)
   const termRef = useRef<Terminal | null>(null)
   const fitRef = useRef<FitAddon | null>(null)
@@ -93,7 +94,14 @@ export function TerminalPane({ taskId }: TerminalPaneProps) {
       const vv = window.visualViewport!
       // Only constrain when the keyboard is likely open (viewport noticeably shorter than window)
       if (window.innerHeight - vv.height > 100) {
-        setViewportHeight(vv.height)
+        // Subtract the element's top offset so the terminal doesn't extend behind the keyboard
+        const el = wrapperRef.current
+        if (el) {
+          const topInViewport = el.getBoundingClientRect().top - (vv.offsetTop ?? 0)
+          setViewportHeight(Math.max(vv.height - topInViewport, 100))
+        } else {
+          setViewportHeight(vv.height)
+        }
       } else {
         setViewportHeight(null)
       }
@@ -175,7 +183,8 @@ export function TerminalPane({ taskId }: TerminalPaneProps) {
 
   return (
     <div
-      className="flex flex-col"
+      ref={wrapperRef}
+      className="flex flex-col overflow-hidden"
       style={viewportHeight != null
         ? { height: viewportHeight, maxHeight: viewportHeight }
         : { height: "100%" }}
