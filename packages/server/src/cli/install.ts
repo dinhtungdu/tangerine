@@ -4,7 +4,7 @@
 import { existsSync, mkdirSync, symlinkSync, readlinkSync } from "fs"
 import { join, resolve } from "path"
 import { homedir } from "os"
-import { TANGERINE_HOME, OPENCODE_AUTH_PATH, readCredentialsFile } from "../config"
+import { TANGERINE_HOME, OPENCODE_AUTH_PATH, readCredentialsFile, readClaudeCliToken } from "../config"
 
 const CLAUDE_SKILLS_DIR = join(homedir(), ".claude", "skills")
 
@@ -81,7 +81,7 @@ export async function install(): Promise<void> {
   const dotfile = readCredentialsFile()
   const hasOpencode = existsSync(OPENCODE_AUTH_PATH)
   const hasApiKey = !!(process.env["ANTHROPIC_API_KEY"] || dotfile.ANTHROPIC_API_KEY)
-  const hasClaude = !!(process.env["CLAUDE_CODE_OAUTH_TOKEN"] || dotfile.CLAUDE_CODE_OAUTH_TOKEN)
+  const hasClaude = !!(process.env["CLAUDE_CODE_OAUTH_TOKEN"] || dotfile.CLAUDE_CODE_OAUTH_TOKEN || readClaudeCliToken())
   check(
     "LLM credentials",
     hasOpencode || hasApiKey || hasClaude,
@@ -89,7 +89,9 @@ export async function install(): Promise<void> {
   )
   if (hasOpencode) console.log("    (using opencode auth.json)")
   if (hasApiKey) console.log("    (using ANTHROPIC_API_KEY)")
-  if (hasClaude) console.log("    (using CLAUDE_CODE_OAUTH_TOKEN)")
+  if (process.env["CLAUDE_CODE_OAUTH_TOKEN"] || dotfile.CLAUDE_CODE_OAUTH_TOKEN)
+    console.log("    (using CLAUDE_CODE_OAUTH_TOKEN)")
+  else if (readClaudeCliToken()) console.log("    (using ~/.claude/.credentials.json)")
 
   const hasGithub = !!(process.env["GITHUB_TOKEN"] || dotfile.GITHUB_TOKEN)
   check("GITHUB_TOKEN", hasGithub, "Set GITHUB_TOKEN for PR creation and repo access")

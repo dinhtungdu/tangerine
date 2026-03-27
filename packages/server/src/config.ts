@@ -38,6 +38,25 @@ export const OPENCODE_AUTH_PATH = join(homedir(), ".local", "share", "opencode",
 /** Path to Claude Code's config directory on the host */
 export const CLAUDE_AUTH_DIR = join(homedir(), ".claude")
 
+/** Path to Claude Code's stored OAuth credentials */
+export const CLAUDE_CREDENTIALS_PATH = join(CLAUDE_AUTH_DIR, ".credentials.json")
+
+/** Read the OAuth token Claude Code CLI has already stored on disk, if any. */
+export function readClaudeCliToken(): string | null {
+  if (!existsSync(CLAUDE_CREDENTIALS_PATH)) return null
+  try {
+    const raw = JSON.parse(readFileSync(CLAUDE_CREDENTIALS_PATH, "utf-8")) as unknown
+    if (typeof raw !== "object" || raw === null) return null
+    const oauth = (raw as Record<string, unknown>)?.claudeAiOauth
+    if (typeof oauth !== "object" || oauth === null) return null
+    const { accessToken } = oauth as Record<string, unknown>
+    if (typeof accessToken !== "string") return null
+    return accessToken
+  } catch {
+    return null
+  }
+}
+
 /** SSH user inside the VM — Lima defaults to the host username */
 export const VM_USER = userInfo().username
 
@@ -143,7 +162,8 @@ export function loadConfig(): AppConfig {
   const dotfile = readCredentialsFile()
 
   const opencodeAuthPath = existsSync(OPENCODE_AUTH_PATH) ? OPENCODE_AUTH_PATH : null
-  const claudeOauthToken = process.env["CLAUDE_CODE_OAUTH_TOKEN"] ?? dotfile.CLAUDE_CODE_OAUTH_TOKEN ?? null
+  const claudeOauthToken =
+    process.env["CLAUDE_CODE_OAUTH_TOKEN"] ?? dotfile.CLAUDE_CODE_OAUTH_TOKEN ?? readClaudeCliToken()
   const anthropicApiKey = process.env["ANTHROPIC_API_KEY"] ?? dotfile.ANTHROPIC_API_KEY ?? null
 
   if (!opencodeAuthPath && !claudeOauthToken && !anthropicApiKey) {
