@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback } from "react"
 import type { Task, SystemLogEntry } from "@tangerine/shared"
-import { fetchSystemLogs, fetchOrphans, cleanupOrphans as apiCleanupOrphans, fetchUpdateStatus, updateProjectRepo, type ProjectUpdateStatus } from "../lib/api"
+import { fetchSystemLogs, fetchOrphans, cleanupOrphans as apiCleanupOrphans, fetchUpdateStatus, updateProjectRepo, fetchHealth, type ProjectUpdateStatus } from "../lib/api"
 import { formatRelativeTime } from "../lib/format"
 
 /* ── Cards ── */
@@ -135,6 +135,17 @@ export function ProjectUpdateCard({ project }: { project?: string }) {
       const res = await updateProjectRepo(project)
       if (res.restart) {
         setResult("Server restarting\u2026")
+        setUpdating(false)
+        // Poll until the server is back online, then clear the banner
+        for (let i = 0; i < 60; i++) {
+          await new Promise(r => setTimeout(r, 2000))
+          try {
+            await fetchHealth()
+            setResult(null)
+            break
+          } catch { /* still restarting */ }
+        }
+        return
       } else if (res.updated) {
         setResult(`Updated ${res.from} \u2192 ${res.to}`)
       } else {
