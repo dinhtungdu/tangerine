@@ -13,7 +13,7 @@ import type { AppDeps } from "../api/app"
 import { DEFAULT_API_PORT } from "@tangerine/shared"
 import * as taskManager from "../tasks/manager"
 import type { TaskManagerDeps } from "../tasks/manager"
-import { onTaskEvent, onStatusChange, emitTaskEvent, getAgentWorkingState, setAgentWorkingState } from "../tasks/events"
+import { onTaskEvent, onStatusChange, emitTaskEvent, setAgentWorkingState } from "../tasks/events"
 import { cleanupSession } from "../tasks/cleanup"
 import type { CleanupDeps } from "../tasks/cleanup"
 import { startOrphanCleanup, findOrphans, cleanupOrphans } from "../tasks/orphan-cleanup"
@@ -51,9 +51,6 @@ const agentHandles = new Map<string, AgentHandle>()
 // Per-task reconnect lock — prevents resumeOrphanedTasks and health monitor from
 // spawning two Claude processes for the same task simultaneously.
 const reconnectingTasks = new Set<string>()
-// Track when each task was last reconnected so the stall detector gives it a grace period.
-// Without this, a just-reconnected task with old lastActivity gets flagged as stalled 30s later.
-const lastReconnectedAt = new Map<string, Date>()
 // Track which tasks have received their first prompt (for setup note injection)
 const firstPromptSent = new Set<string>()
 // Track tasks that already have a PR URL saved (avoid redundant DB writes)
@@ -97,18 +94,6 @@ function getLastConversationLog(
   return db.prepare(
     "SELECT role, content FROM session_logs WHERE task_id = ? AND role != 'thinking' ORDER BY timestamp DESC, id DESC LIMIT 1"
   ).get(taskId) as { role: string; content: string } | null
-}
-
-function shouldTreatTaskInactivityAsStall(
-  db: import("bun:sqlite").Database,
-  taskId: string,
-): boolean {
-  if (getAgentWorkingState(taskId) === "working") return true
-
-  const lastLog = getLastConversationLog(db, taskId)
-  if (!lastLog) return true
-
-  return lastLog.role === "user"
 }
 
 export async function start(): Promise<void> {
@@ -174,7 +159,6 @@ export async function start(): Promise<void> {
           }
           agentHandles.set(taskId, session.agentHandle)
           reconnectingTasks.delete(taskId)
-          lastReconnectedAt.set(taskId, new Date())
 
           // Hydrate in-memory PR tracking from DB (lost on restart)
           const taskPrUrl = db.prepare("SELECT pr_url FROM tasks WHERE id = ?").get(taskId) as { pr_url: string | null } | null
@@ -735,19 +719,6 @@ export async function start(): Promise<void> {
     // Start health monitor (every 30s — detects dead agent processes)
     const healthDeps: HealthCheckDeps = {
       listRunningTasks: () => listTasks(db, { status: "running" }),
-      shouldTreatInactivityAsStall: (taskId) => Effect.sync(() => shouldTreatTaskInactivityAsStall(db, taskId)),
-      getLastActivityTime: (taskId) => Effect.sync(() => {
-        const row = db.prepare(
-          "SELECT MAX(timestamp) as ts FROM activity_log WHERE task_id = ? AND type != 'lifecycle'"
-        ).get(taskId) as { ts: string | null } | null
-        const dbTime = row?.ts ? new Date(row.ts) : null
-        // A just-reconnected task has old lastActivity in the DB (from the previous session).
-        // Return the reconnect time when it's more recent so the stall detector doesn't
-        // immediately flag the task as stalled 30s after reconnect.
-        const reconnectTime = lastReconnectedAt.get(taskId) ?? null
-        if (dbTime && reconnectTime) return dbTime > reconnectTime ? dbTime : reconnectTime
-        return reconnectTime ?? dbTime
-      }),
       checkAgentAlive: (taskId) => Effect.sync(() => {
         const handle = agentHandles.get(taskId)
         if (!handle) return false

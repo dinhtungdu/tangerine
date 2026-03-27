@@ -11,8 +11,6 @@ import { cleanupSession } from "./cleanup"
 const log = createLogger("health")
 
 const HEALTH_CHECK_INTERVAL_MS = 30_000
-// If no agent activity for this long, consider the session stalled and restart
-const STALL_THRESHOLD_MS = 5 * 60 * 1000 // 5 minutes
 // After this many consecutive failed restarts, give up and mark the task failed.
 // Prevents infinite restart loops if a new bug causes every restart to fail immediately.
 const MAX_CONSECUTIVE_RESTARTS = 3
@@ -23,10 +21,6 @@ const consecutiveRestarts = new Map<string, number>()
 export interface HealthCheckDeps {
   listRunningTasks(): Effect.Effect<TaskRow[], Error>
   checkAgentAlive(taskId: string): Effect.Effect<boolean, never>
-  /** Returns whether inactivity should be treated as a stall for this task */
-  shouldTreatInactivityAsStall?(taskId: string): Effect.Effect<boolean, never>
-  /** Returns the timestamp of the last agent activity, or null if unknown */
-  getLastActivityTime?(taskId: string): Effect.Effect<Date | null, never>
   restartAgent(task: TaskRow): Effect.Effect<void, Error>
   failTask(taskId: string, reason: string): Effect.Effect<void, Error>
   cleanupDeps: CleanupDeps
@@ -60,40 +54,6 @@ export function checkTask(
       return yield* attemptRestart(task, deps, taskLog, "agent_dead")
     }
 
-    // Agent is alive — but only treat inactivity as a stall when the task is
-    // actually awaiting agent work. If the agent already answered and is now
-    // waiting for the user, inactivity is expected and should not trigger a restart.
-    const shouldTreatInactivityAsStall = deps.shouldTreatInactivityAsStall
-      ? yield* deps.shouldTreatInactivityAsStall(task.id)
-      : true
-
-    if (shouldTreatInactivityAsStall && deps.getLastActivityTime) {
-      const lastActivity = yield* deps.getLastActivityTime(task.id)
-      if (lastActivity) {
-        const stalledMs = Date.now() - lastActivity.getTime()
-        if (stalledMs > STALL_THRESHOLD_MS) {
-          taskLog.warn("Agent stalled (no activity), attempting restart", {
-            stalledMs,
-            lastActivity: lastActivity.toISOString(),
-          })
-          return yield* attemptRestart(task, deps, taskLog, "agent_stalled")
-        }
-      } else {
-        // No non-lifecycle activity at all — fall back to started_at
-        const startedAt = task.started_at ? new Date(task.started_at) : null
-        if (startedAt) {
-          const stalledMs = Date.now() - startedAt.getTime()
-          if (stalledMs > STALL_THRESHOLD_MS) {
-            taskLog.warn("Agent stalled (no activity since start), attempting restart", {
-              stalledMs,
-              startedAt: startedAt.toISOString(),
-            })
-            return yield* attemptRestart(task, deps, taskLog, "agent_stalled")
-          }
-        }
-      }
-    }
-
     consecutiveRestarts.delete(task.id)
     taskLog.debug("Task healthy")
     return "healthy"
@@ -104,7 +64,7 @@ function attemptRestart(
   task: TaskRow,
   deps: HealthCheckDeps,
   taskLog: ReturnType<typeof log.child>,
-  reason: "agent_dead" | "agent_stalled",
+  reason: "agent_dead",
 ): Effect.Effect<"recovered" | "failed", HealthCheckError> {
   return deps.restartAgent(task).pipe(
     // restartAgent may internally swallow errors (reconnectSessionWithRetry has error

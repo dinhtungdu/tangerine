@@ -5,7 +5,7 @@ import { Effect } from "effect"
 import type { Database } from "bun:sqlite"
 import { createLogger } from "../logger"
 import { SessionStartError } from "../errors"
-import { getHandleMeta as getOpenCodeHandleMeta } from "../agent/opencode-provider"
+import { getHandleMeta as getOpenCodeHandleMeta, isSharedServerPid } from "../agent/opencode-provider"
 import type { TaskRow } from "../db/types"
 import { initPool, acquireSlot } from "./worktree-pool"
 
@@ -267,9 +267,9 @@ export function reconnectSession(
 
     // 1. Kill any lingering agent processes in the worktree before spawning a new one.
     // Without this, the old process stays alive and fights the new one over the same worktree.
-    // (OpenCode uses a shared server managed by the provider singleton — don't pkill it)
+    // Skip the shared OpenCode server — killing it would take down ALL tasks, not just this one.
     const existingPid = (task as TaskRow & { agent_pid?: number | null }).agent_pid
-    if (existingPid) {
+    if (existingPid && !isSharedServerPid(existingPid)) {
       yield* localExec(`kill ${existingPid} 2>/dev/null; true`).pipe(
         Effect.tap(() => Effect.sync(() => taskLog.info("Killed existing agent PID", { pid: existingPid }))),
         Effect.catchAll(() => Effect.void),

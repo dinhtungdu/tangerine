@@ -40,8 +40,6 @@ function makeDeps(overrides?: Partial<HealthCheckDeps>): HealthCheckDeps {
   return {
     listRunningTasks: () => Effect.succeed([]),
     checkAgentAlive: () => Effect.succeed(true),
-    shouldTreatInactivityAsStall: () => Effect.succeed(true),
-    getLastActivityTime: () => Effect.succeed(new Date()),
     restartAgent: () => Effect.void,
     failTask: () => Effect.void,
     cleanupDeps: {
@@ -93,21 +91,6 @@ describe("health check", () => {
     expect((failFn.mock.calls[0] as unknown as [string, string])[0]).toBe("test-task-1")
   })
 
-  test("stall detection with null lastActivity falls back to started_at", async () => {
-    const tenMinutesAgo = new Date(Date.now() - 10 * 60 * 1000).toISOString()
-    const task = makeTask({ started_at: tenMinutesAgo })
-    const restartFn = mock(() => Effect.void)
-    let callCount = 0
-    const deps = makeDeps({
-      checkAgentAlive: () => Effect.succeed(callCount++ === 0),
-      getLastActivityTime: () => Effect.succeed(null),
-      restartAgent: restartFn,
-    })
-    const result = await Effect.runPromise(checkTask(task, deps))
-    expect(result).toBe("recovered")
-    expect(restartFn).toHaveBeenCalledTimes(1)
-  })
-
   test("startHealthMonitor fiber survives after runPromise resolves", async () => {
     let checkCount = 0
     const deps = makeDeps({
@@ -122,30 +105,14 @@ describe("health check", () => {
     expect(checkCount).toBeGreaterThanOrEqual(1)
   })
 
-  test("stall detection does not trigger for recently started tasks with no activity", async () => {
-    const task = makeTask({ started_at: new Date().toISOString() })
+  test("alive agent is always healthy (no stall detection)", async () => {
+    // Even with no activity for a long time, alive agent should be healthy
+    const task = makeTask({ started_at: new Date(Date.now() - 60 * 60 * 1000).toISOString() })
     const restartFn = mock(() => Effect.void)
     const deps = makeDeps({
       checkAgentAlive: () => Effect.succeed(true),
-      getLastActivityTime: () => Effect.succeed(null),
       restartAgent: restartFn,
     })
-    const result = await Effect.runPromise(checkTask(task, deps))
-    expect(result).toBe("healthy")
-    expect(restartFn).toHaveBeenCalledTimes(0)
-  })
-
-  test("stall detection skips tasks waiting for user input", async () => {
-    const tenMinutesAgo = new Date(Date.now() - 10 * 60 * 1000).toISOString()
-    const task = makeTask({ started_at: tenMinutesAgo })
-    const restartFn = mock(() => Effect.void)
-    const deps = makeDeps({
-      checkAgentAlive: () => Effect.succeed(true),
-      shouldTreatInactivityAsStall: () => Effect.succeed(false),
-      getLastActivityTime: () => Effect.succeed(new Date(tenMinutesAgo)),
-      restartAgent: restartFn,
-    })
-
     const result = await Effect.runPromise(checkTask(task, deps))
     expect(result).toBe("healthy")
     expect(restartFn).toHaveBeenCalledTimes(0)
