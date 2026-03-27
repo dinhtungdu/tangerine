@@ -37,6 +37,7 @@ export function Topbar() {
   const [searchParams] = useSearchParams()
   const isRuns = location.pathname === "/" || location.pathname.startsWith("/tasks") || location.pathname === "/new"
   const isStatus = location.pathname === "/status"
+  const isTerminal = location.pathname === "/terminal"
   const projectParam = searchParams.get("project")
   const qs = projectParam ? `?project=${encodeURIComponent(projectParam)}` : ""
 
@@ -79,6 +80,15 @@ export function Topbar() {
             }`}
           >
             Status
+          </Link>
+          <Link
+            to={`/terminal${qs}`}
+            className={`rounded-md px-3 py-1.5 text-[13px] font-medium ${
+              isTerminal ? "bg-surface-secondary text-fg" : "text-fg-muted hover:text-fg"
+            }`}
+            title="Repo terminal (emergency access)"
+          >
+            Terminal
           </Link>
         </nav>
         <div className="h-5 w-px bg-edge" />
