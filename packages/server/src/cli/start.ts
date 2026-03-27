@@ -239,6 +239,7 @@ export async function start(): Promise<void> {
                   notes.push(`[NOTE: Project setup is running in the background (\`${projConfig.setup}\`). Before running builds, tests, or linters, check if setup is done: \`cat /tmp/tangerine-setup-${prefix}.status\` (running/done/failed). Log: \`cat /tmp/tangerine-setup-${prefix}.log\`]`)
                 }
                 notes.push(`[NOTE: When your work is complete, push your branch and create a pull request. Use \`git push origin HEAD\` then \`gh pr create\`. Do not stop at just committing.]`)
+                notes.push(`[NOTE: You are running autonomously — there is no interactive terminal. Do NOT enter plan mode, ask the user questions, or request confirmations. Make decisions independently and proceed with the work.]`)
                 firstPromptSent.add(taskId)
                 const fullPrompt = notes.join("\n") + "\n\n" + initialPrompt
 
@@ -575,6 +576,7 @@ export async function start(): Promise<void> {
               }
 
               notes.push(`[NOTE: When your work is complete, push your branch and create a pull request. Use \`git push origin HEAD\` then \`gh pr create\`. Do not stop at just committing.]`)
+              notes.push(`[NOTE: You are running autonomously — there is no interactive terminal. Do NOT enter plan mode, ask the user questions, or request confirmations. Make decisions independently and proceed with the work.]`)
 
               if (notes.length > 0) {
                 promptText = notes.join("\n") + "\n\n" + text
