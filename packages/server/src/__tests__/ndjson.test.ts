@@ -144,7 +144,7 @@ describe("createClaudeCodeMapper — image buffering", () => {
     source: { type: "base64", media_type: "image/png", data: "iVBOR..." },
   }
 
-  test("buffers images from tool_result and attaches to next narration", () => {
+  test("buffers images from tool_result and attaches to result (not narration)", () => {
     const mapper = createClaudeCodeMapper()
 
     // 1. User event with tool_result containing an image
@@ -167,7 +167,7 @@ describe("createClaudeCodeMapper — image buffering", () => {
     expect(userEvents.find((e) => e.kind === "tool.end")).toBeDefined()
     expect(userEvents.find((e) => e.kind === "message.complete")).toBeUndefined()
 
-    // 2. Next assistant message picks up the buffered image
+    // 2. Next assistant message does NOT get the image (stays buffered)
     const assistantEvents = mapper({
       type: "assistant",
       message: {
@@ -176,14 +176,26 @@ describe("createClaudeCodeMapper — image buffering", () => {
       },
     })
 
-    const complete = assistantEvents.find((e) => e.kind === "message.complete")
-    expect(complete).toBeDefined()
-    expect(complete).toMatchObject({
+    const narration = assistantEvents.find((e) => e.kind === "message.complete")
+    expect(narration).toMatchObject({
       kind: "message.complete",
       role: "narration",
       content: "Here is the screenshot",
     })
-    // Image should be attached
+    // Narration should NOT have images
+    expect((narration as { images?: unknown[] }).images).toBeUndefined()
+
+    // 3. Result event picks up the buffered image; content is deduped (matches narration)
+    const resultEvents = mapper({
+      type: "result",
+      result: "Here is the screenshot",
+      session_id: "sess_1",
+    })
+
+    const complete = resultEvents.find((e) => e.kind === "message.complete")
+    expect(complete).toBeDefined()
+    // Content deduped since narration already has the same text
+    expect(complete).toMatchObject({ kind: "message.complete", role: "assistant", content: "" })
     expect((complete as { images?: unknown[] }).images).toHaveLength(1)
     expect((complete as { images?: Array<{ mediaType: string }> }).images?.[0]?.mediaType).toBe("image/png")
   })
@@ -278,7 +290,7 @@ describe("createClaudeCodeMapper — image buffering", () => {
     expect((complete as { images?: unknown[] }).images).toBeUndefined()
   })
 
-  test("merges tool-result images with assistant-produced images", () => {
+  test("merges tool-result images with assistant-produced images on result", () => {
     const mapper = createClaudeCodeMapper()
 
     // Buffer an image from tool result
@@ -294,8 +306,8 @@ describe("createClaudeCodeMapper — image buffering", () => {
       },
     })
 
-    // Assistant event also has an inline image
-    const events = mapper({
+    // Assistant event also has an inline image — both should be buffered
+    const assistantEvents = mapper({
       type: "assistant",
       message: {
         id: "msg_both",
@@ -306,7 +318,19 @@ describe("createClaudeCodeMapper — image buffering", () => {
       },
     })
 
-    const complete = events.find((e) => e.kind === "message.complete")
+    // Narration should NOT have images
+    const narration = assistantEvents.find((e) => e.kind === "message.complete")
+    expect((narration as { images?: unknown[] }).images).toBeUndefined()
+
+    // Result event gets both images; content deduped since it matches narration
+    const resultEvents = mapper({
+      type: "result",
+      result: "Two images",
+      session_id: "sess_1",
+    })
+
+    const complete = resultEvents.find((e) => e.kind === "message.complete")
+    expect(complete).toMatchObject({ content: "" }) // deduped
     const images = (complete as { images?: Array<{ mediaType: string }> }).images
     expect(images).toHaveLength(2)
     // Tool-result image first, then inline image
@@ -314,7 +338,7 @@ describe("createClaudeCodeMapper — image buffering", () => {
     expect(images?.[1]?.mediaType).toBe("image/jpeg")
   })
 
-  test("narration emitted for tool-result images even without text", () => {
+  test("tool-result images are NOT attached to narration, only to result", () => {
     const mapper = createClaudeCodeMapper()
 
     mapper({
@@ -329,7 +353,7 @@ describe("createClaudeCodeMapper — image buffering", () => {
       },
     })
 
-    // Assistant with only tool_use (no text) — should still emit narration for the buffered image
+    // Assistant with only tool_use (no text) — should NOT emit narration for buffered images
     const events = mapper({
       type: "assistant",
       message: {
@@ -340,13 +364,126 @@ describe("createClaudeCodeMapper — image buffering", () => {
       },
     })
 
-    const complete = events.find((e) => e.kind === "message.complete")
+    // No narration emitted (no text, images stay buffered)
+    expect(events.find((e) => e.kind === "message.complete")).toBeUndefined()
+
+    // Result gets the buffered image
+    const resultEvents = mapper({
+      type: "result",
+      result: "Done",
+    })
+    const complete = resultEvents.find((e) => e.kind === "message.complete")
     expect(complete).toBeDefined()
-    expect(complete).toMatchObject({
+    expect((complete as { images?: unknown[] }).images).toHaveLength(1)
+  })
+})
+
+describe("createClaudeCodeMapper — result deduplication", () => {
+  test("skips result when text matches last narration and no images", () => {
+    const mapper = createClaudeCodeMapper()
+
+    // Assistant turn emits narration
+    mapper({
+      type: "assistant",
+      message: { id: "msg_1", content: [{ type: "text", text: "All done" }] },
+    })
+
+    // Result with same text — should be suppressed entirely
+    const resultEvents = mapper({
+      type: "result",
+      result: "All done",
+    })
+
+    expect(resultEvents).toEqual([])
+  })
+
+  test("emits result when text differs from last narration", () => {
+    const mapper = createClaudeCodeMapper()
+
+    mapper({
+      type: "assistant",
+      message: { id: "msg_1", content: [{ type: "text", text: "Working on it" }] },
+    })
+
+    // Result with different text — should emit
+    const resultEvents = mapper({
+      type: "result",
+      result: "All done",
+      session_id: "sess_1",
+    })
+
+    expect(resultEvents).toEqual([{
       kind: "message.complete",
-      role: "narration",
+      role: "assistant",
+      content: "All done",
+      messageId: "sess_1",
+    }])
+  })
+
+  test("emits result with empty content when text matches but has images", () => {
+    const mapper = createClaudeCodeMapper()
+    const fakeImage = {
+      type: "image",
+      source: { type: "base64", media_type: "image/png", data: "iVBOR..." },
+    }
+
+    // Buffer an image
+    mapper({
+      type: "user",
+      message: {
+        content: [{
+          type: "tool_result",
+          tool_use_id: "tu_1",
+          name: "Read",
+          content: [fakeImage],
+        }],
+      },
+    })
+
+    // Narration
+    mapper({
+      type: "assistant",
+      message: { id: "msg_1", content: [{ type: "text", text: "Here is the image" }] },
+    })
+
+    // Result with same text but has images — emit with empty content
+    const resultEvents = mapper({
+      type: "result",
+      result: "Here is the image",
+    })
+
+    expect(resultEvents).toHaveLength(1)
+    expect(resultEvents[0]).toMatchObject({
+      kind: "message.complete",
+      role: "assistant",
       content: "",
     })
-    expect((complete as { images?: unknown[] }).images).toHaveLength(1)
+    expect((resultEvents[0] as { images?: unknown[] }).images).toHaveLength(1)
+  })
+
+  test("resets dedup state after result", () => {
+    const mapper = createClaudeCodeMapper()
+
+    mapper({
+      type: "assistant",
+      message: { id: "msg_1", content: [{ type: "text", text: "First answer" }] },
+    })
+
+    // Result matches — suppressed
+    mapper({ type: "result", result: "First answer" })
+
+    // New conversation turn with same text — should NOT be suppressed
+    mapper({
+      type: "assistant",
+      message: { id: "msg_2", content: [{ type: "text", text: "Second answer" }] },
+    })
+
+    const resultEvents = mapper({
+      type: "result",
+      result: "Second answer",
+    })
+
+    // Should be suppressed (matches new narration)
+    expect(resultEvents).toEqual([])
   })
 })
