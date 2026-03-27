@@ -1,6 +1,7 @@
 export type TaskStatus = "created" | "provisioning" | "running" | "done" | "failed" | "cancelled"
 export type ProviderType = "opencode" | "claude-code"
 export type TaskSource = "github" | "linear" | "manual" | "cross-project"
+export type TaskType = "code" | "review"
 
 export interface Task {
   id: string
@@ -11,12 +12,15 @@ export interface Task {
   title: string
   description: string | null
   status: TaskStatus
+  type: TaskType
   provider: ProviderType
   model: string | null
   reasoningEffort: string | null
   branch: string | null
   worktreePath: string | null
   prUrl: string | null
+  reviewPrNumber: number | null
+  reviewTaskId: string | null
   userId: string | null
   agentSessionId: string | null
   agentPid: number | null

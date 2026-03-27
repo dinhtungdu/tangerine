@@ -1,6 +1,7 @@
 export type {
   TaskStatus,
   TaskSource,
+  TaskType,
   Task,
   ProviderType,
   ActivityType,

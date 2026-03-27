@@ -288,6 +288,11 @@ export function TaskDetail() {
                 <span className="font-mono text-[12px] text-fg-muted">{copiedBranch ? "Copied!" : task.branch}</span>
               </button>
             )}
+            {task.type === "review" && (
+              <span className="flex shrink-0 items-center gap-1 rounded bg-accent-bg px-1.5 py-0.5 text-[10px] font-medium text-accent-text">
+                Review{task.reviewPrNumber ? ` PR #${task.reviewPrNumber}` : task.reviewTaskId ? ` Task ${task.reviewTaskId.slice(0, 8)}` : ""}
+              </span>
+            )}
             {task.prUrl && (
               <a
                 href={task.prUrl}

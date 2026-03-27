@@ -12,7 +12,7 @@ export function NewAgentPage() {
   const refTaskId = searchParams.get("ref") ?? undefined
   const refTaskTitle = searchParams.get("refTitle") ?? undefined
 
-  const handleSubmit = async (data: { projectId: string; title: string; description?: string; branch?: string; provider?: string; model?: string; reasoningEffort?: string; images?: import("@tangerine/shared").PromptImage[] }) => {
+  const handleSubmit = async (data: { projectId: string; title: string; description?: string; branch?: string; provider?: string; model?: string; reasoningEffort?: string; images?: import("@tangerine/shared").PromptImage[]; type?: "code" | "review"; reviewPrNumber?: number; reviewTaskId?: string }) => {
     if (!current) return
     try {
       const task = await createTask(data)

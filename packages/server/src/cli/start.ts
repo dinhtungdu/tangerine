@@ -23,6 +23,7 @@ import type { HealthCheckDeps } from "../tasks/health"
 import { reconnectSessionWithRetry } from "../tasks/retry"
 import { AgentError } from "../errors"
 import { extractPrUrl, verifyPrBranch, startPrMonitor } from "../tasks/pr-monitor"
+import { fetchPrContext } from "../tasks/pr-context"
 import type { PrMonitorDeps } from "../tasks/pr-monitor"
 import { initSystemLog, cleanupSystemLogs } from "../system-log"
 import { createOpenCodeProvider } from "../agent/opencode-provider"
@@ -190,10 +191,15 @@ export async function start(): Promise<void> {
 
                 const originalTask = taskRow?.description || taskRow?.title || ""
                 const unansweredUserMsg = lastLog?.role === "user" ? lastLog.content : null
+                const reconnectTaskType = (db.prepare("SELECT type FROM tasks WHERE id = ?").get(taskId) as { type: string | null } | null)?.type
+
+                const completionNote = reconnectTaskType === "review"
+                  ? `[NOTE: This is a REVIEW task. Write your review as your response. Do NOT push commits or create PRs.]`
+                  : `[NOTE: When your work is complete, you MUST push your branch and create a pull request. Use \`git push origin HEAD\` then \`gh pr create\`.]`
 
                 const nudge = [
                   `[TANGERINE: Server restarted. You are working on: ${originalTask}]`,
-                  `[NOTE: When your work is complete, you MUST push your branch and create a pull request. Use \`git push origin HEAD\` then \`gh pr create\`.]`,
+                  completionNote,
                   unansweredUserMsg
                     ? `The last message you had not yet responded to was: ${unansweredUserMsg}\n\nPlease continue.`
                     : "Please continue where you left off.",
@@ -243,15 +249,31 @@ export async function start(): Promise<void> {
                 }
               }
 
-              loadInitialImages().then(({ images, filenames }) => {
+              loadInitialImages().then(async ({ images, filenames }) => {
                 const projConfig = task?.project_id ? getProjectConfig(config.config, task.project_id) : undefined
+                const taskRow = db.prepare("SELECT type, review_pr_number, review_task_id, worktree_path FROM tasks WHERE id = ?").get(taskId) as { type: string | null; review_pr_number: number | null; review_task_id: string | null; worktree_path: string | null } | null
+                const isReview = taskRow?.type === "review"
                 const notes: string[] = []
                 notes.push(`[TANGERINE: You are running inside a Tangerine task (task ID: ${taskId}). The Tangerine API is at http://localhost:3456. Run \`/tangerine\` for full API reference and common workflows.]`)
                 if (projConfig?.setup) {
                   const prefix = taskId.slice(0, 8)
                   notes.push(`[NOTE: Project setup is running in the background (\`${projConfig.setup}\`). Before running builds, tests, or linters, check if setup is done: \`cat /tmp/tangerine-setup-${prefix}.status\` (running/done/failed). Log: \`cat /tmp/tangerine-setup-${prefix}.log\`]`)
                 }
-                notes.push(`[NOTE: When your work is complete, push your branch and create a pull request. Use \`git push origin HEAD\` then \`gh pr create\`. Do not stop at just committing.]`)
+                if (isReview) {
+                  notes.push(`[NOTE: This is a REVIEW task. Review the code changes thoroughly — check for bugs, design issues, and improvements. Write your review as your response. Do NOT push commits or create PRs. Do NOT run \`gh pr review\` or post GitHub comments.]`)
+                  if (taskRow?.review_task_id) {
+                    notes.push(`[NOTE: You are reviewing code from Tangerine task ${taskRow.review_task_id}. Your review will be automatically forwarded to that task's agent.]`)
+                  }
+                  // Fetch and inject PR context for review tasks
+                  if (taskRow?.review_pr_number && taskRow?.worktree_path) {
+                    const prCtx = await fetchPrContext(taskRow.worktree_path, taskRow.review_pr_number)
+                    if (prCtx) {
+                      notes.push(`\n--- PR #${prCtx.number}: ${prCtx.title} ---\nAuthor: ${prCtx.author}\nBase: ${prCtx.baseBranch} <- Head: ${prCtx.headBranch}\n\n${prCtx.body ? `Description:\n${prCtx.body}\n\n` : ""}Files changed: ${prCtx.files.join(", ")}\n\nDiff:\n\`\`\`\n${prCtx.diff.slice(0, 50000)}\n\`\`\``)
+                    }
+                  }
+                } else {
+                  notes.push(`[NOTE: When your work is complete, push your branch and create a pull request. Use \`git push origin HEAD\` then \`gh pr create\`. Do not stop at just committing.]`)
+                }
                 firstPromptSent.add(taskId)
                 const fullPrompt = notes.join("\n") + "\n\n" + initialPrompt
 
@@ -356,6 +378,33 @@ export async function start(): Promise<void> {
                       )
                     }
                   }
+
+                  // Forward review results to the target Tangerine task
+                  if (role === "assistant" && event.content) {
+                    const reviewMeta = db.prepare("SELECT review_task_id FROM tasks WHERE id = ? AND type = 'review'").get(taskId) as { review_task_id: string | null } | null
+                    if (reviewMeta?.review_task_id) {
+                      const targetTaskId = reviewMeta.review_task_id
+                      const targetHandle = agentHandles.get(targetTaskId)
+                      const reviewPrompt = `[REVIEW from Tangerine review task ${taskId}]\n\n${event.content}\n\n[END REVIEW — Please address the feedback above.]`
+                      if (targetHandle) {
+                        log.info("Forwarding review to target task", { reviewTaskId: taskId, targetTaskId })
+                        Effect.runPromise(
+                          targetHandle.sendPrompt(reviewPrompt).pipe(Effect.catchAll(() => Effect.void))
+                        )
+                        Effect.runPromise(
+                          insertSessionLog(db, { task_id: targetTaskId, role: "user", content: reviewPrompt }).pipe(Effect.catchAll(() => Effect.void))
+                        )
+                        emitTaskEvent(targetTaskId, { role: "user", content: reviewPrompt, timestamp: new Date().toISOString() })
+                        Effect.runPromise(
+                          logActivity(db, taskId, "lifecycle", "review.forwarded", `Review forwarded to task ${targetTaskId}`).pipe(Effect.catchAll(() => Effect.void))
+                        )
+                      } else {
+                        // Target task not running — queue for later
+                        taskManager.queuePrompt(targetTaskId, reviewPrompt)
+                        log.info("Review queued for offline target task", { reviewTaskId: taskId, targetTaskId })
+                      }
+                    }
+                  }
                 }
                 break
               }
@@ -373,8 +422,9 @@ export async function start(): Promise<void> {
                   setAgentWorkingState(taskId, "idle")
                   emitTaskEvent(taskId, { event: "agent.idle" })
 
-                  // Schedule PR nudge if agent has commits but no PR
-                  if (!prUrlSaved.has(taskId) && !prNudgeSent.has(taskId)) {
+                  // Schedule PR nudge if agent has commits but no PR (skip for review tasks)
+                  const taskTypeForNudge = (db.prepare("SELECT type FROM tasks WHERE id = ?").get(taskId) as { type: string | null } | null)?.type
+                  if (taskTypeForNudge !== "review" && !prUrlSaved.has(taskId) && !prNudgeSent.has(taskId)) {
                     const timer = setTimeout(async () => {
                       prNudgeTimers.delete(taskId)
                       if (prUrlSaved.has(taskId) || prNudgeSent.has(taskId)) return
@@ -504,6 +554,9 @@ export async function start(): Promise<void> {
             model: params.model,
             reasoningEffort: params.reasoningEffort,
             branch: params.branch,
+            type: params.type,
+            reviewPrNumber: params.reviewPrNumber,
+            reviewTaskId: params.reviewTaskId,
           }).pipe(
             Effect.tap((task) => {
               // Save initial images to disk so onSessionReady can include them
@@ -587,7 +640,12 @@ export async function start(): Promise<void> {
                 }
               }
 
-              notes.push(`[NOTE: When your work is complete, push your branch and create a pull request. Use \`git push origin HEAD\` then \`gh pr create\`. Do not stop at just committing.]`)
+              const isReview = task?.type === "review"
+              if (isReview) {
+                notes.push(`[NOTE: This is a REVIEW task. Review the code changes thoroughly — check for bugs, design issues, and improvements. Write your review as your response. Do NOT push commits or create PRs.]`)
+              } else {
+                notes.push(`[NOTE: When your work is complete, push your branch and create a pull request. Use \`git push origin HEAD\` then \`gh pr create\`. Do not stop at just committing.]`)
+              }
 
               if (notes.length > 0) {
                 promptText = notes.join("\n") + "\n\n" + text

@@ -110,9 +110,11 @@ export interface PrMonitorDeps {
 /** Poll all running tasks with pr_url and act on merged/closed PRs. */
 export function pollPrStatuses(deps: PrMonitorDeps): Effect.Effect<void, never> {
   return Effect.gen(function* () {
-    const running = yield* deps.listTasks({ status: "running" }).pipe(
+    const allRunning = yield* deps.listTasks({ status: "running" }).pipe(
       Effect.catchAll(() => Effect.succeed([] as TaskRow[]))
     )
+    // Skip review tasks — they don't create PRs
+    const running = allRunning.filter((t) => (t.type ?? "code") !== "review")
 
     // Phase 1: discover PR URLs for tasks that don't have one yet
     const withoutPr = running.filter((t) => !t.pr_url && t.branch && t.repo_url)

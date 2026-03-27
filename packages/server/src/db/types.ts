@@ -8,12 +8,15 @@ export interface TaskRow {
   title: string
   description: string | null
   status: string
+  type: string
   provider: string
   model: string | null
   reasoning_effort: string | null
   branch: string | null
   worktree_path: string | null
   pr_url: string | null
+  review_pr_number: number | null
+  review_task_id: string | null
   user_id: string | null
   agent_session_id: string | null
   agent_pid: number | null

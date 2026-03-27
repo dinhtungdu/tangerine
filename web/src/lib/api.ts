@@ -73,6 +73,9 @@ export async function createTask(data: {
   reasoningEffort?: string
   branch?: string
   images?: import("@tangerine/shared").PromptImage[]
+  type?: "code" | "review"
+  reviewPrNumber?: number
+  reviewTaskId?: string
 }): Promise<Task> {
   return request<Task>("/api/tasks", {
     method: "POST",

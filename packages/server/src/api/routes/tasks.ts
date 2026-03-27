@@ -31,7 +31,7 @@ export function taskRoutes(deps: AppDeps): Hono {
   })
 
   app.post("/", async (c) => {
-    const body = await c.req.json<{ projectId?: string; title?: string; description?: string; provider?: string; model?: string; reasoningEffort?: string; source?: string; sourceId?: string; sourceUrl?: string; branch?: string; images?: import("../../agent/provider").PromptImage[] }>()
+    const body = await c.req.json<{ projectId?: string; title?: string; description?: string; provider?: string; model?: string; reasoningEffort?: string; source?: string; sourceId?: string; sourceUrl?: string; branch?: string; images?: import("../../agent/provider").PromptImage[]; type?: "code" | "review"; reviewPrNumber?: number; reviewTaskId?: string }>()
     if (!body.title) {
       return c.json({ error: "title is required" }, 400)
     }
@@ -43,12 +43,36 @@ export function taskRoutes(deps: AppDeps): Hono {
     }
     const provider = body.provider === "claude-code" ? "claude-code" : "opencode"
     const source = body.source === "cross-project" ? "cross-project" : "manual"
+    const taskType = body.type === "review" ? "review" : "code"
 
     // Resolve branch from PR URL or direct branch name
     let branch = body.branch
     let sourceUrl = body.sourceUrl
     let sourceId = body.sourceId
-    if (branch) {
+    const reviewPrNumber = body.reviewPrNumber
+    const reviewTaskId = body.reviewTaskId
+
+    // For review tasks targeting a Tangerine task, resolve branch from that task's PR/branch
+    if (taskType === "review" && reviewTaskId) {
+      const targetTask = await Effect.runPromise(
+        getTask(deps.db, reviewTaskId).pipe(Effect.catchAll(() => Effect.succeed(null)))
+      )
+      if (!targetTask) {
+        return c.json({ error: `Review target task not found: ${reviewTaskId}` }, 400)
+      }
+      branch = branch ?? targetTask.branch ?? undefined
+      if (targetTask.pr_url) {
+        sourceUrl = sourceUrl ?? targetTask.pr_url
+      }
+    } else if (taskType === "review" && reviewPrNumber) {
+      // For review tasks targeting an external PR
+      const prInfo = await resolvePrBranch(`#${reviewPrNumber}`, `/workspace/${projectId}/repo`)
+      if (prInfo) {
+        branch = branch ?? prInfo.branch
+        sourceUrl = sourceUrl ?? prInfo.url
+        sourceId = sourceId ?? prInfo.sourceId
+      }
+    } else if (branch) {
       const prInfo = await resolvePrBranch(branch, `/workspace/${projectId}/repo`)
       if (prInfo) {
         branch = prInfo.branch
@@ -57,8 +81,12 @@ export function taskRoutes(deps: AppDeps): Hono {
       }
     }
 
+    if (taskType === "review" && !reviewPrNumber && !reviewTaskId) {
+      return c.json({ error: "reviewPrNumber or reviewTaskId is required for review tasks" }, 400)
+    }
+
     return runEffect(c,
-      deps.taskManager.createTask({ source, projectId, title: body.title, description: body.description, provider, model: body.model, reasoningEffort: body.reasoningEffort, sourceId, sourceUrl, branch, images: body.images }).pipe(
+      deps.taskManager.createTask({ source, projectId, title: body.title, description: body.description, provider, model: body.model, reasoningEffort: body.reasoningEffort, sourceId, sourceUrl, branch, images: body.images, type: taskType, reviewPrNumber, reviewTaskId }).pipe(
         Effect.map(mapTaskRow)
       ),
       { status: 201 }
@@ -94,6 +122,9 @@ export function taskRoutes(deps: AppDeps): Hono {
                 provider: task.provider,
                 model: task.model ?? undefined,
                 reasoningEffort: task.reasoning_effort ?? undefined,
+                type: (task.type as "code" | "review") ?? "code",
+                reviewPrNumber: task.review_pr_number ?? undefined,
+                reviewTaskId: task.review_task_id ?? undefined,
               }).pipe(Effect.mapError((e) => new Error(String(e))))
             ),
             Effect.map(mapTaskRow),

@@ -1,4 +1,4 @@
-import type { Task, TaskSource, TaskStatus, ProviderType } from "@tangerine/shared"
+import type { Task, TaskSource, TaskStatus, TaskType, ProviderType } from "@tangerine/shared"
 import type { TaskRow } from "../db/types"
 
 /**
@@ -25,12 +25,15 @@ export function mapTaskRow(row: TaskRow): Task {
     title: row.title,
     description: row.description,
     status: row.status as TaskStatus,
+    type: (row.type ?? "code") as TaskType,
     provider: row.provider as ProviderType,
     model: row.model,
     reasoningEffort: row.reasoning_effort,
     branch: row.branch,
     worktreePath: row.worktree_path,
     prUrl: row.pr_url,
+    reviewPrNumber: row.review_pr_number,
+    reviewTaskId: row.review_task_id,
     userId: row.user_id,
     agentSessionId: row.agent_session_id,
     agentPid: row.agent_pid,
