@@ -3,6 +3,7 @@ import { Hono } from "hono"
 import type { UpgradeWebSocket } from "hono/ws"
 import type { AppDeps } from "../app"
 import { getTask } from "../../db/queries"
+import { getAgentWorkingState } from "../../tasks/events"
 import type { WsClientMessage, WsServerMessage, TaskStatus } from "@tangerine/shared"
 
 /**
@@ -31,10 +32,17 @@ export function wsRoutes(deps: AppDeps, upgradeWebSocket: UpgradeWebSocket): Hon
               ws.send(JSON.stringify(connected))
 
               // Send current task status so the client knows immediately
-              // whether the agent is working (avoids delay before first event)
+              // whether the task is active (avoids delay before first event)
               if (task) {
                 const statusMsg: WsServerMessage = { type: "status", status: task.status as TaskStatus }
                 ws.send(JSON.stringify(statusMsg))
+
+                // Send the agent's actual working state separately.
+                // A task can be "running" while the agent is "idle" (waiting for input).
+                if (task.status === "running") {
+                  const agentMsg: WsServerMessage = { type: "agent_status", agentStatus: getAgentWorkingState(taskId) }
+                  ws.send(JSON.stringify(agentMsg))
+                }
               }
 
               // Relay agent events to this client

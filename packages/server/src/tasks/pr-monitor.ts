@@ -9,7 +9,7 @@ import { createLogger } from "../logger"
 import type { TaskRow } from "../db/types"
 import type { CleanupDeps } from "./cleanup"
 import { cleanupSession } from "./cleanup"
-import { emitStatusChange } from "./events"
+import { emitStatusChange, clearAgentWorkingState } from "./events"
 
 const log = createLogger("pr-monitor")
 
@@ -157,6 +157,7 @@ export function pollPrStatuses(deps: PrMonitorDeps): Effect.Effect<void, never> 
           Effect.catchAll(() => Effect.void)
         )
 
+        clearAgentWorkingState(task.id)
         emitStatusChange(task.id, "done")
 
         yield* cleanupSession(task.id, deps.cleanupDeps).pipe(Effect.ignoreLogged)
@@ -172,6 +173,7 @@ export function pollPrStatuses(deps: PrMonitorDeps): Effect.Effect<void, never> 
           Effect.catchAll(() => Effect.void)
         )
 
+        clearAgentWorkingState(task.id)
         emitStatusChange(task.id, "cancelled")
 
         yield* cleanupSession(task.id, deps.cleanupDeps).pipe(Effect.ignoreLogged)
