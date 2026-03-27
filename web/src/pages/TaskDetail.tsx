@@ -361,6 +361,7 @@ export function TaskDetail() {
                 onAbort={session.abort}
                 onModelChange={handleModelChange}
                 onReasoningEffortChange={handleReasoningEffortChange}
+                predefinedPrompts={current?.predefinedPrompts}
               />
             </div>
           )}
@@ -438,6 +439,7 @@ export function TaskDetail() {
                 onAbort={session.abort}
                 onModelChange={handleModelChange}
                 onReasoningEffortChange={handleReasoningEffortChange}
+                predefinedPrompts={current?.predefinedPrompts}
               />
             </div>
           )}
