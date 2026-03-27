@@ -3,7 +3,7 @@ import { Hono } from "hono"
 import type { AppDeps } from "../app"
 import { mapTaskRow } from "../helpers"
 import { runEffect, runEffectVoid } from "../effect-helpers"
-import { getTask, listTasks, updateTask, deleteTask } from "../../db/queries"
+import { getTask, listTasks, updateTask, deleteTask, markTaskSeen } from "../../db/queries"
 import { TaskNotFoundError, TaskNotTerminalError } from "../../errors"
 
 export function taskRoutes(deps: AppDeps): Hono {
@@ -105,7 +105,7 @@ export function taskRoutes(deps: AppDeps): Hono {
 
   app.post("/:id/seen", (c) => {
     return runEffectVoid(c,
-      updateTask(deps.db, c.req.param("id"), { last_seen_at: new Date().toISOString() })
+      markTaskSeen(deps.db, c.req.param("id"))
     )
   })
 

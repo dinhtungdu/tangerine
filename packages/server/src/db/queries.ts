@@ -68,7 +68,12 @@ export function listTasks(db: Database, filter?: { status?: string; projectId?: 
   })
 }
 
-export function updateTask(db: Database, id: string, fields: Partial<Omit<TaskRow, "id">>): Effect.Effect<TaskRow | null, DbError> {
+export function updateTask(
+  db: Database,
+  id: string,
+  fields: Partial<Omit<TaskRow, "id">>,
+  opts?: { skipUpdatedAt?: boolean },
+): Effect.Effect<TaskRow | null, DbError> {
   return dbTry(() => {
     const keys = Object.keys(fields).filter((k) => k !== "id")
     if (keys.length === 0) return db.prepare("SELECT * FROM tasks WHERE id = ?").get(id) as TaskRow | null
@@ -80,13 +85,19 @@ export function updateTask(db: Database, id: string, fields: Partial<Omit<TaskRo
       params[`$${k}`] = val === undefined ? null : (val as string | number | null)
     }
 
-    db.prepare(`UPDATE tasks SET ${sets}, updated_at = datetime('now') WHERE id = $id`).run(params)
+    const updatedAtClause = opts?.skipUpdatedAt ? "" : ", updated_at = datetime('now')"
+    db.prepare(`UPDATE tasks SET ${sets}${updatedAtClause} WHERE id = $id`).run(params)
     return db.prepare("SELECT * FROM tasks WHERE id = ?").get(id) as TaskRow | null
   })
 }
 
 export function updateTaskStatus(db: Database, id: string, status: string): Effect.Effect<TaskRow | null, DbError> {
   return updateTask(db, id, { status })
+}
+
+/** Update last_seen_at without bumping updated_at */
+export function markTaskSeen(db: Database, id: string): Effect.Effect<TaskRow | null, DbError> {
+  return updateTask(db, id, { last_seen_at: new Date().toISOString() }, { skipUpdatedAt: true })
 }
 
 // --- Session Logs ---
