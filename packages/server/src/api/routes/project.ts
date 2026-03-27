@@ -226,10 +226,10 @@ export function projectRoutes(deps: AppDeps): Hono {
           postUpdateOutput = output
         }
 
-        // If the server's own code changed, schedule restart after response
+        // If server or shared code changed, schedule restart after response
         let restart = false
         if (updated) {
-          const serverChanged = yield* exec(`git diff ${from}..${to} --name-only -- packages/server/`).pipe(
+          const serverChanged = yield* exec(`git diff ${from}..${to} --name-only -- packages/server/ packages/shared/`).pipe(
             Effect.map((diff) => diff.length > 0),
             Effect.orElse(() => Effect.succeed(false))
           )
