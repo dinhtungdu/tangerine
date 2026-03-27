@@ -158,7 +158,7 @@ export function startHealthMonitor(
       return Effect.void
     }),
     Effect.asVoid,
-    Effect.fork,
+    Effect.forkDaemon,
     Effect.asVoid,
   )
 }
