@@ -15,7 +15,7 @@ import type { CleanupDeps } from "./cleanup"
 import type { RetryDeps } from "./retry"
 import { cleanupSession } from "./cleanup"
 import { startSessionWithRetry, reconnectSessionWithRetry } from "./retry"
-import { emitStatusChange } from "./events"
+import { emitStatusChange, clearAgentWorkingState } from "./events"
 import { deletePoolForProject, reconcileStaleSlots } from "./worktree-pool"
 
 const log = createLogger("tasks")
@@ -129,6 +129,7 @@ export function cancelTask(
       Effect.catchAll(() => Effect.succeed(undefined))
     )
 
+    clearAgentWorkingState(taskId)
     emitStatusChange(taskId, "cancelled")
 
     // Clean up running session if active
@@ -173,6 +174,7 @@ export function completeTask(
       durationMs,
     }).pipe(Effect.catchAll(() => Effect.succeed(undefined)))
 
+    clearAgentWorkingState(taskId)
     emitStatusChange(taskId, "done")
     log.info("Task completed", { taskId, durationMs })
 
@@ -422,6 +424,7 @@ export function reprovisionTasksForProject(
           yield* deps.logActivity(task.id, "lifecycle", "task.failed",
             `Task failed: branch ${task.branch} not found on remote after rebuild`
           ).pipe(Effect.catchAll(() => Effect.void))
+          clearAgentWorkingState(task.id)
           emitStatusChange(task.id, "failed")
           failed++
           continue
