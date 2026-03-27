@@ -380,15 +380,27 @@ export function NewAgentForm({ onSubmit, refTaskId, refTaskTitle }: NewAgentForm
                   />
                 </div>
               </div>
-              <select
-                value={provider}
-                onChange={(e) => handleProviderChange(e.target.value as ProviderType)}
-                aria-label="Harness"
-                className="h-10 w-full rounded-lg border border-edge bg-surface px-3 text-[16px] text-fg outline-none md:text-[13px]"
-              >
-                <option value="opencode">OpenCode</option>
-                <option value="claude-code">Claude Code</option>
-              </select>
+              <div className="flex gap-2">
+                <select
+                  value={provider}
+                  onChange={(e) => handleProviderChange(e.target.value as ProviderType)}
+                  aria-label="Harness"
+                  className="h-10 flex-1 rounded-lg border border-edge bg-surface px-3 text-[16px] text-fg outline-none md:text-[13px]"
+                >
+                  <option value="opencode">OpenCode</option>
+                  <option value="claude-code">Claude Code</option>
+                </select>
+                <select
+                  value={reasoningEffort}
+                  onChange={(e) => { const v = e.target.value as ReasoningEffort; setReasoningEffort(v); savePrefs({ reasoningEffort: v }) }}
+                  aria-label="Reasoning effort"
+                  className="h-10 flex-1 rounded-lg border border-edge bg-surface px-3 text-[16px] text-fg outline-none md:text-[13px]"
+                >
+                  <option value="low">Effort: Low</option>
+                  <option value="medium">Effort: Medium</option>
+                  <option value="high">Effort: High</option>
+                </select>
+              </div>
             </div>
             <button
               onClick={handleSubmit}
