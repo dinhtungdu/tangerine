@@ -38,6 +38,7 @@ export function makeTask(overrides?: Partial<Task>): Task {
     startedAt: null,
     completedAt: null,
     lastSeenAt: null,
+    lastResultAt: null,
     ...overrides,
   }
 }

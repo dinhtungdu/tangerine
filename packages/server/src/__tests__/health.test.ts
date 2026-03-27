@@ -31,6 +31,7 @@ function makeTask(overrides?: Partial<TaskRow>): TaskRow {
     started_at: "2026-03-27T00:00:00Z",
     completed_at: null,
     last_seen_at: null,
+    last_result_at: null,
     ...overrides,
   }
 }

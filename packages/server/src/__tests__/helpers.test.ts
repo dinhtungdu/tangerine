@@ -1,7 +1,7 @@
 import { describe, it, expect } from "bun:test"
 import { utc, mapTaskRow } from "../api/helpers"
 import { createTestDb } from "./helpers"
-import { updateTask, markTaskSeen } from "../db/queries"
+import { updateTask, markTaskSeen, markTaskResult } from "../db/queries"
 import { Effect } from "effect"
 import type { TaskRow } from "../db/types"
 
@@ -61,6 +61,7 @@ describe("mapTaskRow", () => {
       started_at: "2026-03-27 09:01:00",
       completed_at: null,
       last_seen_at: null,
+      last_result_at: null,
     }
     const task = mapTaskRow(row)
     expect(task.createdAt).toBe("2026-03-27T09:00:00Z")
@@ -68,6 +69,7 @@ describe("mapTaskRow", () => {
     expect(task.startedAt).toBe("2026-03-27T09:01:00Z")
     expect(task.completedAt).toBeNull()
     expect(task.lastSeenAt).toBeNull()
+    expect(task.lastResultAt).toBeNull()
   })
 })
 
@@ -113,5 +115,20 @@ describe("updateTask skipUpdatedAt", () => {
 
     expect(after.updated_at).toBe(before.updated_at)
     expect(after.last_seen_at).toBeTruthy()
+  })
+
+  it("markTaskResult does not bump updated_at", () => {
+    const db = createTestDb()
+    const id = crypto.randomUUID()
+    db.prepare(
+      "INSERT INTO tasks (id, project_id, repo_url, source, title, status, provider, created_at, updated_at) VALUES (?, ?, '', ?, ?, ?, ?, datetime('now'), datetime('now'))",
+    ).run(id, "test", "manual", "Test", "running", "claude-code")
+
+    const before = db.prepare("SELECT updated_at FROM tasks WHERE id = ?").get(id) as { updated_at: string }
+    Effect.runSync(markTaskResult(db, id))
+    const after = db.prepare("SELECT updated_at, last_result_at FROM tasks WHERE id = ?").get(id) as { updated_at: string; last_result_at: string }
+
+    expect(after.updated_at).toBe(before.updated_at)
+    expect(after.last_result_at).toBeTruthy()
   })
 })

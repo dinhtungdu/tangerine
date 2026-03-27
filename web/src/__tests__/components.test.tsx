@@ -37,6 +37,8 @@ function makeTask(overrides?: Partial<Task>): Task {
     updatedAt: "2026-03-17T10:00:00Z",
     startedAt: "2026-03-17T10:01:00Z",
     completedAt: null,
+    lastSeenAt: null,
+    lastResultAt: null,
     ...overrides,
   }
 }
