@@ -50,6 +50,19 @@ export function checkTask(
           })
           return yield* attemptRestart(task, deps, taskLog, "agent_stalled")
         }
+      } else {
+        // No non-lifecycle activity at all — fall back to started_at
+        const startedAt = task.started_at ? new Date(task.started_at) : null
+        if (startedAt) {
+          const stalledMs = Date.now() - startedAt.getTime()
+          if (stalledMs > STALL_THRESHOLD_MS) {
+            taskLog.warn("Agent stalled (no activity since start), attempting restart", {
+              stalledMs,
+              startedAt: startedAt.toISOString(),
+            })
+            return yield* attemptRestart(task, deps, taskLog, "agent_stalled")
+          }
+        }
       }
     }
 
@@ -65,14 +78,27 @@ function attemptRestart(
   reason: "agent_dead" | "agent_stalled",
 ): Effect.Effect<"recovered" | "failed", HealthCheckError> {
   return deps.restartAgent(task).pipe(
-    Effect.tap(() => Effect.sync(() => {
-      taskLog.info("Recovery succeeded", { action: "agent-restart", reason })
-    })),
+    // restartAgent may internally swallow errors (reconnectSessionWithRetry has error
+    // type never). Verify the agent is actually alive after restart — if not, force-fail.
+    Effect.tap(() =>
+      Effect.gen(function* () {
+        const aliveAfter = yield* deps.checkAgentAlive(task.id)
+        if (!aliveAfter) {
+          taskLog.warn("Restart returned success but agent is still not alive, forcing task to failed")
+          yield* deps.failTask(task.id, `Agent ${reason} and restart did not produce a live agent`).pipe(
+            Effect.ignoreLogged
+          )
+          yield* cleanupSession(task.id, deps.cleanupDeps).pipe(Effect.ignoreLogged)
+        } else {
+          taskLog.info("Recovery succeeded", { action: "agent-restart", reason })
+        }
+      })
+    ),
     Effect.map(() => "recovered" as const),
     Effect.catchAll((err) =>
       Effect.gen(function* () {
         taskLog.error("Recovery failed, marking task failed", { reason: err.message })
-        yield* deps.failTask(task.id, `Agent ${reason} and restart failed`).pipe(
+        yield* deps.failTask(task.id, `Agent ${reason} and restart failed: ${err.message}`).pipe(
           Effect.ignoreLogged
         )
         yield* cleanupSession(task.id, deps.cleanupDeps).pipe(Effect.ignoreLogged)
@@ -103,7 +129,15 @@ export function checkAllTasks(
             error: error.message,
           })
           return Effect.void
-        })
+        }),
+        // Catch defects too so one bad task can't crash the health monitor
+        Effect.catchAllDefect((defect) => {
+          log.error("Health check defect", {
+            taskId: task.id,
+            defect: String(defect),
+          })
+          return Effect.void
+        }),
       )
     }
   })
@@ -119,6 +153,10 @@ export function startHealthMonitor(
   return checkAllTasks(deps).pipe(
     Effect.repeat(Schedule.fixed(`${HEALTH_CHECK_INTERVAL_MS} millis`)),
     Effect.catchAll(() => Effect.void),
+    Effect.catchAllDefect((defect) => {
+      log.error("Health monitor defect, restarting", { defect: String(defect) })
+      return Effect.void
+    }),
     Effect.asVoid,
     Effect.fork,
     Effect.asVoid,
