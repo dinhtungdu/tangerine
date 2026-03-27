@@ -88,7 +88,7 @@ export function TerminalToolbar({ termRef, onInput }: TerminalToolbarProps) {
 
   return (
     <div className="md:hidden">
-      <div className="flex gap-1.5 overflow-x-auto border-b border-edge bg-surface-secondary px-2 py-1.5">
+      <div className="flex gap-1.5 overflow-x-auto border-t border-edge bg-surface-secondary px-2 py-1.5">
         {keys.map((key) => (
           <button
             key={key.label}
@@ -105,7 +105,7 @@ export function TerminalToolbar({ termRef, onInput }: TerminalToolbarProps) {
         ))}
       </div>
       {showPasteInput && (
-        <div className="flex items-center gap-2 border-b border-edge bg-surface-secondary px-2 py-1.5">
+        <div className="flex items-center gap-2 border-t border-edge bg-surface-secondary px-2 py-1.5">
           <textarea
             ref={pasteRef}
             rows={1}

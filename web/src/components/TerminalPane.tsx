@@ -149,8 +149,8 @@ export function TerminalPane({ taskId }: TerminalPaneProps) {
 
   return (
     <div className="flex h-full flex-col">
-      <TerminalToolbar termRef={termRef} onInput={sendInput} />
       <div ref={containerRef} className="min-h-0 flex-1 bg-surface-card p-1" />
+      <TerminalToolbar termRef={termRef} onInput={sendInput} />
     </div>
   )
 }
