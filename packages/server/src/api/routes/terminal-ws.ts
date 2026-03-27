@@ -1,6 +1,7 @@
 // WebSocket route for interactive terminal access to a task's VM worktree.
-// Uses bun-pty for proper PTY allocation so resize works correctly.
-// Spawns SSH with tmux for session persistence across reconnects.
+// Uses bun-pty to attach to a persistent tmux session per task.
+// The tmux session survives WebSocket disconnects — navigating away and back
+// re-attaches to the same session with full scrollback preserved.
 
 import { Effect } from "effect"
 import { Hono } from "hono"
@@ -12,6 +13,26 @@ import { getTask } from "../../db/queries"
 import { createLogger } from "../../logger"
 
 const log = createLogger("terminal-ws")
+
+/** tmux session name for a given task */
+export function tmuxSessionName(taskId: string): string {
+  return `tng-${taskId.slice(0, 8)}`
+}
+
+/** Ensure a tmux session exists for the task, creating one if needed. */
+async function ensureTmuxSession(sessionName: string, cwd: string): Promise<void> {
+  const check = Bun.spawnSync(["tmux", "has-session", "-t", sessionName], {
+    stderr: "pipe",
+  })
+  if (check.exitCode === 0) return
+
+  const create = Bun.spawnSync([
+    "tmux", "new-session", "-d", "-s", sessionName, "-c", cwd,
+  ], { stderr: "pipe" })
+  if (create.exitCode !== 0) {
+    throw new Error(`Failed to create tmux session: ${create.stderr.toString()}`)
+  }
+}
 
 export function terminalWsRoutes(deps: AppDeps, upgradeWebSocket: UpgradeWebSocket): Hono {
   const app = new Hono()
@@ -31,12 +52,16 @@ export function terminalWsRoutes(deps: AppDeps, upgradeWebSocket: UpgradeWebSock
               if (!task?.worktree_path) throw new Error("Task has no worktree")
 
               const worktree = task.worktree_path
+              const sessionName = tmuxSessionName(taskId)
 
-              log.info("Terminal session starting", { taskId, worktree })
+              log.info("Terminal session starting", { taskId, worktree, sessionName })
 
-              pty = spawn("bash", [
-                "-c",
-                `cd ${worktree} && exec bash`,
+              yield* Effect.tryPromise(() => ensureTmuxSession(sessionName, worktree))
+
+              // Attach to the tmux session via PTY — this gives the browser
+              // a live view into the persistent session.
+              pty = spawn("tmux", [
+                "attach-session", "-t", sessionName,
               ], {
                 cols: 80,
                 rows: 24,
@@ -94,6 +119,8 @@ export function terminalWsRoutes(deps: AppDeps, upgradeWebSocket: UpgradeWebSock
 
         onClose() {
           alive = false
+          // Only kill the PTY attachment — the tmux session stays alive
+          // so the next connection can re-attach with history preserved.
           if (pty) {
             try {
               pty.kill()
@@ -102,7 +129,7 @@ export function terminalWsRoutes(deps: AppDeps, upgradeWebSocket: UpgradeWebSock
             }
             pty = null
           }
-          log.debug("Terminal session closed", { taskId })
+          log.debug("Terminal detached (tmux session preserved)", { taskId })
         },
       }
     })
