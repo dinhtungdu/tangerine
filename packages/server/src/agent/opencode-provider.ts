@@ -8,7 +8,7 @@
 import { Effect } from "effect"
 import { createLogger, truncate } from "../logger"
 import { AgentError, PromptError, SessionStartError } from "../errors"
-import type { AgentFactory, AgentHandle, AgentEvent, AgentStartContext } from "./provider"
+import type { AgentFactory, AgentHandle, AgentEvent, AgentStartContext, PromptImage } from "./provider"
 import { homedir } from "node:os"
 import { join } from "node:path"
 
@@ -398,8 +398,10 @@ export function createOpenCodeProvider(): AgentFactory {
         // Accumulate text parts per message ID to assemble complete messages
         const textParts = new Map<string, string>()
         const toolStates = new Map<string, string>()
+        // Accumulate image parts per message ID (from FilePart with image mime)
+        const imageParts = new Map<string, PromptImage[]>()
         // Track last narration so we can promote it to "assistant" on idle
-        let lastNarration: { content: string; messageId?: string } | null = null
+        let lastNarration: { content: string; messageId?: string; images?: PromptImage[] } | null = null
 
         const emit = (event: AgentEvent) => {
           for (const cb of subscribers) cb(event)
@@ -487,6 +489,19 @@ export function createOpenCodeProvider(): AgentFactory {
               return
             }
 
+            // Collect image file parts (e.g. screenshots from browser tools)
+            if (part?.type === "file" && messageId && typeof part.mime === "string" && part.mime.startsWith("image/") && typeof part.url === "string") {
+              const dataUrlMatch = (part.url as string).match(/^data:(image\/\w+);base64,(.+)$/)
+              if (dataUrlMatch?.[1] && dataUrlMatch[2]) {
+                const mediaType = dataUrlMatch[1] as PromptImage["mediaType"]
+                const data = dataUrlMatch[2]
+                const existing = imageParts.get(messageId) ?? []
+                existing.push({ mediaType, data })
+                imageParts.set(messageId, existing)
+              }
+              return
+            }
+
             if (part?.type === "tool") {
               const callId = typeof part.callID === "string" ? part.callID : undefined
               const status = typeof asRecord(part.state)?.status === "string" ? asRecord(part.state)?.status as string : undefined
@@ -508,14 +523,18 @@ export function createOpenCodeProvider(): AgentFactory {
             if (info?.role === "assistant" && info.time?.completed) {
               const messageId = typeof info.id === "string" ? info.id : undefined
               const text = messageId ? textParts.get(messageId) : undefined
+              const images = messageId ? imageParts.get(messageId) : undefined
               // Per-turn text is narration (agent explaining what it's doing between
               // tool calls). The final answer is promoted to "assistant" when idle.
-              // Tool-only messages (no text) don't need a chat entry.
-              if (messageId && text) {
-                lastNarration = { content: text, messageId }
-                emit({ kind: "message.complete", role: "narration", content: text, messageId })
+              // Tool-only messages (no text/images) don't need a chat entry.
+              if (messageId && (text || images?.length)) {
+                lastNarration = { content: text ?? "", messageId, images }
+                emit({ kind: "message.complete", role: "narration", content: text ?? "", messageId, images })
               }
-              if (messageId) textParts.delete(messageId)
+              if (messageId) {
+                textParts.delete(messageId)
+                imageParts.delete(messageId)
+              }
             }
             return
           }
@@ -525,7 +544,7 @@ export function createOpenCodeProvider(): AgentFactory {
             // When agent goes idle, promote the last narration to "assistant"
             // so there's always a visible final answer in chat
             if (mapped.kind === "status" && mapped.status === "idle" && lastNarration) {
-              emit({ kind: "message.complete", role: "assistant", content: lastNarration.content, messageId: lastNarration.messageId })
+              emit({ kind: "message.complete", role: "assistant", content: lastNarration.content, messageId: lastNarration.messageId, images: lastNarration.images })
               lastNarration = null
             }
             emit(mapped)

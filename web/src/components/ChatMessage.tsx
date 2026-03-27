@@ -178,6 +178,20 @@ export const ChatMessage = memo(function ChatMessage({ message }: ChatMessagePro
         <div className="rounded-lg border border-blue-500/10 bg-blue-500/5 px-3 py-2 text-[12px] leading-[1.6] text-fg-muted">
           {message.content}
         </div>
+        {message.images && message.images.length > 0 && (
+          <>
+            <div className="flex flex-wrap gap-1">
+              {message.images.map((img, i) => (
+                <button key={i} onClick={() => setLightboxIndex(i)} className="cursor-zoom-in">
+                  <img src={img.src} alt="Agent image" className="max-h-64 rounded-md object-contain" />
+                </button>
+              ))}
+            </div>
+            {lightboxIndex !== null && (
+              <ImageLightbox images={message.images} initialIndex={lightboxIndex} onClose={() => setLightboxIndex(null)} />
+            )}
+          </>
+        )}
       </div>
     )
   }
@@ -199,6 +213,20 @@ export const ChatMessage = memo(function ChatMessage({ message }: ChatMessagePro
           {message.content}
         </ReactMarkdown>
       </div>
+      {message.images && message.images.length > 0 && (
+        <>
+          <div className="flex flex-wrap gap-1">
+            {message.images.map((img, i) => (
+              <button key={i} onClick={() => setLightboxIndex(i)} className="cursor-zoom-in">
+                <img src={img.src} alt="Agent image" className="max-h-64 rounded-md object-contain" />
+              </button>
+            ))}
+          </div>
+          {lightboxIndex !== null && (
+            <ImageLightbox images={message.images} initialIndex={lightboxIndex} onClose={() => setLightboxIndex(null)} />
+          )}
+        </>
+      )}
     </div>
   )
 })
