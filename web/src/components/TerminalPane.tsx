@@ -3,6 +3,7 @@ import { Terminal } from "@xterm/xterm"
 import { FitAddon } from "@xterm/addon-fit"
 import { WebLinksAddon } from "@xterm/addon-web-links"
 import "@xterm/xterm/css/xterm.css"
+import { TerminalToolbar } from "./TerminalToolbar"
 
 interface TerminalPaneProps {
   taskId: string
@@ -15,6 +16,13 @@ export function TerminalPane({ taskId }: TerminalPaneProps) {
   const wsRef = useRef<WebSocket | null>(null)
   const reconnectTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const backoffRef = useRef(1000)
+
+  const sendInput = useCallback((data: string) => {
+    const ws = wsRef.current
+    if (ws?.readyState === WebSocket.OPEN) {
+      ws.send(JSON.stringify({ type: "input", data }))
+    }
+  }, [])
 
   const connect = useCallback(() => {
     const term = termRef.current
@@ -100,12 +108,7 @@ export function TerminalPane({ taskId }: TerminalPaneProps) {
     fitAddon.fit()
 
     // Forward keyboard input to WebSocket
-    term.onData((data) => {
-      const ws = wsRef.current
-      if (ws?.readyState === WebSocket.OPEN) {
-        ws.send(JSON.stringify({ type: "input", data }))
-      }
-    })
+    term.onData(sendInput)
 
     // Handle resize
     const resizeObserver = new ResizeObserver(() => {
@@ -146,6 +149,7 @@ export function TerminalPane({ taskId }: TerminalPaneProps) {
 
   return (
     <div className="flex h-full flex-col">
+      <TerminalToolbar termRef={termRef} onInput={sendInput} />
       <div ref={containerRef} className="min-h-0 flex-1 bg-surface-card p-1" />
     </div>
   )
