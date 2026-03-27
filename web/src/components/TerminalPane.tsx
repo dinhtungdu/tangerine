@@ -1,4 +1,4 @@
-import { useEffect, useRef, useCallback } from "react"
+import { useEffect, useRef, useCallback, useState } from "react"
 import { Terminal } from "@xterm/xterm"
 import { FitAddon } from "@xterm/addon-fit"
 import { WebLinksAddon } from "@xterm/addon-web-links"
@@ -79,6 +79,32 @@ export function TerminalPane({ taskId }: TerminalPaneProps) {
     }
   }, [taskId])
 
+  // Track visual viewport height to handle mobile keyboard overlap.
+  // When the virtual keyboard opens, visualViewport.height shrinks — we use
+  // this to constrain the container so the toolbar stays visible and the
+  // terminal re-fits to the smaller area.
+  const [viewportHeight, setViewportHeight] = useState<number | null>(null)
+
+  useEffect(() => {
+    const vv = window.visualViewport
+    if (!vv) return
+
+    function onResize() {
+      const vv = window.visualViewport!
+      // Only constrain when the keyboard is likely open (viewport noticeably shorter than window)
+      if (window.innerHeight - vv.height > 100) {
+        setViewportHeight(vv.height)
+      } else {
+        setViewportHeight(null)
+      }
+      // Trigger terminal re-fit
+      fitRef.current?.fit()
+    }
+
+    vv.addEventListener("resize", onResize)
+    return () => vv.removeEventListener("resize", onResize)
+  }, [])
+
   useEffect(() => {
     if (!containerRef.current) return
 
@@ -148,7 +174,12 @@ export function TerminalPane({ taskId }: TerminalPaneProps) {
   }, [connect])
 
   return (
-    <div className="flex h-full flex-col">
+    <div
+      className="flex flex-col"
+      style={viewportHeight != null
+        ? { height: viewportHeight, maxHeight: viewportHeight }
+        : { height: "100%" }}
+    >
       <div ref={containerRef} className="min-h-0 flex-1 bg-surface-card p-1" />
       <TerminalToolbar termRef={termRef} onInput={sendInput} />
     </div>

@@ -52,6 +52,8 @@ export function TerminalToolbar({ termRef, onInput }: TerminalToolbarProps) {
     { label: "^A", input: ctrl("A"), ariaLabel: "Send Ctrl+A (start of line)" },
     { label: "^E", input: ctrl("E"), ariaLabel: "Send Ctrl+E (end of line)" },
     { label: "^L", input: ctrl("L"), ariaLabel: "Send Ctrl+L (clear screen)" },
+    { label: "^O", input: ctrl("O"), ariaLabel: "Send Ctrl+O (write out in nano)" },
+    { label: "^X", input: ctrl("X"), ariaLabel: "Send Ctrl+X (exit nano)" },
     {
       label: "Paste",
       ariaLabel: "Paste from clipboard",
