@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState, useMemo } from "react"
-import type { PromptImage, TaskStatus } from "@tangerine/shared"
+import type { PromptImage, PredefinedPrompt, TaskStatus } from "@tangerine/shared"
 import type { ChatMessage as ChatMessageType } from "../hooks/useSession"
 import { ChatMessage } from "./ChatMessage"
 import { ChatInput } from "./ChatInput"
@@ -22,6 +22,7 @@ interface ChatPanelProps {
   onAbort: () => void
   onModelChange?: (model: string) => void
   onReasoningEffortChange?: (effort: string) => void
+  predefinedPrompts?: PredefinedPrompt[]
 }
 
 export function ChatPanel({
@@ -38,6 +39,7 @@ export function ChatPanel({
   onAbort,
   onModelChange,
   onReasoningEffortChange,
+  predefinedPrompts,
 }: ChatPanelProps) {
   const scrollRef = useRef<HTMLDivElement>(null)
   const { navigate } = useProjectNav()
@@ -134,6 +136,7 @@ export function ChatPanel({
           reasoningEffort={reasoningEffort}
           onModelChange={onModelChange}
           onReasoningEffortChange={onReasoningEffortChange}
+          predefinedPrompts={predefinedPrompts}
         />
       )}
     </div>

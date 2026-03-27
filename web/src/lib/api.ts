@@ -187,6 +187,13 @@ export async function fetchUpdateStatus(projectName: string): Promise<ProjectUpd
   return request<ProjectUpdateStatus>(`/api/projects/${encodeURIComponent(projectName)}/update-status`)
 }
 
+export async function updateProject(name: string, updates: Partial<ProjectConfig>): Promise<ProjectConfig> {
+  return request<ProjectConfig>(`/api/projects/${encodeURIComponent(name)}`, {
+    method: "PUT",
+    body: JSON.stringify(updates),
+  })
+}
+
 export async function updateProjectRepo(projectName: string): Promise<ProjectUpdateResult> {
   return request<ProjectUpdateResult>(`/api/projects/${encodeURIComponent(projectName)}/update`, {
     method: "POST",

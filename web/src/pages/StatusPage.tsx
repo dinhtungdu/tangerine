@@ -3,6 +3,7 @@ import { useTaskSearch } from "../hooks/useTaskSearch"
 import { useProjectNav } from "../hooks/useProjectNav"
 import { TasksSidebar } from "../components/TasksSidebar"
 import { ActiveRunsCard, SystemLog, ProjectUpdateCard } from "../components/StatusWidgets"
+import { PredefinedPromptsEditor } from "../components/PredefinedPromptsEditor"
 
 export function StatusPage() {
   const { navigate } = useProjectNav()
@@ -42,6 +43,15 @@ export function StatusPage() {
               <ProjectUpdateCard project={current?.name} />
               <ActiveRunsCard tasks={tasks} />
             </div>
+
+            {/* Predefined prompts */}
+            {current && (
+              <PredefinedPromptsEditor
+                key={current.name}
+                project={current.name}
+                prompts={current.predefinedPrompts ?? []}
+              />
+            )}
 
             {/* System log */}
             <SystemLog project={current?.name} />

@@ -11,6 +11,7 @@ interface ProjectContextValue {
   modelsByProvider: Record<string, string[]>
   setModel: (model: string) => void
   switchProject: (name: string) => void
+  refreshProjects: () => void
   loading: boolean
 }
 
@@ -22,6 +23,7 @@ const ProjectContext = createContext<ProjectContextValue>({
   modelsByProvider: {},
   setModel: () => {},
   switchProject: () => {},
+  refreshProjects: () => {},
   loading: true,
 })
 
@@ -50,6 +52,17 @@ export function ProjectProvider({ children }: { children: ReactNode }) {
   const current = projects.find((p) => p.name === projectParam) ?? projects[0] ?? null
   const model = selectedModel ?? current?.model ?? globalModel
 
+  const refreshProjects = useCallback(() => {
+    fetchProjects()
+      .then((data) => {
+        setProjects(data.projects)
+        setGlobalModel(data.model)
+        setModels(data.models ?? [])
+        setModelsByProvider(data.modelsByProvider ?? {})
+      })
+      .catch(() => {})
+  }, [])
+
   const switchProject = useCallback(
     (name: string) => {
       setSelectedModel(null)
@@ -70,7 +83,7 @@ export function ProjectProvider({ children }: { children: ReactNode }) {
   }, [loading, projects, projectParam, switchProject])
 
   return (
-    <ProjectContext.Provider value={{ projects, current, model, models, modelsByProvider, setModel: setSelectedModel, switchProject, loading }}>
+    <ProjectContext.Provider value={{ projects, current, model, models, modelsByProvider, setModel: setSelectedModel, switchProject, refreshProjects, loading }}>
       {children}
     </ProjectContext.Provider>
   )
