@@ -6,7 +6,7 @@ import type { TaskRow } from "../db/types"
  * (e.g. "2026-03-19 22:37:49"). JS Date() parses bare timestamps as
  * local time, causing wrong relative times. Append Z so they parse as UTC.
  */
-function utc(ts: string | null): string | null {
+export function utc(ts: string | null): string | null {
   if (!ts) return null
   // Already has timezone info (ends with Z, or +/-HH:MM offset)
   if (/Z$|[+-]\d{2}:\d{2}$/.test(ts)) return ts
