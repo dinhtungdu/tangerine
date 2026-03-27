@@ -93,6 +93,8 @@ function makeTaskRow(overrides?: Partial<TaskRow>): TaskRow {
     branch: "tangerine/abc123",
     worktree_path: "/workspace/worktrees/test-slot-0",
     pr_url: null,
+    type: "code",
+    parent_task_id: null,
     user_id: null,
     agent_session_id: null,
     agent_pid: null,

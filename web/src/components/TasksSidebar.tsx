@@ -97,6 +97,12 @@ export function TasksSidebar({ tasks, searchQuery, onSearchChange, onNewAgent }:
                   <span className="rounded bg-surface-secondary px-1 py-px text-[10px]">
                     {task.provider === "claude-code" ? "CC" : "OC"}
                   </span>
+                  {task.type === "review" && (
+                    <>
+                      {" · "}
+                      <span className="rounded bg-accent-bg px-1 py-px text-[10px] text-accent">Review</span>
+                    </>
+                  )}
                 </span>
               </div>
             </Link>

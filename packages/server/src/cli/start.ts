@@ -187,15 +187,18 @@ export async function start(): Promise<void> {
                 await new Promise((r) => setTimeout(r, 1500))
 
                 const taskRow = db.prepare(
-                  "SELECT title, description FROM tasks WHERE id = ?"
-                ).get(taskId) as { title: string; description: string | null } | null
+                  "SELECT title, description, type FROM tasks WHERE id = ?"
+                ).get(taskId) as { title: string; description: string | null; type: string | null } | null
 
                 const originalTask = taskRow?.description || taskRow?.title || ""
                 const unansweredUserMsg = lastLog?.role === "user" ? lastLog.content : null
+                const isReview = taskRow?.type === "review"
 
                 const nudge = [
                   `[TANGERINE: Server restarted. You are working on: ${originalTask}]`,
-                  `[NOTE: When your work is complete, you MUST push your branch and create a pull request. Use \`git push origin HEAD\` then \`gh pr create\`.]`,
+                  isReview
+                    ? `[NOTE: This is a REVIEW task. Review the code and post your review using \`gh pr review\`. Do NOT push commits.]`
+                    : `[NOTE: When your work is complete, you MUST push your branch and create a pull request. Use \`git push origin HEAD\` then \`gh pr create\`.]`,
                   unansweredUserMsg
                     ? `The last message you had not yet responded to was: ${unansweredUserMsg}\n\nPlease continue.`
                     : "Please continue where you left off.",
@@ -215,7 +218,7 @@ export async function start(): Promise<void> {
             // (e.g. killed by model change before processing prompt). Either way,
             // send the full initial prompt — don't resume a nonexistent conversation.
             const isRetry = !!hasLogs // User message already saved, just re-deliver prompt
-            const task = db.prepare("SELECT description, title, project_id FROM tasks WHERE id = ?").get(taskId) as { description: string | null; title: string; project_id: string } | null
+            const task = db.prepare("SELECT description, title, project_id, type, parent_task_id FROM tasks WHERE id = ?").get(taskId) as { description: string | null; title: string; project_id: string; type: string | null; parent_task_id: string | null } | null
             const initialPrompt = task?.description || task?.title
             if (initialPrompt) {
               // Load initial images saved during task creation (if any)
@@ -247,13 +250,21 @@ export async function start(): Promise<void> {
 
               loadInitialImages().then(({ images, filenames }) => {
                 const projConfig = task?.project_id ? getProjectConfig(config.config, task.project_id) : undefined
+                const isReviewTask = task?.type === "review"
                 const notes: string[] = []
                 notes.push(`[TANGERINE: You are running inside a Tangerine task (task ID: ${taskId}). The Tangerine API is at http://localhost:3456. Run \`/tangerine\` for full API reference and common workflows.]`)
                 if (projConfig?.setup) {
                   const prefix = taskId.slice(0, 8)
                   notes.push(`[NOTE: Project setup is running in the background (\`${projConfig.setup}\`). Before running builds, tests, or linters, check if setup is done: \`cat /tmp/tangerine-setup-${prefix}.status\` (running/done/failed). Log: \`cat /tmp/tangerine-setup-${prefix}.log\`]`)
                 }
-                notes.push(`[NOTE: When your work is complete, push your branch and create a pull request. Use \`git push origin HEAD\` then \`gh pr create\`. Do not stop at just committing.]`)
+                if (isReviewTask) {
+                  notes.push(`[NOTE: This is a REVIEW task. Review the code, run tests if needed, then post your review using \`gh pr review\`. Do NOT push commits to this branch.]`)
+                  if (task?.parent_task_id) {
+                    notes.push(`[NOTE: After completing your review, forward your findings to the parent task by sending a POST to http://localhost:3456/api/tasks/${task.parent_task_id}/prompt with your review summary.]`)
+                  }
+                } else {
+                  notes.push(`[NOTE: When your work is complete, push your branch and create a pull request. Use \`git push origin HEAD\` then \`gh pr create\`. Do not stop at just committing.]`)
+                }
                 firstPromptSent.add(taskId)
                 const fullPrompt = notes.join("\n") + "\n\n" + initialPrompt
 
@@ -382,8 +393,9 @@ export async function start(): Promise<void> {
                   setAgentWorkingState(taskId, "idle")
                   emitTaskEvent(taskId, { event: "agent.idle" })
 
-                  // Schedule PR nudge if agent has commits but no PR
-                  if (!prUrlSaved.has(taskId) && !prNudgeSent.has(taskId)) {
+                  // Schedule PR nudge if agent has commits but no PR (skip for review tasks)
+                  const taskType = (db.prepare("SELECT type FROM tasks WHERE id = ?").get(taskId) as { type: string | null } | null)?.type
+                  if (taskType !== "review" && !prUrlSaved.has(taskId) && !prNudgeSent.has(taskId)) {
                     const timer = setTimeout(async () => {
                       prNudgeTimers.delete(taskId)
                       if (prUrlSaved.has(taskId) || prNudgeSent.has(taskId)) return
@@ -596,7 +608,14 @@ export async function start(): Promise<void> {
                 }
               }
 
-              notes.push(`[NOTE: When your work is complete, push your branch and create a pull request. Use \`git push origin HEAD\` then \`gh pr create\`. Do not stop at just committing.]`)
+              if (task?.type === "review") {
+                notes.push(`[NOTE: This is a REVIEW task. Review the code, run tests if needed, then post your review using \`gh pr review\`. Do NOT push commits to this branch.]`)
+                if (task?.parent_task_id) {
+                  notes.push(`[NOTE: After completing your review, forward your findings to the parent task by sending a POST to http://localhost:3456/api/tasks/${task.parent_task_id}/prompt with your review summary.]`)
+                }
+              } else {
+                notes.push(`[NOTE: When your work is complete, push your branch and create a pull request. Use \`git push origin HEAD\` then \`gh pr create\`. Do not stop at just committing.]`)
+              }
 
               if (notes.length > 0) {
                 promptText = notes.join("\n") + "\n\n" + text

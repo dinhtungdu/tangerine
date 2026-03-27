@@ -7,7 +7,7 @@ import { HarnessSelector } from "./HarnessSelector"
 import { ReasoningEffortSelector, type ReasoningEffort } from "./ReasoningEffortSelector"
 
 interface NewAgentFormProps {
-  onSubmit: (data: { projectId: string; title: string; description?: string; branch?: string; provider?: string; model?: string; reasoningEffort?: string; images?: PromptImage[] }) => void
+  onSubmit: (data: { projectId: string; title: string; description?: string; branch?: string; provider?: string; model?: string; reasoningEffort?: string; type?: "code" | "review"; parentTaskId?: string; images?: PromptImage[] }) => void
   refTaskId?: string
   refTaskTitle?: string
 }
@@ -68,6 +68,8 @@ export function NewAgentForm({ onSubmit, refTaskId, refTaskTitle }: NewAgentForm
   const [provider, setProvider] = useState<ProviderType>((saved.provider as ProviderType) ?? current?.defaultProvider ?? "claude-code")
   const [modelByProvider, setModelByProvider] = useState<Record<string, string>>(saved.models ?? {})
   const [reasoningEffort, setReasoningEffort] = useState<ReasoningEffort>((saved.reasoningEffort as ReasoningEffort) ?? "medium")
+  const [taskType, setTaskType] = useState<"code" | "review">("code")
+  const [reviewTarget, setReviewTarget] = useState("")
   const [submitting, setSubmitting] = useState(false)
   const hydratedDraftKeyRef = useRef<string | null>(null)
   const branch = current?.defaultBranch ?? "main"
@@ -141,11 +143,42 @@ export function NewAgentForm({ onSubmit, refTaskId, refTaskTitle }: NewAgentForm
     }
   }, [draftKey, description, customBranch, pendingImages])
 
-  const canSubmit = (!!description.trim() || pendingImages.length > 0) && !!current && !submitting
+  const canSubmit = taskType === "review"
+    ? !!reviewTarget.trim() && !!current && !submitting
+    : (!!description.trim() || pendingImages.length > 0) && !!current && !submitting
 
   const handleSubmit = useCallback(() => {
+    if (!current || submitting) return
+
+    if (taskType === "review") {
+      const target = reviewTarget.trim()
+      if (!target) return
+      setSubmitting(true)
+
+      // Determine if target is a PR reference or a task ID
+      const isPr = /^#?\d+$/.test(target) || target.includes("github.com")
+      const reviewDescription = description.trim()
+        ? `Review ${isPr ? `PR ${target}` : `task ${target}`}: ${description.trim()}`
+        : `Review ${isPr ? `PR ${target}` : `task ${target}`}`
+
+      onSubmit({
+        projectId: current.name,
+        title: reviewDescription.slice(0, 80),
+        description: reviewDescription,
+        branch: isPr ? target : undefined,
+        provider,
+        model: activeModel || undefined,
+        reasoningEffort: reasoningEffort !== "medium" ? reasoningEffort : undefined,
+        type: "review",
+        parentTaskId: isPr ? undefined : target,
+      })
+      try { localStorage.removeItem(draftKey) } catch { /* ignore */ }
+      setTimeout(() => setSubmitting(false), 3000)
+      return
+    }
+
     const trimmed = description.trim()
-    if ((!trimmed && pendingImages.length === 0) || !current || submitting) return
+    if ((!trimmed && pendingImages.length === 0)) return
     setSubmitting(true)
     const images = pendingImages.length > 0
       ? pendingImages.map(({ dataUrl: _, ...img }) => img)
@@ -174,7 +207,7 @@ export function NewAgentForm({ onSubmit, refTaskId, refTaskTitle }: NewAgentForm
     try { localStorage.removeItem(draftKey) } catch { /* ignore */ }
     // Parent navigates on success; reset submitting if it fails
     setTimeout(() => setSubmitting(false), 3000)
-  }, [description, pendingImages, current, customBranch, provider, activeModel, reasoningEffort, submitting, onSubmit, refTaskId, refTaskTitle, draftKey])
+  }, [description, pendingImages, current, customBranch, provider, activeModel, reasoningEffort, submitting, onSubmit, refTaskId, refTaskTitle, draftKey, taskType, reviewTarget])
 
   return (
     <div className="flex h-full flex-1 flex-col bg-surface">
@@ -194,11 +227,27 @@ export function NewAgentForm({ onSubmit, refTaskId, refTaskTitle }: NewAgentForm
           {/* Heading */}
           <div className="flex flex-col gap-2">
             <h1 className="text-[20px] font-semibold text-fg md:text-center md:text-2xl md:font-bold">
-              What should the agent work on?
+              {taskType === "review" ? "What should the agent review?" : "What should the agent work on?"}
             </h1>
             <p className="hidden text-center text-sm leading-[1.6] text-fg-muted md:block">
-              Describe a task, bug, or feature. The agent will read your codebase and get to work.
+              {taskType === "review"
+                ? "Point the agent at a PR or task to review. It will read the code and post feedback."
+                : "Describe a task, bug, or feature. The agent will read your codebase and get to work."}
             </p>
+          </div>
+
+          {/* Code / Review toggle */}
+          <div className="flex justify-center">
+            <div className="inline-flex rounded-lg border border-edge bg-surface-secondary p-0.5">
+              <button
+                onClick={() => setTaskType("code")}
+                className={`rounded-md px-4 py-1.5 text-[13px] font-medium transition ${taskType === "code" ? "bg-surface text-fg shadow-sm" : "text-fg-muted hover:text-fg"}`}
+              >Code</button>
+              <button
+                onClick={() => setTaskType("review")}
+                className={`rounded-md px-4 py-1.5 text-[13px] font-medium transition ${taskType === "review" ? "bg-surface text-fg shadow-sm" : "text-fg-muted hover:text-fg"}`}
+              >Review</button>
+            </div>
           </div>
 
           {/* Reference badge */}
@@ -211,6 +260,23 @@ export function NewAgentForm({ onSubmit, refTaskId, refTaskTitle }: NewAgentForm
                 Continuing from: <span className="font-medium">{refTaskTitle || refTaskId}</span>
               </span>
               <span className="ml-auto font-mono text-[10px] text-accent-muted">{refTaskId.slice(0, 8)}</span>
+            </div>
+          )}
+
+          {/* Review target input */}
+          {taskType === "review" && (
+            <div className="flex items-center gap-2 rounded-xl border border-edge bg-surface px-4 py-3">
+              <svg className="h-4 w-4 shrink-0 text-fg-muted" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M2.036 12.322a1.012 1.012 0 0 1 0-.639C3.423 7.51 7.36 4.5 12 4.5c4.638 0 8.573 3.007 9.963 7.178.07.207.07.431 0 .639C20.577 16.49 16.64 19.5 12 19.5c-4.638 0-8.573-3.007-9.963-7.178Z" />
+                <path strokeLinecap="round" strokeLinejoin="round" d="M15 12a3 3 0 1 1-6 0 3 3 0 0 1 6 0Z" />
+              </svg>
+              <input
+                type="text"
+                value={reviewTarget}
+                onChange={(e) => setReviewTarget(e.target.value)}
+                placeholder="PR number (#123) or task ID to review"
+                className="min-w-0 flex-1 bg-transparent text-[14px] text-fg placeholder-fg-muted outline-none"
+              />
             </div>
           )}
 
@@ -240,7 +306,7 @@ export function NewAgentForm({ onSubmit, refTaskId, refTaskTitle }: NewAgentForm
                 }
               }}
               onPaste={handlePaste}
-              placeholder="Describe the task, paste an issue URL, or continue work on a branch/PR..."
+              placeholder={taskType === "review" ? "Optional: describe what to focus on in the review..." : "Describe the task, paste an issue URL, or continue work on a branch/PR..."}
               rows={4}
               className="w-full resize-none border-0 bg-transparent px-4 pt-4 pb-2 text-[16px] leading-[1.6] text-fg placeholder-fg-muted outline-none md:text-[14px]"
             />
@@ -248,19 +314,21 @@ export function NewAgentForm({ onSubmit, refTaskId, refTaskTitle }: NewAgentForm
             <div className="hidden gap-2.5 overflow-visible border-t border-edge px-3 py-2.5 md:flex md:flex-col">
               <div className="flex items-center gap-2 overflow-visible">
                 <HarnessSelector value={provider} onChange={handleProviderChange} />
-                <div className="flex min-w-0 items-center gap-1.5 rounded-md border border-edge px-2 py-1">
-                  <svg className="h-3 w-3 shrink-0 text-fg-muted" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                    <path strokeLinecap="round" strokeLinejoin="round" d="M7.217 10.907a2.25 2.25 0 1 0 0 2.186m0-2.186c.18.324.283.696.283 1.093s-.103.77-.283 1.093m0-2.186 9.566-5.314m-9.566 7.5 9.566 5.314m0-12.814a2.25 2.25 0 1 0 0-2.186m0 2.186a2.25 2.25 0 1 0 0 2.186" />
-                  </svg>
-                  <input
-                    type="text"
-                    value={customBranch}
-                    onChange={(e) => setCustomBranch(e.target.value)}
-                    placeholder={branch}
-                    aria-label="Branch or PR"
-                    className="max-w-[160px] bg-transparent text-[11px] text-fg placeholder-fg-muted outline-none"
-                  />
-                </div>
+                {taskType !== "review" && (
+                  <div className="flex min-w-0 items-center gap-1.5 rounded-md border border-edge px-2 py-1">
+                    <svg className="h-3 w-3 shrink-0 text-fg-muted" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                      <path strokeLinecap="round" strokeLinejoin="round" d="M7.217 10.907a2.25 2.25 0 1 0 0 2.186m0-2.186c.18.324.283.696.283 1.093s-.103.77-.283 1.093m0-2.186 9.566-5.314m-9.566 7.5 9.566 5.314m0-12.814a2.25 2.25 0 1 0 0-2.186m0 2.186a2.25 2.25 0 1 0 0 2.186" />
+                    </svg>
+                    <input
+                      type="text"
+                      value={customBranch}
+                      onChange={(e) => setCustomBranch(e.target.value)}
+                      placeholder={branch}
+                      aria-label="Branch or PR"
+                      className="max-w-[160px] bg-transparent text-[11px] text-fg placeholder-fg-muted outline-none"
+                    />
+                  </div>
+                )}
                 <ModelSelector
                   models={providerModels}
                   model={activeModel}
@@ -277,7 +345,7 @@ export function NewAgentForm({ onSubmit, refTaskId, refTaskTitle }: NewAgentForm
                 <svg className="h-3 w-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                   <path strokeLinecap="round" strokeLinejoin="round" d="M5.25 5.653c0-.856.917-1.398 1.667-.986l11.54 6.347a1.125 1.125 0 0 1 0 1.972l-11.54 6.347a1.125 1.125 0 0 1-1.667-.986V5.653Z" />
                 </svg>
-                <span className="text-[13px] font-medium">Start Agent</span>
+                <span className="text-[13px] font-medium">{taskType === "review" ? "Start Review" : "Start Agent"}</span>
               </button>
             </div>
           </div>
@@ -286,19 +354,21 @@ export function NewAgentForm({ onSubmit, refTaskId, refTaskTitle }: NewAgentForm
           <div className="flex flex-col gap-6 md:hidden">
             <div className="flex flex-col gap-2">
               <div className="flex gap-2">
-                <div className="flex h-10 flex-1 items-center gap-2 rounded-lg border border-edge bg-surface px-3">
-                  <svg className="h-4 w-4 shrink-0 text-fg-muted" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                    <path strokeLinecap="round" strokeLinejoin="round" d="M7.217 10.907a2.25 2.25 0 1 0 0 2.186m0-2.186c.18.324.283.696.283 1.093s-.103.77-.283 1.093m0-2.186 9.566-5.314m-9.566 7.5 9.566 5.314m0-12.814a2.25 2.25 0 1 0 0-2.186m0 2.186a2.25 2.25 0 1 0 0 2.186" />
-                  </svg>
-                  <input
-                    type="text"
-                    value={customBranch}
-                    onChange={(e) => setCustomBranch(e.target.value)}
-                    placeholder={branch}
-                    aria-label="Branch or PR"
-                    className="min-w-0 flex-1 bg-transparent text-[13px] text-fg placeholder-fg-muted outline-none"
-                  />
-                </div>
+                {taskType !== "review" && (
+                  <div className="flex h-10 flex-1 items-center gap-2 rounded-lg border border-edge bg-surface px-3">
+                    <svg className="h-4 w-4 shrink-0 text-fg-muted" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                      <path strokeLinecap="round" strokeLinejoin="round" d="M7.217 10.907a2.25 2.25 0 1 0 0 2.186m0-2.186c.18.324.283.696.283 1.093s-.103.77-.283 1.093m0-2.186 9.566-5.314m-9.566 7.5 9.566 5.314m0-12.814a2.25 2.25 0 1 0 0-2.186m0 2.186a2.25 2.25 0 1 0 0 2.186" />
+                    </svg>
+                    <input
+                      type="text"
+                      value={customBranch}
+                      onChange={(e) => setCustomBranch(e.target.value)}
+                      placeholder={branch}
+                      aria-label="Branch or PR"
+                      className="min-w-0 flex-1 bg-transparent text-[13px] text-fg placeholder-fg-muted outline-none"
+                    />
+                  </div>
+                )}
                 <div className="flex h-10 flex-1 items-center rounded-lg border border-edge bg-surface px-3">
                   <ModelSelector
                     models={providerModels}
@@ -327,7 +397,7 @@ export function NewAgentForm({ onSubmit, refTaskId, refTaskTitle }: NewAgentForm
               <svg className="h-[18px] w-[18px]" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                 <path strokeLinecap="round" strokeLinejoin="round" d="M5.25 5.653c0-.856.917-1.398 1.667-.986l11.54 6.347a1.125 1.125 0 0 1 0 1.972l-11.54 6.347a1.125 1.125 0 0 1-1.667-.986V5.653Z" />
               </svg>
-              <span className="text-[16px] font-semibold">Start Agent</span>
+              <span className="text-[16px] font-semibold">{taskType === "review" ? "Start Review" : "Start Agent"}</span>
             </button>
           </div>
 
