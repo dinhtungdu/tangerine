@@ -119,7 +119,22 @@ export function TerminalPane({ taskId }: TerminalPaneProps) {
 
     connect()
 
+    // Reconnect immediately when returning from background (iOS Safari)
+    function onVisibilityChange() {
+      if (document.visibilityState !== "visible") return
+      if (!wsRef.current || wsRef.current.readyState >= WebSocket.CLOSING) {
+        if (reconnectTimerRef.current) {
+          clearTimeout(reconnectTimerRef.current)
+          reconnectTimerRef.current = null
+        }
+        backoffRef.current = 1000
+        connect()
+      }
+    }
+    document.addEventListener("visibilitychange", onVisibilityChange)
+
     return () => {
+      document.removeEventListener("visibilitychange", onVisibilityChange)
       resizeObserver.disconnect()
       if (reconnectTimerRef.current) clearTimeout(reconnectTimerRef.current)
       wsRef.current?.close()

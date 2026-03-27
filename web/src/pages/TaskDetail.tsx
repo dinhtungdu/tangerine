@@ -204,7 +204,19 @@ export function TaskDetail() {
     }
     load()
     const interval = setInterval(load, 10000)
-    return () => { cancelled = true; clearInterval(interval) }
+
+    // Immediately refresh when returning from background (iOS Safari suspends
+    // timers and closes WebSockets when the tab is not visible).
+    function onVisibilityChange() {
+      if (document.visibilityState === "visible" && !cancelled) load()
+    }
+    document.addEventListener("visibilitychange", onVisibilityChange)
+
+    return () => {
+      cancelled = true
+      clearInterval(interval)
+      document.removeEventListener("visibilitychange", onVisibilityChange)
+    }
   }, [id])
 
   // Mark task as seen on view and whenever it updates while viewing

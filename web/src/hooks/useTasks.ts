@@ -35,7 +35,11 @@ export function useTasks(filter?: { status?: string; project?: string; search?: 
     refetch()
 
     const interval = setInterval(refetch, POLL_INTERVAL)
-    return () => clearInterval(interval)
+    function onVisibilityChange() {
+      if (document.visibilityState === "visible") refetch()
+    }
+    document.addEventListener("visibilitychange", onVisibilityChange)
+    return () => { clearInterval(interval); document.removeEventListener("visibilitychange", onVisibilityChange) }
   }, [filter?.status, filter?.project, filter?.search, refetch])
 
   return { tasks, loading, error, refetch }
