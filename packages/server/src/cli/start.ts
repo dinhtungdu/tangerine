@@ -13,7 +13,7 @@ import type { AppDeps } from "../api/app"
 import { DEFAULT_API_PORT } from "@tangerine/shared"
 import * as taskManager from "../tasks/manager"
 import type { TaskManagerDeps } from "../tasks/manager"
-import { onTaskEvent, onStatusChange, emitTaskEvent } from "../tasks/events"
+import { onTaskEvent, onStatusChange, emitTaskEvent, setAgentWorkingState } from "../tasks/events"
 import { cleanupSession } from "../tasks/cleanup"
 import type { CleanupDeps } from "../tasks/cleanup"
 import { startOrphanCleanup, findOrphans, cleanupOrphans } from "../tasks/orphan-cleanup"
@@ -305,6 +305,7 @@ export async function start(): Promise<void> {
               }
               case "status": {
                 if (event.status === "working") {
+                  setAgentWorkingState(taskId, "working")
                   emitTaskEvent(taskId, { event: "agent.start" })
                   // Cancel pending PR nudge — agent is still working
                   const pendingTimer = prNudgeTimers.get(taskId)
@@ -313,6 +314,7 @@ export async function start(): Promise<void> {
                     prNudgeTimers.delete(taskId)
                   }
                 } else if (event.status === "idle") {
+                  setAgentWorkingState(taskId, "idle")
                   emitTaskEvent(taskId, { event: "agent.idle" })
 
                   // Schedule PR nudge if agent has commits but no PR

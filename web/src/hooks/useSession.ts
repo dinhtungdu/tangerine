@@ -140,9 +140,13 @@ export function useSession(taskId: string): UseSessionResult {
         setTaskStatus(msg.status)
         if (msg.status === "done" || msg.status === "failed" || msg.status === "cancelled") {
           setAgentStatus("idle")
-        } else if (msg.status === "running") {
-          setAgentStatus("working")
         }
+        // Don't set "working" from task status "running" — a running task may
+        // have an idle agent. The server sends a separate "agent_status" message
+        // with the actual working state.
+        break
+      case "agent_status":
+        setAgentStatus(msg.agentStatus)
         break
       case "error":
         setMessages((prev) => [

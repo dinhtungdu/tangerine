@@ -7,6 +7,10 @@ type StatusChangeHandler = (status: string) => void
 const taskEventListeners = new Map<string, Set<TaskEventHandler>>()
 const statusChangeListeners = new Map<string, Set<StatusChangeHandler>>()
 
+// Track whether each task's agent is currently working or idle.
+// This is separate from task status ("running" = task is open, agent may be idle).
+const agentWorkingState = new Map<string, "idle" | "working">()
+
 export function emitTaskEvent(taskId: string, data: unknown): void {
   const handlers = taskEventListeners.get(taskId)
   if (!handlers) return
@@ -38,6 +42,21 @@ export function onTaskEvent(taskId: string, handler: TaskEventHandler): () => vo
       taskEventListeners.delete(taskId)
     }
   }
+}
+
+/** Get the current agent working state for a task. */
+export function getAgentWorkingState(taskId: string): "idle" | "working" {
+  return agentWorkingState.get(taskId) ?? "idle"
+}
+
+/** Update the agent working state for a task. */
+export function setAgentWorkingState(taskId: string, state: "idle" | "working"): void {
+  agentWorkingState.set(taskId, state)
+}
+
+/** Clean up agent working state when a task is terminal. */
+export function clearAgentWorkingState(taskId: string): void {
+  agentWorkingState.delete(taskId)
 }
 
 /** Subscribe to status changes. Returns an unsubscribe function. */

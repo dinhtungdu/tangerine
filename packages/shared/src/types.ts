@@ -47,6 +47,7 @@ export type WsServerMessage =
   | { type: "event"; data: unknown }
   | { type: "activity"; entry: ActivityEntry }
   | { type: "status"; status: TaskStatus }
+  | { type: "agent_status"; agentStatus: "idle" | "working" }
   | { type: "error"; message: string }
 
 export interface PromptImage {
