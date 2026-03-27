@@ -423,6 +423,126 @@ describe("createOpenCodeEventProcessor — image handling", () => {
     expect(events).toHaveLength(0)
   })
 
+  it("extracts images from tool result attachments", () => {
+    const { process, events } = createProcessor()
+    const msgId = "msg-tool-att"
+
+    process(textDelta(msgId, "Here is the image"))
+
+    // Tool completion with image attachment (how OpenCode sends images from Read tool)
+    process({
+      type: "message.part.updated",
+      properties: {
+        part: {
+          type: "tool",
+          messageID: msgId,
+          sessionID: SESSION,
+          callID: "call-read-img",
+          tool: "read",
+          state: {
+            status: "completed",
+            input: { filePath: "/tmp/test.png" },
+            output: "Image read successfully",
+            attachments: [
+              {
+                id: "att-1",
+                sessionID: SESSION,
+                messageID: msgId,
+                type: "file",
+                mime: "image/png",
+                url: "data:image/png;base64,iVBORw0KGgo",
+              },
+            ],
+          },
+        },
+      },
+    })
+
+    process(messageCompleted(msgId))
+
+    const narration = events.find(
+      (e) => e.kind === "message.complete" && e.role === "narration",
+    )
+    expect(narration).toBeDefined()
+    const images = (narration as { images?: Array<{ mediaType: string; data: string }> })?.images
+    expect(images).toHaveLength(1)
+    expect(images?.[0]?.mediaType).toBe("image/png")
+    expect(images?.[0]?.data).toBe("iVBORw0KGgo")
+  })
+
+  it("extracts multiple images from tool attachments across messages", () => {
+    const { process, events } = createProcessor()
+    const msgId = "msg-multi-att"
+
+    // Tool with attachment
+    process({
+      type: "message.part.updated",
+      properties: {
+        part: {
+          type: "tool",
+          messageID: msgId,
+          sessionID: SESSION,
+          callID: "call-1",
+          tool: "read",
+          state: {
+            status: "completed",
+            output: "ok",
+            attachments: [
+              { type: "file", mime: "image/png", url: "data:image/png;base64,first" },
+              { type: "file", mime: "image/jpeg", url: "data:image/jpeg;base64,second" },
+            ],
+          },
+        },
+      },
+    })
+
+    // Also a direct file part
+    process(filePartEvent(msgId, "image/webp", "data:image/webp;base64,third"))
+
+    process(messageCompleted(msgId))
+
+    const narration = events.find(
+      (e) => e.kind === "message.complete" && e.role === "narration",
+    )
+    const images = (narration as { images?: Array<{ mediaType: string }> })?.images
+    expect(images).toHaveLength(3)
+    expect(images?.[0]?.mediaType).toBe("image/png")
+    expect(images?.[1]?.mediaType).toBe("image/jpeg")
+    expect(images?.[2]?.mediaType).toBe("image/webp")
+  })
+
+  it("ignores non-image attachments in tool results", () => {
+    const { process, events } = createProcessor()
+    const msgId = "msg-nonimg-att"
+
+    process(textDelta(msgId, "text file"))
+    process({
+      type: "message.part.updated",
+      properties: {
+        part: {
+          type: "tool",
+          messageID: msgId,
+          sessionID: SESSION,
+          callID: "call-txt",
+          tool: "read",
+          state: {
+            status: "completed",
+            output: "ok",
+            attachments: [
+              { type: "file", mime: "text/plain", url: "data:text/plain;base64,aGVsbG8=" },
+            ],
+          },
+        },
+      },
+    })
+    process(messageCompleted(msgId))
+
+    const narration = events.find(
+      (e) => e.kind === "message.complete" && e.role === "narration",
+    )
+    expect((narration as { images?: unknown[] })?.images).toBeUndefined()
+  })
+
   it("cleans up text and image parts after message completion", () => {
     const { process, events } = createProcessor()
     const msgId = "msg-cleanup"

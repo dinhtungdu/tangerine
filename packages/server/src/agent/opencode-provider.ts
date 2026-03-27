@@ -234,6 +234,17 @@ export function createOpenCodeEventProcessor(sessionId: string, callbacks: OpenC
   const imageParts = new Map<string, PromptImage[]>()
   let lastNarration: { content: string; messageId?: string; images?: PromptImage[] } | null = null
 
+  function extractImageFromDataUrl(messageId: string, url: string) {
+    const dataUrlMatch = url.match(/^data:(image\/[\w+]+);base64,(.+)$/)
+    if (dataUrlMatch?.[1] && dataUrlMatch[2]) {
+      const mediaType = dataUrlMatch[1] as PromptImage["mediaType"]
+      const data = dataUrlMatch[2]
+      const existing = imageParts.get(messageId) ?? []
+      existing.push({ mediaType, data })
+      imageParts.set(messageId, existing)
+    }
+  }
+
   const process = (raw: Record<string, unknown>) => {
     const eventSessionId = getSessionId(raw)
     if (eventSessionId !== null && eventSessionId !== sessionId) return
@@ -289,26 +300,29 @@ export function createOpenCodeEventProcessor(sessionId: string, callbacks: OpenC
       }
 
       if (part?.type === "file" && messageId && typeof part.mime === "string" && part.mime.startsWith("image/") && typeof part.url === "string") {
-        const dataUrlMatch = (part.url as string).match(/^data:(image\/[\w+]+);base64,(.+)$/)
-        if (dataUrlMatch?.[1] && dataUrlMatch[2]) {
-          const mediaType = dataUrlMatch[1] as PromptImage["mediaType"]
-          const data = dataUrlMatch[2]
-          const existing = imageParts.get(messageId) ?? []
-          existing.push({ mediaType, data })
-          imageParts.set(messageId, existing)
-        }
+        extractImageFromDataUrl(messageId, part.url as string)
         return
       }
 
       if (part?.type === "tool") {
         const callId = typeof part.callID === "string" ? part.callID : undefined
-        const status = typeof asRecord(part.state)?.status === "string" ? asRecord(part.state)?.status as string : undefined
+        const state = asRecord(part.state)
+        const status = typeof state?.status === "string" ? state.status as string : undefined
         const mapped = mapSseEvent(raw, {
           currentText: messageId ? (textParts.get(messageId) ?? "") : "",
           previousToolStatus: callId ? toolStates.get(callId) : undefined,
         })
         if (callId && status) toolStates.set(callId, status)
         if (mapped) callbacks.emit(mapped)
+
+        // Extract images from tool result attachments (e.g. Read tool on image files)
+        if (messageId && status === "completed" && Array.isArray(state?.attachments)) {
+          for (const att of state.attachments as Array<Record<string, unknown>>) {
+            if (att.type === "file" && typeof att.mime === "string" && att.mime.startsWith("image/") && typeof att.url === "string") {
+              extractImageFromDataUrl(messageId, att.url as string)
+            }
+          }
+        }
         return
       }
     }
