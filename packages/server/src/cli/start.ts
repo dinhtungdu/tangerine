@@ -283,26 +283,7 @@ export async function start(): Promise<void> {
                 if ((event.role === "assistant" || event.role === "narration") && (event.content || event.images?.length)) {
                   const role = event.role
 
-                  // Save agent-produced images to disk (same pattern as user images)
-                  const saveImages = async (): Promise<string[] | undefined> => {
-                    if (!event.images?.length) return undefined
-                    const imagesDir = `${TANGERINE_HOME}/images/${taskId}`
-                    try {
-                      await Bun.write(`${imagesDir}/.keep`, "")
-                      const filenames: string[] = []
-                      for (const img of event.images) {
-                        const ext = img.mediaType.split("/")[1] ?? "png"
-                        const filename = `${Date.now()}-${Math.random().toString(36).slice(2, 8)}.${ext}`
-                        await Bun.write(`${imagesDir}/${filename}`, Buffer.from(img.data, "base64"))
-                        filenames.push(filename)
-                      }
-                      return filenames
-                    } catch {
-                      return undefined
-                    }
-                  }
-
-                  saveImages().then((imageFilenames) => {
+                  const emitAndInsert = (imageFilenames?: string[]) => {
                     emitTaskEvent(taskId, {
                       role,
                       content: event.content,
@@ -319,7 +300,30 @@ export async function start(): Promise<void> {
                         Effect.catchAll(() => Effect.void)
                       )
                     )
-                  })
+                  }
+
+                  if (event.images?.length) {
+                    // Save agent-produced images to disk (same pattern as user images)
+                    const saveImages = async () => {
+                      const imagesDir = `${TANGERINE_HOME}/images/${taskId}`
+                      try {
+                        await Bun.write(`${imagesDir}/.keep`, "")
+                        const filenames: string[] = []
+                        for (const img of event.images!) {
+                          const ext = img.mediaType.split("/")[1] ?? "png"
+                          const filename = `${Date.now()}-${Math.random().toString(36).slice(2, 8)}.${ext}`
+                          await Bun.write(`${imagesDir}/${filename}`, Buffer.from(img.data, "base64"))
+                          filenames.push(filename)
+                        }
+                        return filenames
+                      } catch {
+                        return undefined
+                      }
+                    }
+                    saveImages().then(emitAndInsert)
+                  } else {
+                    emitAndInsert()
+                  }
 
                   // Fallback PR URL detection from assistant/narration message text
                   if (!prUrlSaved.has(taskId)) {
