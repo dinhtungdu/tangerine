@@ -5,7 +5,7 @@ import { Effect } from "effect"
 import { createLogger } from "../logger"
 import { AgentError, PromptError, SessionStartError } from "../errors"
 import type { AgentFactory, AgentHandle, AgentEvent, AgentStartContext, PromptImage } from "./provider"
-import { parseNdjsonStream, mapClaudeCodeEvent } from "./ndjson"
+import { parseNdjsonStream, createClaudeCodeMapper } from "./ndjson"
 
 const log = createLogger("claude-code-provider")
 
@@ -73,6 +73,8 @@ export function createClaudeCodeProvider(): AgentFactory {
           let shutdownCalled = false
           // Capture the real session ID from Claude's init event (may differ from what we passed)
           let resolvedSessionId = sessionId
+          // Stateful mapper — buffers images from tool results for next narration
+          const mapClaudeCodeEvent = createClaudeCodeMapper()
 
           // Parse NDJSON from stdout
           const parser = parseNdjsonStream(
