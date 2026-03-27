@@ -80,123 +80,153 @@ export function parseNdjsonStream(
 // ---------------------------------------------------------------------------
 
 /**
- * Maps a raw Claude Code stream-json event to normalized AgentEvents.
- * Returns an array — one raw event can produce multiple AgentEvents
- * (e.g. an assistant message with text + tool_use + thinking blocks).
+ * Creates a stateful mapper that converts raw Claude Code stream-json events
+ * to normalized AgentEvents. Stateful because images from tool results (user
+ * events) need to be buffered and attached to the next assistant/narration message.
  *
  * Claude Code event types (from protocol spike):
  * - system (init): session metadata — ignored
  * - assistant: complete assistant message (text + tool_use + thinking content blocks)
- * - user: tool results — emits tool.end
+ * - user: tool results — emits tool.end, buffers images for next narration
  * - rate_limit_event: ignored
  * - stream_event: token-level streaming (only with --include-partial-messages)
  * - result: final event with aggregated stats
  */
-export function mapClaudeCodeEvent(raw: Record<string, unknown>): AgentEvent[] {
-  const type = raw.type as string | undefined
-  if (!type) return []
+export function createClaudeCodeMapper(): (raw: Record<string, unknown>) => AgentEvent[] {
+  // Images from tool results are buffered here until the next narration/assistant message
+  let pendingToolImages: PromptImage[] = []
 
-  switch (type) {
-    case "assistant": {
-      const message = raw.message as Record<string, unknown> | undefined
-      if (!message) return []
+  return function mapClaudeCodeEvent(raw: Record<string, unknown>): AgentEvent[] {
+    const type = raw.type as string | undefined
+    if (!type) return []
 
-      const events: AgentEvent[] = []
-      const blocks = Array.isArray(message.content) ? message.content : []
-      const textParts: string[] = []
-      const imageParts: PromptImage[] = []
+    switch (type) {
+      case "assistant": {
+        const message = raw.message as Record<string, unknown> | undefined
+        if (!message) return []
 
-      for (const block of blocks) {
-        if (typeof block !== "object" || block === null) continue
-        const b = block as Record<string, unknown>
+        const events: AgentEvent[] = []
+        const blocks = Array.isArray(message.content) ? message.content : []
+        const textParts: string[] = []
+        const imageParts: PromptImage[] = []
 
-        if (b.type === "thinking" && typeof b.thinking === "string") {
-          events.push({ kind: "thinking", content: truncate(b.thinking, 300) })
-        } else if (b.type === "tool_use" && typeof b.name === "string") {
-          events.push({
-            kind: "tool.start",
-            toolName: b.name,
-            toolInput: b.input ? truncate(JSON.stringify(b.input), 500) : undefined,
-          })
-        } else if (b.type === "text" && typeof b.text === "string" && b.text.length > 0) {
-          textParts.push(b.text)
-        } else if (b.type === "image") {
-          const source = b.source as Record<string, unknown> | undefined
-          if (source?.type === "base64" && typeof source.media_type === "string" && typeof source.data === "string") {
-            imageParts.push({
-              mediaType: source.media_type as PromptImage["mediaType"],
-              data: source.data,
+        for (const block of blocks) {
+          if (typeof block !== "object" || block === null) continue
+          const b = block as Record<string, unknown>
+
+          if (b.type === "thinking" && typeof b.thinking === "string") {
+            events.push({ kind: "thinking", content: truncate(b.thinking, 300) })
+          } else if (b.type === "tool_use" && typeof b.name === "string") {
+            events.push({
+              kind: "tool.start",
+              toolName: b.name,
+              toolInput: b.input ? truncate(JSON.stringify(b.input), 500) : undefined,
             })
+          } else if (b.type === "text" && typeof b.text === "string" && b.text.length > 0) {
+            textParts.push(b.text)
+          } else if (b.type === "image") {
+            const source = b.source as Record<string, unknown> | undefined
+            if (source?.type === "base64" && typeof source.media_type === "string" && typeof source.data === "string") {
+              imageParts.push({
+                mediaType: source.media_type as PromptImage["mediaType"],
+                data: source.data,
+              })
+            }
           }
         }
-      }
 
-      // Per-turn text is narration (agent explaining what it's doing between tool
-      // calls). The final answer comes from the "result" event as role "assistant".
-      // Narration is persisted but collapsed in the UI alongside thinking.
-      if (textParts.length > 0 || imageParts.length > 0) {
-        events.push({
-          kind: "message.complete",
-          role: "narration",
-          content: textParts.join(""),
-          messageId: optStr(message.id),
-          images: imageParts.length > 0 ? imageParts : undefined,
-        })
-      }
+        // Merge any images buffered from preceding tool results
+        const allImages = [...pendingToolImages, ...imageParts]
+        pendingToolImages = []
 
-      // Signal working if there are tool calls
-      if (blocks.some((b: unknown) => typeof b === "object" && b !== null && (b as Record<string, unknown>).type === "tool_use")) {
-        events.push({ kind: "status", status: "working" })
-      }
-
-      return events
-    }
-
-    case "user": {
-      // Tool results being fed back — extract tool name and result content
-      const events: AgentEvent[] = []
-      const message = raw.message as Record<string, unknown> | undefined
-      const blocks = Array.isArray(message?.content) ? message!.content : []
-
-      for (const block of blocks) {
-        if (typeof block !== "object" || block === null) continue
-        const b = block as Record<string, unknown>
-        if (b.type === "tool_result" && typeof b.tool_use_id === "string") {
-          const resultText = typeof b.content === "string" ? b.content
-            : Array.isArray(b.content) ? extractContent(b.content) ?? ""
-            : ""
+        // Per-turn text is narration (agent explaining what it's doing between tool
+        // calls). The final answer comes from the "result" event as role "assistant".
+        // Narration is persisted but collapsed in the UI alongside thinking.
+        if (textParts.length > 0 || allImages.length > 0) {
           events.push({
-            kind: "tool.end",
-            toolName: typeof b.name === "string" ? b.name : "unknown",
-            toolResult: truncate(resultText, 500),
+            kind: "message.complete",
+            role: "narration",
+            content: textParts.join(""),
+            messageId: optStr(message.id),
+            images: allImages.length > 0 ? allImages : undefined,
           })
         }
+
+        // Signal working if there are tool calls
+        if (blocks.some((b: unknown) => typeof b === "object" && b !== null && (b as Record<string, unknown>).type === "tool_use")) {
+          events.push({ kind: "status", status: "working" })
+        }
+
+        return events
       }
 
-      events.push({ kind: "status", status: "working" })
-      return events
-    }
+      case "user": {
+        // Tool results being fed back — extract tool name, result content, and images
+        const events: AgentEvent[] = []
+        const message = raw.message as Record<string, unknown> | undefined
+        const blocks = Array.isArray(message?.content) ? message!.content : []
 
-    case "result": {
-      const subtype = raw.subtype as string | undefined
-      const content = typeof raw.result === "string" ? raw.result : ""
+        for (const block of blocks) {
+          if (typeof block !== "object" || block === null) continue
+          const b = block as Record<string, unknown>
+          if (b.type === "tool_result" && typeof b.tool_use_id === "string") {
+            const resultText = typeof b.content === "string" ? b.content
+              : Array.isArray(b.content) ? extractContent(b.content) ?? ""
+              : ""
+            events.push({
+              kind: "tool.end",
+              toolName: typeof b.name === "string" ? b.name : "unknown",
+              toolResult: truncate(resultText, 500),
+            })
+            // Buffer images from tool results to attach to the next narration
+            if (Array.isArray(b.content)) {
+              for (const sub of b.content) {
+                if (typeof sub !== "object" || sub === null) continue
+                const s = sub as Record<string, unknown>
+                if (s.type === "image") {
+                  const source = s.source as Record<string, unknown> | undefined
+                  if (source?.type === "base64" && typeof source.media_type === "string" && typeof source.data === "string") {
+                    pendingToolImages.push({
+                      mediaType: source.media_type as PromptImage["mediaType"],
+                      data: source.data,
+                    })
+                  }
+                }
+              }
+            }
+          }
+        }
 
-      if (subtype === "error" || raw.is_error === true) {
-        return [{ kind: "error", message: content || "Agent error" }]
+        events.push({ kind: "status", status: "working" })
+        return events
       }
 
-      // Per-turn text is already emitted as message.complete from assistant
-      // events. Only emit the result summary if it has content (avoids empty
-      // duplicate messages).
-      if (!content) return []
+      case "result": {
+        const subtype = raw.subtype as string | undefined
+        const content = typeof raw.result === "string" ? raw.result : ""
 
-      return [{
-        kind: "message.complete",
-        role: "assistant",
-        content,
-        messageId: optStr(raw.session_id),
-      }]
-    }
+        if (subtype === "error" || raw.is_error === true) {
+          pendingToolImages = []
+          return [{ kind: "error", message: content || "Agent error" }]
+        }
+
+        // Attach any remaining buffered images to the final assistant message
+        const images = pendingToolImages.length > 0 ? pendingToolImages : undefined
+        pendingToolImages = []
+
+        // Per-turn text is already emitted as message.complete from assistant
+        // events. Only emit the result summary if it has content or images
+        // (avoids empty duplicate messages).
+        if (!content && !images) return []
+
+        return [{
+          kind: "message.complete",
+          role: "assistant",
+          content,
+          messageId: optStr(raw.session_id),
+          images,
+        }]
+      }
 
     case "stream_event": {
       const event = raw.event as Record<string, unknown> | undefined
@@ -221,7 +251,13 @@ export function mapClaudeCodeEvent(raw: Record<string, unknown>): AgentEvent[] {
 
     default:
       return []
+    }
   }
+}
+
+/** Stateless convenience wrapper — creates a fresh mapper per call (no image buffering across calls). */
+export function mapClaudeCodeEvent(raw: Record<string, unknown>): AgentEvent[] {
+  return createClaudeCodeMapper()(raw)
 }
 
 // ---------------------------------------------------------------------------
