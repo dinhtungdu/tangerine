@@ -95,9 +95,6 @@ export function parseNdjsonStream(
 export function createClaudeCodeMapper(): (raw: Record<string, unknown>) => AgentEvent[] {
   // Images from tool results are buffered here until the result event
   let pendingToolImages: PromptImage[] = []
-  // Track last narration content to deduplicate against the result event
-  // (Claude Code repeats the last assistant turn text in the result)
-  let lastNarrationContent = ""
 
   return function mapClaudeCodeEvent(raw: Record<string, unknown>): AgentEvent[] {
     const type = raw.type as string | undefined
@@ -150,7 +147,6 @@ export function createClaudeCodeMapper(): (raw: Record<string, unknown>) => Agen
         // Narration is persisted but collapsed in the UI alongside thinking.
         if (textParts.length > 0) {
           const narrationText = textParts.join("")
-          lastNarrationContent = narrationText
           events.push({
             kind: "message.complete",
             role: "narration",
@@ -214,7 +210,6 @@ export function createClaudeCodeMapper(): (raw: Record<string, unknown>) => Agen
 
         if (subtype === "error" || raw.is_error === true) {
           pendingToolImages = []
-          lastNarrationContent = ""
           return [{ kind: "error", message: content || "Agent error" }]
         }
 
@@ -222,19 +217,12 @@ export function createClaudeCodeMapper(): (raw: Record<string, unknown>) => Agen
         const images = pendingToolImages.length > 0 ? pendingToolImages : undefined
         pendingToolImages = []
 
-        // Claude Code repeats the last assistant turn text in the result event.
-        // Skip the duplicate when narration already has the same content,
-        // unless we have images that need to be delivered.
-        const isDuplicate = content === lastNarrationContent && content.length > 0
-        lastNarrationContent = ""
-
         if (!content && !images) return []
-        if (isDuplicate && !images) return []
 
         return [{
           kind: "message.complete",
           role: "assistant",
-          content: isDuplicate ? "" : content,
+          content,
           messageId: optStr(raw.session_id),
           images,
         }]
