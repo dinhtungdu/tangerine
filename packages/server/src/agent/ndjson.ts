@@ -135,20 +135,22 @@ export function createClaudeCodeMapper(): (raw: Record<string, unknown>) => Agen
           }
         }
 
-        // Merge any images buffered from preceding tool results
-        const allImages = [...pendingToolImages, ...imageParts]
-        pendingToolImages = []
+        // Images from assistant content blocks (rare) go to pending pool
+        // along with tool result images — all will be attached to the final
+        // assistant message from the "result" event, not to narration.
+        if (imageParts.length > 0) {
+          pendingToolImages.push(...imageParts)
+        }
 
         // Per-turn text is narration (agent explaining what it's doing between tool
         // calls). The final answer comes from the "result" event as role "assistant".
         // Narration is persisted but collapsed in the UI alongside thinking.
-        if (textParts.length > 0 || allImages.length > 0) {
+        if (textParts.length > 0) {
           events.push({
             kind: "message.complete",
             role: "narration",
             content: textParts.join(""),
             messageId: optStr(message.id),
-            images: allImages.length > 0 ? allImages : undefined,
           })
         }
 
