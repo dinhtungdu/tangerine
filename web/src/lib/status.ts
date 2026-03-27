@@ -32,6 +32,8 @@ export function getStatusConfig(status: string): StatusConfig {
 
 /** Returns true if the task has been updated since the user last viewed it */
 export function hasUnseenUpdates(task: { updatedAt: string; lastSeenAt: string | null; status: string }): boolean {
+  // Only show for active tasks — completed/cancelled tasks don't need attention
+  if (task.status === "done" || task.status === "cancelled") return false
   // Tasks still in initial states haven't produced agent output yet
   if (task.status === "created" || task.status === "provisioning") return false
   // Never viewed — unseen if agent has been active
