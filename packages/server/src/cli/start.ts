@@ -13,7 +13,7 @@ import type { AppDeps } from "../api/app"
 import { DEFAULT_API_PORT } from "@tangerine/shared"
 import * as taskManager from "../tasks/manager"
 import type { TaskManagerDeps } from "../tasks/manager"
-import { onTaskEvent, onStatusChange, emitTaskEvent, setAgentWorkingState } from "../tasks/events"
+import { onTaskEvent, onStatusChange, emitTaskEvent, getAgentWorkingState, setAgentWorkingState } from "../tasks/events"
 import { cleanupSession } from "../tasks/cleanup"
 import type { CleanupDeps } from "../tasks/cleanup"
 import { startOrphanCleanup, findOrphans, cleanupOrphans } from "../tasks/orphan-cleanup"
@@ -88,6 +88,27 @@ async function branchHasCommits(db: import("bun:sqlite").Database, taskId: strin
   } catch {
     return false
   }
+}
+
+function getLastConversationLog(
+  db: import("bun:sqlite").Database,
+  taskId: string,
+): { role: string; content: string } | null {
+  return db.prepare(
+    "SELECT role, content FROM session_logs WHERE task_id = ? AND role != 'thinking' ORDER BY timestamp DESC, id DESC LIMIT 1"
+  ).get(taskId) as { role: string; content: string } | null
+}
+
+function shouldTreatTaskInactivityAsStall(
+  db: import("bun:sqlite").Database,
+  taskId: string,
+): boolean {
+  if (getAgentWorkingState(taskId) === "working") return true
+
+  const lastLog = getLastConversationLog(db, taskId)
+  if (!lastLog) return true
+
+  return lastLog.role === "user"
 }
 
 export async function start(): Promise<void> {
@@ -170,7 +191,8 @@ export async function start(): Promise<void> {
           const hasAssistantResponse = hasLogs
             ? db.prepare("SELECT 1 FROM session_logs WHERE task_id = ? AND role IN ('assistant', 'narration') LIMIT 1").get(taskId)
             : null
-          if (hasLogs && hasAssistantResponse) {
+          const lastLog = hasLogs ? getLastConversationLog(db, taskId) : null
+          if (hasLogs && hasAssistantResponse && lastLog?.role === "user") {
             // Reconnect after server restart or model change — agent had conversation context.
             const sendReconnectNudge = async () => {
               try {
@@ -183,10 +205,6 @@ export async function start(): Promise<void> {
                 const taskRow = db.prepare(
                   "SELECT title, description FROM tasks WHERE id = ?"
                 ).get(taskId) as { title: string; description: string | null } | null
-
-                const lastLog = db.prepare(
-                  "SELECT role, content FROM session_logs WHERE task_id = ? ORDER BY timestamp DESC LIMIT 1"
-                ).get(taskId) as { role: string; content: string } | null
 
                 const originalTask = taskRow?.description || taskRow?.title || ""
                 const unansweredUserMsg = lastLog?.role === "user" ? lastLog.content : null
@@ -717,6 +735,7 @@ export async function start(): Promise<void> {
     // Start health monitor (every 30s — detects dead agent processes)
     const healthDeps: HealthCheckDeps = {
       listRunningTasks: () => listTasks(db, { status: "running" }),
+      shouldTreatInactivityAsStall: (taskId) => Effect.sync(() => shouldTreatTaskInactivityAsStall(db, taskId)),
       getLastActivityTime: (taskId) => Effect.sync(() => {
         const row = db.prepare(
           "SELECT MAX(timestamp) as ts FROM activity_log WHERE task_id = ? AND type != 'lifecycle'"

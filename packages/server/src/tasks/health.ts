@@ -23,6 +23,8 @@ const consecutiveRestarts = new Map<string, number>()
 export interface HealthCheckDeps {
   listRunningTasks(): Effect.Effect<TaskRow[], Error>
   checkAgentAlive(taskId: string): Effect.Effect<boolean, never>
+  /** Returns whether inactivity should be treated as a stall for this task */
+  shouldTreatInactivityAsStall?(taskId: string): Effect.Effect<boolean, never>
   /** Returns the timestamp of the last agent activity, or null if unknown */
   getLastActivityTime?(taskId: string): Effect.Effect<Date | null, never>
   restartAgent(task: TaskRow): Effect.Effect<void, Error>
@@ -58,8 +60,14 @@ export function checkTask(
       return yield* attemptRestart(task, deps, taskLog, "agent_dead")
     }
 
-    // Agent is alive — but check for stalled sessions (alive but making no progress)
-    if (deps.getLastActivityTime) {
+    // Agent is alive — but only treat inactivity as a stall when the task is
+    // actually awaiting agent work. If the agent already answered and is now
+    // waiting for the user, inactivity is expected and should not trigger a restart.
+    const shouldTreatInactivityAsStall = deps.shouldTreatInactivityAsStall
+      ? yield* deps.shouldTreatInactivityAsStall(task.id)
+      : true
+
+    if (shouldTreatInactivityAsStall && deps.getLastActivityTime) {
       const lastActivity = yield* deps.getLastActivityTime(task.id)
       if (lastActivity) {
         const stalledMs = Date.now() - lastActivity.getTime()
