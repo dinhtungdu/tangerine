@@ -114,8 +114,11 @@ export function pollPrStatuses(deps: PrMonitorDeps): Effect.Effect<void, never> 
       Effect.catchAll(() => Effect.succeed([] as TaskRow[]))
     )
 
+    // Skip review tasks — they don't create PRs
+    const codeTasks = running.filter((t) => t.type !== "review")
+
     // Phase 1: discover PR URLs for tasks that don't have one yet
-    const withoutPr = running.filter((t) => !t.pr_url && t.branch && t.repo_url)
+    const withoutPr = codeTasks.filter((t) => !t.pr_url && t.branch && t.repo_url)
     if (withoutPr.length > 0) {
       const lookup = deps.lookupPrByBranch ?? lookupPrByBranch
       log.debug("Discovering PRs for tasks without pr_url", { count: withoutPr.length })
@@ -134,7 +137,7 @@ export function pollPrStatuses(deps: PrMonitorDeps): Effect.Effect<void, never> 
     }
 
     // Phase 2: check state of all tasks that now have a pr_url
-    const withPr = running.filter((t) => t.pr_url)
+    const withPr = codeTasks.filter((t) => t.pr_url)
     if (withPr.length === 0) return
 
     log.debug("Polling PR statuses", { count: withPr.length })
