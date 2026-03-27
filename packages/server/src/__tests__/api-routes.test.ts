@@ -2,6 +2,7 @@ import { describe, test, expect, beforeEach } from "bun:test"
 import { Effect } from "effect"
 import type { Database } from "bun:sqlite"
 import { createTestDb } from "./helpers"
+import { tmuxSessionName } from "../api/routes/terminal-ws"
 import { createApp, type AppDeps } from "../api/app"
 import { createTask as dbCreateTask, updateTaskStatus, insertSessionLog } from "../db/queries"
 import type { TaskRow } from "../db/types"
@@ -504,6 +505,12 @@ describe("API routes", () => {
     test("returns 404 for unknown project", async () => {
       const res = await app.fetch(new Request("http://localhost/api/projects/nonexistent", { method: "DELETE" }))
       expect(res.status).toBe(404)
+    })
+  })
+
+  describe("tmuxSessionName", () => {
+    test("uses first 8 chars of task ID with tng- prefix", () => {
+      expect(tmuxSessionName("b1c01db0-3c2a-4735-9534-b12d33ec34f8")).toBe("tng-b1c01db0")
     })
   })
 

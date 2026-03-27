@@ -8,6 +8,7 @@ import { SessionCleanupError } from "../errors"
 import type { TaskRow } from "../db/types"
 import { releaseSlot, localExec } from "./worktree-pool"
 import { isSharedServerPid } from "../agent/opencode-provider"
+import { tmuxSessionName } from "../api/routes/terminal-ws"
 
 const log = createLogger("cleanup")
 
@@ -59,7 +60,14 @@ export function cleanupSession(
       )
     }
 
-    // 2. Release worktree slot back to pool.
+    // 2. Kill tmux session for this task's terminal
+    const sessionName = tmuxSessionName(task.id)
+    yield* localExec(`tmux kill-session -t ${sessionName} 2>/dev/null; true`).pipe(
+      Effect.tap(() => Effect.sync(() => taskLog.debug("Tmux session killed", { sessionName }))),
+      Effect.catchAll(() => Effect.void),
+    )
+
+    // 3. Release worktree slot back to pool.
     // Always attempt release — releaseSlot looks up by task_id and is a no-op if no slot is bound.
     // Do NOT guard on task.worktree_path: the slot may be bound even if the path was never persisted
     // (e.g. failure between acquireSlot and updateTask).
@@ -68,7 +76,7 @@ export function cleanupSession(
       Effect.ignoreLogged,
     )
 
-    // 3. Clear worktree_path so task isn't flagged as orphaned
+    // 4. Clear worktree_path so task isn't flagged as orphaned
     if (task.worktree_path) {
       yield* deps.updateTask(task.id, { worktree_path: null }).pipe(Effect.ignoreLogged)
     }
