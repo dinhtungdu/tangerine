@@ -1,10 +1,11 @@
 import { describe, test, expect, afterEach } from "bun:test"
-import { render, screen, cleanup, fireEvent } from "@testing-library/react"
+import { render, screen, cleanup, fireEvent, act } from "@testing-library/react"
 import { MemoryRouter, Route, Routes } from "react-router-dom"
 import { RunCard } from "../components/RunCard"
 import { ActivityList } from "../components/ActivityList"
 import { NewAgentForm } from "../components/NewAgentForm"
-import { ChatInput } from "../components/ChatInput"
+import { ChatInput, appendQuotedText } from "../components/ChatInput"
+import { ChatPanel } from "../components/ChatPanel"
 import { ModelSelector } from "../components/ModelSelector"
 import { StatusPage } from "../pages/StatusPage"
 import { ProjectProvider } from "../context/ProjectContext"
@@ -334,6 +335,11 @@ describe("StatusPage", () => {
 })
 
 describe("ChatInput", () => {
+  test("formats quoted text as a composer block", () => {
+    expect(appendQuotedText("", "> quoted")).toBe("> quoted\n\n")
+    expect(appendQuotedText("Already typing", "> quoted")).toBe("Already typing\n\n> quoted\n\n")
+  })
+
   test("restores chat draft text and images from localStorage", () => {
     window.localStorage.setItem("tangerine:chat-draft:task-123", JSON.stringify({
       text: "Keep typing",
@@ -351,6 +357,78 @@ describe("ChatInput", () => {
 
     expect(screen.getByDisplayValue("Keep typing")).toBeTruthy()
     expect(screen.getByAltText("Pasted image")).toBeTruthy()
+  })
+
+  test("applies quoted text and focuses the composer", async () => {
+    await act(async () => {
+      render(
+        <ChatInput
+          onSend={() => {}}
+          disabled={false}
+          queueLength={0}
+          draftInsert={{ id: 1, text: "> quoted line" }}
+        />
+      )
+
+      await new Promise((resolve) => setTimeout(resolve, 0))
+    })
+
+    const textarea = screen.getByPlaceholderText("Message agent...") as HTMLTextAreaElement
+    expect(textarea.value).toBe("> quoted line\n\n")
+    expect(document.activeElement).toBe(textarea)
+  })
+})
+
+describe("ChatPanel", () => {
+  test("quotes selected message text into the composer", async () => {
+    render(
+      <MemoryRouter>
+        <ChatPanel
+          messages={[{ id: "m1", role: "assistant", content: "Quoted text", timestamp: "2026-03-17T10:00:00Z" }]}
+          agentStatus="idle"
+          queueLength={0}
+          onSend={() => {}}
+          onAbort={() => {}}
+        />
+      </MemoryRouter>
+    )
+
+    const message = screen.getByText("Quoted text")
+    const textNode = message.firstChild
+    let cleared = false
+
+    const selection = {
+      rangeCount: 1,
+      isCollapsed: false,
+      anchorNode: textNode,
+      focusNode: textNode,
+      toString: () => "Quoted text",
+      getRangeAt: () => ({
+        getBoundingClientRect: () => ({ top: 80, left: 120, width: 100, height: 20 }),
+      }),
+      removeAllRanges: () => {
+        cleared = true
+      },
+    }
+
+    Object.defineProperty(window, "getSelection", {
+      configurable: true,
+      value: () => selection,
+    })
+
+    await act(async () => {
+      document.dispatchEvent(new Event("selectionchange"))
+    })
+
+    fireEvent.click(await screen.findByText("Quote"))
+    await act(async () => {
+      await new Promise((resolve) => setTimeout(resolve, 0))
+    })
+
+    const textarea = screen.getByPlaceholderText("Message agent...") as HTMLTextAreaElement
+    expect(textarea.value).toBe("> Quoted text\n\n")
+    expect(document.activeElement).toBe(textarea)
+    expect(cleared).toBe(true)
   })
 })
 

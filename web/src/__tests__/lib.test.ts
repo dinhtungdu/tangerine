@@ -9,6 +9,7 @@ import {
 import { getStatusConfig, STATUS_CONFIG } from "../lib/status"
 import { getActivityStyle, getActivityDetail } from "../lib/activity"
 import { searchModels } from "../lib/model-search"
+import { copyToClipboard } from "../lib/clipboard"
 
 describe("format", () => {
   describe("formatModelName", () => {
@@ -175,5 +176,38 @@ describe("model search", () => {
     expect(searchModels(["openai/gpt-5-mini", "openai/gpt-5.4", "openrouter/gemma-3"], "gpt5m")).toEqual([
       "openai/gpt-5-mini",
     ])
+  })
+})
+
+describe("clipboard", () => {
+  test("falls back to execCommand when Clipboard API is unavailable over HTTP", async () => {
+    const originalExecCommand = document.execCommand
+    const originalClipboard = navigator.clipboard
+
+    Object.defineProperty(window, "isSecureContext", {
+      configurable: true,
+      value: false,
+    })
+
+    Object.defineProperty(navigator, "clipboard", {
+      configurable: true,
+      value: undefined,
+    })
+
+    let copied = false
+    document.execCommand = ((command: string) => {
+      copied = command === "copy"
+      return true
+    }) as typeof document.execCommand
+
+    await copyToClipboard("hello over http")
+
+    expect(copied).toBe(true)
+
+    document.execCommand = originalExecCommand
+    Object.defineProperty(navigator, "clipboard", {
+      configurable: true,
+      value: originalClipboard,
+    })
   })
 })

@@ -17,29 +17,7 @@ import { ChangesPanel as DiffSidebar, type DiffComment } from "../components/Cha
 import { ResizeHandle, PaneToggle } from "../components/PaneControls"
 import { TerminalPane } from "../components/TerminalPane"
 import { formatPrNumber } from "../lib/format"
-
-// navigator.clipboard requires HTTPS; fall back to execCommand for HTTP (local network, mobile)
-function copyToClipboard(text: string): Promise<void> {
-  if (navigator.clipboard && window.isSecureContext) {
-    return navigator.clipboard.writeText(text)
-  }
-  return new Promise((resolve, reject) => {
-    const el = document.createElement("textarea")
-    el.value = text
-    el.style.cssText = "position:fixed;opacity:0;pointer-events:none"
-    document.body.appendChild(el)
-    el.focus()
-    el.select()
-    try {
-      document.execCommand("copy")
-      resolve()
-    } catch (err) {
-      reject(err)
-    } finally {
-      document.body.removeChild(el)
-    }
-  })
-}
+import { copyToClipboard } from "../lib/clipboard"
 
 type PaneId = "chat" | "diff" | "terminal" | "activity"
 

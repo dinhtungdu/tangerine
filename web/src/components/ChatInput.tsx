@@ -20,9 +20,18 @@ interface ChatInputProps {
   onModelChange?: (model: string) => void
   onReasoningEffortChange?: (effort: string) => void
   predefinedPrompts?: PredefinedPrompt[]
+  draftInsert?: {
+    id: number
+    text: string
+  } | null
 }
 
-export function ChatInput({ onSend, disabled, queueLength, taskId, isWorking, onAbort, model, providerModels, reasoningEffort, onModelChange, onReasoningEffortChange, predefinedPrompts }: ChatInputProps) {
+export function appendQuotedText(existingText: string, quotedText: string): string {
+  const prefix = existingText.trim().length > 0 ? `${existingText.replace(/\s+$/, "")}\n\n` : ""
+  return `${prefix}${quotedText}\n\n`
+}
+
+export function ChatInput({ onSend, disabled, queueLength, taskId, isWorking, onAbort, model, providerModels, reasoningEffort, onModelChange, onReasoningEffortChange, predefinedPrompts, draftInsert }: ChatInputProps) {
   const draftKey = taskId ? `tangerine:chat-draft:${taskId}` : null
   const loadDraft = useCallback((): { text?: string; pendingImages?: PendingImage[] } => {
     if (!draftKey) return {}
@@ -38,6 +47,7 @@ export function ChatInput({ onSend, disabled, queueLength, taskId, isWorking, on
   const [pendingImages, setPendingImages] = useState<PendingImage[]>(savedDraft.pendingImages ?? [])
   const textareaRef = useRef<HTMLTextAreaElement>(null)
   const hydratedDraftKeyRef = useRef<string | null>(null)
+  const appliedDraftInsertIdRef = useRef<number | null>(null)
 
   const handleSend = useCallback(() => {
     const trimmed = text.trim()
@@ -112,6 +122,21 @@ export function ChatInput({ onSend, disabled, queueLength, taskId, isWorking, on
     textarea.style.height = "auto"
     textarea.style.height = `${Math.min(textarea.scrollHeight, 144)}px`
   }, [text])
+
+  useEffect(() => {
+    if (!draftInsert || appliedDraftInsertIdRef.current === draftInsert.id) return
+
+    appliedDraftInsertIdRef.current = draftInsert.id
+    setText((prev) => appendQuotedText(prev, draftInsert.text))
+
+    requestAnimationFrame(() => {
+      const textarea = textareaRef.current
+      if (!textarea) return
+      textarea.focus()
+      const end = textarea.value.length
+      textarea.setSelectionRange(end, end)
+    })
+  }, [draftInsert])
 
   useEffect(() => {
     if (!draftKey) return
