@@ -15,7 +15,11 @@ export const projectConfigSchema = z.object({
   model: z.string().optional(),
   defaultProvider: z.enum(["opencode", "claude-code"]).default("claude-code"),
   postUpdateCommand: z.string().optional(),
-  predefinedPrompts: z.array(predefinedPromptSchema).optional().default([]),
+  predefinedPrompts: z.array(predefinedPromptSchema).optional().default([
+    { label: "Are you proud of your code?", text: "Are you proud of your code?" },
+    { label: "Yes", text: "Yes" },
+    { label: "Merge", text: "Merge" },
+  ]),
 })
 
 const githubTriggerSchema = z.object({
