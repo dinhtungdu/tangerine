@@ -260,7 +260,7 @@ export async function start(): Promise<void> {
                 if (isReviewTask) {
                   notes.push(`[NOTE: This is a REVIEW task. Review the code and run tests if needed. Share your findings here in the conversation. Do NOT push commits, create PRs, or post reviews on GitHub.]`)
                   if (task?.parent_task_id) {
-                    notes.push(`[NOTE: After completing your review, forward your findings to the parent task by sending a POST to http://localhost:3456/api/tasks/${task.parent_task_id}/prompt with your review summary.]`)
+                    notes.push(`[NOTE: After completing your review, forward your findings to the parent task by sending: curl -X POST http://localhost:3456/api/tasks/${task.parent_task_id}/prompt -H "Content-Type: application/json" -d '{"text": "<your review>"}'. When the parent task addresses your feedback and asks for a follow-up review, re-review and send updated findings.]`)
                   }
                 } else {
                   notes.push(`[NOTE: When your work is complete, push your branch and create a pull request. Use \`git push origin HEAD\` then \`gh pr create\`. Do not stop at just committing.]`)
@@ -271,6 +271,20 @@ export async function start(): Promise<void> {
                 Effect.runPromise(
                   session.agentHandle.sendPrompt(fullPrompt, images).pipe(Effect.catchAll(() => Effect.void))
                 )
+
+                // Notify parent task that a reviewer is watching
+                if (isReviewTask && task?.parent_task_id && !isRetry) {
+                  const parentHandle = agentHandles.get(task.parent_task_id)
+                  if (parentHandle) {
+                    const notify = `[TANGERINE: Review task ${taskId} is now reviewing your work. ` +
+                      `After addressing review feedback, you can request a follow-up review by sending: ` +
+                      `curl -X POST http://localhost:3456/api/tasks/${taskId}/prompt -H "Content-Type: application/json" -d '{"text": "Please re-review — I have addressed your feedback."}']`
+                    Effect.runPromise(
+                      parentHandle.sendPrompt(notify).pipe(Effect.catchAll(() => Effect.void))
+                    )
+                  }
+                }
+
                 // Only save to session_logs and emit on first delivery — avoid duplicates on retry
                 if (!isRetry) {
                   emitTaskEvent(taskId, {
@@ -611,7 +625,7 @@ export async function start(): Promise<void> {
               if (task?.type === "review") {
                 notes.push(`[NOTE: This is a REVIEW task. Review the code and run tests if needed. Share your findings here in the conversation. Do NOT push commits, create PRs, or post reviews on GitHub.]`)
                 if (task?.parent_task_id) {
-                  notes.push(`[NOTE: After completing your review, forward your findings to the parent task by sending a POST to http://localhost:3456/api/tasks/${task.parent_task_id}/prompt with your review summary.]`)
+                  notes.push(`[NOTE: After completing your review, forward your findings to the parent task by sending: curl -X POST http://localhost:3456/api/tasks/${task.parent_task_id}/prompt -H "Content-Type: application/json" -d '{"text": "<your review>"}'. When the parent task addresses your feedback and asks for a follow-up review, re-review and send updated findings.]`)
                 }
               } else {
                 notes.push(`[NOTE: When your work is complete, push your branch and create a pull request. Use \`git push origin HEAD\` then \`gh pr create\`. Do not stop at just committing.]`)
