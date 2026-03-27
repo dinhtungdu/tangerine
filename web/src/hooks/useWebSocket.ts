@@ -77,8 +77,24 @@ export function useWebSocket(taskId: string): UseWebSocketResult {
     unmountedRef.current = false
     connect()
 
+    // When the page becomes visible again (e.g. iOS Safari returning from
+    // background), force an immediate reconnect if the socket is closed.
+    function onVisibilityChange() {
+      if (document.visibilityState !== "visible" || unmountedRef.current) return
+      if (!wsRef.current || wsRef.current.readyState >= WebSocket.CLOSING) {
+        if (reconnectTimerRef.current) {
+          clearTimeout(reconnectTimerRef.current)
+          reconnectTimerRef.current = null
+        }
+        backoffRef.current = 1000
+        connect()
+      }
+    }
+    document.addEventListener("visibilitychange", onVisibilityChange)
+
     return () => {
       unmountedRef.current = true
+      document.removeEventListener("visibilitychange", onVisibilityChange)
       if (reconnectTimerRef.current) {
         clearTimeout(reconnectTimerRef.current)
       }

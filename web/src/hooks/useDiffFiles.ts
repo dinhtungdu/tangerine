@@ -21,7 +21,11 @@ export function useDiffFiles(taskId: string) {
     }
     load()
     const interval = setInterval(load, 15000)
-    return () => { cancelled = true; clearInterval(interval) }
+    function onVisibilityChange() {
+      if (document.visibilityState === "visible" && !cancelled) load()
+    }
+    document.addEventListener("visibilitychange", onVisibilityChange)
+    return () => { cancelled = true; clearInterval(interval); document.removeEventListener("visibilitychange", onVisibilityChange) }
   }, [taskId])
 
   return { files, loading }

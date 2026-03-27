@@ -48,47 +48,55 @@ export function useSession(taskId: string): UseSessionResult {
   }, [taskId])
 
   // Load initial messages + activities via REST
-  useEffect(() => {
-    let cancelled = false
-    async function loadMessages() {
-      try {
-        const logs = await fetchMessages(taskId)
-        if (cancelled) return
-        setMessages(
-          logs.map((log: SessionLog) => {
-            const msg: ChatMessage = {
-              id: String(log.id),
-              role: log.role,
-              content: log.content,
-              timestamp: log.timestamp,
-            }
-            if (log.images) {
-              try {
-                const filenames = JSON.parse(log.images) as string[]
-                msg.images = filenames.map((f) => ({ src: `/api/tasks/${taskId}/images/${f}` }))
-              } catch { /* ignore malformed */ }
-            }
-            return msg
-          }),
-        )
-      } catch {
-        // Messages may not be available yet
-      }
+  const refreshFromRest = useCallback(async () => {
+    try {
+      const logs = await fetchMessages(taskId)
+      setMessages(
+        logs.map((log: SessionLog) => {
+          const msg: ChatMessage = {
+            id: String(log.id),
+            role: log.role,
+            content: log.content,
+            timestamp: log.timestamp,
+          }
+          if (log.images) {
+            try {
+              const filenames = JSON.parse(log.images) as string[]
+              msg.images = filenames.map((f) => ({ src: `/api/tasks/${taskId}/images/${f}` }))
+            } catch { /* ignore malformed */ }
+          }
+          return msg
+        }),
+      )
+    } catch {
+      // Messages may not be available yet
     }
-    async function loadActivities() {
-      try {
-        const data = await fetchActivities(taskId)
-        if (!cancelled) setActivities(data)
-      } catch {
-        // Activities may not be available yet
-      }
-    }
-    loadMessages()
-    loadActivities()
-    return () => {
-      cancelled = true
+    try {
+      const data = await fetchActivities(taskId)
+      setActivities(data)
+    } catch {
+      // Activities may not be available yet
     }
   }, [taskId])
+
+  useEffect(() => {
+    let cancelled = false
+    refreshFromRest().then(() => { if (cancelled) { /* component unmounted, ignore */ } })
+    return () => { cancelled = true }
+  }, [refreshFromRest])
+
+  // Re-fetch full state when the page becomes visible again (e.g. returning
+  // from background on iOS Safari) to pick up messages missed while the
+  // WebSocket was disconnected.
+  useEffect(() => {
+    function onVisibilityChange() {
+      if (document.visibilityState === "visible") {
+        refreshFromRest()
+      }
+    }
+    document.addEventListener("visibilitychange", onVisibilityChange)
+    return () => document.removeEventListener("visibilitychange", onVisibilityChange)
+  }, [refreshFromRest])
 
   // Process new WebSocket messages
   useEffect(() => {
