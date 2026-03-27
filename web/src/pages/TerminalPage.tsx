@@ -25,7 +25,7 @@ export function TerminalPage() {
           tmux session: {current.name}-repo
         </span>
       </div>
-      <div className="min-h-0 flex-1">
+      <div className="flex min-h-0 flex-1 flex-col">
         <TerminalPane wsUrl={`/api/projects/${encodeURIComponent(current.name)}/terminal`} />
       </div>
     </div>

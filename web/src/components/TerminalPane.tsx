@@ -9,6 +9,12 @@ type TerminalPaneProps =
   | { taskId: string; wsUrl?: never }
   | { taskId?: never; wsUrl: string }
 
+export function getTerminalPaneStyle(viewportHeight: number | null) {
+  return viewportHeight != null
+    ? { height: viewportHeight, maxHeight: viewportHeight }
+    : undefined
+}
+
 export function TerminalPane(props: TerminalPaneProps) {
   const wsPath = props.wsUrl ?? `/api/tasks/${props.taskId}/terminal`
   const wrapperRef = useRef<HTMLDivElement>(null)
@@ -18,6 +24,7 @@ export function TerminalPane(props: TerminalPaneProps) {
   const wsRef = useRef<WebSocket | null>(null)
   const reconnectTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const backoffRef = useRef(1000)
+  const sawOutputRef = useRef(false)
 
   const sendInput = useCallback((data: string) => {
     const ws = wsRef.current
@@ -34,6 +41,7 @@ export function TerminalPane(props: TerminalPaneProps) {
     const url = `${protocol}//${window.location.host}${wsPath}`
     const ws = new WebSocket(url)
     wsRef.current = ws
+    sawOutputRef.current = false
 
     ws.onopen = () => {
       backoffRef.current = 1000
@@ -57,8 +65,12 @@ export function TerminalPane(props: TerminalPaneProps) {
             fit.fit()
             ws.send(JSON.stringify({ type: "resize", cols: term.cols, rows: term.rows }))
           }
+          requestAnimationFrame(() => {
+            if (!sawOutputRef.current) term.refresh(0, Math.max(term.rows - 1, 0))
+          })
         } else if (msg.type === "output") {
-          term.write(msg.data)
+          sawOutputRef.current = true
+          term.write(msg.data, () => term.refresh(0, Math.max(term.rows - 1, 0)))
         } else if (msg.type === "exit") {
           term.writeln(`\r\n[Process exited with code ${msg.code}]`)
         } else if (msg.type === "error") {
@@ -185,10 +197,8 @@ export function TerminalPane(props: TerminalPaneProps) {
   return (
     <div
       ref={wrapperRef}
-      className="flex flex-col overflow-hidden"
-      style={viewportHeight != null
-        ? { height: viewportHeight, maxHeight: viewportHeight }
-        : { height: "100%" }}
+      className="flex min-h-0 flex-1 flex-col overflow-hidden"
+      style={getTerminalPaneStyle(viewportHeight)}
     >
       <div ref={containerRef} className="min-h-0 flex-1 bg-surface-card p-1" />
       <TerminalToolbar termRef={termRef} onInput={sendInput} />

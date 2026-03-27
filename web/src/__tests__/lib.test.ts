@@ -9,6 +9,7 @@ import {
 import { getStatusConfig, STATUS_CONFIG } from "../lib/status"
 import { getActivityStyle, getActivityDetail } from "../lib/activity"
 import { searchModels } from "../lib/model-search"
+import { getTerminalPaneStyle } from "../components/TerminalPane"
 
 describe("format", () => {
   describe("formatModelName", () => {
@@ -175,5 +176,15 @@ describe("model search", () => {
     expect(searchModels(["openai/gpt-5-mini", "openai/gpt-5.4", "openrouter/gemma-3"], "gpt5m")).toEqual([
       "openai/gpt-5-mini",
     ])
+  })
+})
+
+describe("terminal pane", () => {
+  test("does not force 100 percent height without viewport override", () => {
+    expect(getTerminalPaneStyle(null)).toBeUndefined()
+  })
+
+  test("returns explicit height when mobile keyboard shrinks the viewport", () => {
+    expect(getTerminalPaneStyle(320)).toEqual({ height: 320, maxHeight: 320 })
   })
 })
