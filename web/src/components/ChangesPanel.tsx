@@ -27,7 +27,7 @@ export function ChangesPanel({ files, comments, onRemoveComment, onSendComments,
     <div className="flex h-[180px] w-full shrink-0 flex-col border-t border-edge @min-[700px]/diff:h-full @min-[700px]/diff:w-[220px] @min-[700px]/diff:border-l @min-[700px]/diff:border-t-0">
       {/* File list */}
       <div className="flex-1 overflow-y-auto">
-        <div className="flex h-11 items-center justify-between px-3">
+        <div className="hidden h-11 items-center justify-between px-3 @min-[700px]/diff:flex">
           <span className="text-[12px] font-semibold text-fg">Changed Files</span>
           <span className="flex h-4 min-w-4 items-center justify-center rounded-full bg-surface-secondary px-1.5 font-mono text-[10px] font-medium text-fg-muted">
             {files.length}
@@ -40,14 +40,14 @@ export function ChangesPanel({ files, comments, onRemoveComment, onSendComments,
             <div key={file.path}>
               <button
                 onClick={() => onScrollToFile?.(file.path)}
-                className="flex w-full items-center gap-2 border-b border-edge px-4 py-2 text-left hover:bg-surface-secondary/50"
+                className="flex w-full items-center gap-2 border-b border-edge px-4 py-1.5 text-left hover:bg-surface-secondary/50 @min-[700px]/diff:py-2"
               >
                 <svg className="h-3.5 w-3.5 shrink-0 text-fg-muted" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
                   <path strokeLinecap="round" strokeLinejoin="round" d="M19.5 14.25v-2.625a3.375 3.375 0 0 0-3.375-3.375h-1.5A1.125 1.125 0 0 1 13.5 7.125v-1.5a3.375 3.375 0 0 0-3.375-3.375H8.25m2.25 0H5.625c-.621 0-1.125.504-1.125 1.125v17.25c0 .621.504 1.125 1.125 1.125h12.75c.621 0 1.125-.504 1.125-1.125V11.25a9 9 0 0 0-9-9Z" />
                 </svg>
                 <div className="min-w-0 flex-1">
                   <div className="truncate text-[13px] font-medium text-fg">{fileName(file.path)}</div>
-                  <div className="truncate text-[11px] text-fg-muted">{fileDir(file.path)}</div>
+                  <div className="hidden truncate text-[11px] text-fg-muted @min-[700px]/diff:block">{fileDir(file.path)}</div>
                 </div>
                 <div className="flex shrink-0 items-center gap-1.5">
                   <span className="text-[11px] font-semibold text-diff-add">+{stats.added}</span>
@@ -89,8 +89,8 @@ export function ChangesPanel({ files, comments, onRemoveComment, onSendComments,
       </div>
 
       {/* Footer: send comments */}
-      <div className="border-t border-edge px-4 py-3">
-        <div className="mb-2 flex items-center gap-1.5 text-[12px] text-fg-muted">
+      <div className="border-t border-edge px-3 py-2 @min-[700px]/diff:px-4 @min-[700px]/diff:py-3">
+        <div className="mb-1.5 flex items-center gap-1.5 text-[12px] text-fg-muted @min-[700px]/diff:mb-2">
           <svg className="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
             <path strokeLinecap="round" strokeLinejoin="round" d="M12 20.25c4.97 0 9-3.694 9-8.25s-4.03-8.25-9-8.25S3 7.444 3 12c0 2.104.859 4.023 2.273 5.48.432.447.74 1.04.586 1.641a4.483 4.483 0 0 1-.923 1.785A5.969 5.969 0 0 0 6 21c1.282 0 2.47-.402 3.445-1.087.81.22 1.668.337 2.555.337Z" />
           </svg>
@@ -99,7 +99,7 @@ export function ChangesPanel({ files, comments, onRemoveComment, onSendComments,
         <button
           onClick={handleSendAll}
           disabled={comments.length === 0}
-          className="flex w-full items-center justify-center gap-2 rounded-lg bg-fg px-4 py-2.5 text-[13px] font-medium text-surface transition hover:bg-fg/90 disabled:opacity-40"
+          className="flex w-full items-center justify-center gap-2 rounded-lg bg-fg px-4 py-2 text-[13px] font-medium text-surface transition hover:bg-fg/90 disabled:opacity-40 @min-[700px]/diff:py-2.5"
         >
           <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
             <path strokeLinecap="round" strokeLinejoin="round" d="M6 12 3.269 3.125A59.769 59.769 0 0 1 21.485 12 59.768 59.768 0 0 1 3.27 20.875L5.999 12Zm0 0h7.5" />
