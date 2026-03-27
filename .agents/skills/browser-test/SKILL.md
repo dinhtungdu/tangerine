@@ -1,6 +1,6 @@
 ---
 name: browser-test
-description: Visually verify web UI changes using playwright-cli. Start a dev server on a unique port per worktree, navigate to affected pages, take screenshots, and check for console errors. Use after completing any web dashboard feature, bug fix, or UI change.
+description: Visually verify web UI changes using playwright-cli with Chromium. Start a dev server on a unique port per worktree, navigate to affected pages, take screenshots, and check for console errors. Use after completing any web dashboard feature, bug fix, or UI change.
 compatibility: Requires playwright-cli (npm install -g @playwright/cli) and Chromium (npx playwright install chromium)
 allowed-tools: Bash(playwright-cli:*) Bash(bunx vite:*) Bash(curl:*) Bash(kill:*)
 metadata:
@@ -11,6 +11,8 @@ metadata:
 # Browser Test
 
 Visually verify web UI changes by running the app in a real browser and taking screenshots.
+
+Always launch `playwright-cli` with Chromium explicitly. Do not rely on the default browser selection, because Chrome may be unavailable on Tangerine VMs.
 
 ## When to use
 
@@ -28,7 +30,7 @@ After completing work on any feature, bug fix, or change that affects the **web 
 1. Derive port from worktree slot number
 2. Start vite dev server on that port (background)
 3. Wait for server ready
-4. Open browser with playwright-cli
+4. Open Chromium with playwright-cli
 5. Navigate to affected pages, take screenshots
 6. Check console for errors
 7. Clean up (close browser, kill dev server)
@@ -75,9 +77,11 @@ Use a named session tied to the task to avoid conflicts with other tasks:
 TASK_SHORT=$(echo $TANGERINE_TASK_ID | cut -c1-8)
 SESSION="task-$TASK_SHORT"
 
-# Open browser (headless by default)
-playwright-cli -s=$SESSION open http://localhost:$VITE_PORT
+# Open Chromium explicitly (headless by default)
+playwright-cli --browser chromium -s=$SESSION open http://localhost:$VITE_PORT
 ```
+
+All later `playwright-cli` commands in the session reuse that Chromium instance.
 
 ### Step 5 — Navigate and screenshot affected pages
 
@@ -134,4 +138,5 @@ kill $VITE_PID 2>/dev/null
 | Port already in use | Check `lsof -i :$VITE_PORT` and kill the stale process, or use a different port |
 | Vite won't start | Check `cat /tmp/vite-$VITE_PORT.log` for errors. Run `bun install` first if deps are missing |
 | Screenshots are blank | Wait longer for the page to render: `playwright-cli -s=$SESSION eval "await new Promise(r => setTimeout(r, 2000))"` then screenshot |
+| Browser launch fails because Chrome is unavailable | Re-run the command with `--browser chromium`; this skill requires Chromium explicitly |
 | Chromium not found | Run `npx playwright install chromium` |
