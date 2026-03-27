@@ -59,9 +59,37 @@ const prUrlSaved = new Set<string>()
 const prNudgeSent = new Set<string>()
 // Debounce timers for PR nudge (cancelled if agent goes back to working)
 const prNudgeTimers = new Map<string, Timer>()
+// Track review tasks in-memory (avoids DB query on every idle event)
+const reviewTasks = new Set<string>()
 
 /** Delay before nudging an idle agent about missing PR (ms) */
 const PR_NUDGE_DELAY_MS = 15_000
+
+interface TaskInfo {
+  type?: string | null
+  parentTaskId?: string | null
+  projectId?: string
+  setupCommand?: string
+}
+
+/** Build system notes prepended to the first prompt for a task. */
+function buildSystemNotes(taskId: string, info: TaskInfo): string[] {
+  const notes: string[] = []
+  notes.push(`[TANGERINE: You are running inside a Tangerine task (task ID: ${taskId}). The Tangerine API is at http://localhost:3456. Run \`/tangerine\` for full API reference and common workflows.]`)
+  if (info.setupCommand) {
+    const prefix = taskId.slice(0, 8)
+    notes.push(`[NOTE: Project setup is running in the background (\`${info.setupCommand}\`). Before running builds, tests, or linters, check if setup is done: \`cat /tmp/tangerine-setup-${prefix}.status\` (running/done/failed). Log: \`cat /tmp/tangerine-setup-${prefix}.log\`]`)
+  }
+  if (info.type === "review") {
+    notes.push(`[NOTE: This is a REVIEW task. Review the code and run tests if needed. Share your findings here in the conversation. Do NOT push commits, create PRs, or post reviews on GitHub.]`)
+    if (info.parentTaskId) {
+      notes.push(`[NOTE: After completing your review, forward your findings to the parent task using the Tangerine API: POST http://localhost:3456/api/tasks/${info.parentTaskId}/prompt with body {"text": "<your review>"}. When the parent task addresses your feedback and asks for a follow-up review, re-review and send updated findings.]`)
+    }
+  } else {
+    notes.push(`[NOTE: When your work is complete, push your branch and create a pull request. Use \`git push origin HEAD\` then \`gh pr create\`. Do not stop at just committing.]`)
+  }
+  return notes
+}
 
 /**
  * Check if the task's branch has commits ahead of the default branch.
@@ -160,11 +188,14 @@ export async function start(): Promise<void> {
           agentHandles.set(taskId, session.agentHandle)
           reconnectingTasks.delete(taskId)
 
-          // Hydrate in-memory PR tracking from DB (lost on restart)
-          const taskPrUrl = db.prepare("SELECT pr_url FROM tasks WHERE id = ?").get(taskId) as { pr_url: string | null } | null
-          if (taskPrUrl?.pr_url) {
+          // Hydrate in-memory tracking from DB (lost on restart)
+          const taskMeta = db.prepare("SELECT pr_url, type FROM tasks WHERE id = ?").get(taskId) as { pr_url: string | null; type: string | null } | null
+          if (taskMeta?.pr_url) {
             prUrlSaved.add(taskId)
             prNudgeSent.add(taskId)
+          }
+          if (taskMeta?.type === "review") {
+            reviewTasks.add(taskId)
           }
 
           // Send initial prompt for new tasks, or reconnect nudge for existing ones.
@@ -190,13 +221,14 @@ export async function start(): Promise<void> {
                   "SELECT title, description, type FROM tasks WHERE id = ?"
                 ).get(taskId) as { title: string; description: string | null; type: string | null } | null
 
+                if (taskRow?.type === "review") reviewTasks.add(taskId)
+
                 const originalTask = taskRow?.description || taskRow?.title || ""
                 const unansweredUserMsg = lastLog?.role === "user" ? lastLog.content : null
-                const isReview = taskRow?.type === "review"
 
                 const nudge = [
                   `[TANGERINE: Server restarted. You are working on: ${originalTask}]`,
-                  isReview
+                  taskRow?.type === "review"
                     ? `[NOTE: This is a REVIEW task. Review the code and share your findings here. Do NOT push commits or post reviews on GitHub.]`
                     : `[NOTE: When your work is complete, you MUST push your branch and create a pull request. Use \`git push origin HEAD\` then \`gh pr create\`.]`,
                   unansweredUserMsg
@@ -251,20 +283,13 @@ export async function start(): Promise<void> {
               loadInitialImages().then(({ images, filenames }) => {
                 const projConfig = task?.project_id ? getProjectConfig(config.config, task.project_id) : undefined
                 const isReviewTask = task?.type === "review"
-                const notes: string[] = []
-                notes.push(`[TANGERINE: You are running inside a Tangerine task (task ID: ${taskId}). The Tangerine API is at http://localhost:3456. Run \`/tangerine\` for full API reference and common workflows.]`)
-                if (projConfig?.setup) {
-                  const prefix = taskId.slice(0, 8)
-                  notes.push(`[NOTE: Project setup is running in the background (\`${projConfig.setup}\`). Before running builds, tests, or linters, check if setup is done: \`cat /tmp/tangerine-setup-${prefix}.status\` (running/done/failed). Log: \`cat /tmp/tangerine-setup-${prefix}.log\`]`)
-                }
-                if (isReviewTask) {
-                  notes.push(`[NOTE: This is a REVIEW task. Review the code and run tests if needed. Share your findings here in the conversation. Do NOT push commits, create PRs, or post reviews on GitHub.]`)
-                  if (task?.parent_task_id) {
-                    notes.push(`[NOTE: After completing your review, forward your findings to the parent task by sending: curl -X POST http://localhost:3456/api/tasks/${task.parent_task_id}/prompt -H "Content-Type: application/json" -d '{"text": "<your review>"}'. When the parent task addresses your feedback and asks for a follow-up review, re-review and send updated findings.]`)
-                  }
-                } else {
-                  notes.push(`[NOTE: When your work is complete, push your branch and create a pull request. Use \`git push origin HEAD\` then \`gh pr create\`. Do not stop at just committing.]`)
-                }
+                if (isReviewTask) reviewTasks.add(taskId)
+
+                const notes = buildSystemNotes(taskId, {
+                  type: task?.type,
+                  parentTaskId: task?.parent_task_id,
+                  setupCommand: projConfig?.setup,
+                })
                 firstPromptSent.add(taskId)
                 const fullPrompt = notes.join("\n") + "\n\n" + initialPrompt
 
@@ -277,11 +302,18 @@ export async function start(): Promise<void> {
                   const parentHandle = agentHandles.get(task.parent_task_id)
                   if (parentHandle) {
                     const notify = `[TANGERINE: Review task ${taskId} is now reviewing your work. ` +
-                      `After addressing review feedback, you can request a follow-up review by sending: ` +
-                      `curl -X POST http://localhost:3456/api/tasks/${taskId}/prompt -H "Content-Type: application/json" -d '{"text": "Please re-review — I have addressed your feedback."}']`
+                      `After addressing review feedback, you can request a follow-up review using the Tangerine API: ` +
+                      `POST http://localhost:3456/api/tasks/${taskId}/prompt with body {"text": "Please re-review — I have addressed your feedback."}]`
                     Effect.runPromise(
                       parentHandle.sendPrompt(notify).pipe(Effect.catchAll(() => Effect.void))
                     )
+                    Effect.runPromise(
+                      logActivity(db, taskId, "system", "review.parent-notified", `Parent task ${task.parent_task_id} notified of review`).pipe(
+                        Effect.catchAll(() => Effect.void)
+                      )
+                    )
+                  } else {
+                    log.warn("Could not notify parent task — agent not running", { taskId, parentTaskId: task.parent_task_id })
                   }
                 }
 
@@ -408,8 +440,7 @@ export async function start(): Promise<void> {
                   emitTaskEvent(taskId, { event: "agent.idle" })
 
                   // Schedule PR nudge if agent has commits but no PR (skip for review tasks)
-                  const taskType = (db.prepare("SELECT type FROM tasks WHERE id = ?").get(taskId) as { type: string | null } | null)?.type
-                  if (taskType !== "review" && !prUrlSaved.has(taskId) && !prNudgeSent.has(taskId)) {
+                  if (!reviewTasks.has(taskId) && !prUrlSaved.has(taskId) && !prNudgeSent.has(taskId)) {
                     const timer = setTimeout(async () => {
                       prNudgeTimers.delete(taskId)
                       if (prUrlSaved.has(taskId) || prNudgeSent.has(taskId)) return
@@ -607,29 +638,14 @@ export async function start(): Promise<void> {
             if (!firstPromptSent.has(taskId)) {
               firstPromptSent.add(taskId)
               const task = yield* getTask(db, taskId).pipe(Effect.catchAll(() => Effect.succeed(null)))
-              const notes: string[] = []
+              if (task?.type === "review") reviewTasks.add(taskId)
 
-              // Always orient the agent within Tangerine
-              notes.push(`[TANGERINE: You are running inside a Tangerine task (task ID: ${taskId}). The Tangerine API is at http://localhost:3456. Run \`/tangerine\` for full API reference and common workflows.]`)
-
-              if (task?.project_id) {
-                const projConfig = getProjectConfig(config.config, task.project_id)
-                if (projConfig?.setup) {
-                  const prefix = task.id.slice(0, 8)
-                  notes.push(`[NOTE: Project setup is running in the background (\`${projConfig.setup}\`). ` +
-                    `Before running builds, tests, or linters, check if setup is done: \`cat /tmp/tangerine-setup-${prefix}.status\` ` +
-                    `(running/done/failed). Log: \`cat /tmp/tangerine-setup-${prefix}.log\`]`)
-                }
-              }
-
-              if (task?.type === "review") {
-                notes.push(`[NOTE: This is a REVIEW task. Review the code and run tests if needed. Share your findings here in the conversation. Do NOT push commits, create PRs, or post reviews on GitHub.]`)
-                if (task?.parent_task_id) {
-                  notes.push(`[NOTE: After completing your review, forward your findings to the parent task by sending: curl -X POST http://localhost:3456/api/tasks/${task.parent_task_id}/prompt -H "Content-Type: application/json" -d '{"text": "<your review>"}'. When the parent task addresses your feedback and asks for a follow-up review, re-review and send updated findings.]`)
-                }
-              } else {
-                notes.push(`[NOTE: When your work is complete, push your branch and create a pull request. Use \`git push origin HEAD\` then \`gh pr create\`. Do not stop at just committing.]`)
-              }
+              const projConfig = task?.project_id ? getProjectConfig(config.config, task.project_id) : undefined
+              const notes = buildSystemNotes(taskId, {
+                type: task?.type,
+                parentTaskId: task?.parent_task_id,
+                setupCommand: projConfig?.setup,
+              })
 
               if (notes.length > 0) {
                 promptText = notes.join("\n") + "\n\n" + text

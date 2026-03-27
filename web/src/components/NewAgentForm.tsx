@@ -147,44 +147,46 @@ export function NewAgentForm({ onSubmit, refTaskId, refTaskTitle }: NewAgentForm
     ? !!reviewTarget.trim() && !!current && !submitting
     : (!!description.trim() || pendingImages.length > 0) && !!current && !submitting
 
-  const handleSubmit = useCallback(() => {
-    if (!current || submitting) return
-
-    if (taskType === "review") {
-      const target = reviewTarget.trim()
-      if (!target) return
-      setSubmitting(true)
-
-      // Determine if target is a PR reference or a task ID
-      const isPr = /^#?\d+$/.test(target) || target.includes("github.com")
-      const reviewDescription = description.trim()
-        ? `Review ${isPr ? `PR ${target}` : `task ${target}`}: ${description.trim()}`
-        : `Review ${isPr ? `PR ${target}` : `task ${target}`}`
-
-      onSubmit({
-        projectId: current.name,
-        title: reviewDescription.slice(0, 80),
-        description: reviewDescription,
-        branch: isPr ? target : undefined,
-        provider,
-        model: activeModel || undefined,
-        reasoningEffort: reasoningEffort !== "medium" ? reasoningEffort : undefined,
-        type: "review",
-        parentTaskId: isPr ? undefined : target,
-      })
-      try { localStorage.removeItem(draftKey) } catch { /* ignore */ }
-      setTimeout(() => setSubmitting(false), 3000)
-      return
-    }
-
-    const trimmed = description.trim()
-    if ((!trimmed && pendingImages.length === 0)) return
+  const submitAndReset = useCallback((data: Parameters<typeof onSubmit>[0]) => {
     setSubmitting(true)
+    onSubmit(data)
+    try { localStorage.removeItem(draftKey) } catch { /* ignore */ }
+    setTimeout(() => setSubmitting(false), 3000)
+  }, [onSubmit, draftKey])
+
+  const handleReviewSubmit = useCallback(() => {
+    if (!current || submitting) return
+    const target = reviewTarget.trim()
+    if (!target) return
+
+    const isPr = /^#?\d+$/.test(target) || target.includes("github.com")
+    const focus = description.trim()
+    const reviewDescription = focus
+      ? `Review ${isPr ? `PR ${target}` : `task ${target}`}: ${focus}`
+      : `Review ${isPr ? `PR ${target}` : `task ${target}`}`
+
+    submitAndReset({
+      projectId: current.name,
+      title: reviewDescription.slice(0, 80),
+      description: reviewDescription,
+      branch: isPr ? target : undefined,
+      provider,
+      model: activeModel || undefined,
+      reasoningEffort: reasoningEffort !== "medium" ? reasoningEffort : undefined,
+      type: "review",
+      parentTaskId: isPr ? undefined : target,
+    })
+  }, [current, submitting, reviewTarget, description, provider, activeModel, reasoningEffort, submitAndReset])
+
+  const handleCodeSubmit = useCallback(() => {
+    if (!current || submitting) return
+    const trimmed = description.trim()
+    if (!trimmed && pendingImages.length === 0) return
+
     const images = pendingImages.length > 0
       ? pendingImages.map(({ dataUrl: _, ...img }) => img)
       : undefined
 
-    // Build description with reference context
     let fullDescription = trimmed
     if (refTaskId) {
       const refContext = [
@@ -194,7 +196,7 @@ export function NewAgentForm({ onSubmit, refTaskId, refTaskTitle }: NewAgentForm
       fullDescription = fullDescription ? `${refContext}\n\n${fullDescription}` : refContext
     }
 
-    onSubmit({
+    submitAndReset({
       projectId: current.name,
       title: trimmed.slice(0, 80) || (refTaskTitle ? `Continue: ${refTaskTitle}`.slice(0, 80) : "New task"),
       description: fullDescription || undefined,
@@ -204,10 +206,9 @@ export function NewAgentForm({ onSubmit, refTaskId, refTaskTitle }: NewAgentForm
       reasoningEffort: reasoningEffort !== "medium" ? reasoningEffort : undefined,
       images,
     })
-    try { localStorage.removeItem(draftKey) } catch { /* ignore */ }
-    // Parent navigates on success; reset submitting if it fails
-    setTimeout(() => setSubmitting(false), 3000)
-  }, [description, pendingImages, current, customBranch, provider, activeModel, reasoningEffort, submitting, onSubmit, refTaskId, refTaskTitle, draftKey, taskType, reviewTarget])
+  }, [current, submitting, description, pendingImages, customBranch, provider, activeModel, reasoningEffort, refTaskId, refTaskTitle, submitAndReset])
+
+  const handleSubmit = taskType === "review" ? handleReviewSubmit : handleCodeSubmit
 
   return (
     <div className="flex h-full flex-1 flex-col bg-surface">
