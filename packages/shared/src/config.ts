@@ -18,6 +18,7 @@ export const projectConfigSchema = z.object({
   predefinedPrompts: z.array(predefinedPromptSchema).optional().default([
     { label: "Are you proud of your code?", text: "Are you proud of your code?" },
     { label: "Yes", text: "Yes" },
+    { label: "Merge", text: "Merge" },
   ]),
 })
 
