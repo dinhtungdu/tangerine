@@ -18,6 +18,8 @@ export function TerminalPane(props: TerminalPaneProps) {
   const wsRef = useRef<WebSocket | null>(null)
   const reconnectTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const backoffRef = useRef(1000)
+  const disposedRef = useRef(false)
+  const [connected, setConnected] = useState(false)
 
   const sendInput = useCallback((data: string) => {
     const ws = wsRef.current
@@ -28,7 +30,7 @@ export function TerminalPane(props: TerminalPaneProps) {
 
   const connect = useCallback(() => {
     const term = termRef.current
-    if (!term) return
+    if (!term || disposedRef.current) return
 
     const protocol = window.location.protocol === "https:" ? "wss:" : "ws:"
     const url = `${protocol}//${window.location.host}${wsPath}`
@@ -51,6 +53,7 @@ export function TerminalPane(props: TerminalPaneProps) {
       try {
         const msg = JSON.parse(event.data as string)
         if (msg.type === "connected") {
+          setConnected(true)
           // Send resize immediately so tmux gets the right size
           const fit = fitRef.current
           if (fit) {
@@ -70,7 +73,11 @@ export function TerminalPane(props: TerminalPaneProps) {
     }
 
     ws.onclose = () => {
+      // Only handle reconnect if this is still the active WebSocket
+      if (wsRef.current !== ws) return
       wsRef.current = null
+      setConnected(false)
+      if (disposedRef.current) return
       const delay = backoffRef.current
       backoffRef.current = Math.min(delay * 2, 30000)
       reconnectTimerRef.current = setTimeout(connect, delay)
@@ -116,6 +123,7 @@ export function TerminalPane(props: TerminalPaneProps) {
 
   useEffect(() => {
     if (!containerRef.current) return
+    disposedRef.current = false
 
     const term = new Terminal({
       cursorBlink: true,
@@ -172,10 +180,17 @@ export function TerminalPane(props: TerminalPaneProps) {
     document.addEventListener("visibilitychange", onVisibilityChange)
 
     return () => {
+      disposedRef.current = true
       document.removeEventListener("visibilitychange", onVisibilityChange)
       resizeObserver.disconnect()
       if (reconnectTimerRef.current) clearTimeout(reconnectTimerRef.current)
-      wsRef.current?.close()
+      const ws = wsRef.current
+      if (ws) {
+        ws.onclose = null
+        ws.close()
+        wsRef.current = null
+      }
+      setConnected(false)
       term.dispose()
       termRef.current = null
       fitRef.current = null
@@ -190,7 +205,14 @@ export function TerminalPane(props: TerminalPaneProps) {
         ? { height: viewportHeight, maxHeight: viewportHeight }
         : { height: "100%" }}
     >
-      <div ref={containerRef} className="min-h-0 flex-1 bg-surface-card p-1" />
+      <div className="relative min-h-0 flex-1">
+        <div ref={containerRef} className="absolute inset-0 bg-surface-card p-1" />
+        {!connected && (
+          <div className="absolute inset-0 flex items-center justify-center bg-[#1a1a1a]">
+            <span className="text-[13px] text-fg-muted">Connecting...</span>
+          </div>
+        )}
+      </div>
       <TerminalToolbar termRef={termRef} onInput={sendInput} />
     </div>
   )
