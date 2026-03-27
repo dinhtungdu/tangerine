@@ -93,8 +93,11 @@ export function parseNdjsonStream(
  * - result: final event with aggregated stats
  */
 export function createClaudeCodeMapper(): (raw: Record<string, unknown>) => AgentEvent[] {
-  // Images from tool results are buffered here until the next narration/assistant message
+  // Images from tool results are buffered here until the result event
   let pendingToolImages: PromptImage[] = []
+  // Track last narration content to deduplicate against the result event
+  // (Claude Code repeats the last assistant turn text in the result)
+  let lastNarrationContent = ""
 
   return function mapClaudeCodeEvent(raw: Record<string, unknown>): AgentEvent[] {
     const type = raw.type as string | undefined
@@ -146,10 +149,12 @@ export function createClaudeCodeMapper(): (raw: Record<string, unknown>) => Agen
         // calls). The final answer comes from the "result" event as role "assistant".
         // Narration is persisted but collapsed in the UI alongside thinking.
         if (textParts.length > 0) {
+          const narrationText = textParts.join("")
+          lastNarrationContent = narrationText
           events.push({
             kind: "message.complete",
             role: "narration",
-            content: textParts.join(""),
+            content: narrationText,
             messageId: optStr(message.id),
           })
         }
@@ -209,6 +214,7 @@ export function createClaudeCodeMapper(): (raw: Record<string, unknown>) => Agen
 
         if (subtype === "error" || raw.is_error === true) {
           pendingToolImages = []
+          lastNarrationContent = ""
           return [{ kind: "error", message: content || "Agent error" }]
         }
 
@@ -216,15 +222,19 @@ export function createClaudeCodeMapper(): (raw: Record<string, unknown>) => Agen
         const images = pendingToolImages.length > 0 ? pendingToolImages : undefined
         pendingToolImages = []
 
-        // Per-turn text is already emitted as message.complete from assistant
-        // events. Only emit the result summary if it has content or images
-        // (avoids empty duplicate messages).
+        // Claude Code repeats the last assistant turn text in the result event.
+        // Skip the duplicate when narration already has the same content,
+        // unless we have images that need to be delivered.
+        const isDuplicate = content === lastNarrationContent && content.length > 0
+        lastNarrationContent = ""
+
         if (!content && !images) return []
+        if (isDuplicate && !images) return []
 
         return [{
           kind: "message.complete",
           role: "assistant",
-          content,
+          content: isDuplicate ? "" : content,
           messageId: optStr(raw.session_id),
           images,
         }]
