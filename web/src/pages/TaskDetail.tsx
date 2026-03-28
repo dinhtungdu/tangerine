@@ -210,9 +210,12 @@ export function TaskDetail() {
     }
   }, [id])
 
-  // Mark task as seen on view and whenever it updates while viewing
+  // Mark task as seen on view, whenever it updates while viewing, and on leave
   useEffect(() => {
     if (id) markTaskSeen(id).catch(() => {})
+    return () => {
+      if (id) markTaskSeen(id).catch(() => {})
+    }
   }, [id, task?.updatedAt])
 
   useEffect(() => {
