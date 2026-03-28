@@ -1,5 +1,5 @@
 import { useState, useRef, useCallback, useEffect, type KeyboardEvent, type ClipboardEvent, type MouseEvent } from "react"
-import type { PromptImage, PredefinedPrompt } from "@tangerine/shared"
+import type { PromptImage, PredefinedPrompt, ProviderType } from "@tangerine/shared"
 import { ModelSelector } from "./ModelSelector"
 import { ReasoningEffortSelector, type ReasoningEffort } from "./ReasoningEffortSelector"
 
@@ -15,6 +15,7 @@ interface ChatInputProps {
   isWorking?: boolean
   onAbort?: () => void
   model?: string | null
+  provider?: ProviderType
   providerModels?: string[]
   reasoningEffort?: string | null
   onModelChange?: (model: string) => void
@@ -31,7 +32,7 @@ export function appendQuotedText(existingText: string, quotedText: string): stri
   return `${prefix}${quotedText}\n\n`
 }
 
-export function ChatInput({ onSend, disabled, queueLength, taskId, isWorking, onAbort, model, providerModels, reasoningEffort, onModelChange, onReasoningEffortChange, predefinedPrompts, draftInsert }: ChatInputProps) {
+export function ChatInput({ onSend, disabled, queueLength, taskId, isWorking, onAbort, model, provider, providerModels, reasoningEffort, onModelChange, onReasoningEffortChange, predefinedPrompts, draftInsert }: ChatInputProps) {
   const draftKey = taskId ? `tangerine:chat-draft:${taskId}` : null
   const loadDraft = useCallback((): { text?: string; pendingImages?: PendingImage[] } => {
     if (!draftKey) return {}
@@ -259,6 +260,7 @@ export function ChatInput({ onSend, disabled, queueLength, taskId, isWorking, on
             <ReasoningEffortSelector
               value={(reasoningEffort as ReasoningEffort) ?? "medium"}
               onChange={onReasoningEffortChange}
+              provider={provider}
             />
           )}
         </div>

@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState, useMemo, useCallback } from "react"
-import type { PromptImage, PredefinedPrompt, TaskStatus } from "@tangerine/shared"
+import type { PromptImage, PredefinedPrompt, TaskStatus, ProviderType } from "@tangerine/shared"
 import type { ChatMessage as ChatMessageType } from "../hooks/useSession"
 import { ChatMessage } from "./ChatMessage"
 import { ChatInput } from "./ChatInput"
@@ -14,6 +14,7 @@ interface ChatPanelProps {
   agentStatus: "idle" | "working"
   queueLength: number
   model?: string | null
+  provider?: ProviderType
   providerModels?: string[]
   reasoningEffort?: string | null
   taskStatus?: TaskStatus | null
@@ -31,6 +32,7 @@ export function ChatPanel({
   agentStatus,
   queueLength,
   model,
+  provider,
   providerModels,
   reasoningEffort,
   taskStatus,
@@ -247,6 +249,7 @@ export function ChatPanel({
           isWorking={agentStatus === "working"}
           onAbort={onAbort}
           model={model}
+          provider={provider}
           providerModels={providerModels}
           reasoningEffort={reasoningEffort}
           onModelChange={onModelChange}

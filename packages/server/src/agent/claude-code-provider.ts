@@ -24,7 +24,7 @@ export function createClaudeCodeProvider(): AgentFactory {
               "--verbose",
               ...sessionFlag.split(" "),
               ...(ctx.model ? ["--model", ctx.model] : []),
-              ...(ctx.reasoningEffort ? ["--reasoning-effort", ctx.reasoningEffort] : []),
+              ...(ctx.reasoningEffort ? ["--effort", ctx.reasoningEffort] : []),
               "--dangerously-skip-permissions",
               // Block interactive tools that expect user input — Tangerine can't
               // relay plan-mode or question prompts to the user.

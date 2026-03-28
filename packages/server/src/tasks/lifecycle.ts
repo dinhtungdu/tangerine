@@ -1,7 +1,7 @@
 // Session lifecycle: fetch repo, set up worktree, start agent locally.
 // v1: Tangerine runs inside the VM. No SSH, no tunnels, no VM management.
 
-import { Effect } from "effect"
+import { Effect, Duration } from "effect"
 import type { Database } from "bun:sqlite"
 import { createLogger } from "../logger"
 import { SessionStartError } from "../errors"
@@ -10,6 +10,10 @@ import type { TaskRow } from "../db/types"
 import { initPool, acquireSlot } from "./worktree-pool"
 
 const log = createLogger("lifecycle")
+
+// Max time to wait for agentFactory.start() before giving up.
+// Covers process spawn + provider handshake (e.g. Codex RPC init).
+const AGENT_START_TIMEOUT = Duration.seconds(60)
 
 export interface SessionInfo {
   agentHandle: import("../agent/provider").AgentHandle
@@ -217,7 +221,7 @@ export function startSession(
       `pkill -f "claude.*${worktreePath}" 2>/dev/null; true`,
     ).pipe(Effect.catchAll(() => Effect.void))
 
-    // 5. Start agent locally
+    // 5. Start agent locally (with timeout to prevent indefinite hangs)
     yield* activity("agent.starting", "Starting agent")
     const agentHandle = yield* deps.agentFactory.start({
       taskId: task.id,
@@ -226,7 +230,16 @@ export function startSession(
       model: task.model ?? undefined,
       reasoningEffort: task.reasoning_effort ?? undefined,
       env: { TANGERINE_TASK_ID: task.id },
-    })
+    }).pipe(
+      Effect.timeoutFail({
+        duration: AGENT_START_TIMEOUT,
+        onTimeout: () => new SessionStartError({
+          message: `Agent failed to start within ${Duration.toSeconds(AGENT_START_TIMEOUT)}s`,
+          taskId: task.id,
+          phase: "agent-start-timeout",
+        }),
+      }),
+    )
     taskLog.info("Agent started")
 
     // Extract PID from handle if available
@@ -302,7 +315,7 @@ export function reconnectSession(
       }))
     }
 
-    // 3. Start agent — resume session if we have a session ID
+    // 3. Start agent — resume session if we have a session ID (with timeout)
     yield* activity("agent.reconnecting", "Restarting agent process")
     const agentHandle = yield* deps.agentFactory.start({
       taskId: task.id,
@@ -311,7 +324,16 @@ export function reconnectSession(
       model: task.model ?? undefined,
       reasoningEffort: task.reasoning_effort ?? undefined,
       resumeSessionId: task.agent_session_id ?? undefined,
-    })
+    }).pipe(
+      Effect.timeoutFail({
+        duration: AGENT_START_TIMEOUT,
+        onTimeout: () => new SessionStartError({
+          message: `Agent failed to reconnect within ${Duration.toSeconds(AGENT_START_TIMEOUT)}s`,
+          taskId: task.id,
+          phase: "agent-reconnect-timeout",
+        }),
+      }),
+    )
     taskLog.info("Agent reconnected")
 
     const { agentPid, agentSessionId } = getAgentRuntimeMeta(agentHandle)

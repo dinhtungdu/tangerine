@@ -390,6 +390,7 @@ export function TaskDetail() {
                 agentStatus={session.agentStatus}
                 queueLength={session.queueLength}
                 model={task.model}
+                provider={task.provider}
                 providerModels={providerModels}
                 reasoningEffort={task.reasoningEffort}
                 taskStatus={task.status}
@@ -468,6 +469,7 @@ export function TaskDetail() {
                 agentStatus={session.agentStatus}
                 queueLength={session.queueLength}
                 model={task.model}
+                provider={task.provider}
                 providerModels={providerModels}
                 reasoningEffort={task.reasoningEffort}
                 taskStatus={task.status}

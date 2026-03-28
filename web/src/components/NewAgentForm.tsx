@@ -4,7 +4,7 @@ import { useProject } from "../context/ProjectContext"
 import { useProjectNav } from "../hooks/useProjectNav"
 import { ModelSelector } from "./ModelSelector"
 import { HarnessSelector } from "./HarnessSelector"
-import { ReasoningEffortSelector, type ReasoningEffort } from "./ReasoningEffortSelector"
+import { ReasoningEffortSelector, getEfforts, type ReasoningEffort } from "./ReasoningEffortSelector"
 
 interface NewAgentFormProps {
   onSubmit: (data: { projectId: string; title: string; description?: string; branch?: string; provider?: string; model?: string; reasoningEffort?: string; type?: "code" | "review"; parentTaskId?: string; images?: PromptImage[] }) => void
@@ -337,7 +337,7 @@ export function NewAgentForm({ onSubmit, refTaskId, refTaskTitle }: NewAgentForm
                   onModelChange={handleModelChange}
                   menuPlacement="bottom"
                 />
-                <ReasoningEffortSelector value={reasoningEffort} onChange={(e) => { setReasoningEffort(e); savePrefs({ reasoningEffort: e }) }} />
+                <ReasoningEffortSelector value={reasoningEffort} onChange={(e) => { setReasoningEffort(e); savePrefs({ reasoningEffort: e }) }} provider={provider} />
               </div>
               <button
                 onClick={handleSubmit}
@@ -398,9 +398,9 @@ export function NewAgentForm({ onSubmit, refTaskId, refTaskTitle }: NewAgentForm
                   aria-label="Reasoning effort"
                   className="h-10 flex-1 rounded-lg border border-edge bg-surface px-3 text-[16px] text-fg outline-none md:text-[13px]"
                 >
-                  <option value="low">Effort: Low</option>
-                  <option value="medium">Effort: Medium</option>
-                  <option value="high">Effort: High</option>
+                  {getEfforts(provider).map((e) => (
+                    <option key={e.value} value={e.value}>Effort: {e.label}</option>
+                  ))}
                 </select>
               </div>
             </div>

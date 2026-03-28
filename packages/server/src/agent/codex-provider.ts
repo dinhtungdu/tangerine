@@ -223,6 +223,7 @@ export function createCodexProvider(): AgentFactory {
           let shutdownCalled = false
           let threadId: string | null = null
           let activeTurnId: string | null = null
+          const activeEffort: string | undefined = ctx.reasoningEffort
 
           const emit = (event: AgentEvent) => {
             for (const cb of subscribers) cb(event)
@@ -342,12 +343,20 @@ export function createCodexProvider(): AgentFactory {
             }
           })()
 
-          // Helper to send RPC request and wait for response
+          // Helper to send RPC request and wait for response (with timeout)
+          const RPC_TIMEOUT_MS = 30_000
           const rpcCall = (method: string, params: Record<string, unknown>): Promise<Record<string, unknown>> => {
             return new Promise((resolve, reject) => {
               const req = rpcRequest(method, params)
               const id = rpcIdCounter
-              pendingRpc.set(id, { resolve, reject })
+              const timer = setTimeout(() => {
+                pendingRpc.delete(id)
+                reject(new Error(`RPC call "${method}" timed out after ${RPC_TIMEOUT_MS}ms`))
+              }, RPC_TIMEOUT_MS)
+              pendingRpc.set(id, {
+                resolve: (result) => { clearTimeout(timer); resolve(result) },
+                reject: (err) => { clearTimeout(timer); reject(err) },
+              })
               write(req)
             })
           }
@@ -419,7 +428,11 @@ export function createCodexProvider(): AgentFactory {
                   input.push({ type: "text", text, text_elements: [] })
 
                   // Send turn/start — response is immediate, events stream as notifications
-                  write(rpcRequest("turn/start", { threadId, input }))
+                  write(rpcRequest("turn/start", {
+                    threadId,
+                    input,
+                    ...(activeEffort ? { effort: activeEffort } : {}),
+                  }))
                 },
                 catch: (e) =>
                   new PromptError({ message: `Failed to send turn: ${e}`, taskId: ctx.taskId }),

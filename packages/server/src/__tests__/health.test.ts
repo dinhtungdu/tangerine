@@ -62,12 +62,12 @@ describe("health check", () => {
     expect(result).toBe("healthy")
   })
 
-  test("dead agent triggers restart and verifies recovery", async () => {
+  test("dead agent triggers restart and recovers", async () => {
     const task = makeTask()
     const restartFn = mock(() => Effect.void)
-    // After restart, agent is alive
     let callCount = 0
     const deps = makeDeps({
+      // First call: dead. After restart succeeds, next health cycle sees alive.
       checkAgentAlive: () => Effect.succeed(callCount++ > 0),
       restartAgent: restartFn,
     })
@@ -76,19 +76,22 @@ describe("health check", () => {
     expect(restartFn).toHaveBeenCalledTimes(1)
   })
 
-  test("restart that fails to produce live agent force-fails the task", async () => {
+  test("restart failure marks task as failed", async () => {
     const task = makeTask()
     const failFn = mock(() => Effect.void)
-    // Agent is never alive — checkAgentAlive always returns false
     const deps = makeDeps({
       checkAgentAlive: () => Effect.succeed(false),
-      restartAgent: () => Effect.void,
+      restartAgent: () => Effect.fail(new Error("Agent startup timed out")),
       failTask: failFn,
     })
-    const result = await Effect.runPromise(checkTask(task, deps))
+    // checkTask catches HealthCheckError internally, so it won't throw
+    const result = await Effect.runPromise(
+      checkTask(task, deps).pipe(Effect.catchAll(() => Effect.succeed("failed" as const)))
+    )
     expect(result).toBe("failed")
     expect(failFn).toHaveBeenCalledTimes(1)
-    expect((failFn.mock.calls[0] as unknown as [string, string])[0]).toBe("test-task-1")
+    const failReason = (failFn.mock.calls[0] as unknown as [string, string])[1]
+    expect(failReason).toContain("Agent startup timed out")
   })
 
   test("startHealthMonitor fiber survives after runPromise resolves", async () => {
@@ -133,29 +136,29 @@ describe("health check", () => {
       getLastAgentError: () => "Connection reset by peer",
     })
     // Run checkTask 4 times to hit max restarts (3) + 1 to trigger failure
-    // Each restart has a 2s sleep for liveness verification
     for (let i = 0; i < 4; i++) {
       await Effect.runPromise(checkTask(task, deps))
     }
     // The 4th call should have failed with the real error
     const lastCall = failFn.mock.calls[failFn.mock.calls.length - 1] as unknown as [string, string]
     expect(lastCall[1]).toContain("Connection reset by peer")
-  }, 10_000)
+  })
 
-  test("post-restart liveness failure includes agent error", async () => {
+  test("restart failure includes agent error from provider", async () => {
     const task = makeTask()
     const failFn = mock(() => Effect.void)
     const deps = makeDeps({
       checkAgentAlive: () => Effect.succeed(false),
+      restartAgent: () => Effect.fail(new Error("Process exited with code 1")),
       failTask: failFn,
       getLastAgentError: () => "ProviderModelNotFoundError",
     })
-    const result = await Effect.runPromise(checkTask(task, deps))
-    expect(result).toBe("failed")
-    // Should fail fast (unrecoverable) with the real error, not the generic message
+    await Effect.runPromise(
+      checkTask(task, deps).pipe(Effect.catchAll(() => Effect.succeed("failed" as const)))
+    )
+    // Should use the agent error, not the generic restart error
     const failReason = (failFn.mock.calls[0] as unknown as [string, string])[1]
     expect(failReason).toContain("ProviderModelNotFoundError")
-    expect(failReason).not.toContain("restart did not produce")
   })
 
   test("alive agent is always healthy (no stall detection)", async () => {
