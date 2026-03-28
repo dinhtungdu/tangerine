@@ -103,11 +103,12 @@ function migrateWorktreeSlots(db: Database): void {
   console.error("[db] Migrated worktree_slots: dropped v0 table (vm_id NOT NULL → project_id)")
 }
 
-/** Returns a singleton DB connection, creating it if needed. Pass ":memory:" for tests. */
+/** Returns a singleton DB connection, creating it if needed. Pass ":memory:" for tests.
+ *  Respects TANGERINE_DB env var for path override. */
 export function getDb(path?: string): Database {
   if (instance) return instance
 
-  const dbPath = path ?? join(TANGERINE_HOME, "tangerine.db")
+  const dbPath = path ?? process.env["TANGERINE_DB"] ?? join(TANGERINE_HOME, "tangerine.db")
   const db = new Database(dbPath)
 
   // WAL mode for better concurrent read performance

@@ -8,6 +8,11 @@ export const TANGERINE_HOME = join(homedir(), "tangerine")
 export const CONFIG_PATH = join(TANGERINE_HOME, "config.json")
 export const CREDENTIALS_PATH = join(TANGERINE_HOME, ".credentials")
 
+/** Returns true when the server is running in test mode (TEST_MODE=1). */
+export function isTestMode(): boolean {
+  return process.env["TEST_MODE"] === "1"
+}
+
 /** Raw config shape before Zod validation */
 export interface RawConfig {
   projects?: Array<Record<string, unknown>>
@@ -16,20 +21,29 @@ export interface RawConfig {
   [key: string]: unknown
 }
 
+/** Resolve the active config file path (respects TANGERINE_CONFIG env var). */
+export function resolveConfigPath(): string {
+  return process.env["TANGERINE_CONFIG"] ?? CONFIG_PATH
+}
+
 /** Read raw config from disk (pre-validation). Returns empty projects array if no file. */
 export function readRawConfig(): RawConfig {
-  mkdirSync(TANGERINE_HOME, { recursive: true })
-  if (!existsSync(CONFIG_PATH)) {
+  const path = resolveConfigPath()
+  const dir = join(path, "..")
+  mkdirSync(dir, { recursive: true })
+  if (!existsSync(path)) {
     return { projects: [] }
   }
-  const raw = readFileSync(CONFIG_PATH, "utf-8")
+  const raw = readFileSync(path, "utf-8")
   return JSON.parse(raw) as RawConfig
 }
 
 /** Write raw config to disk */
 export function writeRawConfig(config: RawConfig): void {
-  mkdirSync(TANGERINE_HOME, { recursive: true })
-  writeFileSync(CONFIG_PATH, JSON.stringify(config, null, 2) + "\n")
+  const path = resolveConfigPath()
+  const dir = join(path, "..")
+  mkdirSync(dir, { recursive: true })
+  writeFileSync(path, JSON.stringify(config, null, 2) + "\n")
 }
 
 /** Path to OpenCode's credential store on the host */
@@ -141,13 +155,13 @@ export function getProjectConfig(config: TangerineConfig, projectId: string): Pr
 }
 
 /**
- * Loads config from ~/tangerine/config.json.
+ * Loads config from ~/tangerine/config.json (or TANGERINE_CONFIG / --config override).
  * Validates with Zod and resolves credentials.
  */
-export function loadConfig(): AppConfig {
+export function loadConfig(overrides?: { configPath?: string }): AppConfig {
   mkdirSync(TANGERINE_HOME, { recursive: true })
 
-  const configPath = join(TANGERINE_HOME, "config.json")
+  const configPath = overrides?.configPath ?? process.env["TANGERINE_CONFIG"] ?? join(TANGERINE_HOME, "config.json")
   const raw = readConfigFile(configPath)
   if (!raw) {
     throw new Error(

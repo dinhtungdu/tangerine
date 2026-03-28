@@ -10,11 +10,13 @@ import type { AppConfig } from "../config"
 import type { Database } from "bun:sqlite"
 import type { TaskRow } from "../db/types"
 import type { TaskSource } from "../tasks/manager"
-import { verifyWebhookSignature } from "../integrations/github"
+import { verifyWebhookSignature, processWebhookPayload } from "../integrations/github"
+import type { WebhookIssuePayload } from "../integrations/github"
 import { taskRoutes } from "./routes/tasks"
 import { sessionRoutes } from "./routes/sessions"
 import { systemRoutes } from "./routes/system"
 import { projectRoutes } from "./routes/project"
+import { testRoutes } from "./routes/test"
 import { wsRoutes } from "./routes/ws"
 import { terminalWsRoutes } from "./routes/terminal-ws"
 import { projectTerminalWsRoutes } from "./routes/project-terminal-ws"
@@ -63,6 +65,9 @@ export function createApp(deps: AppDeps): { app: Hono; websocket: ReturnType<typ
   app.route("/api/tasks", sessionRoutes(deps))
   app.route("/api/projects", projectRoutes(deps))
 
+  // Test-only routes — returns 404 unless TEST_MODE=1
+  app.route("/api/test", testRoutes(deps))
+
   app.route("/api/tasks", wsRoutes(deps, upgradeWebSocket))
   app.route("/api/tasks", terminalWsRoutes(deps, upgradeWebSocket))
   app.route("/api/projects", projectTerminalWsRoutes(deps, upgradeWebSocket))
@@ -80,75 +85,31 @@ export function createApp(deps: AppDeps): { app: Hono; websocket: ReturnType<typ
       }
     }
 
-    const payload = JSON.parse(rawBody) as {
-      action: string
-      issue?: {
-        number: number
-        title: string
-        body: string | null
-        html_url: string
-        labels: Array<{ name: string }>
-        assignee: { login: string } | null
-      }
-      repository?: { full_name: string }
-    }
-
-    const event = c.req.header("x-github-event")
-    if (event !== "issues" || !payload.issue || !payload.repository) {
-      return c.json({ received: true, ignored: true }, 202)
-    }
-
-    // Only handle actionable issue events
-    const actionableActions = ["opened", "labeled", "assigned"]
-    if (!actionableActions.includes(payload.action)) {
-      return c.json({ received: true, ignored: true }, 202)
-    }
-
-    // Match repository to a configured project by comparing full_name against repo field
-    const repoFullName = payload.repository.full_name
-    const project = deps.config.config.projects.find((p) => {
-      // Support both "owner/repo" and full URL formats (e.g. https://github.com/owner/repo)
-      return p.repo === repoFullName || p.repo.endsWith(`/${repoFullName}`) || p.repo.endsWith(`/${repoFullName}.git`)
-    })
-
-    if (!project) {
-      log.warn("Webhook received for unknown repo", { repo: repoFullName })
-      return c.json({ received: true, ignored: true }, 202)
-    }
-
-    // Apply trigger filter if configured
+    const payload = JSON.parse(rawBody) as WebhookIssuePayload
+    const event = c.req.header("x-github-event") ?? ""
     const trigger = deps.config.config.integrations?.github?.trigger
-    if (trigger) {
-      const issue = payload.issue
-      if (trigger.type === "label" && !issue.labels.some((l) => l.name === trigger.value)) {
-        return c.json({ received: true, ignored: true }, 202)
-      }
-      if (trigger.type === "assignee" && issue.assignee?.login !== trigger.value) {
-        return c.json({ received: true, ignored: true }, 202)
-      }
-    }
 
-    const issue = payload.issue
-    const sourceId = `github:${repoFullName}#${issue.number}`
-
-    const result = await Effect.runPromiseExit(
-      deps.taskManager.createTask({
-        source: "github",
-        projectId: project.name,
-        title: issue.title,
-        description: issue.body ?? undefined,
-        sourceId,
-        sourceUrl: issue.html_url,
-      })
+    const result = await processWebhookPayload(
+      payload,
+      event,
+      deps.config.config.projects,
+      trigger,
+      async (params) => {
+        const exit = await Effect.runPromiseExit(deps.taskManager.createTask(params))
+        return exit._tag === "Success" ? { id: exit.value.id } : null
+      },
     )
 
-    if (result._tag === "Failure") {
-      log.error("Webhook task creation failed", { repo: repoFullName, issue: issue.number })
-      return c.json({ error: "Task creation failed" }, 500)
+    if ("error" in result) {
+      return c.json({ error: result.error }, 500)
     }
-
-    log.info("Task created from webhook", { taskId: result.value.id, issue: issue.number, repo: repoFullName })
-    return c.json({ received: true, taskId: result.value.id }, 202)
+    if (!result.handled) {
+      if (result.reason.startsWith("no project matches")) {
+        log.warn("Webhook received for unknown repo", { reason: result.reason })
+      }
+      return c.json({ received: true, ignored: true }, 202)
+    }
+    return c.json({ received: true, taskId: result.taskId }, 202)
   })
 
   // Serve built web dashboard if dist exists

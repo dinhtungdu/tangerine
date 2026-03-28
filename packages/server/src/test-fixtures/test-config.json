@@ -1,0 +1,20 @@
+{
+  "projects": [
+    {
+      "name": "tangerine",
+      "repo": "dinhtungdu/tangerine",
+      "defaultBranch": "main",
+      "setup": "bun install",
+      "defaultProvider": "claude-code"
+    }
+  ],
+  "model": "anthropic/claude-sonnet-4-6",
+  "integrations": {
+    "github": {
+      "trigger": {
+        "type": "label",
+        "value": "tangerine"
+      }
+    }
+  }
+}
