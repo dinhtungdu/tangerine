@@ -147,14 +147,14 @@ export function ChatPanel({
           <button
             onMouseDown={(event) => event.preventDefault()}
             onClick={() => void handleCopySelection()}
-            className="rounded-full px-3 py-1 text-[12px] font-medium text-white transition hover:bg-white/10"
+            className="min-h-[44px] rounded-full px-4 py-2 text-[13px] font-medium text-white transition hover:bg-white/10"
           >
             Copy
           </button>
           <button
             onMouseDown={(event) => event.preventDefault()}
             onClick={handleQuoteSelection}
-            className="rounded-full bg-white px-3 py-1 text-[12px] font-medium text-surface-dark transition hover:opacity-90"
+            className="min-h-[44px] rounded-full bg-white px-4 py-2 text-[13px] font-medium text-surface-dark transition hover:opacity-90"
           >
             Quote
           </button>
@@ -162,7 +162,15 @@ export function ChatPanel({
       )}
 
       {/* Messages */}
-      <div ref={scrollRef} className="flex-1 overflow-y-auto">
+      <div
+        ref={scrollRef}
+        className="flex-1 overflow-y-auto"
+        style={{ WebkitTouchCallout: "none" }}
+        onContextMenu={(e) => {
+          // Suppress native context menu on touch devices so our custom selection menu shows instead
+          if ("ontouchstart" in window) e.preventDefault()
+        }}
+      >
         <div className="flex flex-col gap-3 p-4">
           {/* Thinking toggle */}
           {thinkingCount > 0 && (
