@@ -720,7 +720,16 @@ export async function start(): Promise<void> {
     startSpan.end({ port, projects: projectNames })
 
     // Resume orphaned tasks (check PIDs)
+    // Pre-populate reconnectingTasks with running task IDs BEFORE forking reconnect fibers.
+    // Without this, the health monitor's first check (which runs immediately on start) can
+    // find the task "running" with no agentHandle yet, treat it as dead, and spawn a second
+    // concurrent reconnect — the two reconnects then race, pkill each other's Claude
+    // processes, and the task ends up failed.
     try {
+      const runningTasks = await Effect.runPromise(listTasks(db, { status: "running" }))
+      for (const task of runningTasks) {
+        reconnectingTasks.add(task.id)
+      }
       const resumed = await Effect.runPromise(taskManager.resumeOrphanedTasks(tmDeps))
       if (resumed > 0) log.info("Resumed orphaned tasks", { count: resumed })
     } catch (err) {
