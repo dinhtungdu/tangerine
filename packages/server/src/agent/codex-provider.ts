@@ -16,15 +16,32 @@ const log = createLogger("codex-provider")
 /**
  * Maps a raw Codex JSONL event to normalized AgentEvents.
  *
- * Codex exec --json event types:
- * - thread.started: { thread_id } — session init
- * - turn.started: agent begins working
- * - item.started: { item: { type: "command_execution", command, status: "in_progress" } } — tool start
- * - item.completed: { item: { type: "agent_message", text } } — message
- * - item.completed: { item: { type: "command_execution", command, aggregated_output, exit_code } } — tool end
- * - turn.completed: { usage } — turn done
- * - turn.failed: { error } — error
- * - error: { message } — error
+ * Event types from codex-rs/exec/src/exec_events.rs (ThreadEvent enum):
+ *
+ * Thread-level:
+ *   thread.started   { thread_id }
+ *
+ * Turn-level:
+ *   turn.started     {}
+ *   turn.completed   { usage: { input_tokens, cached_input_tokens, output_tokens } }
+ *   turn.failed      { error: { message } }
+ *
+ * Item-level (item.started | item.updated | item.completed):
+ *   Item types (ThreadItemDetails, tagged by item.type, snake_case):
+ *     agent_message      { text }
+ *     reasoning          { text }
+ *     command_execution  { command, aggregated_output, exit_code, status: in_progress|completed|failed|declined }
+ *     file_change        { changes: [{ path, kind: add|delete|update }], status }
+ *     mcp_tool_call      { server, tool, arguments, result, error, status }
+ *     web_search         { id, query, action }
+ *     todo_list          { items: [{ text, completed }] }
+ *     error              { message }
+ *
+ * Top-level:
+ *   error             { message }
+ *
+ * Note: agent_message items are NOT mapped here — they are handled by the
+ * streaming layer which buffers them for narration/assistant role decision.
  */
 function mapCodexEvent(raw: Record<string, unknown>): AgentEvent[] {
   const type = raw.type as string | undefined
@@ -38,13 +55,18 @@ function mapCodexEvent(raw: Record<string, unknown>): AgentEvent[] {
     case "item.started": {
       const item = raw.item as Record<string, unknown> | undefined
       if (!item) return []
+      return mapItemStart(item)
+    }
 
-      if (item.type === "command_execution" && typeof item.command === "string") {
-        return [{
-          kind: "tool.start",
-          toolName: "shell",
-          toolInput: truncate(item.command, 500),
-        }]
+    case "item.updated": {
+      // Incremental update to an in-progress item — treat like a start for
+      // items we haven't seen yet, or ignore for already-tracked ones.
+      // The main value is streaming reasoning text.
+      const item = raw.item as Record<string, unknown> | undefined
+      if (!item) return []
+
+      if (item.type === "reasoning" && typeof item.text === "string") {
+        return [{ kind: "thinking", content: truncate(item.text, 300) }]
       }
       return []
     }
@@ -52,32 +74,7 @@ function mapCodexEvent(raw: Record<string, unknown>): AgentEvent[] {
     case "item.completed": {
       const item = raw.item as Record<string, unknown> | undefined
       if (!item) return []
-
-      // agent_message items are handled by the streaming layer (buffered for
-      // narration/assistant role decision) — not mapped here.
-
-      if (item.type === "command_execution" && typeof item.command === "string") {
-        const output = typeof item.aggregated_output === "string" ? item.aggregated_output : ""
-        return [{
-          kind: "tool.end",
-          toolName: "shell",
-          toolResult: truncate(output, 500),
-        }]
-      }
-
-      // File-related items (file_create, file_edit, etc.)
-      if (typeof item.type === "string" && typeof item.id === "string") {
-        const itemType = item.type as string
-        if (itemType.startsWith("file_")) {
-          return [{
-            kind: "tool.end",
-            toolName: itemType,
-            toolResult: typeof item.path === "string" ? item.path as string : undefined,
-          }]
-        }
-      }
-
-      return []
+      return mapItemComplete(item)
     }
 
     case "turn.completed": {
@@ -97,6 +94,93 @@ function mapCodexEvent(raw: Record<string, unknown>): AgentEvent[] {
       const message = typeof raw.message === "string" ? raw.message : "Codex error"
       return [{ kind: "error", message }]
     }
+
+    default:
+      return []
+  }
+}
+
+function mapItemStart(item: Record<string, unknown>): AgentEvent[] {
+  switch (item.type) {
+    case "command_execution":
+      if (typeof item.command === "string") {
+        return [{ kind: "tool.start", toolName: "shell", toolInput: truncate(item.command, 500) }]
+      }
+      return []
+
+    case "file_change": {
+      const changes = Array.isArray(item.changes) ? item.changes : []
+      const paths = changes
+        .filter((c): c is Record<string, unknown> => typeof c === "object" && c !== null)
+        .map((c) => `${c.kind ?? "update"}: ${c.path ?? "?"}`)
+      return [{ kind: "tool.start", toolName: "file_change", toolInput: paths.join(", ") || undefined }]
+    }
+
+    case "mcp_tool_call":
+      return [{
+        kind: "tool.start",
+        toolName: `mcp:${item.server ?? "?"}/${item.tool ?? "?"}`,
+        toolInput: item.arguments ? truncate(JSON.stringify(item.arguments), 500) : undefined,
+      }]
+
+    case "web_search":
+      return [{
+        kind: "tool.start",
+        toolName: "web_search",
+        toolInput: typeof item.query === "string" ? item.query : undefined,
+      }]
+
+    default:
+      return []
+  }
+}
+
+function mapItemComplete(item: Record<string, unknown>): AgentEvent[] {
+  switch (item.type) {
+    // agent_message handled in streaming layer, not here
+
+    case "reasoning":
+      if (typeof item.text === "string") {
+        return [{ kind: "thinking", content: truncate(item.text, 300) }]
+      }
+      return []
+
+    case "command_execution": {
+      const output = typeof item.aggregated_output === "string" ? item.aggregated_output : ""
+      const status = item.status as string | undefined
+      const result = status === "failed" || status === "declined"
+        ? `[${status}] ${output}`
+        : output
+      return [{ kind: "tool.end", toolName: "shell", toolResult: truncate(result, 500) }]
+    }
+
+    case "file_change": {
+      const changes = Array.isArray(item.changes) ? item.changes : []
+      const paths = changes
+        .filter((c): c is Record<string, unknown> => typeof c === "object" && c !== null)
+        .map((c) => `${c.kind ?? "update"}: ${c.path ?? "?"}`)
+      return [{ kind: "tool.end", toolName: "file_change", toolResult: paths.join(", ") || undefined }]
+    }
+
+    case "mcp_tool_call": {
+      const toolName = `mcp:${item.server ?? "?"}/${item.tool ?? "?"}`
+      const error = item.error as Record<string, unknown> | undefined
+      if (error && typeof error.message === "string") {
+        return [{ kind: "tool.end", toolName, toolResult: `[error] ${truncate(error.message, 400)}` }]
+      }
+      const result = item.result as Record<string, unknown> | undefined
+      const content = result?.content
+      return [{ kind: "tool.end", toolName, toolResult: content ? truncate(JSON.stringify(content), 500) : undefined }]
+    }
+
+    case "web_search":
+      return [{ kind: "tool.end", toolName: "web_search" }]
+
+    case "error":
+      if (typeof item.message === "string") {
+        return [{ kind: "error", message: item.message }]
+      }
+      return []
 
     default:
       return []
