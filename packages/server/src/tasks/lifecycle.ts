@@ -83,17 +83,7 @@ export function startSession(
     const branch = taskBranch ?? `tangerine/${taskPrefix}`
     const repoDir = `/workspace/${task.project_id}/repo`
 
-    // Review tasks with a parent should base their branch on the parent's branch
-    // instead of defaultBranch, so the review agent sees the code being reviewed.
-    // The review task still gets its own branch name to avoid git worktree conflicts.
-    let baseBranch = defaultBranch
-    if (task.type === "review" && task.parent_task_id) {
-      const parent = yield* deps.getTask(task.parent_task_id).pipe(Effect.catchAll(() => Effect.succeed(null)))
-      if (parent?.branch) {
-        baseBranch = parent.branch
-        taskLog.info("Review task basing branch on parent", { parentTaskId: task.parent_task_id, baseBranch })
-      }
-    }
+    const baseBranch = defaultBranch
 
     yield* deps.updateTask(task.id, { status: "provisioning" }).pipe(
       Effect.mapError((e) => new SessionStartError({

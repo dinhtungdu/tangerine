@@ -14,7 +14,6 @@ export const SCHEMA = `
     reasoning_effort TEXT,
     branch TEXT,
     worktree_path TEXT,
-    type TEXT NOT NULL DEFAULT 'code',
     pr_url TEXT,
     parent_task_id TEXT,
     user_id TEXT,

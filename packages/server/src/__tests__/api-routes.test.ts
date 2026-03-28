@@ -332,45 +332,6 @@ describe("API routes", () => {
       expect(res.status).toBe(400)
     })
 
-    test("review task with parent triggers sync (fire-and-forget on failure)", async () => {
-      const parent = seedTask(db, { title: "Parent", branch: "tangerine/parent-br" })
-      const review = seedTask(db, {
-        title: "Review",
-        type: "review",
-        parent_task_id: parent.id,
-      })
-      db.prepare("UPDATE tasks SET worktree_path = ? WHERE id = ?").run("/tmp/nonexistent-worktree", review.id)
-
-      const res = await app.fetch(new Request(`http://localhost/api/tasks/${review.id}/prompt`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ text: "Please re-review" }),
-      }))
-      // Sync fails (bad path) but prompt still succeeds
-      expect(res.status).toBe(200)
-    })
-
-    test("non-review task skips sync", async () => {
-      const codeTask = seedTask(db, { title: "Code task" })
-
-      const res = await app.fetch(new Request(`http://localhost/api/tasks/${codeTask.id}/prompt`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ text: "Do something" }),
-      }))
-      expect(res.status).toBe(200)
-    })
-
-    test("review task without parent skips sync", async () => {
-      const review = seedTask(db, { title: "Standalone review", type: "review" })
-
-      const res = await app.fetch(new Request(`http://localhost/api/tasks/${review.id}/prompt`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ text: "Review this PR" }),
-      }))
-      expect(res.status).toBe(200)
-    })
   })
 
   describe("POST /api/tasks/:id/model", () => {

@@ -76,7 +76,6 @@ export async function createTask(data: {
   model?: string
   reasoningEffort?: string
   branch?: string
-  type?: "code" | "review"
   parentTaskId?: string
   images?: import("@tangerine/shared").PromptImage[]
 }): Promise<Task> {

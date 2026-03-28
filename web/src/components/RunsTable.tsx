@@ -32,7 +32,7 @@ function ParentLabel({ task, taskById }: { task: Task; taskById: Map<string, Tas
   if (!parent) return null
   return (
     <span className="truncate text-[11px] text-fg-muted">
-      {task.type === "review" ? "Review of" : "Continued from"}: {parent.title}
+      Continued from: {parent.title}
     </span>
   )
 }

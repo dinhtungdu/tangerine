@@ -13,7 +13,6 @@ export interface TaskRow {
   reasoning_effort: string | null
   branch: string | null
   worktree_path: string | null
-  type: string
   pr_url: string | null
   parent_task_id: string | null
   user_id: string | null

@@ -15,12 +15,12 @@ function dbTry<T>(op: () => T): Effect.Effect<T, DbError> {
 export function createTask(
   db: Database,
   task: Pick<TaskRow, "id" | "project_id" | "source" | "repo_url" | "title"> &
-    Partial<Pick<TaskRow, "source_id" | "source_url" | "description" | "user_id" | "branch" | "provider" | "model" | "reasoning_effort" | "type" | "parent_task_id">>
+    Partial<Pick<TaskRow, "source_id" | "source_url" | "description" | "user_id" | "branch" | "provider" | "model" | "reasoning_effort" | "parent_task_id">>
 ): Effect.Effect<TaskRow, DbError> {
   return dbTry(() => {
     const stmt = db.prepare(`
-      INSERT INTO tasks (id, project_id, source, source_id, source_url, repo_url, title, description, user_id, branch, provider, model, reasoning_effort, type, parent_task_id)
-      VALUES ($id, $project_id, $source, $source_id, $source_url, $repo_url, $title, $description, $user_id, $branch, $provider, $model, $reasoning_effort, $type, $parent_task_id)
+      INSERT INTO tasks (id, project_id, source, source_id, source_url, repo_url, title, description, user_id, branch, provider, model, reasoning_effort, parent_task_id)
+      VALUES ($id, $project_id, $source, $source_id, $source_url, $repo_url, $title, $description, $user_id, $branch, $provider, $model, $reasoning_effort, $parent_task_id)
     `)
     stmt.run({
       $id: task.id,
@@ -36,7 +36,6 @@ export function createTask(
       $provider: task.provider ?? "opencode",
       $model: task.model ?? null,
       $reasoning_effort: task.reasoning_effort ?? null,
-      $type: task.type ?? "code",
       $parent_task_id: task.parent_task_id ?? null,
     })
     return db.prepare("SELECT * FROM tasks WHERE id = ?").get(task.id) as TaskRow

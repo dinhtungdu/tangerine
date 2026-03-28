@@ -7,9 +7,6 @@ import { runEffect, runEffectVoid } from "../effect-helpers"
 import { normalizeTimestamps } from "../helpers"
 import { TaskNotFoundError } from "../../errors"
 import { getProjectConfig, TANGERINE_HOME } from "../../config"
-import { createLogger } from "../../logger"
-
-const log = createLogger("sessions")
 
 function gitDiff(cmd: string, cwd: string): Effect.Effect<string, never> {
   return Effect.tryPromise({
@@ -29,28 +26,6 @@ function parseDiffChunks(raw: string): { path: string; diff: string }[] {
     if (match) files.push({ path: match[1]!, diff: chunk })
   }
   return files
-}
-
-/** Sync a review task's worktree to the latest commits on the parent's branch. */
-function syncReviewWorktree(taskId: string, worktreePath: string, parentBranch: string): Effect.Effect<void, never> {
-  return Effect.tryPromise({
-    try: async () => {
-      const proc = Bun.spawn(
-        ["bash", "-c", `git fetch origin && git reset --hard origin/${parentBranch}`],
-        { cwd: worktreePath, stdout: "pipe", stderr: "pipe" },
-      )
-      const [stderr, exitCode] = await Promise.all([
-        new Response(proc.stderr).text(),
-        proc.exited,
-      ])
-      if (exitCode !== 0) throw new Error(stderr)
-      log.info("Review worktree synced to parent branch", { taskId, parentBranch })
-    },
-    catch: (e) => new Error(`review worktree sync failed: ${e}`),
-  }).pipe(Effect.catchAll((e) => {
-    log.warn("Failed to sync review worktree", { taskId, parentBranch, error: e.message })
-    return Effect.void
-  }))
 }
 
 export function sessionRoutes(deps: AppDeps): Hono {
@@ -87,19 +62,7 @@ export function sessionRoutes(deps: AppDeps): Hono {
       return c.json({ error: "text is required" }, 400)
     }
     return runEffectVoid(c,
-      Effect.gen(function* () {
-        // For review tasks with a parent, sync the worktree to the parent's
-        // latest commits before forwarding the prompt. This keeps the review
-        // agent's code up to date across re-review cycles.
-        const task = yield* getTask(deps.db, c.req.param("id"))
-        if (task?.type === "review" && task.parent_task_id && task.worktree_path) {
-          const parent = yield* getTask(deps.db, task.parent_task_id)
-          if (parent?.branch) {
-            yield* syncReviewWorktree(task.id, task.worktree_path, parent.branch)
-          }
-        }
-        yield* deps.taskManager.sendPrompt(c.req.param("id"), body.text!)
-      })
+      deps.taskManager.sendPrompt(c.req.param("id"), body.text!)
     )
   })
 
