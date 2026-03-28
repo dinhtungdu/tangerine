@@ -94,7 +94,7 @@ export function ChatPanel({
 
     setSelectionMenu({
       text,
-      top: Math.max(rect.top - 44, 8),
+      top: Math.max(rect.top - 52, 8),
       left: rect.left + rect.width / 2,
     })
   }, [])
@@ -158,14 +158,14 @@ export function ChatPanel({
           <button
             onMouseDown={(event) => event.preventDefault()}
             onClick={() => void handleCopySelection()}
-            className="min-h-[44px] rounded-full px-4 py-2 text-[13px] font-medium text-white transition hover:bg-white/10"
+            className="min-h-[32px] rounded-full px-4 py-1.5 text-[13px] font-medium text-white transition hover:bg-white/10"
           >
             Copy
           </button>
           <button
             onMouseDown={(event) => event.preventDefault()}
             onClick={handleQuoteSelection}
-            className="min-h-[44px] rounded-full bg-white px-4 py-2 text-[13px] font-medium text-surface-dark transition hover:opacity-90"
+            className="min-h-[32px] rounded-full bg-white px-4 py-1.5 text-[13px] font-medium text-surface-dark transition hover:opacity-90"
           >
             Quote
           </button>
