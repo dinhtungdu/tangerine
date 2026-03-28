@@ -222,6 +222,7 @@ export function createCodexProvider(): AgentFactory {
           const subscribers = new Set<(e: AgentEvent) => void>()
           let shutdownCalled = false
           let threadId: string | null = null
+          let activeTurnId: string | null = null
 
           const emit = (event: AgentEvent) => {
             for (const cb of subscribers) cb(event)
@@ -255,9 +256,29 @@ export function createCodexProvider(): AgentFactory {
             {
               onLine: (data) => {
                 const msg = data as Record<string, unknown>
+                const hasId = "id" in msg && msg.id !== null
+                const method = msg.method as string | undefined
 
-                // JSON-RPC response (has "id" field)
-                if ("id" in msg && msg.id !== null) {
+                // JSON-RPC 2.0 message types:
+                // - Response (from server answering our request): has `id`, has `result`/`error`, NO `method`
+                // - Server request (approval callbacks): has `id` AND `method`
+                // - Server notification: has `method`, NO `id`
+
+                // Server request — approval callbacks that need a response
+                if (hasId && method) {
+                  if (method.endsWith("/requestApproval")) {
+                    write(JSON.stringify({
+                      jsonrpc: "2.0",
+                      id: msg.id,
+                      result: { decision: "approved" },
+                    }) + "\n")
+                  }
+                  // Other server requests we don't handle — ignore
+                  return
+                }
+
+                // RPC response to one of our requests
+                if (hasId && !method) {
                   const id = msg.id as number
                   const pending = pendingRpc.get(id)
                   if (pending) {
@@ -272,23 +293,19 @@ export function createCodexProvider(): AgentFactory {
                   return
                 }
 
-                // JSON-RPC notification (has "method" field, no "id")
-                const method = msg.method as string | undefined
+                // Server notification
                 if (!method) return
                 const params = (msg.params ?? {}) as Record<string, unknown>
 
-                // Auto-approve approval requests
-                if (method.endsWith("/requestApproval") && "id" in msg) {
-                  const approvalId = msg.id as number
-                  write(JSON.stringify({
-                    jsonrpc: "2.0",
-                    id: approvalId,
-                    result: { decision: "approved" },
-                  }) + "\n")
-                  return
+                // Track active turn ID for abort
+                if (method === "turn/started") {
+                  const turn = params.turn as Record<string, unknown> | undefined
+                  if (typeof turn?.id === "string") activeTurnId = turn.id
+                }
+                if (method === "turn/completed" || method === "turn/failed") {
+                  activeTurnId = null
                 }
 
-                // Map to AgentEvents
                 const events = mapNotification(method, params)
                 for (const event of events) {
                   emit(event)
@@ -412,9 +429,8 @@ export function createCodexProvider(): AgentFactory {
             abort() {
               return Effect.try({
                 try: () => {
-                  // Send turn/interrupt via JSON-RPC
-                  if (threadId) {
-                    write(rpcRequest("turn/interrupt", { threadId }))
+                  if (threadId && activeTurnId) {
+                    write(rpcRequest("turn/interrupt", { threadId, turnId: activeTurnId }))
                   }
                 },
                 catch: (e) =>
