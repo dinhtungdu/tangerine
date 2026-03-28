@@ -130,6 +130,7 @@ export function startSession(
         cause: e,
       }))
     )
+    yield* activity("worktree.acquired", `Acquired worktree slot`, { slot: slot.id })
     const worktreePath = slot.path
 
     // Checkout the task branch on the acquired slot

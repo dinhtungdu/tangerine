@@ -115,6 +115,18 @@ const LIFECYCLE_STYLES: Record<string, ActivityStyle> = {
     bg: "#22c55e18",
     iconPaths: ["M3 1v10M9 4v7", "M3 4h4a2 2 0 0 1 2 2v0"],
   },
+  "worktree.acquiring": {
+    label: "Acquiring worktree slot",
+    color: "#6b7280",
+    bg: "#6b728018",
+    iconPaths: ["M3 1v10M9 4v7", "M3 7h6"],
+  },
+  "worktree.acquired": {
+    label: "Worktree slot acquired",
+    color: "#22c55e",
+    bg: "#22c55e18",
+    iconPaths: ["M3 1v10M9 4v7", "M3 7h6"],
+  },
   "worktree.creating": {
     label: "Creating worktree",
     color: "#3b82f6",
@@ -214,6 +226,14 @@ export function getActivityDetail(event: string, content: string, metadata: Reco
         } catch {
           return toolInput
         }
+      }
+      return content
+    }
+    case "worktree.acquired": {
+      const slotId = metadata?.slot as string | undefined
+      if (slotId) {
+        const num = slotId.match(/-slot-(\d+)$/)?.[1]
+        return num ? `Slot ${num}` : slotId
       }
       return content
     }
