@@ -14,6 +14,24 @@ const log = createLogger("retry")
 
 const MAX_RETRY_ATTEMPTS = 3
 
+// ---------------------------------------------------------------------------
+// Shared retry schedules — reusable across session, prompt, and HTTP retries
+// ---------------------------------------------------------------------------
+
+/** Exponential backoff: 1s, 2s, 4s… capped at `maxAttempts` retries. */
+export function exponentialSchedule(maxAttempts: number) {
+  return Schedule.exponential("1 second").pipe(
+    Schedule.compose(Schedule.recurs(maxAttempts - 1))
+  )
+}
+
+/** Short backoff for transient failures: 500ms, 1s — 2 retries by default. */
+export function transientSchedule(maxAttempts = 2) {
+  return Schedule.exponential("500 millis").pipe(
+    Schedule.compose(Schedule.recurs(maxAttempts - 1))
+  )
+}
+
 export interface RetryDeps {
   updateTask(taskId: string, updates: Partial<TaskRow>): Effect.Effect<void, Error>
   onSessionReady?(taskId: string, session: SessionInfo): void
@@ -47,11 +65,7 @@ export function startSessionWithRetry(
         Effect.ignoreLogged,
       )
     ),
-    Effect.retry(
-      Schedule.exponential("1 second").pipe(
-        Schedule.compose(Schedule.recurs(MAX_RETRY_ATTEMPTS - 1))
-      )
-    ),
+    Effect.retry(exponentialSchedule(MAX_RETRY_ATTEMPTS)),
     Effect.tapError((error) =>
       Effect.sync(() => {
         log.error("All retries exhausted", {
@@ -93,11 +107,7 @@ export function reconnectSessionWithRetry(
     Effect.tapError(() =>
       cleanupSession(task.id, retryDeps.cleanupDeps).pipe(Effect.ignoreLogged)
     ),
-    Effect.retry(
-      Schedule.exponential("1 second").pipe(
-        Schedule.compose(Schedule.recurs(MAX_RETRY_ATTEMPTS - 1))
-      )
-    ),
+    Effect.retry(exponentialSchedule(MAX_RETRY_ATTEMPTS)),
     Effect.tapError((error) =>
       Effect.sync(() => {
         log.error("Reconnect retries exhausted", {

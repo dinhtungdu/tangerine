@@ -7,6 +7,7 @@
 import { Effect } from "effect"
 import { createLogger, truncate } from "../logger"
 import { AgentError, PromptError, SessionStartError } from "../errors"
+import { transientSchedule } from "../tasks/retry"
 import type { AgentFactory, AgentHandle, AgentEvent, AgentStartContext, PromptImage } from "./provider"
 import { homedir } from "node:os"
 import { join } from "node:path"
@@ -384,7 +385,8 @@ export function createOpenCodeProvider(): AgentFactory {
         const serverPid = serverProc.pid
         taskLog.info("OpenCode server ready", { port: opencodePort, pid: serverPid })
 
-        // Create or resume OpenCode session (model is passed per-prompt, not via config)
+        // Create or resume OpenCode session (model is passed per-prompt, not via config).
+        // Retries transient HTTP failures (server may still be warming up after health check).
         const sessionId = yield* Effect.tryPromise({
           try: async () => {
             if (ctx.resumeSessionId) {
@@ -409,7 +411,7 @@ export function createOpenCodeProvider(): AgentFactory {
               phase: "create-session",
               cause: e instanceof Error ? e : new Error(String(e)),
             }),
-        })
+        }).pipe(Effect.retry(transientSchedule()))
         taskLog.info("Session created", { sessionId })
 
         // Build the AgentHandle
@@ -564,7 +566,7 @@ export function createOpenCodeProvider(): AgentFactory {
               },
               catch: (e) =>
                 new PromptError({ message: `Failed to send prompt: ${e}`, taskId: ctx.taskId }),
-            })
+            }).pipe(Effect.retry(transientSchedule()))
           },
 
           abort() {
@@ -578,7 +580,7 @@ export function createOpenCodeProvider(): AgentFactory {
               },
               catch: (e) =>
                 new AgentError({ message: `Abort failed: ${e}`, taskId: ctx.taskId }),
-            })
+            }).pipe(Effect.retry(transientSchedule()))
           },
 
           updateConfig(config: import("./provider").AgentConfig) {
