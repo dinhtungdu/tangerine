@@ -40,9 +40,9 @@ export function TerminalToolbar({ termRef, onInput }: TerminalToolbarProps) {
   const pasteRef = useReactRef<HTMLTextAreaElement>(null)
 
   const keys: KeyDef[] = [
-    { label: "Ctrl-C", input: ctrl("C"), ariaLabel: "Send Ctrl+C (interrupt)" },
-    { label: "Ctrl-D", input: ctrl("D"), ariaLabel: "Send Ctrl+D (EOF)" },
-    { label: "Ctrl-Z", input: ctrl("Z"), ariaLabel: "Send Ctrl+Z (suspend)" },
+    { label: "^C", input: ctrl("C"), ariaLabel: "Send Ctrl+C (interrupt)" },
+    { label: "^D", input: ctrl("D"), ariaLabel: "Send Ctrl+D (EOF)" },
+    { label: "^Z", input: ctrl("Z"), ariaLabel: "Send Ctrl+Z (suspend)" },
     { label: "Tab", input: "\t", ariaLabel: "Send Tab (autocomplete)" },
     { label: "Esc", input: "\x1b", ariaLabel: "Send Escape" },
     { label: "↑", input: "\x1b[A", ariaLabel: "Arrow Up" },
