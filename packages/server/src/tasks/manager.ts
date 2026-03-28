@@ -272,6 +272,10 @@ export function resumeOrphanedTasks(
 
       const taskLifecycleDeps = depsForProvider(deps, task.provider)
 
+      // Lock BEFORE forking — the forked fiber may not start before the health
+      // monitor's first check runs. reconnectSessionWithRetry releases the lock
+      // on completion via unlockReconnect.
+      deps.retryDeps.lockReconnect?.(task.id)
       yield* Effect.forkDaemon(
         reconnectSessionWithRetry(task, projectConfig, taskLifecycleDeps, deps.retryDeps)
       )

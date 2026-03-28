@@ -48,8 +48,9 @@ function classifyTool(toolName: string): { activityType: "file" | "system"; acti
 
 // In-memory map of taskId -> active AgentHandle (for cleanup and abort)
 const agentHandles = new Map<string, AgentHandle>()
-// Per-task reconnect lock — prevents resumeOrphanedTasks and health monitor from
-// spawning two Claude processes for the same task simultaneously.
+// Per-task reconnect lock — prevents the health monitor from spawning a duplicate
+// reconnect while one is already in progress. Lock is set by callers before
+// starting a reconnect; unlocked by reconnectSessionWithRetry via Effect.ensuring.
 const reconnectingTasks = new Set<string>()
 // Track which tasks have received their first prompt (for setup note injection)
 const firstPromptSent = new Set<string>()
@@ -176,17 +177,16 @@ export async function start(): Promise<void> {
       retryDeps: {
         updateTask: (taskId, updates) => updateTask(db, taskId, updates).pipe(Effect.asVoid),
         cleanupDeps,
+        lockReconnect: (taskId) => reconnectingTasks.add(taskId),
+        unlockReconnect: (taskId) => reconnectingTasks.delete(taskId),
         onSessionReady: (taskId, session) => {
-          // Shut down any existing handle before storing the new one.
-          // Concurrent reconnects (e.g. resumeOrphanedTasks + health monitor firing
-          // simultaneously) can both call onSessionReady — the second must evict the
-          // first or the orphaned Claude process keeps running after cancel/cleanup.
+          // Shut down any existing handle before storing the new one (e.g. model
+          // change restarts the agent with a new handle for the same task).
           const existingHandle = agentHandles.get(taskId)
           if (existingHandle && existingHandle !== session.agentHandle) {
             Effect.runPromise(existingHandle.shutdown().pipe(Effect.catchAll(() => Effect.void)))
           }
           agentHandles.set(taskId, session.agentHandle)
-          reconnectingTasks.delete(taskId)
 
           // Hydrate in-memory tracking from DB (lost on restart)
           const taskMeta = db.prepare("SELECT pr_url, type FROM tasks WHERE id = ?").get(taskId) as { pr_url: string | null; type: string | null } | null
@@ -782,18 +782,18 @@ export async function start(): Promise<void> {
           log.info("Reconnect already in progress, skipping duplicate", { taskId: task.id })
           return Effect.void
         }
-        reconnectingTasks.add(task.id)
         const provider = task.provider ?? "opencode"
         const factory = getAgentFactory(provider)
         const lifecycleDeps = { ...tmDeps.lifecycleDeps, agentFactory: factory }
         const projectConfig = task.project_id ? getProjectConfig(config.config, task.project_id) : undefined
         if (!projectConfig) {
-          reconnectingTasks.delete(task.id)
           return Effect.fail(new Error(`No project config for ${task.project_id}`))
         }
-        return reconnectSessionWithRetry(task, projectConfig, lifecycleDeps, tmDeps.retryDeps).pipe(
-          Effect.ensuring(Effect.sync(() => reconnectingTasks.delete(task.id)))
-        )
+        // lockReconnect is set here (not inside reconnectSessionWithRetry) because
+        // the health monitor calls this synchronously — no forkDaemon race.
+        // reconnectSessionWithRetry handles unlockReconnect via Effect.ensuring.
+        reconnectingTasks.add(task.id)
+        return reconnectSessionWithRetry(task, projectConfig, lifecycleDeps, tmDeps.retryDeps)
       },
       failTask: (taskId, reason) =>
         updateTask(db, taskId, { status: "failed", error: reason }).pipe(
