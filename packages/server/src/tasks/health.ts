@@ -106,10 +106,10 @@ function attemptRestart(
     // type never). Verify the agent is actually alive after restart — if not, force-fail.
     // Poll liveness after restart: the agent process may need time to initialize,
     // especially with large models (e.g. Opus) or high reasoning effort.
-    // Poll every 2s for up to 15s before giving up.
+    // Poll every 6s for up to 30s before giving up.
     Effect.flatMap(() =>
       Effect.gen(function* () {
-        const poll = deps.restartPoll ?? { attempts: 5, intervalMs: 3000 }
+        const poll = deps.restartPoll ?? { attempts: 5, intervalMs: 6000 }
         let aliveAfter = false
         for (let attempt = 0; attempt < poll.attempts; attempt++) {
           yield* Effect.sleep(`${poll.intervalMs} millis`)
