@@ -17,6 +17,7 @@ export function TasksSidebar({ tasks, searchQuery, onSearchChange, onNewAgent }:
   const { id: activeId } = useParams<{ id: string }>()
   const { link } = useProjectNav()
   const activeTasks = tasks.filter((t) => !TERMINATED_STATUSES.has(t.status))
+  const taskById = new Map(tasks.map((t) => [t.id, t]))
 
   return (
     <div className="flex h-full w-[240px] shrink-0 flex-col border-r border-edge bg-surface">
@@ -104,6 +105,16 @@ export function TasksSidebar({ tasks, searchQuery, onSearchChange, onNewAgent }:
                     </>
                   )}
                 </span>
+                {task.parentTaskId && (() => {
+                  const parent = taskById.get(task.parentTaskId!)
+                  if (!parent) return null
+                  const label = task.type === "review" ? "Review of" : "From"
+                  return (
+                    <span className="truncate text-[10px] text-fg-muted">
+                      {label}: {parent.title}
+                    </span>
+                  )
+                })()}
               </div>
             </Link>
           )

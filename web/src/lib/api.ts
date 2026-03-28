@@ -64,6 +64,10 @@ export async function fetchTask(id: string): Promise<Task> {
   return request<Task>(`/api/tasks/${id}`)
 }
 
+export async function fetchChildTasks(id: string): Promise<Task[]> {
+  return request<Task[]>(`/api/tasks/${id}/children`)
+}
+
 export async function createTask(data: {
   projectId: string
   title: string

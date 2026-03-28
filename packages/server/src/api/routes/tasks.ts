@@ -3,7 +3,7 @@ import { Hono } from "hono"
 import type { AppDeps } from "../app"
 import { mapTaskRow } from "../helpers"
 import { runEffect, runEffectVoid } from "../effect-helpers"
-import { getTask, listTasks, updateTask, deleteTask, markTaskSeen } from "../../db/queries"
+import { getTask, listTasks, updateTask, deleteTask, markTaskSeen, getChildTasks } from "../../db/queries"
 import { TaskNotFoundError, TaskNotTerminalError } from "../../errors"
 
 export function taskRoutes(deps: AppDeps): Hono {
@@ -62,6 +62,14 @@ export function taskRoutes(deps: AppDeps): Hono {
         Effect.map(mapTaskRow)
       ),
       { status: 201 }
+    )
+  })
+
+  app.get("/:id/children", (c) => {
+    return runEffect(c,
+      getChildTasks(deps.db, c.req.param("id")).pipe(
+        Effect.map(rows => rows.map(mapTaskRow))
+      )
     )
   })
 
