@@ -152,21 +152,20 @@ curl http://localhost:3456/api/tasks/$PARENT/messages
 
 ## Self-Review Before PR
 
-Before creating your pull request, run a self-review to catch issues. Use your Bash tool to run one of these commands (blocking — waits for the review to complete):
+Before creating your pull request, run a self-review to catch issues. Use your Bash tool to run the following command (blocking — waits for the review to complete):
 
-**Codex** (preferred — has built-in review):
 ```bash
-codex review --base main
+codex review --base main -c model="gpt-5.4" -c reasoning.effort="high"
 ```
 
-**Claude Code:**
-```bash
-git diff origin/main...HEAD | claude -p "Review this diff. Focus on bugs, logic errors, edge cases, missing error handling, and code quality. List each issue with file path and line reference."
-```
+This is the default. If the user requests a specific model or harness, use that instead:
 
-**OpenCode:**
 ```bash
-opencode run "Review this diff. Focus on bugs, logic errors, edge cases, missing error handling, and code quality. List each issue with file path and line reference." <<< "$(git diff origin/main...HEAD)"
+# Claude Code
+git diff origin/main...HEAD | claude -p "Review this diff. Focus on bugs, logic errors, edge cases, missing error handling, and code quality. List each issue with file path and line reference." --model <model>
+
+# OpenCode
+opencode run "Review this diff. Focus on bugs, logic errors, edge cases, missing error handling, and code quality. List each issue with file path and line reference." -m <provider/model> <<< "$(git diff origin/main...HEAD)"
 ```
 
 The command runs synchronously in your Bash tool. When it finishes, read the review output, share it with the user, then fix any issues found before creating the PR.
