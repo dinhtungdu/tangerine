@@ -77,7 +77,7 @@ export function RunCard({ task, parentTask, onCancel, onRetry, onDelete }: RunCa
             <span className="capitalize">{task.source === "github" ? "GitHub" : task.source}</span>
           </div>
           <span className="rounded bg-surface-secondary px-1.5 py-0.5 text-[10px] font-medium text-fg-muted">
-            {task.provider === "claude-code" ? "Claude" : "OpenCode"}
+            {task.provider === "claude-code" ? "Claude" : task.provider === "codex" ? "Codex" : "OpenCode"}
           </span>
           <div className="flex items-center gap-1.5">
             <svg className="h-[13px] w-[13px]" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.8}>
