@@ -168,9 +168,10 @@ curl -X POST http://localhost:3456/api/tasks/<review-task-id>/prompt \
 
 ### Send review findings to a parent task (review agents)
 
-If you are a review task with a parent, forward your findings:
+If you are a review task with a parent, always present your full review findings in your own conversation first, then forward them to the parent:
 
 ```bash
+# After writing your findings in the conversation, also forward to parent
 curl -X POST http://localhost:3456/api/tasks/<parent-task-id>/prompt \
   -H "Content-Type: application/json" \
   -d '{"text": "## Review Findings\n\n- Issue 1: ...\n- Issue 2: ..."}'
@@ -195,9 +196,10 @@ Review tasks can target a PR (`branch: "#123"`) or a parent task (`parentTaskId:
 
 **Review ↔ Parent messaging flow:**
 1. Review task starts → server notifies parent agent
-2. Review agent finishes analysis → sends findings to parent via `POST /api/tasks/{parentId}/prompt`
+2. Review agent finishes analysis → presents findings in its own conversation, then forwards to parent via `POST /api/tasks/{parentId}/prompt`
 3. Parent addresses feedback → requests re-review via `POST /api/tasks/{reviewId}/prompt`
-4. Loop continues until resolved
+4. Review agent re-reviews → presents updated findings in its own conversation, then forwards to parent
+5. Loop continues until resolved
 
 ## Task Object Shape
 
