@@ -127,6 +127,10 @@ export function ChatPanel({
   }, [visibleMessages.length])
 
   useEffect(() => {
+    if (isTerminal) {
+      setSelectionMenu(null)
+      return
+    }
     document.addEventListener("selectionchange", updateSelectionMenu)
     window.addEventListener("scroll", updateSelectionMenu, true)
     window.addEventListener("resize", updateSelectionMenu)
@@ -135,7 +139,7 @@ export function ChatPanel({
       window.removeEventListener("scroll", updateSelectionMenu, true)
       window.removeEventListener("resize", updateSelectionMenu)
     }
-  }, [updateSelectionMenu])
+  }, [updateSelectionMenu, isTerminal])
 
   return (
     <div className="flex h-full flex-col bg-surface">
