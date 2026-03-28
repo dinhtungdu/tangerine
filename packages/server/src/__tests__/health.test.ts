@@ -86,9 +86,7 @@ describe("health check", () => {
       failTask: failFn,
     })
     const result = await Effect.runPromise(checkTask(task, deps))
-    // The task was force-failed but attemptRestart still returns "recovered"
-    // because restartAgent returned success — the force-fail is a side-effect
-    expect(result).toBe("recovered")
+    expect(result).toBe("failed")
     expect(failFn).toHaveBeenCalledTimes(1)
     expect((failFn.mock.calls[0] as unknown as [string, string])[0]).toBe("test-task-1")
   })

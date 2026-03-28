@@ -71,7 +71,7 @@ function attemptRestart(
     // type never). Verify the agent is actually alive after restart — if not, force-fail.
     // Delay before checking: the agent process may exit shortly after spawning (e.g. SIGINT
     // on idle Claude Code), so give it time to fully exit before the liveness check.
-    Effect.tap(() =>
+    Effect.flatMap(() =>
       Effect.gen(function* () {
         yield* Effect.sleep("2 seconds")
         const aliveAfter = yield* deps.checkAgentAlive(task.id)
@@ -81,13 +81,13 @@ function attemptRestart(
             Effect.ignoreLogged
           )
           yield* cleanupSession(task.id, deps.cleanupDeps).pipe(Effect.ignoreLogged)
-        } else {
-          consecutiveRestarts.delete(task.id)
-          taskLog.info("Recovery succeeded", { action: "agent-restart", reason })
+          return "failed" as const
         }
+        consecutiveRestarts.delete(task.id)
+        taskLog.info("Recovery succeeded", { action: "agent-restart", reason })
+        return "recovered" as const
       })
     ),
-    Effect.map(() => "recovered" as const),
     Effect.catchAll((err) =>
       Effect.gen(function* () {
         taskLog.error("Recovery failed, marking task failed", { reason: err.message })
