@@ -8,6 +8,11 @@ export const TANGERINE_HOME = join(homedir(), "tangerine")
 export const CONFIG_PATH = join(TANGERINE_HOME, "config.json")
 export const CREDENTIALS_PATH = join(TANGERINE_HOME, ".credentials")
 
+/** Returns true when the server is running in test mode (TEST_MODE=1). */
+export function isTestMode(): boolean {
+  return process.env["TEST_MODE"] === "1"
+}
+
 /** Raw config shape before Zod validation */
 export interface RawConfig {
   projects?: Array<Record<string, unknown>>
@@ -141,13 +146,13 @@ export function getProjectConfig(config: TangerineConfig, projectId: string): Pr
 }
 
 /**
- * Loads config from ~/tangerine/config.json.
+ * Loads config from ~/tangerine/config.json (or TANGERINE_CONFIG / --config override).
  * Validates with Zod and resolves credentials.
  */
-export function loadConfig(): AppConfig {
+export function loadConfig(overrides?: { configPath?: string }): AppConfig {
   mkdirSync(TANGERINE_HOME, { recursive: true })
 
-  const configPath = join(TANGERINE_HOME, "config.json")
+  const configPath = overrides?.configPath ?? process.env["TANGERINE_CONFIG"] ?? join(TANGERINE_HOME, "config.json")
   const raw = readConfigFile(configPath)
   if (!raw) {
     throw new Error(

@@ -131,6 +131,68 @@ kill $VITE_PID 2>/dev/null
 - **Console errors are bugs**: If `console error` returns results after your changes, fix them.
 - **Don't forget cleanup**: Always kill the vite process. Leaked dev servers block ports for other tasks.
 
+## Test Server Mode (Deterministic Screenshots)
+
+For deterministic, seeded data instead of live state, start an isolated test server.
+
+### Start a test server
+
+```bash
+# Pick a unique port for the test API server
+TEST_API_PORT=$((3456 + SLOT_NUM + 100))
+TEST_DB="/tmp/tangerine-test-${TASK_SHORT}.db"
+
+# Start the test server with isolated DB and test mode enabled
+TEST_MODE=1 TANGERINE_DB="$TEST_DB" PORT=$TEST_API_PORT \
+  bun run packages/server/src/cli/index.ts start > /tmp/tangerine-test-server.log 2>&1 &
+TEST_SERVER_PID=$!
+
+# Wait for the test server to be ready
+for i in $(seq 1 30); do
+  curl -s http://localhost:$TEST_API_PORT/api/health && break
+  sleep 1
+done
+```
+
+### Seed data
+
+```bash
+# Seed with the default fixture data
+curl -s -X POST http://localhost:$TEST_API_PORT/api/test/seed \
+  -H "Content-Type: application/json" \
+  -d @packages/server/src/test-fixtures/seed-data.json
+```
+
+### Point Vite at the test server
+
+```bash
+# Start vite with the API proxy pointing to the test server
+cd web && VITE_API_URL=http://localhost:$TEST_API_PORT \
+  bunx vite --port $VITE_PORT > /tmp/vite-$VITE_PORT.log 2>&1 &
+VITE_PID=$!
+```
+
+### Simulate a GitHub webhook
+
+```bash
+# Simulate an issue.opened webhook
+curl -s -X POST http://localhost:$TEST_API_PORT/api/test/simulate-webhook \
+  -H "Content-Type: application/json" \
+  -H "x-github-event: issues" \
+  -d @packages/server/src/test-fixtures/webhooks/issue-opened-label.json
+```
+
+### Reset and cleanup
+
+```bash
+# Reset all seeded data
+curl -s -X POST http://localhost:$TEST_API_PORT/api/test/reset
+
+# Cleanup test server
+kill $TEST_SERVER_PID 2>/dev/null
+rm -f "$TEST_DB"
+```
+
 ## Troubleshooting
 
 | Problem | Solution |

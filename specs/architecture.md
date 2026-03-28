@@ -112,6 +112,52 @@ specs/                 # Architecture and design docs
 | [testing.md](./testing.md) | Testing inside VMs |
 | [claude-code-protocol.md](./claude-code-protocol.md) | Claude Code stream-json protocol details |
 
+## Testing Infrastructure
+
+End-to-end testing of the web dashboard against deterministic, seeded state.
+
+### Config & DB Isolation
+
+- `TANGERINE_CONFIG` env var (or `--config <path>` CLI flag) → load config from arbitrary path
+- `TANGERINE_DB` env var (or `--db <path>` CLI flag) → use separate SQLite database
+- Allows spinning up an isolated test server alongside the real instance (different port, DB, config)
+
+### Test Mode
+
+Set `TEST_MODE=1` env var to enable test-only API endpoints. These are **never** available in normal operation.
+
+### Test API Endpoints (TEST_MODE only)
+
+| Endpoint | Purpose |
+|----------|---------|
+| `POST /api/test/seed` | Populate DB with fixture data (tasks, activity logs, session logs) |
+| `POST /api/test/reset` | Truncate all seeded data (tasks, activity_log, session_logs) |
+| `POST /api/test/simulate-webhook` | Process a GitHub webhook payload through the handler without signature verification |
+
+### Fixture Data
+
+Default fixture file at `packages/server/src/test-fixtures/seed-data.json` with:
+- Tasks in all statuses (created, provisioning, running, done, failed, cancelled)
+- Activity log entries for task lifecycle events
+- Session log entries (conversation messages)
+- Edge cases: long titles, error messages, PR URLs
+
+### GitHub Webhook Simulation
+
+Sample payloads in `packages/server/src/test-fixtures/webhooks/`:
+- `issue-opened-label.json` — issue.opened with matching label
+- `issue-opened-assignee.json` — issue.opened with matching assignee
+- `issue-labeled.json` — issue.labeled (label added after creation)
+
+### Browser-Test Skill Integration
+
+The `browser-test` skill can optionally start a test server instance:
+1. Start server with test config, test DB, separate port, `TEST_MODE=1`
+2. Seed data via `POST /api/test/seed`
+3. Take screenshots against deterministic state
+4. Reset data via `POST /api/test/reset`
+5. Optionally simulate webhooks and screenshot resulting tasks
+
 ## What We Reuse from hal9999
 
 - VM provisioning (Lima/Incus providers, `Provider` interface)

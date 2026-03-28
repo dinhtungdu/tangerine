@@ -3,7 +3,7 @@
 
 import { Effect } from "effect"
 import { createLogger } from "../logger"
-import { loadConfig, getProjectConfig, TANGERINE_HOME, readRawConfig, writeRawConfig } from "../config"
+import { loadConfig, getProjectConfig, TANGERINE_HOME, readRawConfig, writeRawConfig, isTestMode } from "../config"
 import { getDb } from "../db/index"
 import { createTask as dbCreateTask, getTask, listTasks, updateTask, insertSessionLog, markTaskResult } from "../db/queries"
 import { logActivity, cleanupActivities } from "../activity"
@@ -124,15 +124,38 @@ function getLastConversationLog(
   ).get(taskId) as { role: string; content: string } | null
 }
 
+/** Parse --config and --db flags from process.argv */
+function parseStartFlags(): { configPath?: string; dbPath?: string } {
+  const args = process.argv.slice(2)
+  const flags: { configPath?: string; dbPath?: string } = {}
+  for (let i = 0; i < args.length; i++) {
+    if (args[i] === "--config" && args[i + 1]) {
+      flags.configPath = args[++i]
+    } else if (args[i] === "--db" && args[i + 1]) {
+      flags.dbPath = args[++i]
+    }
+  }
+  return flags
+}
+
 export async function start(): Promise<void> {
   const startSpan = log.startOp("server-start")
 
   try {
-    const config = loadConfig()
-    const projectNames = config.config.projects.map((p) => p.name)
-    log.info("Config loaded", { projects: projectNames, home: TANGERINE_HOME })
+    const flags = parseStartFlags()
+    // CLI flags override env vars for config/db paths
+    if (flags.configPath && !process.env["TANGERINE_CONFIG"]) {
+      process.env["TANGERINE_CONFIG"] = flags.configPath
+    }
+    if (flags.dbPath && !process.env["TANGERINE_DB"]) {
+      process.env["TANGERINE_DB"] = flags.dbPath
+    }
 
-    const db = getDb()
+    const config = loadConfig({ configPath: flags.configPath })
+    const projectNames = config.config.projects.map((p) => p.name)
+    log.info("Config loaded", { projects: projectNames, home: TANGERINE_HOME, testMode: isTestMode() })
+
+    const db = getDb(flags.dbPath)
     initSystemLog(db)
     cleanupSystemLogs(db)
     cleanupActivities(db)
