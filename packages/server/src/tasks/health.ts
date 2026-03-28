@@ -19,13 +19,13 @@ const MAX_CONSECUTIVE_RESTARTS = 3
 const consecutiveRestarts = new Map<string, number>()
 
 // Error patterns that will never self-heal — no point restarting.
+// NOTE: these match human-readable strings which is fragile; ideally providers
+// would emit structured error codes (see provider.ts AgentEvent).
 const UNRECOVERABLE_PATTERNS = [
   /model not found/i,
   /ProviderModelNotFoundError/i,
-  /authentication/i,
-  /unauthorized/i,
   /invalid api key/i,
-  /rate limit/i,
+  /InvalidApiKeyError/i,
 ]
 
 function isUnrecoverable(message: string): boolean {
