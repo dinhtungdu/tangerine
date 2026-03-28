@@ -331,6 +331,23 @@ describe("API routes", () => {
       }))
       expect(res.status).toBe(400)
     })
+
+    test("succeeds for review task with parent (sync is fire-and-forget)", async () => {
+      const parent = seedTask(db, { title: "Parent", branch: "tangerine/parent-br" })
+      const review = seedTask(db, {
+        title: "Review",
+        type: "review",
+        parent_task_id: parent.id,
+      })
+      db.prepare("UPDATE tasks SET worktree_path = ? WHERE id = ?").run("/tmp/nonexistent-worktree", review.id)
+
+      const res = await app.fetch(new Request(`http://localhost/api/tasks/${review.id}/prompt`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ text: "Please re-review" }),
+      }))
+      expect(res.status).toBe(200)
+    })
   })
 
   describe("POST /api/tasks/:id/model", () => {

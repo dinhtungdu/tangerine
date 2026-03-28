@@ -28,6 +28,20 @@ function parseDiffChunks(raw: string): { path: string; diff: string }[] {
   return files
 }
 
+/** Sync a review task's worktree to the latest commits on the parent's branch. */
+function syncReviewWorktree(worktreePath: string, parentBranch: string): Effect.Effect<void, never> {
+  return Effect.tryPromise({
+    try: async () => {
+      const proc = Bun.spawn(
+        ["bash", "-c", `git fetch origin && git reset --hard origin/${parentBranch}`],
+        { cwd: worktreePath, stdout: "pipe", stderr: "pipe" },
+      )
+      await proc.exited
+    },
+    catch: () => new Error("review worktree sync failed"),
+  }).pipe(Effect.catchAll(() => Effect.void))
+}
+
 export function sessionRoutes(deps: AppDeps): Hono {
   const app = new Hono()
 
@@ -62,7 +76,19 @@ export function sessionRoutes(deps: AppDeps): Hono {
       return c.json({ error: "text is required" }, 400)
     }
     return runEffectVoid(c,
-      deps.taskManager.sendPrompt(c.req.param("id"), body.text)
+      Effect.gen(function* () {
+        // For review tasks with a parent, sync the worktree to the parent's
+        // latest commits before forwarding the prompt. This keeps the review
+        // agent's code up to date across re-review cycles.
+        const task = yield* getTask(deps.db, c.req.param("id"))
+        if (task?.type === "review" && task.parent_task_id && task.worktree_path) {
+          const parent = yield* getTask(deps.db, task.parent_task_id)
+          if (parent?.branch) {
+            yield* syncReviewWorktree(task.worktree_path, parent.branch)
+          }
+        }
+        yield* deps.taskManager.sendPrompt(c.req.param("id"), body.text!)
+      })
     )
   })
 
