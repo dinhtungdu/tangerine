@@ -45,7 +45,12 @@ export function ChatPanel({
   const scrollRef = useRef<HTMLDivElement>(null)
   const { navigate } = useProjectNav()
   const isTerminated = taskStatus ? TERMINATED_STATUSES.includes(taskStatus) : false
-  const [showThinking, setShowThinking] = useState(false)
+  const [showThinking, setShowThinking] = useState(() => {
+    try { return localStorage.getItem("showThinking") === "true" } catch { return false /* storage unavailable */ }
+  })
+  useEffect(() => {
+    try { localStorage.setItem("showThinking", String(showThinking)) } catch { /* storage unavailable */ }
+  }, [showThinking])
   const [draftInsert, setDraftInsert] = useState<{ id: number, text: string } | null>(null)
   const [selectionMenu, setSelectionMenu] = useState<{ text: string, top: number, left: number } | null>(null)
 
