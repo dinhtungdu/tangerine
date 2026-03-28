@@ -158,43 +158,50 @@ describe("Test API routes", () => {
       expect(task2.pr_url).toBe("https://github.com/test/repo/pull/1")
     })
 
-    test("seeds activity logs", async () => {
-      // First seed a task
+    test("seeds activity logs with preserved timestamps and metadata", async () => {
       await app.fetch(new Request("http://localhost/api/test/seed", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           tasks: [{ id: "activity-task", project_id: "tangerine", title: "Activity test", status: "running" }],
           activity_log: [
-            { task_id: "activity-task", type: "lifecycle", event: "lifecycle:created", content: "Task created" },
-            { task_id: "activity-task", type: "file", event: "tool.read", content: "Read file.ts" },
+            { task_id: "activity-task", type: "lifecycle", event: "lifecycle:created", content: "Task created", timestamp: "2026-01-15T10:00:00.000Z" },
+            { task_id: "activity-task", type: "file", event: "tool.read", content: "Read file.ts", timestamp: "2026-01-15T10:01:00.000Z", metadata: { tool: "Read", path: "file.ts" } },
           ],
         }),
       }))
 
-      const activities = db.prepare("SELECT * FROM activity_log WHERE task_id = ?").all("activity-task") as Array<{ event: string }>
+      const activities = db.prepare("SELECT * FROM activity_log WHERE task_id = ? ORDER BY timestamp ASC").all("activity-task") as Array<{ event: string; timestamp: string; metadata: string | null }>
       expect(activities).toHaveLength(2)
       expect(activities[0]!.event).toBe("lifecycle:created")
+      expect(activities[0]!.timestamp).toBe("2026-01-15T10:00:00.000Z")
       expect(activities[1]!.event).toBe("tool.read")
+      expect(activities[1]!.timestamp).toBe("2026-01-15T10:01:00.000Z")
+      // Metadata should be a JSON string (single-encoded, not double)
+      const meta = JSON.parse(activities[1]!.metadata!) as { tool: string; path: string }
+      expect(meta.tool).toBe("Read")
+      expect(meta.path).toBe("file.ts")
     })
 
-    test("seeds session logs", async () => {
+    test("seeds session logs with preserved timestamps", async () => {
       await app.fetch(new Request("http://localhost/api/test/seed", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           tasks: [{ id: "session-task", project_id: "tangerine", title: "Session test", status: "running" }],
           session_logs: [
-            { task_id: "session-task", role: "user", content: "Hello agent" },
-            { task_id: "session-task", role: "assistant", content: "Hello! How can I help?" },
+            { task_id: "session-task", role: "user", content: "Hello agent", timestamp: "2026-01-15T10:00:00.000Z" },
+            { task_id: "session-task", role: "assistant", content: "Hello! How can I help?", timestamp: "2026-01-15T10:00:05.000Z" },
           ],
         }),
       }))
 
-      const logs = db.prepare("SELECT * FROM session_logs WHERE task_id = ? ORDER BY id").all("session-task") as Array<{ role: string; content: string }>
+      const logs = db.prepare("SELECT * FROM session_logs WHERE task_id = ? ORDER BY id").all("session-task") as Array<{ role: string; content: string; timestamp: string }>
       expect(logs).toHaveLength(2)
       expect(logs[0]!.role).toBe("user")
+      expect(logs[0]!.timestamp).toBe("2026-01-15T10:00:00.000Z")
       expect(logs[1]!.role).toBe("assistant")
+      expect(logs[1]!.timestamp).toBe("2026-01-15T10:00:05.000Z")
     })
 
     test("seeds empty payload without error", async () => {

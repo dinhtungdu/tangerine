@@ -21,20 +21,29 @@ export interface RawConfig {
   [key: string]: unknown
 }
 
+/** Resolve the active config file path (respects TANGERINE_CONFIG env var). */
+export function resolveConfigPath(): string {
+  return process.env["TANGERINE_CONFIG"] ?? CONFIG_PATH
+}
+
 /** Read raw config from disk (pre-validation). Returns empty projects array if no file. */
 export function readRawConfig(): RawConfig {
-  mkdirSync(TANGERINE_HOME, { recursive: true })
-  if (!existsSync(CONFIG_PATH)) {
+  const path = resolveConfigPath()
+  const dir = join(path, "..")
+  mkdirSync(dir, { recursive: true })
+  if (!existsSync(path)) {
     return { projects: [] }
   }
-  const raw = readFileSync(CONFIG_PATH, "utf-8")
+  const raw = readFileSync(path, "utf-8")
   return JSON.parse(raw) as RawConfig
 }
 
 /** Write raw config to disk */
 export function writeRawConfig(config: RawConfig): void {
-  mkdirSync(TANGERINE_HOME, { recursive: true })
-  writeFileSync(CONFIG_PATH, JSON.stringify(config, null, 2) + "\n")
+  const path = resolveConfigPath()
+  const dir = join(path, "..")
+  mkdirSync(dir, { recursive: true })
+  writeFileSync(path, JSON.stringify(config, null, 2) + "\n")
 }
 
 /** Path to OpenCode's credential store on the host */

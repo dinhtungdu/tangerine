@@ -6,8 +6,7 @@ import { Hono } from "hono"
 import type { AppDeps } from "../app"
 import { createLogger } from "../../logger"
 import { isTestMode } from "../../config"
-import { createTask as dbCreateTask, insertSessionLog } from "../../db/queries"
-import { logActivity } from "../../activity"
+import { createTask as dbCreateTask } from "../../db/queries"
 import { processWebhookPayload } from "../../integrations/github"
 import type { WebhookIssuePayload } from "../../integrations/github"
 
@@ -113,28 +112,40 @@ export function testRoutes(deps: AppDeps): Hono {
       }
     }
 
+    // Direct DB inserts for activity_log and session_logs to preserve fixture timestamps.
+    // We bypass logActivity()/insertSessionLog() because they use DB-default timestamps
+    // and logActivity() emits WebSocket events (not wanted during bulk seeding).
     if (payload.activity_log) {
+      const stmt = db.prepare(`
+        INSERT INTO activity_log (task_id, type, event, content, metadata, timestamp)
+        VALUES ($task_id, $type, $event, $content, $metadata, $timestamp)
+      `)
       for (const a of payload.activity_log) {
-        Effect.runSync(logActivity(
-          db,
-          a.task_id,
-          a.type,
-          a.event,
-          a.content,
-          a.metadata,
-        ))
+        stmt.run({
+          $task_id: a.task_id,
+          $type: a.type,
+          $event: a.event,
+          $content: a.content,
+          $metadata: a.metadata ? JSON.stringify(a.metadata) : null,
+          $timestamp: a.timestamp ?? new Date().toISOString(),
+        })
         activityCount++
       }
     }
 
     if (payload.session_logs) {
+      const stmt = db.prepare(`
+        INSERT INTO session_logs (task_id, role, content, images, timestamp)
+        VALUES ($task_id, $role, $content, $images, $timestamp)
+      `)
       for (const s of payload.session_logs) {
-        Effect.runSync(insertSessionLog(db, {
-          task_id: s.task_id,
-          role: s.role,
-          content: s.content,
-          images: s.images ?? null,
-        }))
+        stmt.run({
+          $task_id: s.task_id,
+          $role: s.role,
+          $content: s.content,
+          $images: s.images ?? null,
+          $timestamp: s.timestamp ?? new Date().toISOString(),
+        })
         sessionCount++
       }
     }

@@ -141,9 +141,10 @@ For deterministic, seeded data instead of live state, start an isolated test ser
 # Pick a unique port for the test API server
 TEST_API_PORT=$((3456 + SLOT_NUM + 100))
 TEST_DB="/tmp/tangerine-test-${TASK_SHORT}.db"
+TEST_CONFIG="$(pwd)/packages/server/src/test-fixtures/test-config.json"
 
-# Start the test server with isolated DB and test mode enabled
-TEST_MODE=1 TANGERINE_DB="$TEST_DB" PORT=$TEST_API_PORT \
+# Start the test server with isolated config, DB, and test mode enabled
+TEST_MODE=1 TANGERINE_CONFIG="$TEST_CONFIG" TANGERINE_DB="$TEST_DB" PORT=$TEST_API_PORT \
   bun run packages/server/src/cli/index.ts start > /tmp/tangerine-test-server.log 2>&1 &
 TEST_SERVER_PID=$!
 

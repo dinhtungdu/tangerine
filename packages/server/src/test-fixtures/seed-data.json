@@ -117,7 +117,7 @@
       "type": "file",
       "event": "tool.read",
       "content": "Read packages/server/src/agent/provider.ts",
-      "metadata": "{\"tool\": \"Read\", \"path\": \"packages/server/src/agent/provider.ts\"}",
+      "metadata": {"tool": "Read", "path": "packages/server/src/agent/provider.ts"},
       "timestamp": "2026-03-28T10:01:00.000Z"
     },
     {
@@ -125,7 +125,7 @@
       "type": "file",
       "event": "tool.write",
       "content": "Edited packages/server/src/agent/provider.ts",
-      "metadata": "{\"tool\": \"Edit\", \"path\": \"packages/server/src/agent/provider.ts\"}",
+      "metadata": {"tool": "Edit", "path": "packages/server/src/agent/provider.ts"},
       "timestamp": "2026-03-28T10:02:30.000Z"
     },
     {
@@ -133,7 +133,7 @@
       "type": "system",
       "event": "tool.bash",
       "content": "bun test",
-      "metadata": "{\"tool\": \"Bash\", \"command\": \"bun test\"}",
+      "metadata": {"tool": "Bash", "command": "bun test"},
       "timestamp": "2026-03-28T10:03:00.000Z"
     },
     {
@@ -155,7 +155,7 @@
       "type": "lifecycle",
       "event": "lifecycle:pr.created",
       "content": "PR created: https://github.com/dinhtungdu/tangerine/pull/78",
-      "metadata": "{\"pr_url\": \"https://github.com/dinhtungdu/tangerine/pull/78\"}",
+      "metadata": {"pr_url": "https://github.com/dinhtungdu/tangerine/pull/78"},
       "timestamp": "2026-03-27T15:25:00.000Z"
     },
     {
