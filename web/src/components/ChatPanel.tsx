@@ -7,7 +7,7 @@ import { useProjectNav } from "../hooks/useProjectNav"
 import { getStatusConfig } from "../lib/status"
 import { copyToClipboard } from "../lib/clipboard"
 
-const TERMINAL_STATUSES: TaskStatus[] = ["done", "failed", "cancelled"]
+const TERMINATED_STATUSES: TaskStatus[] = ["done", "failed", "cancelled"]
 
 interface ChatPanelProps {
   messages: ChatMessageType[]
@@ -44,7 +44,7 @@ export function ChatPanel({
 }: ChatPanelProps) {
   const scrollRef = useRef<HTMLDivElement>(null)
   const { navigate } = useProjectNav()
-  const isTerminal = taskStatus ? TERMINAL_STATUSES.includes(taskStatus) : false
+  const isTerminated = taskStatus ? TERMINATED_STATUSES.includes(taskStatus) : false
   const [showThinking, setShowThinking] = useState(false)
   const [draftInsert, setDraftInsert] = useState<{ id: number, text: string } | null>(null)
   const [selectionMenu, setSelectionMenu] = useState<{ text: string, top: number, left: number } | null>(null)
@@ -127,7 +127,7 @@ export function ChatPanel({
   }, [visibleMessages.length])
 
   useEffect(() => {
-    if (isTerminal) {
+    if (isTerminated) {
       setSelectionMenu(null)
       return
     }
@@ -139,7 +139,7 @@ export function ChatPanel({
       window.removeEventListener("scroll", updateSelectionMenu, true)
       window.removeEventListener("resize", updateSelectionMenu)
     }
-  }, [updateSelectionMenu, isTerminal])
+  }, [updateSelectionMenu, isTerminated])
 
   return (
     <div className="flex h-full flex-col bg-surface">
@@ -220,8 +220,8 @@ export function ChatPanel({
       </div>
 
       {/* Input or terminal-state banner */}
-      {isTerminal ? (
-        <TerminalBanner
+      {isTerminated ? (
+        <TerminatedBanner
           taskStatus={taskStatus!}
           taskId={taskId}
           taskTitle={taskTitle}
@@ -253,9 +253,9 @@ export function ChatPanel({
   )
 }
 
-/* -- Banner shown when task is in a terminal state -- */
+/* -- Banner shown when task is done / failed / cancelled -- */
 
-function TerminalBanner({
+function TerminatedBanner({
   taskStatus,
   taskId,
   taskTitle,

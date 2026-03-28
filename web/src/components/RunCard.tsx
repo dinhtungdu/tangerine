@@ -28,7 +28,7 @@ interface RunCardProps {
 
 export function RunCard({ task, onCancel, onRetry, onDelete }: RunCardProps) {
   const { label, textClass, bgClass } = getStatusConfig(task.status)
-  const isTerminal = ["done", "failed", "cancelled"].includes(task.status)
+  const isTerminated = ["done", "failed", "cancelled"].includes(task.status)
   const unseen = hasUnseenUpdates(task)
 
   return (
@@ -81,7 +81,7 @@ export function RunCard({ task, onCancel, onRetry, onDelete }: RunCardProps) {
           </div>
         </div>
         {/* Actions */}
-        {(onCancel || onRetry || onDelete) && (task.status === "running" || isTerminal) && (
+        {(onCancel || onRetry || onDelete) && (task.status === "running" || isTerminated) && (
           <div className="flex shrink-0 items-center gap-1 pt-1">
             {task.status === "running" && onCancel && (
               <button
@@ -105,7 +105,7 @@ export function RunCard({ task, onCancel, onRetry, onDelete }: RunCardProps) {
                 <span className="text-[11px]">Retry</span>
               </button>
             )}
-            {isTerminal && onDelete && (
+            {isTerminated && onDelete && (
               <button
                 onClick={(e) => { e.preventDefault(); onDelete(task.id) }}
                 className="flex items-center gap-1 rounded-md border border-edge px-2 py-1 text-fg-muted active:bg-surface-secondary"
