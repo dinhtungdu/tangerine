@@ -22,7 +22,7 @@ export interface SessionInfo {
 export interface LifecycleDeps {
   db: Database
   agentFactory: import("../agent/provider").AgentFactory
-  getTask(taskId: string): Effect.Effect<{ status: string } | null, Error>
+  getTask(taskId: string): Effect.Effect<{ status: string; branch?: string | null } | null, Error>
   updateTask(taskId: string, updates: Partial<TaskRow>): Effect.Effect<void, Error>
   logActivity(taskId: string, type: "lifecycle" | "system", event: string, content: string, metadata?: Record<string, unknown>): Effect.Effect<unknown, Error>
 }
@@ -79,6 +79,18 @@ export function startSession(
     const branch = taskBranch ?? `tangerine/${taskPrefix}`
     const repoDir = `/workspace/${task.project_id}/repo`
 
+    // Review tasks with a parent should base their branch on the parent's branch
+    // instead of defaultBranch, so the review agent sees the code being reviewed.
+    // The review task still gets its own branch name to avoid git worktree conflicts.
+    let baseBranch = defaultBranch
+    if (task.type === "review" && task.parent_task_id) {
+      const parent = yield* deps.getTask(task.parent_task_id).pipe(Effect.catchAll(() => Effect.succeed(null)))
+      if (parent?.branch) {
+        baseBranch = parent.branch
+        taskLog.info("Review task basing branch on parent", { parentTaskId: task.parent_task_id, baseBranch })
+      }
+    }
+
     yield* deps.updateTask(task.id, { status: "provisioning" }).pipe(
       Effect.mapError((e) => new SessionStartError({
         message: e.message,
@@ -128,7 +140,7 @@ export function startSession(
       `cd ${worktreePath} && if git rev-parse --verify origin/${branch} >/dev/null 2>&1; then
         git fetch origin && git checkout -B ${branch} origin/${branch}
       else
-        git fetch origin && git checkout -B ${branch} origin/${defaultBranch}
+        git fetch origin && git checkout -B ${branch} origin/${baseBranch}
       fi`,
     ).pipe(
       Effect.tap(() => activity("worktree.ready",
