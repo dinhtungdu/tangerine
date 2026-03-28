@@ -490,6 +490,15 @@ export function TaskDetail() {
                     </div>
                   )}
                 </div>
+                {diffFiles.length > 0 && (
+                  <DiffSidebar
+                    files={diffFiles}
+                    comments={diffComments}
+                    onScrollToFile={handleScrollToFile}
+                    onRemoveComment={handleRemoveComment}
+                    onSendComments={handleSendComments}
+                  />
+                )}
               </div>
             </div>
           )}
