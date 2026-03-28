@@ -223,7 +223,7 @@ export function TaskDetail() {
   }
 
   const { color: statusColor, label: statusLabel } = getStatusConfig(task.status)
-  const isTerminal = task.status === "done" || task.status === "failed" || task.status === "cancelled"
+  const isTerminated = task.status === "done" || task.status === "failed" || task.status === "cancelled"
 
   // Desktop: multi-pane from visiblePanes set. Mobile: single pane from mobilePane.
   // Both states are tracked; CSS breakpoints control which layout renders.
@@ -353,7 +353,7 @@ export function TaskDetail() {
               <div className="flex min-h-0 flex-1 flex-col @min-[700px]/diff:flex-row">
                 <div className="min-w-0 flex-1 overflow-y-auto">
                   {diffFiles.length > 0 ? (
-                    <DiffView files={diffFiles} onAddComment={isTerminal ? undefined : handleAddComment} />
+                    <DiffView files={diffFiles} onAddComment={isTerminated ? undefined : handleAddComment} />
                   ) : (
                     <div className="flex h-full items-center justify-center text-[13px] text-fg-muted">
                       No file changes yet
@@ -426,7 +426,7 @@ export function TaskDetail() {
               <div className="flex min-h-0 flex-1 flex-col">
                 <div className="min-w-0 flex-1 overflow-y-auto">
                   {diffFiles.length > 0 ? (
-                    <DiffView files={diffFiles} onAddComment={isTerminal ? undefined : handleAddComment} />
+                    <DiffView files={diffFiles} onAddComment={isTerminated ? undefined : handleAddComment} />
                   ) : (
                     <div className="flex h-full items-center justify-center text-[13px] text-fg-muted">
                       No file changes yet
