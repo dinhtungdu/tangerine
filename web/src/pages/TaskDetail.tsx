@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, useRef } from "react"
+import { useState, useEffect, useCallback, useRef, useMemo } from "react"
 import { useParams, Link } from "react-router-dom"
 import type { Task } from "@tangerine/shared"
 import { fetchTask, fetchChildTasks, changeTaskConfig, markTaskSeen } from "../lib/api"
@@ -9,6 +9,7 @@ import { useProject } from "../context/ProjectContext"
 import { useProjectNav } from "../hooks/useProjectNav"
 import { useDiffFiles } from "../hooks/useDiffFiles"
 import { useResizable } from "../hooks/useResizable"
+import { useSwipe } from "../hooks/useSwipe"
 import { TasksSidebar } from "../components/TasksSidebar"
 import { ChatPanel } from "../components/ChatPanel"
 import { DiffView } from "../components/DiffView"
@@ -223,6 +224,26 @@ export function TaskDetail() {
       setTask((prev) => (prev ? { ...prev, status: session.taskStatus! } : prev))
     }
   }, [session.taskStatus])
+
+  const PANE_ORDER: PaneId[] = ["chat", "diff", "terminal", "activity"]
+  const mobileSwipe = useSwipe(
+    useMemo(() => ({
+      onSwipeLeft: () => {
+        if (mobilePane === "chat") {
+          navigate("/")
+        } else {
+          const idx = PANE_ORDER.indexOf(mobilePane)
+          const prev = PANE_ORDER[idx - 1]
+          if (idx > 0 && prev) setMobilePane(prev)
+        }
+      },
+      onSwipeRight: () => {
+        const idx = PANE_ORDER.indexOf(mobilePane)
+        const next = PANE_ORDER[idx + 1]
+        if (idx < PANE_ORDER.length - 1 && next) setMobilePane(next)
+      },
+    }), [mobilePane, navigate]),
+  )
 
   if (loading) {
     return (
@@ -461,7 +482,7 @@ export function TaskDetail() {
         </div>
 
         {/* Mobile pane layout — single pane, switched by mobilePane */}
-        <div className="flex min-h-0 flex-1 md:hidden">
+        <div className="flex min-h-0 flex-1 md:hidden" {...mobileSwipe}>
           {mobilePane === "chat" && (
             <div className="flex min-w-0 flex-1 flex-col">
               <ChatPanel

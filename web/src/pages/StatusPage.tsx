@@ -1,6 +1,8 @@
+import { useMemo } from "react"
 import { useProject } from "../context/ProjectContext"
 import { useTaskSearch } from "../hooks/useTaskSearch"
 import { useProjectNav } from "../hooks/useProjectNav"
+import { useSwipe } from "../hooks/useSwipe"
 import { TasksSidebar } from "../components/TasksSidebar"
 import { ActiveRunsCard, SystemLog, ProjectUpdateCard } from "../components/StatusWidgets"
 import { PredefinedPromptsEditor } from "../components/PredefinedPromptsEditor"
@@ -9,9 +11,10 @@ export function StatusPage() {
   const { navigate } = useProjectNav()
   const { current } = useProject()
   const { query, setQuery, tasks } = useTaskSearch(current?.name)
+  const swipe = useSwipe(useMemo(() => ({ onSwipeRight: () => navigate("/") }), [navigate]))
 
   return (
-    <div className="flex h-full">
+    <div className="flex h-full" {...swipe}>
       {/* Desktop sidebar */}
       <div className="hidden md:block">
         <TasksSidebar tasks={tasks} searchQuery={query} onSearchChange={setQuery} onNewAgent={() => navigate("/new")} />
