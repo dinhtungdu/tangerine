@@ -4,7 +4,7 @@
 import { Effect } from "effect"
 import { createLogger } from "../logger"
 import { loadConfig, getProjectConfig, TANGERINE_HOME, readRawConfig, writeRawConfig } from "../config"
-import { getDb } from "../db/index"
+import { getDb, resolveDbPath } from "../db/index"
 import { createTask as dbCreateTask, getTask, listTasks, updateTask, insertSessionLog, markTaskResult } from "../db/queries"
 import { logActivity, cleanupActivities } from "../activity"
 import type { TaskRow } from "../db/types"
@@ -28,6 +28,7 @@ import { initSystemLog, cleanupSystemLogs } from "../system-log"
 import { createOpenCodeProvider } from "../agent/opencode-provider"
 import { createClaudeCodeProvider } from "../agent/claude-code-provider"
 import type { AgentHandle } from "../agent/provider"
+import { parseArgs } from "./helpers"
 
 const log = createLogger("cli")
 
@@ -124,15 +125,41 @@ function getLastConversationLog(
   ).get(taskId) as { role: string; content: string } | null
 }
 
-export async function start(): Promise<void> {
+export async function start(argv: string[] = []): Promise<void> {
   const startSpan = log.startOp("server-start")
 
   try {
-    const config = loadConfig()
-    const projectNames = config.config.projects.map((p) => p.name)
-    log.info("Config loaded", { projects: projectNames, home: TANGERINE_HOME })
+    const parsed = parseArgs(argv, {
+      config: {},
+      db: {},
+      "test-mode": {},
+    })
+    if (parsed.flags["help"] === "true") {
+      console.log(`
+Usage: tangerine start [options]
 
-    const db = getDb()
+Options:
+  --config <path>     Load config from a custom JSON file
+  --db <path>         Use a custom SQLite database path
+  --test-mode         Enable gated /api/test routes
+`)
+      return
+    }
+    const config = loadConfig({
+      configPath: parsed.flags["config"],
+      testMode: parsed.flags["test-mode"] === "true" ? true : undefined,
+    })
+    const projectNames = config.config.projects.map((p) => p.name)
+    const dbPath = resolveDbPath(parsed.flags["db"])
+    log.info("Config loaded", {
+      projects: projectNames,
+      home: TANGERINE_HOME,
+      configPath: config.runtime.configPath,
+      dbPath,
+      testMode: config.runtime.testMode,
+    })
+
+    const db = getDb(parsed.flags["db"])
     initSystemLog(db)
     cleanupSystemLogs(db)
     cleanupActivities(db)
@@ -708,14 +735,14 @@ export async function start(): Promise<void> {
           ),
       },
       configStore: {
-        read: readRawConfig,
-        write: writeRawConfig,
+        read: () => readRawConfig(config.runtime.configPath),
+        write: (rawConfig) => writeRawConfig(rawConfig, config.runtime.configPath),
       },
       config,
     }
 
     const { app, websocket } = createApp(deps)
-    const port = Number(process.env.PORT ?? DEFAULT_API_PORT)
+    const port = config.credentials.serverPort || DEFAULT_API_PORT
 
     log.info("Server starting", { port })
 
@@ -831,5 +858,5 @@ export async function start(): Promise<void> {
 
 // Run if invoked directly
 if (import.meta.main) {
-  start()
+  start(process.argv.slice(2))
 }

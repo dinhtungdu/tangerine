@@ -12,7 +12,7 @@ async function main(): Promise<void> {
   switch (command) {
     case "start": {
       const { start } = await import("./start.ts")
-      await start()
+      await start(args.slice(1))
       break
     }
     case "task": {

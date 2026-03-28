@@ -1,4 +1,4 @@
-import { readRawConfig, writeRawConfig, CONFIG_PATH } from "../config.ts"
+import { readRawConfig, writeRawConfig, resolveConfigPath } from "../config.ts"
 import { printTable } from "./helpers.ts"
 import { createLogger } from "../logger.ts"
 
@@ -70,6 +70,7 @@ async function addProject(argv: string[]): Promise<void> {
   const test = parsed.flags["test"]
 
   const config = readRawConfig()
+  const configPath = resolveConfigPath()
 
   if (!config.projects) {
     config.projects = []
@@ -95,7 +96,7 @@ async function addProject(argv: string[]): Promise<void> {
   config.projects.push(project)
   writeRawConfig(config)
 
-  console.log(`Project "${name}" added to ${CONFIG_PATH}`)
+  console.log(`Project "${name}" added to ${configPath}`)
   log.info("Project registered", { name, repo })
 }
 

@@ -126,3 +126,11 @@ specs/                 # Architecture and design docs
 - Agent presets/wrapper scripts (replaced by `AgentFactory` providers)
 - Poll-based output (replaced by SSE/NDJSON streaming)
 - hal9999's task manager (replaced by our own with webhook integration)
+
+## Testing Infrastructure
+
+- The server can run in an isolated test mode alongside the user's normal instance by overriding config and SQLite paths via CLI flags or env vars.
+- Test mode is explicitly gated (`TEST_MODE=1` or equivalent) and enables deterministic helper endpoints under `/api/test/*`; those routes are never mounted during normal operation.
+- Test fixtures seed the dashboard with realistic `tasks`, `activity_log`, and `session_logs` rows through direct DB inserts so browser screenshots and integration tests do not depend on live agent state.
+- Webhook simulation reuses the same GitHub issue processing path as `/webhooks/github`, but skips signature verification so local tests can exercise issue-to-task creation end to end.
+- The `browser-test` skill launches a dedicated server + database pair, seeds fixture data before screenshots, optionally simulates webhook flows, and resets the DB afterward so repeated runs stay deterministic.

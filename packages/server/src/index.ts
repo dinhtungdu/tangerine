@@ -1,9 +1,9 @@
 // Server entry point — re-exports public API surface
 export { createApp } from "./api/app"
 export type { AppDeps } from "./api/app"
-export { loadConfig } from "./config"
-export type { AppConfig } from "./config"
-export { getDb } from "./db/index"
+export { loadConfig, resolveConfigPath, resolveTestMode } from "./config"
+export type { AppConfig, LoadConfigOptions } from "./config"
+export { getDb, resolveDbPath, resetDb } from "./db/index"
 export { createLogger } from "./logger"
 export { pollGitHubIssues } from "./integrations/github"
 export { Poller } from "./integrations/poller"

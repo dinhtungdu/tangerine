@@ -1,0 +1,16 @@
+{
+  "action": "opened",
+  "issue": {
+    "number": 302,
+    "title": "Assignee-triggered webhook routes work to Tangerine",
+    "body": "Assigning this issue to `tangerine-bot` should create a task.",
+    "html_url": "https://github.com/acme/dashboard-e2e/issues/302",
+    "labels": [
+      { "name": "enhancement" }
+    ],
+    "assignee": { "login": "tangerine-bot" }
+  },
+  "repository": {
+    "full_name": "acme/dashboard-e2e"
+  }
+}

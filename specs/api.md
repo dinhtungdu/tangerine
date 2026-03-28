@@ -57,6 +57,16 @@ Hono server on Bun. REST + WebSocket + webhook handlers.
 | POST | `/webhooks/github` | GitHub issue webhook |
 | POST | `/webhooks/linear` | Linear webhook (future) |
 
+### Test Infrastructure
+
+These routes are mounted only when test mode is enabled (`TEST_MODE=1` or `tangerine start --test-mode`).
+
+| Method | Path | Description |
+|--------|------|-------------|
+| POST | `/api/test/seed` | Reset and seed deterministic fixture data into `tasks`, `activity_log`, and `session_logs` |
+| POST | `/api/test/reset` | Clear seeded `tasks`, `activity_log`, and `session_logs` rows |
+| POST | `/api/test/simulate-webhook` | Process a GitHub issue webhook through the normal handler without signature verification |
+
 ### Project
 
 | Method | Path | Description |

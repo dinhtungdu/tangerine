@@ -1,0 +1,163 @@
+{
+  "tasks": [
+    {
+      "id": "task-created-001",
+      "projectId": "dashboard-e2e",
+      "source": "manual",
+      "title": "Polish dashboard empty state copy for first-time users",
+      "description": "Seeded task that has not started yet.",
+      "status": "created",
+      "provider": "opencode",
+      "createdAt": "2026-03-28T09:00:00.000Z",
+      "updatedAt": "2026-03-28T09:00:00.000Z"
+    },
+    {
+      "id": "task-provisioning-001",
+      "projectId": "dashboard-e2e",
+      "source": "github",
+      "sourceId": "github:acme/dashboard-e2e#17",
+      "sourceUrl": "https://github.com/acme/dashboard-e2e/issues/17",
+      "title": "Provision a task with a deliberately long title that wraps across multiple lines in the dashboard list so screenshot tests can verify layout stability under stress",
+      "description": "This task is still preparing the worktree and dependencies.",
+      "status": "provisioning",
+      "provider": "claude-code",
+      "branch": "tangerine/task-provisioning-001",
+      "createdAt": "2026-03-28T09:03:00.000Z",
+      "updatedAt": "2026-03-28T09:04:00.000Z",
+      "startedAt": "2026-03-28T09:03:10.000Z"
+    },
+    {
+      "id": "task-running-001",
+      "projectId": "dashboard-e2e",
+      "source": "manual",
+      "title": "Implement responsive task activity timeline filters",
+      "description": "Active run with recent conversation and tool activity.",
+      "status": "running",
+      "provider": "opencode",
+      "branch": "tangerine/task-running-001",
+      "previewUrl": "http://localhost:4310/preview/task-running-001",
+      "createdAt": "2026-03-28T09:10:00.000Z",
+      "updatedAt": "2026-03-28T09:18:00.000Z",
+      "startedAt": "2026-03-28T09:10:30.000Z",
+      "lastSeenAt": "2026-03-28T09:18:05.000Z",
+      "lastResultAt": "2026-03-28T09:17:00.000Z"
+    },
+    {
+      "id": "task-done-001",
+      "projectId": "dashboard-e2e",
+      "source": "github",
+      "sourceId": "github:acme/dashboard-e2e#21",
+      "sourceUrl": "https://github.com/acme/dashboard-e2e/issues/21",
+      "title": "Ship task detail screenshot improvements",
+      "description": "Completed task with a pull request URL.",
+      "status": "done",
+      "provider": "claude-code",
+      "branch": "tangerine/task-done-001",
+      "prUrl": "https://github.com/acme/dashboard-e2e/pull/88",
+      "createdAt": "2026-03-28T08:40:00.000Z",
+      "updatedAt": "2026-03-28T08:58:00.000Z",
+      "startedAt": "2026-03-28T08:42:00.000Z",
+      "completedAt": "2026-03-28T08:58:00.000Z",
+      "lastResultAt": "2026-03-28T08:57:30.000Z"
+    },
+    {
+      "id": "task-failed-001",
+      "projectId": "dashboard-e2e",
+      "source": "manual",
+      "title": "Reproduce webhook retry regression",
+      "description": "Failed task with an explicit error message.",
+      "status": "failed",
+      "provider": "opencode",
+      "branch": "tangerine/task-failed-001",
+      "error": "bun test failed: expected 202 to equal 201 in webhook route contract",
+      "createdAt": "2026-03-28T08:15:00.000Z",
+      "updatedAt": "2026-03-28T08:26:00.000Z",
+      "startedAt": "2026-03-28T08:16:00.000Z",
+      "completedAt": "2026-03-28T08:26:00.000Z"
+    },
+    {
+      "id": "task-cancelled-001",
+      "projectId": "dashboard-e2e",
+      "source": "manual",
+      "title": "Cancel a queued browser smoke test after design review",
+      "description": "Cancelled task to round out status coverage.",
+      "status": "cancelled",
+      "provider": "claude-code",
+      "createdAt": "2026-03-28T07:55:00.000Z",
+      "updatedAt": "2026-03-28T08:01:00.000Z",
+      "completedAt": "2026-03-28T08:01:00.000Z"
+    }
+  ],
+  "activityLogs": [
+    {
+      "taskId": "task-provisioning-001",
+      "type": "lifecycle",
+      "event": "setup.started",
+      "content": "Installing dependencies for dashboard-e2e",
+      "timestamp": "2026-03-28T09:03:30.000Z"
+    },
+    {
+      "taskId": "task-running-001",
+      "type": "file",
+      "event": "tool.read",
+      "content": "Read web/src/pages/task-detail.tsx",
+      "metadata": { "toolName": "Read" },
+      "timestamp": "2026-03-28T09:15:00.000Z"
+    },
+    {
+      "taskId": "task-running-001",
+      "type": "system",
+      "event": "tool.bash",
+      "content": "bun test web/src/__tests__/components.test.tsx",
+      "metadata": { "toolName": "Bash", "status": "completed" },
+      "timestamp": "2026-03-28T09:16:00.000Z"
+    },
+    {
+      "taskId": "task-done-001",
+      "type": "lifecycle",
+      "event": "pr.created",
+      "content": "PR created: https://github.com/acme/dashboard-e2e/pull/88",
+      "metadata": { "prUrl": "https://github.com/acme/dashboard-e2e/pull/88" },
+      "timestamp": "2026-03-28T08:57:40.000Z"
+    },
+    {
+      "taskId": "task-failed-001",
+      "type": "lifecycle",
+      "event": "task.failed",
+      "content": "Task failed after webhook contract mismatch",
+      "timestamp": "2026-03-28T08:26:00.000Z"
+    }
+  ],
+  "sessionLogs": [
+    {
+      "taskId": "task-running-001",
+      "role": "user",
+      "content": "Add timeline filters for file, system, and lifecycle activity.",
+      "timestamp": "2026-03-28T09:10:35.000Z"
+    },
+    {
+      "taskId": "task-running-001",
+      "role": "assistant",
+      "content": "I updated the filters and am running the component tests now.",
+      "timestamp": "2026-03-28T09:16:30.000Z"
+    },
+    {
+      "taskId": "task-running-001",
+      "role": "thinking",
+      "content": "Need to keep the mobile layout stable while adding filter chips.",
+      "timestamp": "2026-03-28T09:16:45.000Z"
+    },
+    {
+      "taskId": "task-done-001",
+      "role": "assistant",
+      "content": "The screenshots are updated and the PR is ready: https://github.com/acme/dashboard-e2e/pull/88",
+      "timestamp": "2026-03-28T08:57:30.000Z"
+    },
+    {
+      "taskId": "task-failed-001",
+      "role": "assistant",
+      "content": "The webhook route still returns the wrong status code in test mode.",
+      "timestamp": "2026-03-28T08:25:45.000Z"
+    }
+  ]
+}

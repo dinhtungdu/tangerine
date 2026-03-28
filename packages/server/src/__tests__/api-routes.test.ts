@@ -8,7 +8,11 @@ import { createTask as dbCreateTask, updateTaskStatus, insertSessionLog } from "
 import type { TaskRow } from "../db/types"
 import type { RawConfig } from "../config"
 
-function createMockDeps(db: Database, configOverrides?: Partial<AppDeps["config"]["config"]>): AppDeps {
+function createMockDeps(
+  db: Database,
+  configOverrides?: Partial<AppDeps["config"]["config"]>,
+  options?: { testMode?: boolean },
+): AppDeps {
   const configData = {
     projects: [
       { name: "test-project", repo: "test/repo", defaultBranch: "main", setup: "echo ok", defaultProvider: "opencode" as const },
@@ -82,6 +86,10 @@ function createMockDeps(db: Database, configOverrides?: Partial<AppDeps["config"
     },
     config: {
       config: configData as AppDeps["config"]["config"],
+      runtime: {
+        configPath: "/tmp/tangerine-test-config.json",
+        testMode: options?.testMode ?? false,
+      },
       credentials: {
         opencodeAuthPath: null,
         claudeOauthToken: null,
@@ -395,6 +403,158 @@ describe("API routes", () => {
 
       const after = db.query("SELECT COUNT(*) as cnt FROM system_logs").get() as { cnt: number }
       expect(after.cnt).toBe(0)
+    })
+  })
+
+  describe("test mode routes", () => {
+    test("does not mount /api/test routes outside test mode", async () => {
+      const res = await app.fetch(new Request("http://localhost/api/test/reset", { method: "POST" }))
+      expect(res.status).toBe(404)
+    })
+
+    test("seeds default fixture data in test mode", async () => {
+      deps = createMockDeps(db, {
+        projects: [
+          {
+            name: "dashboard-e2e",
+            repo: "https://github.com/acme/dashboard-e2e",
+            defaultBranch: "main",
+            setup: "echo ok",
+            defaultProvider: "opencode",
+            predefinedPrompts: [],
+          },
+        ],
+      }, { testMode: true })
+      app = createApp(deps).app
+
+      const res = await app.fetch(new Request("http://localhost/api/test/seed", { method: "POST" }))
+      expect(res.status).toBe(200)
+      const body = await res.json() as { inserted: { tasks: number; activityLogs: number; sessionLogs: number } }
+      expect(body.inserted.tasks).toBe(6)
+      expect(body.inserted.activityLogs).toBe(5)
+      expect(body.inserted.sessionLogs).toBe(5)
+    })
+
+    test("resets seeded fixture data in test mode", async () => {
+      deps = createMockDeps(db, {
+        projects: [
+          {
+            name: "dashboard-e2e",
+            repo: "https://github.com/acme/dashboard-e2e",
+            defaultBranch: "main",
+            setup: "echo ok",
+            defaultProvider: "opencode",
+            predefinedPrompts: [],
+          },
+        ],
+      }, { testMode: true })
+      app = createApp(deps).app
+
+      await app.fetch(new Request("http://localhost/api/test/seed", { method: "POST" }))
+      const res = await app.fetch(new Request("http://localhost/api/test/reset", { method: "POST" }))
+      expect(res.status).toBe(200)
+
+      const counts = db.prepare(
+        "SELECT (SELECT COUNT(*) FROM tasks) AS tasks, (SELECT COUNT(*) FROM activity_log) AS activityLogs, (SELECT COUNT(*) FROM session_logs) AS sessionLogs"
+      ).get() as { tasks: number; activityLogs: number; sessionLogs: number }
+      expect(counts.tasks).toBe(0)
+      expect(counts.activityLogs).toBe(0)
+      expect(counts.sessionLogs).toBe(0)
+    })
+
+    test("simulates GitHub webhook flow without signature in test mode", async () => {
+      deps = createMockDeps(db, {
+        projects: [
+          {
+            name: "dashboard-e2e",
+            repo: "https://github.com/acme/dashboard-e2e",
+            defaultBranch: "main",
+            setup: "echo ok",
+            defaultProvider: "opencode",
+            predefinedPrompts: [],
+          },
+        ],
+        integrations: {
+          github: {
+            trigger: {
+              type: "label",
+              value: "tangerine",
+            },
+            pollIntervalMinutes: 60,
+          },
+        },
+      }, { testMode: true })
+      app = createApp(deps).app
+
+      const payload = {
+        action: "opened",
+        issue: {
+          number: 301,
+          title: "Label-triggered webhook creates a deterministic task",
+          body: "This issue should appear in the dashboard.",
+          html_url: "https://github.com/acme/dashboard-e2e/issues/301",
+          labels: [{ name: "tangerine" }],
+          assignee: null,
+        },
+        repository: { full_name: "acme/dashboard-e2e" },
+      }
+
+      const res = await app.fetch(new Request("http://localhost/api/test/simulate-webhook", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ event: "issues", payload }),
+      }))
+      expect(res.status).toBe(202)
+
+      const body = await res.json() as { received: boolean; taskId: string }
+      expect(body.received).toBe(true)
+      const task = db.prepare("SELECT source, source_id FROM tasks WHERE id = ?").get(body.taskId) as { source: string; source_id: string }
+      expect(task.source).toBe("github")
+      expect(task.source_id).toBe("github:acme/dashboard-e2e#301")
+    })
+
+    test("deduplicates simulated GitHub webhook tasks by source id", async () => {
+      deps = createMockDeps(db, {
+        projects: [
+          {
+            name: "dashboard-e2e",
+            repo: "https://github.com/acme/dashboard-e2e",
+            defaultBranch: "main",
+            setup: "echo ok",
+            defaultProvider: "opencode",
+            predefinedPrompts: [],
+          },
+        ],
+      }, { testMode: true })
+      app = createApp(deps).app
+
+      const payload = {
+        action: "labeled",
+        issue: {
+          number: 303,
+          title: "Applying the trigger label later still creates a task",
+          body: "Only one task should be created even if replayed.",
+          html_url: "https://github.com/acme/dashboard-e2e/issues/303",
+          labels: [{ name: "tangerine" }],
+          assignee: null,
+        },
+        repository: { full_name: "acme/dashboard-e2e" },
+      }
+
+      await app.fetch(new Request("http://localhost/api/test/simulate-webhook", {
+        method: "POST",
+        headers: { "Content-Type": "application/json", "x-github-event": "issues" },
+        body: JSON.stringify(payload),
+      }))
+      const second = await app.fetch(new Request("http://localhost/api/test/simulate-webhook", {
+        method: "POST",
+        headers: { "Content-Type": "application/json", "x-github-event": "issues" },
+        body: JSON.stringify(payload),
+      }))
+
+      expect(second.status).toBe(202)
+      const count = db.prepare("SELECT COUNT(*) AS count FROM tasks WHERE source_id = ?").get("github:acme/dashboard-e2e#303") as { count: number }
+      expect(count.count).toBe(1)
     })
   })
 

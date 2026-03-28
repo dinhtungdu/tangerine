@@ -1,0 +1,17 @@
+{
+  "action": "labeled",
+  "issue": {
+    "number": 303,
+    "title": "Applying the trigger label later still creates a task",
+    "body": "This issue did not match at open time, but it does after a label is added.",
+    "html_url": "https://github.com/acme/dashboard-e2e/issues/303",
+    "labels": [
+      { "name": "triage" },
+      { "name": "tangerine" }
+    ],
+    "assignee": null
+  },
+  "repository": {
+    "full_name": "acme/dashboard-e2e"
+  }
+}

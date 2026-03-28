@@ -1,9 +1,16 @@
 import { Database } from "bun:sqlite"
-import { join } from "path"
+import { dirname, join } from "path"
+import { mkdirSync } from "fs"
 import { TANGERINE_HOME } from "../config"
 import { SCHEMA } from "./schema"
 
 let instance: Database | null = null
+
+export const DEFAULT_DB_PATH = join(TANGERINE_HOME, "tangerine.db")
+
+export function resolveDbPath(override?: string): string {
+  return override ?? process.env["TANGERINE_DB"] ?? DEFAULT_DB_PATH
+}
 
 /**
  * Parse expected columns from a CREATE TABLE body.
@@ -107,7 +114,10 @@ function migrateWorktreeSlots(db: Database): void {
 export function getDb(path?: string): Database {
   if (instance) return instance
 
-  const dbPath = path ?? join(TANGERINE_HOME, "tangerine.db")
+  const dbPath = resolveDbPath(path)
+  if (dbPath !== ":memory:") {
+    mkdirSync(dirname(dbPath), { recursive: true })
+  }
   const db = new Database(dbPath)
 
   // WAL mode for better concurrent read performance

@@ -159,7 +159,7 @@ Options:
 Examples:
   tangerine project add --name my-app --repo https://github.com/me/app --image node-dev --setup "npm install"
   tangerine project list
-  tangerine start
+  tangerine start --config /tmp/test-config.json --db /tmp/test.db --test-mode
   tangerine image build
   tangerine task create --title "Fix bug"
   tangerine pool status

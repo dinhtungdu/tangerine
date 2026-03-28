@@ -1,0 +1,17 @@
+{
+  "action": "opened",
+  "issue": {
+    "number": 301,
+    "title": "Label-triggered webhook creates a deterministic task",
+    "body": "This issue carries the `tangerine` label and should create a task in test mode.",
+    "html_url": "https://github.com/acme/dashboard-e2e/issues/301",
+    "labels": [
+      { "name": "tangerine" },
+      { "name": "bug" }
+    ],
+    "assignee": null
+  },
+  "repository": {
+    "full_name": "acme/dashboard-e2e"
+  }
+}

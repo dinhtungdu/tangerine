@@ -15,6 +15,14 @@
 | `tangerine pool status` | VM pool status |
 | `tangerine config` | Credential management |
 
+## Start Options
+
+`tangerine start` accepts runtime overrides for isolated test instances:
+
+- `--config <path>` — load config JSON from a non-default path
+- `--db <path>` — use a non-default SQLite database file
+- `--test-mode` — enable gated `/api/test/*` routes
+
 ## Credential Management
 
 ### Storage

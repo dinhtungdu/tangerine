@@ -1,12 +1,28 @@
 import { existsSync, readFileSync, writeFileSync, mkdirSync, chmodSync } from "fs"
-import { join } from "path"
+import { dirname, join } from "path"
 import { homedir, userInfo } from "os"
 import { tangerineConfigSchema, DEFAULT_API_PORT } from "@tangerine/shared"
 import type { TangerineConfig, ProjectConfig } from "@tangerine/shared"
 
 export const TANGERINE_HOME = join(homedir(), "tangerine")
-export const CONFIG_PATH = join(TANGERINE_HOME, "config.json")
+export const DEFAULT_CONFIG_PATH = join(TANGERINE_HOME, "config.json")
+export const CONFIG_PATH = DEFAULT_CONFIG_PATH
 export const CREDENTIALS_PATH = join(TANGERINE_HOME, ".credentials")
+
+export interface LoadConfigOptions {
+  configPath?: string
+  testMode?: boolean
+}
+
+export function resolveConfigPath(override?: string): string {
+  return override ?? process.env["TANGERINE_CONFIG"] ?? DEFAULT_CONFIG_PATH
+}
+
+export function resolveTestMode(override?: boolean): boolean {
+  if (typeof override === "boolean") return override
+  const value = process.env["TEST_MODE"]
+  return value === "1" || value === "true"
+}
 
 /** Raw config shape before Zod validation */
 export interface RawConfig {
@@ -17,19 +33,19 @@ export interface RawConfig {
 }
 
 /** Read raw config from disk (pre-validation). Returns empty projects array if no file. */
-export function readRawConfig(): RawConfig {
-  mkdirSync(TANGERINE_HOME, { recursive: true })
-  if (!existsSync(CONFIG_PATH)) {
+export function readRawConfig(configPath = resolveConfigPath()): RawConfig {
+  mkdirSync(dirname(configPath), { recursive: true })
+  if (!existsSync(configPath)) {
     return { projects: [] }
   }
-  const raw = readFileSync(CONFIG_PATH, "utf-8")
+  const raw = readFileSync(configPath, "utf-8")
   return JSON.parse(raw) as RawConfig
 }
 
 /** Write raw config to disk */
-export function writeRawConfig(config: RawConfig): void {
-  mkdirSync(TANGERINE_HOME, { recursive: true })
-  writeFileSync(CONFIG_PATH, JSON.stringify(config, null, 2) + "\n")
+export function writeRawConfig(config: RawConfig, configPath = resolveConfigPath()): void {
+  mkdirSync(dirname(configPath), { recursive: true })
+  writeFileSync(configPath, JSON.stringify(config, null, 2) + "\n")
 }
 
 /** Path to OpenCode's credential store on the host */
@@ -65,6 +81,10 @@ export const VM_AUTH_RELPATH = ".local/share/opencode/auth.json"
 
 export interface AppConfig {
   config: TangerineConfig
+  runtime: {
+    configPath: string
+    testMode: boolean
+  }
   credentials: {
     opencodeAuthPath: string | null
     claudeOauthToken: string | null
@@ -141,13 +161,14 @@ export function getProjectConfig(config: TangerineConfig, projectId: string): Pr
 }
 
 /**
- * Loads config from ~/tangerine/config.json.
+ * Loads config from the default path, `--config`, or `TANGERINE_CONFIG`.
  * Validates with Zod and resolves credentials.
  */
-export function loadConfig(): AppConfig {
-  mkdirSync(TANGERINE_HOME, { recursive: true })
+export function loadConfig(options: LoadConfigOptions = {}): AppConfig {
+  const configPath = resolveConfigPath(options.configPath)
+  const testMode = resolveTestMode(options.testMode)
+  mkdirSync(dirname(configPath), { recursive: true })
 
-  const configPath = join(TANGERINE_HOME, "config.json")
   const raw = readConfigFile(configPath)
   if (!raw) {
     throw new Error(
@@ -166,7 +187,7 @@ export function loadConfig(): AppConfig {
     process.env["CLAUDE_CODE_OAUTH_TOKEN"] ?? dotfile.CLAUDE_CODE_OAUTH_TOKEN ?? readClaudeCliToken()
   const anthropicApiKey = process.env["ANTHROPIC_API_KEY"] ?? dotfile.ANTHROPIC_API_KEY ?? null
 
-  if (!opencodeAuthPath && !claudeOauthToken && !anthropicApiKey) {
+  if (!testMode && !opencodeAuthPath && !claudeOauthToken && !anthropicApiKey) {
     throw new Error(
       "No LLM credentials found. Either:\n" +
       "  tangerine config set ANTHROPIC_API_KEY=sk-ant-...\n" +
@@ -177,6 +198,10 @@ export function loadConfig(): AppConfig {
 
   return {
     config,
+    runtime: {
+      configPath,
+      testMode,
+    },
     credentials: {
       opencodeAuthPath,
       claudeOauthToken,

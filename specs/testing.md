@@ -63,6 +63,27 @@ The agent decides when to run tests (after changes, before creating PR).
 
 When the agent runs tests via shell, the output appears in the chat stream (via tool call display). Users see pass/fail in real time. Works identically for both OpenCode and Claude Code providers.
 
+## Dashboard E2E Harness
+
+The web dashboard can be tested against a deterministic local server instead of the user's live Tangerine instance.
+
+### Server overrides
+
+- `tangerine start --config <path>` or `TANGERINE_CONFIG=<path>` loads an alternate JSON config
+- `tangerine start --db <path>` or `TANGERINE_DB=<path>` uses an alternate SQLite file
+- `TEST_MODE=1` or `tangerine start --test-mode` enables gated `/api/test/*` routes
+
+### Seeded state
+
+- `POST /api/test/seed` wipes existing task/session/activity rows and inserts a fixture payload directly into SQLite
+- `POST /api/test/reset` clears the seeded rows after screenshots or integration assertions
+- Default fixtures live under `packages/server/src/test-fixtures/`
+
+### Webhook simulation
+
+- `POST /api/test/simulate-webhook` routes a GitHub issue payload through the same processing code as `/webhooks/github`
+- Signature verification is skipped in test mode so local browser tests can create tasks from fixture payloads deterministically
+
 ## Future
 
 - Require tests to pass before PR creation (gate)
