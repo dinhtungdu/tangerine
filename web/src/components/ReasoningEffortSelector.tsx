@@ -1,19 +1,51 @@
 import { useState, useRef, useEffect } from "react"
+import type { ProviderType } from "@tangerine/shared"
 
-const EFFORTS = [
+interface EffortOption {
+  value: string
+  label: string
+  description: string
+}
+
+const CLAUDE_CODE_EFFORTS: EffortOption[] = [
   { value: "low", label: "Low", description: "Quick, minimal thinking" },
   { value: "medium", label: "Medium", description: "Balanced (default)" },
   { value: "high", label: "High", description: "Extended reasoning" },
-] as const
+  { value: "max", label: "Max", description: "Maximum reasoning depth" },
+]
 
-export type ReasoningEffort = (typeof EFFORTS)[number]["value"]
+const CODEX_EFFORTS: EffortOption[] = [
+  { value: "none", label: "None", description: "No reasoning" },
+  { value: "minimal", label: "Minimal", description: "Brief reasoning" },
+  { value: "low", label: "Low", description: "Quick, minimal thinking" },
+  { value: "medium", label: "Medium", description: "Balanced (default)" },
+  { value: "high", label: "High", description: "Extended reasoning" },
+  { value: "xhigh", label: "Extra High", description: "Maximum reasoning depth" },
+]
+
+const DEFAULT_EFFORTS: EffortOption[] = [
+  { value: "low", label: "Low", description: "Quick, minimal thinking" },
+  { value: "medium", label: "Medium", description: "Balanced (default)" },
+  { value: "high", label: "High", description: "Extended reasoning" },
+]
+
+export function getEfforts(provider?: ProviderType): EffortOption[] {
+  switch (provider) {
+    case "claude-code": return CLAUDE_CODE_EFFORTS
+    case "codex": return CODEX_EFFORTS
+    default: return DEFAULT_EFFORTS
+  }
+}
+
+export type ReasoningEffort = string
 
 interface ReasoningEffortSelectorProps {
   value: ReasoningEffort
   onChange: (value: ReasoningEffort) => void
+  provider?: ProviderType
 }
 
-export function ReasoningEffortSelector({ value, onChange }: ReasoningEffortSelectorProps) {
+export function ReasoningEffortSelector({ value, onChange, provider }: ReasoningEffortSelectorProps) {
   const [open, setOpen] = useState(false)
   const ref = useRef<HTMLDivElement>(null)
 
@@ -28,7 +60,8 @@ export function ReasoningEffortSelector({ value, onChange }: ReasoningEffortSele
     return () => document.removeEventListener("mousedown", handleClick)
   }, [open])
 
-  const current = EFFORTS.find((e) => e.value === value) ?? EFFORTS[1]
+  const efforts = getEfforts(provider)
+  const current = efforts.find((e) => e.value === value) ?? efforts.find((e) => e.value === "medium") ?? efforts[0]!
 
   return (
     <div className="relative" ref={ref}>
@@ -50,7 +83,7 @@ export function ReasoningEffortSelector({ value, onChange }: ReasoningEffortSele
 
       {open && (
         <div className="absolute bottom-full left-0 z-50 mb-1 min-w-[180px] overflow-hidden rounded-lg border border-edge bg-surface-card shadow-lg">
-          {EFFORTS.map((e) => {
+          {efforts.map((e) => {
             const isActive = e.value === value
             return (
               <button

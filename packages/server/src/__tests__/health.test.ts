@@ -51,6 +51,7 @@ function makeDeps(overrides?: Partial<HealthCheckDeps>): HealthCheckDeps {
       updateTask: () => Effect.void,
       getAgentHandle: () => null,
     },
+    restartPoll: { attempts: 2, intervalMs: 50 },
     ...overrides,
   }
 }

@@ -42,6 +42,8 @@ export interface HealthCheckDeps {
   /** Returns the last error emitted by the agent, if any. */
   getLastAgentError(taskId: string): string | undefined
   cleanupDeps: CleanupDeps
+  /** Post-restart liveness poll config (defaults: 5 attempts, 3s interval) */
+  restartPoll?: { attempts: number; intervalMs: number }
 }
 
 /** Reset the restart counter when the task has real agent activity. */
@@ -102,12 +104,18 @@ function attemptRestart(
   return deps.restartAgent(task).pipe(
     // restartAgent may internally swallow errors (reconnectSessionWithRetry has error
     // type never). Verify the agent is actually alive after restart — if not, force-fail.
-    // Delay before checking: the agent process may exit shortly after spawning (e.g. SIGINT
-    // on idle Claude Code), so give it time to fully exit before the liveness check.
+    // Poll liveness after restart: the agent process may need time to initialize,
+    // especially with large models (e.g. Opus) or high reasoning effort.
+    // Poll every 2s for up to 15s before giving up.
     Effect.flatMap(() =>
       Effect.gen(function* () {
-        yield* Effect.sleep("2 seconds")
-        const aliveAfter = yield* deps.checkAgentAlive(task.id)
+        const poll = deps.restartPoll ?? { attempts: 5, intervalMs: 3000 }
+        let aliveAfter = false
+        for (let attempt = 0; attempt < poll.attempts; attempt++) {
+          yield* Effect.sleep(`${poll.intervalMs} millis`)
+          aliveAfter = yield* deps.checkAgentAlive(task.id)
+          if (aliveAfter) break
+        }
         if (!aliveAfter) {
           const lastError = deps.getLastAgentError(task.id)
           const failReason = lastError
