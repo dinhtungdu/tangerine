@@ -191,7 +191,7 @@ export function NewAgentForm({ onSubmit, refTaskId, refTaskTitle }: NewAgentForm
     if (refTaskId) {
       const refContext = [
         `[Context: This task continues from a previous task (ID: ${refTaskId}${refTaskTitle ? `, "${refTaskTitle}"` : ""}).`,
-        `Load the tangerine skill (/tangerine-init) to access the Tangerine API, then retrieve the previous task's conversation and context via GET /api/tasks/${refTaskId}/messages to understand what was done before.]`,
+        `Load the task-handbook skill (/task-handbook) to access the Tangerine API, then retrieve the previous task's conversation and context via GET /api/tasks/${refTaskId}/messages to understand what was done before.]`,
       ].join(" ")
       fullDescription = fullDescription ? `${refContext}\n\n${fullDescription}` : refContext
     }

@@ -1,5 +1,5 @@
 ---
-name: tangerine-init
+name: platform-setup
 description: Set up Tangerine inside a VM — install tools, configure projects, clone repos, and install agent skills.
 metadata:
   author: tung
@@ -29,7 +29,7 @@ No SSH tunnels, no per-project VMs. One VM, all projects.
 
 ### Mode 1: Fresh VM Setup (from host)
 
-User runs `/tangerine-init` from the HOST machine. You help them:
+User runs `/platform-setup` from the HOST machine. You help them:
 
 1. **Create Lima VM** (if not exists):
    ```bash
@@ -60,7 +60,7 @@ User runs `/tangerine-init` from the HOST machine. You help them:
 
 ### Mode 2: Project Setup (inside VM)
 
-User runs `/tangerine-init` from INSIDE the VM in a project directory. You help them add the project to Tangerine.
+User runs `/platform-setup` from INSIDE the VM in a project directory. You help them add the project to Tangerine.
 
 ## Project Setup Workflow
 
@@ -114,7 +114,7 @@ Skills are installed by running `bin/tangerine install` inside the VM. This syml
 bin/tangerine install
 ```
 
-This installs the built-in skills (`tangerine`, `tangerine-init`). For project-specific skills, symlink them manually:
+This installs the built-in skills (`task-handbook`, `platform-setup`). For project-specific skills, symlink them manually:
 
 ```bash
 ln -s /path/to/skill ~/.claude/skills/my-skill
