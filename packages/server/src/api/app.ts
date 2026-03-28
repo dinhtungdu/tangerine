@@ -31,7 +31,7 @@ interface TaggedError { _tag: string; message?: string }
 export interface AppDeps {
   db: Database
   taskManager: {
-    createTask(params: { source: TaskSource; projectId: string; title: string; description?: string; sourceId?: string; sourceUrl?: string; provider?: string; model?: string; reasoningEffort?: string; branch?: string; type?: "code" | "review"; parentTaskId?: string; images?: import("../agent/provider").PromptImage[] }): Effect.Effect<TaskRow, TaggedError>
+    createTask(params: { source: TaskSource; projectId: string; title: string; description?: string; sourceId?: string; sourceUrl?: string; provider?: string; model?: string; reasoningEffort?: string; branch?: string; parentTaskId?: string; images?: import("../agent/provider").PromptImage[] }): Effect.Effect<TaskRow, TaggedError>
     cancelTask(taskId: string): Effect.Effect<void, TaggedError>
     completeTask(taskId: string): Effect.Effect<void, TaggedError>
     sendPrompt(taskId: string, text: string, images?: import("../agent/provider").PromptImage[]): Effect.Effect<void, TaggedError>

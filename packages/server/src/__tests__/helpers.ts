@@ -27,7 +27,6 @@ export function makeTask(overrides?: Partial<Task>): Task {
     reasoningEffort: null,
     branch: null,
     worktreePath: null,
-    type: "code",
     prUrl: null,
     parentTaskId: null,
     userId: null,

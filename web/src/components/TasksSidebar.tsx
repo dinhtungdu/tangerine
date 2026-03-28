@@ -20,7 +20,7 @@ function ParentLabel({ task, taskById }: { task: Task; taskById: Map<string, Tas
   if (!parent) return null
   return (
     <span className="truncate text-[10px] text-fg-muted">
-      {task.type === "review" ? "Review of" : "Continued from"}: {parent.title}
+      Continued from: {parent.title}
     </span>
   )
 }
@@ -110,12 +110,6 @@ export function TasksSidebar({ tasks, searchQuery, onSearchChange, onNewAgent }:
                   <span className="rounded bg-surface-secondary px-1 py-px text-[10px]">
                     {task.provider === "claude-code" ? "CC" : task.provider === "codex" ? "CX" : "OC"}
                   </span>
-                  {task.type === "review" && (
-                    <>
-                      {" · "}
-                      <span className="rounded bg-accent-bg px-1 py-px text-[10px] text-accent">Review</span>
-                    </>
-                  )}
                 </span>
                 <ParentLabel task={task} taskById={taskById} />
               </div>

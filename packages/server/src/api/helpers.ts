@@ -1,4 +1,4 @@
-import type { Task, TaskSource, TaskStatus, TaskType, ProviderType } from "@tangerine/shared"
+import type { Task, TaskSource, TaskStatus, ProviderType } from "@tangerine/shared"
 import type { TaskRow } from "../db/types"
 
 /**
@@ -19,7 +19,6 @@ export function mapTaskRow(row: TaskRow): Task {
   return {
     id: row.id,
     projectId: row.project_id,
-    type: (row.type ?? "code") as TaskType,
     source: row.source as TaskSource,
     sourceId: row.source_id,
     sourceUrl: row.source_url,

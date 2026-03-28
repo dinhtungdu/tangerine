@@ -56,7 +56,7 @@ describe("review task base branch resolution", () => {
     expect(parent).toBeNull()
   })
 
-  test("review task stores parent_task_id correctly", () => {
+  test("continuation task stores parent_task_id correctly", () => {
     const db = createTestDb()
 
     Effect.runSync(dbQueries.createTask(db, {
@@ -68,19 +68,15 @@ describe("review task base branch resolution", () => {
       branch: "tangerine/parent-br",
     }))
 
-    const review = Effect.runSync(dbQueries.createTask(db, {
-      id: "review-333",
+    const child = Effect.runSync(dbQueries.createTask(db, {
+      id: "child-333",
       project_id: "test-project",
       source: "manual",
       repo_url: "test/repo",
-      title: "Review parent",
-      type: "review",
+      title: "Continue parent",
       parent_task_id: "parent-333",
     }))
 
-    expect(review.type).toBe("review")
-    expect(review.parent_task_id).toBe("parent-333")
-    // Review task gets no branch (lifecycle generates tangerine/{prefix})
-    expect(review.branch).toBeNull()
+    expect(child.parent_task_id).toBe("parent-333")
   })
 })

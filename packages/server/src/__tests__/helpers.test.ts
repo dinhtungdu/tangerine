@@ -51,7 +51,6 @@ describe("mapTaskRow", () => {
       branch: null,
       worktree_path: null,
       pr_url: null,
-      type: "code",
       parent_task_id: null,
       user_id: null,
       agent_session_id: null,

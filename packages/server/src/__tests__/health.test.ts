@@ -21,7 +21,6 @@ function makeTask(overrides?: Partial<TaskRow>): TaskRow {
     branch: "test-branch",
     worktree_path: "/tmp/test-worktree",
     pr_url: null,
-    type: "code",
     parent_task_id: null,
     user_id: null,
     agent_session_id: "test-session",

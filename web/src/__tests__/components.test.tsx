@@ -29,7 +29,6 @@ function makeTask(overrides?: Partial<Task>): Task {
     branch: null,
     worktreePath: null,
     prUrl: null,
-    type: "code",
     parentTaskId: null,
     userId: null,
     agentSessionId: null,

@@ -360,7 +360,7 @@ export function TaskDetail() {
                 <svg className="h-3 w-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                   <path strokeLinecap="round" strokeLinejoin="round" d="M13.19 8.688a4.5 4.5 0 0 1 1.242 7.244l-4.5 4.5a4.5 4.5 0 0 1-6.364-6.364l1.757-1.757m13.35-.622 1.757-1.757a4.5 4.5 0 0 0-6.364-6.364l-4.5 4.5a4.5 4.5 0 0 0 1.242 7.244" />
                 </svg>
-                <span>{task.type === "review" ? "Review of" : "Continued from"}:</span>
+                <span>Continued from:</span>
                 <span className="font-medium text-fg">{parentTask.title}</span>
               </Link>
             )}
@@ -373,7 +373,7 @@ export function TaskDetail() {
                     to={link(`/tasks/${child.id}`)}
                     className="rounded bg-surface-secondary px-1.5 py-0.5 text-[11px] font-medium text-fg hover:bg-edge"
                   >
-                    {child.type === "review" ? "Reviewed by" : "Continued in"}: {child.title}
+                    Continued in: {child.title}
                   </Link>
                 ))}
               </div>

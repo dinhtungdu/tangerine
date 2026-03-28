@@ -61,7 +61,7 @@ export function RunCard({ task, parentTask, onCancel, onRetry, onDelete }: RunCa
       </div>
       {parentTask && (
         <div className="mt-1.5 truncate text-[12px] text-fg-muted">
-          {task.type === "review" ? "Review of" : "Continued from"}: {parentTask.title}
+          Continued from: {parentTask.title}
         </div>
       )}
       <div className="mt-2.5 flex flex-col gap-2">

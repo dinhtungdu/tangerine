@@ -87,7 +87,6 @@ export function testRoutes(deps: AppDeps): Hono {
           provider: t.provider ?? "claude-code",
           model: t.model ?? null,
           branch: t.branch ?? null,
-          type: (t.type as "code" | "review") ?? "code",
         }))
 
         // Patch fields that createTask doesn't accept (status, timestamps, error, pr_url, worktree_path)

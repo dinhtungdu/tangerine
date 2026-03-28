@@ -6,7 +6,7 @@ const mockTasks = [
   {
     id: "1", projectId: "proj", source: "manual" as const, sourceId: null, sourceUrl: null,
     title: "Fix auth middleware", description: "Fix the JWT validation", status: "running" as const,
-    provider: "opencode" as const, branch: "main", worktreePath: null, prUrl: null, type: "code" as const, parentTaskId: null, userId: null, agentSessionId: null,
+    provider: "opencode" as const, branch: "main", worktreePath: null, prUrl: null, parentTaskId: null, userId: null, agentSessionId: null,
     agentPid: null, error: null,
     createdAt: "2026-03-17T10:00:00Z", updatedAt: "2026-03-17T10:00:00Z",
     startedAt: "2026-03-17T10:01:00Z", completedAt: null,
@@ -15,7 +15,7 @@ const mockTasks = [
   {
     id: "2", projectId: "proj", source: "github" as const, sourceId: null, sourceUrl: null,
     title: "Add API docs", description: null, status: "done" as const,
-    provider: "opencode" as const, branch: "main", worktreePath: null, prUrl: null, type: "code" as const, parentTaskId: null, userId: null, agentSessionId: null,
+    provider: "opencode" as const, branch: "main", worktreePath: null, prUrl: null, parentTaskId: null, userId: null, agentSessionId: null,
     agentPid: null, error: null,
     createdAt: "2026-03-16T10:00:00Z", updatedAt: "2026-03-16T12:00:00Z",
     startedAt: "2026-03-16T10:01:00Z", completedAt: "2026-03-16T12:00:00Z",

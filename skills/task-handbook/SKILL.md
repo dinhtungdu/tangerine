@@ -3,7 +3,7 @@ name: task-handbook
 description: Reference for agents running inside a Tangerine task — API endpoints, env vars, and common workflows.
 metadata:
   author: tung
-  version: "1.0.0"
+  version: "1.2.0"
 ---
 
 # Tangerine Agent Reference
@@ -70,25 +70,13 @@ curl -X POST $API/api/tasks \
     "branch": "#123"
   }'
 
-# Create a review task for a PR
+# Create a continuation task (links to parent for context)
 curl -X POST $API/api/tasks \
   -H "Content-Type: application/json" \
   -d '{
     "projectId": "my-project",
-    "title": "Review PR #123",
-    "description": "Review PR #123: focus on error handling",
-    "type": "review",
-    "branch": "#123"
-  }'
-
-# Create a review task for another task (parent-child relationship)
-curl -X POST $API/api/tasks \
-  -H "Content-Type: application/json" \
-  -d '{
-    "projectId": "my-project",
-    "title": "Review task abc123",
-    "description": "Review task abc123: check test coverage",
-    "type": "review",
+    "title": "Continue previous work",
+    "description": "Pick up from where the parent task left off",
     "parentTaskId": "abc123"
   }'
 
@@ -142,41 +130,6 @@ curl -X POST http://localhost:3456/api/tasks \
   }'
 ```
 
-### Request a review of your work
-
-Create a review task that targets your current task. The review agent will analyze your code and send findings back to you via the Tangerine API:
-
-```bash
-curl -X POST http://localhost:3456/api/tasks \
-  -H "Content-Type: application/json" \
-  -d '{
-    "projectId": "my-project",
-    "title": "Review my changes",
-    "description": "Review task '$TANGERINE_TASK_ID': check for edge cases",
-    "type": "review",
-    "parentTaskId": "'$TANGERINE_TASK_ID'"
-  }'
-```
-
-When the review task starts, you'll receive a notification with its task ID. After addressing the feedback, request a follow-up review:
-
-```bash
-curl -X POST http://localhost:3456/api/tasks/<review-task-id>/prompt \
-  -H "Content-Type: application/json" \
-  -d '{"text": "Please re-review — I have addressed your feedback."}'
-```
-
-### Send review findings to a parent task (review agents)
-
-If you are a review task with a parent, always present your full review findings in your own conversation first, then forward them to the parent:
-
-```bash
-# After writing your findings in the conversation, also forward to parent
-curl -X POST http://localhost:3456/api/tasks/<parent-task-id>/prompt \
-  -H "Content-Type: application/json" \
-  -d '{"text": "## Review Findings\n\n- Issue 1: ...\n- Issue 2: ..."}'
-```
-
 ### Check your worktree and branch
 
 Your task's worktree path and branch are in the task record:
@@ -185,21 +138,37 @@ Your task's worktree path and branch are in the task record:
 curl http://localhost:3456/api/tasks/$TANGERINE_TASK_ID | jq '{branch, worktreePath, status}'
 ```
 
-## Task Types
+### Get context from a parent task
 
-| Type | Behavior |
-|------|----------|
-| `code` | Default. Agent writes code, pushes branch, creates PR. |
-| `review` | Agent reviews code and shares findings. Does NOT push commits or create PRs. |
+If your task was created as a continuation (`parentTaskId` set), fetch the parent's conversation for context:
 
-Review tasks can target a PR (`branch: "#123"`) or a parent task (`parentTaskId: "abc123"`). When a review task with `parentTaskId` starts, the parent agent is automatically notified with the review task ID.
+```bash
+# Get your task to find parentTaskId
+PARENT=$(curl -s http://localhost:3456/api/tasks/$TANGERINE_TASK_ID | jq -r '.parentTaskId')
 
-**Review ↔ Parent messaging flow:**
-1. Review task starts → server notifies parent agent
-2. Review agent finishes analysis → presents findings in its own conversation, then forwards to parent via `POST /api/tasks/{parentId}/prompt`
-3. Parent addresses feedback → requests re-review via `POST /api/tasks/{reviewId}/prompt`
-4. Review agent re-reviews → presents updated findings in its own conversation, then forwards to parent
-5. Loop continues until resolved
+# Get parent's conversation history
+curl http://localhost:3456/api/tasks/$PARENT/messages
+```
+
+## Self-Review Before PR
+
+Before creating your pull request, run a self-review to catch issues. Use your Bash tool to run the following command (blocking — waits for the review to complete):
+
+```bash
+codex review --base main -c model="gpt-5.4" -c reasoning.effort="high"
+```
+
+This is the default. If the user requests a specific model or harness, use that instead:
+
+```bash
+# Claude Code
+git diff origin/main...HEAD | claude -p "Review this diff. Focus on bugs, logic errors, edge cases, missing error handling, and code quality. List each issue with file path and line reference." --model <model>
+
+# OpenCode
+opencode run "Review this diff. Focus on bugs, logic errors, edge cases, missing error handling, and code quality. List each issue with file path and line reference." -m <provider/model> <<< "$(git diff origin/main...HEAD)"
+```
+
+The command runs synchronously in your Bash tool. When it finishes, read the review output, share it with the user, then fix any issues found before creating the PR.
 
 ## Task Object Shape
 
@@ -210,11 +179,10 @@ Review tasks can target a PR (`branch: "#123"`) or a parent task (`parentTaskId:
   "title": "Fix the login bug",
   "description": "...",
   "status": "running",
-  "type": "code",
   "parentTaskId": null,
   "provider": "claude-code",
-  "branch": "task/fix-login-bug-abc123",
-  "worktreePath": "/workspace/my-project/repo/worktrees/abc123",
+  "branch": "tangerine/abc12345",
+  "worktreePath": "/workspace/my-project/worktrees/tangerine-slot-0",
   "prUrl": null,
   "createdAt": "2026-01-01T00:00:00.000Z"
 }

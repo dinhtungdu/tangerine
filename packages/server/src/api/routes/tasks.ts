@@ -31,7 +31,7 @@ export function taskRoutes(deps: AppDeps): Hono {
   })
 
   app.post("/", async (c) => {
-    const body = await c.req.json<{ projectId?: string; title?: string; description?: string; provider?: string; model?: string; reasoningEffort?: string; source?: string; sourceId?: string; sourceUrl?: string; branch?: string; type?: "code" | "review"; parentTaskId?: string; images?: import("../../agent/provider").PromptImage[] }>()
+    const body = await c.req.json<{ projectId?: string; title?: string; description?: string; provider?: string; model?: string; reasoningEffort?: string; source?: string; sourceId?: string; sourceUrl?: string; branch?: string; parentTaskId?: string; images?: import("../../agent/provider").PromptImage[] }>()
     if (!body.title) {
       return c.json({ error: "title is required" }, 400)
     }
@@ -60,7 +60,7 @@ export function taskRoutes(deps: AppDeps): Hono {
     }
 
     return runEffect(c,
-      deps.taskManager.createTask({ source, projectId, title: body.title, description: body.description, provider, model: body.model, reasoningEffort: body.reasoningEffort, sourceId, sourceUrl, branch, type: body.type, parentTaskId: body.parentTaskId, images: body.images }).pipe(
+      deps.taskManager.createTask({ source, projectId, title: body.title, description: body.description, provider, model: body.model, reasoningEffort: body.reasoningEffort, sourceId, sourceUrl, branch, parentTaskId: body.parentTaskId, images: body.images }).pipe(
         Effect.map(mapTaskRow)
       ),
       { status: 201 }
@@ -104,7 +104,6 @@ export function taskRoutes(deps: AppDeps): Hono {
                 provider: task.provider,
                 model: task.model ?? undefined,
                 reasoningEffort: task.reasoning_effort ?? undefined,
-                type: (task.type as "code" | "review") ?? "code",
                 parentTaskId: task.parent_task_id ?? undefined,
               }).pipe(Effect.mapError((e) => new Error(String(e))))
             ),
