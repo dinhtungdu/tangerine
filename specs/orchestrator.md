@@ -4,68 +4,30 @@ Project-level conversational interface for planning and creating tasks. Replaces
 
 ## Concept
 
-A real coding agent (Claude Code) running at the project's repo root on main. It can read the codebase, git history, and open PRs for context. It doesn't write code — it creates and monitors tasks that do.
+A regular task that runs in worktree 0 (the repo root, checked out to the default branch). It reads the codebase for context and creates/monitors other tasks instead of writing code.
+
+No new infrastructure. An orchestrator task is just a task that runs in slot 0.
 
 ## How It Works
 
 ```
 User: "Refactor auth to use prepared statements"
   ↓
-Orchestrator (Claude Code @ repo root on main)
+Orchestrator task (Claude Code @ worktree 0, default branch)
   ├─ Reads codebase to understand scope
   ├─ Decomposes into tasks
-  ├─ POST /api/tasks (×N)
+  ├─ tangerine-task create (×N)
   └─ Monitors progress, reports back
 ```
 
-## Session Model
+## What Makes It Different From a Normal Task
 
-- One orchestrator session per project (long-lived)
-- Runs on the project's VM at the repo root (no worktree, stays on main)
-- Has Tangerine API access via reverse tunnel (same as cross-project tasks)
-- Persists conversation history (new table: `orchestrator_sessions`)
+- Runs in worktree 0 (default branch) instead of getting its own worktree
+- System prompt emphasizes planning + task creation over coding
+- Has `tangerine-task` access (create, status, list)
+- Doesn't branch, doesn't write code
 
-## Agent Setup
-
-Provider: Claude Code. System prompt includes:
-- Project config (repo, setup, test commands, default provider/model)
-- Recent task history (last N tasks + outcomes)
-- Available providers and models
-
-Tools (via MCP or system prompt instructions):
-- `tangerine-task create` — create tasks
-- `tangerine-task status` — check task status
-- `tangerine-task list` — list recent tasks
-- Read-only codebase access (Glob, Grep, Read — no Edit, no Write, no Bash)
-
-## Data Model
-
-```sql
-CREATE TABLE orchestrator_sessions (
-  id TEXT PRIMARY KEY,
-  project_id TEXT NOT NULL,
-  created_at TEXT DEFAULT (datetime('now')),
-  updated_at TEXT DEFAULT (datetime('now'))
-);
-
--- Reuse session_logs table with orchestrator session ID as task_id
--- Tasks created by orchestrator get parent_task_id = orchestrator_session_id
-```
-
-## API
-
-```
-POST   /api/projects/:name/orchestrator       -- create/resume session
-WS     /api/projects/:name/orchestrator/ws     -- chat stream (same protocol as task WS)
-DELETE /api/projects/:name/orchestrator         -- end session
-```
-
-## Web UI
-
-- New route: `/projects/:name` — project page with orchestrator chat
-- Reuses `ChatPanel`, `ChatMessage`, `ChatInput` components
-- Shows spawned tasks inline (status badges, links to task detail)
-- Task creation events appear as activity items in the chat
+Everything else — chat UI, WebSocket, session logs, activity log — is identical to a normal task.
 
 ## What It Doesn't Do
 
