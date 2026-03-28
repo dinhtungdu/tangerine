@@ -17,8 +17,10 @@ Host (laptop)
 │  browser → localhost:3456
 └── VM (Lima)
     ├── tangerine server + dashboard (:3456)
-    ├── /workspace/project-a/repo (worktrees per task)
-    ├── /workspace/project-b/repo
+    ├── ~/tangerine-workspace/project-a/0 (main clone)
+    │                                   1 (task worktree)
+    │                                   2 (task worktree)
+    ├── ~/tangerine-workspace/project-b/0, 1, ...
     ├── agents (claude, opencode) — local processes
     └── Apache, MariaDB, tools — shared
 ```
@@ -90,10 +92,10 @@ User runs `/platform-setup` from INSIDE the VM in a project directory. You help 
      "postUpdateCommand": "pnpm install && pnpm build"
    }
    ```
-5. **Clone the repo**:
+5. **Clone the repo** (into 0):
    ```bash
-   mkdir -p /workspace/my-project
-   git clone <repo-url> /workspace/my-project/repo
+   mkdir -p ~/tangerine-workspace/my-project
+   git clone <repo-url> ~/tangerine-workspace/my-project/0
    ```
 ### Base Setup Includes
 
@@ -140,12 +142,14 @@ gh auth login
 ~/tangerine/
   config.json             # all projects (managed by tangerine CLI)
   tangerine.db            # task database
-/workspace/
+~/tangerine-workspace/    # configurable via config.workspace
   project-a/
-    repo/                 # git clone
-      worktrees/          # per-task worktrees
+    0/               # main branch clone (never assigned to tasks)
+    1/               # task worktree
+    2/               # task worktree
   project-b/
-    repo/
+    0/
+    1/
 
 ~/workspace/tangerine/    # tangerine source code
   deploy/

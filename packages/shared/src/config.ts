@@ -46,7 +46,7 @@ const defaultModels = [
 
 export const tangerineConfigSchema = z.object({
   projects: z.array(projectConfigSchema).min(1),
-  workspace: z.string().default("/workspace"),
+  workspace: z.string().default("~/tangerine-workspace"),
   model: z.string().default("anthropic/claude-sonnet-4-6"),
   models: z.array(z.string()).default(defaultModels),
   integrations: integrationsSchema.optional(),

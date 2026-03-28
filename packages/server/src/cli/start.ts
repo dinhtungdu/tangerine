@@ -187,6 +187,7 @@ export async function start(): Promise<void> {
       },
       lifecycleDeps: {
         db,
+        tangerineConfig: config.config,
         agentFactory: openCodeFactory,
         getTask: (taskId) => getTask(db, taskId),
         updateTask: (taskId, updates) => updateTask(db, taskId, updates).pipe(Effect.asVoid),

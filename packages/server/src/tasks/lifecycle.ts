@@ -6,6 +6,8 @@ import type { Database } from "bun:sqlite"
 import { createLogger } from "../logger"
 import { SessionStartError } from "../errors"
 import { getHandleMeta as getOpenCodeHandleMeta } from "../agent/opencode-provider"
+import { getRepoDir, resolveWorkspace } from "../config"
+import type { TangerineConfig } from "@tangerine/shared"
 import type { TaskRow } from "../db/types"
 import { initPool, acquireSlot } from "./worktree-pool"
 
@@ -25,6 +27,7 @@ export interface SessionInfo {
 
 export interface LifecycleDeps {
   db: Database
+  tangerineConfig: TangerineConfig
   agentFactory: import("../agent/provider").AgentFactory
   getTask(taskId: string): Effect.Effect<{ status: string; branch?: string | null } | null, Error>
   updateTask(taskId: string, updates: Partial<TaskRow>): Effect.Effect<void, Error>
@@ -81,7 +84,7 @@ export function startSession(
     const taskBranch = task.branch === defaultBranch ? null : task.branch
     const isExistingBranch = !!taskBranch && !taskBranch.startsWith("tangerine/")
     const branch = taskBranch ?? `tangerine/${taskPrefix}`
-    const repoDir = `/workspace/${task.project_id}/repo`
+    const repoDir = getRepoDir(deps.tangerineConfig, task.project_id)
 
     const baseBranch = defaultBranch
 
@@ -276,7 +279,7 @@ export function reconnectSession(
     taskLog.info("Reconnecting orphaned task")
     yield* activity("session.reconnecting", "Reconnecting after server restart")
 
-    const worktreePath = task.worktree_path ?? `/workspace/worktrees/${task.id.slice(0, 8)}`
+    const worktreePath = task.worktree_path ?? `${resolveWorkspace(deps.tangerineConfig)}/${task.project_id}/${task.id.slice(0, 8)}`
     const branch = task.branch ?? `tangerine/${task.id.slice(0, 8)}`
 
     // 1. Kill any lingering agent processes in the worktree before spawning a new one.

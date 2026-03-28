@@ -4,7 +4,7 @@ description: Set up Tangerine — create VM, install tools, configure projects, 
 Read ~/.claude/skills/platform-setup/SKILL.md for full instructions.
 
 **Step 0 — Detect environment:**
-- Are we on the HOST or INSIDE the VM? Check: `limactl list 2>/dev/null` works = host. `/workspace` exists = inside VM.
+- Are we on the HOST or INSIDE the VM? Check: `limactl list 2>/dev/null` works = host.
 - If on host: guide through VM creation + base setup (Mode 1)
 - If inside VM: guide through project setup (Mode 2)
 
@@ -19,7 +19,7 @@ Read the reference files before generating:
 
 Scan the codebase, present findings, then after confirmation:
 1. Write project config to `~/tangerine/config.json`
-2. Clone repo to `/workspace/<project>/repo` (if not already cloned)
+2. Clone repo to `{workspace}/<project>/0` (if not already cloned)
 3. Ask about agent skills to install in `~/.claude/skills/`
 5. Guide through `bin/tangerine start`
 

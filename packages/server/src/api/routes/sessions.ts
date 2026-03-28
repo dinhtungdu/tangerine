@@ -6,7 +6,7 @@ import { getActivities } from "../../activity"
 import { runEffect, runEffectVoid } from "../effect-helpers"
 import { normalizeTimestamps } from "../helpers"
 import { TaskNotFoundError } from "../../errors"
-import { getProjectConfig, TANGERINE_HOME } from "../../config"
+import { getProjectConfig, getRepoDir, TANGERINE_HOME } from "../../config"
 
 function gitDiff(cmd: string, cwd: string): Effect.Effect<string, never> {
   return Effect.tryPromise({
@@ -120,7 +120,7 @@ export function sessionRoutes(deps: AppDeps): Hono {
         if (task.worktree_path) {
           raw = yield* gitDiff(`git diff origin/${defaultBranch}...HEAD`, task.worktree_path)
         } else if (task.branch) {
-          const repoDir = `/workspace/${task.project_id}/repo`
+          const repoDir = getRepoDir(deps.config.config, task.project_id)
           raw = yield* gitDiff(`git diff origin/${defaultBranch}...${task.branch}`, repoDir)
         }
 

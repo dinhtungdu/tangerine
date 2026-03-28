@@ -154,6 +154,20 @@ export function getProjectConfig(config: TangerineConfig, projectId: string): Pr
   return config.projects.find((p) => p.name === projectId)
 }
 
+/** Resolve the workspace root, expanding ~ to the user's home directory */
+export function resolveWorkspace(config: TangerineConfig): string {
+  const ws = config.workspace
+  if (ws.startsWith("~/")) {
+    return join(homedir(), ws.slice(2))
+  }
+  return ws
+}
+
+/** Get the repo directory for a project: {workspace}/{projectId}/0 */
+export function getRepoDir(config: TangerineConfig, projectId: string): string {
+  return join(resolveWorkspace(config), projectId, "0")
+}
+
 /**
  * Loads config from ~/tangerine/config.json (or TANGERINE_CONFIG / --config override).
  * Validates with Zod and resolves credentials.

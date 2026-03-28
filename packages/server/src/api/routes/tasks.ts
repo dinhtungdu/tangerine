@@ -5,6 +5,7 @@ import { mapTaskRow } from "../helpers"
 import { runEffect, runEffectVoid } from "../effect-helpers"
 import { getTask, listTasks, updateTask, deleteTask, markTaskSeen, getChildTasks } from "../../db/queries"
 import { TaskNotFoundError, TaskNotTerminalError } from "../../errors"
+import { getRepoDir } from "../../config"
 
 export function taskRoutes(deps: AppDeps): Hono {
   const app = new Hono()
@@ -51,7 +52,7 @@ export function taskRoutes(deps: AppDeps): Hono {
     let sourceUrl = body.sourceUrl
     let sourceId = body.sourceId
     if (branch) {
-      const prInfo = await resolvePrBranch(branch, `/workspace/${projectId}/repo`)
+      const prInfo = await resolvePrBranch(branch, getRepoDir(deps.config.config, projectId))
       if (prInfo) {
         branch = prInfo.branch
         sourceUrl = sourceUrl ?? prInfo.url
