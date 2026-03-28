@@ -109,6 +109,46 @@ export function drainNext(
   })
 }
 
+/**
+ * Drain all queued entries sequentially. Unlike drainNext, this ignores
+ * the idle/busy state machine — use when the agent just became ready
+ * and you want to flush everything that accumulated during startup.
+ */
+export function drainAll(
+  taskId: string,
+  sendPrompt: SendPromptFn,
+): Effect.Effect<number, never> {
+  return Effect.gen(function* () {
+    const q = getQueue(taskId)
+    const entries = q.entries.splice(0)
+    if (entries.length === 0) return 0
+
+    log.info("Draining all queued prompts", { taskId, count: entries.length })
+    let sent = 0
+    for (const entry of entries) {
+      yield* Effect.tryPromise({
+        try: () => sendPrompt(taskId, entry.text, entry.images),
+        catch: () => new PromptError({
+          message: "Drain send failed",
+          taskId,
+        }),
+      }).pipe(
+        Effect.retry(transientSchedule()),
+        Effect.catchAll((e) => {
+          log.error("Failed to drain queued prompt, discarding", {
+            taskId,
+            error: e.message,
+            promptPreview: truncate(entry.text, 80),
+          })
+          return Effect.void
+        }),
+      )
+      sent++
+    }
+    return sent
+  })
+}
+
 export function getQueueLength(taskId: string): Effect.Effect<number, never> {
   return Effect.sync(() => {
     const q = queues.get(taskId)

@@ -2,6 +2,7 @@ export {
   enqueue,
   setAgentState,
   drainNext,
+  drainAll,
   getQueueLength,
   getAgentState,
   clearQueue,

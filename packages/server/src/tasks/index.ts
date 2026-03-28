@@ -2,8 +2,6 @@ export {
   createTask,
   cancelTask,
   completeTask,
-  queuePrompt,
-  dequeuePrompt,
   abortAgent,
 } from "./manager"
 export type { TaskManagerDeps, TaskSource } from "./manager"

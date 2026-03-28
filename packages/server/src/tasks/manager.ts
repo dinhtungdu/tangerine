@@ -44,9 +44,6 @@ export interface TaskManagerDeps {
   getAgentFactory?: (provider: string) => import("../agent/provider").AgentFactory
 }
 
-// Prompt queue per task (sent sequentially so agent completes one before starting next)
-const promptQueues = new Map<string, string[]>()
-
 export function createTask(
   deps: TaskManagerDeps,
   params: {
@@ -192,22 +189,6 @@ export function completeTask(
       })
     )
   })
-}
-
-export function queuePrompt(taskId: string, prompt: string): void {
-  let queue = promptQueues.get(taskId)
-  if (!queue) {
-    queue = []
-    promptQueues.set(taskId, queue)
-  }
-  queue.push(prompt)
-  log.debug("Prompt queued", { taskId, queueLength: queue.length })
-}
-
-export function dequeuePrompt(taskId: string): string | undefined {
-  const queue = promptQueues.get(taskId)
-  if (!queue || queue.length === 0) return undefined
-  return queue.shift()
 }
 
 /**
