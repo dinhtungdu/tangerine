@@ -26,6 +26,8 @@ const UNRECOVERABLE_PATTERNS = [
   /ProviderModelNotFoundError/i,
   /invalid api key/i,
   /InvalidApiKeyError/i,
+  /rate limit/i,
+  /RateLimitError/i,
 ]
 
 function isUnrecoverable(message: string): boolean {
