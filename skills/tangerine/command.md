@@ -8,7 +8,9 @@ Read ~/.claude/skills/tangerine/SKILL.md for full API reference.
 1. Get your task ID: `echo $TANGERINE_TASK_ID`
 2. API is at `http://localhost:3456`
 3. Get your task: `curl http://localhost:3456/api/tasks/$TANGERINE_TASK_ID`
-4. Create a sub-task: `POST http://localhost:3456/api/tasks` with `{ projectId, title, description, source: "cross-project" }`
+4. Create a sub-task: `POST /api/tasks` with `{ projectId, title, description, source: "cross-project" }`
 5. Start from existing branch or PR: add `"branch": "feature/foo"` or `"branch": "#123"` to the create payload
+6. Create a review task: add `"type": "review"` and optionally `"parentTaskId": "<task-id>"` to the create payload
+7. Send a message to another task: `POST /api/tasks/<id>/prompt` with `{"text": "..."}`
 
 $ARGUMENTS
