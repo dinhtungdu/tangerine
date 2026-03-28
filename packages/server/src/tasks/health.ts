@@ -42,8 +42,8 @@ export interface HealthCheckDeps {
   /** Returns the last error emitted by the agent, if any. */
   getLastAgentError(taskId: string): string | undefined
   cleanupDeps: CleanupDeps
-  /** Post-restart liveness poll config (defaults: 5 attempts, 3s interval) */
-  restartPoll?: { attempts: number; intervalMs: number }
+  /** Delay before post-restart liveness check (ms, default 2000) */
+  restartCheckDelayMs?: number
 }
 
 /** Reset the restart counter when the task has real agent activity. */
@@ -103,19 +103,15 @@ function attemptRestart(
 ): Effect.Effect<"recovered" | "failed", HealthCheckError> {
   return deps.restartAgent(task).pipe(
     // restartAgent may internally swallow errors (reconnectSessionWithRetry has error
-    // type never). Verify the agent is actually alive after restart — if not, force-fail.
-    // Poll liveness after restart: the agent process may need time to initialize,
-    // especially with large models (e.g. Opus) or high reasoning effort.
-    // Poll every 6s for up to 30s before giving up.
+    // type never). Verify the agent process spawned successfully.
+    // We only check if the process is alive (PID exists) — not whether it's "ready".
+    // A live process that's still initializing will pass; a process that exited
+    // immediately (bad config, missing binary) will fail fast.
+    // The next regular health check cycle handles ongoing liveness monitoring.
     Effect.flatMap(() =>
       Effect.gen(function* () {
-        const poll = deps.restartPoll ?? { attempts: 5, intervalMs: 6000 }
-        let aliveAfter = false
-        for (let attempt = 0; attempt < poll.attempts; attempt++) {
-          yield* Effect.sleep(`${poll.intervalMs} millis`)
-          aliveAfter = yield* deps.checkAgentAlive(task.id)
-          if (aliveAfter) break
-        }
+        yield* Effect.sleep(`${deps.restartCheckDelayMs ?? 2000} millis`)
+        const aliveAfter = yield* deps.checkAgentAlive(task.id)
         if (!aliveAfter) {
           const lastError = deps.getLastAgentError(task.id)
           const failReason = lastError
