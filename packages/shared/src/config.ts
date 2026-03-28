@@ -13,7 +13,7 @@ export const projectConfigSchema = z.object({
   test: z.string().optional(),
   env: z.record(z.string()).optional(),
   model: z.string().optional(),
-  defaultProvider: z.enum(["opencode", "claude-code"]).default("claude-code"),
+  defaultProvider: z.enum(["opencode", "claude-code", "codex"]).default("claude-code"),
   postUpdateCommand: z.string().optional(),
   predefinedPrompts: z.array(predefinedPromptSchema).optional().default([
     { label: "Are you proud of your code?", text: "Are you proud of your code?" },

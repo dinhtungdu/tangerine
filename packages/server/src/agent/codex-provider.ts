@@ -1,0 +1,501 @@
+// Codex agent provider: spawns `codex app-server` as a persistent subprocess
+// and communicates via JSON-RPC 2.0 over stdin/stdout (NDJSON framing).
+// Multi-turn conversations use the same process and thread — prompts are sent
+// as `turn/start` requests on the same threadId.
+
+import { Effect } from "effect"
+import { createLogger } from "../logger"
+import { AgentError, PromptError, SessionStartError } from "../errors"
+import type { AgentFactory, AgentHandle, AgentEvent, AgentStartContext, PromptImage } from "./provider"
+import { parseNdjsonStream } from "./ndjson"
+
+const log = createLogger("codex-provider")
+
+// ---------------------------------------------------------------------------
+// JSON-RPC 2.0 helpers
+// ---------------------------------------------------------------------------
+
+let rpcIdCounter = 0
+
+function rpcRequest(method: string, params: Record<string, unknown>): string {
+  return JSON.stringify({ jsonrpc: "2.0", id: ++rpcIdCounter, method, params }) + "\n"
+}
+
+function rpcNotification(method: string, params?: Record<string, unknown>): string {
+  return JSON.stringify({ jsonrpc: "2.0", method, ...(params ? { params } : {}) }) + "\n"
+}
+
+// ---------------------------------------------------------------------------
+// App-server notification → AgentEvent mapping
+//
+// Protocol reference: codex app-server JSON-RPC 2.0 (codex-rs/app-server)
+//
+// Server notifications:
+//   turn/started              { threadId, turn }
+//   turn/completed            { threadId, turn }
+//   item/started              { threadId, turnId, item }
+//   item/completed            { threadId, turnId, item }
+//   item/agentMessage/delta   { threadId, turnId, itemId, delta }
+//   item/reasoning/summaryTextDelta  { threadId, turnId, itemId, delta }
+//   item/commandExecution/outputDelta  { threadId, turnId, itemId, ... }
+//   error                     { message }
+//   thread/started            { thread }
+//   thread/status/changed     { threadId, status }
+//
+// Server requests (approval callbacks — auto-approved):
+//   item/commandExecution/requestApproval  { threadId, turnId, itemId, command }
+//   item/fileChange/requestApproval        { ... }
+//   item/permissions/requestApproval       { ... }
+//
+// Item types (in item/started, item/completed):
+//   agentMessage       { text, phase: "final_answer"|... }
+//   reasoning          { summary, content }
+//   commandExecution   { command, aggregated_output, exit_code, status }
+//   fileChange         { changes: [{ path, kind }], status }
+//   mcpToolCall        { server, tool, arguments, result, error, status }
+//   webSearch          { id, query, action }
+//   todoList           { items: [{ text, completed }] }
+//   error              { message }
+//   userMessage        (ignored)
+// ---------------------------------------------------------------------------
+
+function mapNotification(method: string, params: Record<string, unknown>): AgentEvent[] {
+  switch (method) {
+    case "turn/started":
+      return [{ kind: "status", status: "working" }]
+
+    case "turn/completed":
+      return [{ kind: "status", status: "idle" }]
+
+    case "item/started":
+    case "item/completed": {
+      const item = params.item as Record<string, unknown> | undefined
+      if (!item) return []
+      return method === "item/started" ? mapItemStart(item) : mapItemComplete(item)
+    }
+
+    case "item/agentMessage/delta": {
+      const delta = params.delta as string | undefined
+      if (typeof delta === "string") {
+        return [{ kind: "message.streaming", content: delta }]
+      }
+      return []
+    }
+
+    case "item/reasoning/summaryTextDelta":
+    case "item/reasoning/textDelta": {
+      const delta = params.delta as string | undefined
+      if (typeof delta === "string") {
+        return [{ kind: "thinking", content: delta }]
+      }
+      return []
+    }
+
+    case "error": {
+      const msg = typeof params.message === "string" ? params.message : "Codex error"
+      return [{ kind: "error", message: msg }]
+    }
+
+    default:
+      return []
+  }
+}
+
+function mapItemStart(item: Record<string, unknown>): AgentEvent[] {
+  switch (item.type) {
+    case "commandExecution":
+      if (typeof item.command === "string") {
+        return [{ kind: "tool.start", toolName: "shell", toolInput: truncate(item.command, 500) }]
+      }
+      return []
+
+    case "fileChange": {
+      const changes = Array.isArray(item.changes) ? item.changes : []
+      const paths = changes
+        .filter((c): c is Record<string, unknown> => typeof c === "object" && c !== null)
+        .map((c) => `${c.kind ?? "update"}: ${c.path ?? "?"}`)
+      return [{ kind: "tool.start", toolName: "file_change", toolInput: paths.join(", ") || undefined }]
+    }
+
+    case "mcpToolCall":
+      return [{
+        kind: "tool.start",
+        toolName: `mcp:${item.server ?? "?"}/${item.tool ?? "?"}`,
+        toolInput: item.arguments ? truncate(JSON.stringify(item.arguments), 500) : undefined,
+      }]
+
+    case "webSearch":
+      return [{
+        kind: "tool.start",
+        toolName: "web_search",
+        toolInput: typeof item.query === "string" ? item.query : undefined,
+      }]
+
+    default:
+      return []
+  }
+}
+
+function mapItemComplete(item: Record<string, unknown>): AgentEvent[] {
+  switch (item.type) {
+    case "agentMessage": {
+      if (typeof item.text !== "string" || !item.text) return []
+      // The app-server gives us a `phase` field — "final_answer" is the assistant result,
+      // everything else is intermediate narration.
+      const role = item.phase === "final_answer" ? "assistant" as const : "narration" as const
+      return [{
+        kind: "message.complete",
+        role,
+        content: item.text,
+        messageId: typeof item.id === "string" ? item.id : undefined,
+      }]
+    }
+
+    case "reasoning":
+      // Full reasoning summary on completion
+      if (Array.isArray(item.summary)) {
+        const text = item.summary
+          .filter((s): s is Record<string, unknown> => typeof s === "object" && s !== null)
+          .map((s) => typeof s.text === "string" ? s.text : "")
+          .join("")
+        if (text) return [{ kind: "thinking", content: truncate(text, 300) }]
+      }
+      return []
+
+    case "commandExecution": {
+      const output = typeof item.aggregated_output === "string" ? item.aggregated_output : ""
+      const status = item.status as string | undefined
+      const result = status === "failed" || status === "declined"
+        ? `[${status}] ${output}`
+        : output
+      return [{ kind: "tool.end", toolName: "shell", toolResult: truncate(result, 500) }]
+    }
+
+    case "fileChange": {
+      const changes = Array.isArray(item.changes) ? item.changes : []
+      const paths = changes
+        .filter((c): c is Record<string, unknown> => typeof c === "object" && c !== null)
+        .map((c) => `${c.kind ?? "update"}: ${c.path ?? "?"}`)
+      return [{ kind: "tool.end", toolName: "file_change", toolResult: paths.join(", ") || undefined }]
+    }
+
+    case "mcpToolCall": {
+      const toolName = `mcp:${item.server ?? "?"}/${item.tool ?? "?"}`
+      const error = item.error as Record<string, unknown> | undefined
+      if (error && typeof error.message === "string") {
+        return [{ kind: "tool.end", toolName, toolResult: `[error] ${truncate(error.message, 400)}` }]
+      }
+      const result = item.result as Record<string, unknown> | undefined
+      const content = result?.content
+      return [{ kind: "tool.end", toolName, toolResult: content ? truncate(JSON.stringify(content), 500) : undefined }]
+    }
+
+    case "webSearch":
+      return [{ kind: "tool.end", toolName: "web_search" }]
+
+    case "error":
+      if (typeof item.message === "string") {
+        return [{ kind: "error", message: item.message }]
+      }
+      return []
+
+    default:
+      return []
+  }
+}
+
+function truncate(s: string, maxLen: number): string {
+  return s.length <= maxLen ? s : s.slice(0, maxLen) + "\u2026"
+}
+
+// ---------------------------------------------------------------------------
+// Provider factory
+// ---------------------------------------------------------------------------
+
+export function createCodexProvider(): AgentFactory {
+  return {
+    start(ctx: AgentStartContext): Effect.Effect<AgentHandle, SessionStartError> {
+      const taskLog = log.child({ taskId: ctx.taskId })
+
+      return Effect.tryPromise({
+        try: async () => {
+          const subscribers = new Set<(e: AgentEvent) => void>()
+          let shutdownCalled = false
+          let threadId: string | null = null
+          let activeTurnId: string | null = null
+
+          const emit = (event: AgentEvent) => {
+            for (const cb of subscribers) cb(event)
+          }
+
+          // Spawn persistent app-server process
+          const proc = Bun.spawn(["codex", "app-server"], {
+            cwd: ctx.workdir,
+            stdin: "pipe",
+            stdout: "pipe",
+            stderr: "pipe",
+            env: { ...process.env, ...ctx.env },
+          })
+
+          taskLog.info("Codex app-server spawned", { pid: proc.pid })
+
+          const write = (data: string) => {
+            proc.stdin.write(data)
+            proc.stdin.flush()
+          }
+
+          // Track pending RPC responses for the handshake
+          const pendingRpc = new Map<number, {
+            resolve: (result: Record<string, unknown>) => void
+            reject: (err: Error) => void
+          }>()
+
+          // Parse NDJSON from stdout — handles both RPC responses and notifications
+          const parser = parseNdjsonStream(
+            proc.stdout as ReadableStream<Uint8Array>,
+            {
+              onLine: (data) => {
+                const msg = data as Record<string, unknown>
+                const hasId = "id" in msg && msg.id !== null
+                const method = msg.method as string | undefined
+
+                // JSON-RPC 2.0 message types:
+                // - Response (from server answering our request): has `id`, has `result`/`error`, NO `method`
+                // - Server request (approval callbacks): has `id` AND `method`
+                // - Server notification: has `method`, NO `id`
+
+                // Server request — approval callbacks that need a response
+                if (hasId && method) {
+                  if (method.endsWith("/requestApproval")) {
+                    write(JSON.stringify({
+                      jsonrpc: "2.0",
+                      id: msg.id,
+                      result: { decision: "approved" },
+                    }) + "\n")
+                  }
+                  // Other server requests we don't handle — ignore
+                  return
+                }
+
+                // RPC response to one of our requests
+                if (hasId && !method) {
+                  const id = msg.id as number
+                  const pending = pendingRpc.get(id)
+                  if (pending) {
+                    pendingRpc.delete(id)
+                    if (msg.error) {
+                      const err = msg.error as Record<string, unknown>
+                      pending.reject(new Error(typeof err.message === "string" ? err.message : JSON.stringify(err)))
+                    } else {
+                      pending.resolve((msg.result ?? {}) as Record<string, unknown>)
+                    }
+                  }
+                  return
+                }
+
+                // Server notification
+                if (!method) return
+                const params = (msg.params ?? {}) as Record<string, unknown>
+
+                // Track active turn ID for abort
+                if (method === "turn/started") {
+                  const turn = params.turn as Record<string, unknown> | undefined
+                  if (typeof turn?.id === "string") activeTurnId = turn.id
+                }
+                if (method === "turn/completed" || method === "turn/failed") {
+                  activeTurnId = null
+                }
+
+                const events = mapNotification(method, params)
+                for (const event of events) {
+                  emit(event)
+                }
+              },
+              onError: (err) => {
+                if (!shutdownCalled) {
+                  taskLog.error("stdout parse error", { error: err.message })
+                  emit({ kind: "error", message: err.message })
+                }
+              },
+              onEnd: () => {
+                if (!shutdownCalled) {
+                  taskLog.info("Codex app-server stdout ended")
+                  emit({ kind: "status", status: "idle" })
+                }
+              },
+            },
+          )
+
+          // Log stderr in background
+          ;(async () => {
+            try {
+              const stderrReader = (proc.stderr as ReadableStream<Uint8Array>).getReader()
+              const decoder = new TextDecoder()
+              while (true) {
+                const { done, value } = await stderrReader.read()
+                if (done) break
+                const text = decoder.decode(value, { stream: true }).trim()
+                if (text) taskLog.debug("codex stderr", { text })
+              }
+            } catch {
+              // stderr may close abruptly
+            }
+          })()
+
+          // Helper to send RPC request and wait for response
+          const rpcCall = (method: string, params: Record<string, unknown>): Promise<Record<string, unknown>> => {
+            return new Promise((resolve, reject) => {
+              const req = rpcRequest(method, params)
+              const id = rpcIdCounter
+              pendingRpc.set(id, { resolve, reject })
+              write(req)
+            })
+          }
+
+          // --- Handshake: initialize → initialized → thread/start ---
+
+          // Step 1: initialize
+          const initResult = await rpcCall("initialize", {
+            clientInfo: { name: "tangerine", title: "Tangerine", version: "1.0.0" },
+            capabilities: {},
+          })
+          taskLog.info("Codex initialized", { userAgent: initResult.userAgent })
+
+          // Step 2: initialized notification
+          write(rpcNotification("initialized"))
+
+          // Step 3: start or resume thread
+          if (ctx.resumeSessionId) {
+            try {
+              const resumeResult = await rpcCall("thread/resume", {
+                threadId: ctx.resumeSessionId,
+                persistExtendedHistory: false,
+              })
+              const thread = resumeResult.thread as Record<string, unknown> | undefined
+              threadId = typeof thread?.id === "string" ? thread.id : ctx.resumeSessionId
+              taskLog.info("Codex thread resumed", { threadId })
+            } catch (err) {
+              taskLog.warn("Thread resume failed, starting fresh", { error: String(err) })
+              // Fall through to fresh start below
+            }
+          }
+
+          if (!threadId) {
+            const threadResult = await rpcCall("thread/start", {
+              cwd: ctx.workdir,
+              ...(ctx.model ? { model: ctx.model } : {}),
+              approvalPolicy: "never",
+              sandbox: "workspace-write",
+              ephemeral: false,
+            })
+            const thread = threadResult.thread as Record<string, unknown> | undefined
+            threadId = typeof thread?.id === "string" ? thread.id : null
+            taskLog.info("Codex thread started", { threadId })
+          }
+
+          if (!threadId) {
+            throw new Error("Failed to obtain Codex thread ID")
+          }
+
+          // Ready for prompts
+          emit({ kind: "status", status: "idle" })
+
+          const handle: AgentHandle = {
+            sendPrompt(text: string, images?: PromptImage[]) {
+              return Effect.try({
+                try: () => {
+                  if (shutdownCalled || !threadId) return
+
+                  // Build input content array
+                  const input: Array<Record<string, unknown>> = []
+                  if (images && images.length > 0) {
+                    for (const img of images) {
+                      input.push({
+                        type: "image",
+                        source: { type: "base64", media_type: img.mediaType, data: img.data },
+                      })
+                    }
+                  }
+                  input.push({ type: "text", text, text_elements: [] })
+
+                  // Send turn/start — response is immediate, events stream as notifications
+                  write(rpcRequest("turn/start", { threadId, input }))
+                },
+                catch: (e) =>
+                  new PromptError({ message: `Failed to send turn: ${e}`, taskId: ctx.taskId }),
+              })
+            },
+
+            abort() {
+              return Effect.try({
+                try: () => {
+                  if (threadId && activeTurnId) {
+                    write(rpcRequest("turn/interrupt", { threadId, turnId: activeTurnId }))
+                  }
+                },
+                catch: (e) =>
+                  new AgentError({ message: `Abort failed: ${e}`, taskId: ctx.taskId }),
+              })
+            },
+
+            subscribe(onEvent: (e: AgentEvent) => void) {
+              subscribers.add(onEvent)
+              return {
+                unsubscribe() {
+                  subscribers.delete(onEvent)
+                },
+              }
+            },
+
+            shutdown() {
+              return Effect.sync(() => {
+                shutdownCalled = true
+                parser.stop()
+                subscribers.clear()
+                pendingRpc.clear()
+                try {
+                  proc.stdin.end()
+                } catch {
+                  // stdin may already be closed
+                }
+                try {
+                  proc.kill()
+                } catch {
+                  // process may already be dead
+                }
+                taskLog.info("Codex app-server shutdown")
+              })
+            },
+
+            isAlive() {
+              try {
+                process.kill(proc.pid, 0)
+                return true
+              } catch {
+                return false
+              }
+            },
+          }
+
+          // Attach metadata — sessionId is the threadId
+          Object.defineProperty(handle, "__meta", {
+            get: () => ({
+              sessionId: threadId,
+              agentPort: null as number | null,
+            }),
+          })
+          ;(handle as { __pid?: number }).__pid = proc.pid
+
+          return handle
+        },
+        catch: (e) =>
+          new SessionStartError({
+            message: `Codex app-server start failed: ${e}`,
+            taskId: ctx.taskId,
+            phase: "start-codex",
+            cause: e instanceof Error ? e : new Error(String(e)),
+          }),
+      })
+    },
+  }
+}

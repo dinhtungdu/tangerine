@@ -5,6 +5,7 @@ import type { ProviderType } from "./agent/provider"
 
 const OPENCODE_MODELS_CACHE = join(homedir(), ".cache", "opencode", "models.json")
 const OPENCODE_AUTH_PATH = join(homedir(), ".local", "share", "opencode", "auth.json")
+const CODEX_MODELS_CACHE = join(homedir(), ".codex", "models_cache.json")
 
 export interface ModelInfo {
   id: string
@@ -79,10 +80,32 @@ export function discoverClaudeCodeModels(): ModelInfo[] {
   return CLAUDE_CODE_MODELS
 }
 
+/** Read Codex CLI's models cache to discover available models */
+export function discoverCodexModels(): ModelInfo[] {
+  if (!existsSync(CODEX_MODELS_CACHE)) return []
+  try {
+    const raw = JSON.parse(readFileSync(CODEX_MODELS_CACHE, "utf-8")) as {
+      models?: Array<{ slug: string; display_name?: string; visibility?: string; supported_in_api?: boolean }>
+    }
+    if (!Array.isArray(raw.models)) return []
+    return raw.models
+      .filter((m) => m.visibility === "list")
+      .map((m) => ({
+        id: m.slug,
+        name: m.display_name ?? m.slug,
+        provider: "openai",
+        providerName: "OpenAI",
+      }))
+  } catch {
+    return []
+  }
+}
+
 /** Discover models grouped by harness (provider type) */
 export function discoverModelsByProvider(): Record<ProviderType, ModelInfo[]> {
   return {
     opencode: discoverModels(),
     "claude-code": discoverClaudeCodeModels(),
+    codex: discoverCodexModels(),
   }
 }

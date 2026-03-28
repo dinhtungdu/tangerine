@@ -27,6 +27,7 @@ import type { PrMonitorDeps } from "../tasks/pr-monitor"
 import { initSystemLog, cleanupSystemLogs } from "../system-log"
 import { createOpenCodeProvider } from "../agent/opencode-provider"
 import { createClaudeCodeProvider } from "../agent/claude-code-provider"
+import { createCodexProvider } from "../agent/codex-provider"
 import type { AgentHandle } from "../agent/provider"
 
 const log = createLogger("cli")
@@ -167,10 +168,13 @@ export async function start(): Promise<void> {
     // Agent provider factories (local — no SSH deps)
     const openCodeFactory = createOpenCodeProvider()
     const claudeCodeFactory = createClaudeCodeProvider()
+    const codexFactory = createCodexProvider()
 
     // Select factory based on provider type
     const getAgentFactory = (provider: string) =>
-      provider === "claude-code" ? claudeCodeFactory : openCodeFactory
+      provider === "claude-code" ? claudeCodeFactory
+        : provider === "codex" ? codexFactory
+        : openCodeFactory
 
     // Wire task manager — extract cleanupDeps so retryDeps can reference it
     const cleanupDeps: CleanupDeps = {

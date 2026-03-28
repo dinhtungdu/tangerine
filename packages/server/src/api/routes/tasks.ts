@@ -41,7 +41,9 @@ export function taskRoutes(deps: AppDeps): Hono {
     if (!project) {
       return c.json({ error: `Unknown project: ${projectId}` }, 400)
     }
-    const provider = body.provider === "claude-code" ? "claude-code" : "opencode"
+    const provider = body.provider === "claude-code" ? "claude-code"
+      : body.provider === "codex" ? "codex"
+      : "opencode"
     const source = body.source === "cross-project" ? "cross-project" : "manual"
 
     // Resolve branch from PR URL or direct branch name
