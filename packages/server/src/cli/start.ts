@@ -29,6 +29,7 @@ import { createOpenCodeProvider } from "../agent/opencode-provider"
 import { createClaudeCodeProvider } from "../agent/claude-code-provider"
 import { createCodexProvider } from "../agent/codex-provider"
 import type { AgentHandle } from "../agent/provider"
+import { enqueue as enqueuePrompt, drainAll as drainQueuedPrompts } from "../agent/prompt-queue"
 
 const log = createLogger("cli")
 
@@ -216,6 +217,12 @@ export async function start(): Promise<void> {
             Effect.runPromise(existingHandle.shutdown().pipe(Effect.catchAll(() => Effect.void)))
           }
           agentHandles.set(taskId, session.agentHandle)
+
+          // Drain any prompts queued while the agent was starting
+          const sendFn = async (_tid: string, text: string, imgs?: import("../agent/provider").PromptImage[]) => {
+            await Effect.runPromise(session.agentHandle.sendPrompt(text, imgs).pipe(Effect.catchAll(() => Effect.void)))
+          }
+          Effect.runPromise(drainQueuedPrompts(taskId, sendFn))
 
           // Hydrate in-memory tracking from DB (lost on restart)
           const taskMeta = db.prepare("SELECT pr_url, type FROM tasks WHERE id = ?").get(taskId) as { pr_url: string | null; type: string | null } | null
@@ -678,8 +685,8 @@ export async function start(): Promise<void> {
               return
             }
 
-            // No handle yet — queue for later
-            taskManager.queuePrompt(taskId, promptText)
+            // No handle yet — queue for later (preserves images)
+            yield* enqueuePrompt(taskId, promptText, images)
           }).pipe(
             Effect.catchAll((e) => {
               log.error("sendPrompt failed", { taskId, error: String(e) })

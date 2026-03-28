@@ -385,7 +385,7 @@ export function createCodexProvider(): AgentFactory {
               cwd: ctx.workdir,
               ...(ctx.model ? { model: ctx.model } : {}),
               approvalPolicy: "never",
-              sandbox: "workspace-write",
+              sandbox: "danger-full-access",
               ephemeral: false,
             })
             const thread = threadResult.thread as Record<string, unknown> | undefined
@@ -406,13 +406,13 @@ export function createCodexProvider(): AgentFactory {
                 try: () => {
                   if (shutdownCalled || !threadId) return
 
-                  // Build input content array
+                  // Build input content array (Codex uses OpenAI Responses API format)
                   const input: Array<Record<string, unknown>> = []
                   if (images && images.length > 0) {
                     for (const img of images) {
                       input.push({
                         type: "image",
-                        source: { type: "base64", media_type: img.mediaType, data: img.data },
+                        url: `data:${img.mediaType};base64,${img.data}`,
                       })
                     }
                   }
