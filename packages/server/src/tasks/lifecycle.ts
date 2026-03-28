@@ -22,7 +22,7 @@ export interface SessionInfo {
 export interface LifecycleDeps {
   db: Database
   agentFactory: import("../agent/provider").AgentFactory
-  getTask(taskId: string): Effect.Effect<{ status: string } | null, Error>
+  getTask(taskId: string): Effect.Effect<{ status: string; branch?: string | null } | null, Error>
   updateTask(taskId: string, updates: Partial<TaskRow>): Effect.Effect<void, Error>
   logActivity(taskId: string, type: "lifecycle" | "system", event: string, content: string, metadata?: Record<string, unknown>): Effect.Effect<unknown, Error>
 }
@@ -84,9 +84,9 @@ export function startSession(
     // The review task still gets its own branch name to avoid git worktree conflicts.
     let baseBranch = defaultBranch
     if (task.type === "review" && task.parent_task_id) {
-      const parentRow = deps.db.prepare("SELECT branch FROM tasks WHERE id = ?").get(task.parent_task_id) as { branch: string | null } | null
-      if (parentRow?.branch) {
-        baseBranch = parentRow.branch
+      const parent = yield* deps.getTask(task.parent_task_id).pipe(Effect.catchAll(() => Effect.succeed(null)))
+      if (parent?.branch) {
+        baseBranch = parent.branch
         taskLog.info("Review task basing branch on parent", { parentTaskId: task.parent_task_id, baseBranch })
       }
     }
