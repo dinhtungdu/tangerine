@@ -558,30 +558,17 @@ export async function start(): Promise<void> {
     const deps: AppDeps = {
       db,
       taskManager: {
-        createTask: (params) =>
-          taskManager.createTask(tmDeps, {
-            source: params.source as taskManager.TaskSource,
-            projectId: params.projectId,
-            title: params.title,
-            description: params.description,
-            sourceId: params.sourceId,
-            sourceUrl: params.sourceUrl,
-            provider: params.provider,
-            model: params.model,
-            reasoningEffort: params.reasoningEffort,
-            branch: params.branch,
-            type: params.type,
-            parentTaskId: params.parentTaskId,
-          }).pipe(
+        createTask: ({ images, source, ...rest }) =>
+          taskManager.createTask(tmDeps, { ...rest, source: source as taskManager.TaskSource }).pipe(
             Effect.tap((task) => {
               // Save initial images to disk so onSessionReady can include them
-              if (!params.images?.length) return Effect.void
+              if (!images?.length) return Effect.void
               return Effect.tryPromise({
                 try: async () => {
                   const imagesDir = `${TANGERINE_HOME}/images/${task.id}`
                   await Bun.write(`${imagesDir}/.keep`, "")
                   const manifest: Array<{ filename: string; mediaType: string }> = []
-                  for (const img of params.images!) {
+                  for (const img of images!) {
                     const ext = img.mediaType.split("/")[1] ?? "png"
                     const filename = `${Date.now()}-${Math.random().toString(36).slice(2, 8)}.${ext}`
                     await Bun.write(`${imagesDir}/${filename}`, Buffer.from(img.data, "base64"))
