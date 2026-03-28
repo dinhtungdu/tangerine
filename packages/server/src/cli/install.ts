@@ -13,9 +13,9 @@ const CLAUDE_SKILLS_DIR = join(homedir(), ".claude", "skills")
 const PROJECT_ROOT = resolve(import.meta.dir, "../../../../")
 
 // Skills to symlink into ~/.claude/skills/:
-// - tangerine-init: for the operator to set up projects
-// - tangerine: for agents running inside tasks to understand the API
-const SKILLS_TO_INSTALL = ["tangerine-init", "tangerine"]
+// - platform-setup: for the operator to set up projects
+// - task-handbook: for agents running inside tasks to understand the API
+const SKILLS_TO_INSTALL = ["platform-setup", "task-handbook"]
 
 function check(label: string, ok: boolean, hint?: string): void {
   if (ok) {

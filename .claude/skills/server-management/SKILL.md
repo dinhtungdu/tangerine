@@ -1,6 +1,6 @@
 ---
-name: tangerine-server
-description: "Manage the Tangerine server: start, stop, or restart it in a tmux session. Use when the user says 'start tangerine', 'stop tangerine', 'restart tangerine', or '/tangerine-server start|stop|restart'."
+name: server-management
+description: "Manage the Tangerine server: start, stop, or restart it in a tmux session. Use when the user says 'start tangerine', 'stop tangerine', 'restart tangerine', or '/server-management start|stop|restart'."
 allowed-tools: Bash(tmux *)
 ---
 
