@@ -44,6 +44,7 @@ function makeDeps(overrides?: Partial<HealthCheckDeps>): HealthCheckDeps {
     checkAgentAlive: () => Effect.succeed(true),
     restartAgent: () => Effect.void,
     failTask: () => Effect.void,
+    getLastAgentError: () => undefined,
     cleanupDeps: {
       db: null as never,
       getTask: () => Effect.succeed(null),
@@ -103,6 +104,59 @@ describe("health check", () => {
     // Fiber must keep running after runPromise resolves — wait for at least one tick
     await new Promise((r) => setTimeout(r, 200))
     expect(checkCount).toBeGreaterThanOrEqual(1)
+  })
+
+  test("unrecoverable error skips restart and fails immediately", async () => {
+    const task = makeTask()
+    const failFn = mock(() => Effect.void)
+    const restartFn = mock(() => Effect.void)
+    const deps = makeDeps({
+      checkAgentAlive: () => Effect.succeed(false),
+      restartAgent: restartFn,
+      failTask: failFn,
+      getLastAgentError: () => "Model not found: opencode/gpt-5.4.",
+    })
+    const result = await Effect.runPromise(checkTask(task, deps))
+    expect(result).toBe("failed")
+    expect(restartFn).toHaveBeenCalledTimes(0)
+    expect(failFn).toHaveBeenCalledTimes(1)
+    const failReason = (failFn.mock.calls[0] as unknown as [string, string])[1]
+    expect(failReason).toContain("Model not found")
+  })
+
+  test("agent error is included in failure message after max restarts", async () => {
+    const task = makeTask()
+    const failFn = mock(() => Effect.void)
+    // Always dead, with a recoverable-looking error
+    const deps = makeDeps({
+      checkAgentAlive: () => Effect.succeed(false),
+      failTask: failFn,
+      getLastAgentError: () => "Connection reset by peer",
+    })
+    // Run checkTask 4 times to hit max restarts (3) + 1 to trigger failure
+    // Each restart has a 2s sleep for liveness verification
+    for (let i = 0; i < 4; i++) {
+      await Effect.runPromise(checkTask(task, deps))
+    }
+    // The 4th call should have failed with the real error
+    const lastCall = failFn.mock.calls[failFn.mock.calls.length - 1] as unknown as [string, string]
+    expect(lastCall[1]).toContain("Connection reset by peer")
+  }, 10_000)
+
+  test("post-restart liveness failure includes agent error", async () => {
+    const task = makeTask()
+    const failFn = mock(() => Effect.void)
+    const deps = makeDeps({
+      checkAgentAlive: () => Effect.succeed(false),
+      failTask: failFn,
+      getLastAgentError: () => "ProviderModelNotFoundError",
+    })
+    const result = await Effect.runPromise(checkTask(task, deps))
+    expect(result).toBe("failed")
+    // Should fail fast (unrecoverable) with the real error, not the generic message
+    const failReason = (failFn.mock.calls[0] as unknown as [string, string])[1]
+    expect(failReason).toContain("ProviderModelNotFoundError")
+    expect(failReason).not.toContain("restart did not produce")
   })
 
   test("alive agent is always healthy (no stall detection)", async () => {
