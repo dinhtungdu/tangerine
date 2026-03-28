@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback, useRef } from "react"
-import { useParams } from "react-router-dom"
+import { useParams, Link } from "react-router-dom"
 import type { Task } from "@tangerine/shared"
-import { fetchTask, changeTaskConfig, markTaskSeen } from "../lib/api"
+import { fetchTask, fetchChildTasks, changeTaskConfig, markTaskSeen } from "../lib/api"
 import { getStatusConfig } from "../lib/status"
 import { useSession } from "../hooks/useSession"
 import { useTaskSearch } from "../hooks/useTaskSearch"
@@ -23,8 +23,10 @@ type PaneId = "chat" | "diff" | "terminal" | "activity"
 
 export function TaskDetail() {
   const { id } = useParams<{ id: string }>()
-  const { navigate } = useProjectNav()
+  const { navigate, link } = useProjectNav()
   const [task, setTask] = useState<Task | null>(null)
+  const [parentTask, setParentTask] = useState<Task | null>(null)
+  const [childTasks, setChildTasks] = useState<Task[]>([])
   const [loading, setLoading] = useState(true)
   const [visiblePanes, setVisiblePanes] = useState<Set<PaneId>>(() => {
     try {
@@ -154,6 +156,29 @@ export function TaskDetail() {
     setDiffComments([])
     setMobilePane("chat")
   }, [session])
+
+  // Fetch parent and children once per task ID (not on every poll)
+  useEffect(() => {
+    if (!id) return
+    let cancelled = false
+    async function loadRelated() {
+      try {
+        const [data, children] = await Promise.all([
+          fetchTask(id!),
+          fetchChildTasks(id!),
+        ])
+        if (cancelled) return
+        setChildTasks(children)
+        if (data.parentTaskId) {
+          fetchTask(data.parentTaskId).then((p) => { if (!cancelled) setParentTask(p) }).catch(() => {})
+        } else {
+          setParentTask(null)
+        }
+      } catch { /* ignore */ }
+    }
+    loadRelated()
+    return () => { cancelled = true }
+  }, [id])
 
   useEffect(() => {
     if (!id) return
@@ -320,6 +345,38 @@ export function TaskDetail() {
             </button>
           </div>
         </div>
+
+        {/* Parent / children relationship bar */}
+        {(parentTask || childTasks.length > 0) && (
+          <div className="flex flex-wrap items-center gap-x-4 gap-y-1 border-b border-edge px-3 py-1.5 text-[12px] text-fg-muted md:px-5">
+            {parentTask && (
+              <Link
+                to={link(`/tasks/${parentTask.id}`)}
+                className="flex items-center gap-1 hover:text-fg"
+              >
+                <svg className="h-3 w-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M13.19 8.688a4.5 4.5 0 0 1 1.242 7.244l-4.5 4.5a4.5 4.5 0 0 1-6.364-6.364l1.757-1.757m13.35-.622 1.757-1.757a4.5 4.5 0 0 0-6.364-6.364l-4.5 4.5a4.5 4.5 0 0 0 1.242 7.244" />
+                </svg>
+                <span>{task.type === "review" ? "Review of" : "Continued from"}:</span>
+                <span className="font-medium text-fg">{parentTask.title}</span>
+              </Link>
+            )}
+            {childTasks.length > 0 && (
+              <div className="flex items-center gap-1.5">
+                <span>Related:</span>
+                {childTasks.map((child) => (
+                  <Link
+                    key={child.id}
+                    to={link(`/tasks/${child.id}`)}
+                    className="rounded bg-surface-secondary px-1.5 py-0.5 text-[11px] font-medium text-fg hover:bg-edge"
+                  >
+                    {child.type === "review" ? "Reviewed by" : "Continued in"}: {child.title}
+                  </Link>
+                ))}
+              </div>
+            )}
+          </div>
+        )}
 
         {/* Desktop pane layout — multi-pane with resize handles */}
         <div ref={containerRef} className="hidden min-h-0 flex-1 md:flex">

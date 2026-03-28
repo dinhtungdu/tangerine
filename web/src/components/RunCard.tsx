@@ -21,12 +21,13 @@ function SourceIcon({ source }: { source: string }) {
 
 interface RunCardProps {
   task: Task
+  parentTask?: Task
   onCancel?: (id: string) => void
   onRetry?: (id: string) => void
   onDelete?: (id: string) => void
 }
 
-export function RunCard({ task, onCancel, onRetry, onDelete }: RunCardProps) {
+export function RunCard({ task, parentTask, onCancel, onRetry, onDelete }: RunCardProps) {
   const { label, textClass, bgClass } = getStatusConfig(task.status)
   const isTerminated = ["done", "failed", "cancelled"].includes(task.status)
   const unseen = hasUnseenUpdates(task)
@@ -58,6 +59,11 @@ export function RunCard({ task, onCancel, onRetry, onDelete }: RunCardProps) {
           {label}
         </span>
       </div>
+      {parentTask && (
+        <div className="mt-1.5 truncate text-[12px] text-fg-muted">
+          {task.type === "review" ? "Review of" : "Continued from"}: {parentTask.title}
+        </div>
+      )}
       <div className="mt-2.5 flex flex-col gap-2">
         <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-[12px] text-fg-muted">
           <div className="flex items-center gap-1.5">

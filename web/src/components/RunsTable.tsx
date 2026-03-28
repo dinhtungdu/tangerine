@@ -1,4 +1,4 @@
-import { useState } from "react"
+import { useState, useMemo } from "react"
 import { Link } from "react-router-dom"
 import type { Task, TaskStatus } from "@tangerine/shared"
 import { getStatusConfig, hasUnseenUpdates } from "../lib/status"
@@ -22,6 +22,17 @@ function StatusBadge({ status }: { status: TaskStatus }) {
   return (
     <span className={`inline-flex rounded-full px-2 py-0.5 text-[11px] font-semibold leading-tight ${textClass} ${bgClass}`}>
       {label}
+    </span>
+  )
+}
+
+function ParentLabel({ task, taskById }: { task: Task; taskById: Map<string, Task> }) {
+  if (!task.parentTaskId) return null
+  const parent = taskById.get(task.parentTaskId)
+  if (!parent) return null
+  return (
+    <span className="truncate text-[11px] text-fg-muted">
+      {task.type === "review" ? "Review of" : "Continued from"}: {parent.title}
     </span>
   )
 }
@@ -61,6 +72,8 @@ export function RunsTable({ tasks, searchQuery, onSearchChange, onRefetch }: Run
   const filtered = statusFilter === "all"
     ? tasks
     : tasks.filter((t) => t.status === statusFilter)
+
+  const taskById = useMemo(() => new Map(tasks.map((t) => [t.id, t])), [tasks])
 
   async function handleCancel(id: string) {
     try { await cancelTask(id); onRefetch() } catch { /* ignore */ }
@@ -133,20 +146,23 @@ export function RunsTable({ tasks, searchQuery, onSearchChange, onRefetch }: Run
               to={link(`/tasks/${task.id}`)}
               className="flex items-center border-t border-edge text-[13px] hover:bg-surface-secondary/50"
             >
-              <div className="flex flex-1 items-center gap-2 truncate px-3 py-2.5 font-medium text-fg">
-                {unseen && <span className="h-2 w-2 shrink-0 rounded-full bg-status-info" title="New activity" />}
-                <span className="truncate">{task.title}</span>
-                {task.prUrl && (
-                  <a
-                    href={task.prUrl}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    onClick={(e) => e.stopPropagation()}
-                    className="shrink-0 rounded bg-green-500/10 px-1.5 py-0.5 text-[10px] font-medium text-green-700 hover:bg-green-500/20"
-                  >
-                    {formatPrNumber(task.prUrl)}
-                  </a>
-                )}
+              <div className="flex flex-1 flex-col gap-0.5 truncate px-3 py-2.5">
+                <div className="flex items-center gap-2 font-medium text-fg">
+                  {unseen && <span className="h-2 w-2 shrink-0 rounded-full bg-status-info" title="New activity" />}
+                  <span className="truncate">{task.title}</span>
+                  {task.prUrl && (
+                    <a
+                      href={task.prUrl}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      onClick={(e) => e.stopPropagation()}
+                      className="shrink-0 rounded bg-green-500/10 px-1.5 py-0.5 text-[10px] font-medium text-green-700 hover:bg-green-500/20"
+                    >
+                      {formatPrNumber(task.prUrl)}
+                    </a>
+                  )}
+                </div>
+                <ParentLabel task={task} taskById={taskById} />
               </div>
               <div className="w-[120px] px-3 py-2.5"><StatusBadge status={task.status} /></div>
               <div className="w-[100px] px-3 py-2.5 text-fg-muted">{formatDuration(task.startedAt, task.completedAt, task.createdAt)}</div>
@@ -189,6 +205,7 @@ export function RunsTable({ tasks, searchQuery, onSearchChange, onRefetch }: Run
             <RunCard
               key={task.id}
               task={task}
+              parentTask={task.parentTaskId ? taskById.get(task.parentTaskId) : undefined}
               onCancel={task.status === "running" ? handleCancel : undefined}
               onRetry={isRetryable(task.status) ? handleRetry : undefined}
               onDelete={isTerminated(task.status) && task.status !== "done" ? handleDelete : undefined}
