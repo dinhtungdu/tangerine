@@ -121,6 +121,82 @@ export function pollGitHubIssues(
   })
 }
 
+/** Parsed GitHub webhook payload for issue events */
+export interface WebhookIssuePayload {
+  action: string
+  issue?: {
+    number: number
+    title: string
+    body: string | null
+    html_url: string
+    labels: Array<{ name: string }>
+    assignee: { login: string } | null
+  }
+  repository?: { full_name: string }
+}
+
+/** Result of processing a webhook payload */
+export type WebhookResult =
+  | { handled: false; reason: string }
+  | { handled: true; taskId: string }
+  | { handled: false; error: string }
+
+/** Shared webhook processing logic — used by both /webhooks/github and /api/test/simulate-webhook */
+export async function processWebhookPayload(
+  payload: WebhookIssuePayload,
+  event: string,
+  projects: Array<{ name: string; repo: string }>,
+  trigger: { type: "label" | "assignee"; value: string } | undefined,
+  createTask: (params: { source: "github"; projectId: string; title: string; description?: string; sourceId: string; sourceUrl: string }) => Promise<{ id: string } | null>,
+): Promise<WebhookResult> {
+  if (event !== "issues" || !payload.issue || !payload.repository) {
+    return { handled: false, reason: "not an issue event" }
+  }
+
+  const actionableActions = ["opened", "labeled", "assigned"]
+  if (!actionableActions.includes(payload.action)) {
+    return { handled: false, reason: `action '${payload.action}' not actionable` }
+  }
+
+  const repoFullName = payload.repository.full_name
+  const project = projects.find((p) => {
+    return p.repo === repoFullName || p.repo.endsWith(`/${repoFullName}`) || p.repo.endsWith(`/${repoFullName}.git`)
+  })
+
+  if (!project) {
+    return { handled: false, reason: `no project matches repo '${repoFullName}'` }
+  }
+
+  if (trigger) {
+    const issue = payload.issue
+    if (trigger.type === "label" && !issue.labels.some((l) => l.name === trigger.value)) {
+      return { handled: false, reason: `label '${trigger.value}' not found` }
+    }
+    if (trigger.type === "assignee" && issue.assignee?.login !== trigger.value) {
+      return { handled: false, reason: `assignee '${trigger.value}' not matched` }
+    }
+  }
+
+  const issue = payload.issue
+  const sourceId = `github:${repoFullName}#${issue.number}`
+
+  const task = await createTask({
+    source: "github",
+    projectId: project.name,
+    title: issue.title,
+    description: issue.body ?? undefined,
+    sourceId,
+    sourceUrl: issue.html_url,
+  })
+
+  if (!task) {
+    return { handled: false, error: "Task creation failed" }
+  }
+
+  log.info("Task created from webhook", { taskId: task.id, issue: issue.number, repo: repoFullName })
+  return { handled: true, taskId: task.id }
+}
+
 export function verifyWebhookSignature(
   payload: string,
   signature: string,

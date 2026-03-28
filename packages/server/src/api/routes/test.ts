@@ -6,6 +6,10 @@ import { Hono } from "hono"
 import type { AppDeps } from "../app"
 import { createLogger } from "../../logger"
 import { isTestMode } from "../../config"
+import { createTask as dbCreateTask, insertSessionLog } from "../../db/queries"
+import { logActivity } from "../../activity"
+import { processWebhookPayload } from "../../integrations/github"
+import type { WebhookIssuePayload } from "../../integrations/github"
 
 const log = createLogger("test-api")
 
@@ -35,10 +39,10 @@ export interface SeedPayload {
   }>
   activity_log?: Array<{
     task_id: string
-    type: string
+    type: "lifecycle" | "file" | "system"
     event: string
     content: string
-    metadata?: string
+    metadata?: Record<string, unknown>
     timestamp?: string
   }>
   session_logs?: Array<{
@@ -70,73 +74,67 @@ export function testRoutes(deps: AppDeps): Hono {
     let sessionCount = 0
 
     if (payload.tasks) {
-      const stmt = db.prepare(`
-        INSERT OR REPLACE INTO tasks (id, project_id, title, status, source, source_id, source_url, repo_url,
-          description, provider, model, branch, worktree_path, type, pr_url, error,
-          created_at, updated_at, started_at, completed_at)
-        VALUES ($id, $project_id, $title, $status, $source, $source_id, $source_url, $repo_url,
-          $description, $provider, $model, $branch, $worktree_path, $type, $pr_url, $error,
-          $created_at, $updated_at, $started_at, $completed_at)
-      `)
       for (const t of payload.tasks) {
-        const now = new Date().toISOString()
-        stmt.run({
-          $id: t.id,
-          $project_id: t.project_id,
-          $title: t.title,
-          $status: t.status,
-          $source: t.source ?? "manual",
-          $source_id: t.source_id ?? null,
-          $source_url: t.source_url ?? null,
-          $repo_url: t.repo_url ?? "https://github.com/test/repo",
-          $description: t.description ?? null,
-          $provider: t.provider ?? "claude-code",
-          $model: t.model ?? null,
-          $branch: t.branch ?? null,
-          $worktree_path: t.worktree_path ?? null,
-          $type: t.type ?? "code",
-          $pr_url: t.pr_url ?? null,
-          $error: t.error ?? null,
-          $created_at: t.created_at ?? now,
-          $updated_at: t.updated_at ?? now,
-          $started_at: t.started_at ?? null,
-          $completed_at: t.completed_at ?? null,
-        })
+        // Use typed createTask, then patch status/timestamps via UPDATE
+        const row = Effect.runSync(dbCreateTask(db, {
+          id: t.id,
+          project_id: t.project_id,
+          source: t.source ?? "manual",
+          source_id: t.source_id ?? null,
+          source_url: t.source_url ?? null,
+          repo_url: t.repo_url ?? "https://github.com/test/repo",
+          title: t.title,
+          description: t.description ?? null,
+          provider: t.provider ?? "claude-code",
+          model: t.model ?? null,
+          branch: t.branch ?? null,
+          type: (t.type as "code" | "review") ?? "code",
+        }))
+
+        // Patch fields that createTask doesn't accept (status, timestamps, error, pr_url, worktree_path)
+        const patches: string[] = []
+        const params: Record<string, string | null> = { $id: row.id }
+        if (t.status && t.status !== "created") {
+          patches.push("status = $status")
+          params.$status = t.status
+        }
+        if (t.pr_url) { patches.push("pr_url = $pr_url"); params.$pr_url = t.pr_url }
+        if (t.error) { patches.push("error = $error"); params.$error = t.error }
+        if (t.worktree_path) { patches.push("worktree_path = $worktree_path"); params.$worktree_path = t.worktree_path }
+        if (t.created_at) { patches.push("created_at = $created_at"); params.$created_at = t.created_at }
+        if (t.updated_at) { patches.push("updated_at = $updated_at"); params.$updated_at = t.updated_at }
+        if (t.started_at) { patches.push("started_at = $started_at"); params.$started_at = t.started_at }
+        if (t.completed_at) { patches.push("completed_at = $completed_at"); params.$completed_at = t.completed_at }
+
+        if (patches.length > 0) {
+          db.prepare(`UPDATE tasks SET ${patches.join(", ")} WHERE id = $id`).run(params)
+        }
         taskCount++
       }
     }
 
     if (payload.activity_log) {
-      const stmt = db.prepare(`
-        INSERT INTO activity_log (task_id, type, event, content, metadata, timestamp)
-        VALUES ($task_id, $type, $event, $content, $metadata, $timestamp)
-      `)
       for (const a of payload.activity_log) {
-        stmt.run({
-          $task_id: a.task_id,
-          $type: a.type,
-          $event: a.event,
-          $content: a.content,
-          $metadata: a.metadata ?? null,
-          $timestamp: a.timestamp ?? new Date().toISOString(),
-        })
+        Effect.runSync(logActivity(
+          db,
+          a.task_id,
+          a.type,
+          a.event,
+          a.content,
+          a.metadata,
+        ))
         activityCount++
       }
     }
 
     if (payload.session_logs) {
-      const stmt = db.prepare(`
-        INSERT INTO session_logs (task_id, role, content, images, timestamp)
-        VALUES ($task_id, $role, $content, $images, $timestamp)
-      `)
       for (const s of payload.session_logs) {
-        stmt.run({
-          $task_id: s.task_id,
-          $role: s.role,
-          $content: s.content,
-          $images: s.images ?? null,
-          $timestamp: s.timestamp ?? new Date().toISOString(),
-        })
+        Effect.runSync(insertSessionLog(db, {
+          task_id: s.task_id,
+          role: s.role,
+          content: s.content,
+          images: s.images ?? null,
+        }))
         sessionCount++
       }
     }
@@ -156,75 +154,31 @@ export function testRoutes(deps: AppDeps): Hono {
   })
 
   // Simulate a GitHub webhook without signature verification.
-  // Accepts the same payload format as the real /webhooks/github endpoint.
+  // Uses the same shared processing logic as the real /webhooks/github endpoint.
   app.post("/simulate-webhook", async (c) => {
     const body = await c.req.text()
-    const payload = JSON.parse(body) as {
-      action: string
-      issue?: {
-        number: number
-        title: string
-        body: string | null
-        html_url: string
-        labels: Array<{ name: string }>
-        assignee: { login: string } | null
-      }
-      repository?: { full_name: string }
-    }
-
-    // Default to "issues" event if not provided via header
+    const payload = JSON.parse(body) as WebhookIssuePayload
     const event = c.req.header("x-github-event") ?? "issues"
-    if (event !== "issues" || !payload.issue || !payload.repository) {
-      return c.json({ received: true, ignored: true, reason: "not an issue event" }, 202)
-    }
-
-    const actionableActions = ["opened", "labeled", "assigned"]
-    if (!actionableActions.includes(payload.action)) {
-      return c.json({ received: true, ignored: true, reason: `action '${payload.action}' not actionable` }, 202)
-    }
-
-    const repoFullName = payload.repository.full_name
-    const project = deps.config.config.projects.find((p) => {
-      return p.repo === repoFullName || p.repo.endsWith(`/${repoFullName}`) || p.repo.endsWith(`/${repoFullName}.git`)
-    })
-
-    if (!project) {
-      return c.json({ received: true, ignored: true, reason: `no project matches repo '${repoFullName}'` }, 202)
-    }
-
-    // Apply trigger filter if configured
     const trigger = deps.config.config.integrations?.github?.trigger
-    if (trigger) {
-      const issue = payload.issue
-      if (trigger.type === "label" && !issue.labels.some((l) => l.name === trigger.value)) {
-        return c.json({ received: true, ignored: true, reason: `label '${trigger.value}' not found` }, 202)
-      }
-      if (trigger.type === "assignee" && issue.assignee?.login !== trigger.value) {
-        return c.json({ received: true, ignored: true, reason: `assignee '${trigger.value}' not matched` }, 202)
-      }
-    }
 
-    const issue = payload.issue
-    const sourceId = `github:${repoFullName}#${issue.number}`
-
-    const result = await Effect.runPromiseExit(
-      deps.taskManager.createTask({
-        source: "github",
-        projectId: project.name,
-        title: issue.title,
-        description: issue.body ?? undefined,
-        sourceId,
-        sourceUrl: issue.html_url,
-      })
+    const result = await processWebhookPayload(
+      payload,
+      event,
+      deps.config.config.projects,
+      trigger,
+      async (params) => {
+        const exit = await Effect.runPromiseExit(deps.taskManager.createTask(params))
+        return exit._tag === "Success" ? { id: exit.value.id } : null
+      },
     )
 
-    if (result._tag === "Failure") {
-      log.error("Simulated webhook task creation failed", { repo: repoFullName, issue: issue.number })
-      return c.json({ error: "Task creation failed" }, 500)
+    if ("error" in result) {
+      return c.json({ error: result.error }, 500)
     }
-
-    log.info("Task created from simulated webhook", { taskId: result.value.id, issue: issue.number })
-    return c.json({ received: true, taskId: result.value.id }, 202)
+    if (!result.handled) {
+      return c.json({ received: true, ignored: true, reason: result.reason }, 202)
+    }
+    return c.json({ received: true, taskId: result.taskId }, 202)
   })
 
   return app
