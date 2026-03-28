@@ -42,8 +42,6 @@ export interface HealthCheckDeps {
   /** Returns the last error emitted by the agent, if any. */
   getLastAgentError(taskId: string): string | undefined
   cleanupDeps: CleanupDeps
-  /** Delay before post-restart liveness check (ms, default 2000) */
-  restartCheckDelayMs?: number
 }
 
 /** Reset the restart counter when the task has real agent activity. */
@@ -102,42 +100,24 @@ function attemptRestart(
   reason: "agent_dead",
 ): Effect.Effect<"recovered" | "failed", HealthCheckError> {
   return deps.restartAgent(task).pipe(
-    // restartAgent may internally swallow errors (reconnectSessionWithRetry has error
-    // type never). Verify the agent process spawned successfully.
-    // We only check if the process is alive (PID exists) — not whether it's "ready".
-    // A live process that's still initializing will pass; a process that exited
-    // immediately (bad config, missing binary) will fail fast.
-    // The next regular health check cycle handles ongoing liveness monitoring.
-    Effect.flatMap(() =>
-      Effect.gen(function* () {
-        yield* Effect.sleep(`${deps.restartCheckDelayMs ?? 2000} millis`)
-        const aliveAfter = yield* deps.checkAgentAlive(task.id)
-        if (!aliveAfter) {
-          const lastError = deps.getLastAgentError(task.id)
-          const failReason = lastError
-            ? `Agent error: ${lastError}`
-            : `Agent ${reason} and restart did not produce a live agent`
-          taskLog.warn("Restart returned success but agent is still not alive, forcing task to failed", { lastError })
-          yield* deps.failTask(task.id, failReason).pipe(
-            Effect.ignoreLogged
-          )
-          yield* cleanupSession(task.id, deps.cleanupDeps).pipe(Effect.ignoreLogged)
-          return "failed" as const
-        }
-        consecutiveRestarts.delete(task.id)
-        taskLog.info("Recovery succeeded", { action: "agent-restart", reason })
-        return "recovered" as const
-      })
-    ),
+    // restartAgent succeeds → agent process spawned (lifecycle has a 60s startup timeout).
+    // Don't reset consecutiveRestarts here — the agent may die again immediately.
+    // The counter is only reset in checkTask when the agent is confirmed alive.
+    Effect.map(() => {
+      taskLog.info("Restart succeeded, awaiting next health check to confirm", { action: "agent-restart", reason })
+      return "recovered" as const
+    }),
     Effect.catchAll((err) =>
       Effect.gen(function* () {
-        taskLog.error("Recovery failed, marking task failed", { reason: err.message })
-        yield* deps.failTask(task.id, `Agent ${reason} and restart failed: ${err.message}`).pipe(
-          Effect.ignoreLogged
-        )
+        const lastError = deps.getLastAgentError(task.id)
+        const failReason = lastError
+          ? `Agent error: ${lastError}`
+          : `Agent ${reason} and restart failed: ${err.message}`
+        taskLog.error("Recovery failed, marking task failed", { error: failReason })
+        yield* deps.failTask(task.id, failReason).pipe(Effect.ignoreLogged)
         yield* cleanupSession(task.id, deps.cleanupDeps).pipe(Effect.ignoreLogged)
         return yield* new HealthCheckError({
-          message: `Agent ${reason} and restart failed`,
+          message: failReason,
           taskId: task.id,
           reason,
         })

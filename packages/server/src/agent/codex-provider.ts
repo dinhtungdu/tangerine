@@ -343,12 +343,20 @@ export function createCodexProvider(): AgentFactory {
             }
           })()
 
-          // Helper to send RPC request and wait for response
+          // Helper to send RPC request and wait for response (with timeout)
+          const RPC_TIMEOUT_MS = 30_000
           const rpcCall = (method: string, params: Record<string, unknown>): Promise<Record<string, unknown>> => {
             return new Promise((resolve, reject) => {
               const req = rpcRequest(method, params)
               const id = rpcIdCounter
-              pendingRpc.set(id, { resolve, reject })
+              const timer = setTimeout(() => {
+                pendingRpc.delete(id)
+                reject(new Error(`RPC call "${method}" timed out after ${RPC_TIMEOUT_MS}ms`))
+              }, RPC_TIMEOUT_MS)
+              pendingRpc.set(id, {
+                resolve: (result) => { clearTimeout(timer); resolve(result) },
+                reject: (err) => { clearTimeout(timer); reject(err) },
+              })
               write(req)
             })
           }
