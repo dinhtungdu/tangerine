@@ -1,3 +1,4 @@
+import { useMemo } from "react"
 import { Link, useParams } from "react-router-dom"
 import type { Task } from "@tangerine/shared"
 import { getStatusConfig, hasUnseenUpdates } from "../lib/status"
@@ -13,11 +14,22 @@ interface TasksSidebarProps {
 
 const TERMINATED_STATUSES = new Set(["done", "completed", "cancelled"])
 
+function ParentLabel({ task, taskById }: { task: Task; taskById: Map<string, Task> }) {
+  if (!task.parentTaskId) return null
+  const parent = taskById.get(task.parentTaskId)
+  if (!parent) return null
+  return (
+    <span className="truncate text-[10px] text-fg-muted">
+      {task.type === "review" ? "Review of" : "Continued from"}: {parent.title}
+    </span>
+  )
+}
+
 export function TasksSidebar({ tasks, searchQuery, onSearchChange, onNewAgent }: TasksSidebarProps) {
   const { id: activeId } = useParams<{ id: string }>()
   const { link } = useProjectNav()
   const activeTasks = tasks.filter((t) => !TERMINATED_STATUSES.has(t.status))
-  const taskById = new Map(tasks.map((t) => [t.id, t]))
+  const taskById = useMemo(() => new Map(tasks.map((t) => [t.id, t])), [tasks])
 
   return (
     <div className="flex h-full w-[240px] shrink-0 flex-col border-r border-edge bg-surface">
@@ -105,16 +117,7 @@ export function TasksSidebar({ tasks, searchQuery, onSearchChange, onNewAgent }:
                     </>
                   )}
                 </span>
-                {task.parentTaskId && (() => {
-                  const parent = taskById.get(task.parentTaskId!)
-                  if (!parent) return null
-                  const label = task.type === "review" ? "Review of" : "From"
-                  return (
-                    <span className="truncate text-[10px] text-fg-muted">
-                      {label}: {parent.title}
-                    </span>
-                  )
-                })()}
+                <ParentLabel task={task} taskById={taskById} />
               </div>
             </Link>
           )

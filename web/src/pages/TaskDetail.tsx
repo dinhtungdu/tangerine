@@ -157,23 +157,36 @@ export function TaskDetail() {
     setMobilePane("chat")
   }, [session])
 
+  // Fetch parent and children once per task ID (not on every poll)
+  useEffect(() => {
+    if (!id) return
+    let cancelled = false
+    async function loadRelated() {
+      try {
+        const [data, children] = await Promise.all([
+          fetchTask(id!),
+          fetchChildTasks(id!),
+        ])
+        if (cancelled) return
+        setChildTasks(children)
+        if (data.parentTaskId) {
+          fetchTask(data.parentTaskId).then((p) => { if (!cancelled) setParentTask(p) }).catch(() => {})
+        } else {
+          setParentTask(null)
+        }
+      } catch { /* ignore */ }
+    }
+    loadRelated()
+    return () => { cancelled = true }
+  }, [id])
+
   useEffect(() => {
     if (!id) return
     let cancelled = false
     async function load() {
       try {
         const data = await fetchTask(id!)
-        if (!cancelled) {
-          setTask(data)
-          // Fetch parent task if this task has one
-          if (data.parentTaskId) {
-            fetchTask(data.parentTaskId).then((p) => { if (!cancelled) setParentTask(p) }).catch(() => {})
-          } else {
-            setParentTask(null)
-          }
-          // Fetch child tasks
-          fetchChildTasks(id!).then((children) => { if (!cancelled) setChildTasks(children) }).catch(() => {})
-        }
+        if (!cancelled) setTask(data)
       } catch {
         // task not found
       } finally {
@@ -357,7 +370,7 @@ export function TaskDetail() {
                     to={link(`/tasks/${child.id}`)}
                     className="rounded bg-surface-secondary px-1.5 py-0.5 text-[11px] font-medium text-fg hover:bg-edge"
                   >
-                    {child.type === "review" ? "Review" : "Continuation"}: {child.title}
+                    {child.type === "review" ? "Reviewed by" : "Continued in"}: {child.title}
                   </Link>
                 ))}
               </div>

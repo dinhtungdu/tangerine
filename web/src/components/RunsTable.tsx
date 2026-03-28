@@ -1,4 +1,4 @@
-import { useState } from "react"
+import { useState, useMemo } from "react"
 import { Link } from "react-router-dom"
 import type { Task, TaskStatus } from "@tangerine/shared"
 import { getStatusConfig, hasUnseenUpdates } from "../lib/status"
@@ -22,6 +22,17 @@ function StatusBadge({ status }: { status: TaskStatus }) {
   return (
     <span className={`inline-flex rounded-full px-2 py-0.5 text-[11px] font-semibold leading-tight ${textClass} ${bgClass}`}>
       {label}
+    </span>
+  )
+}
+
+function ParentLabel({ task, taskById }: { task: Task; taskById: Map<string, Task> }) {
+  if (!task.parentTaskId) return null
+  const parent = taskById.get(task.parentTaskId)
+  if (!parent) return null
+  return (
+    <span className="truncate text-[11px] text-fg-muted">
+      {task.type === "review" ? "Review of" : "Continued from"}: {parent.title}
     </span>
   )
 }
@@ -62,7 +73,7 @@ export function RunsTable({ tasks, searchQuery, onSearchChange, onRefetch }: Run
     ? tasks
     : tasks.filter((t) => t.status === statusFilter)
 
-  const taskById = new Map(tasks.map((t) => [t.id, t]))
+  const taskById = useMemo(() => new Map(tasks.map((t) => [t.id, t])), [tasks])
 
   async function handleCancel(id: string) {
     try { await cancelTask(id); onRefetch() } catch { /* ignore */ }
@@ -151,16 +162,7 @@ export function RunsTable({ tasks, searchQuery, onSearchChange, onRefetch }: Run
                     </a>
                   )}
                 </div>
-                {task.parentTaskId && (() => {
-                  const parent = taskById.get(task.parentTaskId!)
-                  if (!parent) return null
-                  const label = task.type === "review" ? "Review of" : "Continued from"
-                  return (
-                    <span className="truncate text-[11px] text-fg-muted">
-                      {label}: {parent.title}
-                    </span>
-                  )
-                })()}
+                <ParentLabel task={task} taskById={taskById} />
               </div>
               <div className="w-[120px] px-3 py-2.5"><StatusBadge status={task.status} /></div>
               <div className="w-[100px] px-3 py-2.5 text-fg-muted">{formatDuration(task.startedAt, task.completedAt, task.createdAt)}</div>
