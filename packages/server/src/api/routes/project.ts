@@ -27,6 +27,7 @@ export function projectRoutes(deps: AppDeps): Hono {
     const modelsByProvider: Record<string, string[]> = {
       opencode: byProvider.opencode.map((m) => m.id),
       "claude-code": byProvider["claude-code"].map((m) => m.id),
+      codex: byProvider.codex.map((m) => m.id),
     }
 
     return c.json({

@@ -390,6 +390,7 @@ export function NewAgentForm({ onSubmit, refTaskId, refTaskTitle }: NewAgentForm
                 >
                   <option value="opencode">OpenCode</option>
                   <option value="claude-code">Claude Code</option>
+                  <option value="codex">Codex</option>
                 </select>
                 <select
                   value={reasoningEffort}

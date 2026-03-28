@@ -7,7 +7,7 @@ import type { PromptImage } from "@tangerine/shared"
 
 export type { PromptImage }
 
-export type ProviderType = "opencode" | "claude-code"
+export type ProviderType = "opencode" | "claude-code" | "codex"
 
 /** Normalized events emitted by all agent providers */
 export type AgentEvent =
