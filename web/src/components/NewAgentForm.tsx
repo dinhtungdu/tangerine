@@ -204,6 +204,7 @@ export function NewAgentForm({ onSubmit, refTaskId, refTaskTitle }: NewAgentForm
       provider,
       model: activeModel || undefined,
       reasoningEffort: reasoningEffort !== "medium" ? reasoningEffort : undefined,
+      parentTaskId: refTaskId,
       images,
     })
   }, [current, submitting, description, pendingImages, customBranch, provider, activeModel, reasoningEffort, refTaskId, refTaskTitle, submitAndReset])

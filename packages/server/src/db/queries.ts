@@ -107,6 +107,12 @@ export function markTaskResult(db: Database, id: string): Effect.Effect<TaskRow 
   return updateTask(db, id, { last_result_at: new Date().toISOString() }, { skipUpdatedAt: true })
 }
 
+export function getChildTasks(db: Database, parentTaskId: string): Effect.Effect<TaskRow[], DbError> {
+  return dbTry(() => {
+    return db.prepare("SELECT * FROM tasks WHERE parent_task_id = ? ORDER BY created_at ASC").all(parentTaskId) as TaskRow[]
+  })
+}
+
 // --- Session Logs ---
 
 export function insertSessionLog(
