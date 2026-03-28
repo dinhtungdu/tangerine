@@ -53,14 +53,8 @@ function mapCodexEvent(raw: Record<string, unknown>): AgentEvent[] {
       const item = raw.item as Record<string, unknown> | undefined
       if (!item) return []
 
-      if (item.type === "agent_message" && typeof item.text === "string") {
-        return [{
-          kind: "message.complete",
-          role: "narration",
-          content: item.text,
-          messageId: typeof item.id === "string" ? item.id : undefined,
-        }]
-      }
+      // agent_message items are handled by the streaming layer (buffered for
+      // narration/assistant role decision) — not mapped here.
 
       if (item.type === "command_execution" && typeof item.command === "string") {
         const output = typeof item.aggregated_output === "string" ? item.aggregated_output : ""
@@ -193,8 +187,24 @@ export function createCodexProvider(): AgentFactory {
 
             emit({ kind: "status", status: "working" })
 
-            // Accumulate the last agent_message text for the final assistant message
-            let lastMessageText = ""
+            // Buffer the latest agent_message: we don't know if a message is
+            // the final answer or intermediate narration until the next event
+            // arrives.  When a new message comes in, flush the previous one as
+            // narration.  When the turn completes, emit the buffered message as
+            // the assistant result instead.
+            let pendingMessage: { text: string; id?: string } | null = null
+
+            const flushPendingAsNarration = () => {
+              if (pendingMessage) {
+                emit({
+                  kind: "message.complete",
+                  role: "narration",
+                  content: pendingMessage.text,
+                  messageId: pendingMessage.id,
+                })
+                pendingMessage = null
+              }
+            }
 
             currentParser = parseNdjsonStream(
               proc.stdout as ReadableStream<Uint8Array>,
@@ -208,22 +218,30 @@ export function createCodexProvider(): AgentFactory {
                     taskLog.info("Codex thread started", { threadId })
                   }
 
-                  // Track last message text for final result
+                  // Buffer agent_message items — skip mapCodexEvent for these
+                  // since we handle narration/assistant role ourselves.
                   const item = raw.item as Record<string, unknown> | undefined
                   if (raw.type === "item.completed" && item?.type === "agent_message" && typeof item.text === "string") {
-                    lastMessageText = item.text
+                    // A new message arrived — flush the previous one as narration
+                    flushPendingAsNarration()
+                    pendingMessage = {
+                      text: item.text,
+                      id: typeof item.id === "string" ? item.id : undefined,
+                    }
+                    return
                   }
 
                   const events = mapCodexEvent(raw)
                   for (const event of events) {
-                    // When turn completes, emit the last message as assistant role
-                    if (event.kind === "status" && event.status === "idle" && lastMessageText) {
+                    // When turn completes, emit the buffered message as assistant
+                    if (event.kind === "status" && event.status === "idle" && pendingMessage) {
                       emit({
                         kind: "message.complete",
                         role: "assistant",
-                        content: lastMessageText,
+                        content: pendingMessage.text,
+                        messageId: pendingMessage.id,
                       })
-                      lastMessageText = ""
+                      pendingMessage = null
                     }
                     emit(event)
                   }
@@ -237,7 +255,17 @@ export function createCodexProvider(): AgentFactory {
                 onEnd: () => {
                   if (!shutdownCalled) {
                     taskLog.info("Codex process stdout ended")
-                    // If process ended without a turn.completed, emit idle
+                    // Flush any buffered message as assistant if stream ended
+                    // without a turn.completed event
+                    if (pendingMessage) {
+                      emit({
+                        kind: "message.complete",
+                        role: "assistant",
+                        content: pendingMessage.text,
+                        messageId: pendingMessage.id,
+                      })
+                      pendingMessage = null
+                    }
                     emit({ kind: "status", status: "idle" })
                   }
                   // Clean up temp image files
