@@ -36,7 +36,6 @@ export function mapTaskRow(row: TaskRow): Task {
     userId: row.user_id,
     agentSessionId: row.agent_session_id,
     agentPid: row.agent_pid,
-    previewUrl: row.preview_url,
     error: row.error,
     createdAt: utc(row.created_at)!,
     updatedAt: utc(row.updated_at)!,

@@ -48,13 +48,11 @@ describe("tracer: task lifecycle", () => {
       status: "running",
       agent_session_id: "session-123",
       agent_pid: 12345,
-      preview_url: "http://localhost:3000",
       started_at: new Date().toISOString(),
     }))
     expect(running!.status).toBe("running")
     expect(running!.agent_session_id).toBe("session-123")
     expect(running!.agent_pid).toBe(12345)
-    expect(running!.preview_url).toBe("http://localhost:3000")
     expect(running!.started_at).toBeDefined()
 
     // 4. Insert session logs (simulate chat messages)

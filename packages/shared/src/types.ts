@@ -23,7 +23,6 @@ export interface Task {
   userId: string | null
   agentSessionId: string | null
   agentPid: number | null
-  previewUrl: string | null
   error: string | null
   createdAt: string
   updatedAt: string
