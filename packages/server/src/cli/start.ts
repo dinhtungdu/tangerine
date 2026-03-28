@@ -52,6 +52,8 @@ const agentHandles = new Map<string, AgentHandle>()
 // reconnect while one is already in progress. Lock is set by callers before
 // starting a reconnect; unlocked by reconnectSessionWithRetry via Effect.ensuring.
 const reconnectingTasks = new Set<string>()
+// Last error emitted by each agent — used by health monitor to surface real errors
+const lastAgentErrors = new Map<string, string>()
 // Track which tasks have received their first prompt (for setup note injection)
 const firstPromptSent = new Set<string>()
 // Track tasks that already have a PR URL saved (avoid redundant DB writes)
@@ -559,6 +561,7 @@ export async function start(): Promise<void> {
               }
               case "error": {
                 log.error("Agent event error", { taskId, message: event.message })
+                lastAgentErrors.set(taskId, event.message)
                 break
               }
             }
@@ -823,6 +826,7 @@ export async function start(): Promise<void> {
           Effect.asVoid,
           Effect.mapError((e) => new Error(String(e))),
         ),
+      getLastAgentError: (taskId) => lastAgentErrors.get(taskId),
       cleanupDeps,
     }
     await Effect.runPromise(startHealthMonitor(healthDeps))

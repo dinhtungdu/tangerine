@@ -186,11 +186,29 @@ POST /webhooks/github
 
 See [credentials.md](./credentials.md) for full details. Git uses the machine's configured credentials (SSH keys, `GITHUB_TOKEN` env var).
 
-## Session Retry (provisioning)
+## Retry Patterns
 
-`startSessionWithRetry` wraps `startSession` with exponential backoff (1s, 2s, 4s — max 3 attempts). On exhaustion: task marked `failed`, worktree cleaned up.
+### Shared schedules (`retry.ts`)
+
+- **`exponentialSchedule(n)`**: 1s, 2s, 4s… backoff, `n` total attempts. Used for session start/reconnect.
+- **`transientSchedule(n=2)`**: 500ms, 1s… backoff, `n` total attempts. Used for short-lived HTTP/IPC operations.
+
+### Session retry
+
+`startSessionWithRetry` wraps `startSession` with `exponentialSchedule(3)`. On exhaustion: task marked `failed`, worktree cleaned up.
 
 `reconnectSessionWithRetry` does the same for `reconnectSession` (lightweight reconnect — skips worktree/setup, just restarts agent with `--resume`).
+
+### Prompt send retry
+
+`drainNext` in the prompt queue retries transient `sendPrompt` failures with `transientSchedule()` before re-queuing the prompt. Covers HTTP 503 (OpenCode) and stdin backpressure (Claude Code).
+
+### OpenCode HTTP retry
+
+OpenCode provider operations that hit the local HTTP API retry transient failures:
+- **`sendPrompt`** (prompt_async): `transientSchedule()`
+- **`abort`**: `transientSchedule()`
+- **Session create/resume**: `transientSchedule()` — server may still be warming up after health check passes
 
 ## Server Restart Recovery
 

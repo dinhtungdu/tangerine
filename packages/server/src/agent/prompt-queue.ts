@@ -5,6 +5,7 @@
 import { Effect } from "effect"
 import { createLogger, truncate } from "../logger"
 import { PromptError } from "../errors"
+import { transientSchedule } from "../tasks/retry"
 import type { PromptImage } from "./provider"
 
 const log = createLogger("prompt-queue")
@@ -77,23 +78,32 @@ export function drainNext(
       waitedMs: Date.now() - entry.enqueuedAt,
     })
 
+    // Retry transient failures (e.g. HTTP 503, stdin backpressure) with short
+    // exponential backoff before re-queuing the prompt for a later drain cycle.
     yield* Effect.tryPromise({
       try: () => sendPrompt(taskId, entry.text, entry.images),
-      catch: (e) => {
-        // Put it back at the front on failure so no prompts are lost
+      catch: (e) => new PromptError({
+        message: `Prompt send attempt failed: ${e instanceof Error ? e.message : String(e)}`,
+        taskId,
+        cause: e,
+      }),
+    }).pipe(
+      Effect.retry(transientSchedule()),
+      Effect.catchAll((e) => {
+        // All retries exhausted — put it back at the front so no prompts are lost
         q.entries.unshift(entry)
         q.state = "idle"
-        log.error("Prompt send failed, re-queued", {
+        log.error("Prompt send failed after retries, re-queued", {
           taskId,
-          error: e instanceof Error ? e.message : String(e),
+          error: e.message,
         })
-        return new PromptError({
-          message: "Failed to send prompt",
+        return Effect.fail(new PromptError({
+          message: "Failed to send prompt after retries",
           taskId,
           cause: e,
-        })
-      },
-    })
+        }))
+      }),
+    )
 
     return true
   })

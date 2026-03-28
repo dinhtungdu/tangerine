@@ -18,11 +18,29 @@ const MAX_CONSECUTIVE_RESTARTS = 3
 // Per-task consecutive restart counter — reset to 0 when the agent has real activity.
 const consecutiveRestarts = new Map<string, number>()
 
+// Error patterns that will never self-heal — no point restarting.
+// NOTE: these match human-readable strings which is fragile; ideally providers
+// would emit structured error codes (see provider.ts AgentEvent).
+const UNRECOVERABLE_PATTERNS = [
+  /model not found/i,
+  /ProviderModelNotFoundError/i,
+  /invalid api key/i,
+  /InvalidApiKeyError/i,
+  /rate limit/i,
+  /RateLimitError/i,
+]
+
+function isUnrecoverable(message: string): boolean {
+  return UNRECOVERABLE_PATTERNS.some((p) => p.test(message))
+}
+
 export interface HealthCheckDeps {
   listRunningTasks(): Effect.Effect<TaskRow[], Error>
   checkAgentAlive(taskId: string): Effect.Effect<boolean, never>
   restartAgent(task: TaskRow): Effect.Effect<void, Error>
   failTask(taskId: string, reason: string): Effect.Effect<void, Error>
+  /** Returns the last error emitted by the agent, if any. */
+  getLastAgentError(taskId: string): string | undefined
   cleanupDeps: CleanupDeps
 }
 
@@ -41,10 +59,25 @@ export function checkTask(
     // Check if agent process is alive (via PID or handle)
     const alive = yield* deps.checkAgentAlive(task.id)
     if (!alive) {
+      // Check if the agent reported an error before dying
+      const lastError = deps.getLastAgentError(task.id)
+
+      // Fail fast on errors that no restart can fix
+      if (lastError && isUnrecoverable(lastError)) {
+        taskLog.error("Agent died with unrecoverable error, skipping restart", { error: lastError })
+        yield* deps.failTask(task.id, lastError).pipe(Effect.ignoreLogged)
+        yield* cleanupSession(task.id, deps.cleanupDeps).pipe(Effect.ignoreLogged)
+        consecutiveRestarts.delete(task.id)
+        return "failed"
+      }
+
       const restarts = (consecutiveRestarts.get(task.id) ?? 0) + 1
       if (restarts > MAX_CONSECUTIVE_RESTARTS) {
-        taskLog.error("Agent dead and max consecutive restarts reached, marking failed", { restarts })
-        yield* deps.failTask(task.id, `Agent died ${restarts} times consecutively without recovery`).pipe(Effect.ignoreLogged)
+        const reason = lastError
+          ? `Agent error: ${lastError}`
+          : `Agent died ${restarts} times consecutively without recovery`
+        taskLog.error("Agent dead and max consecutive restarts reached, marking failed", { restarts, lastError })
+        yield* deps.failTask(task.id, reason).pipe(Effect.ignoreLogged)
         yield* cleanupSession(task.id, deps.cleanupDeps).pipe(Effect.ignoreLogged)
         consecutiveRestarts.delete(task.id)
         return "failed"
@@ -76,8 +109,12 @@ function attemptRestart(
         yield* Effect.sleep("2 seconds")
         const aliveAfter = yield* deps.checkAgentAlive(task.id)
         if (!aliveAfter) {
-          taskLog.warn("Restart returned success but agent is still not alive, forcing task to failed")
-          yield* deps.failTask(task.id, `Agent ${reason} and restart did not produce a live agent`).pipe(
+          const lastError = deps.getLastAgentError(task.id)
+          const failReason = lastError
+            ? `Agent error: ${lastError}`
+            : `Agent ${reason} and restart did not produce a live agent`
+          taskLog.warn("Restart returned success but agent is still not alive, forcing task to failed", { lastError })
+          yield* deps.failTask(task.id, failReason).pipe(
             Effect.ignoreLogged
           )
           yield* cleanupSession(task.id, deps.cleanupDeps).pipe(Effect.ignoreLogged)

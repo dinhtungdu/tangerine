@@ -145,7 +145,7 @@ describe("tracer: prompt queue -> agent state -> delivery", () => {
 
     Effect.runSync(enqueue(t, "Will fail"))
 
-    // drainNext should throw when send fails
+    // drainNext should throw when send fails (after transient retries are exhausted)
     await expect(Effect.runPromise(drainNext(t, failingSend))).rejects.toThrow("Failed to send prompt")
 
     // The prompt should be re-queued (put back at front)
