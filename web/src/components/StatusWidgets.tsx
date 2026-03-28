@@ -80,7 +80,7 @@ function LogContext({ context }: { context: Record<string, unknown> }) {
   const entries = Object.entries(context).filter(([k]) => !LOG_CONTEXT_SKIP_KEYS.has(k))
   if (entries.length === 0) return null
   return (
-    <span className="ml-1.5 text-fg-muted">
+    <span className="ml-1.5 font-mono text-fg-muted">
       {entries.map(([k, v], i) => (
         <span key={k}>
           {i > 0 && " "}
@@ -316,7 +316,7 @@ export function SystemLog({ project }: { project?: string }) {
                   <div><LogLevelBadge level={log.level} /></div>
                   <span className="truncate text-[12px] font-medium text-fg-muted">{log.logger}</span>
                   <span className="truncate font-mono text-[11px] text-fg-faint">{taskId}</span>
-                  <span className="min-w-0 text-[12px] text-fg">
+                  <span className="min-w-0 font-mono text-[12px] text-fg">
                     <span className="truncate">{log.message}</span>
                     {ctx && <LogContext context={ctx} />}
                   </span>
@@ -338,7 +338,7 @@ export function SystemLog({ project }: { project?: string }) {
                     <span className="text-[11px] font-medium text-fg-muted">{log.logger}</span>
                     {taskId && <span className="font-mono text-[10px] text-fg-faint">{taskId}</span>}
                   </div>
-                  <span className="text-[12px] text-fg">{log.message}</span>
+                  <span className="font-mono text-[12px] text-fg">{log.message}</span>
                   {ctx && <LogContext context={ctx} />}
                 </div>
               )

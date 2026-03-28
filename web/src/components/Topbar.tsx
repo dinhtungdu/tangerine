@@ -68,7 +68,7 @@ export function Topbar() {
           <Link
             to={`/${qs}`}
             className={`rounded-md px-3 py-1.5 text-[13px] font-medium ${
-              isRuns ? "bg-surface-secondary text-fg" : "text-fg-muted hover:text-fg"
+              isRuns ? "bg-fg text-bg" : "text-fg-muted hover:text-fg"
             }`}
           >
             Runs
@@ -76,7 +76,7 @@ export function Topbar() {
           <Link
             to={`/status${qs}`}
             className={`rounded-md px-3 py-1.5 text-[13px] font-medium ${
-              isStatus ? "bg-surface-secondary text-fg" : "text-fg-muted hover:text-fg"
+              isStatus ? "bg-fg text-bg" : "text-fg-muted hover:text-fg"
             }`}
           >
             Status
@@ -84,7 +84,7 @@ export function Topbar() {
           <Link
             to={`/terminal${qs}`}
             className={`rounded-md px-3 py-1.5 text-[13px] font-medium ${
-              isTerminal ? "bg-surface-secondary text-fg" : "text-fg-muted hover:text-fg"
+              isTerminal ? "bg-fg text-bg" : "text-fg-muted hover:text-fg"
             }`}
             title="Repo terminal (emergency access)"
           >
