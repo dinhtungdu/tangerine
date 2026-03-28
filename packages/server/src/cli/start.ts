@@ -82,9 +82,9 @@ function buildSystemNotes(taskId: string, info: TaskInfo): string[] {
     notes.push(`[NOTE: Project setup is running in the background (\`${info.setupCommand}\`). Before running builds, tests, or linters, check if setup is done: \`cat /tmp/tangerine-setup-${prefix}.status\` (running/done/failed). Log: \`cat /tmp/tangerine-setup-${prefix}.log\`]`)
   }
   if (info.type === "review") {
-    notes.push(`[NOTE: This is a REVIEW task. Review the code and run tests if needed. Share your findings here in the conversation. Do NOT push commits, create PRs, or post reviews on GitHub.]`)
+    notes.push(`[NOTE: This is a REVIEW task. Review the code and run tests if needed. IMPORTANT: Always present your full review findings here in this conversation first, then forward them to the parent task. Do NOT push commits, create PRs, or post reviews on GitHub.]`)
     if (info.parentTaskId) {
-      notes.push(`[NOTE: After completing your review, forward your findings to the parent task using the Tangerine API: POST http://localhost:3456/api/tasks/${info.parentTaskId}/prompt with body {"text": "<your review>"}. When the parent task addresses your feedback and asks for a follow-up review, re-review and send updated findings.]`)
+      notes.push(`[NOTE: After presenting your review findings in this conversation, also forward them to the parent task using the Tangerine API: POST http://localhost:3456/api/tasks/${info.parentTaskId}/prompt with body {"text": "<your review>"}. When the parent task addresses your feedback and asks for a follow-up review, re-review and send updated findings in this conversation first, then forward to the parent.]`)
     }
   } else {
     notes.push(`[NOTE: When your work is complete, push your branch and create a pull request. Use \`git push origin HEAD\` then \`gh pr create\`. Do not stop at just committing.]`)
