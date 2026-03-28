@@ -53,11 +53,21 @@ export function initPool(
   poolSize: number = DEFAULT_POOL_SIZE,
 ): Effect.Effect<WorktreeSlotRow[], DbError | Error> {
   return Effect.gen(function* () {
+    // Always register slot 0 (the repo clone) — used by the orchestrator.
+    // No git worktree needed; it already exists as the main repo.
+    const slot0Id = `${projectId}-slot-0`
+    yield* dbTry(() => {
+      db.prepare(
+        "INSERT OR IGNORE INTO worktree_slots (id, project_id, path, status) VALUES ($id, $project_id, $path, 'available')",
+      ).run({ $id: slot0Id, $project_id: projectId, $path: repoPath })
+    })
+
     const existing = yield* dbTry(() =>
       db.prepare("SELECT * FROM worktree_slots WHERE project_id = ?").all(projectId) as WorktreeSlotRow[]
     )
 
-    if (existing.length >= poolSize) {
+    // +1 accounts for slot 0 which is not a pool worktree
+    if (existing.length >= poolSize + 1) {
       log.debug("Pool already initialized", { projectId, slots: existing.length })
       return existing
     }
@@ -108,17 +118,19 @@ export function acquireSlot(
     // Reconcile stale slots before acquiring
     yield* reconcileStaleSlots(db, projectId, getTask)
 
+    // Exclude slot 0 (reserved for orchestrator)
+    const slot0Id = `${projectId}-slot-0`
     const slot = yield* dbTry(() =>
       db.prepare(
-        "SELECT * FROM worktree_slots WHERE project_id = ? AND status = 'available' LIMIT 1",
-      ).get(projectId) as WorktreeSlotRow | null
+        "SELECT * FROM worktree_slots WHERE project_id = ? AND status = 'available' AND id != ? LIMIT 1",
+      ).get(projectId, slot0Id) as WorktreeSlotRow | null
     )
 
     if (!slot) {
       const total = yield* dbTry(() => {
         const row = db.prepare(
-          "SELECT COUNT(*) as count FROM worktree_slots WHERE project_id = ?",
-        ).get(projectId) as { count: number }
+          "SELECT COUNT(*) as count FROM worktree_slots WHERE project_id = ? AND id != ?",
+        ).get(projectId, slot0Id) as { count: number }
         return row.count
       })
       return yield* Effect.fail(
@@ -151,6 +163,48 @@ export function acquireSlot(
   })
 }
 
+// --- Orchestrator slot ---
+
+/** Acquire slot 0 for an orchestrator task. No git reset — slot 0 is the main repo. */
+export function acquireOrchestratorSlot(
+  db: Database,
+  projectId: string,
+  taskId: string,
+  getTask: GetTask,
+): Effect.Effect<WorktreeSlotRow, DbError | Error> {
+  return Effect.gen(function* () {
+    const slot0Id = `${projectId}-slot-0`
+    const slot = yield* dbTry(() =>
+      db.prepare("SELECT * FROM worktree_slots WHERE id = ?").get(slot0Id) as WorktreeSlotRow | null
+    )
+
+    if (!slot) {
+      return yield* Effect.fail(new Error(`Slot 0 not found for project ${projectId} — run initPool first`))
+    }
+
+    // If bound, check if the existing task is still active
+    if (slot.status === "bound" && slot.task_id) {
+      const existing = yield* getTask(slot.task_id).pipe(
+        Effect.catchAll(() => Effect.succeed(null)),
+      )
+      if (existing && !TERMINAL_STATUSES.has(existing.status)) {
+        return yield* Effect.fail(
+          new Error(`Orchestrator slot already bound to active task ${slot.task_id}`),
+        )
+      }
+    }
+
+    yield* dbTry(() =>
+      db.prepare(
+        "UPDATE worktree_slots SET status = 'bound', task_id = ? WHERE id = ?",
+      ).run(taskId, slot0Id)
+    )
+
+    log.info("Orchestrator slot acquired", { projectId, taskId })
+    return { ...slot, status: "bound" as const, task_id: taskId }
+  })
+}
+
 // --- Slot release ---
 
 /** Release a slot back to the pool. Resets worktree to detached HEAD. */
@@ -168,6 +222,17 @@ export function releaseSlot(
 
     if (!slot) {
       log.debug("No slot to release", { taskId })
+      return
+    }
+
+    // Slot 0 is the main repo (orchestrator) — don't reset/detach/clean, just unbind
+    if (slot.id.endsWith("-slot-0")) {
+      yield* dbTry(() =>
+        db.prepare(
+          "UPDATE worktree_slots SET status = 'available', task_id = NULL WHERE id = ?",
+        ).run(slot.id)
+      )
+      log.info("Orchestrator slot released (no git reset)", { slotId: slot.id, taskId })
       return
     }
 
@@ -226,14 +291,15 @@ export function reconcileStaleSlots(
 
 // --- Pool cleanup ---
 
-/** Delete all slots for a project. Called before project rebuild. */
+/** Delete worker slots for a project. Preserves slot 0 (orchestrator). Called before project rebuild. */
 export function deletePoolForProject(
   db: Database,
   projectId: string,
 ): Effect.Effect<number, DbError> {
   return dbTry(() => {
-    const result = db.prepare("DELETE FROM worktree_slots WHERE project_id = ?").run(projectId)
-    log.info("Pool deleted for project", { projectId, deleted: result.changes })
+    const slot0Id = `${projectId}-slot-0`
+    const result = db.prepare("DELETE FROM worktree_slots WHERE project_id = ? AND id != ?").run(projectId, slot0Id)
+    log.info("Pool deleted for project (slot 0 preserved)", { projectId, deleted: result.changes })
     return Number(result.changes)
   })
 }

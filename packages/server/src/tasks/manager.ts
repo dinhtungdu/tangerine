@@ -3,7 +3,7 @@
 
 import { Effect } from "effect"
 import { createLogger } from "../logger"
-import type { ActivityType } from "@tangerine/shared"
+import { type ActivityType, ORCHESTRATOR_TASK_NAME } from "@tangerine/shared"
 import {
   TaskNotFoundError,
   SessionCleanupError,
@@ -64,6 +64,19 @@ export function createTask(
     const projectConfig = deps.getProjectConfig(params.projectId)
     if (!projectConfig) {
       return yield* Effect.fail(new Error(`Unknown project: ${params.projectId}`))
+    }
+
+    // Enforce one orchestrator per project
+    if (params.title === ORCHESTRATOR_TASK_NAME) {
+      const allTasks = yield* deps.listTasks({ projectId: params.projectId })
+      const active = allTasks.find(
+        (t) => t.title === ORCHESTRATOR_TASK_NAME && !["done", "failed", "cancelled"].includes(t.status)
+      )
+      if (active) {
+        return yield* Effect.fail(
+          new Error(`Project ${params.projectId} already has an active orchestrator task: ${active.id}`)
+        )
+      }
     }
 
     const id = crypto.randomUUID()
@@ -391,7 +404,9 @@ export function reprovisionTasksForProject(
   return Effect.gen(function* () {
     const allTasks = yield* deps.listTasks({})
     const affected = allTasks.filter(
-      (t) => t.project_id === projectId && !["done", "cancelled"].includes(t.status)
+      (t) => t.project_id === projectId
+        && !["done", "cancelled"].includes(t.status)
+        && t.title !== ORCHESTRATOR_TASK_NAME
     )
 
     if (affected.length === 0) return { reprovisioned: 0, failed: 0 }
