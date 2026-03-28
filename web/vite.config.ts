@@ -8,12 +8,12 @@ export default defineConfig({
     host: true,
     proxy: {
       "/api": {
-        target: "http://localhost:3456",
+        target: process.env.VITE_API_URL || "http://localhost:3456",
         changeOrigin: true,
         ws: true,
       },
       "/preview": {
-        target: "http://localhost:3456",
+        target: process.env.VITE_API_URL || "http://localhost:3456",
         changeOrigin: true,
       },
     },
