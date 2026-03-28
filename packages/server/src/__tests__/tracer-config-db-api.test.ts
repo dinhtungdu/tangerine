@@ -257,7 +257,6 @@ describe("tracer: config -> db -> api", () => {
       user_id: "user-1",
       agent_session_id: "session-1",
       agent_pid: 12345,
-      preview_url: "http://localhost:3000",
       error: null,
       created_at: "2025-01-01T00:00:00Z",
       updated_at: "2025-01-01T01:00:00Z",
@@ -276,7 +275,6 @@ describe("tracer: config -> db -> api", () => {
     expect(mapped.userId).toBe("user-1")
     expect(mapped.agentSessionId).toBe("session-1")
     expect(mapped.agentPid).toBe(12345)
-    expect(mapped.previewUrl).toBe("http://localhost:3000")
     expect(mapped.createdAt).toBe("2025-01-01T00:00:00Z")
     expect(mapped.updatedAt).toBe("2025-01-01T01:00:00Z")
     expect(mapped.startedAt).toBe("2025-01-01T00:30:00Z")

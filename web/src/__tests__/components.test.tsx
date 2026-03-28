@@ -34,7 +34,6 @@ function makeTask(overrides?: Partial<Task>): Task {
     userId: null,
     agentSessionId: null,
     agentPid: null,
-    previewUrl: null,
     error: null,
     createdAt: "2026-03-17T10:00:00Z",
     updatedAt: "2026-03-17T10:00:00Z",

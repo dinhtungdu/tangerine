@@ -20,7 +20,6 @@ export const SCHEMA = `
     user_id TEXT,
     agent_session_id TEXT,
     agent_pid INTEGER,
-    preview_url TEXT,
     error TEXT,
     created_at TEXT NOT NULL DEFAULT (datetime('now')),
     updated_at TEXT NOT NULL DEFAULT (datetime('now')),
