@@ -4,7 +4,7 @@
 import { Effect, Schedule } from "effect"
 import { createLogger } from "../logger"
 import { HealthCheckError } from "../errors"
-import { DEFAULT_IDLE_TIMEOUT_MS, ORCHESTRATOR_TASK_NAME } from "@tangerine/shared"
+import { DEFAULT_IDLE_TIMEOUT_MS } from "@tangerine/shared"
 import type { TaskRow } from "../db/types"
 import type { CleanupDeps } from "./cleanup"
 import { cleanupSession } from "./cleanup"
@@ -147,20 +147,19 @@ function attemptRestart(
 }
 
 /**
- * Check if a running orchestrator should be completed due to idle timeout
- * or message count exceeding the rotation threshold.
+ * Complete a running task if it has been idle (no user messages) for
+ * longer than DEFAULT_IDLE_TIMEOUT_MS. Applies to all task types.
  */
-function checkOrchestratorSession(
+function checkIdleTimeout(
   task: TaskRow,
   deps: HealthCheckDeps,
 ): Effect.Effect<void, never> {
   return Effect.gen(function* () {
-    // Idle timeout: complete if no user message for DEFAULT_IDLE_TIMEOUT_MS
     const lastMsgTime = deps.getLastUserMessageTime(task.id)
     if (lastMsgTime) {
       const idleMs = Date.now() - new Date(lastMsgTime).getTime()
       if (idleMs >= DEFAULT_IDLE_TIMEOUT_MS) {
-        log.info("Orchestrator idle timeout, completing", { taskId: task.id, idleMs })
+        log.info("Task idle timeout, completing", { taskId: task.id, title: task.title, idleMs })
         yield* deps.completeTask(task.id).pipe(Effect.ignoreLogged)
         return
       }
@@ -168,7 +167,7 @@ function checkOrchestratorSession(
       // No user messages at all — check time since start
       const idleMs = Date.now() - new Date(task.started_at).getTime()
       if (idleMs >= DEFAULT_IDLE_TIMEOUT_MS) {
-        log.info("Orchestrator idle timeout (no messages), completing", { taskId: task.id, idleMs })
+        log.info("Task idle timeout (no messages), completing", { taskId: task.id, title: task.title, idleMs })
         yield* deps.completeTask(task.id).pipe(Effect.ignoreLogged)
       }
     }
@@ -203,10 +202,10 @@ export function checkAllTasks(
         }),
       )
 
-      // Orchestrator-specific: idle timeout and context rotation.
+      // Idle timeout: complete tasks with no user activity.
       // Only check if the task is still healthy — skip if it was just restarted or failed.
-      if (task.title === ORCHESTRATOR_TASK_NAME && result === "healthy") {
-        yield* checkOrchestratorSession(task, deps)
+      if (result === "healthy") {
+        yield* checkIdleTimeout(task, deps)
       }
     }
   })

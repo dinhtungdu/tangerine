@@ -32,7 +32,7 @@ Orchestrators do **not** auto-start on creation. They start when the user opens 
 
 ### Idle timeout
 
-The health monitor tracks the last user message time for each running orchestrator. If no user message arrives within `DEFAULT_IDLE_TIMEOUT_MS` (10 minutes), the orchestrator is completed (`done`). This frees resources when the user is away. The agent process is killed and cleaned up via normal `completeTask` flow.
+The health monitor tracks the last user message time for all running tasks (not just orchestrators). If no user message arrives within `DEFAULT_IDLE_TIMEOUT_MS` (10 minutes), the task is completed (`done`). This frees resources when the user is away. The agent process is killed and cleaned up via normal `completeTask` flow.
 
 ### Auto-resume
 

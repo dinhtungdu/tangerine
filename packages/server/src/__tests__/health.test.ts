@@ -207,10 +207,9 @@ describe("health check", () => {
   })
 })
 
-describe("orchestrator session management", () => {
-  test("idle orchestrator is completed after timeout", async () => {
+describe("idle timeout", () => {
+  test("idle task is completed after timeout", async () => {
     const task = makeTask({
-      title: ORCHESTRATOR_TASK_NAME,
       started_at: new Date(Date.now() - 700_000).toISOString(),
     })
     const completeFn = mock(() => Effect.void)
@@ -224,9 +223,8 @@ describe("orchestrator session management", () => {
     expect(completeFn).toHaveBeenCalledTimes(1)
   })
 
-  test("active orchestrator is not completed", async () => {
+  test("active task is not completed", async () => {
     const task = makeTask({
-      title: ORCHESTRATOR_TASK_NAME,
       started_at: new Date(Date.now() - 60_000).toISOString(),
     })
     const completeFn = mock(() => Effect.void)
@@ -240,25 +238,8 @@ describe("orchestrator session management", () => {
     expect(completeFn).toHaveBeenCalledTimes(0)
   })
 
-  test("regular task is not affected by orchestrator idle check", async () => {
+  test("task with no messages idles based on started_at", async () => {
     const task = makeTask({
-      title: "Regular task",
-      started_at: new Date(Date.now() - 700_000).toISOString(),
-    })
-    const completeFn = mock(() => Effect.void)
-    const deps = makeDeps({
-      listRunningTasks: () => Effect.succeed([task]),
-      completeTask: completeFn,
-      // Would trigger idle timeout if this were an orchestrator
-      getLastUserMessageTime: () => new Date(Date.now() - 660_000).toISOString(),
-    })
-    await Effect.runPromise(checkAllTasks(deps))
-    expect(completeFn).toHaveBeenCalledTimes(0)
-  })
-
-  test("orchestrator with no messages idles based on started_at", async () => {
-    const task = makeTask({
-      title: ORCHESTRATOR_TASK_NAME,
       started_at: new Date(Date.now() - 700_000).toISOString(),
     })
     const completeFn = mock(() => Effect.void)
@@ -269,5 +250,26 @@ describe("orchestrator session management", () => {
     })
     await Effect.runPromise(checkAllTasks(deps))
     expect(completeFn).toHaveBeenCalledTimes(1)
+  })
+
+  test("idle timeout applies to both orchestrator and regular tasks", async () => {
+    const orchestrator = makeTask({
+      id: "orch-1",
+      title: ORCHESTRATOR_TASK_NAME,
+      started_at: new Date(Date.now() - 700_000).toISOString(),
+    })
+    const worker = makeTask({
+      id: "worker-1",
+      title: "Fix bug",
+      started_at: new Date(Date.now() - 700_000).toISOString(),
+    })
+    const completeFn = mock(() => Effect.void)
+    const deps = makeDeps({
+      listRunningTasks: () => Effect.succeed([orchestrator, worker]),
+      completeTask: completeFn,
+      getLastUserMessageTime: () => new Date(Date.now() - 660_000).toISOString(),
+    })
+    await Effect.runPromise(checkAllTasks(deps))
+    expect(completeFn).toHaveBeenCalledTimes(2)
   })
 })
