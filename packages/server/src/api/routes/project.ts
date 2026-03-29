@@ -159,6 +159,9 @@ export function projectRoutes(deps: AppDeps): Hono {
   // Returns the task and starts the session if it's in "created" status.
   app.post("/:name/orchestrator", async (c) => {
     const name = c.req.param("name")
+    const project = deps.config.config.projects.find((p) => p.name === name)
+    if (!project) return c.json({ error: `Project not found: ${name}` }, 404)
+
     const body = await c.req.json().catch(() => ({})) as { provider?: string }
     return runEffect(c,
       deps.taskManager.ensureOrchestrator(name, body.provider).pipe(
