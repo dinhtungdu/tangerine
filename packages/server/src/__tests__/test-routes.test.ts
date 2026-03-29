@@ -56,6 +56,8 @@ function createMockDeps(db: Database, configOverrides?: Partial<AppDeps["config"
       abortTask() { return Effect.succeed(undefined as void) },
       changeConfig() { return Effect.void },
       cleanupTask() { return Effect.void },
+      ensureOrchestrator() { return Effect.fail({ _tag: "TaskError" as const, message: "not implemented" }) },
+      startTask() { return Effect.void },
       onTaskEvent() { return () => {} },
       onStatusChange() { return () => {} },
     },

@@ -188,6 +188,17 @@ export interface ProjectUpdateResult {
   restart?: boolean
 }
 
+export async function ensureOrchestrator(projectName: string, provider?: string): Promise<Task> {
+  return request<Task>(`/api/projects/${encodeURIComponent(projectName)}/orchestrator`, {
+    method: "POST",
+    body: JSON.stringify({ provider }),
+  })
+}
+
+export async function startTask(id: string): Promise<void> {
+  return request<void>(`/api/tasks/${id}/start`, { method: "POST" })
+}
+
 export async function fetchUpdateStatus(projectName: string): Promise<ProjectUpdateStatus> {
   return request<ProjectUpdateStatus>(`/api/projects/${encodeURIComponent(projectName)}/update-status`)
 }

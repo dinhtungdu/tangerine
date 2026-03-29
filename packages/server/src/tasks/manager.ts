@@ -106,11 +106,14 @@ export function createTask(
 
     emitStatusChange(id, task.status)
 
-    // Kick off provisioning — per-task deps copy with correct agent factory
-    const taskLifecycleDeps = depsForProvider(deps, params.provider ?? "opencode")
-    yield* Effect.forkDaemon(
-      startSessionWithRetry(task, projectConfig, taskLifecycleDeps, deps.retryDeps)
-    )
+    // Orchestrator tasks are started on-demand (when the user enters the chat),
+    // not immediately on creation. All other tasks auto-provision.
+    if (params.title !== ORCHESTRATOR_TASK_NAME) {
+      const taskLifecycleDeps = depsForProvider(deps, params.provider ?? "opencode")
+      yield* Effect.forkDaemon(
+        startSessionWithRetry(task, projectConfig, taskLifecycleDeps, deps.retryDeps)
+      )
+    }
 
     return task
   })
@@ -454,5 +457,78 @@ export function reprovisionTasksForProject(
 
     log.info("Tasks reprovisioned after rebuild", { projectId, reprovisioned, failed })
     return { reprovisioned, failed }
+  })
+}
+
+const TERMINAL_STATUSES = new Set(["done", "failed", "cancelled"])
+
+/**
+ * Ensure an orchestrator task exists for a project. Lazy creation:
+ * - Active orchestrator exists → return it
+ * - Terminal orchestrator exists → create new one linked via parent_task_id
+ * - No orchestrator exists → create one
+ * Does NOT start the session — call startTask() when the user enters the chat.
+ */
+export function ensureOrchestrator(
+  deps: TaskManagerDeps,
+  projectId: string,
+  provider?: string,
+): Effect.Effect<TaskRow, Error> {
+  return Effect.gen(function* () {
+    const allTasks = yield* deps.listTasks({ projectId })
+
+    // Find active orchestrator (non-terminal)
+    const active = allTasks.find(
+      (t) => t.title === ORCHESTRATOR_TASK_NAME && !TERMINAL_STATUSES.has(t.status)
+    )
+    if (active) return active
+
+    // Find most recent terminal orchestrator for parent linkage
+    const prevOrchestrators = allTasks
+      .filter((t) => t.title === ORCHESTRATOR_TASK_NAME && TERMINAL_STATUSES.has(t.status))
+      .sort((a, b) => (b.created_at ?? "").localeCompare(a.created_at ?? ""))
+    const terminal = prevOrchestrators[0]
+
+    const task = yield* createTask(deps, {
+      source: "manual",
+      projectId,
+      title: ORCHESTRATOR_TASK_NAME,
+      provider,
+      parentTaskId: terminal?.id,
+    })
+
+    return task
+  })
+}
+
+/**
+ * Start a session for a task that's in "created" status (on-demand start).
+ * Used for orchestrator tasks that are created dormant.
+ */
+export function startTask(
+  deps: TaskManagerDeps,
+  taskId: string,
+): Effect.Effect<void, TaskNotFoundError | Error> {
+  return Effect.gen(function* () {
+    const task = yield* deps.getTask(taskId).pipe(
+      Effect.mapError(() => new TaskNotFoundError({ taskId }))
+    )
+    if (!task) return yield* new TaskNotFoundError({ taskId })
+
+    if (task.status !== "created") {
+      // Already started or terminal — nothing to do
+      return
+    }
+
+    const projectConfig = deps.getProjectConfig(task.project_id)
+    if (!projectConfig) {
+      return yield* Effect.fail(new Error(`Unknown project: ${task.project_id}`))
+    }
+
+    log.info("Starting task on demand", { taskId, title: task.title })
+    const taskLifecycleDeps = depsForProvider(deps, task.provider)
+    yield* Effect.forkDaemon(
+      startSessionWithRetry(task, projectConfig, taskLifecycleDeps, deps.retryDeps)
+    )
   })
 }
