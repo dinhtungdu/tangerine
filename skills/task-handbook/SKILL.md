@@ -60,7 +60,8 @@ curl -X POST $API/api/tasks \
     "projectId": "my-project",
     "title": "Continue work on feature",
     "description": "Pick up where we left off",
-    "branch": "feature/my-branch"
+    "branch": "feature/my-branch",
+    "model": "claude-opus-4-6"
   }'
 
 # Create a task from a PR (resolves to the PR's head branch)
@@ -69,7 +70,8 @@ curl -X POST $API/api/tasks \
   -d '{
     "projectId": "my-project",
     "title": "Review and fix PR feedback",
-    "branch": "#123"
+    "branch": "#123",
+    "model": "claude-opus-4-6"
   }'
 
 # Create a continuation task (links to parent for context)
@@ -79,7 +81,8 @@ curl -X POST $API/api/tasks \
     "projectId": "my-project",
     "title": "Continue previous work",
     "description": "Pick up from where the parent task left off",
-    "parentTaskId": "abc123"
+    "parentTaskId": "abc123",
+    "model": "claude-opus-4-6"
   }'
 
 # Cancel a task
