@@ -148,14 +148,14 @@ export function TaskDetail() {
 
   const isOrchestrator = task?.title === ORCHESTRATOR_TASK_NAME
   const handleRestartOrchestrator = useCallback(async () => {
-    if (!current) return
+    if (!task) return
     try {
-      const newTask = await ensureOrchestrator(current.name)
+      const newTask = await ensureOrchestrator(task.projectId)
       navigate(`/tasks/${newTask.id}`)
     } catch {
       // TODO: error toast
     }
-  }, [current, navigate])
+  }, [task, navigate])
 
   const handleSendComments = useCallback((comments: DiffComment[]) => {
     const text = comments
