@@ -300,24 +300,22 @@ function TerminatedBanner({
 
   return (
     <div className="border-t border-edge bg-surface px-4 py-3">
+      {taskStatus === "failed" && taskError && (
+        <p className="mb-2 truncate text-[12px] text-status-error" title={taskError}>{taskError}</p>
+      )}
       <div className="flex items-center justify-between gap-3">
-        <div className="flex min-w-0 flex-col gap-1">
-          <div className="flex items-center gap-2 text-[13px] text-fg-muted">
-            <span
-              className="inline-flex shrink-0 items-center gap-1 rounded px-1.5 py-0.5 text-[11px] font-medium"
-              style={{ backgroundColor: `color-mix(in srgb, ${color} 10%, transparent)`, color }}
-            >
-              <span className="h-1.5 w-1.5 rounded-full" style={{ backgroundColor: color }} />
-              {label}
-            </span>
-            <span>This task has ended.</span>
-          </div>
-          {taskStatus === "failed" && taskError && (
-            <p className="truncate text-[12px] text-status-error" title={taskError}>{taskError}</p>
-          )}
+        <div className="flex items-center gap-2 text-[13px] text-fg-muted">
+          <span
+            className="inline-flex shrink-0 items-center gap-1 rounded px-1.5 py-0.5 text-[11px] font-medium"
+            style={{ backgroundColor: `color-mix(in srgb, ${color} 10%, transparent)`, color }}
+          >
+            <span className="h-1.5 w-1.5 rounded-full" style={{ backgroundColor: color }} />
+            {label}
+          </span>
+          <span>This task has ended.</span>
         </div>
         <div className="flex items-center gap-2">
-          {onRestartOrchestrator && (
+          {onRestartOrchestrator ? (
             <button
               onClick={() => void handleRestart()}
               disabled={restarting}
@@ -328,16 +326,17 @@ function TerminatedBanner({
               </svg>
               {restarting ? "Restarting…" : "Restart orchestrator"}
             </button>
+          ) : (
+            <button
+              onClick={() => onContinue(taskId, taskTitle)}
+              className="flex shrink-0 items-center gap-1.5 rounded-md bg-surface-dark px-3 py-1.5 text-[12px] font-medium text-white transition hover:opacity-80"
+            >
+              <svg className="h-3 w-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M12 4.5v15m7.5-7.5h-15" />
+              </svg>
+              Continue in new task
+            </button>
           )}
-          <button
-            onClick={() => onContinue(taskId, taskTitle)}
-            className={`flex shrink-0 items-center gap-1.5 rounded-md px-3 py-1.5 text-[12px] font-medium transition hover:opacity-80 ${onRestartOrchestrator ? "bg-surface-secondary text-fg-muted" : "bg-surface-dark text-white"}`}
-          >
-            <svg className="h-3 w-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-              <path strokeLinecap="round" strokeLinejoin="round" d="M12 4.5v15m7.5-7.5h-15" />
-            </svg>
-            Continue in new task
-          </button>
         </div>
       </div>
     </div>
