@@ -147,7 +147,7 @@ describe("createTask orchestrator injection", () => {
     expect(orchestrator.description).not.toContain("Out-of-scope issues")
   })
 
-  test("handles worker task with no description", async () => {
+  test("handles worker task with no description — title is preserved as base", async () => {
     await Effect.runPromise(ensureOrchestrator(deps, PROJECT_ID))
 
     const task = await Effect.runPromise(createTask(deps, {
@@ -156,8 +156,11 @@ describe("createTask orchestrator injection", () => {
       title: "Fix a bug",
     }))
 
+    // Title must appear first so start.ts `description || title` still delivers the work assignment
+    expect(task.description).toContain("Fix a bug")
     expect(task.description).toContain("Out-of-scope issues")
     expect(task.description).not.toContain("undefined")
+    expect(task.description!.indexOf("Fix a bug")).toBeLessThan(task.description!.indexOf("Out-of-scope issues"))
   })
 
   test("does not inject escalation when orchestrator is terminal", async () => {

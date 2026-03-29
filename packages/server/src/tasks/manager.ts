@@ -104,7 +104,11 @@ export function createTask(
           `  -d '{"text": "Discovered out-of-scope issue: <brief description>"}'`,
           "```",
         ].join("\n")
-        description = description ? description + "\n" + escalation : escalation.replace(/^\n/, "")
+        // When there is no description, seed with the title so the agent still
+        // receives its work assignment — start.ts uses `description || title`
+        // and would silently drop the title if description is set to escalation-only.
+        const base = description ?? params.title
+        description = base + "\n" + escalation
       }
     }
 
