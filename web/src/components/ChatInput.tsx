@@ -208,7 +208,7 @@ export function ChatInput({ onSend, disabled, queueLength, taskId, isWorking, on
         </div>
       )}
 
-      <div className="flex items-start gap-2">
+      <div className="flex items-end gap-2">
         <div className="relative min-w-0 flex-1">
           <textarea
             ref={textareaRef}
@@ -246,15 +246,6 @@ export function ChatInput({ onSend, disabled, queueLength, taskId, isWorking, on
           onClick={handleSend}
           disabled={!canSend}
           aria-label="Send message"
-          // Prevent the button from stealing focus on desktop (mousedown fires before blur)
-          onMouseDown={(e) => e.preventDefault()}
-          // On mobile, blur fires at touchstart before synthetic click events.
-          // preventDefault() stops the focus steal; we invoke send manually since click won't fire.
-          onTouchStart={(e) => {
-            if (!canSend) return
-            e.preventDefault()
-            handleSend()
-          }}
           className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-surface-dark text-white transition hover:opacity-80 disabled:cursor-not-allowed disabled:opacity-30 md:rounded-lg"
         >
           <svg className="h-4 w-4 md:hidden" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
