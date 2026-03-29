@@ -578,10 +578,10 @@ export async function start(): Promise<void> {
             Effect.mapError((e) => ({ _tag: "TaskError" as const, message: e.message }))
           ),
         cancelTask: (taskId) => taskManager.cancelTask(tmDeps, taskId).pipe(
-          Effect.mapError((e) => ({ _tag: "_tag" in e ? e._tag : "Error", message: e.message }))
+          Effect.mapError((e) => ({ _tag: e._tag, message: e.message }))
         ),
         completeTask: (taskId) => taskManager.completeTask(tmDeps, taskId).pipe(
-          Effect.mapError((e) => ({ _tag: "_tag" in e ? e._tag : "Error", message: e.message }))
+          Effect.mapError((e) => ({ _tag: e._tag, message: e.message }))
         ),
         sendPrompt: (taskId, text, images) =>
           Effect.gen(function* () {
