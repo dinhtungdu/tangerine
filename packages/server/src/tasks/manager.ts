@@ -3,7 +3,7 @@
 
 import { Effect } from "effect"
 import { createLogger } from "../logger"
-import { type ActivityType, ORCHESTRATOR_TASK_NAME, TERMINAL_STATUSES } from "@tangerine/shared"
+import { type ActivityType, ORCHESTRATOR_TASK_NAME, TERMINAL_STATUSES, DEFAULT_API_PORT } from "@tangerine/shared"
 import {
   TaskNotFoundError,
   TaskNotTerminalError,
@@ -84,6 +84,37 @@ export function createTask(
     const id = crypto.randomUUID()
     const resolvedProvider = params.provider ?? projectConfig.defaultProvider ?? "claude-code"
 
+    // For worker tasks, inject the active orchestrator's ID so the agent knows
+    // how to escalate out-of-scope issues without creating tasks itself.
+    let description = params.description ?? null
+    if (params.title !== ORCHESTRATOR_TASK_NAME) {
+      const allTasks = yield* deps.listTasks({ projectId: params.projectId })
+      const activeOrchestrator = allTasks.find(
+        (t) => t.title === ORCHESTRATOR_TASK_NAME && !TERMINAL_STATUSES.has(t.status)
+      )
+      if (activeOrchestrator) {
+        const port = Number(process.env["PORT"] ?? DEFAULT_API_PORT)
+        const escalation = [
+          "",
+          "---",
+          "## Out-of-scope issues",
+          "",
+          `If you discover issues outside your task scope, first mention them to the user in your conversation, then send them to the orchestrator (task ID: ${activeOrchestrator.id}) for triage — do NOT create tasks yourself:`,
+          "",
+          "```bash",
+          `curl -X POST http://localhost:${port}/api/tasks/${activeOrchestrator.id}/prompt \\`,
+          '  -H "Content-Type: application/json" \\',
+          `  -d '{"text": "Discovered out-of-scope issue: <brief description>"}'`,
+          "```",
+        ].join("\n")
+        // When there is no description, seed with the title so the agent still
+        // receives its work assignment — start.ts uses `description || title`
+        // and would silently drop the title if description is set to escalation-only.
+        const base = description ?? params.title
+        description = base + "\n" + escalation
+      }
+    }
+
     const task = yield* deps.insertTask({
       id,
       project_id: params.projectId,
@@ -92,7 +123,7 @@ export function createTask(
       source_url: params.sourceUrl ?? null,
       repo_url: projectConfig.repo,
       title: params.title,
-      description: params.description ?? null,
+      description,
       provider: resolvedProvider,
       model: params.model ?? null,
       reasoning_effort: params.reasoningEffort ?? null,

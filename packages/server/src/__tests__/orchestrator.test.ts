@@ -105,6 +105,79 @@ describe("ensureOrchestrator", () => {
   })
 })
 
+describe("createTask orchestrator injection", () => {
+  let db: Database
+  let deps: TaskManagerDeps
+
+  beforeEach(() => {
+    db = createTestDb()
+    deps = makeDeps(db)
+  })
+
+  test("injects orchestrator escalation section when active orchestrator exists", async () => {
+    const orchestrator = await Effect.runPromise(ensureOrchestrator(deps, PROJECT_ID))
+
+    const task = await Effect.runPromise(createTask(deps, {
+      source: "manual",
+      projectId: PROJECT_ID,
+      title: "Fix a bug",
+      description: "Do the thing",
+    }))
+
+    expect(task.description).toContain(orchestrator.id)
+    expect(task.description).toContain("Out-of-scope issues")
+    expect(task.description).toContain(`/api/tasks/${orchestrator.id}/prompt`)
+    expect(task.description).toContain("Do the thing")
+  })
+
+  test("does not inject escalation when no active orchestrator", async () => {
+    const task = await Effect.runPromise(createTask(deps, {
+      source: "manual",
+      projectId: PROJECT_ID,
+      title: "Fix a bug",
+      description: "Do the thing",
+    }))
+
+    expect(task.description).toBe("Do the thing")
+  })
+
+  test("does not inject escalation for orchestrator task itself", async () => {
+    const orchestrator = await Effect.runPromise(ensureOrchestrator(deps, PROJECT_ID))
+    // The orchestrator description should not reference itself
+    expect(orchestrator.description).not.toContain("Out-of-scope issues")
+  })
+
+  test("handles worker task with no description — title is preserved as base", async () => {
+    await Effect.runPromise(ensureOrchestrator(deps, PROJECT_ID))
+
+    const task = await Effect.runPromise(createTask(deps, {
+      source: "manual",
+      projectId: PROJECT_ID,
+      title: "Fix a bug",
+    }))
+
+    // Title must appear first so start.ts `description || title` still delivers the work assignment
+    expect(task.description).toContain("Fix a bug")
+    expect(task.description).toContain("Out-of-scope issues")
+    expect(task.description).not.toContain("undefined")
+    expect(task.description!.indexOf("Fix a bug")).toBeLessThan(task.description!.indexOf("Out-of-scope issues"))
+  })
+
+  test("does not inject escalation when orchestrator is terminal", async () => {
+    const orchestrator = await Effect.runPromise(ensureOrchestrator(deps, PROJECT_ID))
+    await Effect.runPromise(dbQueries.updateTask(db, orchestrator.id, { status: "done" }))
+
+    const task = await Effect.runPromise(createTask(deps, {
+      source: "manual",
+      projectId: PROJECT_ID,
+      title: "Fix a bug",
+      description: "Do the thing",
+    }))
+
+    expect(task.description).toBe("Do the thing")
+  })
+})
+
 describe("startTask", () => {
   let db: Database
   let deps: TaskManagerDeps
