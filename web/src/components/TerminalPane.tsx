@@ -22,6 +22,7 @@ export function TerminalPane(props: TerminalPaneProps) {
   const backoffRef = useRef(1000)
   const disposedRef = useRef(false)
   const everConnectedRef = useRef(false)
+  const hadErrorRef = useRef(false)
   const [connState, setConnState] = useState<ConnState>("connecting")
 
   const sendInput = useCallback((data: string) => {
@@ -34,6 +35,7 @@ export function TerminalPane(props: TerminalPaneProps) {
   const connect = useCallback(() => {
     const term = termRef.current
     if (!term || disposedRef.current) return
+    hadErrorRef.current = false
 
     const protocol = window.location.protocol === "https:" ? "wss:" : "ws:"
     const url = `${protocol}//${window.location.host}${wsPath}`
@@ -69,6 +71,7 @@ export function TerminalPane(props: TerminalPaneProps) {
         } else if (msg.type === "exit") {
           term.writeln(`\r\n[Process exited with code ${msg.code}]`)
         } else if (msg.type === "error") {
+          hadErrorRef.current = true
           setConnState("error")
           term.writeln(`\r\n[Error: ${msg.message}]`)
         }
@@ -84,8 +87,17 @@ export function TerminalPane(props: TerminalPaneProps) {
       if (disposedRef.current) return
       const delay = backoffRef.current
       backoffRef.current = Math.min(delay * 2, 5000)
-      setConnState(everConnectedRef.current ? "reconnecting" : "connecting")
-      reconnectTimerRef.current = setTimeout(connect, delay)
+      if (hadErrorRef.current) {
+        // Hold "error" visible for 2s before retrying so the user can read it
+        reconnectTimerRef.current = setTimeout(() => {
+          if (disposedRef.current) return
+          setConnState(everConnectedRef.current ? "reconnecting" : "connecting")
+          connect()
+        }, Math.max(delay, 2000))
+      } else {
+        setConnState(everConnectedRef.current ? "reconnecting" : "connecting")
+        reconnectTimerRef.current = setTimeout(connect, delay)
+      }
     }
 
     ws.onerror = () => {
@@ -198,6 +210,7 @@ export function TerminalPane(props: TerminalPaneProps) {
       }
       setConnState("connecting")
       everConnectedRef.current = false
+      hadErrorRef.current = false
       term.dispose()
       termRef.current = null
       fitRef.current = null
