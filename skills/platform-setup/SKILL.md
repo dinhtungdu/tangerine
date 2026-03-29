@@ -116,7 +116,7 @@ Skills are installed by running `bin/tangerine install` inside the VM. This syml
 bin/tangerine install
 ```
 
-This installs the built-in skills (`task-handbook`, `platform-setup`). For project-specific skills, symlink them manually:
+This installs the built-in skills (`tangerine-tasks`, `platform-setup`). For project-specific skills, symlink them manually:
 
 ```bash
 ln -s /path/to/skill ~/.claude/skills/my-skill

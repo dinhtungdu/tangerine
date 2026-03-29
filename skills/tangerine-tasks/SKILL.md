@@ -1,5 +1,5 @@
 ---
-name: task-handbook
+name: tangerine-tasks
 description: Reference for agents running inside a Tangerine task — API endpoints, env vars, and common workflows.
 metadata:
   author: tung

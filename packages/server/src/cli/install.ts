@@ -14,8 +14,8 @@ const PROJECT_ROOT = resolve(import.meta.dir, "../../../../")
 
 // Skills to symlink into ~/.claude/skills/:
 // - platform-setup: for the operator to set up projects
-// - task-handbook: for agents running inside tasks to understand the API
-const SKILLS_TO_INSTALL = ["platform-setup", "task-handbook"]
+// - tangerine-tasks: for agents running inside tasks to understand the API
+const SKILLS_TO_INSTALL = ["platform-setup", "tangerine-tasks"]
 
 function check(label: string, ok: boolean, hint?: string): void {
   if (ok) {
