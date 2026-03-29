@@ -19,7 +19,7 @@ export function utc(ts: string | null): string | null {
 // Use title to distinguish orchestrators from worker tasks so upgraded installs work correctly.
 function defaultCapabilities(title: string): TaskCapability[] {
   return title === ORCHESTRATOR_TASK_NAME
-    ? ["restart"]
+    ? ["resolve"]
     : ["resolve", "predefined-prompts", "diff"]
 }
 

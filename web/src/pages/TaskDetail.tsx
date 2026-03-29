@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback, useRef } from "react"
 import { useParams, Link } from "react-router-dom"
 import type { Task } from "@tangerine/shared"
-import { fetchTask, fetchChildTasks, changeTaskConfig, markTaskSeen, ensureOrchestrator, resolveTask } from "../lib/api"
+import { fetchTask, fetchChildTasks, changeTaskConfig, markTaskSeen, resolveTask } from "../lib/api"
 import { getStatusConfig } from "../lib/status"
 import { useSession } from "../hooks/useSession"
 import { useTaskSearch } from "../hooks/useTaskSearch"
@@ -157,20 +157,9 @@ export function TaskDetail() {
     }
   }, [id, task])
 
-  const canRestart = task?.capabilities.includes("restart") ?? false
   const canResolve = task?.capabilities.includes("resolve") ?? false
   const hasPredefinedPrompts = task?.capabilities.includes("predefined-prompts") ?? false
   const hasDiff = task?.capabilities.includes("diff") ?? false
-
-  const handleRestartOrchestrator = useCallback(async () => {
-    if (!task) return
-    try {
-      const newTask = await ensureOrchestrator(task.projectId)
-      navigate(`/tasks/${newTask.id}`)
-    } catch {
-      // TODO: error toast
-    }
-  }, [task, navigate])
 
   const handleResolve = useCallback(async () => {
     if (!task) return
@@ -463,7 +452,6 @@ export function TaskDetail() {
                 onModelChange={handleModelChange}
                 onReasoningEffortChange={handleReasoningEffortChange}
                 predefinedPrompts={hasPredefinedPrompts ? current?.predefinedPrompts : undefined}
-                onRestartOrchestrator={canRestart ? handleRestartOrchestrator : undefined}
                 onResolve={canResolve ? handleResolve : undefined}
               />
             </div>
@@ -549,7 +537,6 @@ export function TaskDetail() {
                 onModelChange={handleModelChange}
                 onReasoningEffortChange={handleReasoningEffortChange}
                 predefinedPrompts={hasPredefinedPrompts ? current?.predefinedPrompts : undefined}
-                onRestartOrchestrator={canRestart ? handleRestartOrchestrator : undefined}
                 onResolve={canResolve ? handleResolve : undefined}
               />
             </div>
