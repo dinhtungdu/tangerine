@@ -9,7 +9,7 @@ import { createLogger, truncate } from "../logger"
 import { AgentError, PromptError, SessionStartError } from "../errors"
 import type { AgentFactory, AgentHandle, AgentEvent, AgentStartContext, PromptImage, ModelInfo } from "./provider"
 import { parseNdjsonStream } from "./ndjson"
-import { existsSync, readFileSync } from "node:fs"
+import { existsSync, readFileSync, unlinkSync } from "node:fs"
 import { homedir } from "node:os"
 import { join } from "node:path"
 
@@ -410,28 +410,41 @@ export function createOpenCodeProvider(): AgentFactory {
                 try: async () => {
                   if (shutdownCalled) throw new Error("Agent shut down")
 
-                  // Wait for previous process to finish (with timeout) before spawning a new one.
-                  // This avoids killing in-flight work when prompts arrive in quick succession.
+                  // Wait for previous process to finish before spawning a new one.
+                  // Tangerine's prompt queue already serializes prompts per task,
+                  // so this is a safety net — don't kill in-flight work.
                   if (currentProc) {
-                    const exitOrTimeout = await Promise.race([
-                      currentProc.exited,
-                      new Promise<"timeout">((r) => setTimeout(() => r("timeout"), 5000)),
-                    ])
-                    if (exitOrTimeout === "timeout") {
-                      taskLog.warn("Previous opencode run still active after 5s, killing")
-                      try { currentProc.kill() } catch { /* already dead */ }
-                    }
+                    taskLog.debug("Waiting for previous opencode run to finish")
+                    await currentProc.exited
                     currentParser?.stop()
                     currentProc = null
                     currentParser = null
                   }
 
+                  // Write images to temp files for -f/--file attachment
+                  const tempFiles: string[] = []
+                  if (images && images.length > 0) {
+                    for (let i = 0; i < images.length; i++) {
+                      const img = images[i]!
+                      const ext = img.mediaType.split("/")[1]?.replace("+xml", "") ?? "png"
+                      const tmpPath = join(ctx.workdir, `.tangerine-img-${i}.${ext}`)
+                      const buf = Buffer.from(img.data, "base64")
+                      await Bun.write(tmpPath, buf)
+                      tempFiles.push(tmpPath)
+                    }
+                  }
+
                   const args = buildArgs()
+                  // Attach image files via -f flag
+                  for (const f of tempFiles) {
+                    args.push("-f", f)
+                  }
+
                   taskLog.debug("Spawning opencode run", {
                     args: args.join(" "),
                     textLength: text.length,
-                    hasImages: (images?.length ?? 0) > 0,
-                    imageCount: images?.length ?? 0,
+                    hasImages: tempFiles.length > 0,
+                    imageCount: tempFiles.length,
                   })
 
                   const proc = Bun.spawn(args, {
@@ -451,6 +464,10 @@ export function createOpenCodeProvider(): AgentFactory {
                     if (exitCode !== 0 && exitCode !== null && !shutdownCalled) {
                       taskLog.error("opencode run exited with error", { exitCode, pid: proc.pid })
                       emit({ kind: "error", message: `opencode run exited with code ${exitCode}` })
+                    }
+                    // Clean up temp image files
+                    for (const f of tempFiles) {
+                      try { unlinkSync(f) } catch { /* already gone */ }
                     }
                   })
 
@@ -507,17 +524,8 @@ export function createOpenCodeProvider(): AgentFactory {
                     }
                   })()
 
-                  // Build prompt with inline images as data URL references
-                  let prompt = text
-                  if (images && images.length > 0) {
-                    const imageRefs = images
-                      .map((img, i) => `![image-${i}](data:${img.mediaType};base64,${img.data})`)
-                      .join("\n")
-                    prompt = `${imageRefs}\n\n${text}`
-                  }
-
                   // Write prompt to stdin and close to signal input complete
-                  proc.stdin.write(prompt)
+                  proc.stdin.write(text)
                   proc.stdin.end()
                 },
                 catch: (e) =>
