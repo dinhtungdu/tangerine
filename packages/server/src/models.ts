@@ -1,13 +1,8 @@
-import type { ProviderType } from "./agent/provider"
+import type { ProviderType, ModelInfo } from "./agent/provider"
 import { discoverModels as discoverOpenCodeModels } from "./agent/opencode-provider"
 import { discoverModels as discoverCodexProviderModels } from "./agent/codex-provider"
 
-export interface ModelInfo {
-  id: string
-  name: string
-  provider: string
-  providerName: string
-}
+export type { ModelInfo }
 
 export function buildModels(
   providerId: string,

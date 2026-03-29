@@ -6,7 +6,7 @@
 import { Effect } from "effect"
 import { createLogger } from "../logger"
 import { AgentError, PromptError, SessionStartError } from "../errors"
-import type { AgentFactory, AgentHandle, AgentEvent, AgentStartContext, PromptImage } from "./provider"
+import type { AgentFactory, AgentHandle, AgentEvent, AgentStartContext, PromptImage, ModelInfo } from "./provider"
 import { parseNdjsonStream } from "./ndjson"
 import { existsSync, readFileSync } from "node:fs"
 import { homedir } from "node:os"
@@ -217,18 +217,11 @@ function truncate(s: string, maxLen: number): string {
 
 const CODEX_MODELS_CACHE = join(homedir(), ".codex", "models_cache.json")
 
-export interface DiscoveredModel {
-  id: string
-  name: string
-  provider: string
-  providerName: string
-}
-
 /**
  * Discover available Codex models by reading ~/.codex/models_cache.json.
  * Only includes models with visibility "list" (publicly available).
  */
-export function discoverModels(): DiscoveredModel[] {
+export function discoverModels(): ModelInfo[] {
   if (!existsSync(CODEX_MODELS_CACHE)) return []
   try {
     const raw = JSON.parse(readFileSync(CODEX_MODELS_CACHE, "utf-8")) as {

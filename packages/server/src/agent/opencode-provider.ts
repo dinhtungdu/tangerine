@@ -8,7 +8,7 @@ import { Effect } from "effect"
 import { createLogger, truncate } from "../logger"
 import { AgentError, PromptError, SessionStartError } from "../errors"
 import { transientSchedule } from "../tasks/retry"
-import type { AgentFactory, AgentHandle, AgentEvent, AgentStartContext, PromptImage } from "./provider"
+import type { AgentFactory, AgentHandle, AgentEvent, AgentStartContext, PromptImage, ModelInfo } from "./provider"
 import { existsSync, readFileSync } from "node:fs"
 import { homedir } from "node:os"
 import { join } from "node:path"
@@ -676,13 +676,6 @@ interface ConfigProviderEntry {
   models?: Record<string, { name?: string; [key: string]: unknown }>
 }
 
-export interface DiscoveredModel {
-  id: string
-  name: string
-  provider: string
-  providerName: string
-}
-
 function readJsonFile<T>(path: string): T | null {
   if (!existsSync(path)) return null
   try {
@@ -692,11 +685,11 @@ function readJsonFile<T>(path: string): T | null {
   }
 }
 
-function buildDiscoveredModels(
+function buildModelInfos(
   providerId: string,
   providerName: string,
   models: Record<string, { name?: string; [key: string]: unknown }>,
-): DiscoveredModel[] {
+): ModelInfo[] {
   return Object.entries(models).map(([modelId, model]) => ({
     id: `${providerId}/${modelId}`,
     name: model.name ?? modelId,
@@ -710,13 +703,13 @@ function readAuthedProviders(): Set<string> {
   return new Set(auth ? Object.keys(auth) : [])
 }
 
-function discoverCacheModels(): { models: DiscoveredModel[]; availableProviders: Set<string> } {
+function discoverCacheModels(): { models: ModelInfo[]; availableProviders: Set<string> } {
   const catalog = readJsonFile<Record<string, ProviderEntry>>(OPENCODE_MODELS_CACHE)
   if (!catalog) return { models: [], availableProviders: new Set() }
 
   const authedProviders = readAuthedProviders()
   const availableProviders = new Set<string>()
-  const models: DiscoveredModel[] = []
+  const models: ModelInfo[] = []
 
   for (const [providerId, provider] of Object.entries(catalog)) {
     const hasOAuth = authedProviders.has(providerId)
@@ -724,23 +717,23 @@ function discoverCacheModels(): { models: DiscoveredModel[]; availableProviders:
     if (!hasOAuth && !hasEnvVar) continue
 
     availableProviders.add(providerId)
-    models.push(...buildDiscoveredModels(providerId, provider.name ?? providerId, provider.models ?? {}))
+    models.push(...buildModelInfos(providerId, provider.name ?? providerId, provider.models ?? {}))
   }
 
   return { models, availableProviders }
 }
 
-function discoverConfigModels(availableCacheProviders: Set<string>): DiscoveredModel[] {
+function discoverConfigModels(availableCacheProviders: Set<string>): ModelInfo[] {
   const config = readJsonFile<{ provider?: Record<string, ConfigProviderEntry> }>(OPENCODE_CONFIG_PATH)
   if (!config?.provider) return []
 
-  const models: DiscoveredModel[] = []
+  const models: ModelInfo[] = []
   for (const [providerId, provider] of Object.entries(config.provider)) {
     if (!provider.models) continue
     const isCustomProvider = !!(provider.npm || provider.options)
     if (!isCustomProvider && !availableCacheProviders.has(providerId)) continue
 
-    models.push(...buildDiscoveredModels(providerId, provider.name ?? providerId, provider.models))
+    models.push(...buildModelInfos(providerId, provider.name ?? providerId, provider.models))
   }
   return models
 }
@@ -750,7 +743,7 @@ function discoverConfigModels(availableCacheProviders: Set<string>): DiscoveredM
  * A model is included if its provider has OAuth tokens, an env var set, or is
  * a custom provider defined in opencode.json.
  */
-export function discoverModels(): DiscoveredModel[] {
+export function discoverModels(): ModelInfo[] {
   const { models, availableProviders } = discoverCacheModels()
   const configModels = discoverConfigModels(availableProviders)
 
