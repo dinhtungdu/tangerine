@@ -10,6 +10,8 @@ interface SwipeOptions {
   threshold?: number
   /** Max vertical distance (px) allowed — prevents triggering on scrolls. Default: 80 */
   maxVertical?: number
+  /** Only trigger swipe when touch starts within this many px of screen edge. Default: undefined (anywhere) */
+  edgeWidth?: number
 }
 
 /** Walk up from `el` to check if any ancestor can scroll horizontally. */
@@ -31,7 +33,7 @@ export function useSwipe(
   handlers: SwipeHandlers,
   options: SwipeOptions = {},
 ) {
-  const { threshold = 50, maxVertical = 80 } = options
+  const { threshold = 50, maxVertical = 80, edgeWidth } = options
   const startRef = useRef<{ x: number; y: number } | null>(null)
   const handlersRef = useRef(handlers)
   handlersRef.current = handlers
@@ -39,6 +41,12 @@ export function useSwipe(
   const onTouchStart = useCallback((e: React.TouchEvent) => {
     const touch = e.touches[0]
     if (!touch) return
+    // Only accept touches starting near screen edges
+    if (edgeWidth != null) {
+      const x = touch.clientX
+      const screenW = document.documentElement.clientWidth
+      if (x > edgeWidth && x < screenW - edgeWidth) return
+    }
     // Ignore touches on interactive or horizontally-scrollable elements
     const el = e.target as HTMLElement
     const tag = el.tagName
@@ -47,7 +55,7 @@ export function useSwipe(
     // Skip if touch started inside a horizontally-scrollable container
     if (hasHorizontalScroll(el)) return
     startRef.current = { x: touch.clientX, y: touch.clientY }
-  }, [])
+  }, [edgeWidth])
 
   const onTouchEnd = useCallback((e: React.TouchEvent) => {
     if (!startRef.current) return

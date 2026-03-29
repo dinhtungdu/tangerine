@@ -10,7 +10,7 @@ export function StatusPage() {
   const { navigate } = useProjectNav()
   const { current } = useProject()
   const { query, setQuery, tasks } = useTaskSearch(current?.name)
-  const swipe = useSwipe({ onSwipeLeft: () => navigate("/") })
+  const swipe = useSwipe({ onSwipeLeft: () => navigate("/") }, { edgeWidth: 20 })
 
   return (
     <div className="flex h-full" {...swipe}>
