@@ -103,6 +103,24 @@ describe("ensureOrchestrator", () => {
     const task = await Effect.runPromise(ensureOrchestrator(deps, PROJECT_ID, "opencode"))
     expect(task.provider).toBe("opencode")
   })
+
+  test("defaults to claude-opus-4-6 model with high reasoning effort", async () => {
+    const task = await Effect.runPromise(ensureOrchestrator(deps, PROJECT_ID))
+    expect(task.model).toBe("claude-opus-4-6")
+    expect(task.reasoning_effort).toBe("high")
+  })
+
+  test("explicit model and reasoningEffort override defaults", async () => {
+    const task = await Effect.runPromise(ensureOrchestrator(deps, PROJECT_ID, undefined, "claude-sonnet-4-6", "medium"))
+    expect(task.model).toBe("claude-sonnet-4-6")
+    expect(task.reasoning_effort).toBe("medium")
+  })
+
+  test("does not default claude model for non-claude providers", async () => {
+    const task = await Effect.runPromise(ensureOrchestrator(deps, PROJECT_ID, "opencode"))
+    expect(task.model).toBeNull()
+    expect(task.reasoning_effort).toBeNull()
+  })
 })
 
 describe("createTask description storage", () => {
