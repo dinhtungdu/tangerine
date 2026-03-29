@@ -257,7 +257,7 @@ export function TaskDetail() {
   }, [id, task?.updatedAt])
 
   // Sanitize pane state: if the loaded task lacks "diff" capability, remove any stale
-  // "diff" entry from visiblePanes so the desktop layout doesn't render blank.
+  // "diff" entry from visiblePanes/mobilePane so the layout doesn't render blank.
   useEffect(() => {
     if (!task) return
     if (!task.capabilities.includes("diff")) {
@@ -268,6 +268,7 @@ export function TaskDetail() {
         if (next.size === 0) next.add("chat")
         return next
       })
+      setMobilePane((prev) => prev === "diff" ? "chat" : prev)
     }
   }, [task?.id, task?.capabilities])
 
