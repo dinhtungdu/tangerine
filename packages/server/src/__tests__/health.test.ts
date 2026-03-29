@@ -322,7 +322,7 @@ describe("idle timeout", () => {
     expect(isTaskSuspended(task.id)).toBe(false)
   })
 
-  test("opencode tasks are not suspended (no disk-based resume)", async () => {
+  test("opencode tasks are suspended (disk-based session resume via -s flag)", async () => {
     const task = makeTask({
       provider: "opencode",
       started_at: new Date(Date.now() - 700_000).toISOString(),
@@ -334,7 +334,9 @@ describe("idle timeout", () => {
       getLastUserMessageTime: () => new Date(Date.now() - 660_000).toISOString(),
     })
     await Effect.runPromise(checkAllTasks(deps))
-    expect(suspendFn).toHaveBeenCalledTimes(0)
-    expect(isTaskSuspended(task.id)).toBe(false)
+    expect(suspendFn).toHaveBeenCalledTimes(1)
+    expect(isTaskSuspended(task.id)).toBe(true)
+    // Clean up
+    clearSuspended(task.id)
   })
 })

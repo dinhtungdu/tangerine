@@ -1,6 +1,6 @@
 import { describe, expect, it } from "bun:test"
 import { Effect } from "effect"
-import { extractSseData, getHandleMeta, mapSseEvent, createOpenCodeEventProcessor } from "../agent/opencode-provider"
+import { getHandleMeta, mapOpenCodeEvent, createOpenCodeEventProcessor, adaptRunJsonEvent } from "../agent/opencode-provider"
 import type { AgentHandle, AgentEvent } from "../agent/provider"
 import { getAgentRuntimeMeta } from "../tasks/lifecycle"
 
@@ -15,7 +15,7 @@ function createHandle(): AgentHandle {
 
 describe("OpenCode provider helpers", () => {
   it("maps text delta events to streaming output", () => {
-    const event = mapSseEvent({
+    const event = mapOpenCodeEvent({
       type: "message.part.delta",
       properties: {
         messageID: "msg-1",
@@ -28,7 +28,7 @@ describe("OpenCode provider helpers", () => {
   })
 
   it("maps text snapshots to only the unseen suffix", () => {
-    const event = mapSseEvent({
+    const event = mapOpenCodeEvent({
       type: "message.part.updated",
       properties: {
         part: {
@@ -43,7 +43,7 @@ describe("OpenCode provider helpers", () => {
   })
 
   it("maps tool lifecycle events", () => {
-    const startEvent = mapSseEvent({
+    const startEvent = mapOpenCodeEvent({
       type: "message.part.updated",
       properties: {
         part: {
@@ -56,7 +56,7 @@ describe("OpenCode provider helpers", () => {
         },
       },
     })
-    const endEvent = mapSseEvent({
+    const endEvent = mapOpenCodeEvent({
       type: "message.part.updated",
       properties: {
         part: {
@@ -83,7 +83,7 @@ describe("OpenCode provider helpers", () => {
   })
 
   it("maps session status events", () => {
-    const event = mapSseEvent({
+    const event = mapOpenCodeEvent({
       type: "session.status",
       properties: {
         status: { type: "idle" },
@@ -93,28 +93,10 @@ describe("OpenCode provider helpers", () => {
     expect(event).toEqual({ kind: "status", status: "idle" })
   })
 
-  it("extractSseData handles simple data-only blocks", () => {
-    expect(extractSseData('data: {"type":"session.status"}')).toBe('{"type":"session.status"}')
-  })
-
-  it("extractSseData handles multi-line blocks with event prefix", () => {
-    expect(extractSseData('event: message\ndata: {"type":"message.updated"}')).toBe('{"type":"message.updated"}')
-  })
-
-  it("extractSseData returns null for blocks without data line", () => {
-    expect(extractSseData("event: ping")).toBeNull()
-    expect(extractSseData(": comment")).toBeNull()
-    expect(extractSseData("")).toBeNull()
-  })
-
-  it("extractSseData handles blocks with id and data lines", () => {
-    expect(extractSseData('id: 42\nevent: update\ndata: {"ok":true}')).toBe('{"ok":true}')
-  })
-
   it("does not map thinking deltas as text streaming", () => {
-    // Thinking deltas have field === "thinking", not "text" — mapSseEvent
+    // Thinking deltas have field === "thinking", not "text" — mapOpenCodeEvent
     // should return null so they don't get treated as regular text.
-    const event = mapSseEvent({
+    const event = mapOpenCodeEvent({
       type: "message.part.delta",
       properties: {
         messageID: "msg-1",
@@ -127,7 +109,7 @@ describe("OpenCode provider helpers", () => {
 
   it("does not map thinking part snapshots as text", () => {
     // part.type === "thinking" should not be treated as text or tool
-    const event = mapSseEvent({
+    const event = mapOpenCodeEvent({
       type: "message.part.updated",
       properties: {
         part: {
@@ -141,11 +123,7 @@ describe("OpenCode provider helpers", () => {
   })
 
   it("skips message.complete for tool-only messages (no accumulated text)", () => {
-    // message.updated with completed timestamp but no text parts should NOT
-    // produce a message.complete — tool-only turns don't need a chat entry.
-    // mapSseEvent doesn't handle message.updated (only processRawEvent does),
-    // and processRawEvent now skips empty-text messages.
-    const event = mapSseEvent({
+    const event = mapOpenCodeEvent({
       type: "message.updated",
       properties: {
         info: {
@@ -160,13 +138,13 @@ describe("OpenCode provider helpers", () => {
 
   it("exposes OpenCode metadata through lifecycle helper", () => {
     const handle = createHandle() as AgentHandle & {
-      __meta: { sessionId: string; agentPort: number }
+      __meta: { sessionId: string; agentPort: number | null }
       __pid: number
     }
-    handle.__meta = { sessionId: "ses-123", agentPort: 14096 }
+    handle.__meta = { sessionId: "ses-123", agentPort: null }
     handle.__pid = 4242
 
-    expect(getHandleMeta(handle)).toEqual({ sessionId: "ses-123", agentPort: 14096 })
+    expect(getHandleMeta(handle)).toEqual({ sessionId: "ses-123", agentPort: null })
     expect(getAgentRuntimeMeta(handle)).toEqual({ agentPid: 4242, agentSessionId: "ses-123" })
   })
 
@@ -176,14 +154,13 @@ describe("OpenCode provider helpers", () => {
     expect(handle.isAlive).toBeUndefined()
   })
 
-  it("isAlive returns true when SSE connected and server alive", () => {
+  it("isAlive returns true when handle is active", () => {
     const handle = createHandle()
-    // Simulate an OpenCode handle with isAlive
     handle.isAlive = () => true
     expect(handle.isAlive()).toBe(true)
   })
 
-  it("isAlive returns false when SSE disconnected", () => {
+  it("isAlive returns false after shutdown", () => {
     const handle = createHandle()
     handle.isAlive = () => false
     expect(handle.isAlive()).toBe(false)
@@ -577,5 +554,172 @@ describe("createOpenCodeEventProcessor — image handling", () => {
     )
     // Only one narration (the first one with content)
     expect(narrations).toHaveLength(1)
+  })
+})
+
+describe("adaptRunJsonEvent — --format json to internal event conversion", () => {
+  it("converts text event to message.part.updated", () => {
+    const adapted = adaptRunJsonEvent({
+      type: "text",
+      timestamp: 1234567890,
+      sessionID: "sess-1",
+      part: { type: "text", messageID: "msg-1", text: "Hello world" },
+    })
+
+    expect(adapted).toHaveLength(1)
+    expect(adapted[0]).toEqual({
+      type: "message.part.updated",
+      properties: {
+        part: { type: "text", messageID: "msg-1", text: "Hello world" },
+      },
+    })
+  })
+
+  it("converts tool_use event to message.part.updated", () => {
+    const adapted = adaptRunJsonEvent({
+      type: "tool_use",
+      timestamp: 1234567890,
+      sessionID: "sess-1",
+      part: {
+        type: "tool",
+        tool: "bash",
+        callID: "call-1",
+        state: { status: "running", input: { command: "ls" } },
+      },
+    })
+
+    expect(adapted).toHaveLength(1)
+    expect(adapted[0]).toEqual({
+      type: "message.part.updated",
+      properties: {
+        part: {
+          type: "tool",
+          tool: "bash",
+          callID: "call-1",
+          state: { status: "running", input: { command: "ls" } },
+        },
+      },
+    })
+  })
+
+  it("converts reasoning event to message.part.updated", () => {
+    const adapted = adaptRunJsonEvent({
+      type: "reasoning",
+      timestamp: 1234567890,
+      sessionID: "sess-1",
+      part: { type: "thinking", text: "Let me analyze..." },
+    })
+
+    expect(adapted).toHaveLength(1)
+    expect(adapted[0]).toEqual({
+      type: "message.part.updated",
+      properties: {
+        part: { type: "thinking", text: "Let me analyze..." },
+      },
+    })
+  })
+
+  it("converts step_start to session.status busy", () => {
+    const adapted = adaptRunJsonEvent({
+      type: "step_start",
+      timestamp: 1234567890,
+      sessionID: "sess-1",
+      part: { id: "step-1" },
+    })
+
+    expect(adapted).toEqual([{
+      type: "session.status",
+      properties: { status: { type: "busy" } },
+    }])
+  })
+
+  it("converts step_finish to message.updated completion", () => {
+    const adapted = adaptRunJsonEvent({
+      type: "step_finish",
+      timestamp: 1234567890,
+      sessionID: "sess-1",
+      part: { messageID: "msg-1", id: "step-1" },
+    })
+
+    expect(adapted).toHaveLength(1)
+    expect(adapted[0]).toEqual({
+      type: "message.updated",
+      properties: {
+        info: {
+          id: "msg-1",
+          role: "assistant",
+          time: { completed: 1234567890 },
+        },
+      },
+    })
+  })
+
+  it("converts error event to session.error", () => {
+    const adapted = adaptRunJsonEvent({
+      type: "error",
+      timestamp: 1234567890,
+      sessionID: "sess-1",
+      error: { message: "Something went wrong" },
+    })
+
+    expect(adapted).toEqual([{
+      type: "session.error",
+      properties: { error: { message: "Something went wrong" } },
+    }])
+  })
+
+  it("returns empty array for unknown event types", () => {
+    expect(adaptRunJsonEvent({ type: "unknown_event" })).toEqual([])
+  })
+
+  it("returns empty array for events without part (text/tool_use)", () => {
+    expect(adaptRunJsonEvent({ type: "text" })).toEqual([])
+    expect(adaptRunJsonEvent({ type: "tool_use" })).toEqual([])
+  })
+
+  it("works end-to-end with processor: text → narration → assistant on idle", () => {
+    const events: AgentEvent[] = []
+    const processor = createOpenCodeEventProcessor("sess-e2e", {
+      emit: (e) => events.push(e),
+    })
+
+    // Simulate --format json events fed through the adapter
+    const textEvent = adaptRunJsonEvent({
+      type: "text",
+      timestamp: Date.now(),
+      sessionID: "sess-e2e",
+      part: { type: "text", messageID: "msg-e2e", sessionID: "sess-e2e", text: "Analysis complete" },
+    })
+    for (const e of textEvent) processor.process(e)
+
+    const finishEvent = adaptRunJsonEvent({
+      type: "step_finish",
+      timestamp: Date.now(),
+      sessionID: "sess-e2e",
+      part: { messageID: "msg-e2e", sessionID: "sess-e2e" },
+    })
+    for (const e of finishEvent) processor.process(e)
+
+    // Narration emitted on step_finish
+    const narration = events.find(
+      (e) => e.kind === "message.complete" && e.role === "narration",
+    )
+    expect(narration).toMatchObject({
+      kind: "message.complete",
+      role: "narration",
+      content: "Analysis complete",
+    })
+
+    // Synthetic idle promotes narration to assistant
+    processor.process({ type: "session.status", properties: { status: { type: "idle" } } })
+
+    const assistant = events.find(
+      (e) => e.kind === "message.complete" && e.role === "assistant",
+    )
+    expect(assistant).toMatchObject({
+      kind: "message.complete",
+      role: "assistant",
+      content: "Analysis complete",
+    })
   })
 })

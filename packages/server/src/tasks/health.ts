@@ -170,8 +170,7 @@ function attemptRestart(
 }
 
 // Providers that persist sessions to disk and support resume after process kill.
-// OpenCode runs as an HTTP server — killing it loses the session.
-const SUSPENDABLE_PROVIDERS = new Set(["claude-code", "codex"])
+const SUSPENDABLE_PROVIDERS = new Set(["claude-code", "codex", "opencode"])
 
 /**
  * Suspend a running task's agent if it has been idle (no user messages) for
