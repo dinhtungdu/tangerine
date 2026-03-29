@@ -3,7 +3,7 @@
 
 import { Effect } from "effect"
 import { createLogger } from "../logger"
-import { loadConfig, getProjectConfig, TANGERINE_HOME, readRawConfig, writeRawConfig, isTestMode } from "../config"
+import { loadConfig, getProjectConfig, getRepoDir, TANGERINE_HOME, readRawConfig, writeRawConfig, isTestMode } from "../config"
 import { getDb } from "../db/index"
 import { createTask as dbCreateTask, getTask, listTasks, updateTask, insertSessionLog, markTaskResult } from "../db/queries"
 import { logActivity, cleanupActivities } from "../activity"
@@ -727,10 +727,9 @@ export async function start(): Promise<void> {
     // Start update checker (polls git remote for available updates, does not auto-apply)
     {
       const { startUpdateChecker } = await import("../self-update")
-      const workspace = config.config.workspace
       const projectInfos = config.config.projects.map((p) => ({
         name: p.name,
-        repoDir: `${workspace}/${p.name}/repo`,
+        repoDir: getRepoDir(config.config, p.name),
         defaultBranch: p.defaultBranch ?? "main",
       }))
       await Effect.runPromise(startUpdateChecker(projectInfos))

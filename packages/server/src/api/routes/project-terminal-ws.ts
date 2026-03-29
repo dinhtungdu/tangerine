@@ -9,6 +9,7 @@ import { spawn } from "bun-pty"
 import type { IPty } from "bun-pty"
 import type { AppDeps } from "../app"
 import { createLogger } from "../../logger"
+import { getRepoDir } from "../../config"
 
 const log = createLogger("project-terminal-ws")
 
@@ -51,8 +52,7 @@ export function projectTerminalWsRoutes(deps: AppDeps, upgradeWebSocket: Upgrade
             return
           }
 
-          const workspace = deps.config.config.workspace
-          const repoDir = `${workspace}/${projectName}/repo`
+          const repoDir = getRepoDir(deps.config.config, projectName)
           const sessionName = projectTmuxSessionName(projectName)
 
           log.info("Project terminal session starting", { projectName, repoDir, sessionName })
