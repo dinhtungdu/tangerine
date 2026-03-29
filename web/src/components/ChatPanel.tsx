@@ -27,6 +27,7 @@ interface ChatPanelProps {
   onReasoningEffortChange?: (effort: string) => void
   predefinedPrompts?: PredefinedPrompt[]
   onRestartOrchestrator?: () => Promise<void>
+  onResolve?: () => Promise<void>
 }
 
 export function ChatPanel({
@@ -47,6 +48,7 @@ export function ChatPanel({
   onReasoningEffortChange,
   predefinedPrompts,
   onRestartOrchestrator,
+  onResolve,
 }: ChatPanelProps) {
   const scrollRef = useRef<HTMLDivElement>(null)
   const { navigate } = useProjectNav()
@@ -245,6 +247,7 @@ export function ChatPanel({
             navigate(`/new?${params}`)
           }}
           onRestartOrchestrator={onRestartOrchestrator}
+          onResolve={onResolve}
         />
       ) : (
         <ChatInput
@@ -277,6 +280,7 @@ function TerminatedBanner({
   taskTitle,
   onContinue,
   onRestartOrchestrator,
+  onResolve,
 }: {
   taskStatus: TaskStatus
   taskError?: string | null
@@ -284,9 +288,11 @@ function TerminatedBanner({
   taskTitle?: string
   onContinue: (taskId?: string, title?: string) => void
   onRestartOrchestrator?: () => Promise<void>
+  onResolve?: () => Promise<void>
 }) {
   const { color, label } = getStatusConfig(taskStatus)
   const [restarting, setRestarting] = useState(false)
+  const [resolving, setResolving] = useState(false)
 
   const handleRestart = useCallback(async () => {
     if (!onRestartOrchestrator || restarting) return
@@ -297,6 +303,16 @@ function TerminatedBanner({
       setRestarting(false)
     }
   }, [onRestartOrchestrator, restarting])
+
+  const handleResolve = useCallback(async () => {
+    if (!onResolve || resolving) return
+    setResolving(true)
+    try {
+      await onResolve()
+    } finally {
+      setResolving(false)
+    }
+  }, [onResolve, resolving])
 
   return (
     <div className="border-t border-edge bg-surface px-4 py-3">
@@ -315,6 +331,18 @@ function TerminatedBanner({
           <span>This task has ended.</span>
         </div>
         <div className="flex items-center gap-2">
+          {onResolve && (taskStatus === "failed" || taskStatus === "cancelled") && (
+            <button
+              onClick={() => void handleResolve()}
+              disabled={resolving}
+              className="flex shrink-0 items-center gap-1.5 rounded-md border border-edge px-3 py-1.5 text-[12px] font-medium text-fg-muted transition hover:bg-surface-secondary disabled:opacity-50"
+            >
+              <svg className="h-3 w-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="m4.5 12.75 6 6 9-13.5" />
+              </svg>
+              {resolving ? "Marking…" : "Mark as done"}
+            </button>
+          )}
           {onRestartOrchestrator ? (
             <button
               onClick={() => void handleRestart()}

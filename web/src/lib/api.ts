@@ -93,6 +93,10 @@ export async function completeTask(id: string): Promise<void> {
   return request<void>(`/api/tasks/${id}/done`, { method: "POST" })
 }
 
+export async function resolveTask(id: string): Promise<void> {
+  return request<void>(`/api/tasks/${id}/resolve`, { method: "POST" })
+}
+
 export async function fetchMessages(id: string): Promise<SessionLog[]> {
   return request<SessionLog[]>(`/api/tasks/${id}/messages`)
 }

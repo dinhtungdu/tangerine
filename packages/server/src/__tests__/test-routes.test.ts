@@ -49,6 +49,9 @@ function createMockDeps(db: Database, configOverrides?: Partial<AppDeps["config"
       completeTask(taskId) {
         return Effect.sync(() => { Effect.runSync(updateTaskStatus(db, taskId, "done")) })
       },
+      resolveTask(taskId) {
+        return Effect.sync(() => { Effect.runSync(updateTaskStatus(db, taskId, "done")) })
+      },
       sendPrompt(taskId, text) {
         Effect.runSync(insertSessionLog(db, { task_id: taskId, role: "user", content: text }))
         return Effect.succeed(undefined as void)

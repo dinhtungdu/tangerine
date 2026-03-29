@@ -416,6 +416,60 @@ describe("ChatPanel", () => {
     expect(screen.getByText("Payment Required: deactivated_workspace")).toBeTruthy()
   })
 
+  test("shows Mark as done button for failed tasks when onResolve provided", () => {
+    render(
+      <MemoryRouter>
+        <ChatPanel
+          messages={[]}
+          agentStatus="idle"
+          queueLength={0}
+          taskStatus="failed"
+          onSend={() => {}}
+          onAbort={() => {}}
+          onResolve={async () => {}}
+        />
+      </MemoryRouter>
+    )
+
+    expect(screen.getByText("Mark as done")).toBeTruthy()
+  })
+
+  test("shows Mark as done button for cancelled tasks when onResolve provided", () => {
+    render(
+      <MemoryRouter>
+        <ChatPanel
+          messages={[]}
+          agentStatus="idle"
+          queueLength={0}
+          taskStatus="cancelled"
+          onSend={() => {}}
+          onAbort={() => {}}
+          onResolve={async () => {}}
+        />
+      </MemoryRouter>
+    )
+
+    expect(screen.getByText("Mark as done")).toBeTruthy()
+  })
+
+  test("does not show Mark as done button for done tasks", () => {
+    render(
+      <MemoryRouter>
+        <ChatPanel
+          messages={[]}
+          agentStatus="idle"
+          queueLength={0}
+          taskStatus="done"
+          onSend={() => {}}
+          onAbort={() => {}}
+          onResolve={async () => {}}
+        />
+      </MemoryRouter>
+    )
+
+    expect(screen.queryByText("Mark as done")).toBeNull()
+  })
+
   test("does not show error in terminated banner for done tasks", () => {
     render(
       <MemoryRouter>
