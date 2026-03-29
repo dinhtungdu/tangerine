@@ -6,6 +6,7 @@ import { discoverModels, discoverModelsByProvider } from "../../models"
 import { projectConfigSchema, tangerineConfigSchema } from "@tangerine/shared"
 import { ProjectNotFoundError, ProjectExistsError, ConfigValidationError } from "../../errors"
 import { getUpdateStatus, clearUpdateStatus } from "../../self-update"
+import { getRepoDir } from "../../config"
 import { createLogger } from "../../logger"
 
 const log = createLogger("project-routes")
@@ -159,8 +160,7 @@ export function projectRoutes(deps: AppDeps): Hono {
     const project = deps.config.config.projects.find((p) => p.name === name)
     if (!project) return c.json({ error: "Project not found" }, 404)
 
-    const workspace = deps.config.config.workspace
-    const repoDir = `${workspace}/${name}/repo`
+    const repoDir = getRepoDir(deps.config.config, name)
     const status = getUpdateStatus(repoDir)
 
     return c.json(status ?? { available: false, local: "", remote: "", checkedAt: null })
@@ -174,8 +174,7 @@ export function projectRoutes(deps: AppDeps): Hono {
         const project = deps.config.config.projects.find((p) => p.name === name)
         if (!project) return yield* Effect.fail(new ProjectNotFoundError({ name }))
 
-        const workspace = deps.config.config.workspace
-        const repoDir = `${workspace}/${name}/repo`
+        const repoDir = getRepoDir(deps.config.config, name)
         const defaultBranch = project.defaultBranch ?? "main"
 
         const exec = (cmd: string) => Effect.tryPromise({
