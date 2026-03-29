@@ -4,6 +4,7 @@
 import { Effect, Schedule } from "effect"
 import { createLogger } from "../logger"
 import { HealthCheckError } from "../errors"
+import { DEFAULT_IDLE_TIMEOUT_MS } from "@tangerine/shared"
 import type { TaskRow } from "../db/types"
 import type { CleanupDeps } from "./cleanup"
 import { cleanupSession } from "./cleanup"
@@ -17,6 +18,20 @@ const MAX_CONSECUTIVE_RESTARTS = 3
 
 // Per-task consecutive restart counter — reset to 0 when the agent has real activity.
 const consecutiveRestarts = new Map<string, number>()
+
+// Tasks whose agent was intentionally suspended due to idle timeout.
+// The health monitor skips restart for these — they wake on next user message.
+const suspendedTasks = new Set<string>()
+
+/** Check whether a task's agent has been suspended due to idle timeout. */
+export function isTaskSuspended(taskId: string): boolean {
+  return suspendedTasks.has(taskId)
+}
+
+/** Clear the suspended flag when a task's agent is restarted. */
+export function clearSuspended(taskId: string): void {
+  suspendedTasks.delete(taskId)
+}
 
 // Error patterns that will never self-heal — no point restarting.
 // NOTE: these match human-readable strings which is fragile; ideally providers
@@ -43,8 +58,14 @@ export interface HealthCheckDeps {
   checkAgentAlive(taskId: string): Effect.Effect<boolean, never>
   restartAgent(task: TaskRow): Effect.Effect<void, Error>
   failTask(taskId: string, reason: string): Effect.Effect<void, Error>
+  /** Shut down the agent process without changing task status. */
+  suspendAgent(taskId: string): Effect.Effect<void, never>
   /** Returns the last error emitted by the agent, if any. */
   getLastAgentError(taskId: string): string | undefined
+  /** Returns the ISO timestamp of the most recent user message for a task, or null. */
+  getLastUserMessageTime(taskId: string): string | null
+  /** Returns whether the agent is currently processing (working) or idle. */
+  isAgentWorking(taskId: string): boolean
   cleanupDeps: CleanupDeps
 }
 
@@ -63,6 +84,12 @@ export function checkTask(
     // Check if agent process is alive (via PID or handle)
     const alive = yield* deps.checkAgentAlive(task.id)
     if (!alive) {
+      // Skip restart for tasks intentionally suspended due to idle timeout
+      if (suspendedTasks.has(task.id)) {
+        taskLog.debug("Task suspended (idle), skipping restart")
+        return "healthy"
+      }
+
       // Check if the agent reported an error before dying
       const lastError = deps.getLastAgentError(task.id)
 
@@ -142,6 +169,47 @@ function attemptRestart(
   )
 }
 
+// Providers that persist sessions to disk and support resume after process kill.
+// OpenCode runs as an HTTP server — killing it loses the session.
+const SUSPENDABLE_PROVIDERS = new Set(["claude-code", "codex"])
+
+/**
+ * Suspend a running task's agent if it has been idle (no user messages) for
+ * longer than DEFAULT_IDLE_TIMEOUT_MS. The task stays "running" — the agent
+ * process is killed to free resources but restarts on next user message.
+ * Only applies to providers that support disk-based resume (claude-code, codex).
+ */
+function checkIdleTimeout(
+  task: TaskRow,
+  deps: HealthCheckDeps,
+): Effect.Effect<void, never> {
+  return Effect.gen(function* () {
+    if (!SUSPENDABLE_PROVIDERS.has(task.provider)) return
+
+    // Don't suspend if the agent is actively processing a request
+    if (deps.isAgentWorking(task.id)) return
+
+    const lastMsgTime = deps.getLastUserMessageTime(task.id)
+    if (lastMsgTime) {
+      const idleMs = Date.now() - new Date(lastMsgTime).getTime()
+      if (idleMs >= DEFAULT_IDLE_TIMEOUT_MS) {
+        log.info("Task idle, suspending agent", { taskId: task.id, title: task.title, idleMs })
+        suspendedTasks.add(task.id)
+        yield* deps.suspendAgent(task.id)
+        return
+      }
+    } else if (task.started_at) {
+      // No user messages at all — check time since start
+      const idleMs = Date.now() - new Date(task.started_at).getTime()
+      if (idleMs >= DEFAULT_IDLE_TIMEOUT_MS) {
+        log.info("Task idle (no messages), suspending agent", { taskId: task.id, title: task.title, idleMs })
+        suspendedTasks.add(task.id)
+        yield* deps.suspendAgent(task.id)
+      }
+    }
+  }).pipe(Effect.catchAll(() => Effect.void))
+}
+
 export function checkAllTasks(
   deps: HealthCheckDeps,
 ): Effect.Effect<void, never> {
@@ -152,13 +220,13 @@ export function checkAllTasks(
     log.debug("Health check started", { runningTaskCount: tasks.length })
 
     for (const task of tasks) {
-      yield* checkTask(task, deps).pipe(
+      const result = yield* checkTask(task, deps).pipe(
         Effect.catchAll((error) => {
           log.error("Health check error", {
             taskId: task.id,
             error: error.message,
           })
-          return Effect.void
+          return Effect.succeed("failed" as const)
         }),
         // Catch defects too so one bad task can't crash the health monitor
         Effect.catchAllDefect((defect) => {
@@ -166,9 +234,15 @@ export function checkAllTasks(
             taskId: task.id,
             defect: String(defect),
           })
-          return Effect.void
+          return Effect.succeed("failed" as const)
         }),
       )
+
+      // Idle timeout: complete tasks with no user activity.
+      // Only check if the task is still healthy — skip if it was just restarted or failed.
+      if (result === "healthy") {
+        yield* checkIdleTimeout(task, deps)
+      }
     }
   })
 }

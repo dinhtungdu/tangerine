@@ -13,12 +13,12 @@ import type { AppDeps } from "../api/app"
 import { DEFAULT_API_PORT, ORCHESTRATOR_TASK_NAME } from "@tangerine/shared"
 import * as taskManager from "../tasks/manager"
 import type { TaskManagerDeps } from "../tasks/manager"
-import { onTaskEvent, onStatusChange, emitTaskEvent, setAgentWorkingState } from "../tasks/events"
+import { onTaskEvent, onStatusChange, emitTaskEvent, setAgentWorkingState, getAgentWorkingState } from "../tasks/events"
 import { cleanupSession } from "../tasks/cleanup"
 import type { CleanupDeps } from "../tasks/cleanup"
 import { startOrphanCleanup, findOrphans, cleanupOrphans } from "../tasks/orphan-cleanup"
 import type { OrphanCleanupDeps } from "../tasks/orphan-cleanup"
-import { startHealthMonitor } from "../tasks/health"
+import { startHealthMonitor, isTaskSuspended, clearSuspended } from "../tasks/health"
 import type { HealthCheckDeps } from "../tasks/health"
 import { reconnectSessionWithRetry } from "../tasks/retry"
 import { AgentError } from "../errors"
@@ -57,6 +57,9 @@ const agentHandles = new Map<string, AgentHandle>()
 const reconnectingTasks = new Set<string>()
 // Last error emitted by each agent — used by health monitor to surface real errors
 const lastAgentErrors = new Map<string, string>()
+// Tasks being woken from idle suspension — skip reconnect nudge since the user's
+// new message is already queued and will be delivered via drainQueuedPrompts.
+const idleWakeTasks = new Set<string>()
 // Track which tasks have received their first prompt (for setup note injection)
 const firstPromptSent = new Set<string>()
 // Track tasks that already have a PR URL saved (avoid redundant DB writes)
@@ -215,8 +218,9 @@ export async function start(): Promise<void> {
             ? db.prepare("SELECT 1 FROM session_logs WHERE task_id = ? AND role IN ('assistant', 'narration') LIMIT 1").get(taskId)
             : null
           const lastLog = hasLogs ? getLastConversationLog(db, taskId) : null
-          if (hasLogs && hasAssistantResponse && lastLog?.role === "user") {
+          if (hasLogs && hasAssistantResponse && lastLog?.role === "user" && !idleWakeTasks.has(taskId)) {
             // Reconnect after server restart or model change — agent had conversation context.
+            // Skip for idle-wake: the user's new message is already queued via drainQueuedPrompts.
             const sendReconnectNudge = async () => {
               try {
                 // Wait for Claude Code to finish initializing before sending a prompt.
@@ -332,6 +336,8 @@ export async function start(): Promise<void> {
               })
             }
           }
+
+          idleWakeTasks.delete(taskId)
 
           session.agentHandle.subscribe((event) => {
             switch (event.kind) {
@@ -643,7 +649,25 @@ export async function start(): Promise<void> {
               return
             }
 
-            // No handle yet — queue for later (preserves images)
+            // Agent was suspended due to idle — restart it and queue the prompt
+            if (isTaskSuspended(taskId)) {
+              clearSuspended(taskId)
+              const task = yield* getTask(db, taskId).pipe(Effect.catchAll(() => Effect.succeed(null)))
+              if (task && task.status === "running") {
+                const projectConfig = task.project_id ? getProjectConfig(config.config, task.project_id) : undefined
+                if (projectConfig && !reconnectingTasks.has(taskId)) {
+                  log.info("Waking suspended task", { taskId, title: task.title })
+                  reconnectingTasks.add(taskId)
+                  idleWakeTasks.add(taskId)
+                  const taskLifecycleDeps = { ...tmDeps.lifecycleDeps, agentFactory: getAgentFactory(task.provider) }
+                  yield* Effect.forkDaemon(
+                    reconnectSessionWithRetry(task, projectConfig, taskLifecycleDeps, tmDeps.retryDeps)
+                  )
+                }
+              }
+            }
+
+            // Queue for delivery once the agent is ready
             yield* enqueuePrompt(taskId, promptText, images)
           }).pipe(
             Effect.catchAll((e) => {
@@ -802,7 +826,23 @@ export async function start(): Promise<void> {
           Effect.asVoid,
           Effect.mapError((e) => new Error(String(e))),
         ),
+      suspendAgent: (taskId) => {
+        const handle = agentHandles.get(taskId)
+        if (!handle) return Effect.void
+        agentHandles.delete(taskId)
+        return handle.shutdown().pipe(Effect.catchAll(() => Effect.void))
+      },
       getLastAgentError: (taskId) => lastAgentErrors.get(taskId),
+      isAgentWorking: (taskId) => getAgentWorkingState(taskId) === "working",
+      getLastUserMessageTime: (() => {
+        const stmt = db.prepare(
+          "SELECT timestamp FROM session_logs WHERE task_id = ? AND role = 'user' ORDER BY id DESC LIMIT 1"
+        )
+        return (taskId: string) => {
+          const row = stmt.get(taskId) as { timestamp: string } | null
+          return row?.timestamp ?? null
+        }
+      })(),
       cleanupDeps,
     }
     await Effect.runPromise(startHealthMonitor(healthDeps))

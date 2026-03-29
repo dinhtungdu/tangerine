@@ -1,8 +1,9 @@
 import { describe, test, expect, mock } from "bun:test"
 import { Effect } from "effect"
-import { checkTask, startHealthMonitor } from "../tasks/health"
+import { checkTask, checkAllTasks, startHealthMonitor, isTaskSuspended, clearSuspended } from "../tasks/health"
 import type { HealthCheckDeps } from "../tasks/health"
 import type { TaskRow } from "../db/types"
+import { ORCHESTRATOR_TASK_NAME } from "@tangerine/shared"
 
 function makeTask(overrides?: Partial<TaskRow>): TaskRow {
   return {
@@ -43,7 +44,10 @@ function makeDeps(overrides?: Partial<HealthCheckDeps>): HealthCheckDeps {
     checkAgentAlive: () => Effect.succeed(true),
     restartAgent: () => Effect.void,
     failTask: () => Effect.void,
+    suspendAgent: () => Effect.void,
     getLastAgentError: () => undefined,
+    isAgentWorking: () => false,
+    getLastUserMessageTime: () => new Date().toISOString(),
     cleanupDeps: {
       db: null as never,
       getTask: () => Effect.succeed(null),
@@ -201,5 +205,136 @@ describe("health check", () => {
     const result = await Effect.runPromise(checkTask(task, deps))
     expect(result).toBe("healthy")
     expect(failFn).toHaveBeenCalledTimes(0)
+  })
+})
+
+describe("idle timeout", () => {
+  test("idle task agent is suspended after timeout", async () => {
+    const task = makeTask({
+      started_at: new Date(Date.now() - 700_000).toISOString(),
+    })
+    const suspendFn = mock(() => Effect.void)
+    const deps = makeDeps({
+      listRunningTasks: () => Effect.succeed([task]),
+      suspendAgent: suspendFn,
+      // Last user message was 11 minutes ago (> 10 min timeout)
+      getLastUserMessageTime: () => new Date(Date.now() - 660_000).toISOString(),
+    })
+    await Effect.runPromise(checkAllTasks(deps))
+    expect(suspendFn).toHaveBeenCalledTimes(1)
+    expect(isTaskSuspended(task.id)).toBe(true)
+    clearSuspended(task.id)
+  })
+
+  test("active task is not suspended", async () => {
+    const task = makeTask({
+      started_at: new Date(Date.now() - 60_000).toISOString(),
+    })
+    const suspendFn = mock(() => Effect.void)
+    const deps = makeDeps({
+      listRunningTasks: () => Effect.succeed([task]),
+      suspendAgent: suspendFn,
+      // Last user message was 1 minute ago (< 10 min timeout)
+      getLastUserMessageTime: () => new Date(Date.now() - 60_000).toISOString(),
+    })
+    await Effect.runPromise(checkAllTasks(deps))
+    expect(suspendFn).toHaveBeenCalledTimes(0)
+    expect(isTaskSuspended(task.id)).toBe(false)
+  })
+
+  test("task with no messages idles based on started_at", async () => {
+    const task = makeTask({
+      started_at: new Date(Date.now() - 700_000).toISOString(),
+    })
+    const suspendFn = mock(() => Effect.void)
+    const deps = makeDeps({
+      listRunningTasks: () => Effect.succeed([task]),
+      suspendAgent: suspendFn,
+      getLastUserMessageTime: () => null,
+    })
+    await Effect.runPromise(checkAllTasks(deps))
+    expect(suspendFn).toHaveBeenCalledTimes(1)
+    expect(isTaskSuspended(task.id)).toBe(true)
+    clearSuspended(task.id)
+  })
+
+  test("suspended task skips restart on next health check", async () => {
+    const task = makeTask({
+      started_at: new Date(Date.now() - 700_000).toISOString(),
+    })
+    const restartFn = mock(() => Effect.void)
+    const suspendFn = mock(() => Effect.void)
+    let aliveCallCount = 0
+    const deps = makeDeps({
+      listRunningTasks: () => Effect.succeed([task]),
+      // First call: alive (so idle check can suspend). After that: dead.
+      checkAgentAlive: () => Effect.succeed(aliveCallCount++ === 0),
+      restartAgent: restartFn,
+      suspendAgent: suspendFn,
+      getLastUserMessageTime: () => new Date(Date.now() - 660_000).toISOString(),
+    })
+    // First pass: agent alive + idle → suspended
+    await Effect.runPromise(checkAllTasks(deps))
+    expect(isTaskSuspended(task.id)).toBe(true)
+    // Second pass: agent is dead but suspended — should NOT restart
+    await Effect.runPromise(checkAllTasks(deps))
+    expect(restartFn).toHaveBeenCalledTimes(0)
+    clearSuspended(task.id)
+  })
+
+  test("idle timeout applies to both orchestrator and regular tasks", async () => {
+    const orchestrator = makeTask({
+      id: "orch-1",
+      title: ORCHESTRATOR_TASK_NAME,
+      started_at: new Date(Date.now() - 700_000).toISOString(),
+    })
+    const worker = makeTask({
+      id: "worker-1",
+      title: "Fix bug",
+      started_at: new Date(Date.now() - 700_000).toISOString(),
+    })
+    const suspendFn = mock(() => Effect.void)
+    const deps = makeDeps({
+      listRunningTasks: () => Effect.succeed([orchestrator, worker]),
+      suspendAgent: suspendFn,
+      getLastUserMessageTime: () => new Date(Date.now() - 660_000).toISOString(),
+    })
+    await Effect.runPromise(checkAllTasks(deps))
+    expect(suspendFn).toHaveBeenCalledTimes(2)
+    clearSuspended("orch-1")
+    clearSuspended("worker-1")
+  })
+
+  test("working agent is not suspended even if idle", async () => {
+    const task = makeTask({
+      started_at: new Date(Date.now() - 700_000).toISOString(),
+    })
+    const suspendFn = mock(() => Effect.void)
+    const deps = makeDeps({
+      listRunningTasks: () => Effect.succeed([task]),
+      suspendAgent: suspendFn,
+      // Idle for 11 minutes but agent is actively working
+      getLastUserMessageTime: () => new Date(Date.now() - 660_000).toISOString(),
+      isAgentWorking: () => true,
+    })
+    await Effect.runPromise(checkAllTasks(deps))
+    expect(suspendFn).toHaveBeenCalledTimes(0)
+    expect(isTaskSuspended(task.id)).toBe(false)
+  })
+
+  test("opencode tasks are not suspended (no disk-based resume)", async () => {
+    const task = makeTask({
+      provider: "opencode",
+      started_at: new Date(Date.now() - 700_000).toISOString(),
+    })
+    const suspendFn = mock(() => Effect.void)
+    const deps = makeDeps({
+      listRunningTasks: () => Effect.succeed([task]),
+      suspendAgent: suspendFn,
+      getLastUserMessageTime: () => new Date(Date.now() - 660_000).toISOString(),
+    })
+    await Effect.runPromise(checkAllTasks(deps))
+    expect(suspendFn).toHaveBeenCalledTimes(0)
+    expect(isTaskSuspended(task.id)).toBe(false)
   })
 })

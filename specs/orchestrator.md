@@ -1,6 +1,6 @@
 # Orchestrator
 
-The orchestrator is a special per-project task that acts as a coordinator for all other tasks in the project. It runs continuously on the default branch (not in an isolated worktree) and is meant to be restarted, not completed.
+The orchestrator is a special per-project task that acts as a coordinator for all other tasks in the project. It runs on the default branch (not in an isolated worktree) and is automatically managed via idle suspension.
 
 ## What makes it special
 
@@ -29,6 +29,12 @@ The `parentTaskId` chain lets the new orchestrator access its predecessor's conv
 ### Start
 
 Orchestrators do **not** auto-start on creation. They start when the user opens the chat for the first time via `POST /api/tasks/:id/start`. This avoids spinning up an agent process for a project the user hasn't visited yet.
+
+### Idle suspension
+
+The health monitor tracks the last user message time for all running tasks (not just orchestrators). If no user message arrives within `DEFAULT_IDLE_TIMEOUT_MS` (10 minutes), the agent process is killed to free resources — but the task stays `running`. When the next user message arrives, the agent is automatically restarted via `reconnectSessionWithRetry` and the message is delivered.
+
+This only applies to providers with disk-based session persistence (`claude-code`, `codex`). OpenCode uses a server mode where killing the process loses the session, so OpenCode tasks are not suspended.
 
 ### Termination and restart
 
