@@ -30,6 +30,7 @@ import { createClaudeCodeProvider } from "../agent/claude-code-provider"
 import { createCodexProvider } from "../agent/codex-provider"
 import type { AgentHandle } from "../agent/provider"
 import { enqueue as enqueuePrompt, drainAll as drainQueuedPrompts } from "../agent/prompt-queue"
+import { buildSystemNotes, buildEscalationBlock } from "../tasks/prompts"
 
 const log = createLogger("cli")
 
@@ -68,22 +69,6 @@ const prNudgeTimers = new Map<string, Timer>()
 /** Delay before nudging an idle agent about missing PR (ms) */
 const PR_NUDGE_DELAY_MS = 15_000
 
-interface TaskInfo {
-  projectId?: string
-  setupCommand?: string
-}
-
-/** Build system notes prepended to the first prompt for a task. */
-function buildSystemNotes(taskId: string, info: TaskInfo): string[] {
-  const notes: string[] = []
-  notes.push(`[TANGERINE: You are running inside a Tangerine task (task ID: ${taskId}). The Tangerine API is at http://localhost:3456. Load the tangerine-tasks skill (\`/tangerine-tasks\`) for full API reference and common workflows.]`)
-  if (info.setupCommand) {
-    const prefix = taskId.slice(0, 8)
-    notes.push(`[NOTE: Project setup is running in the background (\`${info.setupCommand}\`). Before running builds, tests, or linters, check if setup is done: \`cat /tmp/tangerine-setup-${prefix}.status\` (running/done/failed). Log: \`cat /tmp/tangerine-setup-${prefix}.log\`]`)
-  }
-  notes.push(`[NOTE: When your work is complete, push your branch and create a pull request. Use \`git push origin HEAD\` then \`gh pr create\`. Do not stop at just committing.]`)
-  return notes
-}
 
 /**
  * Check if the task's branch has commits ahead of the default branch.
@@ -316,20 +301,7 @@ export async function start(): Promise<void> {
                     "SELECT id FROM tasks WHERE project_id = ? AND title = ? AND status NOT IN ('done', 'failed', 'cancelled') LIMIT 1"
                   ).get(task.project_id, ORCHESTRATOR_TASK_NAME) as { id: string } | null
                   if (orchestratorRow && orchestratorRow.id !== taskId) {
-                    const port = Number(process.env["PORT"] ?? DEFAULT_API_PORT)
-                    escalationBlock = [
-                      "",
-                      "---",
-                      "## Out-of-scope issues",
-                      "",
-                      `If you discover issues outside your task scope, first mention them to the user in your conversation, then send them to the orchestrator (task ID: ${orchestratorRow.id}) for triage — do NOT create tasks yourself:`,
-                      "",
-                      "```bash",
-                      `curl -X POST http://localhost:${port}/api/tasks/${orchestratorRow.id}/prompt \\`,
-                      '  -H "Content-Type: application/json" \\',
-                      `  -d '{"text": "Discovered out-of-scope issue: <brief description>"}'`,
-                      "```",
-                    ].join("\n")
+                    escalationBlock = buildEscalationBlock(orchestratorRow.id)
                   }
                 }
 
