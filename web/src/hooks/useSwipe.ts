@@ -34,20 +34,20 @@ export function useSwipe(
   options: SwipeOptions = {},
 ) {
   const { threshold = 50, maxVertical = 80, edgeWidth } = options
-  const startRef = useRef<{ x: number; y: number; edge?: "left" | "right" } | null>(null)
+  const startRef = useRef<{ x: number; y: number; edge?: "right" } | null>(null)
   const handlersRef = useRef(handlers)
   handlersRef.current = handlers
 
   const onTouchStart = useCallback((e: React.TouchEvent) => {
     const touch = e.touches[0]
     if (!touch) return
-    // Only accept touches starting near screen edges
-    let edge: "left" | "right" | undefined
+    // Only accept touches starting near right screen edge.
+    // Left edge is reserved for the browser's native back gesture.
+    let edge: "right" | undefined
     if (edgeWidth != null) {
       const x = touch.clientX
       const screenW = document.documentElement.clientWidth
-      if (x <= edgeWidth) edge = "left"
-      else if (x >= screenW - edgeWidth) edge = "right"
+      if (x >= screenW - edgeWidth) edge = "right"
       else return
     }
     // Ignore touches on interactive or horizontally-scrollable elements
@@ -73,11 +73,9 @@ export function useSwipe(
     if (Math.abs(dx) < threshold) return
 
     if (edge) {
-      // Edge swipe: action based on which edge, not swipe direction
-      // Left edge → onSwipeLeft (go back / previous pane)
-      // Right edge → onSwipeRight (next pane)
-      if (edge === "left") handlersRef.current.onSwipeLeft?.()
-      else handlersRef.current.onSwipeRight?.()
+      // Right edge swipe → onSwipeRight (next pane)
+      // Left edge is not handled — browser native back gesture
+      handlersRef.current.onSwipeRight?.()
     } else {
       if (dx < 0) handlersRef.current.onSwipeLeft?.()
       else handlersRef.current.onSwipeRight?.()

@@ -227,15 +227,6 @@ export function TaskDetail() {
   }, [session.taskStatus])
 
   const mobileSwipe = useSwipe({
-    onSwipeLeft: () => {
-      if (mobilePane === "chat") {
-        navigate("/")
-      } else {
-        const idx = PANE_ORDER.indexOf(mobilePane)
-        const prev = PANE_ORDER[idx - 1]
-        if (idx > 0 && prev) setMobilePane(prev)
-      }
-    },
     onSwipeRight: () => {
       const idx = PANE_ORDER.indexOf(mobilePane)
       const next = PANE_ORDER[idx + 1]
