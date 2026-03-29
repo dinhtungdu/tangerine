@@ -443,7 +443,7 @@ export function TaskDetail() {
                 onReasoningEffortChange={handleReasoningEffortChange}
                 predefinedPrompts={current?.predefinedPrompts}
                 onRestartOrchestrator={isOrchestrator ? handleRestartOrchestrator : undefined}
-                onResolve={handleResolve}
+                onResolve={isOrchestrator ? undefined : handleResolve}
               />
             </div>
           )}
@@ -529,7 +529,7 @@ export function TaskDetail() {
                 onReasoningEffortChange={handleReasoningEffortChange}
                 predefinedPrompts={current?.predefinedPrompts}
                 onRestartOrchestrator={isOrchestrator ? handleRestartOrchestrator : undefined}
-                onResolve={handleResolve}
+                onResolve={isOrchestrator ? undefined : handleResolve}
               />
             </div>
           )}
