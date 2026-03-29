@@ -4,7 +4,8 @@ import type { Database } from "bun:sqlite"
 import { createTestDb } from "./helpers"
 import { tmuxSessionName } from "../api/routes/terminal-ws"
 import { createApp, type AppDeps } from "../api/app"
-import { createTask as dbCreateTask, updateTaskStatus, insertSessionLog } from "../db/queries"
+import { createTask as dbCreateTask, updateTaskStatus, insertSessionLog, getTask as dbGetTask } from "../db/queries"
+import { TaskNotFoundError } from "../errors"
 import type { TaskRow } from "../db/types"
 import type { RawConfig } from "../config"
 
@@ -55,6 +56,16 @@ function createMockDeps(db: Database, configOverrides?: Partial<AppDeps["config"
       completeTask(taskId) {
         return Effect.sync(() => {
           Effect.runSync(updateTaskStatus(db, taskId, "done"))
+        })
+      },
+      resolveTask(taskId) {
+        return Effect.gen(function* () {
+          const task = yield* dbGetTask(db, taskId)
+          if (!task) return yield* Effect.fail(new TaskNotFoundError({ taskId }))
+          if (task.status !== "failed" && task.status !== "cancelled") {
+            return yield* Effect.fail({ _tag: "TaskNotTerminalError" as const, message: `Only failed or cancelled tasks can be resolved (current status: ${task.status})` })
+          }
+          yield* updateTaskStatus(db, taskId, "done")
         })
       },
       sendPrompt(taskId, text) {
@@ -280,6 +291,44 @@ describe("API routes", () => {
 
     test("returns 404 for unknown task", async () => {
       const res = await app.fetch(new Request("http://localhost/api/tasks/nonexistent", { method: "DELETE" }))
+      expect(res.status).toBe(404)
+    })
+  })
+
+  describe("POST /api/tasks/:id/resolve", () => {
+    test("transitions a failed task to done", async () => {
+      const row = seedTask(db)
+      Effect.runSync(updateTaskStatus(db, row.id, "failed"))
+
+      const res = await app.fetch(new Request(`http://localhost/api/tasks/${row.id}/resolve`, { method: "POST" }))
+      expect(res.status).toBe(200)
+
+      const check = await app.fetch(new Request(`http://localhost/api/tasks/${row.id}`))
+      const body = await check.json() as { status: string }
+      expect(body.status).toBe("done")
+    })
+
+    test("transitions a cancelled task to done", async () => {
+      const row = seedTask(db)
+      Effect.runSync(updateTaskStatus(db, row.id, "cancelled"))
+
+      const res = await app.fetch(new Request(`http://localhost/api/tasks/${row.id}/resolve`, { method: "POST" }))
+      expect(res.status).toBe(200)
+
+      const check = await app.fetch(new Request(`http://localhost/api/tasks/${row.id}`))
+      const body = await check.json() as { status: string }
+      expect(body.status).toBe("done")
+    })
+
+    test("returns 400 for non-terminal task", async () => {
+      const row = seedTask(db)
+      // status is "created" (non-terminal)
+      const res = await app.fetch(new Request(`http://localhost/api/tasks/${row.id}/resolve`, { method: "POST" }))
+      expect(res.status).toBe(400)
+    })
+
+    test("returns 404 for unknown task", async () => {
+      const res = await app.fetch(new Request("http://localhost/api/tasks/nonexistent/resolve", { method: "POST" }))
       expect(res.status).toBe(404)
     })
   })

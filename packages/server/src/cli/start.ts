@@ -583,6 +583,9 @@ export async function start(): Promise<void> {
         completeTask: (taskId) => taskManager.completeTask(tmDeps, taskId).pipe(
           Effect.mapError((e) => ({ _tag: e._tag, message: e.message }))
         ),
+        resolveTask: (taskId) => taskManager.resolveTask(tmDeps, taskId).pipe(
+          Effect.mapError((e) => ({ _tag: e._tag, message: e.message }))
+        ),
         sendPrompt: (taskId, text, images) =>
           Effect.gen(function* () {
             // Save images to disk and store filenames in session_logs

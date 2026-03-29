@@ -6,6 +6,7 @@ import { createLogger } from "../logger"
 import { type ActivityType, ORCHESTRATOR_TASK_NAME, TERMINAL_STATUSES } from "@tangerine/shared"
 import {
   TaskNotFoundError,
+  TaskNotTerminalError,
   SessionCleanupError,
   AgentError,
 } from "../errors"
@@ -375,6 +376,39 @@ function logConfigChange(
     model: config.model ?? prev.model,
     reasoningEffort: config.reasoningEffort ?? prev.reasoning_effort,
   }).pipe(Effect.catchAll(() => Effect.void))
+}
+
+/**
+ * Manually mark a failed or cancelled task as done.
+ * Useful when a task actually completed its work but the agent process exited
+ * with a non-zero code or was cancelled after finishing.
+ */
+export function resolveTask(
+  deps: TaskManagerDeps,
+  taskId: string,
+): Effect.Effect<void, TaskNotFoundError | TaskNotTerminalError> {
+  return Effect.gen(function* () {
+    const task = yield* deps.getTask(taskId).pipe(
+      Effect.mapError(() => new TaskNotFoundError({ taskId }))
+    )
+
+    if (!task) {
+      return yield* new TaskNotFoundError({ taskId })
+    }
+
+    if (task.status !== "failed" && task.status !== "cancelled") {
+      return yield* new TaskNotTerminalError({ taskId, status: task.status })
+    }
+
+    yield* deps.updateTask(taskId, { status: "done" }).pipe(Effect.ignoreLogged)
+
+    yield* deps.logActivity(taskId, "lifecycle", "task.resolved", "Task manually marked as done").pipe(
+      Effect.catchAll(() => Effect.void)
+    )
+
+    emitStatusChange(taskId, "done")
+    log.info("Task resolved", { taskId })
+  })
 }
 
 export function abortAgent(

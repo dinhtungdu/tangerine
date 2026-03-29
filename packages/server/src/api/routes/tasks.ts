@@ -82,6 +82,12 @@ export function taskRoutes(deps: AppDeps): Hono {
     )
   })
 
+  app.post("/:id/resolve", (c) => {
+    return runEffectVoid(c,
+      deps.taskManager.resolveTask(c.req.param("id"))
+    )
+  })
+
   app.post("/:id/retry", (c) => {
     const taskId = c.req.param("id")
     return runEffect(c,
