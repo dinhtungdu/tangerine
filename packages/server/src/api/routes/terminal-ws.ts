@@ -35,16 +35,18 @@ async function ensureTmuxSession(sessionName: string, cwd: string): Promise<void
 }
 
 async function _ensureTmuxSession(sessionName: string, cwd: string): Promise<void> {
-  const check = Bun.spawnSync(["tmux", "has-session", "-t", sessionName], {
+  const check = Bun.spawn(["tmux", "has-session", "-t", sessionName], { stderr: "pipe" })
+  if ((await check.exited) === 0) return
+
+  const stderrBuf: Uint8Array[] = []
+  const create = Bun.spawn(["tmux", "new-session", "-d", "-s", sessionName, "-c", cwd], {
     stderr: "pipe",
   })
-  if (check.exitCode === 0) return
-
-  const create = Bun.spawnSync([
-    "tmux", "new-session", "-d", "-s", sessionName, "-c", cwd,
-  ], { stderr: "pipe" })
-  if (create.exitCode !== 0) {
-    throw new Error(`Failed to create tmux session: ${create.stderr.toString()}`)
+  for await (const chunk of create.stderr) stderrBuf.push(chunk)
+  const exitCode = await create.exited
+  if (exitCode !== 0) {
+    const stderr = Buffer.concat(stderrBuf).toString()
+    throw new Error(`Failed to create tmux session: ${stderr}`)
   }
 }
 
