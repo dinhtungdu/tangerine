@@ -76,7 +76,7 @@ interface TaskInfo {
 /** Build system notes prepended to the first prompt for a task. */
 function buildSystemNotes(taskId: string, info: TaskInfo): string[] {
   const notes: string[] = []
-  notes.push(`[TANGERINE: You are running inside a Tangerine task (task ID: ${taskId}). The Tangerine API is at http://localhost:3456. Run \`/task-handbook\` for full API reference and common workflows.]`)
+  notes.push(`[TANGERINE: You are running inside a Tangerine task (task ID: ${taskId}). The Tangerine API is at http://localhost:3456. Load the task-handbook skill (\`/task-handbook\`) for full API reference and common workflows.]`)
   if (info.setupCommand) {
     const prefix = taskId.slice(0, 8)
     notes.push(`[NOTE: Project setup is running in the background (\`${info.setupCommand}\`). Before running builds, tests, or linters, check if setup is done: \`cat /tmp/tangerine-setup-${prefix}.status\` (running/done/failed). Log: \`cat /tmp/tangerine-setup-${prefix}.log\`]`)
