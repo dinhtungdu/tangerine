@@ -115,6 +115,12 @@ describe("ensureOrchestrator", () => {
     expect(task.model).toBe("claude-sonnet-4-6")
     expect(task.reasoning_effort).toBe("medium")
   })
+
+  test("does not default claude model for non-claude providers", async () => {
+    const task = await Effect.runPromise(ensureOrchestrator(deps, PROJECT_ID, "opencode"))
+    expect(task.model).toBeNull()
+    expect(task.reasoning_effort).toBeNull()
+  })
 })
 
 describe("createTask description storage", () => {

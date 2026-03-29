@@ -548,6 +548,11 @@ export function ensureOrchestrator(
       .filter((t) => TERMINAL_STATUSES.has(t.status))
       .sort((a, b) => (b.created_at ?? "").localeCompare(a.created_at ?? ""))[0]
 
+    // Default to claude-opus-4-6 high for claude-code orchestrators
+    const projectConfig = deps.getProjectConfig(projectId)
+    const resolvedProvider = provider ?? projectConfig?.defaultProvider ?? "claude-code"
+    const isClaude = resolvedProvider === "claude-code"
+
     return yield* createTask(deps, {
       source: "manual",
       projectId,
@@ -570,8 +575,8 @@ Default to opus for ambiguous cases. Pass the chosen model in the \`"model"\` fi
 
 Start by loading the tangerine-tasks skill (\`/tangerine-tasks\`) and checking the current state of the project (active tasks, recent PRs, git status).`,
       provider,
-      model: model ?? "claude-opus-4-6",
-      reasoningEffort: reasoningEffort ?? "high",
+      model: model ?? (isClaude ? "claude-opus-4-6" : undefined),
+      reasoningEffort: reasoningEffort ?? (isClaude ? "high" : undefined),
       parentTaskId: parent?.id,
     })
   })
