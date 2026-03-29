@@ -1,7 +1,6 @@
 import { useState, useEffect, useCallback, useRef } from "react"
 import { useParams, Link } from "react-router-dom"
 import type { Task } from "@tangerine/shared"
-import { ORCHESTRATOR_TASK_NAME } from "@tangerine/shared"
 import { fetchTask, fetchChildTasks, changeTaskConfig, markTaskSeen, ensureOrchestrator, resolveTask } from "../lib/api"
 import { getStatusConfig } from "../lib/status"
 import { useSession } from "../hooks/useSession"
@@ -158,7 +157,11 @@ export function TaskDetail() {
     }
   }, [id, task])
 
-  const isOrchestrator = task?.title === ORCHESTRATOR_TASK_NAME
+  const canRestart = task?.capabilities.includes("restart") ?? false
+  const canResolve = task?.capabilities.includes("resolve") ?? false
+  const hasPredefinedPrompts = task?.capabilities.includes("predefined-prompts") ?? false
+  const hasDiff = task?.capabilities.includes("diff") ?? false
+
   const handleRestartOrchestrator = useCallback(async () => {
     if (!task) return
     try {
@@ -252,6 +255,21 @@ export function TaskDetail() {
       if (id) markTaskSeen(id).catch(() => {})
     }
   }, [id, task?.updatedAt])
+
+  // Sanitize pane state: if the loaded task lacks "diff" capability, remove any stale
+  // "diff" entry from visiblePanes so the desktop layout doesn't render blank.
+  useEffect(() => {
+    if (!task) return
+    if (!task.capabilities.includes("diff")) {
+      setVisiblePanes((prev) => {
+        if (!prev.has("diff")) return prev
+        const next = new Set(prev)
+        next.delete("diff")
+        if (next.size === 0) next.add("chat")
+        return next
+      })
+    }
+  }, [task?.id, task?.capabilities])
 
   useEffect(() => {
     if (!session.taskStatus) return
@@ -362,12 +380,14 @@ export function TaskDetail() {
                   <path strokeLinecap="round" strokeLinejoin="round" d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" />
                 </svg>
               </PaneToggle>
-              <PaneToggle desktopActive={visiblePanes.has("diff")} mobileActive={mobilePane === "diff"} onClick={() => togglePane("diff")} label="Diff">
-                <svg className="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                  <circle cx="18" cy="18" r="3" /><circle cx="6" cy="6" r="3" />
-                  <path d="M13 6h3a2 2 0 0 1 2 2v7M11 18H8a2 2 0 0 1-2-2V9" />
-                </svg>
-              </PaneToggle>
+              {hasDiff && (
+                <PaneToggle desktopActive={visiblePanes.has("diff")} mobileActive={mobilePane === "diff"} onClick={() => togglePane("diff")} label="Diff">
+                  <svg className="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                    <circle cx="18" cy="18" r="3" /><circle cx="6" cy="6" r="3" />
+                    <path d="M13 6h3a2 2 0 0 1 2 2v7M11 18H8a2 2 0 0 1-2-2V9" />
+                  </svg>
+                </PaneToggle>
+              )}
               <PaneToggle desktopActive={visiblePanes.has("terminal")} mobileActive={mobilePane === "terminal"} onClick={() => togglePane("terminal")} label="Terminal">
                 <svg className="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                   <path strokeLinecap="round" strokeLinejoin="round" d="m6.75 7.5 3 2.25-3 2.25m4.5 0h3" />
@@ -441,22 +461,22 @@ export function TaskDetail() {
                 onAbort={session.abort}
                 onModelChange={handleModelChange}
                 onReasoningEffortChange={handleReasoningEffortChange}
-                predefinedPrompts={isOrchestrator ? undefined : current?.predefinedPrompts}
-                onRestartOrchestrator={isOrchestrator ? handleRestartOrchestrator : undefined}
-                onResolve={isOrchestrator ? undefined : handleResolve}
+                predefinedPrompts={hasPredefinedPrompts ? current?.predefinedPrompts : undefined}
+                onRestartOrchestrator={canRestart ? handleRestartOrchestrator : undefined}
+                onResolve={canResolve ? handleResolve : undefined}
               />
             </div>
           )}
 
-          {visiblePanes.has("chat") && !visiblePanes.has("diff") && visiblePanes.has("activity") && (
+          {visiblePanes.has("chat") && !(hasDiff && visiblePanes.has("diff")) && visiblePanes.has("activity") && (
             <ResizeHandle onMouseDown={activityResize.onMouseDown} />
           )}
 
-          {visiblePanes.has("diff") && visiblePanes.has("chat") && (
+          {hasDiff && visiblePanes.has("diff") && visiblePanes.has("chat") && (
             <ResizeHandle onMouseDown={diffResize.onMouseDown} />
           )}
 
-          {visiblePanes.has("diff") && (
+          {hasDiff && visiblePanes.has("diff") && (
             <div className={`@container/diff flex min-w-0 flex-col${desktopIsSolo ? " flex-1" : ""}`} style={desktopIsSolo ? undefined : { width: diffWidth, flexShrink: 0 }}>
               <div className="flex min-h-0 flex-1 flex-col @min-[700px]/diff:flex-row">
                 <div className="min-w-0 flex-1 overflow-y-auto">
@@ -481,7 +501,7 @@ export function TaskDetail() {
             </div>
           )}
 
-          {visiblePanes.has("terminal") && (visiblePanes.has("chat") || visiblePanes.has("diff")) && (
+          {visiblePanes.has("terminal") && (visiblePanes.has("chat") || (hasDiff && visiblePanes.has("diff"))) && (
             <ResizeHandle onMouseDown={terminalResize.onMouseDown} />
           )}
 
@@ -491,7 +511,7 @@ export function TaskDetail() {
             </div>
           )}
 
-          {visiblePanes.has("activity") && (visiblePanes.has("diff") || visiblePanes.has("terminal")) && (
+          {visiblePanes.has("activity") && ((hasDiff && visiblePanes.has("diff")) || visiblePanes.has("terminal")) && (
             <ResizeHandle onMouseDown={activityResize.onMouseDown} />
           )}
 
@@ -527,13 +547,13 @@ export function TaskDetail() {
                 onAbort={session.abort}
                 onModelChange={handleModelChange}
                 onReasoningEffortChange={handleReasoningEffortChange}
-                predefinedPrompts={isOrchestrator ? undefined : current?.predefinedPrompts}
-                onRestartOrchestrator={isOrchestrator ? handleRestartOrchestrator : undefined}
-                onResolve={isOrchestrator ? undefined : handleResolve}
+                predefinedPrompts={hasPredefinedPrompts ? current?.predefinedPrompts : undefined}
+                onRestartOrchestrator={canRestart ? handleRestartOrchestrator : undefined}
+                onResolve={canResolve ? handleResolve : undefined}
               />
             </div>
           )}
-          {mobilePane === "diff" && (
+          {hasDiff && mobilePane === "diff" && (
             <div className="@container/diff flex min-w-0 flex-1 flex-col">
               <div className="flex min-h-0 flex-1 flex-col">
                 <div className="min-w-0 flex-1 overflow-y-auto">

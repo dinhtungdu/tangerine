@@ -27,6 +27,7 @@ export interface Task {
   completedAt: string | null
   lastSeenAt: string | null
   lastResultAt: string | null
+  capabilities: string[]
 }
 
 export type ActivityType = "lifecycle" | "file" | "system"

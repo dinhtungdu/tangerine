@@ -25,6 +25,7 @@ export interface TaskRow {
   completed_at: string | null
   last_seen_at: string | null
   last_result_at: string | null
+  capabilities: string | null
 }
 
 export interface SessionLogRow {

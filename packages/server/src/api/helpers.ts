@@ -1,4 +1,5 @@
 import type { Task, TaskSource, TaskStatus, ProviderType } from "@tangerine/shared"
+import { ORCHESTRATOR_TASK_NAME } from "@tangerine/shared"
 import type { TaskRow } from "../db/types"
 
 /**
@@ -12,6 +13,14 @@ export function utc(ts: string | null): string | null {
   if (/Z$|[+-]\d{2}:\d{2}$/.test(ts)) return ts
   // Bare SQLite timestamp — append Z
   return ts.replace(" ", "T") + "Z"
+}
+
+// Fallback capabilities for rows that predate the capabilities column (capabilities IS NULL).
+// Use title to distinguish orchestrators from worker tasks so upgraded installs work correctly.
+function defaultCapabilities(title: string): string[] {
+  return title === ORCHESTRATOR_TASK_NAME
+    ? ["restart"]
+    : ["resolve", "predefined-prompts", "diff"]
 }
 
 /** Maps a snake_case TaskRow from SQLite to a camelCase Task for API responses */
@@ -42,6 +51,7 @@ export function mapTaskRow(row: TaskRow): Task {
     completedAt: utc(row.completed_at),
     lastSeenAt: utc(row.last_seen_at),
     lastResultAt: utc(row.last_result_at),
+    capabilities: row.capabilities ? JSON.parse(row.capabilities) : defaultCapabilities(row.title),
   }
 }
 
