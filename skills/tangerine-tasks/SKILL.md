@@ -175,7 +175,7 @@ curl http://localhost:3456/api/tasks/$PARENT/messages
 Run the self-review using your Bash tool (blocking — waits for completion):
 
 ```bash
-codex review --base main -c model="gpt-5.4" -c reasoning.effort="high"
+codex review --base main -c model="gpt-5.4" -c reasoning.effort="xhigh"
 ```
 
 This is the default. If the user requests a specific model or harness, use that instead:
