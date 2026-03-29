@@ -29,6 +29,11 @@ export function useSwipe(
   const onTouchStart = useCallback((e: React.TouchEvent) => {
     const touch = e.touches[0]
     if (!touch) return
+    // Ignore touches originating from interactive elements to avoid
+    // hijacking text selection, scrolling inside inputs/terminals, etc.
+    const tag = (e.target as HTMLElement).tagName
+    if (tag === "INPUT" || tag === "TEXTAREA" || tag === "SELECT" || (e.target as HTMLElement).isContentEditable) return
+    if ((e.target as HTMLElement).closest("[data-swipe-ignore]")) return
     startRef.current = { x: touch.clientX, y: touch.clientY }
   }, [])
 
