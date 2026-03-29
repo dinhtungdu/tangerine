@@ -5,6 +5,7 @@ import type { ProviderType } from "./agent/provider"
 
 const OPENCODE_MODELS_CACHE = join(homedir(), ".cache", "opencode", "models.json")
 const OPENCODE_AUTH_PATH = join(homedir(), ".local", "share", "opencode", "auth.json")
+const OPENCODE_CONFIG_PATH = join(homedir(), ".config", "opencode", "opencode.json")
 const CODEX_MODELS_CACHE = join(homedir(), ".codex", "models_cache.json")
 
 export interface ModelInfo {
@@ -21,6 +22,11 @@ interface ProviderEntry {
   models: Record<string, { id: string; name?: string }>
 }
 
+interface ConfigProviderEntry {
+  name?: string
+  models?: Record<string, { name?: string; [key: string]: unknown }>
+}
+
 /** Known models that Claude Code CLI can use directly */
 const CLAUDE_CODE_MODELS: ModelInfo[] = [
   { id: "claude-opus-4-6", name: "Claude Opus 4.6", provider: "anthropic", providerName: "Anthropic" },
@@ -28,47 +34,84 @@ const CLAUDE_CODE_MODELS: ModelInfo[] = [
   { id: "claude-haiku-4-5", name: "Claude Haiku 4.5", provider: "anthropic", providerName: "Anthropic" },
 ]
 
-/** Read OpenCode's models cache and auth to discover available models */
-export function discoverModels(): ModelInfo[] {
-  // Read models catalog
-  if (!existsSync(OPENCODE_MODELS_CACHE)) return []
-  let catalog: Record<string, ProviderEntry>
+/** Read custom providers from OpenCode's config file (~/.config/opencode/opencode.json) */
+function discoverConfigModels(): ModelInfo[] {
+  if (!existsSync(OPENCODE_CONFIG_PATH)) return []
   try {
-    catalog = JSON.parse(readFileSync(OPENCODE_MODELS_CACHE, "utf-8")) as Record<string, ProviderEntry>
+    const config = JSON.parse(readFileSync(OPENCODE_CONFIG_PATH, "utf-8")) as {
+      provider?: Record<string, ConfigProviderEntry>
+    }
+    if (!config.provider) return []
+
+    const models: ModelInfo[] = []
+    for (const [providerId, provider] of Object.entries(config.provider)) {
+      if (!provider.models) continue
+      for (const [modelId, model] of Object.entries(provider.models)) {
+        models.push({
+          id: `${providerId}/${modelId}`,
+          name: model.name ?? modelId,
+          provider: providerId,
+          providerName: provider.name ?? providerId,
+        })
+      }
+    }
+    return models
   } catch {
     return []
   }
+}
 
-  // Read authenticated providers (oauth tokens)
-  const authedProviders = new Set<string>()
-  try {
-    if (existsSync(OPENCODE_AUTH_PATH)) {
-      const auth = JSON.parse(readFileSync(OPENCODE_AUTH_PATH, "utf-8")) as Record<string, unknown>
-      for (const key of Object.keys(auth)) {
-        authedProviders.add(key)
-      }
-    }
-  } catch {
-    // no auth
-  }
-
+/** Read OpenCode's models cache and auth to discover available models */
+export function discoverModels(): ModelInfo[] {
   const models: ModelInfo[] = []
 
-  for (const [providerId, provider] of Object.entries(catalog)) {
-    // Provider is available if: has oauth in auth.json, or env var is set, or is "opencode" (always available)
-    const hasOAuth = authedProviders.has(providerId)
-    const hasEnvVar = provider.env?.some((e) => !!process.env[e]) ?? false
-    const isOpenCode = providerId === "opencode"
+  // Read models from cache
+  if (existsSync(OPENCODE_MODELS_CACHE)) {
+    try {
+      const catalog = JSON.parse(readFileSync(OPENCODE_MODELS_CACHE, "utf-8")) as Record<string, ProviderEntry>
 
-    if (!hasOAuth && !hasEnvVar && !isOpenCode) continue
+      // Read authenticated providers (oauth tokens)
+      const authedProviders = new Set<string>()
+      try {
+        if (existsSync(OPENCODE_AUTH_PATH)) {
+          const auth = JSON.parse(readFileSync(OPENCODE_AUTH_PATH, "utf-8")) as Record<string, unknown>
+          for (const key of Object.keys(auth)) {
+            authedProviders.add(key)
+          }
+        }
+      } catch {
+        // no auth
+      }
 
-    for (const [modelId, model] of Object.entries(provider.models ?? {})) {
-      models.push({
-        id: `${providerId}/${modelId}`,
-        name: model.name ?? modelId,
-        provider: providerId,
-        providerName: provider.name ?? providerId,
-      })
+      for (const [providerId, provider] of Object.entries(catalog)) {
+        // Provider is available if: has oauth in auth.json, or env var is set, or is "opencode" (always available)
+        const hasOAuth = authedProviders.has(providerId)
+        const hasEnvVar = provider.env?.some((e) => !!process.env[e]) ?? false
+        const isOpenCode = providerId === "opencode"
+
+        if (!hasOAuth && !hasEnvVar && !isOpenCode) continue
+
+        for (const [modelId, model] of Object.entries(provider.models ?? {})) {
+          models.push({
+            id: `${providerId}/${modelId}`,
+            name: model.name ?? modelId,
+            provider: providerId,
+            providerName: provider.name ?? providerId,
+          })
+        }
+      }
+    } catch {
+      // ignore cache read errors
+    }
+  }
+
+  // Merge models from config file (custom providers), deduplicating by id
+  const configModels = discoverConfigModels()
+  const seen = new Set(models.map((m) => m.id))
+  for (const model of configModels) {
+    if (!seen.has(model.id)) {
+      models.push(model)
+      seen.add(model.id)
     }
   }
 
