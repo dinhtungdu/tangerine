@@ -3,7 +3,7 @@
 
 import { Effect } from "effect"
 import { createLogger } from "../logger"
-import { type ActivityType, ORCHESTRATOR_TASK_NAME, TERMINAL_STATUSES } from "@tangerine/shared"
+import { type ActivityType, ORCHESTRATOR_TASK_NAME, TERMINAL_STATUSES, DEFAULT_API_PORT } from "@tangerine/shared"
 import {
   TaskNotFoundError,
   SessionCleanupError,
@@ -91,6 +91,7 @@ export function createTask(
         (t) => t.title === ORCHESTRATOR_TASK_NAME && !TERMINAL_STATUSES.has(t.status)
       )
       if (activeOrchestrator) {
+        const port = Number(process.env["PORT"] ?? DEFAULT_API_PORT)
         const escalation = [
           "",
           "---",
@@ -99,7 +100,7 @@ export function createTask(
           `If you discover issues outside your task scope, first mention them to the user in your conversation, then send them to the orchestrator (task ID: ${activeOrchestrator.id}) for triage — do NOT create tasks yourself:`,
           "",
           "```bash",
-          `curl -X POST http://localhost:3456/api/tasks/${activeOrchestrator.id}/prompt \\`,
+          `curl -X POST http://localhost:${port}/api/tasks/${activeOrchestrator.id}/prompt \\`,
           '  -H "Content-Type: application/json" \\',
           `  -d '{"text": "Discovered out-of-scope issue: <brief description>"}'`,
           "```",
