@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, useRef, useMemo } from "react"
+import { useState, useEffect, useCallback, useRef } from "react"
 import { useParams, Link } from "react-router-dom"
 import type { Task } from "@tangerine/shared"
 import { fetchTask, fetchChildTasks, changeTaskConfig, markTaskSeen } from "../lib/api"
@@ -226,24 +226,22 @@ export function TaskDetail() {
     }
   }, [session.taskStatus])
 
-  const mobileSwipe = useSwipe(
-    useMemo(() => ({
-      onSwipeLeft: () => {
-        if (mobilePane === "chat") {
-          navigate("/")
-        } else {
-          const idx = PANE_ORDER.indexOf(mobilePane)
-          const prev = PANE_ORDER[idx - 1]
-          if (idx > 0 && prev) setMobilePane(prev)
-        }
-      },
-      onSwipeRight: () => {
+  const mobileSwipe = useSwipe({
+    onSwipeLeft: () => {
+      if (mobilePane === "chat") {
+        navigate("/")
+      } else {
         const idx = PANE_ORDER.indexOf(mobilePane)
-        const next = PANE_ORDER[idx + 1]
-        if (idx < PANE_ORDER.length - 1 && next) setMobilePane(next)
-      },
-    }), [mobilePane, navigate]),
-  )
+        const prev = PANE_ORDER[idx - 1]
+        if (idx > 0 && prev) setMobilePane(prev)
+      }
+    },
+    onSwipeRight: () => {
+      const idx = PANE_ORDER.indexOf(mobilePane)
+      const next = PANE_ORDER[idx + 1]
+      if (idx < PANE_ORDER.length - 1 && next) setMobilePane(next)
+    },
+  })
 
   if (loading) {
     return (

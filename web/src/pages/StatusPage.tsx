@@ -1,4 +1,3 @@
-import { useMemo } from "react"
 import { useProject } from "../context/ProjectContext"
 import { useTaskSearch } from "../hooks/useTaskSearch"
 import { useProjectNav } from "../hooks/useProjectNav"
@@ -11,7 +10,7 @@ export function StatusPage() {
   const { navigate } = useProjectNav()
   const { current } = useProject()
   const { query, setQuery, tasks } = useTaskSearch(current?.name)
-  const swipe = useSwipe(useMemo(() => ({ onSwipeLeft: () => navigate("/") }), [navigate]))
+  const swipe = useSwipe({ onSwipeLeft: () => navigate("/") })
 
   return (
     <div className="flex h-full" {...swipe}>

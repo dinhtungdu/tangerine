@@ -13,8 +13,9 @@ interface SwipeOptions {
 }
 
 /**
- * Attaches touch-based swipe detection to a container ref.
- * Returns onTouchStart / onTouchEnd props to spread onto the element.
+ * Returns onTouchStart / onTouchEnd props to spread onto an element
+ * for horizontal swipe detection. Uses a ref for handlers so the
+ * returned callbacks are stable regardless of caller memoization.
  */
 export function useSwipe(
   handlers: SwipeHandlers,
@@ -22,6 +23,8 @@ export function useSwipe(
 ) {
   const { threshold = 50, maxVertical = 80 } = options
   const startRef = useRef<{ x: number; y: number } | null>(null)
+  const handlersRef = useRef(handlers)
+  handlersRef.current = handlers
 
   const onTouchStart = useCallback((e: React.TouchEvent) => {
     const touch = e.touches[0]
@@ -41,11 +44,11 @@ export function useSwipe(
     if (Math.abs(dx) < threshold) return
 
     if (dx < 0) {
-      handlers.onSwipeLeft?.()
+      handlersRef.current.onSwipeLeft?.()
     } else {
-      handlers.onSwipeRight?.()
+      handlersRef.current.onSwipeRight?.()
     }
-  }, [handlers, threshold, maxVertical])
+  }, [threshold, maxVertical])
 
   return { onTouchStart, onTouchEnd }
 }
