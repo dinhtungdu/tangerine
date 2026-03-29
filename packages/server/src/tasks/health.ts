@@ -19,6 +19,20 @@ const MAX_CONSECUTIVE_RESTARTS = 3
 // Per-task consecutive restart counter — reset to 0 when the agent has real activity.
 const consecutiveRestarts = new Map<string, number>()
 
+// Tasks whose agent was intentionally suspended due to idle timeout.
+// The health monitor skips restart for these — they wake on next user message.
+const suspendedTasks = new Set<string>()
+
+/** Check whether a task's agent has been suspended due to idle timeout. */
+export function isTaskSuspended(taskId: string): boolean {
+  return suspendedTasks.has(taskId)
+}
+
+/** Clear the suspended flag when a task's agent is restarted. */
+export function clearSuspended(taskId: string): void {
+  suspendedTasks.delete(taskId)
+}
+
 // Error patterns that will never self-heal — no point restarting.
 // NOTE: these match human-readable strings which is fragile; ideally providers
 // would emit structured error codes (see provider.ts AgentEvent).
@@ -44,7 +58,8 @@ export interface HealthCheckDeps {
   checkAgentAlive(taskId: string): Effect.Effect<boolean, never>
   restartAgent(task: TaskRow): Effect.Effect<void, Error>
   failTask(taskId: string, reason: string): Effect.Effect<void, Error>
-  completeTask(taskId: string): Effect.Effect<void, Error>
+  /** Shut down the agent process without changing task status. */
+  suspendAgent(taskId: string): Effect.Effect<void, never>
   /** Returns the last error emitted by the agent, if any. */
   getLastAgentError(taskId: string): string | undefined
   /** Returns the ISO timestamp of the most recent user message for a task, or null. */
@@ -67,6 +82,12 @@ export function checkTask(
     // Check if agent process is alive (via PID or handle)
     const alive = yield* deps.checkAgentAlive(task.id)
     if (!alive) {
+      // Skip restart for tasks intentionally suspended due to idle timeout
+      if (suspendedTasks.has(task.id)) {
+        taskLog.debug("Task suspended (idle), skipping restart")
+        return "healthy"
+      }
+
       // Check if the agent reported an error before dying
       const lastError = deps.getLastAgentError(task.id)
 
@@ -147,8 +168,9 @@ function attemptRestart(
 }
 
 /**
- * Complete a running task if it has been idle (no user messages) for
- * longer than DEFAULT_IDLE_TIMEOUT_MS. Applies to all task types.
+ * Suspend a running task's agent if it has been idle (no user messages) for
+ * longer than DEFAULT_IDLE_TIMEOUT_MS. The task stays "running" — the agent
+ * process is killed to free resources but restarts on next user message.
  */
 function checkIdleTimeout(
   task: TaskRow,
@@ -159,16 +181,18 @@ function checkIdleTimeout(
     if (lastMsgTime) {
       const idleMs = Date.now() - new Date(lastMsgTime).getTime()
       if (idleMs >= DEFAULT_IDLE_TIMEOUT_MS) {
-        log.info("Task idle timeout, completing", { taskId: task.id, title: task.title, idleMs })
-        yield* deps.completeTask(task.id).pipe(Effect.ignoreLogged)
+        log.info("Task idle, suspending agent", { taskId: task.id, title: task.title, idleMs })
+        suspendedTasks.add(task.id)
+        yield* deps.suspendAgent(task.id)
         return
       }
     } else if (task.started_at) {
       // No user messages at all — check time since start
       const idleMs = Date.now() - new Date(task.started_at).getTime()
       if (idleMs >= DEFAULT_IDLE_TIMEOUT_MS) {
-        log.info("Task idle timeout (no messages), completing", { taskId: task.id, title: task.title, idleMs })
-        yield* deps.completeTask(task.id).pipe(Effect.ignoreLogged)
+        log.info("Task idle (no messages), suspending agent", { taskId: task.id, title: task.title, idleMs })
+        suspendedTasks.add(task.id)
+        yield* deps.suspendAgent(task.id)
       }
     }
   }).pipe(Effect.catchAll(() => Effect.void))

@@ -18,7 +18,7 @@ import { cleanupSession } from "../tasks/cleanup"
 import type { CleanupDeps } from "../tasks/cleanup"
 import { startOrphanCleanup, findOrphans, cleanupOrphans } from "../tasks/orphan-cleanup"
 import type { OrphanCleanupDeps } from "../tasks/orphan-cleanup"
-import { startHealthMonitor } from "../tasks/health"
+import { startHealthMonitor, isTaskSuspended, clearSuspended } from "../tasks/health"
 import type { HealthCheckDeps } from "../tasks/health"
 import { reconnectSessionWithRetry } from "../tasks/retry"
 import { AgentError } from "../errors"
@@ -643,7 +643,23 @@ export async function start(): Promise<void> {
               return
             }
 
-            // No handle yet — queue for later (preserves images)
+            // Agent was suspended due to idle — restart it and queue the prompt
+            if (isTaskSuspended(taskId)) {
+              clearSuspended(taskId)
+              const task = yield* getTask(db, taskId).pipe(Effect.catchAll(() => Effect.succeed(null)))
+              if (task && task.status === "running") {
+                const projectConfig = task.project_id ? getProjectConfig(config.config, task.project_id) : undefined
+                if (projectConfig) {
+                  log.info("Waking suspended task", { taskId, title: task.title })
+                  const taskLifecycleDeps = { ...tmDeps.lifecycleDeps, agentFactory: getAgentFactory(task.provider) }
+                  yield* Effect.forkDaemon(
+                    reconnectSessionWithRetry(task, projectConfig, taskLifecycleDeps, tmDeps.retryDeps)
+                  )
+                }
+              }
+            }
+
+            // Queue for delivery once the agent is ready
             yield* enqueuePrompt(taskId, promptText, images)
           }).pipe(
             Effect.catchAll((e) => {
@@ -802,10 +818,13 @@ export async function start(): Promise<void> {
           Effect.asVoid,
           Effect.mapError((e) => new Error(String(e))),
         ),
-      completeTask: (taskId) =>
-        taskManager.completeTask(tmDeps, taskId).pipe(
-          Effect.mapError((e) => new Error(String(e))),
-        ),
+      suspendAgent: (taskId) => Effect.sync(() => {
+        const handle = agentHandles.get(taskId)
+        if (handle) {
+          Effect.runPromise(handle.shutdown().pipe(Effect.catchAll(() => Effect.void)))
+          agentHandles.delete(taskId)
+        }
+      }),
       getLastAgentError: (taskId) => lastAgentErrors.get(taskId),
       getLastUserMessageTime: (() => {
         const stmt = db.prepare(

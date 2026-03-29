@@ -30,9 +30,9 @@ The `parentTaskId` chain lets the new orchestrator access its predecessor's conv
 
 Orchestrators do **not** auto-start on creation. They start when the user opens the chat for the first time via `POST /api/tasks/:id/start`. This avoids spinning up an agent process for a project the user hasn't visited yet.
 
-### Idle timeout
+### Idle suspension
 
-The health monitor tracks the last user message time for all running tasks (not just orchestrators). If no user message arrives within `DEFAULT_IDLE_TIMEOUT_MS` (10 minutes), the task is completed (`done`). This frees resources when the user is away. The agent process is killed and cleaned up via normal `completeTask` flow.
+The health monitor tracks the last user message time for all running tasks (not just orchestrators). If no user message arrives within `DEFAULT_IDLE_TIMEOUT_MS` (10 minutes), the agent process is killed to free resources — but the task stays `running`. When the next user message arrives, the agent is automatically restarted via `reconnectSessionWithRetry` and the message is delivered.
 
 ### Auto-resume
 
@@ -47,9 +47,11 @@ This is transparent to the user — they message the old orchestrator and the sy
 
 ### Termination and restart
 
-Orchestrators reach `done` status through two paths:
-1. **Idle timeout** — no user messages for 10 minutes
-2. **Manual** — user or system explicitly completes it
+Orchestrators reach `done` status through:
+1. **Manual** — user or system explicitly completes it
+2. **Failure** — agent crashes beyond recovery
+
+Note: idle timeout only suspends the agent process (kills it to free resources), it does not change the task status. The task stays `running` and the agent restarts on next user message.
 
 In all cases, the next user interaction auto-resumes via `ensureOrchestrator`.
 
