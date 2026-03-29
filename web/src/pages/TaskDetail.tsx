@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback, useRef } from "react"
 import { useParams, Link } from "react-router-dom"
 import type { Task } from "@tangerine/shared"
-import { fetchTask, fetchChildTasks, changeTaskConfig, markTaskSeen, resolveTask, cancelTask } from "../lib/api"
+import { fetchTask, fetchChildTasks, changeTaskConfig, markTaskSeen, resolveTask, completeTask } from "../lib/api"
 import { getStatusConfig } from "../lib/status"
 import { useSession } from "../hooks/useSession"
 import { useTaskSearch } from "../hooks/useTaskSearch"
@@ -176,7 +176,7 @@ export function TaskDetail() {
   const handleEndSession = useCallback(async () => {
     if (!task) return
     try {
-      await cancelTask(task.id)
+      await completeTask(task.id)
       const updated = await fetchTask(task.id)
       setTask(updated)
     } catch {
