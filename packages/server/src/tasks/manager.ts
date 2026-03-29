@@ -489,6 +489,15 @@ export function ensureOrchestrator(
       source: "manual",
       projectId,
       title: ORCHESTRATOR_TASK_NAME,
+      description: `You are the orchestrator for the "${projectId}" project. You are running on the default branch (main repo, not a worktree).
+
+Your role:
+- **Coordinate work**: Create tasks to spin up agents in isolated worktrees for features, bugs, or refactors
+- **Monitor tasks**: Check status, review diffs, send prompts to running agents
+- **Delegate**: Break down large work items into parallel sub-tasks
+- **Direct work**: For small changes (docs, config, quick fixes), you can work directly on the main branch
+
+Start by loading the tangerine-tasks skill (\`/tangerine-tasks\`) and checking the current state of the project (active tasks, recent PRs, git status).`,
       provider,
       parentTaskId: parent?.id,
     })
