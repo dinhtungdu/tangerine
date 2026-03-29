@@ -80,6 +80,7 @@ export function createTask(
     }
 
     const id = crypto.randomUUID()
+    const resolvedProvider = params.provider ?? projectConfig.defaultProvider ?? "claude-code"
 
     const task = yield* deps.insertTask({
       id,
@@ -90,7 +91,7 @@ export function createTask(
       repo_url: projectConfig.repo,
       title: params.title,
       description: params.description ?? null,
-      provider: params.provider ?? "opencode",
+      provider: resolvedProvider,
       model: params.model ?? null,
       reasoning_effort: params.reasoningEffort ?? null,
       branch: params.branch ?? null,
@@ -109,7 +110,7 @@ export function createTask(
     // Orchestrator tasks are started on-demand (when the user enters the chat),
     // not immediately on creation. All other tasks auto-provision.
     if (params.title !== ORCHESTRATOR_TASK_NAME) {
-      const taskLifecycleDeps = depsForProvider(deps, params.provider ?? "opencode")
+      const taskLifecycleDeps = depsForProvider(deps, resolvedProvider)
       yield* Effect.forkDaemon(
         startSessionWithRetry(task, projectConfig, taskLifecycleDeps, deps.retryDeps)
       )
