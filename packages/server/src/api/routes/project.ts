@@ -162,9 +162,9 @@ export function projectRoutes(deps: AppDeps): Hono {
     const project = deps.config.config.projects.find((p) => p.name === name)
     if (!project) return c.json({ error: `Project not found: ${name}` }, 404)
 
-    const body = await c.req.json().catch(() => ({})) as { provider?: string }
+    const body = await c.req.json().catch(() => ({})) as { provider?: string; model?: string; reasoningEffort?: string }
     return runEffect(c,
-      deps.taskManager.ensureOrchestrator(name, body.provider).pipe(
+      deps.taskManager.ensureOrchestrator(name, body.provider, body.model, body.reasoningEffort).pipe(
         Effect.tap((task) =>
           // Auto-start the session if the task is dormant
           task.status === "created"

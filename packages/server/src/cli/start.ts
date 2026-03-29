@@ -696,8 +696,8 @@ export async function start(): Promise<void> {
           cleanupSession(taskId, cleanupDeps).pipe(
             Effect.mapError((e) => ({ _tag: e._tag, message: e.message }))
           ),
-        ensureOrchestrator: (projectId, provider) =>
-          taskManager.ensureOrchestrator(tmDeps, projectId, provider).pipe(
+        ensureOrchestrator: (projectId, provider, model, reasoningEffort) =>
+          taskManager.ensureOrchestrator(tmDeps, projectId, provider, model, reasoningEffort).pipe(
             Effect.mapError((e) => ({ _tag: "TaskError" as const, message: e.message }))
           ),
         startTask: (taskId) =>
