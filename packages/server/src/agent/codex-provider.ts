@@ -6,8 +6,11 @@
 import { Effect } from "effect"
 import { createLogger } from "../logger"
 import { AgentError, PromptError, SessionStartError } from "../errors"
-import type { AgentFactory, AgentHandle, AgentEvent, AgentStartContext, PromptImage } from "./provider"
+import type { AgentFactory, AgentHandle, AgentEvent, AgentStartContext, PromptImage, ModelInfo } from "./provider"
 import { parseNdjsonStream } from "./ndjson"
+import { existsSync, readFileSync } from "node:fs"
+import { homedir } from "node:os"
+import { join } from "node:path"
 
 const log = createLogger("codex-provider")
 
@@ -206,6 +209,36 @@ function mapItemComplete(item: Record<string, unknown>): AgentEvent[] {
 
 function truncate(s: string, maxLen: number): string {
   return s.length <= maxLen ? s : s.slice(0, maxLen) + "\u2026"
+}
+
+// ---------------------------------------------------------------------------
+// Model discovery — reads Codex's local models cache
+// ---------------------------------------------------------------------------
+
+const CODEX_MODELS_CACHE = join(homedir(), ".codex", "models_cache.json")
+
+/**
+ * Discover available Codex models by reading ~/.codex/models_cache.json.
+ * Only includes models with visibility "list" (publicly available).
+ */
+export function discoverModels(): ModelInfo[] {
+  if (!existsSync(CODEX_MODELS_CACHE)) return []
+  try {
+    const raw = JSON.parse(readFileSync(CODEX_MODELS_CACHE, "utf-8")) as {
+      models?: Array<{ slug: string; display_name?: string; visibility?: string; supported_in_api?: boolean }>
+    }
+    if (!Array.isArray(raw.models)) return []
+    return raw.models
+      .filter((m) => m.visibility === "list")
+      .map((m) => ({
+        id: m.slug,
+        name: m.display_name ?? m.slug,
+        provider: "openai",
+        providerName: "OpenAI",
+      }))
+  } catch {
+    return []
+  }
 }
 
 // ---------------------------------------------------------------------------

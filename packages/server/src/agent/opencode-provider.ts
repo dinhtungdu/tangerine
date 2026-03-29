@@ -8,7 +8,8 @@ import { Effect } from "effect"
 import { createLogger, truncate } from "../logger"
 import { AgentError, PromptError, SessionStartError } from "../errors"
 import { transientSchedule } from "../tasks/retry"
-import type { AgentFactory, AgentHandle, AgentEvent, AgentStartContext, PromptImage } from "./provider"
+import type { AgentFactory, AgentHandle, AgentEvent, AgentStartContext, PromptImage, ModelInfo } from "./provider"
+import { existsSync, readFileSync } from "node:fs"
 import { homedir } from "node:os"
 import { join } from "node:path"
 
@@ -650,4 +651,110 @@ export interface AgentHandleWithMeta extends AgentHandle {
 export function getHandleMeta(handle: AgentHandle): { sessionId: string; agentPort: number } | null {
   const meta = (handle as AgentHandleWithMeta).__meta
   return meta ?? null
+}
+
+// ---------------------------------------------------------------------------
+// Model discovery — reads OpenCode's local cache and config to find available
+// models without starting a server process.
+// ---------------------------------------------------------------------------
+
+const OPENCODE_MODELS_CACHE = join(homedir(), ".cache", "opencode", "models.json")
+const OPENCODE_AUTH_PATH = join(homedir(), ".local", "share", "opencode", "auth.json")
+const OPENCODE_CONFIG_PATH = join(homedir(), ".config", "opencode", "opencode.json")
+
+interface ProviderEntry {
+  id: string
+  name: string
+  env?: string[]
+  models: Record<string, { id: string; name?: string }>
+}
+
+interface ConfigProviderEntry {
+  name?: string
+  npm?: string
+  options?: Record<string, unknown>
+  models?: Record<string, { name?: string; [key: string]: unknown }>
+}
+
+function readJsonFile<T>(path: string): T | null {
+  if (!existsSync(path)) return null
+  try {
+    return JSON.parse(readFileSync(path, "utf-8")) as T
+  } catch {
+    return null
+  }
+}
+
+function buildModelInfos(
+  providerId: string,
+  providerName: string,
+  models: Record<string, { name?: string; [key: string]: unknown }>,
+): ModelInfo[] {
+  return Object.entries(models).map(([modelId, model]) => ({
+    id: `${providerId}/${modelId}`,
+    name: model.name ?? modelId,
+    provider: providerId,
+    providerName,
+  }))
+}
+
+function readAuthedProviders(): Set<string> {
+  const auth = readJsonFile<Record<string, unknown>>(OPENCODE_AUTH_PATH)
+  return new Set(auth ? Object.keys(auth) : [])
+}
+
+function discoverCacheModels(): { models: ModelInfo[]; availableProviders: Set<string> } {
+  const catalog = readJsonFile<Record<string, ProviderEntry>>(OPENCODE_MODELS_CACHE)
+  if (!catalog) return { models: [], availableProviders: new Set() }
+
+  const authedProviders = readAuthedProviders()
+  const availableProviders = new Set<string>()
+  const models: ModelInfo[] = []
+
+  for (const [providerId, provider] of Object.entries(catalog)) {
+    const hasOAuth = authedProviders.has(providerId)
+    const hasEnvVar = provider.env?.some((e) => !!process.env[e]) ?? false
+    if (!hasOAuth && !hasEnvVar) continue
+
+    availableProviders.add(providerId)
+    models.push(...buildModelInfos(providerId, provider.name ?? providerId, provider.models ?? {}))
+  }
+
+  return { models, availableProviders }
+}
+
+function discoverConfigModels(availableCacheProviders: Set<string>): ModelInfo[] {
+  const config = readJsonFile<{ provider?: Record<string, ConfigProviderEntry> }>(OPENCODE_CONFIG_PATH)
+  if (!config?.provider) return []
+
+  const models: ModelInfo[] = []
+  for (const [providerId, provider] of Object.entries(config.provider)) {
+    if (!provider.models) continue
+    const isCustomProvider = !!(provider.npm || provider.options)
+    if (!isCustomProvider && !availableCacheProviders.has(providerId)) continue
+
+    models.push(...buildModelInfos(providerId, provider.name ?? providerId, provider.models))
+  }
+  return models
+}
+
+/**
+ * Discover available OpenCode models by reading the local cache and config.
+ * A model is included if its provider has OAuth tokens, an env var set, or is
+ * a custom provider defined in opencode.json.
+ */
+export function discoverModels(): ModelInfo[] {
+  const { models, availableProviders } = discoverCacheModels()
+  const configModels = discoverConfigModels(availableProviders)
+
+  // Merge config models, deduplicating by id
+  const seen = new Set(models.map((m) => m.id))
+  for (const model of configModels) {
+    if (!seen.has(model.id)) {
+      models.push(model)
+      seen.add(model.id)
+    }
+  }
+
+  return models
 }

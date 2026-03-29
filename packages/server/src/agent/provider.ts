@@ -9,6 +9,14 @@ export type { PromptImage }
 
 export type ProviderType = "opencode" | "claude-code" | "codex"
 
+/** A model available through a provider, used for model discovery and selection */
+export interface ModelInfo {
+  id: string
+  name: string
+  provider: string
+  providerName: string
+}
+
 /** Normalized events emitted by all agent providers */
 export type AgentEvent =
   | { kind: "message.streaming"; content: string; messageId?: string }
