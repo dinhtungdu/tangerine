@@ -223,9 +223,9 @@ export function projectRoutes(deps: AppDeps): Hono {
           Effect.orElse(() => Effect.succeed("unknown"))
         )
 
-        // Fetch and pull
+        // Reset local changes and pull (remote is source of truth)
         yield* exec("git fetch origin")
-        yield* exec(`git pull --rebase origin ${defaultBranch}`)
+        yield* exec(`git reset --hard origin/${defaultBranch}`)
 
         // Get new HEAD
         const to = yield* exec("git rev-parse --short HEAD").pipe(
