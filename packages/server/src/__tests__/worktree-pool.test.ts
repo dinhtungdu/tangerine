@@ -5,6 +5,7 @@ import { createTestDb } from "./helpers"
 import {
   initPool,
   acquireSlot,
+  acquireOrchestratorSlot,
   releaseSlot,
   reconcileStaleSlots,
   deletePoolForProject,
@@ -37,16 +38,17 @@ describe("worktree-pool", () => {
   })
 
   describe("initPool", () => {
-    test("creates N slots", async () => {
+    test("creates N worker slots plus slot 0", async () => {
       const slots = await Effect.runPromise(
         initPool(db, PROJECT_ID, mockExec, REPO_PATH, 3),
       )
-      expect(slots).toHaveLength(3)
-      expect(slots.map((s) => s.id)).toEqual(["proj-1-slot-1", "proj-1-slot-2", "proj-1-slot-3"])
+      // 3 worker slots + slot 0 = 4
+      expect(slots).toHaveLength(4)
+      expect(slots.map((s) => s.id)).toEqual(["proj-1-slot-0", "proj-1-slot-1", "proj-1-slot-2", "proj-1-slot-3"])
       expect(slots.every((s) => s.status === "available")).toBe(true)
 
       const dbSlots = getSlots(db)
-      expect(dbSlots).toHaveLength(3)
+      expect(dbSlots).toHaveLength(4)
     })
 
     test("is idempotent — skips existing slots", async () => {
@@ -54,19 +56,22 @@ describe("worktree-pool", () => {
       const slots = await Effect.runPromise(
         initPool(db, PROJECT_ID, mockExec, REPO_PATH, 2),
       )
-      expect(slots).toHaveLength(2)
-      expect(getSlots(db)).toHaveLength(2)
+      // 2 worker + slot 0 = 3
+      expect(slots).toHaveLength(3)
+      expect(getSlots(db)).toHaveLength(3)
     })
 
     test("grows pool when size increases", async () => {
       await Effect.runPromise(initPool(db, PROJECT_ID, mockExec, REPO_PATH, 1))
-      expect(getSlots(db)).toHaveLength(1)
+      // 1 worker + slot 0 = 2
+      expect(getSlots(db)).toHaveLength(2)
 
       const slots = await Effect.runPromise(
         initPool(db, PROJECT_ID, mockExec, REPO_PATH, 3),
       )
-      expect(slots).toHaveLength(3)
-      expect(getSlots(db)).toHaveLength(3)
+      // 3 worker + slot 0 = 4
+      expect(slots).toHaveLength(4)
+      expect(getSlots(db)).toHaveLength(4)
     })
   })
 
@@ -126,14 +131,28 @@ describe("worktree-pool", () => {
       insertTask("task-1")
       await Effect.runPromise(acquireSlot(db, PROJECT_ID, "task-1", mockGetTask({}), mockExec))
 
-      const before = getSlots(db)
-      expect(before[0]!.status).toBe("bound")
+      const slot = await Effect.runPromise(getSlotForTask(db, "task-1"))
+      expect(slot!.status).toBe("bound")
 
       await Effect.runPromise(releaseSlot(db, "task-1", mockExec))
 
-      const after = getSlots(db)
-      expect(after[0]!.status).toBe("available")
-      expect(after[0]!.task_id).toBeNull()
+      const after = await Effect.runPromise(getSlotForTask(db, "task-1"))
+      expect(after).toBeNull()
+    })
+
+    test("skips git reset for slot 0 (orchestrator)", async () => {
+      await Effect.runPromise(initPool(db, PROJECT_ID, mockExec, REPO_PATH, 1))
+      insertTask("task-1")
+      await Effect.runPromise(acquireOrchestratorSlot(db, PROJECT_ID, "task-1", mockGetTask({})))
+
+      const slot = await Effect.runPromise(getSlotForTask(db, "task-1"))
+      expect(slot!.id).toBe("proj-1-slot-0")
+
+      // Release should succeed without git reset
+      await Effect.runPromise(releaseSlot(db, "task-1", mockExec))
+
+      const after = await Effect.runPromise(getSlotForTask(db, "task-1"))
+      expect(after).toBeNull()
     })
 
     test("no-ops when task has no slot", async () => {
@@ -163,13 +182,62 @@ describe("worktree-pool", () => {
   })
 
   describe("deletePoolForProject", () => {
-    test("removes all slots for a project", async () => {
+    test("removes worker slots but preserves slot 0", async () => {
       await Effect.runPromise(initPool(db, PROJECT_ID, mockExec, REPO_PATH, 3))
-      expect(getSlots(db)).toHaveLength(3)
+      expect(getSlots(db)).toHaveLength(4) // 3 workers + slot 0
 
       const deleted = await Effect.runPromise(deletePoolForProject(db, PROJECT_ID))
-      expect(deleted).toBe(3)
-      expect(getSlots(db)).toHaveLength(0)
+      expect(deleted).toBe(3) // only worker slots deleted
+      const remaining = getSlots(db)
+      expect(remaining).toHaveLength(1)
+      expect(remaining[0]!.id).toBe("proj-1-slot-0")
+    })
+  })
+
+  describe("acquireOrchestratorSlot", () => {
+    beforeEach(async () => {
+      await Effect.runPromise(initPool(db, PROJECT_ID, mockExec, REPO_PATH, 2))
+    })
+
+    test("acquires slot 0", async () => {
+      insertTask("task-1")
+      const slot = await Effect.runPromise(
+        acquireOrchestratorSlot(db, PROJECT_ID, "task-1", mockGetTask({})),
+      )
+      expect(slot.id).toBe("proj-1-slot-0")
+      expect(slot.status).toBe("bound")
+      expect(slot.task_id).toBe("task-1")
+    })
+
+    test("fails when slot 0 is bound to active task", async () => {
+      insertTask("task-1")
+      insertTask("task-2")
+      await Effect.runPromise(acquireOrchestratorSlot(db, PROJECT_ID, "task-1", mockGetTask({ "task-1": "running" })))
+
+      const result = Effect.runPromise(
+        acquireOrchestratorSlot(db, PROJECT_ID, "task-2", mockGetTask({ "task-1": "running" })),
+      )
+      await expect(result).rejects.toThrow(/already bound to active task/)
+    })
+
+    test("reuses slot 0 when previous task is terminal", async () => {
+      insertTask("task-1")
+      insertTask("task-2")
+      await Effect.runPromise(acquireOrchestratorSlot(db, PROJECT_ID, "task-1", mockGetTask({ "task-1": "running" })))
+
+      // task-1 is now done
+      const slot = await Effect.runPromise(
+        acquireOrchestratorSlot(db, PROJECT_ID, "task-2", mockGetTask({ "task-1": "done" })),
+      )
+      expect(slot.task_id).toBe("task-2")
+    })
+
+    test("regular acquireSlot never picks slot 0", async () => {
+      insertTask("task-1")
+      const slot = await Effect.runPromise(
+        acquireSlot(db, PROJECT_ID, "task-1", mockGetTask({}), mockExec),
+      )
+      expect(slot.id).not.toBe("proj-1-slot-0")
     })
   })
 

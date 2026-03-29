@@ -7,9 +7,9 @@ import { createLogger } from "../logger"
 import { SessionStartError } from "../errors"
 import { getHandleMeta as getOpenCodeHandleMeta } from "../agent/opencode-provider"
 import { getRepoDir, resolveWorkspace } from "../config"
-import type { TangerineConfig } from "@tangerine/shared"
+import { type TangerineConfig, ORCHESTRATOR_TASK_NAME } from "@tangerine/shared"
 import type { TaskRow } from "../db/types"
-import { initPool, acquireSlot } from "./worktree-pool"
+import { initPool, acquireSlot, acquireOrchestratorSlot } from "./worktree-pool"
 
 const log = createLogger("lifecycle")
 
@@ -78,12 +78,14 @@ export function startSession(
     const sessionSpan = taskLog.startOp("session-start")
     const taskPrefix = task.id.slice(0, 8)
     const defaultBranch = config.defaultBranch ?? "main"
-    // Use pre-set branch (from PR/branch input) or generate one.
+    const isOrchestrator = task.title === ORCHESTRATOR_TASK_NAME
+    // Orchestrator stays on the default branch in slot 0.
+    // Regular tasks use pre-set branch (from PR/branch input) or generate one.
     // Never work directly on the default branch — git worktrees can't share branches
     // with the main repo, and agents should always work on isolated branches.
-    const taskBranch = task.branch === defaultBranch ? null : task.branch
-    const isExistingBranch = !!taskBranch && !taskBranch.startsWith("tangerine/")
-    const branch = taskBranch ?? `tangerine/${taskPrefix}`
+    const taskBranch = isOrchestrator ? defaultBranch : (task.branch === defaultBranch ? null : task.branch)
+    const isExistingBranch = !isOrchestrator && !!taskBranch && !taskBranch.startsWith("tangerine/")
+    const branch = isOrchestrator ? defaultBranch : (taskBranch ?? `tangerine/${taskPrefix}`)
     const repoDir = getRepoDir(deps.tangerineConfig, task.project_id)
 
     const baseBranch = defaultBranch
@@ -121,8 +123,11 @@ export function startSession(
       }))
     )
 
-    yield* activity("worktree.acquiring", "Acquiring worktree slot")
-    const slot = yield* acquireSlot(deps.db, task.project_id, task.id, deps.getTask, exec).pipe(
+    yield* activity("worktree.acquiring", isOrchestrator ? "Acquiring orchestrator slot" : "Acquiring worktree slot")
+    const slot = yield* (isOrchestrator
+      ? acquireOrchestratorSlot(deps.db, task.project_id, task.id, deps.getTask)
+      : acquireSlot(deps.db, task.project_id, task.id, deps.getTask, exec)
+    ).pipe(
       Effect.mapError((e) => new SessionStartError({
         message: `Slot acquisition failed: ${e.message}`,
         taskId: task.id,
@@ -133,24 +138,40 @@ export function startSession(
     yield* activity("worktree.acquired", `Acquired worktree slot`, { slot: slot.id })
     const worktreePath = slot.path
 
-    // Checkout the task branch on the acquired slot
-    yield* localExec(
-      `cd ${worktreePath} && if git rev-parse --verify origin/${branch} >/dev/null 2>&1; then
-        git fetch origin && git checkout -B ${branch} origin/${branch}
-      else
-        git fetch origin && git checkout -B ${branch} origin/${baseBranch}
-      fi`,
-    ).pipe(
-      Effect.tap(() => activity("worktree.ready",
-        isExistingBranch ? `Checked out existing branch: ${branch}` : "Worktree ready",
-        { worktreePath, branch, slot: slot.id, isExistingBranch })),
-      Effect.mapError((e) => new SessionStartError({
-        message: `Branch checkout failed: ${e.message}`,
-        taskId: task.id,
-        phase: "checkout-branch",
-        cause: e,
-      }))
-    )
+    if (isOrchestrator) {
+      // Orchestrator uses slot 0 (main repo) — fetch, reset to clean default branch state.
+      // Previous orchestrator runs may have left uncommitted changes or a different checkout.
+      yield* localExec(
+        `cd ${worktreePath} && git fetch origin && git checkout ${defaultBranch} 2>/dev/null; git reset --hard origin/${defaultBranch} && git clean -fd`,
+      ).pipe(
+        Effect.tap(() => activity("worktree.ready", "Orchestrator slot ready", { worktreePath, branch, slot: slot.id })),
+        Effect.mapError((e) => new SessionStartError({
+          message: `Orchestrator reset failed: ${e.message}`,
+          taskId: task.id,
+          phase: "checkout-branch",
+          cause: e,
+        }))
+      )
+    } else {
+      // Checkout the task branch on the acquired slot
+      yield* localExec(
+        `cd ${worktreePath} && if git rev-parse --verify origin/${branch} >/dev/null 2>&1; then
+          git fetch origin && git checkout -B ${branch} origin/${branch}
+        else
+          git fetch origin && git checkout -B ${branch} origin/${baseBranch}
+        fi`,
+      ).pipe(
+        Effect.tap(() => activity("worktree.ready",
+          isExistingBranch ? `Checked out existing branch: ${branch}` : "Worktree ready",
+          { worktreePath, branch, slot: slot.id, isExistingBranch })),
+        Effect.mapError((e) => new SessionStartError({
+          message: `Branch checkout failed: ${e.message}`,
+          taskId: task.id,
+          phase: "checkout-branch",
+          cause: e,
+        }))
+      )
+    }
     taskLog.debug("Worktree slot acquired", { worktreePath, branch, slotId: slot.id })
 
     yield* deps.updateTask(task.id, { branch, worktree_path: worktreePath }).pipe(

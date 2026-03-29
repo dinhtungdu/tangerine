@@ -110,6 +110,18 @@ curl $API/api/projects
 
 # Get a specific project
 curl $API/api/projects/<project-name>
+
+# Ensure orchestrator task for a project (lazy create + auto-start)
+curl -X POST $API/api/projects/<project-name>/orchestrator \
+  -H "Content-Type: application/json" \
+  -d '{"provider": "claude-code"}'
+```
+
+### Task Lifecycle
+
+```bash
+# Start a dormant task (on-demand session start)
+curl -X POST $API/api/tasks/<id>/start
 ```
 
 ## Common Workflows
