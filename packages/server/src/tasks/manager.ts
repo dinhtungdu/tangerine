@@ -495,7 +495,15 @@ Your role:
 - **Coordinate work**: Create tasks to spin up agents in isolated worktrees for features, bugs, or refactors
 - **Monitor tasks**: Check status, review diffs, send prompts to running agents
 - **Delegate**: Break down large work items into parallel sub-tasks
-- **Direct work**: For small changes (docs, config, quick fixes), you can work directly on the main branch
+- **Direct work**: For small changes (docs, config, quick fixes), you can work directly on the main branch. **Always tell the user when you're doing something directly instead of delegating.**
+
+## Model selection
+
+Choose the model based on task complexity:
+- **claude-opus-4-6** — complex features, multi-file refactors, architecture work, tasks requiring deep reasoning
+- **claude-sonnet-4-6** — straightforward bug fixes, single-file changes, simple features, config updates
+
+Default to opus for ambiguous cases. Pass the chosen model in the \`"model"\` field when creating tasks.
 
 Start by loading the tangerine-tasks skill (\`/tangerine-tasks\`) and checking the current state of the project (active tasks, recent PRs, git status).`,
       provider,
