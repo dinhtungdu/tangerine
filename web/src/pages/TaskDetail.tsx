@@ -394,6 +394,7 @@ export function TaskDetail() {
                 providerModels={providerModels}
                 reasoningEffort={task.reasoningEffort}
                 taskStatus={task.status}
+                taskError={task.error}
                 taskId={task.id}
                 taskTitle={task.title}
                 onSend={session.sendPrompt}
@@ -473,6 +474,7 @@ export function TaskDetail() {
                 providerModels={providerModels}
                 reasoningEffort={task.reasoningEffort}
                 taskStatus={task.status}
+                taskError={task.error}
                 taskId={task.id}
                 taskTitle={task.title}
                 onSend={session.sendPrompt}

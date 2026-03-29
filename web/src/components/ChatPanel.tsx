@@ -18,6 +18,7 @@ interface ChatPanelProps {
   providerModels?: string[]
   reasoningEffort?: string | null
   taskStatus?: TaskStatus | null
+  taskError?: string | null
   taskId?: string
   taskTitle?: string
   onSend: (text: string, images?: PromptImage[]) => void
@@ -36,6 +37,7 @@ export function ChatPanel({
   providerModels,
   reasoningEffort,
   taskStatus,
+  taskError,
   taskId,
   taskTitle,
   onSend,
@@ -231,6 +233,7 @@ export function ChatPanel({
       {isTerminated ? (
         <TerminatedBanner
           taskStatus={taskStatus!}
+          taskError={taskError}
           taskId={taskId}
           taskTitle={taskTitle}
           onContinue={(refTaskId, refTitle) => {
@@ -266,11 +269,13 @@ export function ChatPanel({
 
 function TerminatedBanner({
   taskStatus,
+  taskError,
   taskId,
   taskTitle,
   onContinue,
 }: {
   taskStatus: TaskStatus
+  taskError?: string | null
   taskId?: string
   taskTitle?: string
   onContinue: (taskId?: string, title?: string) => void
@@ -280,15 +285,20 @@ function TerminatedBanner({
   return (
     <div className="border-t border-edge bg-surface px-4 py-3">
       <div className="flex items-center justify-between gap-3">
-        <div className="flex items-center gap-2 text-[13px] text-fg-muted">
-          <span
-            className="inline-flex items-center gap-1 rounded px-1.5 py-0.5 text-[11px] font-medium"
-            style={{ backgroundColor: `color-mix(in srgb, ${color} 10%, transparent)`, color }}
-          >
-            <span className="h-1.5 w-1.5 rounded-full" style={{ backgroundColor: color }} />
-            {label}
-          </span>
-          <span>This task has ended.</span>
+        <div className="flex min-w-0 flex-col gap-1">
+          <div className="flex items-center gap-2 text-[13px] text-fg-muted">
+            <span
+              className="inline-flex shrink-0 items-center gap-1 rounded px-1.5 py-0.5 text-[11px] font-medium"
+              style={{ backgroundColor: `color-mix(in srgb, ${color} 10%, transparent)`, color }}
+            >
+              <span className="h-1.5 w-1.5 rounded-full" style={{ backgroundColor: color }} />
+              {label}
+            </span>
+            <span>This task has ended.</span>
+          </div>
+          {taskStatus === "failed" && taskError && (
+            <p className="truncate text-[12px] text-status-error" title={taskError}>{taskError}</p>
+          )}
         </div>
         <button
           onClick={() => onContinue(taskId, taskTitle)}
