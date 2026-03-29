@@ -172,4 +172,33 @@ describe("health check", () => {
     expect(result).toBe("healthy")
     expect(restartFn).toHaveBeenCalledTimes(0)
   })
+
+  test("alive agent with unrecoverable error fails immediately", async () => {
+    // OpenCode server stays alive even after billing/API errors
+    const task = makeTask()
+    const failFn = mock(() => Effect.void)
+    const deps = makeDeps({
+      checkAgentAlive: () => Effect.succeed(true),
+      failTask: failFn,
+      getLastAgentError: () => "Payment Required: {\"detail\":{\"code\":\"deactivated_workspace\"}}",
+    })
+    const result = await Effect.runPromise(checkTask(task, deps))
+    expect(result).toBe("failed")
+    expect(failFn).toHaveBeenCalledTimes(1)
+    const failReason = (failFn.mock.calls[0] as unknown as [string, string])[1]
+    expect(failReason).toContain("Payment Required")
+  })
+
+  test("alive agent with recoverable error stays healthy", async () => {
+    const task = makeTask()
+    const failFn = mock(() => Effect.void)
+    const deps = makeDeps({
+      checkAgentAlive: () => Effect.succeed(true),
+      failTask: failFn,
+      getLastAgentError: () => "Connection reset by peer",
+    })
+    const result = await Effect.runPromise(checkTask(task, deps))
+    expect(result).toBe("healthy")
+    expect(failFn).toHaveBeenCalledTimes(0)
+  })
 })
