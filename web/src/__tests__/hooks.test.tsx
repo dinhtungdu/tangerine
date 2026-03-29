@@ -247,6 +247,35 @@ describe("useSwipe", () => {
     expect(onSwipeLeft).toHaveBeenCalledTimes(1)
   })
 
+  test("only triggers from screen edge when edgeWidth is set", () => {
+    const onSwipeLeft = mock(() => {})
+    const onSwipeRight = mock(() => {})
+    const { result } = renderHook(() => useSwipe({ onSwipeLeft, onSwipeRight }, { edgeWidth: 20 }))
+
+    Object.defineProperty(document.documentElement, "clientWidth", { value: 375, writable: true, configurable: true })
+
+    // Touch starting in the middle of screen — should NOT trigger
+    act(() => {
+      result.current.onTouchStart(makeTouchEvent(100, 100))
+      result.current.onTouchEnd(makeTouchEvent(30, 100))
+    })
+    expect(onSwipeLeft).not.toHaveBeenCalled()
+
+    // Left edge swipe (into middle) → onSwipeLeft (go back)
+    act(() => {
+      result.current.onTouchStart(makeTouchEvent(10, 100))
+      result.current.onTouchEnd(makeTouchEvent(70, 100))
+    })
+    expect(onSwipeLeft).toHaveBeenCalledTimes(1)
+
+    // Right edge swipe (into middle) → onSwipeRight (next pane)
+    act(() => {
+      result.current.onTouchStart(makeTouchEvent(365, 100))
+      result.current.onTouchEnd(makeTouchEvent(305, 100))
+    })
+    expect(onSwipeRight).toHaveBeenCalledTimes(1)
+  })
+
   test("returns stable callback references across renders", () => {
     const { result, rerender } = renderHook(
       ({ handler }) => useSwipe({ onSwipeLeft: handler }),
