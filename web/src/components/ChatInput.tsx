@@ -117,12 +117,18 @@ export function ChatInput({ onSend, disabled, queueLength, taskId, isWorking, on
     setPendingImages(draft.pendingImages ?? [])
   }, [draftKey, loadDraft, text, pendingImages.length])
 
+  const [isFocused, setIsFocused] = useState(false)
+
   useEffect(() => {
     const textarea = textareaRef.current
     if (!textarea) return
+    if (!isFocused) {
+      textarea.style.height = "auto"
+      return
+    }
     textarea.style.height = "auto"
     textarea.style.height = `${Math.min(textarea.scrollHeight, 144)}px`
-  }, [text])
+  }, [text, isFocused])
 
   useEffect(() => {
     if (!draftInsert || appliedDraftInsertIdRef.current === draftInsert.id) return
@@ -151,8 +157,6 @@ export function ChatInput({ onSend, disabled, queueLength, taskId, isWorking, on
       // ignore storage failures
     }
   }, [draftKey, text, pendingImages])
-
-  const [isFocused, setIsFocused] = useState(false)
 
   const handlePromptClick = useCallback((e: MouseEvent, promptText: string) => {
     e.preventDefault()
@@ -215,11 +219,19 @@ export function ChatInput({ onSend, disabled, queueLength, taskId, isWorking, on
             }}
             onKeyDown={handleKeyDown}
             onPaste={handlePaste}
-            onFocus={() => setIsFocused(true)}
-            onBlur={() => setIsFocused(false)}
+            onFocus={() => {
+              setIsFocused(true)
+              handleInput()
+            }}
+            onBlur={() => {
+              setIsFocused(false)
+              if (textareaRef.current) {
+                textareaRef.current.style.height = "auto"
+              }
+            }}
             placeholder={isWorking ? "Agent is working... (messages will be queued)" : "Message agent..."}
             disabled={disabled}
-            rows={3}
+            rows={1}
             className="min-h-9 w-full resize-none rounded-lg border border-edge bg-surface px-3 py-2 text-[16px] text-fg placeholder-fg-faint outline-none transition focus:border-fg-faint disabled:cursor-not-allowed disabled:opacity-50 md:px-3.5 md:text-[13px] md:placeholder-fg-muted"
           />
           {queueLength > 0 && (
