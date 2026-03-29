@@ -167,16 +167,23 @@ function attemptRestart(
   )
 }
 
+// Providers that persist sessions to disk and support resume after process kill.
+// OpenCode runs as an HTTP server — killing it loses the session.
+const SUSPENDABLE_PROVIDERS = new Set(["claude-code", "codex"])
+
 /**
  * Suspend a running task's agent if it has been idle (no user messages) for
  * longer than DEFAULT_IDLE_TIMEOUT_MS. The task stays "running" — the agent
  * process is killed to free resources but restarts on next user message.
+ * Only applies to providers that support disk-based resume (claude-code, codex).
  */
 function checkIdleTimeout(
   task: TaskRow,
   deps: HealthCheckDeps,
 ): Effect.Effect<void, never> {
   return Effect.gen(function* () {
+    if (!SUSPENDABLE_PROVIDERS.has(task.provider)) return
+
     const lastMsgTime = deps.getLastUserMessageTime(task.id)
     if (lastMsgTime) {
       const idleMs = Date.now() - new Date(lastMsgTime).getTime()

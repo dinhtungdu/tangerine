@@ -303,4 +303,20 @@ describe("idle timeout", () => {
     clearSuspended("orch-1")
     clearSuspended("worker-1")
   })
+
+  test("opencode tasks are not suspended (no disk-based resume)", async () => {
+    const task = makeTask({
+      provider: "opencode",
+      started_at: new Date(Date.now() - 700_000).toISOString(),
+    })
+    const suspendFn = mock(() => Effect.void)
+    const deps = makeDeps({
+      listRunningTasks: () => Effect.succeed([task]),
+      suspendAgent: suspendFn,
+      getLastUserMessageTime: () => new Date(Date.now() - 660_000).toISOString(),
+    })
+    await Effect.runPromise(checkAllTasks(deps))
+    expect(suspendFn).toHaveBeenCalledTimes(0)
+    expect(isTaskSuspended(task.id)).toBe(false)
+  })
 })
