@@ -533,6 +533,8 @@ export function ensureOrchestrator(
   deps: TaskManagerDeps,
   projectId: string,
   provider?: string,
+  model?: string,
+  reasoningEffort?: string,
 ): Effect.Effect<TaskRow, Error> {
   return Effect.gen(function* () {
     const orchestrators = (yield* deps.listTasks({ projectId }))
@@ -568,6 +570,8 @@ Default to opus for ambiguous cases. Pass the chosen model in the \`"model"\` fi
 
 Start by loading the tangerine-tasks skill (\`/tangerine-tasks\`) and checking the current state of the project (active tasks, recent PRs, git status).`,
       provider,
+      model: model ?? "claude-opus-4-6",
+      reasoningEffort: reasoningEffort ?? "high",
       parentTaskId: parent?.id,
     })
   })
