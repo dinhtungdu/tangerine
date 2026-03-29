@@ -170,7 +170,9 @@ curl http://localhost:3456/api/tasks/$PARENT/messages
 
 ## Self-Review Before PR
 
-Before creating your pull request, run a self-review to catch issues. Use your Bash tool to run the following command (blocking — waits for the review to complete):
+> **REQUIRED — do not skip.** You MUST run this review and fix all issues before calling `gh pr create`. Creating a PR without running this step is a mistake.
+
+Run the self-review using your Bash tool (blocking — waits for completion):
 
 ```bash
 codex review --base main -c model="gpt-5.4" -c reasoning.effort="high"
@@ -186,7 +188,11 @@ git diff origin/main...HEAD | claude -p "Review this diff. Focus on bugs, logic 
 opencode run "Review this diff. Focus on bugs, logic errors, edge cases, missing error handling, and code quality. List each issue with file path and line reference." -m <provider/model> <<< "$(git diff origin/main...HEAD)"
 ```
 
-The command runs synchronously in your Bash tool. When it finishes, read the review output, share it with the user, then fix any issues found before creating the PR.
+When the command finishes:
+1. Read the full review output
+2. Share it with the user
+3. Fix every issue found
+4. Only then create the PR
 
 ## Task Object Shape
 
