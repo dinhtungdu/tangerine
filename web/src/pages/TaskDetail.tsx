@@ -1,7 +1,8 @@
 import { useState, useEffect, useCallback, useRef } from "react"
 import { useParams, Link } from "react-router-dom"
 import type { Task } from "@tangerine/shared"
-import { fetchTask, fetchChildTasks, changeTaskConfig, markTaskSeen } from "../lib/api"
+import { ORCHESTRATOR_TASK_NAME } from "@tangerine/shared"
+import { fetchTask, fetchChildTasks, changeTaskConfig, markTaskSeen, ensureOrchestrator } from "../lib/api"
 import { getStatusConfig } from "../lib/status"
 import { useSession } from "../hooks/useSession"
 import { useTaskSearch } from "../hooks/useTaskSearch"
@@ -144,6 +145,17 @@ export function TaskDetail() {
       // TODO: error toast
     }
   }, [id, task])
+
+  const isOrchestrator = task?.title === ORCHESTRATOR_TASK_NAME
+  const handleRestartOrchestrator = useCallback(async () => {
+    if (!task) return
+    try {
+      const newTask = await ensureOrchestrator(task.projectId)
+      navigate(`/tasks/${newTask.id}`)
+    } catch {
+      // TODO: error toast
+    }
+  }, [task, navigate])
 
   const handleSendComments = useCallback((comments: DiffComment[]) => {
     const text = comments
@@ -407,6 +419,7 @@ export function TaskDetail() {
                 onModelChange={handleModelChange}
                 onReasoningEffortChange={handleReasoningEffortChange}
                 predefinedPrompts={current?.predefinedPrompts}
+                onRestartOrchestrator={isOrchestrator ? handleRestartOrchestrator : undefined}
               />
             </div>
           )}
@@ -487,6 +500,7 @@ export function TaskDetail() {
                 onModelChange={handleModelChange}
                 onReasoningEffortChange={handleReasoningEffortChange}
                 predefinedPrompts={current?.predefinedPrompts}
+                onRestartOrchestrator={isOrchestrator ? handleRestartOrchestrator : undefined}
               />
             </div>
           )}
