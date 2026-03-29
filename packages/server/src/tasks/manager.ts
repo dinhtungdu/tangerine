@@ -82,6 +82,32 @@ export function createTask(
     const id = crypto.randomUUID()
     const resolvedProvider = params.provider ?? projectConfig.defaultProvider ?? "claude-code"
 
+    // For worker tasks, inject the active orchestrator's ID so the agent knows
+    // how to escalate out-of-scope issues without creating tasks itself.
+    let description = params.description ?? null
+    if (params.title !== ORCHESTRATOR_TASK_NAME) {
+      const allTasks = yield* deps.listTasks({ projectId: params.projectId })
+      const activeOrchestrator = allTasks.find(
+        (t) => t.title === ORCHESTRATOR_TASK_NAME && !TERMINAL_STATUSES.has(t.status)
+      )
+      if (activeOrchestrator) {
+        const escalation = [
+          "",
+          "---",
+          "## Out-of-scope issues",
+          "",
+          `If you discover issues outside your task scope, send them to the orchestrator (task ID: ${activeOrchestrator.id}) for triage — do NOT create tasks yourself:`,
+          "",
+          "```bash",
+          `curl -X POST http://localhost:3456/api/tasks/${activeOrchestrator.id}/prompt \\`,
+          '  -H "Content-Type: application/json" \\',
+          `  -d '{"text": "Discovered out-of-scope issue: <brief description>"}'`,
+          "```",
+        ].join("\n")
+        description = description ? description + "\n" + escalation : escalation.replace(/^\n/, "")
+      }
+    }
+
     const task = yield* deps.insertTask({
       id,
       project_id: params.projectId,
@@ -90,7 +116,7 @@ export function createTask(
       source_url: params.sourceUrl ?? null,
       repo_url: projectConfig.repo,
       title: params.title,
-      description: params.description ?? null,
+      description,
       provider: resolvedProvider,
       model: params.model ?? null,
       reasoning_effort: params.reasoningEffort ?? null,
