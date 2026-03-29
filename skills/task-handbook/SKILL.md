@@ -41,6 +41,7 @@ curl "$API/api/tasks"
 curl "$API/api/tasks?status=running"
 
 # Create a new task (cross-project delegation)
+# Default model is claude-opus-4-6 — override with "model" if user specifies another
 curl -X POST $API/api/tasks \
   -H "Content-Type: application/json" \
   -d '{
@@ -48,7 +49,8 @@ curl -X POST $API/api/tasks \
     "title": "Task title",
     "description": "What to do",
     "source": "cross-project",
-    "provider": "claude-code"
+    "provider": "claude-code",
+    "model": "claude-opus-4-6"
   }'
 
 # Create a task from an existing branch
@@ -126,7 +128,8 @@ curl -X POST http://localhost:3456/api/tasks \
     "title": "Fix the login bug",
     "description": "The login form throws a 500 when email contains a +. Fix it.",
     "source": "cross-project",
-    "provider": "claude-code"
+    "provider": "claude-code",
+    "model": "claude-opus-4-6"
   }'
 ```
 
