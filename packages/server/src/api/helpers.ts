@@ -1,4 +1,4 @@
-import type { Task, TaskSource, TaskStatus, ProviderType } from "@tangerine/shared"
+import type { Task, TaskSource, TaskStatus, ProviderType, TaskCapability } from "@tangerine/shared"
 import { ORCHESTRATOR_TASK_NAME } from "@tangerine/shared"
 import type { TaskRow } from "../db/types"
 
@@ -17,7 +17,7 @@ export function utc(ts: string | null): string | null {
 
 // Fallback capabilities for rows that predate the capabilities column (capabilities IS NULL).
 // Use title to distinguish orchestrators from worker tasks so upgraded installs work correctly.
-function defaultCapabilities(title: string): string[] {
+function defaultCapabilities(title: string): TaskCapability[] {
   return title === ORCHESTRATOR_TASK_NAME
     ? ["restart"]
     : ["resolve", "predefined-prompts", "diff"]

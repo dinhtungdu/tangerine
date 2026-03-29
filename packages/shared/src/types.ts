@@ -1,6 +1,7 @@
 export type TaskStatus = "created" | "provisioning" | "running" | "done" | "failed" | "cancelled"
 export type ProviderType = "opencode" | "claude-code" | "codex"
 export type TaskSource = "github" | "linear" | "manual" | "cross-project"
+export type TaskCapability = "restart" | "resolve" | "predefined-prompts" | "diff"
 export interface Task {
   id: string
   projectId: string
@@ -27,7 +28,7 @@ export interface Task {
   completedAt: string | null
   lastSeenAt: string | null
   lastResultAt: string | null
-  capabilities: string[]
+  capabilities: TaskCapability[]
 }
 
 export type ActivityType = "lifecycle" | "file" | "system"

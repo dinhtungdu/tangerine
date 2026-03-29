@@ -3,7 +3,7 @@
 
 import { Effect } from "effect"
 import { createLogger } from "../logger"
-import { type ActivityType, ORCHESTRATOR_TASK_NAME, TERMINAL_STATUSES, DEFAULT_API_PORT } from "@tangerine/shared"
+import { type ActivityType, type TaskCapability, ORCHESTRATOR_TASK_NAME, TERMINAL_STATUSES, DEFAULT_API_PORT } from "@tangerine/shared"
 import {
   TaskNotFoundError,
   TaskNotTerminalError,
@@ -116,11 +116,9 @@ export function createTask(
     }
 
     const isOrchestrator = params.title === ORCHESTRATOR_TASK_NAME
-    const capabilities = JSON.stringify(
-      isOrchestrator
-        ? ["restart"]
-        : ["resolve", "predefined-prompts", "diff"]
-    )
+    const capabilities: TaskCapability[] = isOrchestrator
+      ? ["restart"]
+      : ["resolve", "predefined-prompts", "diff"]
 
     const task = yield* deps.insertTask({
       id,
@@ -136,7 +134,7 @@ export function createTask(
       reasoning_effort: params.reasoningEffort ?? null,
       branch: params.branch ?? null,
       parent_task_id: params.parentTaskId ?? null,
-      capabilities,
+      capabilities: JSON.stringify(capabilities),
     })
 
     log.info("Task created", { taskId: id, projectId: params.projectId, source: params.source, title: params.title })
