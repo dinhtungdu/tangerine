@@ -364,9 +364,17 @@ export function createOpenCodeProvider(): AgentFactory {
                 try: async () => {
                   if (shutdownCalled) throw new Error("Agent shut down")
 
-                  // Kill any previous process that hasn't exited yet
+                  // Wait for previous process to finish (with timeout) before spawning a new one.
+                  // This avoids killing in-flight work when prompts arrive in quick succession.
                   if (currentProc) {
-                    try { currentProc.kill() } catch { /* already dead */ }
+                    const exitOrTimeout = await Promise.race([
+                      currentProc.exited,
+                      new Promise<"timeout">((r) => setTimeout(() => r("timeout"), 5000)),
+                    ])
+                    if (exitOrTimeout === "timeout") {
+                      taskLog.warn("Previous opencode run still active after 5s, killing")
+                      try { currentProc.kill() } catch { /* already dead */ }
+                    }
                     currentParser?.stop()
                     currentProc = null
                     currentParser = null
@@ -391,6 +399,14 @@ export function createOpenCodeProvider(): AgentFactory {
                   lastPid = proc.pid
 
                   emit({ kind: "status", status: "working" })
+
+                  // Check exit code when the process finishes to detect failures
+                  proc.exited.then((exitCode) => {
+                    if (exitCode !== 0 && exitCode !== null && !shutdownCalled) {
+                      taskLog.error("opencode run exited with error", { exitCode, pid: proc.pid })
+                      emit({ kind: "error", message: `opencode run exited with code ${exitCode}` })
+                    }
+                  })
 
                   // Parse NDJSON from stdout
                   const parser = parseNdjsonStream(
@@ -526,7 +542,10 @@ export function createOpenCodeProvider(): AgentFactory {
               agentPort: null as number | null,
             }),
           })
-          // Attach PID getter — returns last spawned PID for DB persistence / cleanup
+          // Attach PID getter — returns last spawned PID for DB persistence / cleanup.
+          // Note: this is null until the first prompt spawns a process. For per-prompt
+          // providers, orphan processes are short-lived (exit on turn completion), so
+          // the DB PID is a best-effort fallback rather than a reliable kill target.
           Object.defineProperty(handle, "__pid", {
             get: () => lastPid,
           })
