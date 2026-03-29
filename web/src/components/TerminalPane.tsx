@@ -200,7 +200,6 @@ export function TerminalPane(props: TerminalPaneProps) {
   return (
     <div
       ref={wrapperRef}
-      data-swipe-ignore
       className="flex flex-col overflow-hidden"
       style={viewportHeight != null
         ? { height: viewportHeight, maxHeight: viewportHeight }

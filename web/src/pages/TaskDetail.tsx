@@ -9,7 +9,6 @@ import { useProject } from "../context/ProjectContext"
 import { useProjectNav } from "../hooks/useProjectNav"
 import { useDiffFiles } from "../hooks/useDiffFiles"
 import { useResizable } from "../hooks/useResizable"
-import { useSwipe } from "../hooks/useSwipe"
 import { TasksSidebar } from "../components/TasksSidebar"
 import { ChatPanel } from "../components/ChatPanel"
 import { DiffView } from "../components/DiffView"
@@ -21,7 +20,6 @@ import { formatPrNumber } from "../lib/format"
 import { copyToClipboard } from "../lib/clipboard"
 
 type PaneId = "chat" | "diff" | "terminal" | "activity"
-const PANE_ORDER: PaneId[] = ["chat", "diff", "terminal", "activity"]
 
 export function TaskDetail() {
   const { id } = useParams<{ id: string }>()
@@ -225,23 +223,6 @@ export function TaskDetail() {
       setTask((prev) => (prev ? { ...prev, status: session.taskStatus! } : prev))
     }
   }, [session.taskStatus])
-
-  const mobileSwipe = useSwipe({
-    onSwipeLeft: () => {
-      if (mobilePane === "chat") {
-        navigate("/")
-      } else {
-        const idx = PANE_ORDER.indexOf(mobilePane)
-        const prev = PANE_ORDER[idx - 1]
-        if (idx > 0 && prev) setMobilePane(prev)
-      }
-    },
-    onSwipeRight: () => {
-      const idx = PANE_ORDER.indexOf(mobilePane)
-      const next = PANE_ORDER[idx + 1]
-      if (idx < PANE_ORDER.length - 1 && next) setMobilePane(next)
-    },
-  }, { edgeWidth: 20 })
 
   if (loading) {
     return (
@@ -480,7 +461,7 @@ export function TaskDetail() {
         </div>
 
         {/* Mobile pane layout — single pane, switched by mobilePane */}
-        <div className="flex min-h-0 flex-1 md:hidden" {...mobileSwipe}>
+        <div className="flex min-h-0 flex-1 md:hidden">
           {mobilePane === "chat" && (
             <div className="flex min-w-0 flex-1 flex-col">
               <ChatPanel
