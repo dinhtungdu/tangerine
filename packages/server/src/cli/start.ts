@@ -816,15 +816,6 @@ export async function start(): Promise<void> {
           return row?.timestamp ?? null
         }
       })(),
-      getUserMessageCount: (() => {
-        const stmt = db.prepare(
-          "SELECT COUNT(*) as count FROM session_logs WHERE task_id = ? AND role = 'user'"
-        )
-        return (taskId: string) => {
-          const row = stmt.get(taskId) as { count: number }
-          return row.count
-        }
-      })(),
       cleanupDeps,
     }
     await Effect.runPromise(startHealthMonitor(healthDeps))

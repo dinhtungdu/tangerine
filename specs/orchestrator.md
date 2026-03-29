@@ -34,10 +34,6 @@ Orchestrators do **not** auto-start on creation. They start when the user opens 
 
 The health monitor tracks the last user message time for each running orchestrator. If no user message arrives within `DEFAULT_IDLE_TIMEOUT_MS` (10 minutes), the orchestrator is completed (`done`). This frees resources when the user is away. The agent process is killed and cleaned up via normal `completeTask` flow.
 
-### Context rotation
-
-The health monitor also tracks the user message count per orchestrator. When the count exceeds `ORCHESTRATOR_MESSAGE_LIMIT` (100), the orchestrator is completed. This prevents context degradation in long conversations. The next user interaction creates a fresh orchestrator with clean context — no summary is needed because the new orchestrator reads project state from git, the tasks API, and the agent's memory system.
-
 ### Auto-resume
 
 When a user sends a message (via `POST /api/tasks/:id/prompt` or `POST /api/tasks/:id/chat`) to a done/failed/cancelled orchestrator, the system automatically:
@@ -51,10 +47,9 @@ This is transparent to the user — they message the old orchestrator and the sy
 
 ### Termination and restart
 
-Orchestrators reach `done` status through three paths:
+Orchestrators reach `done` status through two paths:
 1. **Idle timeout** — no user messages for 10 minutes
-2. **Context rotation** — user message count exceeds 100
-3. **Manual** — user or system explicitly completes it
+2. **Manual** — user or system explicitly completes it
 
 In all cases, the next user interaction auto-resumes via `ensureOrchestrator`.
 

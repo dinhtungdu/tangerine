@@ -4,7 +4,7 @@
 import { Effect, Schedule } from "effect"
 import { createLogger } from "../logger"
 import { HealthCheckError } from "../errors"
-import { DEFAULT_IDLE_TIMEOUT_MS, ORCHESTRATOR_TASK_NAME, ORCHESTRATOR_MESSAGE_LIMIT } from "@tangerine/shared"
+import { DEFAULT_IDLE_TIMEOUT_MS, ORCHESTRATOR_TASK_NAME } from "@tangerine/shared"
 import type { TaskRow } from "../db/types"
 import type { CleanupDeps } from "./cleanup"
 import { cleanupSession } from "./cleanup"
@@ -49,8 +49,6 @@ export interface HealthCheckDeps {
   getLastAgentError(taskId: string): string | undefined
   /** Returns the ISO timestamp of the most recent user message for a task, or null. */
   getLastUserMessageTime(taskId: string): string | null
-  /** Returns the count of user messages for a task. */
-  getUserMessageCount(taskId: string): number
   cleanupDeps: CleanupDeps
 }
 
@@ -172,15 +170,7 @@ function checkOrchestratorSession(
       if (idleMs >= DEFAULT_IDLE_TIMEOUT_MS) {
         log.info("Orchestrator idle timeout (no messages), completing", { taskId: task.id, idleMs })
         yield* deps.completeTask(task.id).pipe(Effect.ignoreLogged)
-        return
       }
-    }
-
-    // Context rotation: complete if message count exceeds threshold
-    const msgCount = deps.getUserMessageCount(task.id)
-    if (msgCount >= ORCHESTRATOR_MESSAGE_LIMIT) {
-      log.info("Orchestrator message limit reached, completing", { taskId: task.id, msgCount })
-      yield* deps.completeTask(task.id).pipe(Effect.ignoreLogged)
     }
   }).pipe(Effect.catchAll(() => Effect.void))
 }

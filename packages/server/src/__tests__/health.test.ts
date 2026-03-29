@@ -47,7 +47,6 @@ function makeDeps(overrides?: Partial<HealthCheckDeps>): HealthCheckDeps {
     completeTask: () => Effect.void,
     getLastAgentError: () => undefined,
     getLastUserMessageTime: () => new Date().toISOString(),
-    getUserMessageCount: () => 0,
     cleanupDeps: {
       db: null as never,
       getTask: () => Effect.succeed(null),
@@ -220,7 +219,6 @@ describe("orchestrator session management", () => {
       completeTask: completeFn,
       // Last user message was 11 minutes ago (> 10 min timeout)
       getLastUserMessageTime: () => new Date(Date.now() - 660_000).toISOString(),
-      getUserMessageCount: () => 5,
     })
     await Effect.runPromise(checkAllTasks(deps))
     expect(completeFn).toHaveBeenCalledTimes(1)
@@ -237,27 +235,9 @@ describe("orchestrator session management", () => {
       completeTask: completeFn,
       // Last user message was 1 minute ago (< 10 min timeout)
       getLastUserMessageTime: () => new Date(Date.now() - 60_000).toISOString(),
-      getUserMessageCount: () => 5,
     })
     await Effect.runPromise(checkAllTasks(deps))
     expect(completeFn).toHaveBeenCalledTimes(0)
-  })
-
-  test("orchestrator with too many messages is completed", async () => {
-    const task = makeTask({
-      title: ORCHESTRATOR_TASK_NAME,
-      started_at: new Date(Date.now() - 60_000).toISOString(),
-    })
-    const completeFn = mock(() => Effect.void)
-    const deps = makeDeps({
-      listRunningTasks: () => Effect.succeed([task]),
-      completeTask: completeFn,
-      // Recent activity, but too many messages
-      getLastUserMessageTime: () => new Date(Date.now() - 30_000).toISOString(),
-      getUserMessageCount: () => 100,
-    })
-    await Effect.runPromise(checkAllTasks(deps))
-    expect(completeFn).toHaveBeenCalledTimes(1)
   })
 
   test("regular task is not affected by orchestrator idle check", async () => {
@@ -271,7 +251,6 @@ describe("orchestrator session management", () => {
       completeTask: completeFn,
       // Would trigger idle timeout if this were an orchestrator
       getLastUserMessageTime: () => new Date(Date.now() - 660_000).toISOString(),
-      getUserMessageCount: () => 200,
     })
     await Effect.runPromise(checkAllTasks(deps))
     expect(completeFn).toHaveBeenCalledTimes(0)
@@ -287,7 +266,6 @@ describe("orchestrator session management", () => {
       listRunningTasks: () => Effect.succeed([task]),
       completeTask: completeFn,
       getLastUserMessageTime: () => null,
-      getUserMessageCount: () => 0,
     })
     await Effect.runPromise(checkAllTasks(deps))
     expect(completeFn).toHaveBeenCalledTimes(1)
