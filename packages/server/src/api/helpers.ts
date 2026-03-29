@@ -15,11 +15,11 @@ export function utc(ts: string | null): string | null {
   return ts.replace(" ", "T") + "Z"
 }
 
-// Fallback capabilities for rows that predate the capabilities column (capabilities IS NULL).
-// Use title to distinguish orchestrators from worker tasks so upgraded installs work correctly.
-function defaultCapabilities(title: string): TaskCapability[] {
+// Canonical capabilities per task type. Used as fallback for rows with NULL capabilities
+// (pre-capabilities installs) and to backfill new capabilities on existing rows.
+function canonicalCapabilities(title: string): TaskCapability[] {
   return title === ORCHESTRATOR_TASK_NAME
-    ? ["resolve"]
+    ? ["resolve", "end-session"]
     : ["resolve", "predefined-prompts", "diff"]
 }
 
@@ -51,7 +51,7 @@ export function mapTaskRow(row: TaskRow): Task {
     completedAt: utc(row.completed_at),
     lastSeenAt: utc(row.last_seen_at),
     lastResultAt: utc(row.last_result_at),
-    capabilities: row.capabilities ? JSON.parse(row.capabilities) : defaultCapabilities(row.title),
+    capabilities: canonicalCapabilities(row.title),
   }
 }
 
