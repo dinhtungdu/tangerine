@@ -285,7 +285,7 @@ export function SystemLog({ project }: { project?: string }) {
             onClick={() => setActiveFilter(i)}
             className={`rounded-lg px-2.5 py-1 text-[12px] font-medium transition-colors ${
               i === activeFilter
-                ? "bg-fg text-bg"
+                ? "bg-fg text-surface"
                 : "bg-surface-secondary text-fg-muted hover:text-fg"
             }`}
           >
