@@ -27,6 +27,7 @@ interface ChatPanelProps {
   onReasoningEffortChange?: (effort: string) => void
   predefinedPrompts?: PredefinedPrompt[]
   onResolve?: () => Promise<void>
+  onEndSession?: () => Promise<void>
 }
 
 export function ChatPanel({
@@ -47,6 +48,7 @@ export function ChatPanel({
   onReasoningEffortChange,
   predefinedPrompts,
   onResolve,
+  onEndSession,
 }: ChatPanelProps) {
   const scrollRef = useRef<HTMLDivElement>(null)
   const { navigate } = useProjectNav()
@@ -247,7 +249,21 @@ export function ChatPanel({
           onResolve={onResolve}
         />
       ) : (
-        <ChatInput
+        <>
+          {onEndSession && (
+            <div className="flex justify-end border-t border-edge px-3 py-1.5">
+              <button
+                onClick={() => { onEndSession().catch(console.error) }}
+                className="flex items-center gap-1.5 rounded-md px-2.5 py-1 text-[12px] font-medium text-fg-muted transition hover:bg-surface-secondary hover:text-fg"
+              >
+                <svg className="h-3 w-3" viewBox="0 0 24 24">
+                  <rect x="6" y="6" width="12" height="12" rx="1" fill="currentColor" />
+                </svg>
+                End session
+              </button>
+            </div>
+          )}
+          <ChatInput
           onSend={onSend}
           disabled={false}
           queueLength={queueLength}
@@ -263,6 +279,7 @@ export function ChatPanel({
           predefinedPrompts={predefinedPrompts}
           draftInsert={draftInsert}
         />
+        </>
       )}
     </div>
   )
