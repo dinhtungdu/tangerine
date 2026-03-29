@@ -135,11 +135,16 @@ export function cancelTask(
     }
 
     log.info("Task cancelled", { taskId })
-    yield* deps.updateTask(taskId, {
+    const dbError = yield* deps.updateTask(taskId, {
       status: "cancelled",
       completed_at: new Date().toISOString(),
     }).pipe(
-      Effect.mapError((cause) => new DbError({ message: `Failed to persist cancelled status for task ${taskId}`, cause }))
+      Effect.map(() => null as DbError | null),
+      Effect.catchAll((cause) => {
+        const err = new DbError({ message: `Failed to persist cancelled status for task ${taskId}`, cause })
+        log.error(err.message, { taskId, cause: String(cause) })
+        return Effect.succeed(err)
+      })
     )
 
     yield* deps.logActivity(taskId, "lifecycle", "task.cancelled", "Task cancelled").pipe(
@@ -149,7 +154,7 @@ export function cancelTask(
     clearAgentWorkingState(taskId)
     emitStatusChange(taskId, "cancelled")
 
-    // Clean up running session if active
+    // Always clean up — even if the status write failed
     if (task.status === "running" || task.status === "provisioning") {
       yield* cleanupSession(taskId, deps.cleanupDeps).pipe(
         Effect.catchTag("SessionCleanupError", (e) => {
@@ -161,6 +166,8 @@ export function cancelTask(
         })
       )
     }
+
+    if (dbError) return yield* dbError
   })
 }
 
@@ -183,8 +190,13 @@ export function completeTask(
       durationMs = new Date(now).getTime() - new Date(task.started_at).getTime()
     }
 
-    yield* deps.updateTask(taskId, { status: "done", completed_at: now }).pipe(
-      Effect.mapError((cause) => new DbError({ message: `Failed to persist done status for task ${taskId}`, cause }))
+    const dbError = yield* deps.updateTask(taskId, { status: "done", completed_at: now }).pipe(
+      Effect.map(() => null as DbError | null),
+      Effect.catchAll((cause) => {
+        const err = new DbError({ message: `Failed to persist done status for task ${taskId}`, cause })
+        log.error(err.message, { taskId, cause: String(cause) })
+        return Effect.succeed(err)
+      })
     )
 
     yield* deps.logActivity(taskId, "lifecycle", "task.completed", "Task completed", {
@@ -195,6 +207,7 @@ export function completeTask(
     emitStatusChange(taskId, "done")
     log.info("Task completed", { taskId, durationMs })
 
+    // Always clean up — even if the status write failed
     yield* cleanupSession(taskId, deps.cleanupDeps).pipe(
       Effect.catchTag("SessionCleanupError", (e) => {
         log.error("Cleanup after completion failed", {
@@ -204,6 +217,8 @@ export function completeTask(
         return Effect.void
       })
     )
+
+    if (dbError) return yield* dbError
   })
 }
 
