@@ -96,7 +96,7 @@ export function createTask(
           "---",
           "## Out-of-scope issues",
           "",
-          `If you discover issues outside your task scope, send them to the orchestrator (task ID: ${activeOrchestrator.id}) for triage — do NOT create tasks yourself:`,
+          `If you discover issues outside your task scope, first mention them to the user in your conversation, then send them to the orchestrator (task ID: ${activeOrchestrator.id}) for triage — do NOT create tasks yourself:`,
           "",
           "```bash",
           `curl -X POST http://localhost:3456/api/tasks/${activeOrchestrator.id}/prompt \\`,
