@@ -308,6 +308,55 @@ export function createOpenCodeEventProcessor(sessionId: string, callbacks: OpenC
 }
 
 // ---------------------------------------------------------------------------
+// Adapter: `--format json` NDJSON events → internal event format
+// ---------------------------------------------------------------------------
+// `opencode run --format json` outputs simplified event types (text, tool_use,
+// step_start, step_finish, reasoning, error) while the event processor expects
+// the internal SSE format (message.part.updated, session.status, etc.).
+// This adapter converts back so we can reuse the tested processor logic.
+
+export function adaptRunJsonEvent(raw: Record<string, unknown>): Record<string, unknown>[] {
+  const type = raw.type as string | undefined
+  if (!type) return []
+
+  const part = raw.part as Record<string, unknown> | undefined
+
+  switch (type) {
+    // text, tool_use, reasoning all map to message.part.updated with the part object
+    case "text":
+    case "tool_use":
+    case "reasoning":
+      if (!part) return []
+      return [{ type: "message.part.updated", properties: { part } }]
+
+    case "step_start":
+      return [{ type: "session.status", properties: { status: { type: "busy" } } }]
+
+    case "step_finish": {
+      // Reconstruct message.updated completion event to trigger narration + cleanup
+      if (!part) return []
+      const messageId = part.messageID ?? part.id
+      return [{
+        type: "message.updated",
+        properties: {
+          info: {
+            id: messageId,
+            role: "assistant",
+            time: { completed: raw.timestamp ?? Date.now() },
+          },
+        },
+      }]
+    }
+
+    case "error":
+      return [{ type: "session.error", properties: { error: raw.error } }]
+
+    default:
+      return []
+  }
+}
+
+// ---------------------------------------------------------------------------
 // Provider implementation — subprocess per prompt
 // ---------------------------------------------------------------------------
 
@@ -328,9 +377,9 @@ export function createOpenCodeProvider(): AgentFactory {
           let currentProc: ReturnType<typeof Bun.spawn> | null = null
           let currentParser: { stop(): void } | null = null
 
-          // Track active model and reasoning effort for CLI flags
+          // Track active model for CLI flags
+          // Note: opencode run does not support --reasoning-effort; it's a per-provider config
           let activeModel = ctx.model ?? ""
-          let activeReasoningEffort = ctx.reasoningEffort ?? ""
           // Track last spawned PID so cleanup can kill orphaned processes after server restart
           let lastPid: number | null = null
 
@@ -351,9 +400,6 @@ export function createOpenCodeProvider(): AgentFactory {
             const args = ["opencode", "run", "--format", "json", "-s", sessionId]
             if (activeModel) {
               args.push("-m", activeModel)
-            }
-            if (activeReasoningEffort) {
-              args.push("--reasoning-effort", activeReasoningEffort)
             }
             return args
           }
@@ -408,12 +454,17 @@ export function createOpenCodeProvider(): AgentFactory {
                     }
                   })
 
-                  // Parse NDJSON from stdout
+                  // Parse NDJSON from stdout — adapt --format json events to
+                  // internal format before feeding to the event processor
                   const parser = parseNdjsonStream(
                     proc.stdout as ReadableStream<Uint8Array>,
                     {
                       onLine: (data) => {
-                        eventProcessor.process(data as Record<string, unknown>)
+                        const raw = data as Record<string, unknown>
+                        const adapted = adaptRunJsonEvent(raw)
+                        for (const event of adapted) {
+                          eventProcessor.process(event)
+                        }
                       },
                       onError: (err) => {
                         if (!shutdownCalled) {
@@ -428,7 +479,12 @@ export function createOpenCodeProvider(): AgentFactory {
                         currentParser = null
                         if (!shutdownCalled) {
                           taskLog.debug("opencode run stdout ended")
-                          emit({ kind: "status", status: "idle" })
+                          // Feed synthetic idle to processor so it promotes
+                          // narration → assistant message before emitting idle
+                          eventProcessor.process({
+                            type: "session.status",
+                            properties: { status: { type: "idle" } },
+                          })
                         }
                       },
                     },
@@ -482,14 +538,12 @@ export function createOpenCodeProvider(): AgentFactory {
             },
 
             updateConfig(config: import("./provider").AgentConfig) {
+              // Model is passed per-prompt via -m flag — just update the tracked value.
+              // Reasoning effort is not supported by `opencode run` CLI — silently accepted.
               return Effect.sync(() => {
                 if (config.model) {
                   activeModel = config.model
                   taskLog.info("Model updated", { model: activeModel })
-                }
-                if (config.reasoningEffort) {
-                  activeReasoningEffort = config.reasoningEffort
-                  taskLog.info("Reasoning effort updated", { reasoningEffort: activeReasoningEffort })
                 }
                 return true
               })

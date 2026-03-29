@@ -1,6 +1,6 @@
 import { describe, expect, it } from "bun:test"
 import { Effect } from "effect"
-import { getHandleMeta, mapOpenCodeEvent, createOpenCodeEventProcessor } from "../agent/opencode-provider"
+import { getHandleMeta, mapOpenCodeEvent, createOpenCodeEventProcessor, adaptRunJsonEvent } from "../agent/opencode-provider"
 import type { AgentHandle, AgentEvent } from "../agent/provider"
 import { getAgentRuntimeMeta } from "../tasks/lifecycle"
 
@@ -554,5 +554,172 @@ describe("createOpenCodeEventProcessor — image handling", () => {
     )
     // Only one narration (the first one with content)
     expect(narrations).toHaveLength(1)
+  })
+})
+
+describe("adaptRunJsonEvent — --format json to internal event conversion", () => {
+  it("converts text event to message.part.updated", () => {
+    const adapted = adaptRunJsonEvent({
+      type: "text",
+      timestamp: 1234567890,
+      sessionID: "sess-1",
+      part: { type: "text", messageID: "msg-1", text: "Hello world" },
+    })
+
+    expect(adapted).toHaveLength(1)
+    expect(adapted[0]).toEqual({
+      type: "message.part.updated",
+      properties: {
+        part: { type: "text", messageID: "msg-1", text: "Hello world" },
+      },
+    })
+  })
+
+  it("converts tool_use event to message.part.updated", () => {
+    const adapted = adaptRunJsonEvent({
+      type: "tool_use",
+      timestamp: 1234567890,
+      sessionID: "sess-1",
+      part: {
+        type: "tool",
+        tool: "bash",
+        callID: "call-1",
+        state: { status: "running", input: { command: "ls" } },
+      },
+    })
+
+    expect(adapted).toHaveLength(1)
+    expect(adapted[0]).toEqual({
+      type: "message.part.updated",
+      properties: {
+        part: {
+          type: "tool",
+          tool: "bash",
+          callID: "call-1",
+          state: { status: "running", input: { command: "ls" } },
+        },
+      },
+    })
+  })
+
+  it("converts reasoning event to message.part.updated", () => {
+    const adapted = adaptRunJsonEvent({
+      type: "reasoning",
+      timestamp: 1234567890,
+      sessionID: "sess-1",
+      part: { type: "thinking", text: "Let me analyze..." },
+    })
+
+    expect(adapted).toHaveLength(1)
+    expect(adapted[0]).toEqual({
+      type: "message.part.updated",
+      properties: {
+        part: { type: "thinking", text: "Let me analyze..." },
+      },
+    })
+  })
+
+  it("converts step_start to session.status busy", () => {
+    const adapted = adaptRunJsonEvent({
+      type: "step_start",
+      timestamp: 1234567890,
+      sessionID: "sess-1",
+      part: { id: "step-1" },
+    })
+
+    expect(adapted).toEqual([{
+      type: "session.status",
+      properties: { status: { type: "busy" } },
+    }])
+  })
+
+  it("converts step_finish to message.updated completion", () => {
+    const adapted = adaptRunJsonEvent({
+      type: "step_finish",
+      timestamp: 1234567890,
+      sessionID: "sess-1",
+      part: { messageID: "msg-1", id: "step-1" },
+    })
+
+    expect(adapted).toHaveLength(1)
+    expect(adapted[0]).toEqual({
+      type: "message.updated",
+      properties: {
+        info: {
+          id: "msg-1",
+          role: "assistant",
+          time: { completed: 1234567890 },
+        },
+      },
+    })
+  })
+
+  it("converts error event to session.error", () => {
+    const adapted = adaptRunJsonEvent({
+      type: "error",
+      timestamp: 1234567890,
+      sessionID: "sess-1",
+      error: { message: "Something went wrong" },
+    })
+
+    expect(adapted).toEqual([{
+      type: "session.error",
+      properties: { error: { message: "Something went wrong" } },
+    }])
+  })
+
+  it("returns empty array for unknown event types", () => {
+    expect(adaptRunJsonEvent({ type: "unknown_event" })).toEqual([])
+  })
+
+  it("returns empty array for events without part (text/tool_use)", () => {
+    expect(adaptRunJsonEvent({ type: "text" })).toEqual([])
+    expect(adaptRunJsonEvent({ type: "tool_use" })).toEqual([])
+  })
+
+  it("works end-to-end with processor: text → narration → assistant on idle", () => {
+    const events: AgentEvent[] = []
+    const processor = createOpenCodeEventProcessor("sess-e2e", {
+      emit: (e) => events.push(e),
+    })
+
+    // Simulate --format json events fed through the adapter
+    const textEvent = adaptRunJsonEvent({
+      type: "text",
+      timestamp: Date.now(),
+      sessionID: "sess-e2e",
+      part: { type: "text", messageID: "msg-e2e", sessionID: "sess-e2e", text: "Analysis complete" },
+    })
+    for (const e of textEvent) processor.process(e)
+
+    const finishEvent = adaptRunJsonEvent({
+      type: "step_finish",
+      timestamp: Date.now(),
+      sessionID: "sess-e2e",
+      part: { messageID: "msg-e2e", sessionID: "sess-e2e" },
+    })
+    for (const e of finishEvent) processor.process(e)
+
+    // Narration emitted on step_finish
+    const narration = events.find(
+      (e) => e.kind === "message.complete" && e.role === "narration",
+    )
+    expect(narration).toMatchObject({
+      kind: "message.complete",
+      role: "narration",
+      content: "Analysis complete",
+    })
+
+    // Synthetic idle promotes narration to assistant
+    processor.process({ type: "session.status", properties: { status: { type: "idle" } } })
+
+    const assistant = events.find(
+      (e) => e.kind === "message.complete" && e.role === "assistant",
+    )
+    expect(assistant).toMatchObject({
+      kind: "message.complete",
+      role: "assistant",
+      content: "Analysis complete",
+    })
   })
 })
