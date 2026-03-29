@@ -3,7 +3,7 @@
 
 import { Effect } from "effect"
 import { createLogger } from "../logger"
-import { type ActivityType, ORCHESTRATOR_TASK_NAME } from "@tangerine/shared"
+import { type ActivityType, ORCHESTRATOR_TASK_NAME, TERMINAL_STATUSES } from "@tangerine/shared"
 import {
   TaskNotFoundError,
   SessionCleanupError,
@@ -460,8 +460,6 @@ export function reprovisionTasksForProject(
   })
 }
 
-const TERMINAL_STATUSES = new Set(["done", "failed", "cancelled"])
-
 /**
  * Ensure an orchestrator task exists for a project. Lazy creation:
  * - Active orchestrator exists → return it
@@ -475,35 +473,30 @@ export function ensureOrchestrator(
   provider?: string,
 ): Effect.Effect<TaskRow, Error> {
   return Effect.gen(function* () {
-    const allTasks = yield* deps.listTasks({ projectId })
+    const orchestrators = (yield* deps.listTasks({ projectId }))
+      .filter((t) => t.title === ORCHESTRATOR_TASK_NAME)
 
-    // Find active orchestrator (non-terminal)
-    const active = allTasks.find(
-      (t) => t.title === ORCHESTRATOR_TASK_NAME && !TERMINAL_STATUSES.has(t.status)
-    )
+    const active = orchestrators.find((t) => !TERMINAL_STATUSES.has(t.status))
     if (active) return active
 
-    // Find most recent terminal orchestrator for parent linkage
-    const prevOrchestrators = allTasks
-      .filter((t) => t.title === ORCHESTRATOR_TASK_NAME && TERMINAL_STATUSES.has(t.status))
-      .sort((a, b) => (b.created_at ?? "").localeCompare(a.created_at ?? ""))
-    const terminal = prevOrchestrators[0]
+    // Link to most recent terminal orchestrator for history chain
+    const parent = orchestrators
+      .filter((t) => TERMINAL_STATUSES.has(t.status))
+      .sort((a, b) => (b.created_at ?? "").localeCompare(a.created_at ?? ""))[0]
 
-    const task = yield* createTask(deps, {
+    return yield* createTask(deps, {
       source: "manual",
       projectId,
       title: ORCHESTRATOR_TASK_NAME,
       provider,
-      parentTaskId: terminal?.id,
+      parentTaskId: parent?.id,
     })
-
-    return task
   })
 }
 
 /**
- * Start a session for a task that's in "created" status (on-demand start).
- * Used for orchestrator tasks that are created dormant.
+ * Start a session for a task in "created" status (on-demand).
+ * No-ops if the task is already running or terminal.
  */
 export function startTask(
   deps: TaskManagerDeps,

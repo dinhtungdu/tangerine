@@ -5,6 +5,7 @@
 import { Effect } from "effect"
 import type { Database } from "bun:sqlite"
 import type { WorktreeSlotRow } from "../db/types"
+import { TERMINAL_STATUSES } from "@tangerine/shared"
 import { DbError } from "../errors"
 import { createLogger } from "../logger"
 
@@ -252,8 +253,6 @@ export function releaseSlot(
 }
 
 // --- Stale slot reconciliation ---
-
-const TERMINAL_STATUSES = new Set(["done", "failed", "cancelled"])
 
 /** Release slots bound to terminal tasks. Prevents stale pool state. */
 export function reconcileStaleSlots(

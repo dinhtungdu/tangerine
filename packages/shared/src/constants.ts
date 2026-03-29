@@ -10,3 +10,6 @@ export const MAX_RETRY_ATTEMPTS = 3
 
 /** Reserved task name for the per-project orchestrator (always pinned to slot 0). */
 export const ORCHESTRATOR_TASK_NAME = "_orchestrator"
+
+/** Task statuses that represent a completed lifecycle (no longer active). */
+export const TERMINAL_STATUSES = new Set(["done", "failed", "cancelled"])
