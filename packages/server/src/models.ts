@@ -84,12 +84,11 @@ export function discoverModels(): ModelInfo[] {
       }
 
       for (const [providerId, provider] of Object.entries(catalog)) {
-        // Provider is available if: has oauth in auth.json, or env var is set, or is "opencode" (always available)
+        // Provider is available if: has oauth in auth.json, or env var is set
         const hasOAuth = authedProviders.has(providerId)
         const hasEnvVar = provider.env?.some((e) => !!process.env[e]) ?? false
-        const isOpenCode = providerId === "opencode"
 
-        if (!hasOAuth && !hasEnvVar && !isOpenCode) continue
+        if (!hasOAuth && !hasEnvVar) continue
 
         for (const [modelId, model] of Object.entries(provider.models ?? {})) {
           models.push({
