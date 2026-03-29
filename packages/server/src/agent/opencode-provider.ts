@@ -1,76 +1,24 @@
-// OpenCode agent provider: spawns a per-task OpenCode server process,
-// creates a session, and bridges SSE events to the normalized AgentEvent stream.
+// OpenCode agent provider: spawns `opencode run` per prompt with stdin/stdout NDJSON.
+// Sessions persist to disk via `-s <session>`, enabling idle suspension and resume.
 //
-// Each task gets its own OpenCode server on a unique port. The task owns
-// the process and kills it on shutdown — no shared state between tasks.
+// Each prompt spawns a fresh `opencode run` process. The process exits after
+// completing the turn; the next prompt re-invokes with the same session ID.
 
 import { Effect } from "effect"
 import { createLogger, truncate } from "../logger"
 import { AgentError, PromptError, SessionStartError } from "../errors"
-import { transientSchedule } from "../tasks/retry"
 import type { AgentFactory, AgentHandle, AgentEvent, AgentStartContext, PromptImage, ModelInfo } from "./provider"
+import { parseNdjsonStream } from "./ndjson"
 import { existsSync, readFileSync } from "node:fs"
 import { homedir } from "node:os"
 import { join } from "node:path"
 
 const log = createLogger("opencode-provider")
 
-// -- Per-task server spawning -------------------------------------------------
-// Each task gets its own OpenCode server on a unique port. Port range starts
-// at BASE_PORT and increments; wraps around after 1000 ports.
-
-const BASE_PORT = 14096
-let nextPort = BASE_PORT
-
-function allocatePort(): number {
-  const port = nextPort
-  nextPort = nextPort >= BASE_PORT + 999 ? BASE_PORT : nextPort + 1
-  return port
-}
-
-/**
- * Spawn a new OpenCode server for a single task. Returns the process and port.
- */
-async function spawnServer(
-  workdir: string,
-  env: Record<string, string | undefined>,
-  taskLog: ReturnType<typeof log.child>,
-): Promise<{ proc: ReturnType<typeof Bun.spawn>; port: number }> {
-  await ensureOpenCodeConfig()
-
-  const port = allocatePort()
-  const proc = Bun.spawn(
-    ["opencode", "serve", "--port", String(port), "--hostname", "127.0.0.1"],
-    {
-      cwd: workdir,
-      stdout: "ignore",
-      stderr: "ignore",
-      stdin: "ignore",
-      env: { ...process.env, ...env },
-    },
-  )
-  taskLog.info("OpenCode server spawned", { pid: proc.pid, port })
-
-  // Wait for health
-  const maxAttempts = 30
-  for (let i = 0; i < maxAttempts; i++) {
-    try {
-      const res = await fetch(`http://localhost:${port}/global/health`)
-      if (res.ok) return { proc, port }
-    } catch {
-      // not ready yet
-    }
-    await new Promise((r) => setTimeout(r, 2000))
-  }
-
-  try { proc.kill() } catch { /* may already be dead */ }
-  throw new Error(`OpenCode health check failed after ${maxAttempts} attempts on port ${port}`)
-}
-
 // -- OpenCode permission config ------------------------------------------------
 // OpenCode's permission system blocks tools accessing paths outside the project dir
 // (e.g. /tmp/*). Since Tangerine runs in a sandbox VM, we auto-allow everything
-// by writing the config before starting the server.
+// by writing the config before starting the process.
 
 const OPENCODE_CONFIG: Record<string, unknown> = {
   agent: {
@@ -123,13 +71,7 @@ async function ensureOpenCodeConfig(): Promise<void> {
   }
 }
 
-/** Extract the data payload from an SSE block, handling multi-line formats like "event: foo\ndata: {...}" */
-export function extractSseData(block: string): string | null {
-  for (const line of block.split("\n")) {
-    if (line.startsWith("data: ")) return line.slice(6)
-  }
-  return null
-}
+// -- Event mapping helpers (shared between SSE and NDJSON) --------------------
 
 function asRecord(value: unknown): Record<string, unknown> | null {
   return typeof value === "object" && value !== null ? value as Record<string, unknown> : null
@@ -192,8 +134,8 @@ function getToolEvent(data: Record<string, unknown>, previousStatus?: string): A
   return null
 }
 
-/** Maps OpenCode SSE events to normalized AgentEvents */
-export function mapSseEvent(data: Record<string, unknown>, state?: { currentText?: string; previousToolStatus?: string }): AgentEvent | null {
+/** Maps OpenCode NDJSON events to normalized AgentEvents */
+export function mapOpenCodeEvent(data: Record<string, unknown>, state?: { currentText?: string; previousToolStatus?: string }): AgentEvent | null {
   const type = data.type as string | undefined
   if (!type) return null
 
@@ -226,9 +168,8 @@ export interface OpenCodeProcessorCallbacks {
 }
 
 /**
- * Creates a stateful SSE event processor for OpenCode. Manages text/image
- * accumulation, message completion, and idle-promotion — everything that
- * processRawEvent used to do inline inside start().
+ * Creates a stateful event processor for OpenCode NDJSON output. Manages
+ * text/image accumulation, message completion, and idle-promotion.
  */
 export function createOpenCodeEventProcessor(sessionId: string, callbacks: OpenCodeProcessorCallbacks) {
   const textParts = new Map<string, string>()
@@ -310,7 +251,7 @@ export function createOpenCodeEventProcessor(sessionId: string, callbacks: OpenC
         const callId = typeof part.callID === "string" ? part.callID : undefined
         const state = asRecord(part.state)
         const status = typeof state?.status === "string" ? state.status as string : undefined
-        const mapped = mapSseEvent(raw, {
+        const mapped = mapOpenCodeEvent(raw, {
           currentText: messageId ? (textParts.get(messageId) ?? "") : "",
           previousToolStatus: callId ? toolStates.get(callId) : undefined,
         })
@@ -353,7 +294,7 @@ export function createOpenCodeEventProcessor(sessionId: string, callbacks: OpenC
       return
     }
 
-    const mapped = mapSseEvent(raw)
+    const mapped = mapOpenCodeEvent(raw)
     if (mapped) {
       if (mapped.kind === "status" && mapped.status === "idle" && lastNarration) {
         callbacks.emit({ kind: "message.complete", role: "assistant", content: lastNarration.content, messageId: lastNarration.messageId, images: lastNarration.images })
@@ -366,289 +307,228 @@ export function createOpenCodeEventProcessor(sessionId: string, callbacks: OpenC
   return { process }
 }
 
+// ---------------------------------------------------------------------------
+// Provider implementation — subprocess per prompt
+// ---------------------------------------------------------------------------
+
 export function createOpenCodeProvider(): AgentFactory {
   return {
     start(ctx: AgentStartContext): Effect.Effect<AgentHandle, SessionStartError> {
       const taskLog = log.child({ taskId: ctx.taskId })
 
-      return Effect.gen(function* () {
-        // Spawn a dedicated OpenCode server for this task
-        const { proc: serverProc, port: opencodePort } = yield* Effect.tryPromise({
-          try: () => spawnServer(ctx.workdir, ctx.env ?? {}, taskLog),
-          catch: (e) =>
-            new SessionStartError({
-              message: `Failed to spawn OpenCode server: ${e}`,
-              taskId: ctx.taskId,
-              phase: "health-check",
-              cause: e instanceof Error ? e : new Error(String(e)),
-            }),
-        })
-        const serverPid = serverProc.pid
-        taskLog.info("OpenCode server ready", { port: opencodePort, pid: serverPid })
+      return Effect.tryPromise({
+        try: async () => {
+          await ensureOpenCodeConfig()
 
-        // Create or resume OpenCode session (model is passed per-prompt, not via config).
-        // Retries transient HTTP failures (server may still be warming up after health check).
-        const sessionId = yield* Effect.tryPromise({
-          try: async () => {
-            if (ctx.resumeSessionId) {
-              const existing = await fetch(`http://localhost:${opencodePort}/session/${ctx.resumeSessionId}`)
-              if (existing.ok) return ctx.resumeSessionId
-              taskLog.warn("Resume session not found, creating a new OpenCode session", { resumeSessionId: ctx.resumeSessionId })
-            }
+          const sessionId = ctx.resumeSessionId ?? crypto.randomUUID()
+          taskLog.info("OpenCode session initialized", { sessionId, isResume: !!ctx.resumeSessionId })
 
-            const created = await fetch(`http://localhost:${opencodePort}/session`, {
-              method: "POST",
-              headers: { "Content-Type": "application/json" },
-              body: JSON.stringify({ title: ctx.title, directory: ctx.workdir }),
-            })
-            if (!created.ok) throw new Error(`Session create failed: ${created.status}`)
-            const body = (await created.json()) as { id: string }
-            return body.id
-          },
-          catch: (e) =>
-            new SessionStartError({
-              message: `Session creation failed: ${e}`,
-              taskId: ctx.taskId,
-              phase: "create-session",
-              cause: e instanceof Error ? e : new Error(String(e)),
-            }),
-        }).pipe(Effect.retry(transientSchedule()))
-        taskLog.info("Session created", { sessionId })
+          const subscribers = new Set<(e: AgentEvent) => void>()
+          let shutdownCalled = false
+          let currentProc: ReturnType<typeof Bun.spawn> | null = null
+          let currentParser: { stop(): void } | null = null
 
-        // Build the AgentHandle
-        const subscribers = new Set<(e: AgentEvent) => void>()
-        let sseAborted = false
-        let sseConnected = false
+          // Track active model — split "provider/model" for CLI flags
+          let activeModel = ctx.model ?? ""
 
-        const emit = (event: AgentEvent) => {
-          for (const cb of subscribers) cb(event)
-        }
-
-        /** Auto-approve permission requests — Tangerine runs in a sandbox VM */
-        const autoApprovePermission = async (permissionId: string) => {
-          try {
-            const res = await fetch(
-              `http://localhost:${opencodePort}/session/${sessionId}/permissions/${permissionId}`,
-              {
-                method: "POST",
-                headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({ response: "always" }),
-              },
-            )
-            if (res.ok) {
-              taskLog.info("Auto-approved permission", { permissionId })
-            } else {
-              taskLog.warn("Failed to auto-approve permission", { permissionId, status: res.status })
-            }
-          } catch (err) {
-            taskLog.warn("Error auto-approving permission", { permissionId, error: String(err) })
+          const emit = (event: AgentEvent) => {
+            for (const cb of subscribers) cb(event)
           }
-        }
 
-        const eventProcessor = createOpenCodeEventProcessor(sessionId, {
-          emit,
-          onPermissionRequest: autoApprovePermission,
-        })
-        const processRawEvent = eventProcessor.process
+          const eventProcessor = createOpenCodeEventProcessor(sessionId, {
+            emit,
+            // Permissions are handled by ensureOpenCodeConfig — no runtime approval needed
+          })
 
-        // Start SSE subscription in background
-        const connectSse = async () => {
-          if (sseAborted) return
-          let attempt = 0
-          const maxAttempts = 10
+          // Emit initial idle so the task system knows we're ready
+          queueMicrotask(() => emit({ kind: "status", status: "idle" }))
 
-          const doConnect = async (): Promise<void> => {
-            if (sseAborted) return
-            try {
-              const response = await fetch(`http://localhost:${opencodePort}/event?directory=${encodeURIComponent(ctx.workdir)}`, {
-                headers: { Accept: "text/event-stream" },
-              })
-              if (!response.ok || !response.body) {
-                throw new Error(`SSE connect failed: ${response.status}`)
-              }
-              sseConnected = true
-              if (attempt > 0) taskLog.info("SSE reconnected", { previousAttempts: attempt })
-              attempt = 0
+          /** Build CLI args for `opencode run` */
+          function buildArgs(): string[] {
+            const args = ["opencode", "run", "--format", "json", "-s", sessionId]
+            if (activeModel) {
+              args.push("-m", activeModel)
+            }
+            if (ctx.reasoningEffort) {
+              args.push("--reasoning-effort", ctx.reasoningEffort)
+            }
+            return args
+          }
 
-              const reader = response.body.getReader()
-              const decoder = new TextDecoder()
-              let buffer = ""
+          const handle: AgentHandle = {
+            sendPrompt(text: string, _images?: PromptImage[]) {
+              return Effect.tryPromise({
+                try: async () => {
+                  if (shutdownCalled) throw new Error("Agent shut down")
 
-              while (!sseAborted) {
-                const { done, value } = await reader.read()
-                if (done) break
-                buffer += decoder.decode(value, { stream: true })
-                const lines = buffer.split("\n\n")
-                buffer = lines.pop() ?? ""
-
-                for (const block of lines) {
-                  // Extract data line from SSE block — handles both
-                  // "data: {...}" and "event: foo\ndata: {...}" formats
-                  const dataLine = extractSseData(block)
-                  if (!dataLine) continue
-                  try {
-                    const raw = JSON.parse(dataLine) as Record<string, unknown>
-                    processRawEvent(raw)
-                  } catch {
-                    // skip malformed
+                  // Kill any previous process that hasn't exited yet
+                  if (currentProc) {
+                    try { currentProc.kill() } catch { /* already dead */ }
+                    currentParser?.stop()
+                    currentProc = null
+                    currentParser = null
                   }
+
+                  const args = buildArgs()
+                  taskLog.debug("Spawning opencode run", { args: args.join(" "), textLength: text.length })
+
+                  const proc = Bun.spawn(args, {
+                    cwd: ctx.workdir,
+                    stdin: "pipe",
+                    stdout: "pipe",
+                    stderr: "pipe",
+                    env: { ...process.env, ...ctx.env },
+                  })
+                  currentProc = proc
+
+                  emit({ kind: "status", status: "working" })
+
+                  // Parse NDJSON from stdout
+                  const parser = parseNdjsonStream(
+                    proc.stdout as ReadableStream<Uint8Array>,
+                    {
+                      onLine: (data) => {
+                        eventProcessor.process(data as Record<string, unknown>)
+                      },
+                      onError: (err) => {
+                        if (!shutdownCalled) {
+                          taskLog.error("stdout parse error", { error: err.message })
+                          emit({ kind: "error", message: err.message })
+                        }
+                      },
+                      onEnd: () => {
+                        if (!shutdownCalled) {
+                          taskLog.debug("opencode run stdout ended")
+                          // Process completed its turn — emit idle
+                          emit({ kind: "status", status: "idle" })
+                        }
+                      },
+                    },
+                  )
+                  currentParser = parser
+
+                  // Log stderr in background
+                  ;(async () => {
+                    try {
+                      const stderrReader = (proc.stderr as ReadableStream<Uint8Array>).getReader()
+                      const decoder = new TextDecoder()
+                      while (true) {
+                        const { done, value } = await stderrReader.read()
+                        if (done) break
+                        const line = decoder.decode(value, { stream: true }).trim()
+                        if (line) taskLog.debug("opencode stderr", { text: line })
+                      }
+                    } catch {
+                      // stderr may close abruptly
+                    }
+                  })()
+
+                  // Write prompt to stdin and close to signal input complete
+                  proc.stdin.write(text)
+                  proc.stdin.end()
+                },
+                catch: (e) =>
+                  new PromptError({ message: `Failed to send prompt: ${e}`, taskId: ctx.taskId }),
+              })
+            },
+
+            abort() {
+              return Effect.try({
+                try: () => {
+                  if (currentProc) {
+                    currentProc.kill("SIGINT")
+                  }
+                },
+                catch: (e) =>
+                  new AgentError({ message: `Abort failed: ${e}`, taskId: ctx.taskId }),
+              })
+            },
+
+            updateConfig(config: import("./provider").AgentConfig) {
+              return Effect.sync(() => {
+                if (config.model) {
+                  activeModel = config.model
+                  taskLog.info("Model updated", { model: activeModel })
+                }
+                return true
+              })
+            },
+
+            subscribe(onEvent: (e: AgentEvent) => void) {
+              subscribers.add(onEvent)
+              return {
+                unsubscribe() {
+                  subscribers.delete(onEvent)
+                },
+              }
+            },
+
+            shutdown() {
+              return Effect.sync(() => {
+                shutdownCalled = true
+                currentParser?.stop()
+                subscribers.clear()
+                if (currentProc) {
+                  try { currentProc.kill() } catch { /* already dead */ }
+                  currentProc = null
+                }
+                currentParser = null
+                taskLog.info("Agent shutdown")
+              })
+            },
+
+            isAlive() {
+              // Between prompts there's no process — that's normal for this provider.
+              // Return true unless shutdown was called.
+              if (shutdownCalled) return false
+              // If a process is running, check it's still alive
+              if (currentProc) {
+                try {
+                  process.kill(currentProc.pid, 0)
+                  return true
+                } catch {
+                  return false
                 }
               }
-
-              // Stream ended gracefully (server closed connection) — reconnect
-              sseConnected = false
-              if (!sseAborted) {
-                taskLog.debug("SSE stream ended, reconnecting")
-                await new Promise((r) => setTimeout(r, 500))
-                return doConnect()
-              }
-            } catch {
-              sseConnected = false
-              if (sseAborted) return
-              attempt++
-              if (attempt <= maxAttempts) {
-                taskLog.warn("SSE disconnected, reconnecting", { attempt })
-                const delay = Math.min(1000 * 2 ** (attempt - 1), 30000)
-                await new Promise((r) => setTimeout(r, delay))
-                return doConnect()
-              }
-              taskLog.error("SSE failed permanently", { attempts: attempt })
-            }
+              return true
+            },
           }
 
-          await doConnect()
-        }
-        connectSse()
+          // Attach metadata so callers can read session info
+          Object.defineProperty(handle, "__meta", {
+            get: () => ({
+              sessionId,
+              agentPort: null as number | null,
+            }),
+          })
+          // Attach PID getter — currentProc changes per prompt
+          Object.defineProperty(handle, "__pid", {
+            get: () => currentProc?.pid ?? null,
+          })
 
-        // Track active model — split "provider/model" into providerID + modelID for prompt_async
-        let activeModel = ctx.model ?? ""
-
-        function buildModelPayload(): Record<string, unknown> | undefined {
-          if (!activeModel || !activeModel.includes("/")) return undefined
-          const [providerID, ...rest] = activeModel.split("/")
-          return { providerID, modelID: rest.join("/") }
-        }
-
-        const handle: AgentHandle = {
-          sendPrompt(text: string, images?: import("./provider").PromptImage[]) {
-            return Effect.tryPromise({
-              try: async () => {
-                const fileParts = images
-                  ? images.map((img, i) => ({
-                      type: "file" as const,
-                      mime: img.mediaType,
-                      filename: `image-${i}.${img.mediaType.split("/")[1] ?? "png"}`,
-                      url: `data:${img.mediaType};base64,${img.data}`,
-                    }))
-                  : []
-                const body: Record<string, unknown> = { parts: [...fileParts, { type: "text", text }] }
-                const modelPayload = buildModelPayload()
-                if (modelPayload) body.model = modelPayload
-
-                taskLog.debug("Sending prompt", {
-                  hasImages: fileParts.length > 0,
-                  imageCount: fileParts.length,
-                  textLength: text.length,
-                })
-
-                const res = await fetch(
-                  `http://localhost:${opencodePort}/session/${sessionId}/prompt_async?directory=${encodeURIComponent(ctx.workdir)}`,
-                  {
-                    method: "POST",
-                    headers: { "Content-Type": "application/json" },
-                    body: JSON.stringify(body),
-                  },
-                )
-                if (!res.ok) {
-                  const err = await res.text()
-                  taskLog.error("OpenCode prompt failed", { status: res.status, error: err, hasImages: fileParts.length > 0 })
-                  throw new Error(`OpenCode prompt failed (${res.status}): ${err}`)
-                }
-              },
-              catch: (e) =>
-                new PromptError({ message: `Failed to send prompt: ${e}`, taskId: ctx.taskId }),
-            }).pipe(Effect.retry(transientSchedule()))
-          },
-
-          abort() {
-            return Effect.tryPromise({
-              try: async () => {
-                const res = await fetch(
-                  `http://localhost:${opencodePort}/session/${sessionId}/abort?directory=${encodeURIComponent(ctx.workdir)}`,
-                  { method: "POST" },
-                )
-                if (!res.ok) throw new Error(`Abort failed: ${res.status}`)
-              },
-              catch: (e) =>
-                new AgentError({ message: `Abort failed: ${e}`, taskId: ctx.taskId }),
-            }).pipe(Effect.retry(transientSchedule()))
-          },
-
-          updateConfig(config: import("./provider").AgentConfig) {
-            // Model is passed per-prompt via prompt_async — just update the tracked value
-            return Effect.sync(() => {
-              if (config.model) {
-                activeModel = config.model
-                taskLog.info("Model updated", { model: activeModel })
-              }
-              // Reasoning effort for OpenCode would need provider-specific config,
-              // but prompt_async doesn't support it directly — silently accepted
-              return true
-            })
-          },
-
-          subscribe(onEvent: (e: AgentEvent) => void) {
-            subscribers.add(onEvent)
-            return {
-              unsubscribe() {
-                subscribers.delete(onEvent)
-              },
-            }
-          },
-
-          shutdown() {
-            return Effect.sync(() => {
-              sseAborted = true
-              sseConnected = false
-              subscribers.clear()
-              try { serverProc.kill() } catch { /* already dead */ }
-              taskLog.info("Agent shutdown")
-            })
-          },
-
-          isAlive() {
-            if (!sseConnected) return false
-            try {
-              process.kill(serverPid, 0)
-              return true
-            } catch {
-              return false
-            }
-          },
-        }
-
-        // Attach metadata so callers can read session/port info
-        ;(handle as AgentHandleWithMeta).__meta = {
-          sessionId,
-          agentPort: opencodePort,
-        }
-        ;(handle as { __pid?: number }).__pid = serverPid
-
-        return handle
+          return handle
+        },
+        catch: (e) =>
+          new SessionStartError({
+            message: `OpenCode start failed: ${e}`,
+            taskId: ctx.taskId,
+            phase: "start-opencode",
+            cause: e instanceof Error ? e : new Error(String(e)),
+          }),
       })
     },
   }
 }
 
-/** Extended handle with OpenCode-specific metadata (sessionId, ports) */
+/** Extended handle with OpenCode-specific metadata */
 export interface AgentHandleWithMeta extends AgentHandle {
   __meta: {
     sessionId: string
-    agentPort: number
+    agentPort: number | null
   }
 }
 
-export function getHandleMeta(handle: AgentHandle): { sessionId: string; agentPort: number } | null {
+export function getHandleMeta(handle: AgentHandle): { sessionId: string; agentPort: number | null } | null {
   const meta = (handle as AgentHandleWithMeta).__meta
   return meta ?? null
 }

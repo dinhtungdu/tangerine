@@ -1,6 +1,6 @@
 import { describe, expect, it } from "bun:test"
 import { Effect } from "effect"
-import { extractSseData, getHandleMeta, mapSseEvent, createOpenCodeEventProcessor } from "../agent/opencode-provider"
+import { getHandleMeta, mapOpenCodeEvent, createOpenCodeEventProcessor } from "../agent/opencode-provider"
 import type { AgentHandle, AgentEvent } from "../agent/provider"
 import { getAgentRuntimeMeta } from "../tasks/lifecycle"
 
@@ -15,7 +15,7 @@ function createHandle(): AgentHandle {
 
 describe("OpenCode provider helpers", () => {
   it("maps text delta events to streaming output", () => {
-    const event = mapSseEvent({
+    const event = mapOpenCodeEvent({
       type: "message.part.delta",
       properties: {
         messageID: "msg-1",
@@ -28,7 +28,7 @@ describe("OpenCode provider helpers", () => {
   })
 
   it("maps text snapshots to only the unseen suffix", () => {
-    const event = mapSseEvent({
+    const event = mapOpenCodeEvent({
       type: "message.part.updated",
       properties: {
         part: {
@@ -43,7 +43,7 @@ describe("OpenCode provider helpers", () => {
   })
 
   it("maps tool lifecycle events", () => {
-    const startEvent = mapSseEvent({
+    const startEvent = mapOpenCodeEvent({
       type: "message.part.updated",
       properties: {
         part: {
@@ -56,7 +56,7 @@ describe("OpenCode provider helpers", () => {
         },
       },
     })
-    const endEvent = mapSseEvent({
+    const endEvent = mapOpenCodeEvent({
       type: "message.part.updated",
       properties: {
         part: {
@@ -83,7 +83,7 @@ describe("OpenCode provider helpers", () => {
   })
 
   it("maps session status events", () => {
-    const event = mapSseEvent({
+    const event = mapOpenCodeEvent({
       type: "session.status",
       properties: {
         status: { type: "idle" },
@@ -93,28 +93,10 @@ describe("OpenCode provider helpers", () => {
     expect(event).toEqual({ kind: "status", status: "idle" })
   })
 
-  it("extractSseData handles simple data-only blocks", () => {
-    expect(extractSseData('data: {"type":"session.status"}')).toBe('{"type":"session.status"}')
-  })
-
-  it("extractSseData handles multi-line blocks with event prefix", () => {
-    expect(extractSseData('event: message\ndata: {"type":"message.updated"}')).toBe('{"type":"message.updated"}')
-  })
-
-  it("extractSseData returns null for blocks without data line", () => {
-    expect(extractSseData("event: ping")).toBeNull()
-    expect(extractSseData(": comment")).toBeNull()
-    expect(extractSseData("")).toBeNull()
-  })
-
-  it("extractSseData handles blocks with id and data lines", () => {
-    expect(extractSseData('id: 42\nevent: update\ndata: {"ok":true}')).toBe('{"ok":true}')
-  })
-
   it("does not map thinking deltas as text streaming", () => {
-    // Thinking deltas have field === "thinking", not "text" — mapSseEvent
+    // Thinking deltas have field === "thinking", not "text" — mapOpenCodeEvent
     // should return null so they don't get treated as regular text.
-    const event = mapSseEvent({
+    const event = mapOpenCodeEvent({
       type: "message.part.delta",
       properties: {
         messageID: "msg-1",
@@ -127,7 +109,7 @@ describe("OpenCode provider helpers", () => {
 
   it("does not map thinking part snapshots as text", () => {
     // part.type === "thinking" should not be treated as text or tool
-    const event = mapSseEvent({
+    const event = mapOpenCodeEvent({
       type: "message.part.updated",
       properties: {
         part: {
@@ -141,11 +123,7 @@ describe("OpenCode provider helpers", () => {
   })
 
   it("skips message.complete for tool-only messages (no accumulated text)", () => {
-    // message.updated with completed timestamp but no text parts should NOT
-    // produce a message.complete — tool-only turns don't need a chat entry.
-    // mapSseEvent doesn't handle message.updated (only processRawEvent does),
-    // and processRawEvent now skips empty-text messages.
-    const event = mapSseEvent({
+    const event = mapOpenCodeEvent({
       type: "message.updated",
       properties: {
         info: {
@@ -160,13 +138,13 @@ describe("OpenCode provider helpers", () => {
 
   it("exposes OpenCode metadata through lifecycle helper", () => {
     const handle = createHandle() as AgentHandle & {
-      __meta: { sessionId: string; agentPort: number }
+      __meta: { sessionId: string; agentPort: number | null }
       __pid: number
     }
-    handle.__meta = { sessionId: "ses-123", agentPort: 14096 }
+    handle.__meta = { sessionId: "ses-123", agentPort: null }
     handle.__pid = 4242
 
-    expect(getHandleMeta(handle)).toEqual({ sessionId: "ses-123", agentPort: 14096 })
+    expect(getHandleMeta(handle)).toEqual({ sessionId: "ses-123", agentPort: null })
     expect(getAgentRuntimeMeta(handle)).toEqual({ agentPid: 4242, agentSessionId: "ses-123" })
   })
 
@@ -176,14 +154,13 @@ describe("OpenCode provider helpers", () => {
     expect(handle.isAlive).toBeUndefined()
   })
 
-  it("isAlive returns true when SSE connected and server alive", () => {
+  it("isAlive returns true when handle is active", () => {
     const handle = createHandle()
-    // Simulate an OpenCode handle with isAlive
     handle.isAlive = () => true
     expect(handle.isAlive()).toBe(true)
   })
 
-  it("isAlive returns false when SSE disconnected", () => {
+  it("isAlive returns false after shutdown", () => {
     const handle = createHandle()
     handle.isAlive = () => false
     expect(handle.isAlive()).toBe(false)
