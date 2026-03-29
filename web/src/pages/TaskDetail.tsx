@@ -21,6 +21,7 @@ import { formatPrNumber } from "../lib/format"
 import { copyToClipboard } from "../lib/clipboard"
 
 type PaneId = "chat" | "diff" | "terminal" | "activity"
+const PANE_ORDER: PaneId[] = ["chat", "diff", "terminal", "activity"]
 
 export function TaskDetail() {
   const { id } = useParams<{ id: string }>()
@@ -225,7 +226,6 @@ export function TaskDetail() {
     }
   }, [session.taskStatus])
 
-  const PANE_ORDER: PaneId[] = ["chat", "diff", "terminal", "activity"]
   const mobileSwipe = useSwipe(
     useMemo(() => ({
       onSwipeLeft: () => {

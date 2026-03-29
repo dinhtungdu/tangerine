@@ -10,7 +10,7 @@ export function NewAgentPage() {
   const { navigate } = useProjectNav()
   const { current } = useProject()
   const [searchParams] = useSearchParams()
-  const swipe = useSwipe(useMemo(() => ({ onSwipeRight: () => navigate("/") }), [navigate]))
+  const swipe = useSwipe(useMemo(() => ({ onSwipeLeft: () => navigate("/") }), [navigate]))
 
   const refTaskId = searchParams.get("ref") ?? undefined
   const refTaskTitle = searchParams.get("refTitle") ?? undefined
