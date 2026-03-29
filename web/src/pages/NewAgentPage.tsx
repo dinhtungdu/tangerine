@@ -1,6 +1,7 @@
 import { useSearchParams } from "react-router-dom"
 import { useProject } from "../context/ProjectContext"
 import { useProjectNav } from "../hooks/useProjectNav"
+import { useSwipe } from "../hooks/useSwipe"
 import { NewAgentForm } from "../components/NewAgentForm"
 import { createTask } from "../lib/api"
 
@@ -8,6 +9,7 @@ export function NewAgentPage() {
   const { navigate } = useProjectNav()
   const { current } = useProject()
   const [searchParams] = useSearchParams()
+  const swipe = useSwipe({ onSwipeLeft: () => navigate("/") })
 
   const refTaskId = searchParams.get("ref") ?? undefined
   const refTaskTitle = searchParams.get("refTitle") ?? undefined
@@ -22,5 +24,9 @@ export function NewAgentPage() {
     }
   }
 
-  return <NewAgentForm onSubmit={handleSubmit} refTaskId={refTaskId} refTaskTitle={refTaskTitle} />
+  return (
+    <div className="h-full" {...swipe}>
+      <NewAgentForm onSubmit={handleSubmit} refTaskId={refTaskId} refTaskTitle={refTaskTitle} />
+    </div>
+  )
 }
