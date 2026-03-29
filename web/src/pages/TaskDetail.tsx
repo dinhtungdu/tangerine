@@ -60,12 +60,12 @@ export function TaskDetail() {
   }, [])
 
   const dimsKey = `tangerine:pane-dims:${id}`
-  const dimsRef = useRef<{ terminal: number; activity: number }>((() => {
+  const dimsRef = useRef<{ terminal: number; activity: number; diff: number }>((() => {
     try {
       const s = localStorage.getItem(dimsKey)
       if (s) return JSON.parse(s)
     } catch { /* ignore */ }
-    return { terminal: 480, activity: 250 }
+    return { terminal: 480, activity: 250, diff: 600 }
   })())
   const saveDims = useCallback(() => {
     try { localStorage.setItem(dimsKey, JSON.stringify(dimsRef.current)) } catch { /* ignore */ }
@@ -73,6 +73,7 @@ export function TaskDetail() {
 
   const [terminalWidth, setTerminalWidth] = useState(dimsRef.current.terminal)
   const [activityWidth, setActivityWidth] = useState(dimsRef.current.activity)
+  const [diffWidth, setDiffWidth] = useState(dimsRef.current.diff)
   const containerRef = useRef<HTMLDivElement>(null)
 
   const MIN_PANE = 200
@@ -93,6 +94,17 @@ export function TaskDetail() {
       setActivityWidth((w) => {
         const next = Math.max(MIN_PANE, w - delta)
         dimsRef.current.activity = next
+        saveDims()
+        return next
+      })
+    }, [saveDims]),
+  })
+
+  const diffResize = useResizable({
+    onResize: useCallback((delta: number) => {
+      setDiffWidth((w) => {
+        const next = Math.max(MIN_PANE, w - delta)
+        dimsRef.current.diff = next
         saveDims()
         return next
       })
@@ -428,8 +440,12 @@ export function TaskDetail() {
             <ResizeHandle onMouseDown={activityResize.onMouseDown} />
           )}
 
+          {visiblePanes.has("diff") && visiblePanes.has("chat") && (
+            <ResizeHandle onMouseDown={diffResize.onMouseDown} />
+          )}
+
           {visiblePanes.has("diff") && (
-            <div className="@container/diff flex min-w-0 flex-1 flex-col">
+            <div className={`@container/diff flex min-w-0 flex-col${desktopIsSolo ? " flex-1" : ""}`} style={desktopIsSolo ? undefined : { width: diffWidth, flexShrink: 0 }}>
               <div className="flex min-h-0 flex-1 flex-col @min-[700px]/diff:flex-row">
                 <div className="min-w-0 flex-1 overflow-y-auto">
                   {diffFiles.length > 0 ? (
