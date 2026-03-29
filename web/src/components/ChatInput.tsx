@@ -157,6 +157,7 @@ export function ChatInput({ onSend, disabled, queueLength, taskId, isWorking, on
   const handlePromptClick = useCallback((e: MouseEvent, promptText: string) => {
     e.preventDefault()
     onSend(promptText)
+    textareaRef.current?.blur()
   }, [onSend])
 
   const showPrompts = isFocused && !text.trim() && predefinedPrompts && predefinedPrompts.length > 0
