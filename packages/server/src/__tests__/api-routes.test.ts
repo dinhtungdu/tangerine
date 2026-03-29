@@ -69,6 +69,21 @@ function createMockDeps(db: Database, configOverrides?: Partial<AppDeps["config"
         })
       },
       cleanupTask() { return Effect.void },
+      ensureOrchestrator(projectId) {
+        const id = crypto.randomUUID()
+        const row = Effect.runSync(dbCreateTask(db, {
+          id,
+          project_id: projectId,
+          source: "manual",
+          source_id: null,
+          source_url: null,
+          repo_url: "https://github.com/test/repo",
+          title: "_orchestrator",
+          description: null,
+        }))
+        return Effect.succeed(row)
+      },
+      startTask() { return Effect.void },
       onTaskEvent() { return () => {} },
       onStatusChange() { return () => {} },
     },

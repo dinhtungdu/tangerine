@@ -115,6 +115,13 @@ export function taskRoutes(deps: AppDeps): Hono {
     )
   })
 
+  // On-demand session start for dormant tasks (e.g. orchestrator)
+  app.post("/:id/start", (c) => {
+    return runEffectVoid(c,
+      deps.taskManager.startTask(c.req.param("id"))
+    )
+  })
+
   app.post("/:id/seen", (c) => {
     return runEffectVoid(c,
       markTaskSeen(deps.db, c.req.param("id"))
