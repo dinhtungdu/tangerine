@@ -1,9 +1,12 @@
-import { useMemo } from "react"
+import { useMemo, useState, useCallback } from "react"
 import { Link, useParams } from "react-router-dom"
 import type { Task } from "@tangerine/shared"
+import { ORCHESTRATOR_TASK_NAME } from "@tangerine/shared"
 import { getStatusConfig, hasUnseenUpdates } from "../lib/status"
 import { formatRelativeTime } from "../lib/format"
 import { useProjectNav } from "../hooks/useProjectNav"
+import { useProject } from "../context/ProjectContext"
+import { ensureOrchestrator } from "../lib/api"
 
 interface TasksSidebarProps {
   tasks: Task[]
@@ -27,9 +30,30 @@ function ParentLabel({ task, taskById }: { task: Task; taskById: Map<string, Tas
 
 export function TasksSidebar({ tasks, searchQuery, onSearchChange, onNewAgent }: TasksSidebarProps) {
   const { id: activeId } = useParams<{ id: string }>()
-  const { link } = useProjectNav()
-  const activeTasks = tasks.filter((t) => !TERMINATED_STATUSES.has(t.status))
+  const { link, navigate } = useProjectNav()
+  const { current: project } = useProject()
+  const [orchLoading, setOrchLoading] = useState(false)
+  const activeTasks = tasks.filter((t) => !TERMINATED_STATUSES.has(t.status) && t.title !== ORCHESTRATOR_TASK_NAME)
   const taskById = useMemo(() => new Map(tasks.map((t) => [t.id, t])), [tasks])
+  const orchestrator = useMemo(() => {
+    const orchTasks = tasks.filter((t) => t.title === ORCHESTRATOR_TASK_NAME)
+    return orchTasks.find((t) => !TERMINATED_STATUSES.has(t.status)) ?? null
+  }, [tasks])
+
+  const handleOrchestratorClick = useCallback(async () => {
+    if (!project) return
+    if (orchestrator) {
+      navigate(`/tasks/${orchestrator.id}`)
+      return
+    }
+    setOrchLoading(true)
+    try {
+      const task = await ensureOrchestrator(project.name)
+      navigate(`/tasks/${task.id}`)
+    } finally {
+      setOrchLoading(false)
+    }
+  }, [project, orchestrator, navigate])
 
   return (
     <div className="flex h-full w-[240px] shrink-0 flex-col border-r border-edge bg-surface">
@@ -64,6 +88,30 @@ export function TasksSidebar({ tasks, searchQuery, onSearchChange, onNewAgent }:
           )}
         </div>
       </div>
+
+      {/* Orchestrator entry — pinned above active runs */}
+      <button
+        onClick={handleOrchestratorClick}
+        disabled={orchLoading}
+        className={`flex w-full items-center gap-2.5 px-4 py-2.5 text-left ${
+          orchestrator?.id === activeId
+            ? "bg-surface-secondary border-l-[3px] border-l-status-error"
+            : "hover:bg-surface-secondary"
+        }`}
+        style={orchestrator?.id === activeId ? {} : { borderLeft: "3px solid transparent" }}
+      >
+        <div className="flex h-[18px] w-2 items-center">
+          {orchLoading ? (
+            <div className="h-2 w-2 animate-spin rounded-full border border-fg-muted border-t-transparent" />
+          ) : (
+            <div
+              className="h-2 w-2 rounded-full"
+              style={{ backgroundColor: orchestrator ? getStatusConfig(orchestrator.status).color : "var(--color-fg-muted)" }}
+            />
+          )}
+        </div>
+        <span className="text-[13px] font-medium text-fg">Orchestrator</span>
+      </button>
 
       <div className="h-px bg-edge" />
 
