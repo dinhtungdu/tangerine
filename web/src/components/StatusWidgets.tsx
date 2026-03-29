@@ -80,7 +80,7 @@ function LogContext({ context }: { context: Record<string, unknown> }) {
   const entries = Object.entries(context).filter(([k]) => !LOG_CONTEXT_SKIP_KEYS.has(k))
   if (entries.length === 0) return null
   return (
-    <span className="ml-1.5 font-mono text-fg-muted">
+    <span className="ml-1.5 font-mono text-[12px] text-fg-muted">
       {entries.map(([k, v], i) => (
         <span key={k}>
           {i > 0 && " "}
