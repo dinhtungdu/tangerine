@@ -12,6 +12,16 @@ interface SwipeOptions {
   maxVertical?: number
 }
 
+/** Walk up from `el` to check if any ancestor can scroll horizontally. */
+function hasHorizontalScroll(el: HTMLElement): boolean {
+  let node: HTMLElement | null = el
+  while (node) {
+    if (node.scrollWidth > node.clientWidth) return true
+    node = node.parentElement
+  }
+  return false
+}
+
 /**
  * Returns onTouchStart / onTouchEnd props to spread onto an element
  * for horizontal swipe detection. Uses a ref for handlers so the
@@ -29,11 +39,13 @@ export function useSwipe(
   const onTouchStart = useCallback((e: React.TouchEvent) => {
     const touch = e.touches[0]
     if (!touch) return
-    // Ignore touches originating from interactive elements to avoid
-    // hijacking text selection, scrolling inside inputs/terminals, etc.
-    const tag = (e.target as HTMLElement).tagName
-    if (tag === "INPUT" || tag === "TEXTAREA" || tag === "SELECT" || (e.target as HTMLElement).isContentEditable) return
-    if ((e.target as HTMLElement).closest("[data-swipe-ignore]")) return
+    // Ignore touches on interactive or horizontally-scrollable elements
+    const el = e.target as HTMLElement
+    const tag = el.tagName
+    if (tag === "INPUT" || tag === "TEXTAREA" || tag === "SELECT" || el.isContentEditable) return
+    if (el.closest("[data-swipe-ignore]")) return
+    // Skip if touch started inside a horizontally-scrollable container
+    if (hasHorizontalScroll(el)) return
     startRef.current = { x: touch.clientX, y: touch.clientY }
   }, [])
 

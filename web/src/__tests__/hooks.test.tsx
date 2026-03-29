@@ -1,6 +1,7 @@
 import { describe, test, expect, mock, beforeEach, afterEach } from "bun:test"
 import { renderHook, act, waitFor } from "@testing-library/react"
 import { useTasks } from "../hooks/useTasks"
+import { useSwipe } from "../hooks/useSwipe"
 
 const mockTasks = [
   {
@@ -99,5 +100,163 @@ describe("useTasks", () => {
     })
 
     expect(result.current.tasks).toHaveLength(1)
+  })
+})
+
+/* ── useSwipe ── */
+
+function makeTouchEvent(x: number, y: number, target?: Partial<HTMLElement>) {
+  const el = {
+    tagName: "DIV",
+    isContentEditable: false,
+    closest: () => null,
+    scrollWidth: 100,
+    clientWidth: 100,
+    parentElement: null,
+    ...target,
+  }
+  return {
+    touches: [{ clientX: x, clientY: y }],
+    changedTouches: [{ clientX: x, clientY: y }],
+    target: el,
+  } as unknown as React.TouchEvent
+}
+
+describe("useSwipe", () => {
+  test("calls onSwipeLeft when swiped left beyond threshold", () => {
+    const onSwipeLeft = mock(() => {})
+    const { result } = renderHook(() => useSwipe({ onSwipeLeft }))
+
+    act(() => {
+      result.current.onTouchStart(makeTouchEvent(200, 100))
+      result.current.onTouchEnd(makeTouchEvent(100, 100))
+    })
+
+    expect(onSwipeLeft).toHaveBeenCalledTimes(1)
+  })
+
+  test("calls onSwipeRight when swiped right beyond threshold", () => {
+    const onSwipeRight = mock(() => {})
+    const { result } = renderHook(() => useSwipe({ onSwipeRight }))
+
+    act(() => {
+      result.current.onTouchStart(makeTouchEvent(100, 100))
+      result.current.onTouchEnd(makeTouchEvent(200, 100))
+    })
+
+    expect(onSwipeRight).toHaveBeenCalledTimes(1)
+  })
+
+  test("does not trigger if horizontal distance is below threshold", () => {
+    const onSwipeLeft = mock(() => {})
+    const { result } = renderHook(() => useSwipe({ onSwipeLeft }))
+
+    act(() => {
+      result.current.onTouchStart(makeTouchEvent(100, 100))
+      result.current.onTouchEnd(makeTouchEvent(70, 100))
+    })
+
+    expect(onSwipeLeft).not.toHaveBeenCalled()
+  })
+
+  test("does not trigger if vertical distance exceeds maxVertical", () => {
+    const onSwipeLeft = mock(() => {})
+    const { result } = renderHook(() => useSwipe({ onSwipeLeft }))
+
+    act(() => {
+      result.current.onTouchStart(makeTouchEvent(200, 100))
+      result.current.onTouchEnd(makeTouchEvent(100, 200))
+    })
+
+    expect(onSwipeLeft).not.toHaveBeenCalled()
+  })
+
+  test("ignores touches on input elements", () => {
+    const onSwipeLeft = mock(() => {})
+    const { result } = renderHook(() => useSwipe({ onSwipeLeft }))
+
+    act(() => {
+      result.current.onTouchStart(makeTouchEvent(200, 100, { tagName: "INPUT" }))
+      result.current.onTouchEnd(makeTouchEvent(100, 100))
+    })
+
+    expect(onSwipeLeft).not.toHaveBeenCalled()
+  })
+
+  test("ignores touches on textarea elements", () => {
+    const onSwipeLeft = mock(() => {})
+    const { result } = renderHook(() => useSwipe({ onSwipeLeft }))
+
+    act(() => {
+      result.current.onTouchStart(makeTouchEvent(200, 100, { tagName: "TEXTAREA" }))
+      result.current.onTouchEnd(makeTouchEvent(100, 100))
+    })
+
+    expect(onSwipeLeft).not.toHaveBeenCalled()
+  })
+
+  test("ignores touches on elements with data-swipe-ignore ancestor", () => {
+    const onSwipeLeft = mock(() => {})
+    const { result } = renderHook(() => useSwipe({ onSwipeLeft }))
+
+    const target = {
+      tagName: "DIV",
+      isContentEditable: false,
+      closest: (sel: string) => sel === "[data-swipe-ignore]" ? {} : null,
+      scrollWidth: 100,
+      clientWidth: 100,
+      parentElement: null,
+    }
+
+    act(() => {
+      result.current.onTouchStart(makeTouchEvent(200, 100, target as Partial<HTMLElement>))
+      result.current.onTouchEnd(makeTouchEvent(100, 100))
+    })
+
+    expect(onSwipeLeft).not.toHaveBeenCalled()
+  })
+
+  test("ignores touches inside horizontally-scrollable containers", () => {
+    const onSwipeLeft = mock(() => {})
+    const { result } = renderHook(() => useSwipe({ onSwipeLeft }))
+
+    act(() => {
+      result.current.onTouchStart(makeTouchEvent(200, 100, { scrollWidth: 500, clientWidth: 100 }))
+      result.current.onTouchEnd(makeTouchEvent(100, 100))
+    })
+
+    expect(onSwipeLeft).not.toHaveBeenCalled()
+  })
+
+  test("respects custom threshold", () => {
+    const onSwipeLeft = mock(() => {})
+    const { result } = renderHook(() => useSwipe({ onSwipeLeft }, { threshold: 100 }))
+
+    act(() => {
+      result.current.onTouchStart(makeTouchEvent(200, 100))
+      result.current.onTouchEnd(makeTouchEvent(120, 100))
+    })
+
+    expect(onSwipeLeft).not.toHaveBeenCalled()
+
+    act(() => {
+      result.current.onTouchStart(makeTouchEvent(200, 100))
+      result.current.onTouchEnd(makeTouchEvent(50, 100))
+    })
+
+    expect(onSwipeLeft).toHaveBeenCalledTimes(1)
+  })
+
+  test("returns stable callback references across renders", () => {
+    const { result, rerender } = renderHook(
+      ({ handler }) => useSwipe({ onSwipeLeft: handler }),
+      { initialProps: { handler: () => {} } },
+    )
+
+    const first = result.current
+    rerender({ handler: () => {} })
+
+    expect(result.current.onTouchStart).toBe(first.onTouchStart)
+    expect(result.current.onTouchEnd).toBe(first.onTouchEnd)
   })
 })
