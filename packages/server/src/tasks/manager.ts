@@ -123,7 +123,7 @@ export function createTask(
 export function cancelTask(
   deps: TaskManagerDeps,
   taskId: string,
-): Effect.Effect<void, TaskNotFoundError | SessionCleanupError> {
+): Effect.Effect<void, TaskNotFoundError | SessionCleanupError | Error> {
   return Effect.gen(function* () {
     const task = yield* deps.getTask(taskId).pipe(
       Effect.mapError(() => new TaskNotFoundError({ taskId }))
@@ -138,7 +138,10 @@ export function cancelTask(
       status: "cancelled",
       completed_at: new Date().toISOString(),
     }).pipe(
-      Effect.ignoreLogged
+      Effect.mapError((e) => {
+        log.error("Failed to persist cancelled status", { taskId, error: String(e) })
+        return new Error(`DB write failed for cancel: ${e}`)
+      })
     )
 
     yield* deps.logActivity(taskId, "lifecycle", "task.cancelled", "Task cancelled").pipe(
@@ -166,7 +169,7 @@ export function cancelTask(
 export function completeTask(
   deps: TaskManagerDeps,
   taskId: string,
-): Effect.Effect<void, TaskNotFoundError | SessionCleanupError> {
+): Effect.Effect<void, TaskNotFoundError | SessionCleanupError | Error> {
   return Effect.gen(function* () {
     const task = yield* deps.getTask(taskId).pipe(
       Effect.mapError(() => new TaskNotFoundError({ taskId }))
@@ -183,7 +186,10 @@ export function completeTask(
     }
 
     yield* deps.updateTask(taskId, { status: "done", completed_at: now }).pipe(
-      Effect.ignoreLogged
+      Effect.mapError((e) => {
+        log.error("Failed to persist done status", { taskId, error: String(e) })
+        return new Error(`DB write failed for complete: ${e}`)
+      })
     )
 
     yield* deps.logActivity(taskId, "lifecycle", "task.completed", "Task completed", {
