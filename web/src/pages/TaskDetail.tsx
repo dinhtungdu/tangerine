@@ -219,10 +219,15 @@ export function TaskDetail() {
   }, [id, task?.updatedAt])
 
   useEffect(() => {
-    if (session.taskStatus) {
+    if (!session.taskStatus) return
+    const terminal = ["done", "failed", "cancelled"]
+    if (terminal.includes(session.taskStatus)) {
+      // Refetch the full task to capture error and other fields set on completion
+      fetchTask(id!).then(setTask).catch(() => {})
+    } else {
       setTask((prev) => (prev ? { ...prev, status: session.taskStatus! } : prev))
     }
-  }, [session.taskStatus])
+  }, [session.taskStatus, id])
 
   if (loading) {
     return (
