@@ -246,7 +246,7 @@ export function ChatInput({ onSend, disabled, queueLength, taskId, isWorking, on
           onClick={handleSend}
           disabled={!canSend}
           aria-label="Send message"
-          className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-surface-dark text-white transition hover:opacity-80 disabled:cursor-not-allowed disabled:opacity-30 md:rounded-lg"
+          className="mb-2 flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-surface-dark text-white transition hover:opacity-80 disabled:cursor-not-allowed disabled:opacity-30 md:rounded-lg"
         >
           <svg className="h-4 w-4 md:hidden" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
             <path strokeLinecap="round" strokeLinejoin="round" d="M4.5 10.5 12 3m0 0 7.5 7.5M12 3v18" />
