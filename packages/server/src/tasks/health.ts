@@ -4,6 +4,7 @@
 import { Effect, Schedule } from "effect"
 import { createLogger } from "../logger"
 import { HealthCheckError } from "../errors"
+import { DEFAULT_IDLE_TIMEOUT_MS, ORCHESTRATOR_TASK_NAME, ORCHESTRATOR_MESSAGE_LIMIT } from "@tangerine/shared"
 import type { TaskRow } from "../db/types"
 import type { CleanupDeps } from "./cleanup"
 import { cleanupSession } from "./cleanup"
@@ -43,8 +44,13 @@ export interface HealthCheckDeps {
   checkAgentAlive(taskId: string): Effect.Effect<boolean, never>
   restartAgent(task: TaskRow): Effect.Effect<void, Error>
   failTask(taskId: string, reason: string): Effect.Effect<void, Error>
+  completeTask(taskId: string): Effect.Effect<void, Error>
   /** Returns the last error emitted by the agent, if any. */
   getLastAgentError(taskId: string): string | undefined
+  /** Returns the ISO timestamp of the most recent user message for a task, or null. */
+  getLastUserMessageTime(taskId: string): string | null
+  /** Returns the count of user messages for a task. */
+  getUserMessageCount(taskId: string): number
   cleanupDeps: CleanupDeps
 }
 
@@ -142,6 +148,43 @@ function attemptRestart(
   )
 }
 
+/**
+ * Check if a running orchestrator should be completed due to idle timeout
+ * or message count exceeding the rotation threshold.
+ */
+function checkOrchestratorSession(
+  task: TaskRow,
+  deps: HealthCheckDeps,
+): Effect.Effect<void, never> {
+  return Effect.gen(function* () {
+    // Idle timeout: complete if no user message for DEFAULT_IDLE_TIMEOUT_MS
+    const lastMsgTime = deps.getLastUserMessageTime(task.id)
+    if (lastMsgTime) {
+      const idleMs = Date.now() - new Date(lastMsgTime).getTime()
+      if (idleMs >= DEFAULT_IDLE_TIMEOUT_MS) {
+        log.info("Orchestrator idle timeout, completing", { taskId: task.id, idleMs })
+        yield* deps.completeTask(task.id).pipe(Effect.ignoreLogged)
+        return
+      }
+    } else if (task.started_at) {
+      // No user messages at all — check time since start
+      const idleMs = Date.now() - new Date(task.started_at).getTime()
+      if (idleMs >= DEFAULT_IDLE_TIMEOUT_MS) {
+        log.info("Orchestrator idle timeout (no messages), completing", { taskId: task.id, idleMs })
+        yield* deps.completeTask(task.id).pipe(Effect.ignoreLogged)
+        return
+      }
+    }
+
+    // Context rotation: complete if message count exceeds threshold
+    const msgCount = deps.getUserMessageCount(task.id)
+    if (msgCount >= ORCHESTRATOR_MESSAGE_LIMIT) {
+      log.info("Orchestrator message limit reached, completing", { taskId: task.id, msgCount })
+      yield* deps.completeTask(task.id).pipe(Effect.ignoreLogged)
+    }
+  }).pipe(Effect.catchAll(() => Effect.void))
+}
+
 export function checkAllTasks(
   deps: HealthCheckDeps,
 ): Effect.Effect<void, never> {
@@ -152,13 +195,13 @@ export function checkAllTasks(
     log.debug("Health check started", { runningTaskCount: tasks.length })
 
     for (const task of tasks) {
-      yield* checkTask(task, deps).pipe(
+      const result = yield* checkTask(task, deps).pipe(
         Effect.catchAll((error) => {
           log.error("Health check error", {
             taskId: task.id,
             error: error.message,
           })
-          return Effect.void
+          return Effect.succeed("failed" as const)
         }),
         // Catch defects too so one bad task can't crash the health monitor
         Effect.catchAllDefect((defect) => {
@@ -166,9 +209,15 @@ export function checkAllTasks(
             taskId: task.id,
             defect: String(defect),
           })
-          return Effect.void
+          return Effect.succeed("failed" as const)
         }),
       )
+
+      // Orchestrator-specific: idle timeout and context rotation.
+      // Only check if the task is still healthy — skip if it was just restarted or failed.
+      if (task.title === ORCHESTRATOR_TASK_NAME && result === "healthy") {
+        yield* checkOrchestratorSession(task, deps)
+      }
     }
   })
 }

@@ -802,7 +802,29 @@ export async function start(): Promise<void> {
           Effect.asVoid,
           Effect.mapError((e) => new Error(String(e))),
         ),
+      completeTask: (taskId) =>
+        taskManager.completeTask(tmDeps, taskId).pipe(
+          Effect.mapError((e) => new Error(String(e))),
+        ),
       getLastAgentError: (taskId) => lastAgentErrors.get(taskId),
+      getLastUserMessageTime: (() => {
+        const stmt = db.prepare(
+          "SELECT timestamp FROM session_logs WHERE task_id = ? AND role = 'user' ORDER BY id DESC LIMIT 1"
+        )
+        return (taskId: string) => {
+          const row = stmt.get(taskId) as { timestamp: string } | null
+          return row?.timestamp ?? null
+        }
+      })(),
+      getUserMessageCount: (() => {
+        const stmt = db.prepare(
+          "SELECT COUNT(*) as count FROM session_logs WHERE task_id = ? AND role = 'user'"
+        )
+        return (taskId: string) => {
+          const row = stmt.get(taskId) as { count: number }
+          return row.count
+        }
+      })(),
       cleanupDeps,
     }
     await Effect.runPromise(startHealthMonitor(healthDeps))

@@ -1,8 +1,9 @@
 import { describe, test, expect, mock } from "bun:test"
 import { Effect } from "effect"
-import { checkTask, startHealthMonitor } from "../tasks/health"
+import { checkTask, checkAllTasks, startHealthMonitor } from "../tasks/health"
 import type { HealthCheckDeps } from "../tasks/health"
 import type { TaskRow } from "../db/types"
+import { ORCHESTRATOR_TASK_NAME } from "@tangerine/shared"
 
 function makeTask(overrides?: Partial<TaskRow>): TaskRow {
   return {
@@ -43,7 +44,10 @@ function makeDeps(overrides?: Partial<HealthCheckDeps>): HealthCheckDeps {
     checkAgentAlive: () => Effect.succeed(true),
     restartAgent: () => Effect.void,
     failTask: () => Effect.void,
+    completeTask: () => Effect.void,
     getLastAgentError: () => undefined,
+    getLastUserMessageTime: () => new Date().toISOString(),
+    getUserMessageCount: () => 0,
     cleanupDeps: {
       db: null as never,
       getTask: () => Effect.succeed(null),
@@ -201,5 +205,91 @@ describe("health check", () => {
     const result = await Effect.runPromise(checkTask(task, deps))
     expect(result).toBe("healthy")
     expect(failFn).toHaveBeenCalledTimes(0)
+  })
+})
+
+describe("orchestrator session management", () => {
+  test("idle orchestrator is completed after timeout", async () => {
+    const task = makeTask({
+      title: ORCHESTRATOR_TASK_NAME,
+      started_at: new Date(Date.now() - 700_000).toISOString(),
+    })
+    const completeFn = mock(() => Effect.void)
+    const deps = makeDeps({
+      listRunningTasks: () => Effect.succeed([task]),
+      completeTask: completeFn,
+      // Last user message was 11 minutes ago (> 10 min timeout)
+      getLastUserMessageTime: () => new Date(Date.now() - 660_000).toISOString(),
+      getUserMessageCount: () => 5,
+    })
+    await Effect.runPromise(checkAllTasks(deps))
+    expect(completeFn).toHaveBeenCalledTimes(1)
+  })
+
+  test("active orchestrator is not completed", async () => {
+    const task = makeTask({
+      title: ORCHESTRATOR_TASK_NAME,
+      started_at: new Date(Date.now() - 60_000).toISOString(),
+    })
+    const completeFn = mock(() => Effect.void)
+    const deps = makeDeps({
+      listRunningTasks: () => Effect.succeed([task]),
+      completeTask: completeFn,
+      // Last user message was 1 minute ago (< 10 min timeout)
+      getLastUserMessageTime: () => new Date(Date.now() - 60_000).toISOString(),
+      getUserMessageCount: () => 5,
+    })
+    await Effect.runPromise(checkAllTasks(deps))
+    expect(completeFn).toHaveBeenCalledTimes(0)
+  })
+
+  test("orchestrator with too many messages is completed", async () => {
+    const task = makeTask({
+      title: ORCHESTRATOR_TASK_NAME,
+      started_at: new Date(Date.now() - 60_000).toISOString(),
+    })
+    const completeFn = mock(() => Effect.void)
+    const deps = makeDeps({
+      listRunningTasks: () => Effect.succeed([task]),
+      completeTask: completeFn,
+      // Recent activity, but too many messages
+      getLastUserMessageTime: () => new Date(Date.now() - 30_000).toISOString(),
+      getUserMessageCount: () => 100,
+    })
+    await Effect.runPromise(checkAllTasks(deps))
+    expect(completeFn).toHaveBeenCalledTimes(1)
+  })
+
+  test("regular task is not affected by orchestrator idle check", async () => {
+    const task = makeTask({
+      title: "Regular task",
+      started_at: new Date(Date.now() - 700_000).toISOString(),
+    })
+    const completeFn = mock(() => Effect.void)
+    const deps = makeDeps({
+      listRunningTasks: () => Effect.succeed([task]),
+      completeTask: completeFn,
+      // Would trigger idle timeout if this were an orchestrator
+      getLastUserMessageTime: () => new Date(Date.now() - 660_000).toISOString(),
+      getUserMessageCount: () => 200,
+    })
+    await Effect.runPromise(checkAllTasks(deps))
+    expect(completeFn).toHaveBeenCalledTimes(0)
+  })
+
+  test("orchestrator with no messages idles based on started_at", async () => {
+    const task = makeTask({
+      title: ORCHESTRATOR_TASK_NAME,
+      started_at: new Date(Date.now() - 700_000).toISOString(),
+    })
+    const completeFn = mock(() => Effect.void)
+    const deps = makeDeps({
+      listRunningTasks: () => Effect.succeed([task]),
+      completeTask: completeFn,
+      getLastUserMessageTime: () => null,
+      getUserMessageCount: () => 0,
+    })
+    await Effect.runPromise(checkAllTasks(deps))
+    expect(completeFn).toHaveBeenCalledTimes(1)
   })
 })

@@ -1,6 +1,6 @@
 # Orchestrator
 
-The orchestrator is a special per-project task that acts as a coordinator for all other tasks in the project. It runs continuously on the default branch (not in an isolated worktree) and is meant to be restarted, not completed.
+The orchestrator is a special per-project task that acts as a coordinator for all other tasks in the project. It runs on the default branch (not in an isolated worktree) and is automatically managed via idle timeout and context rotation.
 
 ## What makes it special
 
@@ -9,10 +9,10 @@ The orchestrator is a special per-project task that acts as a coordinator for al
 | Branch | `tangerine/<task-prefix>` (isolated) | Default branch (`main`) |
 | Worktree | Dedicated slot from pool | Slot 0 (reserved) |
 | Start | Auto-provisions on creation | On-demand (when user opens chat) |
-| Lifecycle | Created → done/failed | Created → running → failed/cancelled → restarted |
+| Lifecycle | Created → done/failed | Created → running → done (auto) → auto-resumed |
 | Count | Many per project | One active per project (enforced) |
 | History | Independent | Chained via `parentTaskId` |
-| Retry | Creates new task with same params | Not applicable — use restart |
+| Retry | Creates new task with same params | Not applicable — auto-resume handles it |
 
 ## Lifecycle
 
@@ -30,11 +30,35 @@ The `parentTaskId` chain lets the new orchestrator access its predecessor's conv
 
 Orchestrators do **not** auto-start on creation. They start when the user opens the chat for the first time via `POST /api/tasks/:id/start`. This avoids spinning up an agent process for a project the user hasn't visited yet.
 
+### Idle timeout
+
+The health monitor tracks the last user message time for each running orchestrator. If no user message arrives within `DEFAULT_IDLE_TIMEOUT_MS` (10 minutes), the orchestrator is completed (`done`). This frees resources when the user is away. The agent process is killed and cleaned up via normal `completeTask` flow.
+
+### Context rotation
+
+The health monitor also tracks the user message count per orchestrator. When the count exceeds `ORCHESTRATOR_MESSAGE_LIMIT` (100), the orchestrator is completed. This prevents context degradation in long conversations. The next user interaction creates a fresh orchestrator with clean context — no summary is needed because the new orchestrator reads project state from git, the tasks API, and the agent's memory system.
+
+### Auto-resume
+
+When a user sends a message (via `POST /api/tasks/:id/prompt` or `POST /api/tasks/:id/chat`) to a done/failed/cancelled orchestrator, the system automatically:
+
+1. Creates a new orchestrator via `ensureOrchestrator` (linked via `parentTaskId`)
+2. Starts the new orchestrator's agent session
+3. Delivers the user's message to the new orchestrator
+4. Returns the new task ID in the response (`redirected: true`)
+
+This is transparent to the user — they message the old orchestrator and the system handles the handoff.
+
 ### Termination and restart
 
-When an orchestrator ends (`failed` or `cancelled`), the correct action is to **restart** it — which creates a new orchestrator task linked to the old one via `parentTaskId`. There is no "mark as done" for orchestrators; they are meant to run indefinitely.
+Orchestrators reach `done` status through three paths:
+1. **Idle timeout** — no user messages for 10 minutes
+2. **Context rotation** — user message count exceeds 100
+3. **Manual** — user or system explicitly completes it
 
-`POST /api/projects/:name/orchestrator` handles the restart: if the current orchestrator is terminal, it creates a new one with the previous one as parent.
+In all cases, the next user interaction auto-resumes via `ensureOrchestrator`.
+
+`POST /api/projects/:name/orchestrator` also handles explicit restart: if the current orchestrator is terminal, it creates a new one with the previous one as parent.
 
 ## Constraints
 
@@ -47,6 +71,7 @@ When an orchestrator ends (`failed` or `cancelled`), the correct action is to **
 - **Task list**: orchestrator is filtered out of the regular task list — it has its own entry point in the sidebar.
 - **Terminated banner**: shows "Restart orchestrator" instead of "Continue in new task". Does **not** show "Mark as done" (that button is for regular tasks only).
 - **No retry button**: the retry flow (create new task with same params) doesn't apply to orchestrators.
+- **Auto-resume is transparent**: if the user sends a message to a done orchestrator, the prompt/chat endpoint handles the redirect automatically. The UI should follow the `redirected` flag and `taskId` in the response to switch to the new orchestrator.
 
 ## Role and prompt
 

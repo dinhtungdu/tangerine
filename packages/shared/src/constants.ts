@@ -11,5 +11,8 @@ export const MAX_RETRY_ATTEMPTS = 3
 /** Reserved task name for the per-project orchestrator (always pinned to slot 0). */
 export const ORCHESTRATOR_TASK_NAME = "_orchestrator"
 
+/** Maximum user messages before an orchestrator is rotated for fresh context. */
+export const ORCHESTRATOR_MESSAGE_LIMIT = 100
+
 /** Task statuses that represent a completed lifecycle (no longer active). */
 export const TERMINAL_STATUSES = new Set(["done", "failed", "cancelled"])
