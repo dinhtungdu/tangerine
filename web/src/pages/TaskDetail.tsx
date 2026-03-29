@@ -441,7 +441,7 @@ export function TaskDetail() {
                 onAbort={session.abort}
                 onModelChange={handleModelChange}
                 onReasoningEffortChange={handleReasoningEffortChange}
-                predefinedPrompts={current?.predefinedPrompts}
+                predefinedPrompts={isOrchestrator ? undefined : current?.predefinedPrompts}
                 onRestartOrchestrator={isOrchestrator ? handleRestartOrchestrator : undefined}
                 onResolve={isOrchestrator ? undefined : handleResolve}
               />
@@ -527,7 +527,7 @@ export function TaskDetail() {
                 onAbort={session.abort}
                 onModelChange={handleModelChange}
                 onReasoningEffortChange={handleReasoningEffortChange}
-                predefinedPrompts={current?.predefinedPrompts}
+                predefinedPrompts={isOrchestrator ? undefined : current?.predefinedPrompts}
                 onRestartOrchestrator={isOrchestrator ? handleRestartOrchestrator : undefined}
                 onResolve={isOrchestrator ? undefined : handleResolve}
               />
