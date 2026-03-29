@@ -36,91 +36,81 @@ const CLAUDE_CODE_MODELS: ModelInfo[] = [
   { id: "claude-haiku-4-5", name: "Claude Haiku 4.5", provider: "anthropic", providerName: "Anthropic" },
 ]
 
-/**
- * Read custom providers from OpenCode's config file (~/.config/opencode/opencode.json).
- * Only includes models from providers that are either:
- * - Custom (have npm/options with their own auth), or
- * - Already authenticated via cache (present in availableCacheProviders)
- */
-function discoverConfigModels(availableCacheProviders: Set<string>): ModelInfo[] {
-  if (!existsSync(OPENCODE_CONFIG_PATH)) return []
+function readJsonFile<T>(path: string): T | null {
+  if (!existsSync(path)) return null
   try {
-    const config = JSON.parse(readFileSync(OPENCODE_CONFIG_PATH, "utf-8")) as {
-      provider?: Record<string, ConfigProviderEntry>
-    }
-    if (!config.provider) return []
-
-    const models: ModelInfo[] = []
-    for (const [providerId, provider] of Object.entries(config.provider)) {
-      if (!provider.models) continue
-      // Custom providers (with npm/options) are self-authenticated;
-      // built-in overrides need the same cache auth check
-      const isCustomProvider = !!(provider.npm || provider.options)
-      if (!isCustomProvider && !availableCacheProviders.has(providerId)) continue
-
-      for (const [modelId, model] of Object.entries(provider.models)) {
-        models.push({
-          id: `${providerId}/${modelId}`,
-          name: model.name ?? modelId,
-          provider: providerId,
-          providerName: provider.name ?? providerId,
-        })
-      }
-    }
-    return models
+    return JSON.parse(readFileSync(path, "utf-8")) as T
   } catch {
-    return []
+    return null
   }
 }
 
-/** Read OpenCode's models cache and auth to discover available models */
-export function discoverModels(): ModelInfo[] {
+function buildModels(
+  providerId: string,
+  providerName: string,
+  models: Record<string, { name?: string; [key: string]: unknown }>,
+): ModelInfo[] {
+  return Object.entries(models).map(([modelId, model]) => ({
+    id: `${providerId}/${modelId}`,
+    name: model.name ?? modelId,
+    provider: providerId,
+    providerName,
+  }))
+}
+
+/** Read OAuth tokens and determine which providers have valid auth */
+function readAuthedProviders(): Set<string> {
+  const auth = readJsonFile<Record<string, unknown>>(OPENCODE_AUTH_PATH)
+  return new Set(auth ? Object.keys(auth) : [])
+}
+
+/** Read OpenCode's models cache, filtered to authenticated providers */
+function discoverCacheModels(): { models: ModelInfo[]; availableProviders: Set<string> } {
+  const catalog = readJsonFile<Record<string, ProviderEntry>>(OPENCODE_MODELS_CACHE)
+  if (!catalog) return { models: [], availableProviders: new Set() }
+
+  const authedProviders = readAuthedProviders()
+  const availableProviders = new Set<string>()
   const models: ModelInfo[] = []
-  const availableCacheProviders = new Set<string>()
 
-  // Read models from cache
-  if (existsSync(OPENCODE_MODELS_CACHE)) {
-    try {
-      const catalog = JSON.parse(readFileSync(OPENCODE_MODELS_CACHE, "utf-8")) as Record<string, ProviderEntry>
+  for (const [providerId, provider] of Object.entries(catalog)) {
+    const hasOAuth = authedProviders.has(providerId)
+    const hasEnvVar = provider.env?.some((e) => !!process.env[e]) ?? false
+    if (!hasOAuth && !hasEnvVar) continue
 
-      // Read authenticated providers (oauth tokens)
-      const authedProviders = new Set<string>()
-      try {
-        if (existsSync(OPENCODE_AUTH_PATH)) {
-          const auth = JSON.parse(readFileSync(OPENCODE_AUTH_PATH, "utf-8")) as Record<string, unknown>
-          for (const key of Object.keys(auth)) {
-            authedProviders.add(key)
-          }
-        }
-      } catch {
-        // no auth
-      }
-
-      for (const [providerId, provider] of Object.entries(catalog)) {
-        // Provider is available if: has oauth in auth.json, or env var is set
-        const hasOAuth = authedProviders.has(providerId)
-        const hasEnvVar = provider.env?.some((e) => !!process.env[e]) ?? false
-
-        if (!hasOAuth && !hasEnvVar) continue
-
-        availableCacheProviders.add(providerId)
-
-        for (const [modelId, model] of Object.entries(provider.models ?? {})) {
-          models.push({
-            id: `${providerId}/${modelId}`,
-            name: model.name ?? modelId,
-            provider: providerId,
-            providerName: provider.name ?? providerId,
-          })
-        }
-      }
-    } catch {
-      // ignore cache read errors
-    }
+    availableProviders.add(providerId)
+    models.push(...buildModels(providerId, provider.name ?? providerId, provider.models ?? {}))
   }
 
-  // Merge models from config file, deduplicating by id
-  const configModels = discoverConfigModels(availableCacheProviders)
+  return { models, availableProviders }
+}
+
+/**
+ * Read providers from OpenCode's config file (~/.config/opencode/opencode.json).
+ * Custom providers (with npm/options) are self-authenticated.
+ * Built-in overrides only included if already authenticated in the cache.
+ */
+function discoverConfigModels(availableCacheProviders: Set<string>): ModelInfo[] {
+  const config = readJsonFile<{ provider?: Record<string, ConfigProviderEntry> }>(OPENCODE_CONFIG_PATH)
+  if (!config?.provider) return []
+
+  const models: ModelInfo[] = []
+  for (const [providerId, provider] of Object.entries(config.provider)) {
+    if (!provider.models) continue
+    const isCustomProvider = !!(provider.npm || provider.options)
+    if (!isCustomProvider && !availableCacheProviders.has(providerId)) continue
+
+    models.push(...buildModels(providerId, provider.name ?? providerId, provider.models))
+  }
+  return models
+}
+
+/** Read OpenCode's models cache and config to discover available models */
+export function discoverModels(): ModelInfo[] {
+  const { models, availableProviders } = discoverCacheModels()
+  const configModels = discoverConfigModels(availableProviders)
+
+  // Merge config models, deduplicating by id
   const seen = new Set(models.map((m) => m.id))
   for (const model of configModels) {
     if (!seen.has(model.id)) {
