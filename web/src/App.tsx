@@ -5,7 +5,6 @@ import { RunsPage } from "./pages/RunsPage"
 import { TaskDetail } from "./pages/TaskDetail"
 import { NewAgentPage } from "./pages/NewAgentPage"
 import { StatusPage } from "./pages/StatusPage"
-import { TerminalPage } from "./pages/TerminalPage"
 import { ProjectProvider } from "./context/ProjectContext"
 
 export function App() {
@@ -16,7 +15,6 @@ export function App() {
           <Route index element={<RunsPage />} />
           <Route path="new" element={<NewAgentPage />} />
           <Route path="status" element={<StatusPage />} />
-          <Route path="terminal" element={<TerminalPage />} />
           <Route path="tasks/:id" element={<TaskDetail />} />
         </Route>
       </Routes>
