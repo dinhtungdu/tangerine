@@ -520,7 +520,7 @@ Start by loading the tangerine-tasks skill (\`/tangerine-tasks\`) and checking t
 export function startTask(
   deps: TaskManagerDeps,
   taskId: string,
-): Effect.Effect<void, TaskNotFoundError | Error> {
+): Effect.Effect<void, TaskNotFoundError | DbError> {
   return Effect.gen(function* () {
     const task = yield* deps.getTask(taskId).pipe(
       Effect.mapError(() => new TaskNotFoundError({ taskId }))
@@ -534,13 +534,15 @@ export function startTask(
 
     const projectConfig = deps.getProjectConfig(task.project_id)
     if (!projectConfig) {
-      return yield* Effect.fail(new Error(`Unknown project: ${task.project_id}`))
+      return yield* Effect.fail(new DbError({ message: `Unknown project: ${task.project_id}` }))
     }
 
     // Atomically transition created → provisioning to prevent concurrent starts.
     // If another request already moved the status, this update is a no-op and
     // the re-read below will see a non-"created" status, so we bail out.
-    yield* deps.updateTask(taskId, { status: "provisioning" }).pipe(Effect.ignoreLogged)
+    yield* deps.updateTask(taskId, { status: "provisioning" }).pipe(
+      Effect.mapError((cause) => new DbError({ message: `Failed to persist provisioning status for task ${taskId}`, cause }))
+    )
     const current = yield* deps.getTask(taskId).pipe(
       Effect.mapError(() => new TaskNotFoundError({ taskId }))
     )

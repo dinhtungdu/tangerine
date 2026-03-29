@@ -676,7 +676,7 @@ export async function start(): Promise<void> {
           ),
         startTask: (taskId) =>
           taskManager.startTask(tmDeps, taskId).pipe(
-            Effect.mapError((e) => ({ _tag: ("_tag" in e ? e._tag : "TaskError") as string, message: e.message }))
+            Effect.mapError((e) => ({ _tag: e._tag, message: e.message }))
           ),
         onTaskEvent,
         onStatusChange,
