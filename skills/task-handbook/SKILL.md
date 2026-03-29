@@ -41,6 +41,7 @@ curl "$API/api/tasks"
 curl "$API/api/tasks?status=running"
 
 # Create a new task (cross-project delegation)
+# Default model is claude-opus-4-6 — override with "model" if user specifies another
 curl -X POST $API/api/tasks \
   -H "Content-Type: application/json" \
   -d '{
@@ -48,7 +49,8 @@ curl -X POST $API/api/tasks \
     "title": "Task title",
     "description": "What to do",
     "source": "cross-project",
-    "provider": "claude-code"
+    "provider": "claude-code",
+    "model": "claude-opus-4-6"
   }'
 
 # Create a task from an existing branch
@@ -58,7 +60,8 @@ curl -X POST $API/api/tasks \
     "projectId": "my-project",
     "title": "Continue work on feature",
     "description": "Pick up where we left off",
-    "branch": "feature/my-branch"
+    "branch": "feature/my-branch",
+    "model": "claude-opus-4-6"
   }'
 
 # Create a task from a PR (resolves to the PR's head branch)
@@ -67,7 +70,8 @@ curl -X POST $API/api/tasks \
   -d '{
     "projectId": "my-project",
     "title": "Review and fix PR feedback",
-    "branch": "#123"
+    "branch": "#123",
+    "model": "claude-opus-4-6"
   }'
 
 # Create a continuation task (links to parent for context)
@@ -77,7 +81,8 @@ curl -X POST $API/api/tasks \
     "projectId": "my-project",
     "title": "Continue previous work",
     "description": "Pick up from where the parent task left off",
-    "parentTaskId": "abc123"
+    "parentTaskId": "abc123",
+    "model": "claude-opus-4-6"
   }'
 
 # Cancel a task
@@ -138,7 +143,8 @@ curl -X POST http://localhost:3456/api/tasks \
     "title": "Fix the login bug",
     "description": "The login form throws a 500 when email contains a +. Fix it.",
     "source": "cross-project",
-    "provider": "claude-code"
+    "provider": "claude-code",
+    "model": "claude-opus-4-6"
   }'
 ```
 
