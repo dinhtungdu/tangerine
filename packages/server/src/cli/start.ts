@@ -826,13 +826,12 @@ export async function start(): Promise<void> {
           Effect.asVoid,
           Effect.mapError((e) => new Error(String(e))),
         ),
-      suspendAgent: (taskId) => Effect.sync(() => {
+      suspendAgent: (taskId) => {
         const handle = agentHandles.get(taskId)
-        if (handle) {
-          Effect.runPromise(handle.shutdown().pipe(Effect.catchAll(() => Effect.void)))
-          agentHandles.delete(taskId)
-        }
-      }),
+        if (!handle) return Effect.void
+        agentHandles.delete(taskId)
+        return handle.shutdown().pipe(Effect.catchAll(() => Effect.void))
+      },
       getLastAgentError: (taskId) => lastAgentErrors.get(taskId),
       isAgentWorking: (taskId) => getAgentWorkingState(taskId) === "working",
       getLastUserMessageTime: (() => {
