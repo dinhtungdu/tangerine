@@ -163,6 +163,9 @@ export function RunsTable({ tasks, searchQuery, onSearchChange, onRefetch }: Run
                   )}
                 </div>
                 <ParentLabel task={task} taskById={taskById} />
+                {task.status === "failed" && task.error && (
+                  <div className="truncate text-[11px] text-status-error" title={task.error}>{task.error}</div>
+                )}
               </div>
               <div className="w-[120px] px-3 py-2.5"><StatusBadge status={task.status} /></div>
               <div className="w-[100px] px-3 py-2.5 text-fg-muted">{formatDuration(task.startedAt, task.completedAt, task.createdAt)}</div>

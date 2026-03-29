@@ -173,6 +173,26 @@ describe("RunCard", () => {
     expect(screen.getByText("Failed")).toBeTruthy()
   })
 
+  test("shows error message for failed tasks", () => {
+    render(
+      <MemoryRouter>
+        <RunCard task={makeTask({ status: "failed", error: "Payment Required: deactivated_workspace" })} />
+      </MemoryRouter>
+    )
+
+    expect(screen.getByText("Payment Required: deactivated_workspace")).toBeTruthy()
+  })
+
+  test("does not show error for non-failed tasks", () => {
+    render(
+      <MemoryRouter>
+        <RunCard task={makeTask({ status: "done", error: "leftover error" })} />
+      </MemoryRouter>
+    )
+
+    expect(screen.queryByText("leftover error")).toBeNull()
+  })
+
   test("renders as a link to task detail", () => {
     render(
       <MemoryRouter>
@@ -378,6 +398,42 @@ describe("ChatInput", () => {
 })
 
 describe("ChatPanel", () => {
+  test("shows error message in terminated banner for failed tasks", () => {
+    render(
+      <MemoryRouter>
+        <ChatPanel
+          messages={[]}
+          agentStatus="idle"
+          queueLength={0}
+          taskStatus="failed"
+          taskError="Payment Required: deactivated_workspace"
+          onSend={() => {}}
+          onAbort={() => {}}
+        />
+      </MemoryRouter>
+    )
+
+    expect(screen.getByText("Payment Required: deactivated_workspace")).toBeTruthy()
+  })
+
+  test("does not show error in terminated banner for done tasks", () => {
+    render(
+      <MemoryRouter>
+        <ChatPanel
+          messages={[]}
+          agentStatus="idle"
+          queueLength={0}
+          taskStatus="done"
+          taskError="some error"
+          onSend={() => {}}
+          onAbort={() => {}}
+        />
+      </MemoryRouter>
+    )
+
+    expect(screen.queryByText("some error")).toBeNull()
+  })
+
   test("quotes selected message text into the composer", async () => {
     render(
       <MemoryRouter>
