@@ -241,7 +241,7 @@ export function TaskDetail() {
       const next = PANE_ORDER[idx + 1]
       if (idx < PANE_ORDER.length - 1 && next) setMobilePane(next)
     },
-  })
+  }, { edgeWidth: 20 })
 
   if (loading) {
     return (

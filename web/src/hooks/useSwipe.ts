@@ -10,6 +10,8 @@ interface SwipeOptions {
   threshold?: number
   /** Max vertical distance (px) allowed — prevents triggering on scrolls. Default: 80 */
   maxVertical?: number
+  /** Only trigger swipe when touch starts within this many px of screen edge. Default: undefined (anywhere) */
+  edgeWidth?: number
 }
 
 /** Walk up from `el` to check if any ancestor can scroll horizontally. */
@@ -31,14 +33,23 @@ export function useSwipe(
   handlers: SwipeHandlers,
   options: SwipeOptions = {},
 ) {
-  const { threshold = 50, maxVertical = 80 } = options
-  const startRef = useRef<{ x: number; y: number } | null>(null)
+  const { threshold = 50, maxVertical = 80, edgeWidth } = options
+  const startRef = useRef<{ x: number; y: number; edge?: "left" | "right" } | null>(null)
   const handlersRef = useRef(handlers)
   handlersRef.current = handlers
 
   const onTouchStart = useCallback((e: React.TouchEvent) => {
     const touch = e.touches[0]
     if (!touch) return
+    // Only accept touches starting near screen edges
+    let edge: "left" | "right" | undefined
+    if (edgeWidth != null) {
+      const x = touch.clientX
+      const screenW = document.documentElement.clientWidth
+      if (x <= edgeWidth) edge = "left"
+      else if (x >= screenW - edgeWidth) edge = "right"
+      else return
+    }
     // Ignore touches on interactive or horizontally-scrollable elements
     const el = e.target as HTMLElement
     const tag = el.tagName
@@ -46,8 +57,8 @@ export function useSwipe(
     if (el.closest("[data-swipe-ignore]")) return
     // Skip if touch started inside a horizontally-scrollable container
     if (hasHorizontalScroll(el)) return
-    startRef.current = { x: touch.clientX, y: touch.clientY }
-  }, [])
+    startRef.current = { x: touch.clientX, y: touch.clientY, edge }
+  }, [edgeWidth])
 
   const onTouchEnd = useCallback((e: React.TouchEvent) => {
     if (!startRef.current) return
@@ -55,15 +66,21 @@ export function useSwipe(
     if (!touch) return
     const dx = touch.clientX - startRef.current.x
     const dy = touch.clientY - startRef.current.y
+    const { edge } = startRef.current
     startRef.current = null
 
     if (Math.abs(dy) > maxVertical) return
     if (Math.abs(dx) < threshold) return
 
-    if (dx < 0) {
-      handlersRef.current.onSwipeLeft?.()
+    if (edge) {
+      // Edge swipe: action based on which edge, not swipe direction
+      // Left edge → onSwipeLeft (go back / previous pane)
+      // Right edge → onSwipeRight (next pane)
+      if (edge === "left") handlersRef.current.onSwipeLeft?.()
+      else handlersRef.current.onSwipeRight?.()
     } else {
-      handlersRef.current.onSwipeRight?.()
+      if (dx < 0) handlersRef.current.onSwipeLeft?.()
+      else handlersRef.current.onSwipeRight?.()
     }
   }, [threshold, maxVertical])
 
