@@ -3,7 +3,7 @@
 
 import { Effect } from "effect"
 import { createLogger } from "../logger"
-import { type ActivityType, ORCHESTRATOR_TASK_NAME, TERMINAL_STATUSES, DEFAULT_API_PORT } from "@tangerine/shared"
+import { type ActivityType, type TaskCapability, ORCHESTRATOR_TASK_NAME, TERMINAL_STATUSES, DEFAULT_API_PORT } from "@tangerine/shared"
 import {
   TaskNotFoundError,
   TaskNotTerminalError,
@@ -32,7 +32,7 @@ function depsForProvider(deps: TaskManagerDeps, provider: string): LifecycleDeps
 export type TaskSource = "github" | "manual" | "api" | "cross-project"
 
 export interface TaskManagerDeps {
-  insertTask(task: Pick<TaskRow, "id" | "project_id" | "source" | "repo_url" | "title"> & Partial<Pick<TaskRow, "source_id" | "source_url" | "description" | "user_id" | "branch" | "provider" | "model" | "reasoning_effort" | "parent_task_id">>): Effect.Effect<TaskRow, Error>
+  insertTask(task: Pick<TaskRow, "id" | "project_id" | "source" | "repo_url" | "title"> & Partial<Pick<TaskRow, "source_id" | "source_url" | "description" | "user_id" | "branch" | "provider" | "model" | "reasoning_effort" | "parent_task_id" | "capabilities">>): Effect.Effect<TaskRow, Error>
   updateTask(taskId: string, updates: Partial<Omit<TaskRow, "id">>): Effect.Effect<TaskRow | null, Error>
   getTask(taskId: string): Effect.Effect<TaskRow | null, Error>
   listTasks(filter?: { status?: string; projectId?: string }): Effect.Effect<TaskRow[], Error>
@@ -115,6 +115,11 @@ export function createTask(
       }
     }
 
+    const isOrchestrator = params.title === ORCHESTRATOR_TASK_NAME
+    const capabilities: TaskCapability[] = isOrchestrator
+      ? ["restart"]
+      : ["resolve", "predefined-prompts", "diff"]
+
     const task = yield* deps.insertTask({
       id,
       project_id: params.projectId,
@@ -129,6 +134,7 @@ export function createTask(
       reasoning_effort: params.reasoningEffort ?? null,
       branch: params.branch ?? null,
       parent_task_id: params.parentTaskId ?? null,
+      capabilities: JSON.stringify(capabilities),
     })
 
     log.info("Task created", { taskId: id, projectId: params.projectId, source: params.source, title: params.title })

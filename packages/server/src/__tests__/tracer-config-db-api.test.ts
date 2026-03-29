@@ -263,6 +263,7 @@ describe("tracer: config -> db -> api", () => {
       completed_at: null,
       last_seen_at: null,
       last_result_at: null,
+      capabilities: null,
     }
 
     const mapped = mapTaskRow(row)
