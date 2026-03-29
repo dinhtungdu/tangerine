@@ -1,7 +1,6 @@
 import { useState, useEffect, useCallback, useRef } from "react"
 import { useParams, Link } from "react-router-dom"
 import type { Task } from "@tangerine/shared"
-import { ORCHESTRATOR_TASK_NAME } from "@tangerine/shared"
 import { fetchTask, fetchChildTasks, changeTaskConfig, markTaskSeen, resolveTask, cancelTask } from "../lib/api"
 import { getStatusConfig } from "../lib/status"
 import { useSession } from "../hooks/useSession"
@@ -161,7 +160,7 @@ export function TaskDetail() {
   const canResolve = task?.capabilities.includes("resolve") ?? false
   const hasPredefinedPrompts = task?.capabilities.includes("predefined-prompts") ?? false
   const hasDiff = task?.capabilities.includes("diff") ?? false
-  const isOrchestrator = task?.title === ORCHESTRATOR_TASK_NAME
+  const canEndSession = task?.capabilities.includes("end-session") ?? false
 
   const handleResolve = useCallback(async () => {
     if (!task) return
@@ -466,7 +465,7 @@ export function TaskDetail() {
                 onReasoningEffortChange={handleReasoningEffortChange}
                 predefinedPrompts={hasPredefinedPrompts ? current?.predefinedPrompts : undefined}
                 onResolve={canResolve ? handleResolve : undefined}
-                onEndSession={isOrchestrator ? handleEndSession : undefined}
+                onEndSession={canEndSession ? handleEndSession : undefined}
               />
             </div>
           )}
@@ -552,7 +551,7 @@ export function TaskDetail() {
                 onReasoningEffortChange={handleReasoningEffortChange}
                 predefinedPrompts={hasPredefinedPrompts ? current?.predefinedPrompts : undefined}
                 onResolve={canResolve ? handleResolve : undefined}
-                onEndSession={isOrchestrator ? handleEndSession : undefined}
+                onEndSession={canEndSession ? handleEndSession : undefined}
               />
             </div>
           )}

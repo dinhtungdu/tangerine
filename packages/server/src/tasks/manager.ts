@@ -88,7 +88,7 @@ export function createTask(
 
     const isOrchestrator = params.title === ORCHESTRATOR_TASK_NAME
     const capabilities: TaskCapability[] = isOrchestrator
-      ? ["resolve"]
+      ? ["resolve", "end-session"]
       : ["resolve", "predefined-prompts", "diff"]
 
     const task = yield* deps.insertTask({
