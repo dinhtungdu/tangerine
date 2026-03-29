@@ -1,7 +1,7 @@
 // CLI entrypoint: one-time setup for Tangerine.
 // Checks system deps, creates directories, symlinks Claude Code skill.
 
-import { existsSync, mkdirSync, symlinkSync, readlinkSync } from "fs"
+import { existsSync, lstatSync, mkdirSync, rmSync, symlinkSync, readlinkSync } from "fs"
 import { join, resolve } from "path"
 import { homedir } from "os"
 import { TANGERINE_HOME, OPENCODE_AUTH_PATH, readCredentialsFile, readClaudeCliToken } from "../config"
@@ -34,17 +34,27 @@ function symlinkSkill(skillName: string): { created: boolean; skipped: string | 
   const skillSource = join(PROJECT_ROOT, "skills", skillName)
   const target = join(CLAUDE_SKILLS_DIR, skillName)
 
-  if (existsSync(target)) {
-    // Check if it already points to the right place
+  // lstatSync detects broken symlinks that existsSync misses
+  let targetExists = false
+  try {
+    lstatSync(target)
+    targetExists = true
+  } catch {
+    // Does not exist at all
+  }
+
+  if (targetExists) {
     try {
       const current = readlinkSync(target)
       if (resolve(current) === resolve(skillSource)) {
         return { created: false, skipped: "already linked" }
       }
     } catch {
-      // Not a symlink — existing dir/file
+      // Not a symlink — existing dir/file, don't touch
+      return { created: false, skipped: "path exists (not a symlink), not overwriting" }
     }
-    return { created: false, skipped: "path exists, not overwriting" }
+    // Symlink exists but points elsewhere — replace it
+    rmSync(target)
   }
 
   ensureDir(CLAUDE_SKILLS_DIR)
