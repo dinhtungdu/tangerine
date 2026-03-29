@@ -24,6 +24,8 @@ interface ProviderEntry {
 
 interface ConfigProviderEntry {
   name?: string
+  npm?: string
+  options?: Record<string, unknown>
   models?: Record<string, { name?: string; [key: string]: unknown }>
 }
 
@@ -34,8 +36,13 @@ const CLAUDE_CODE_MODELS: ModelInfo[] = [
   { id: "claude-haiku-4-5", name: "Claude Haiku 4.5", provider: "anthropic", providerName: "Anthropic" },
 ]
 
-/** Read custom providers from OpenCode's config file (~/.config/opencode/opencode.json) */
-function discoverConfigModels(): ModelInfo[] {
+/**
+ * Read custom providers from OpenCode's config file (~/.config/opencode/opencode.json).
+ * Only includes models from providers that are either:
+ * - Custom (have npm/options with their own auth), or
+ * - Already authenticated via cache (present in availableCacheProviders)
+ */
+function discoverConfigModels(availableCacheProviders: Set<string>): ModelInfo[] {
   if (!existsSync(OPENCODE_CONFIG_PATH)) return []
   try {
     const config = JSON.parse(readFileSync(OPENCODE_CONFIG_PATH, "utf-8")) as {
@@ -46,6 +53,11 @@ function discoverConfigModels(): ModelInfo[] {
     const models: ModelInfo[] = []
     for (const [providerId, provider] of Object.entries(config.provider)) {
       if (!provider.models) continue
+      // Custom providers (with npm/options) are self-authenticated;
+      // built-in overrides need the same cache auth check
+      const isCustomProvider = !!(provider.npm || provider.options)
+      if (!isCustomProvider && !availableCacheProviders.has(providerId)) continue
+
       for (const [modelId, model] of Object.entries(provider.models)) {
         models.push({
           id: `${providerId}/${modelId}`,
@@ -64,6 +76,7 @@ function discoverConfigModels(): ModelInfo[] {
 /** Read OpenCode's models cache and auth to discover available models */
 export function discoverModels(): ModelInfo[] {
   const models: ModelInfo[] = []
+  const availableCacheProviders = new Set<string>()
 
   // Read models from cache
   if (existsSync(OPENCODE_MODELS_CACHE)) {
@@ -90,6 +103,8 @@ export function discoverModels(): ModelInfo[] {
 
         if (!hasOAuth && !hasEnvVar) continue
 
+        availableCacheProviders.add(providerId)
+
         for (const [modelId, model] of Object.entries(provider.models ?? {})) {
           models.push({
             id: `${providerId}/${modelId}`,
@@ -104,8 +119,8 @@ export function discoverModels(): ModelInfo[] {
     }
   }
 
-  // Merge models from config file (custom providers), deduplicating by id
-  const configModels = discoverConfigModels()
+  // Merge models from config file, deduplicating by id
+  const configModels = discoverConfigModels(availableCacheProviders)
   const seen = new Set(models.map((m) => m.id))
   for (const model of configModels) {
     if (!seen.has(model.id)) {
