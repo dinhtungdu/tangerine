@@ -9,6 +9,8 @@ type TerminalPaneProps =
   | { taskId: string; wsUrl?: never }
   | { taskId?: never; wsUrl: string }
 
+type ConnState = "connecting" | "connected" | "reconnecting" | "error"
+
 export function TerminalPane(props: TerminalPaneProps) {
   const wsPath = props.wsUrl ?? `/api/tasks/${props.taskId}/terminal`
   const wrapperRef = useRef<HTMLDivElement>(null)
@@ -19,7 +21,8 @@ export function TerminalPane(props: TerminalPaneProps) {
   const reconnectTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const backoffRef = useRef(1000)
   const disposedRef = useRef(false)
-  const [connected, setConnected] = useState(false)
+  const everConnectedRef = useRef(false)
+  const [connState, setConnState] = useState<ConnState>("connecting")
 
   const sendInput = useCallback((data: string) => {
     const ws = wsRef.current
@@ -53,7 +56,8 @@ export function TerminalPane(props: TerminalPaneProps) {
       try {
         const msg = JSON.parse(event.data as string)
         if (msg.type === "connected") {
-          setConnected(true)
+          everConnectedRef.current = true
+          setConnState("connected")
           // Send resize immediately so tmux gets the right size
           const fit = fitRef.current
           if (fit) {
@@ -65,6 +69,7 @@ export function TerminalPane(props: TerminalPaneProps) {
         } else if (msg.type === "exit") {
           term.writeln(`\r\n[Process exited with code ${msg.code}]`)
         } else if (msg.type === "error") {
+          setConnState("error")
           term.writeln(`\r\n[Error: ${msg.message}]`)
         }
       } catch {
@@ -76,10 +81,10 @@ export function TerminalPane(props: TerminalPaneProps) {
       // Only handle reconnect if this is still the active WebSocket
       if (wsRef.current !== ws) return
       wsRef.current = null
-      setConnected(false)
       if (disposedRef.current) return
       const delay = backoffRef.current
-      backoffRef.current = Math.min(delay * 2, 30000)
+      backoffRef.current = Math.min(delay * 2, 5000)
+      setConnState(everConnectedRef.current ? "reconnecting" : "connecting")
       reconnectTimerRef.current = setTimeout(connect, delay)
     }
 
@@ -174,6 +179,7 @@ export function TerminalPane(props: TerminalPaneProps) {
           reconnectTimerRef.current = null
         }
         backoffRef.current = 1000
+        setConnState(everConnectedRef.current ? "reconnecting" : "connecting")
         connect()
       }
     }
@@ -190,7 +196,8 @@ export function TerminalPane(props: TerminalPaneProps) {
         ws.close()
         wsRef.current = null
       }
-      setConnected(false)
+      setConnState("connecting")
+      everConnectedRef.current = false
       term.dispose()
       termRef.current = null
       fitRef.current = null
@@ -207,9 +214,11 @@ export function TerminalPane(props: TerminalPaneProps) {
     >
       <div className="relative min-h-0 flex-1">
         <div ref={containerRef} className="absolute inset-0 bg-surface-card p-1" />
-        {!connected && (
+        {connState !== "connected" && (
           <div className="absolute inset-0 flex items-center justify-center bg-[#1a1a1a]">
-            <span className="text-[13px] text-fg-muted">Connecting...</span>
+            <span className="text-[13px] text-fg-muted">
+              {connState === "reconnecting" ? "Reconnecting..." : connState === "error" ? "Connection error" : "Connecting..."}
+            </span>
           </div>
         )}
       </div>

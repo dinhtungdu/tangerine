@@ -19,8 +19,22 @@ export function tmuxSessionName(taskId: string): string {
   return `tng-${taskId.slice(0, 8)}`
 }
 
+const TMUX_TIMEOUT_MS = 5000
+
 /** Ensure a tmux session exists for the task, creating one if needed. */
 async function ensureTmuxSession(sessionName: string, cwd: string): Promise<void> {
+  let timer: ReturnType<typeof setTimeout>
+  const timeout = new Promise<never>((_, reject) => {
+    timer = setTimeout(() => reject(new Error("tmux session setup timed out")), TMUX_TIMEOUT_MS)
+  })
+  try {
+    await Promise.race([_ensureTmuxSession(sessionName, cwd), timeout])
+  } finally {
+    clearTimeout(timer!)
+  }
+}
+
+async function _ensureTmuxSession(sessionName: string, cwd: string): Promise<void> {
   const check = Bun.spawnSync(["tmux", "has-session", "-t", sessionName], {
     stderr: "pipe",
   })
@@ -56,7 +70,9 @@ export function terminalWsRoutes(deps: AppDeps, upgradeWebSocket: UpgradeWebSock
 
               log.info("Terminal session starting", { taskId, worktree, sessionName })
 
+              const t0 = Date.now()
               yield* Effect.tryPromise(() => ensureTmuxSession(sessionName, worktree))
+              log.info("tmux session ready", { taskId, sessionName, ms: Date.now() - t0 })
 
               // Attach to the tmux session via PTY — this gives the browser
               // a live view into the persistent session.
