@@ -64,6 +64,8 @@ export interface HealthCheckDeps {
   getLastAgentError(taskId: string): string | undefined
   /** Returns the ISO timestamp of the most recent user message for a task, or null. */
   getLastUserMessageTime(taskId: string): string | null
+  /** Returns whether the agent is currently processing (working) or idle. */
+  isAgentWorking(taskId: string): boolean
   cleanupDeps: CleanupDeps
 }
 
@@ -183,6 +185,9 @@ function checkIdleTimeout(
 ): Effect.Effect<void, never> {
   return Effect.gen(function* () {
     if (!SUSPENDABLE_PROVIDERS.has(task.provider)) return
+
+    // Don't suspend if the agent is actively processing a request
+    if (deps.isAgentWorking(task.id)) return
 
     const lastMsgTime = deps.getLastUserMessageTime(task.id)
     if (lastMsgTime) {

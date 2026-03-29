@@ -46,6 +46,7 @@ function makeDeps(overrides?: Partial<HealthCheckDeps>): HealthCheckDeps {
     failTask: () => Effect.void,
     suspendAgent: () => Effect.void,
     getLastAgentError: () => undefined,
+    isAgentWorking: () => false,
     getLastUserMessageTime: () => new Date().toISOString(),
     cleanupDeps: {
       db: null as never,
@@ -302,6 +303,23 @@ describe("idle timeout", () => {
     expect(suspendFn).toHaveBeenCalledTimes(2)
     clearSuspended("orch-1")
     clearSuspended("worker-1")
+  })
+
+  test("working agent is not suspended even if idle", async () => {
+    const task = makeTask({
+      started_at: new Date(Date.now() - 700_000).toISOString(),
+    })
+    const suspendFn = mock(() => Effect.void)
+    const deps = makeDeps({
+      listRunningTasks: () => Effect.succeed([task]),
+      suspendAgent: suspendFn,
+      // Idle for 11 minutes but agent is actively working
+      getLastUserMessageTime: () => new Date(Date.now() - 660_000).toISOString(),
+      isAgentWorking: () => true,
+    })
+    await Effect.runPromise(checkAllTasks(deps))
+    expect(suspendFn).toHaveBeenCalledTimes(0)
+    expect(isTaskSuspended(task.id)).toBe(false)
   })
 
   test("opencode tasks are not suspended (no disk-based resume)", async () => {
