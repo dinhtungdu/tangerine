@@ -8,7 +8,6 @@ export function Layout() {
   const isTaskDetail = location.pathname.startsWith("/tasks/")
   const isRuns = location.pathname === "/" || location.pathname.startsWith("/tasks") || location.pathname === "/new"
   const isStatus = location.pathname === "/status"
-  const isTerminal = location.pathname === "/terminal"
 
   return (
     <div className="flex h-[100dvh] flex-col bg-surface md:h-screen">
@@ -44,14 +43,6 @@ export function Layout() {
               }`}
             >
               Status
-            </Link>
-            <Link
-              to={link("/terminal")}
-              className={`rounded-md px-3 py-1.5 text-[13px] font-medium ${
-                isTerminal ? "bg-surface-secondary text-fg" : "text-fg-muted hover:text-fg"
-              }`}
-            >
-              Terminal
             </Link>
           </nav>
         </div>

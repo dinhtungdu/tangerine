@@ -19,7 +19,6 @@ import { projectRoutes } from "./routes/project"
 import { testRoutes } from "./routes/test"
 import { wsRoutes } from "./routes/ws"
 import { terminalWsRoutes } from "./routes/terminal-ws"
-import { projectTerminalWsRoutes } from "./routes/project-terminal-ws"
 
 const log = createLogger("api")
 
@@ -73,7 +72,6 @@ export function createApp(deps: AppDeps): { app: Hono; websocket: ReturnType<typ
 
   app.route("/api/tasks", wsRoutes(deps, upgradeWebSocket))
   app.route("/api/tasks", terminalWsRoutes(deps, upgradeWebSocket))
-  app.route("/api/projects", projectTerminalWsRoutes(deps, upgradeWebSocket))
 
   // Webhook endpoint — verifies signature, matches project by repo, creates tasks for issue events
   app.post("/webhooks/github", async (c) => {
