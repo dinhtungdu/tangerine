@@ -1,7 +1,9 @@
 import { describe, test, expect } from "bun:test"
-import { discoverModels, discoverClaudeCodeModels, discoverModelsByProvider } from "../models"
+import { discoverModels, discoverClaudeCodeModels, discoverModelsByProvider, discoverCodexModels } from "../models"
+import { discoverModels as discoverOpenCodeModels } from "../agent/opencode-provider"
+import { discoverModels as discoverCodexProviderModels } from "../agent/codex-provider"
 
-describe("discoverModels", () => {
+describe("discoverModels (opencode)", () => {
   test("returns array (empty if no opencode cache)", () => {
     const models = discoverModels()
     expect(Array.isArray(models)).toBe(true)
@@ -25,6 +27,10 @@ describe("discoverModels", () => {
       expect(parts[0]).toBe(model.provider)
     }
   })
+
+  test("delegates to opencode-provider discoverModels", () => {
+    expect(discoverModels()).toEqual(discoverOpenCodeModels())
+  })
 })
 
 describe("discoverClaudeCodeModels", () => {
@@ -47,18 +53,71 @@ describe("discoverClaudeCodeModels", () => {
   })
 })
 
+describe("discoverCodexModels", () => {
+  test("returns array (empty if no codex cache)", () => {
+    const models = discoverCodexModels()
+    expect(Array.isArray(models)).toBe(true)
+  })
+
+  test("delegates to codex-provider discoverModels", () => {
+    expect(discoverCodexModels()).toEqual(discoverCodexProviderModels())
+  })
+})
+
 describe("discoverModelsByProvider", () => {
   test("returns models grouped by provider type", () => {
     const result = discoverModelsByProvider()
     expect(result).toHaveProperty("opencode")
     expect(result).toHaveProperty("claude-code")
+    expect(result).toHaveProperty("codex")
     expect(Array.isArray(result.opencode)).toBe(true)
     expect(Array.isArray(result["claude-code"])).toBe(true)
+    expect(Array.isArray(result.codex)).toBe(true)
   })
 
   test("claude-code models match discoverClaudeCodeModels", () => {
     const byProvider = discoverModelsByProvider()
     const direct = discoverClaudeCodeModels()
     expect(byProvider["claude-code"]).toEqual(direct)
+  })
+
+  test("opencode models match opencode-provider discoverModels", () => {
+    const byProvider = discoverModelsByProvider()
+    expect(byProvider.opencode).toEqual(discoverOpenCodeModels())
+  })
+
+  test("codex models match codex-provider discoverModels", () => {
+    const byProvider = discoverModelsByProvider()
+    expect(byProvider.codex).toEqual(discoverCodexProviderModels())
+  })
+})
+
+describe("opencode-provider discoverModels", () => {
+  test("returns array", () => {
+    expect(Array.isArray(discoverOpenCodeModels())).toBe(true)
+  })
+
+  test("each model has required fields", () => {
+    for (const model of discoverOpenCodeModels()) {
+      expect(model.id).toBeTruthy()
+      expect(model.provider).toBeTruthy()
+      expect(model.name).toBeTruthy()
+      expect(model.providerName).toBeTruthy()
+    }
+  })
+})
+
+describe("codex-provider discoverModels", () => {
+  test("returns array", () => {
+    expect(Array.isArray(discoverCodexProviderModels())).toBe(true)
+  })
+
+  test("each model has required fields", () => {
+    for (const model of discoverCodexProviderModels()) {
+      expect(model.id).toBeTruthy()
+      expect(model.provider).toBe("openai")
+      expect(model.providerName).toBe("OpenAI")
+      expect(model.name).toBeTruthy()
+    }
   })
 })
