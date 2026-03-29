@@ -10,7 +10,7 @@ interface ProjectContextValue {
   models: string[]
   modelsByProvider: Record<string, string[]>
   setModel: (model: string) => void
-  switchProject: (name: string) => void
+  switchProject: (name: string, options?: { replace?: boolean }) => void
   refreshProjects: () => void
   loading: boolean
 }
@@ -64,21 +64,24 @@ export function ProjectProvider({ children }: { children: ReactNode }) {
   }, [])
 
   const switchProject = useCallback(
-    (name: string) => {
+    (name: string, { replace = false }: { replace?: boolean } = {}) => {
       setSelectedModel(null)
       setSearchParams((prev) => {
         const next = new URLSearchParams(prev)
         next.set("project", name)
         return next
-      })
+      }, { replace })
     },
     [setSearchParams],
   )
 
-  // Set URL param to first project if none specified and projects loaded
+  // Set URL param to first project if none specified and projects loaded.
+  // Uses replace to avoid polluting the history stack — without this,
+  // navigating back to a URL without ?project= would trigger a push forward,
+  // trapping the user and preventing browser back navigation.
   useEffect(() => {
     if (!loading && projects.length > 0 && !projectParam) {
-      switchProject(projects[0]!.name)
+      switchProject(projects[0]!.name, { replace: true })
     }
   }, [loading, projects, projectParam, switchProject])
 
