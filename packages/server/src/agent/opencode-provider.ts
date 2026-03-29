@@ -328,8 +328,11 @@ export function createOpenCodeProvider(): AgentFactory {
           let currentProc: ReturnType<typeof Bun.spawn> | null = null
           let currentParser: { stop(): void } | null = null
 
-          // Track active model — split "provider/model" for CLI flags
+          // Track active model and reasoning effort for CLI flags
           let activeModel = ctx.model ?? ""
+          let activeReasoningEffort = ctx.reasoningEffort ?? ""
+          // Track last spawned PID so cleanup can kill orphaned processes after server restart
+          let lastPid: number | null = null
 
           const emit = (event: AgentEvent) => {
             for (const cb of subscribers) cb(event)
@@ -349,14 +352,14 @@ export function createOpenCodeProvider(): AgentFactory {
             if (activeModel) {
               args.push("-m", activeModel)
             }
-            if (ctx.reasoningEffort) {
-              args.push("--reasoning-effort", ctx.reasoningEffort)
+            if (activeReasoningEffort) {
+              args.push("--reasoning-effort", activeReasoningEffort)
             }
             return args
           }
 
           const handle: AgentHandle = {
-            sendPrompt(text: string, _images?: PromptImage[]) {
+            sendPrompt(text: string, images?: PromptImage[]) {
               return Effect.tryPromise({
                 try: async () => {
                   if (shutdownCalled) throw new Error("Agent shut down")
@@ -370,7 +373,12 @@ export function createOpenCodeProvider(): AgentFactory {
                   }
 
                   const args = buildArgs()
-                  taskLog.debug("Spawning opencode run", { args: args.join(" "), textLength: text.length })
+                  taskLog.debug("Spawning opencode run", {
+                    args: args.join(" "),
+                    textLength: text.length,
+                    hasImages: (images?.length ?? 0) > 0,
+                    imageCount: images?.length ?? 0,
+                  })
 
                   const proc = Bun.spawn(args, {
                     cwd: ctx.workdir,
@@ -380,6 +388,7 @@ export function createOpenCodeProvider(): AgentFactory {
                     env: { ...process.env, ...ctx.env },
                   })
                   currentProc = proc
+                  lastPid = proc.pid
 
                   emit({ kind: "status", status: "working" })
 
@@ -397,9 +406,12 @@ export function createOpenCodeProvider(): AgentFactory {
                         }
                       },
                       onEnd: () => {
+                        // Process completed its turn — clear refs so isAlive()
+                        // doesn't probe the exited PID between prompts
+                        currentProc = null
+                        currentParser = null
                         if (!shutdownCalled) {
                           taskLog.debug("opencode run stdout ended")
-                          // Process completed its turn — emit idle
                           emit({ kind: "status", status: "idle" })
                         }
                       },
@@ -423,8 +435,17 @@ export function createOpenCodeProvider(): AgentFactory {
                     }
                   })()
 
+                  // Build prompt with inline images as data URL references
+                  let prompt = text
+                  if (images && images.length > 0) {
+                    const imageRefs = images
+                      .map((img, i) => `![image-${i}](data:${img.mediaType};base64,${img.data})`)
+                      .join("\n")
+                    prompt = `${imageRefs}\n\n${text}`
+                  }
+
                   // Write prompt to stdin and close to signal input complete
-                  proc.stdin.write(text)
+                  proc.stdin.write(prompt)
                   proc.stdin.end()
                 },
                 catch: (e) =>
@@ -449,6 +470,10 @@ export function createOpenCodeProvider(): AgentFactory {
                 if (config.model) {
                   activeModel = config.model
                   taskLog.info("Model updated", { model: activeModel })
+                }
+                if (config.reasoningEffort) {
+                  activeReasoningEffort = config.reasoningEffort
+                  taskLog.info("Reasoning effort updated", { reasoningEffort: activeReasoningEffort })
                 }
                 return true
               })
@@ -501,9 +526,9 @@ export function createOpenCodeProvider(): AgentFactory {
               agentPort: null as number | null,
             }),
           })
-          // Attach PID getter — currentProc changes per prompt
+          // Attach PID getter — returns last spawned PID for DB persistence / cleanup
           Object.defineProperty(handle, "__pid", {
-            get: () => currentProc?.pid ?? null,
+            get: () => lastPid,
           })
 
           return handle
