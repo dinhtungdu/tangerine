@@ -132,4 +132,15 @@ describe("startTask", () => {
     // Should not throw
     await Effect.runPromise(startTask(deps, task.id))
   })
+
+  test("transitions created → provisioning atomically", async () => {
+    const task = await Effect.runPromise(ensureOrchestrator(deps, PROJECT_ID))
+    expect(task.status).toBe("created")
+
+    await Effect.runPromise(startTask(deps, task.id))
+
+    // Task should now be provisioning (startSessionWithRetry forked in background)
+    const updated = await Effect.runPromise(dbQueries.getTask(db, task.id))
+    expect(updated!.status).toBe("provisioning")
+  })
 })

@@ -139,11 +139,14 @@ export function startSession(
     const worktreePath = slot.path
 
     if (isOrchestrator) {
-      // Orchestrator uses slot 0 (main repo) — just fetch, no branch checkout
-      yield* localExec(`cd ${worktreePath} && git fetch origin`).pipe(
+      // Orchestrator uses slot 0 (main repo) — fetch, reset to clean default branch state.
+      // Previous orchestrator runs may have left uncommitted changes or a different checkout.
+      yield* localExec(
+        `cd ${worktreePath} && git fetch origin && git checkout ${defaultBranch} 2>/dev/null; git reset --hard origin/${defaultBranch} && git clean -fd`,
+      ).pipe(
         Effect.tap(() => activity("worktree.ready", "Orchestrator slot ready", { worktreePath, branch, slot: slot.id })),
         Effect.mapError((e) => new SessionStartError({
-          message: `Orchestrator fetch failed: ${e.message}`,
+          message: `Orchestrator reset failed: ${e.message}`,
           taskId: task.id,
           phase: "checkout-branch",
           cause: e,

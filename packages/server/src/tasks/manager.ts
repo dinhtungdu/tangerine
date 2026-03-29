@@ -518,10 +518,20 @@ export function startTask(
       return yield* Effect.fail(new Error(`Unknown project: ${task.project_id}`))
     }
 
+    // Atomically transition created → provisioning to prevent concurrent starts.
+    // If another request already moved the status, this update is a no-op and
+    // the re-read below will see a non-"created" status, so we bail out.
+    yield* deps.updateTask(taskId, { status: "provisioning" }).pipe(Effect.ignoreLogged)
+    const current = yield* deps.getTask(taskId).pipe(
+      Effect.mapError(() => new TaskNotFoundError({ taskId }))
+    )
+    if (!current || current.status !== "provisioning") return
+
     log.info("Starting task on demand", { taskId, title: task.title })
+    emitStatusChange(taskId, "provisioning")
     const taskLifecycleDeps = depsForProvider(deps, task.provider)
     yield* Effect.forkDaemon(
-      startSessionWithRetry(task, projectConfig, taskLifecycleDeps, deps.retryDeps)
+      startSessionWithRetry(current, projectConfig, taskLifecycleDeps, deps.retryDeps)
     )
   })
 }
