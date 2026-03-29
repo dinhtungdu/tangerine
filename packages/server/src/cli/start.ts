@@ -10,7 +10,7 @@ import { logActivity, cleanupActivities } from "../activity"
 import type { TaskRow } from "../db/types"
 import { createApp } from "../api/app"
 import type { AppDeps } from "../api/app"
-import { DEFAULT_API_PORT } from "@tangerine/shared"
+import { DEFAULT_API_PORT, ORCHESTRATOR_TASK_NAME } from "@tangerine/shared"
 import * as taskManager from "../tasks/manager"
 import type { TaskManagerDeps } from "../tasks/manager"
 import { onTaskEvent, onStatusChange, emitTaskEvent, setAgentWorkingState } from "../tasks/events"
@@ -30,6 +30,7 @@ import { createClaudeCodeProvider } from "../agent/claude-code-provider"
 import { createCodexProvider } from "../agent/codex-provider"
 import type { AgentHandle } from "../agent/provider"
 import { enqueue as enqueuePrompt, drainAll as drainQueuedPrompts } from "../agent/prompt-queue"
+import { buildSystemNotes, buildEscalationBlock } from "../tasks/prompts"
 
 const log = createLogger("cli")
 
@@ -68,22 +69,6 @@ const prNudgeTimers = new Map<string, Timer>()
 /** Delay before nudging an idle agent about missing PR (ms) */
 const PR_NUDGE_DELAY_MS = 15_000
 
-interface TaskInfo {
-  projectId?: string
-  setupCommand?: string
-}
-
-/** Build system notes prepended to the first prompt for a task. */
-function buildSystemNotes(taskId: string, info: TaskInfo): string[] {
-  const notes: string[] = []
-  notes.push(`[TANGERINE: You are running inside a Tangerine task (task ID: ${taskId}). The Tangerine API is at http://localhost:3456. Load the tangerine-tasks skill (\`/tangerine-tasks\`) for full API reference and common workflows.]`)
-  if (info.setupCommand) {
-    const prefix = taskId.slice(0, 8)
-    notes.push(`[NOTE: Project setup is running in the background (\`${info.setupCommand}\`). Before running builds, tests, or linters, check if setup is done: \`cat /tmp/tangerine-setup-${prefix}.status\` (running/done/failed). Log: \`cat /tmp/tangerine-setup-${prefix}.log\`]`)
-  }
-  notes.push(`[NOTE: When your work is complete, push your branch and create a pull request. Use \`git push origin HEAD\` then \`gh pr create\`. Do not stop at just committing.]`)
-  return notes
-}
 
 /**
  * Check if the task's branch has commits ahead of the default branch.
@@ -306,7 +291,21 @@ export async function start(): Promise<void> {
                   setupCommand: projConfig?.setup,
                 })
                 firstPromptSent.add(taskId)
-                const fullPrompt = notes.join("\n") + "\n\n" + initialPrompt
+
+                // Append escalation block for worker tasks so the agent knows
+                // how to escalate out-of-scope issues. Injected here (not stored
+                // in DB description) to keep the UI task description clean.
+                let escalationBlock = ""
+                if (task?.project_id) {
+                  const orchestratorRow = db.prepare(
+                    "SELECT id FROM tasks WHERE project_id = ? AND title = ? AND status NOT IN ('done', 'failed', 'cancelled') LIMIT 1"
+                  ).get(task.project_id, ORCHESTRATOR_TASK_NAME) as { id: string } | null
+                  if (orchestratorRow && orchestratorRow.id !== taskId) {
+                    escalationBlock = buildEscalationBlock(orchestratorRow.id)
+                  }
+                }
+
+                const fullPrompt = notes.join("\n") + "\n\n" + initialPrompt + escalationBlock
 
                 Effect.runPromise(
                   session.agentHandle.sendPrompt(fullPrompt, images).pipe(Effect.catchAll(() => Effect.void))
