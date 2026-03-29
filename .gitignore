@@ -5,4 +5,3 @@ bun.lock
 data/
 .env
 *.db
-.gitnexus
