@@ -28,6 +28,10 @@ const UNRECOVERABLE_PATTERNS = [
   /InvalidApiKeyError/i,
   /rate limit/i,
   /RateLimitError/i,
+  /payment required/i,
+  /deactivated.workspace/i,
+  /insufficient.quota/i,
+  /billing/i,
 ]
 
 function isUnrecoverable(message: string): boolean {
@@ -85,6 +89,18 @@ export function checkTask(
       consecutiveRestarts.set(task.id, restarts)
       taskLog.warn("Agent not alive, attempting restart", { attempt: restarts, maxAttempts: MAX_CONSECUTIVE_RESTARTS })
       return yield* attemptRestart(task, deps, taskLog, "agent_dead")
+    }
+
+    // Agent process is alive, but check if it reported an unrecoverable error.
+    // For OpenCode, the server process stays alive even after API errors like
+    // billing issues — the process is healthy but can't do any useful work.
+    const lastError = deps.getLastAgentError(task.id)
+    if (lastError && isUnrecoverable(lastError)) {
+      taskLog.error("Agent alive but reported unrecoverable error, marking failed", { error: lastError })
+      yield* deps.failTask(task.id, lastError).pipe(Effect.ignoreLogged)
+      yield* cleanupSession(task.id, deps.cleanupDeps).pipe(Effect.ignoreLogged)
+      consecutiveRestarts.delete(task.id)
+      return "failed"
     }
 
     consecutiveRestarts.delete(task.id)
