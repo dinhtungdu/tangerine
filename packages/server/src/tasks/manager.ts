@@ -400,7 +400,10 @@ export function resolveTask(
       return yield* new TaskNotTerminalError({ taskId, status: task.status })
     }
 
-    yield* deps.updateTask(taskId, { status: "done" }).pipe(Effect.ignoreLogged)
+    // Set completed_at if not already set — prevents the dashboard duration timer
+    // from ticking indefinitely on tasks that were failed before being resolved.
+    const completedAt = task.completed_at ?? new Date().toISOString()
+    yield* deps.updateTask(taskId, { status: "done", completed_at: completedAt }).pipe(Effect.ignoreLogged)
 
     yield* deps.logActivity(taskId, "lifecycle", "task.resolved", "Task manually marked as done").pipe(
       Effect.catchAll(() => Effect.void)
