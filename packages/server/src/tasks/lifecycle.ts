@@ -39,6 +39,7 @@ export interface ProjectConfig {
   defaultBranch?: string
   setup: string
   poolSize?: number
+  defaultProvider?: string
 }
 
 /** Run a local command via Bun.spawn, return stdout/stderr/exitCode */

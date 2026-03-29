@@ -22,7 +22,7 @@ function makeDeps(db: Database): TaskManagerDeps {
     cleanupDeps: {} as TaskManagerDeps["cleanupDeps"],
     retryDeps: {} as TaskManagerDeps["retryDeps"],
     getProjectConfig: (id) => id === PROJECT_ID
-      ? { repo: "https://github.com/test/repo", setup: "echo ok", defaultBranch: "main" }
+      ? { repo: "https://github.com/test/repo", setup: "echo ok", defaultBranch: "main", defaultProvider: "claude-code" as const }
       : undefined,
     abortAgent: () => Effect.void,
     get _sessionStarted() { return sessionStarted },
@@ -92,6 +92,16 @@ describe("ensureOrchestrator", () => {
   test("orchestrator is created in 'created' status (no auto-start)", async () => {
     const task = await Effect.runPromise(ensureOrchestrator(deps, PROJECT_ID))
     expect(task.status).toBe("created")
+  })
+
+  test("uses project defaultProvider when no provider specified", async () => {
+    const task = await Effect.runPromise(ensureOrchestrator(deps, PROJECT_ID))
+    expect(task.provider).toBe("claude-code")
+  })
+
+  test("explicit provider overrides project default", async () => {
+    const task = await Effect.runPromise(ensureOrchestrator(deps, PROJECT_ID, "opencode"))
+    expect(task.provider).toBe("opencode")
   })
 })
 
