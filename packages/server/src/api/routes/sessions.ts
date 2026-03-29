@@ -7,7 +7,6 @@ import { runEffect, runEffectVoid } from "../effect-helpers"
 import { normalizeTimestamps } from "../helpers"
 import { TaskNotFoundError } from "../../errors"
 import { getProjectConfig, getRepoDir, TANGERINE_HOME } from "../../config"
-import { ORCHESTRATOR_TASK_NAME, TERMINAL_STATUSES } from "@tangerine/shared"
 
 function gitDiff(cmd: string, cwd: string): Effect.Effect<string, never> {
   return Effect.tryPromise({
@@ -27,32 +26,6 @@ function parseDiffChunks(raw: string): { path: string; diff: string }[] {
     if (match) files.push({ path: match[1]!, diff: chunk })
   }
   return files
-}
-
-/**
- * If the target task is a done orchestrator, auto-create a new one and return its ID.
- * Otherwise returns the original taskId unchanged.
- */
-function autoResumeOrchestrator(
-  deps: AppDeps,
-  taskId: string,
-): Effect.Effect<string, { _tag: string; message?: string }> {
-  return Effect.gen(function* () {
-    const task = yield* getTask(deps.db, taskId)
-    if (!task) return yield* Effect.fail(new TaskNotFoundError({ taskId }))
-
-    // Only auto-resume done orchestrators
-    if (task.title !== ORCHESTRATOR_TASK_NAME || !TERMINAL_STATUSES.has(task.status)) {
-      return taskId
-    }
-
-    // Create a new orchestrator (linked via parentTaskId) and start it
-    const newOrch = yield* deps.taskManager.ensureOrchestrator(task.project_id)
-    if (newOrch.status === "created") {
-      yield* deps.taskManager.startTask(newOrch.id)
-    }
-    return newOrch.id
-  })
 }
 
 export function sessionRoutes(deps: AppDeps): Hono {
@@ -88,13 +61,8 @@ export function sessionRoutes(deps: AppDeps): Hono {
     if (!body.text) {
       return c.json({ error: "text is required" }, 400)
     }
-    const taskId = c.req.param("id")
-    return runEffect(c,
-      Effect.gen(function* () {
-        const targetId = yield* autoResumeOrchestrator(deps, taskId)
-        yield* deps.taskManager.sendPrompt(targetId, body.text!)
-        return { ok: true, taskId: targetId, redirected: targetId !== taskId }
-      })
+    return runEffectVoid(c,
+      deps.taskManager.sendPrompt(c.req.param("id"), body.text!)
     )
   })
 
@@ -108,13 +76,13 @@ export function sessionRoutes(deps: AppDeps): Hono {
     }
     return runEffect(c,
       Effect.gen(function* () {
-        const targetId = yield* autoResumeOrchestrator(deps, taskId)
-        yield* deps.taskManager.sendPrompt(targetId, body.text!)
+        const task = yield* getTask(deps.db, taskId)
+        if (!task) return yield* Effect.fail(new TaskNotFoundError({ taskId }))
 
-        const task = yield* getTask(deps.db, targetId).pipe(
-          Effect.map((t) => t ?? { status: "unknown" })
-        )
-        return { ok: true, taskId: targetId, status: task.status, redirected: targetId !== taskId }
+        // Send to agent (sendPrompt persists the user message to session_logs)
+        yield* deps.taskManager.sendPrompt(taskId, body.text!)
+
+        return { ok: true, taskId, status: task.status }
       }),
       { status: 202 }
     )
