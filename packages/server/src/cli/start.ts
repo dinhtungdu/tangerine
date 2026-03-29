@@ -10,7 +10,7 @@ import { logActivity, cleanupActivities } from "../activity"
 import type { TaskRow } from "../db/types"
 import { createApp } from "../api/app"
 import type { AppDeps } from "../api/app"
-import { DEFAULT_API_PORT } from "@tangerine/shared"
+import { DEFAULT_API_PORT, ORCHESTRATOR_TASK_NAME } from "@tangerine/shared"
 import * as taskManager from "../tasks/manager"
 import type { TaskManagerDeps } from "../tasks/manager"
 import { onTaskEvent, onStatusChange, emitTaskEvent, setAgentWorkingState } from "../tasks/events"
@@ -306,7 +306,34 @@ export async function start(): Promise<void> {
                   setupCommand: projConfig?.setup,
                 })
                 firstPromptSent.add(taskId)
-                const fullPrompt = notes.join("\n") + "\n\n" + initialPrompt
+
+                // Append escalation block for worker tasks so the agent knows
+                // how to escalate out-of-scope issues. Injected here (not stored
+                // in DB description) to keep the UI task description clean.
+                let escalationBlock = ""
+                if (task?.project_id) {
+                  const orchestratorRow = db.prepare(
+                    "SELECT id FROM tasks WHERE project_id = ? AND title = ? AND status NOT IN ('done', 'failed', 'cancelled') LIMIT 1"
+                  ).get(task.project_id, ORCHESTRATOR_TASK_NAME) as { id: string } | null
+                  if (orchestratorRow && orchestratorRow.id !== taskId) {
+                    const port = Number(process.env["PORT"] ?? DEFAULT_API_PORT)
+                    escalationBlock = [
+                      "",
+                      "---",
+                      "## Out-of-scope issues",
+                      "",
+                      `If you discover issues outside your task scope, first mention them to the user in your conversation, then send them to the orchestrator (task ID: ${orchestratorRow.id}) for triage — do NOT create tasks yourself:`,
+                      "",
+                      "```bash",
+                      `curl -X POST http://localhost:${port}/api/tasks/${orchestratorRow.id}/prompt \\`,
+                      '  -H "Content-Type: application/json" \\',
+                      `  -d '{"text": "Discovered out-of-scope issue: <brief description>"}'`,
+                      "```",
+                    ].join("\n")
+                  }
+                }
+
+                const fullPrompt = notes.join("\n") + "\n\n" + initialPrompt + escalationBlock
 
                 Effect.runPromise(
                   session.agentHandle.sendPrompt(fullPrompt, images).pipe(Effect.catchAll(() => Effect.void))
