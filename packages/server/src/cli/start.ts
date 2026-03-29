@@ -310,10 +310,8 @@ export async function start(): Promise<void> {
                 // Append escalation block for worker tasks so the agent knows
                 // how to escalate out-of-scope issues. Injected here (not stored
                 // in DB description) to keep the UI task description clean.
-                // Guard against legacy descriptions that already contain the block
-                // (tasks created before this change) — avoids duplicate instructions.
                 let escalationBlock = ""
-                if (task?.project_id && !initialPrompt.includes("Out-of-scope issues")) {
+                if (task?.project_id) {
                   const orchestratorRow = db.prepare(
                     "SELECT id FROM tasks WHERE project_id = ? AND title = ? AND status NOT IN ('done', 'failed', 'cancelled') LIMIT 1"
                   ).get(task.project_id, ORCHESTRATOR_TASK_NAME) as { id: string } | null
