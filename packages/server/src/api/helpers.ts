@@ -15,12 +15,22 @@ export function utc(ts: string | null): string | null {
   return ts.replace(" ", "T") + "Z"
 }
 
-// Fallback capabilities for rows that predate the capabilities column (capabilities IS NULL).
-// Use title to distinguish orchestrators from worker tasks so upgraded installs work correctly.
-function defaultCapabilities(title: string): TaskCapability[] {
+// Canonical capabilities per task type. Used as baseline for all tasks.
+function canonicalCapabilities(title: string): TaskCapability[] {
   return title === ORCHESTRATOR_TASK_NAME
-    ? ["resolve"]
+    ? ["resolve", "end-session"]
     : ["resolve", "predefined-prompts", "diff"]
+}
+
+// Merge stored capabilities with canonical ones so that:
+// - New capabilities added to the canonical set appear on existing rows
+// - Custom per-task capabilities stored in the DB are preserved
+function mergeCapabilities(stored: string | null, title: string): TaskCapability[] {
+  const canonical = canonicalCapabilities(title)
+  if (!stored) return canonical
+  const parsed: TaskCapability[] = JSON.parse(stored)
+  const merged = new Set([...canonical, ...parsed])
+  return [...merged]
 }
 
 /** Maps a snake_case TaskRow from SQLite to a camelCase Task for API responses */
@@ -51,7 +61,7 @@ export function mapTaskRow(row: TaskRow): Task {
     completedAt: utc(row.completed_at),
     lastSeenAt: utc(row.last_seen_at),
     lastResultAt: utc(row.last_result_at),
-    capabilities: row.capabilities ? JSON.parse(row.capabilities) : defaultCapabilities(row.title),
+    capabilities: mergeCapabilities(row.capabilities, row.title),
   }
 }
 

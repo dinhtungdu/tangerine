@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback, useRef } from "react"
 import { useParams, Link } from "react-router-dom"
 import type { Task } from "@tangerine/shared"
-import { fetchTask, fetchChildTasks, changeTaskConfig, markTaskSeen, resolveTask } from "../lib/api"
+import { fetchTask, fetchChildTasks, changeTaskConfig, markTaskSeen, resolveTask, cancelTask } from "../lib/api"
 import { getStatusConfig } from "../lib/status"
 import { useSession } from "../hooks/useSession"
 import { useTaskSearch } from "../hooks/useTaskSearch"
@@ -160,11 +160,23 @@ export function TaskDetail() {
   const canResolve = task?.capabilities.includes("resolve") ?? false
   const hasPredefinedPrompts = task?.capabilities.includes("predefined-prompts") ?? false
   const hasDiff = task?.capabilities.includes("diff") ?? false
+  const canEndSession = task?.capabilities.includes("end-session") ?? false
 
   const handleResolve = useCallback(async () => {
     if (!task) return
     try {
       await resolveTask(task.id)
+      const updated = await fetchTask(task.id)
+      setTask(updated)
+    } catch {
+      // TODO: error toast
+    }
+  }, [task])
+
+  const handleEndSession = useCallback(async () => {
+    if (!task) return
+    try {
+      await cancelTask(task.id)
       const updated = await fetchTask(task.id)
       setTask(updated)
     } catch {
@@ -453,6 +465,7 @@ export function TaskDetail() {
                 onReasoningEffortChange={handleReasoningEffortChange}
                 predefinedPrompts={hasPredefinedPrompts ? current?.predefinedPrompts : undefined}
                 onResolve={canResolve ? handleResolve : undefined}
+                onEndSession={canEndSession ? handleEndSession : undefined}
               />
             </div>
           )}
@@ -538,6 +551,7 @@ export function TaskDetail() {
                 onReasoningEffortChange={handleReasoningEffortChange}
                 predefinedPrompts={hasPredefinedPrompts ? current?.predefinedPrompts : undefined}
                 onResolve={canResolve ? handleResolve : undefined}
+                onEndSession={canEndSession ? handleEndSession : undefined}
               />
             </div>
           )}
