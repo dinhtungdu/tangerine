@@ -2,6 +2,11 @@ import { Link, useLocation, useSearchParams } from "react-router-dom"
 import { ProjectSwitcher } from "./ProjectSwitcher"
 import { useTheme } from "../hooks/useTheme"
 
+interface TopbarProps {
+  sidebarOpen?: boolean
+  onToggleSidebar?: () => void
+}
+
 function ThemeToggle() {
   const { theme, setTheme } = useTheme()
   const next = theme === "dark" ? "light" : theme === "light" ? "system" : "dark"
@@ -32,7 +37,7 @@ function ThemeToggle() {
   )
 }
 
-export function Topbar() {
+export function Topbar({ sidebarOpen, onToggleSidebar }: TopbarProps) {
   const location = useLocation()
   const [searchParams] = useSearchParams()
   const isRuns = location.pathname === "/" || location.pathname.startsWith("/tasks") || location.pathname === "/new"
@@ -42,8 +47,21 @@ export function Topbar() {
 
   return (
     <header className="flex h-[52px] shrink-0 items-center justify-between border-b border-edge bg-surface px-4">
-      {/* Left: Logo + project switcher */}
+      {/* Left: Sidebar toggle + Logo + project switcher */}
       <div className="flex items-center gap-4">
+        {onToggleSidebar !== undefined && (
+          <button
+            onClick={onToggleSidebar}
+            className="hidden h-8 w-8 items-center justify-center rounded-md text-fg-muted transition hover:text-fg md:flex"
+            aria-label={sidebarOpen ? "Collapse sidebar" : "Expand sidebar"}
+            title={sidebarOpen ? "Collapse sidebar" : "Expand sidebar"}
+          >
+            <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+              <rect x="3" y="3" width="18" height="18" rx="2" />
+              <path strokeLinecap="round" d="M9 3v18" />
+            </svg>
+          </button>
+        )}
         <Link to={`/${qs}`} className="flex items-center gap-2">
           <div className="flex h-6 w-6 items-center justify-center rounded-md bg-surface-dark">
             <svg className="h-3.5 w-3.5 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>

@@ -1,20 +1,28 @@
+import { useState } from "react"
 import { Link, Outlet, useLocation } from "react-router-dom"
 import { Topbar } from "./Topbar"
 import { QuickOpen } from "./QuickOpen"
 import { useProjectNav } from "../hooks/useProjectNav"
 
+export interface SidebarContext {
+  sidebarOpen: boolean
+}
+
 export function Layout() {
+  const [sidebarOpen, setSidebarOpen] = useState(true)
   const location = useLocation()
   const { link } = useProjectNav()
   const isTaskDetail = location.pathname.startsWith("/tasks/")
   const isRuns = location.pathname === "/" || location.pathname.startsWith("/tasks") || location.pathname === "/new"
   const isStatus = location.pathname === "/status"
+  // Only routes that actually render a TasksSidebar should show the toggle
+  const hasSidebar = isTaskDetail || isStatus
 
   return (
     <div className="flex h-[100dvh] flex-col bg-surface md:h-screen">
       {/* Desktop topbar */}
       <div className="hidden shrink-0 md:block">
-        <Topbar />
+        <Topbar sidebarOpen={sidebarOpen} onToggleSidebar={hasSidebar ? () => setSidebarOpen((o) => !o) : undefined} />
       </div>
 
       {/* Mobile topbar — hidden on desktop and task detail (which has its own header) */}
@@ -50,7 +58,7 @@ export function Layout() {
       )}
 
       <main className="min-h-0 flex-1 overflow-hidden">
-        <Outlet />
+        <Outlet context={{ sidebarOpen } satisfies SidebarContext} />
       </main>
 
       <QuickOpen />

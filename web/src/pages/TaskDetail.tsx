@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback, useRef, useMemo } from "react"
-import { useParams, Link } from "react-router-dom"
+import { useParams, Link, useOutletContext } from "react-router-dom"
+import type { SidebarContext } from "../components/Layout"
 import type { Task } from "@tangerine/shared"
 import { fetchTask, fetchChildTasks, changeTaskConfig, markTaskSeen, resolveTask, startTask } from "../lib/api"
 import { getStatusConfig } from "../lib/status"
@@ -25,6 +26,8 @@ type PaneId = "chat" | "diff" | "terminal" | "activity"
 export function TaskDetail() {
   const { id } = useParams<{ id: string }>()
   const { navigate, link } = useProjectNav()
+  const outletCtx = useOutletContext<SidebarContext | null>()
+  const sidebarOpen = outletCtx?.sidebarOpen ?? true
   const [task, setTask] = useState<Task | null>(null)
   const [parentTask, setParentTask] = useState<Task | null>(null)
   const [childTasks, setChildTasks] = useState<Task[]>([])
@@ -321,7 +324,7 @@ export function TaskDetail() {
   if (loading) {
     return (
       <div className="flex h-full">
-        <div className="hidden md:block">
+        <div className={`hidden shrink-0 overflow-hidden transition-[width] duration-200 ease-in-out md:block ${sidebarOpen ? "md:w-[240px]" : "md:w-0"}`} inert={sidebarOpen ? undefined : true}>
           <TasksSidebar tasks={tasks} searchQuery={query} onSearchChange={setQuery} onNewAgent={() => navigate("/new")} />
         </div>
         <div className="flex flex-1 items-center justify-center text-[13px] text-fg-muted">
@@ -334,7 +337,7 @@ export function TaskDetail() {
   if (!task) {
     return (
       <div className="flex h-full">
-        <div className="hidden md:block">
+        <div className={`hidden shrink-0 overflow-hidden transition-[width] duration-200 ease-in-out md:block ${sidebarOpen ? "md:w-[240px]" : "md:w-0"}`} inert={sidebarOpen ? undefined : true}>
           <TasksSidebar tasks={tasks} searchQuery={query} onSearchChange={setQuery} onNewAgent={() => navigate("/new")} />
         </div>
         <div className="flex flex-1 items-center justify-center text-[13px] text-fg-muted">
@@ -362,7 +365,7 @@ export function TaskDetail() {
   return (
     <div className="flex h-full">
       {/* Sidebar — desktop only */}
-      <div className="hidden md:block">
+      <div className={`hidden shrink-0 overflow-hidden transition-[width] duration-200 ease-in-out md:block ${sidebarOpen ? "md:w-[240px]" : "md:w-0"}`}>
         <TasksSidebar tasks={tasks} searchQuery={query} onSearchChange={setQuery} onNewAgent={() => navigate("/new")} />
       </div>
 
