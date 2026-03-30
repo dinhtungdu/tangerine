@@ -67,7 +67,7 @@ Current task types:
 
 | Method | Path | Description |
 |--------|------|-------------|
-| GET | `/api/projects` | List configured projects and available models |
+| GET | `/api/projects` | List configured projects, available models, and SSH editor config |
 | GET | `/api/projects/:name` | Get one project |
 | POST | `/api/projects` | Register a project |
 | PUT | `/api/projects/:name` | Update a project |
@@ -75,6 +75,8 @@ Current task types:
 | POST | `/api/projects/:name/orchestrator` | Ensure the project has an orchestrator task |
 | GET | `/api/projects/:name/update-status` | Read cached self-update status |
 | POST | `/api/projects/:name/update` | Pull latest and optionally run `postUpdateCommand` |
+
+`GET /api/projects` response includes `sshHost`, `sshUser`, and `editor` (`"vscode"|"cursor"|"zed"`) from the top-level config (all optional). Used by the web UI to render SSH deep-links for opening worktrees in the user's editor on the host machine.
 
 ### System
 
