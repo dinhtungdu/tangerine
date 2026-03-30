@@ -158,7 +158,7 @@ export function taskRoutes(deps: AppDeps): Hono {
       Effect.gen(function* () {
         const row = yield* getTask(deps.db, taskId)
         if (!row) return yield* Effect.fail(new TaskNotFoundError({ taskId }))
-        if ("prUrl" in body && !mapTaskRow(row).capabilities.includes("pr")) {
+        if ("prUrl" in body && !mapTaskRow(row).capabilities.includes("pr-track")) {
           return yield* Effect.fail(new PrCapabilityError({ taskId }))
         }
         const fields: Record<string, string | null> = {}
