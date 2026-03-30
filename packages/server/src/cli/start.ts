@@ -769,26 +769,27 @@ export async function start(): Promise<void> {
       await Effect.runPromise(startUpdateChecker(projectInfos))
     }
 
-    // Start PR status monitor (every 60s) — requires gh CLI auth.
-    // Check auth here so a missing setup only disables PR capture, not the whole server.
-    const ghAuthed = isTestMode() || await (async () => {
-      const proc = Bun.spawn(["gh", "auth", "status"], { stdout: "pipe", stderr: "pipe" })
-      return (await proc.exited) === 0
-    })()
-
-    if (!ghAuthed) {
-      log.warn("gh CLI is not authenticated — PR capture and auto-complete disabled. Set GITHUB_TOKEN or run `gh auth login` to enable.")
-    } else {
-      const prMonitorDeps: PrMonitorDeps = {
-        db,
-        listTasks: (filter) => listTasks(db, filter),
-        updateTask: (taskId, updates) => updateTask(db, taskId, updates).pipe(Effect.asVoid, Effect.mapError((e) => new Error(String(e)))),
-        logActivity: (taskId, type, event, content, metadata) => logActivity(db, taskId, type, event, content, metadata),
-        cleanupDeps,
+    // PR capture requires gh CLI auth — fail early with a clear message rather than
+    // letting the monitor run silently and producing misleading "branch mismatch" logs.
+    if (!isTestMode()) {
+      const ghProc = Bun.spawn(["gh", "auth", "status"], { stdout: "pipe", stderr: "pipe" })
+      const ghExitCode = await ghProc.exited
+      if (ghExitCode !== 0) {
+        log.error("gh CLI is not authenticated — PR capture and auto-complete will not work. Set GITHUB_TOKEN or run `gh auth login`, then restart the server.")
+        process.exit(1)
       }
-      await Effect.runPromise(startPrMonitor(prMonitorDeps))
-      log.info("PR status monitor started")
     }
+
+    // Start PR status monitor (every 60s)
+    const prMonitorDeps: PrMonitorDeps = {
+      db,
+      listTasks: (filter) => listTasks(db, filter),
+      updateTask: (taskId, updates) => updateTask(db, taskId, updates).pipe(Effect.asVoid, Effect.mapError((e) => new Error(String(e)))),
+      logActivity: (taskId, type, event, content, metadata) => logActivity(db, taskId, type, event, content, metadata),
+      cleanupDeps,
+    }
+    await Effect.runPromise(startPrMonitor(prMonitorDeps))
+    log.info("PR status monitor started")
 
     // Start health monitor (every 30s — detects dead agent processes)
     const healthDeps: HealthCheckDeps = {
