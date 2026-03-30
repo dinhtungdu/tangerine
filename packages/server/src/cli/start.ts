@@ -467,13 +467,18 @@ export async function start(): Promise<void> {
                     // stream, so we skip base64 and copy originals from disk.
                     const copyImages = async () => {
                       const imagesDir = `${TANGERINE_HOME}/images/${taskId}`
+                      // Resolve relative paths against the task's worktree
+                      const taskRow = db.prepare("SELECT worktree_path FROM tasks WHERE id = ?").get(taskId) as { worktree_path: string | null } | null
+                      const worktree = taskRow?.worktree_path
                       try {
                         await Bun.write(`${imagesDir}/.keep`, "")
                         const filenames: string[] = []
                         for (const srcPath of event.imagePaths!) {
-                          const ext = srcPath.split(".").pop() ?? "png"
+                          const resolvedPath = srcPath.startsWith("/") ? srcPath
+                            : worktree ? `${worktree}/${srcPath}` : srcPath
+                          const ext = resolvedPath.split(".").pop() ?? "png"
                           const filename = `${Date.now()}-${Math.random().toString(36).slice(2, 8)}.${ext}`
-                          const file = Bun.file(srcPath)
+                          const file = Bun.file(resolvedPath)
                           if (await file.exists()) {
                             await Bun.write(`${imagesDir}/${filename}`, file)
                             filenames.push(filename)

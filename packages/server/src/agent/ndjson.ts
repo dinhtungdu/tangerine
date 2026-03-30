@@ -1,7 +1,7 @@
 // NDJSON streaming line parser for Claude Code's stdout.
 // Buffers partial lines, parses complete JSON objects, maps to AgentEvent.
 
-import type { AgentEvent } from "./provider"
+import type { AgentEvent, PromptImage } from "./provider"
 
 export interface NdjsonParserOptions {
   onLine: (data: unknown) => void
@@ -97,6 +97,8 @@ export function createClaudeCodeMapper(): (raw: Record<string, unknown>) => Agen
   // images instead of the downscaled base64 that Claude Code streams.
   const toolUseFilePaths = new Map<string, string>()
   let pendingImagePaths: string[] = []
+  // Fallback: buffer base64 images from assistant content blocks (rare but possible)
+  let pendingFallbackImages: PromptImage[] = []
 
   return function mapClaudeCodeEvent(raw: Record<string, unknown>): AgentEvent[] {
     const type = raw.type as string | undefined
@@ -132,8 +134,17 @@ export function createClaudeCodeMapper(): (raw: Record<string, unknown>) => Agen
             })
           } else if (b.type === "text" && typeof b.text === "string" && b.text.length > 0) {
             textParts.push(b.text)
+          } else if (b.type === "image") {
+            // Rare: inline image in assistant message. Buffer as base64 fallback
+            // in case there's no corresponding Read tool_use to resolve the original.
+            const source = b.source as Record<string, unknown> | undefined
+            if (source?.type === "base64" && typeof source.media_type === "string" && typeof source.data === "string") {
+              pendingFallbackImages.push({
+                mediaType: source.media_type as PromptImage["mediaType"],
+                data: source.data,
+              })
+            }
           }
-          // Skip image content blocks — we copy originals from disk instead
         }
 
         // Per-turn text is narration (agent explaining what it's doing between tool
@@ -201,16 +212,21 @@ export function createClaudeCodeMapper(): (raw: Record<string, unknown>) => Agen
 
         if (subtype === "error" || raw.is_error === true) {
           pendingImagePaths = []
+          pendingFallbackImages = []
           toolUseFilePaths.clear()
           return [{ kind: "error", message: content || "Agent error" }]
         }
 
-        // Attach original image paths to the final assistant message
+        // Attach original image paths to the final assistant message.
+        // Also include base64 fallback images (from inline assistant blocks
+        // without a corresponding Read tool_use).
         const imagePaths = pendingImagePaths.length > 0 ? pendingImagePaths : undefined
+        const images = pendingFallbackImages.length > 0 ? pendingFallbackImages : undefined
         pendingImagePaths = []
+        pendingFallbackImages = []
         toolUseFilePaths.clear()
 
-        if (!content && !imagePaths) return []
+        if (!content && !imagePaths && !images) return []
 
         return [{
           kind: "message.complete",
@@ -218,6 +234,7 @@ export function createClaudeCodeMapper(): (raw: Record<string, unknown>) => Agen
           content,
           messageId: optStr(raw.session_id),
           imagePaths,
+          images,
         }]
       }
 
