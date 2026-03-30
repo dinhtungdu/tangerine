@@ -35,9 +35,6 @@ function makeTask(overrides?: Partial<TaskRow>): TaskRow {
     last_seen_at: null,
     last_result_at: null,
     capabilities: null,
-    cron_expression: null,
-    schedule_enabled: 0,
-    next_run_at: null,
     ...overrides,
   }
 }

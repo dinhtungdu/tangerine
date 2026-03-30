@@ -40,7 +40,6 @@ Current `type` values:
 - `worker`
 - `orchestrator`
 - `reviewer`
-- `scheduled`
 
 Capabilities are derived from type in `tasks/manager.ts`:
 
@@ -49,9 +48,8 @@ Capabilities are derived from type in `tasks/manager.ts`:
 | `worker` | `resolve`, `predefined-prompts`, `diff`, `continue` |
 | `orchestrator` | `resolve`, `predefined-prompts` |
 | `reviewer` | `resolve`, `predefined-prompts`, `diff` |
-| `scheduled` | `schedule` |
 
-Orchestrators are created lazily and started on demand. Scheduled tasks are templates that spawn worker children on a cron schedule — they never run an agent process themselves. Other task types auto-start after creation.
+Orchestrators are created lazily and started on demand. Other task types auto-start after creation.
 
 ## Lifecycle
 
@@ -128,10 +126,7 @@ CREATE TABLE tasks (
   completed_at TEXT,
   last_seen_at TEXT,
   last_result_at TEXT,
-  capabilities TEXT,
-  cron_expression TEXT,
-  schedule_enabled INTEGER DEFAULT 0,
-  next_run_at TEXT
+  capabilities TEXT
 )
 ```
 
@@ -141,17 +136,11 @@ Related tables:
 - `activity_log`
 - `system_logs`
 - `worktree_slots`
+- `crons` — see `specs/crons.md`
 
-## Scheduled Tasks
+## Cron-Spawned Tasks
 
-Scheduled tasks (`type: "scheduled"`) are templates that fire on a cron schedule. They stay in `created` status and never run an agent. On each cron fire, the scheduler creates a new `worker` child task that inherits the scheduled task's description, provider, model, and project.
-
-Key fields:
-- `cron_expression` — 5-field cron (e.g. `0 9 * * 1-5` = weekdays at 9am)
-- `schedule_enabled` — 0 or 1, controls whether the scheduler fires
-- `next_run_at` — ISO timestamp of the next scheduled run
-
-The scheduler service (`tasks/scheduler.ts`) polls every 60 seconds for due tasks. It skips tasks that already have an active child (idempotent). See `specs/scheduled-tasks.md` for the full design.
+Tasks with `source: "cron"` are regular workers spawned by the scheduler from cron records. They have `source_id: "cron:<cron_id>"` for linkage. The scheduler polls every 60 seconds and skips crons that already have an active task. See `specs/crons.md` for the full design.
 
 ## Worktree Isolation
 

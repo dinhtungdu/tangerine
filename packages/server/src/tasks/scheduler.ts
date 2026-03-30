@@ -1,21 +1,19 @@
-// Scheduler: polls for due scheduled tasks and spawns worker children.
+// Scheduler: polls for due crons and spawns worker tasks.
 
 import { Effect } from "effect"
 import { CronExpressionParser } from "cron-parser"
 import { createLogger } from "../logger"
-import type { TaskRow } from "../db/types"
-import type { ActivityType } from "@tangerine/shared"
+import type { CronRow, TaskRow } from "../db/types"
 
 const log = createLogger("scheduler")
 
 const SCHEDULER_POLL_INTERVAL_MS = 60_000
 
 export interface SchedulerDeps {
-  getDueScheduledTasks(): Effect.Effect<TaskRow[], Error>
-  getChildTasks(parentTaskId: string): Effect.Effect<TaskRow[], Error>
-  createChildWorker(scheduled: TaskRow): Effect.Effect<TaskRow, Error>
-  updateTask(taskId: string, updates: Partial<Omit<TaskRow, "id">>): Effect.Effect<TaskRow | null, Error>
-  logActivity(taskId: string, type: ActivityType, event: string, content: string, metadata?: Record<string, unknown>): Effect.Effect<unknown, Error>
+  getDueCrons(): Effect.Effect<CronRow[], Error>
+  hasActiveCronTask(cronId: string): Effect.Effect<boolean, Error>
+  createWorkerFromCron(cron: CronRow): Effect.Effect<TaskRow, Error>
+  updateCron(cronId: string, updates: Partial<Omit<CronRow, "id">>): Effect.Effect<CronRow | null, Error>
 }
 
 /** Compute the next run time from a cron expression, relative to now. */
@@ -24,65 +22,54 @@ export function computeNextRun(cronExpression: string): string {
   return interval.next().toISOString() as string
 }
 
-/** Check a single scheduled task and spawn a child worker if due. */
-function processScheduledTask(
+/** Check a single cron and spawn a worker task if due. */
+function processCron(
   deps: SchedulerDeps,
-  task: TaskRow,
+  cron: CronRow,
 ): Effect.Effect<void, Error> {
   return Effect.gen(function* () {
-    // Skip if a child worker is already running for this scheduled task
-    const children = yield* deps.getChildTasks(task.id)
-    const hasActiveChild = children.some(
-      (c) => c.status === "created" || c.status === "provisioning" || c.status === "running"
-    )
-    if (hasActiveChild) {
-      log.info("Skipping scheduled task — child already active", { taskId: task.id })
-      // Still advance next_run_at so we don't re-trigger every poll
-      if (task.cron_expression) {
-        const nextRunAt = computeNextRun(task.cron_expression!)
-        yield* deps.updateTask(task.id, { next_run_at: nextRunAt }).pipe(Effect.ignoreLogged)
-      }
+    // Skip if a task from this cron is already active
+    const hasActive = yield* deps.hasActiveCronTask(cron.id)
+    if (hasActive) {
+      log.info("Skipping cron — task already active", { cronId: cron.id })
+      const nextRunAt = computeNextRun(cron.cron)
+      yield* deps.updateCron(cron.id, { next_run_at: nextRunAt }).pipe(Effect.ignoreLogged)
       return
     }
 
-    log.info("Firing scheduled task", { taskId: task.id, title: task.title })
+    log.info("Firing cron", { cronId: cron.id, title: cron.title })
 
-    // Spawn a worker child
-    const child = yield* deps.createChildWorker(task)
+    const task = yield* deps.createWorkerFromCron(cron)
 
-    yield* deps.logActivity(task.id, "lifecycle", "schedule.fired", `Spawned worker child: ${child.id}`, {
-      childTaskId: child.id,
-    }).pipe(Effect.catchAll(() => Effect.void))
+    log.info("Cron spawned worker task", { cronId: cron.id, taskId: task.id })
 
-    // Advance next_run_at
-    if (task.cron_expression) {
-      const nextRunAt = computeNextRun(task.cron_expression!)
-      yield* deps.updateTask(task.id, { next_run_at: nextRunAt }).pipe(Effect.ignoreLogged)
-      log.info("Next run scheduled", { taskId: task.id, nextRunAt })
-    }
+    // Advance nextRunAt
+    const nextRunAt = computeNextRun(cron.cron)
+    yield* deps.updateCron(cron.id, { next_run_at: nextRunAt }).pipe(Effect.ignoreLogged)
+    log.info("Next run scheduled", { cronId: cron.id, nextRunAt })
   })
 }
 
-/** Single poll iteration: find all due scheduled tasks and process them. */
-export function pollScheduledTasks(
+/** Single poll iteration: find all due crons and process them. */
+export function pollCrons(
   deps: SchedulerDeps,
 ): Effect.Effect<number, Error> {
   return Effect.gen(function* () {
-    const dueTasks = yield* deps.getDueScheduledTasks()
-    if (dueTasks.length === 0) return 0
+    const dueCrons = yield* deps.getDueCrons()
+    if (dueCrons.length === 0) return 0
 
-    log.info("Found due scheduled tasks", { count: dueTasks.length })
+    log.info("Found due crons", { count: dueCrons.length })
 
-    for (const task of dueTasks) {
-      yield* processScheduledTask(deps, task).pipe(
+    for (const cron of dueCrons) {
+      yield* processCron(deps, cron).pipe(
         Effect.catchAll((err) => {
-          log.error("Failed to process scheduled task", { taskId: task.id, error: String(err) })
+          log.error("Failed to process cron", { cronId: cron.id, error: String(err) })
           return Effect.void
         })
       )
     }
 
-    return dueTasks.length
+    return dueCrons.length
   })
 }
 
@@ -92,7 +79,7 @@ export function startScheduler(deps: SchedulerDeps): { stop: () => void } {
 
   const timer = setInterval(() => {
     Effect.runPromise(
-      pollScheduledTasks(deps).pipe(
+      pollCrons(deps).pipe(
         Effect.catchAll((err) => {
           log.error("Scheduler poll failed", { error: String(err) })
           return Effect.succeed(0)
@@ -101,9 +88,9 @@ export function startScheduler(deps: SchedulerDeps): { stop: () => void } {
     )
   }, SCHEDULER_POLL_INTERVAL_MS)
 
-  // Run immediately on startup to catch any tasks that became due while server was down
+  // Run immediately on startup to catch any crons that became due while server was down
   Effect.runPromise(
-    pollScheduledTasks(deps).pipe(
+    pollCrons(deps).pipe(
       Effect.catchAll((err) => {
         log.error("Initial scheduler poll failed", { error: String(err) })
         return Effect.succeed(0)

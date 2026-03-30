@@ -2,9 +2,9 @@ import { useState, useMemo } from "react"
 import { Link } from "react-router-dom"
 import type { Task, TaskStatus } from "@tangerine/shared"
 import { getStatusConfig, hasUnseenUpdates } from "../lib/status"
-import { formatDuration, formatPrNumber, formatCronExpression, formatRelativeTime } from "../lib/format"
+import { formatDuration, formatPrNumber } from "../lib/format"
 import { useProjectNav } from "../hooks/useProjectNav"
-import { cancelTask, deleteTask, retryTask, updateTaskSchedule } from "../lib/api"
+import { cancelTask, deleteTask, retryTask } from "../lib/api"
 import { RunCard } from "./RunCard"
 
 type StatusFilter = "all" | "running" | "done" | "failed" | "provisioning"
@@ -87,10 +87,6 @@ export function RunsTable({ tasks, searchQuery, onSearchChange, onRefetch }: Run
     try { await deleteTask(id); onRefetch() } catch { /* ignore */ }
   }
 
-  async function handleToggleSchedule(id: string, enabled: boolean) {
-    try { await updateTaskSchedule(id, { scheduleEnabled: enabled }); onRefetch() } catch { /* ignore */ }
-  }
-
   const isTerminated = (s: string) => ["done", "failed", "cancelled"].includes(s)
   const isRetryable = (s: string) => ["failed", "cancelled"].includes(s)
 
@@ -153,7 +149,7 @@ export function RunsTable({ tasks, searchQuery, onSearchChange, onRefetch }: Run
               <div className="flex flex-1 flex-col gap-0.5 truncate px-3 py-2.5">
                 <div className="flex items-center gap-2 font-medium text-fg">
                   {unseen && <span className="h-2 w-2 shrink-0 rounded-full bg-status-info" title="New activity" />}
-                  {task.type === "scheduled" && (
+                  {task.source === "cron" && (
                     <svg className="h-3.5 w-3.5 shrink-0 text-fg-muted" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                       <path strokeLinecap="round" strokeLinejoin="round" d="M12 6v6h4.5m4.5 0a9 9 0 1 1-18 0 9 9 0 0 1 18 0Z" />
                     </svg>
@@ -170,9 +166,9 @@ export function RunsTable({ tasks, searchQuery, onSearchChange, onRefetch }: Run
                       {formatPrNumber(task.prUrl)}
                     </a>
                   )}
-                  {task.type === "scheduled" && task.cronExpression && (
+                  {task.source === "cron" && (
                     <span className="shrink-0 rounded bg-blue-500/10 px-1.5 py-0.5 text-[10px] font-medium text-blue-700">
-                      {formatCronExpression(task.cronExpression)}
+                      cron
                     </span>
                   )}
                 </div>
@@ -183,30 +179,11 @@ export function RunsTable({ tasks, searchQuery, onSearchChange, onRefetch }: Run
               </div>
               <div className="w-[120px] px-3 py-2.5"><StatusBadge status={task.status} /></div>
               <div className="w-[100px] px-3 py-2.5 text-fg-muted">
-                {task.type === "scheduled" && task.nextRunAt
-                  ? formatRelativeTime(task.nextRunAt).replace(" ago", "").replace("just now", "now")
-                  : formatDuration(task.startedAt, task.completedAt, task.createdAt)}
+                {formatDuration(task.startedAt, task.completedAt, task.createdAt)}
               </div>
               <div className="w-[100px] px-3 py-2.5 text-fg-muted capitalize">{task.source}</div>
               <div className="w-[160px] px-3 py-2.5 text-fg-muted">{formatStartedAt(task.startedAt, task.createdAt)}</div>
               <div className="flex w-[70px] items-center justify-end px-2">
-                {task.type === "scheduled" && (
-                  <button
-                    onClick={(e) => { e.preventDefault(); handleToggleSchedule(task.id, !task.scheduleEnabled) }}
-                    className="rounded p-1.5 hover:bg-surface-secondary"
-                    title={task.scheduleEnabled ? "Disable schedule" : "Enable schedule"}
-                  >
-                    {task.scheduleEnabled ? (
-                      <svg className="h-4 w-4 text-green-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                        <path strokeLinecap="round" strokeLinejoin="round" d="M5.636 5.636a9 9 0 1 0 12.728 0M12 3v9" />
-                      </svg>
-                    ) : (
-                      <svg className="h-4 w-4 text-fg-muted" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                        <path strokeLinecap="round" strokeLinejoin="round" d="M5.636 5.636a9 9 0 1 0 12.728 0M12 3v9" />
-                      </svg>
-                    )}
-                  </button>
-                )}
                 {task.status === "running" && (
                   <button onClick={(e) => { e.preventDefault(); handleCancel(task.id) }} className="rounded p-1.5 hover:bg-surface-secondary" title="Cancel">
                     <svg className="h-4 w-4 text-fg-muted" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>

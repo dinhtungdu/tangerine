@@ -155,7 +155,7 @@ export function resetDb(): void {
 }
 
 export { SCHEMA } from "./schema"
-export type { TaskRow, SessionLogRow } from "./types"
+export type { TaskRow, CronRow, SessionLogRow } from "./types"
 export {
   createTask,
   getTask,
@@ -164,5 +164,11 @@ export {
   updateTaskStatus,
   insertSessionLog,
   getSessionLogs,
-  getDueScheduledTasks,
+  createCron,
+  getCron,
+  listCrons,
+  updateCron,
+  deleteCron,
+  getDueCrons,
+  getChildTasks,
 } from "./queries"

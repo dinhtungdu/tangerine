@@ -1,5 +1,5 @@
-import type { Task, TaskType, TaskSource, TaskStatus, ProviderType, TaskCapability } from "@tangerine/shared"
-import type { TaskRow } from "../db/types"
+import type { Task, Cron, TaskType, TaskSource, TaskStatus, ProviderType, TaskCapability } from "@tangerine/shared"
+import type { TaskRow, CronRow } from "../db/types"
 
 /**
  * SQLite datetime('now') produces UTC timestamps without a Z suffix
@@ -18,7 +18,6 @@ export function utc(ts: string | null): string | null {
 function canonicalCapabilities(type: string): TaskCapability[] {
   if (type === "orchestrator") return ["resolve", "predefined-prompts"]
   if (type === "reviewer") return ["resolve", "predefined-prompts", "diff", "pr-track"]
-  if (type === "scheduled") return ["schedule"]
   return ["resolve", "predefined-prompts", "diff", "continue", "pr-track", "pr-create"]
 }
 
@@ -62,10 +61,23 @@ export function mapTaskRow(row: TaskRow): Task {
     completedAt: utc(row.completed_at),
     lastSeenAt: utc(row.last_seen_at),
     lastResultAt: utc(row.last_result_at),
-    cronExpression: row.cron_expression,
-    scheduleEnabled: row.schedule_enabled === 1,
-    nextRunAt: utc(row.next_run_at),
     capabilities: mergeCapabilities(row.capabilities, row.type ?? "worker"),
+  }
+}
+
+/** Maps a snake_case CronRow from SQLite to a camelCase Cron for API responses */
+export function mapCronRow(row: CronRow): Cron {
+  return {
+    id: row.id,
+    projectId: row.project_id,
+    title: row.title,
+    description: row.description,
+    cron: row.cron,
+    enabled: row.enabled === 1,
+    nextRunAt: utc(row.next_run_at),
+    taskDefaults: row.task_defaults ? JSON.parse(row.task_defaults) : null,
+    createdAt: utc(row.created_at)!,
+    updatedAt: utc(row.updated_at)!,
   }
 }
 

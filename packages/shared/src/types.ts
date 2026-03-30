@@ -1,8 +1,8 @@
 export type TaskStatus = "created" | "provisioning" | "running" | "done" | "failed" | "cancelled"
 export type ProviderType = "opencode" | "claude-code" | "codex"
-export type TaskSource = "github" | "linear" | "manual" | "cross-project"
-export type TaskType = "worker" | "orchestrator" | "reviewer" | "scheduled"
-export type TaskCapability = "resolve" | "predefined-prompts" | "diff" | "continue" | "pr-track" | "pr-create" | "schedule"
+export type TaskSource = "github" | "linear" | "manual" | "cross-project" | "cron"
+export type TaskType = "worker" | "orchestrator" | "reviewer"
+export type TaskCapability = "resolve" | "predefined-prompts" | "diff" | "continue" | "pr-track" | "pr-create"
 export interface Task {
   id: string
   projectId: string
@@ -30,10 +30,20 @@ export interface Task {
   completedAt: string | null
   lastSeenAt: string | null
   lastResultAt: string | null
-  cronExpression: string | null
-  scheduleEnabled: boolean
-  nextRunAt: string | null
   capabilities: TaskCapability[]
+}
+
+export interface Cron {
+  id: string
+  projectId: string
+  title: string
+  description: string | null
+  cron: string
+  enabled: boolean
+  nextRunAt: string | null
+  taskDefaults: { provider?: string; model?: string; reasoningEffort?: string; branch?: string } | null
+  createdAt: string
+  updatedAt: string
 }
 
 export type ActivityType = "lifecycle" | "file" | "system"

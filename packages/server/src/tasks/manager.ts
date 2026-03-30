@@ -2,7 +2,6 @@
 // v1: No VM management — agents run as local processes.
 
 import { Effect } from "effect"
-import { CronExpressionParser } from "cron-parser"
 import { createLogger } from "../logger"
 import { type ActivityType, type TaskType, type TaskCapability, ORCHESTRATOR_TASK_NAME, TERMINAL_STATUSES } from "@tangerine/shared"
 import {
@@ -30,10 +29,10 @@ function depsForProvider(deps: TaskManagerDeps, provider: string): LifecycleDeps
   return { ...deps.lifecycleDeps, agentFactory: deps.getAgentFactory(provider) }
 }
 
-export type TaskSource = "github" | "manual" | "api" | "cross-project"
+export type TaskSource = "github" | "manual" | "api" | "cross-project" | "cron"
 
 export interface TaskManagerDeps {
-  insertTask(task: Pick<TaskRow, "id" | "project_id" | "source" | "repo_url" | "title"> & Partial<Pick<TaskRow, "source_id" | "source_url" | "type" | "description" | "user_id" | "branch" | "provider" | "model" | "reasoning_effort" | "parent_task_id" | "capabilities" | "cron_expression" | "schedule_enabled" | "next_run_at">>): Effect.Effect<TaskRow, Error>
+  insertTask(task: Pick<TaskRow, "id" | "project_id" | "source" | "repo_url" | "title"> & Partial<Pick<TaskRow, "source_id" | "source_url" | "type" | "description" | "user_id" | "branch" | "provider" | "model" | "reasoning_effort" | "parent_task_id" | "capabilities">>): Effect.Effect<TaskRow, Error>
   updateTask(taskId: string, updates: Partial<Omit<TaskRow, "id">>): Effect.Effect<TaskRow | null, Error>
   getTask(taskId: string): Effect.Effect<TaskRow | null, Error>
   listTasks(filter?: { status?: string; projectId?: string }): Effect.Effect<TaskRow[], Error>
@@ -62,8 +61,6 @@ export function createTask(
     reasoningEffort?: string
     branch?: string
     parentTaskId?: string
-    cronExpression?: string
-    scheduleEnabled?: boolean
   },
 ): Effect.Effect<TaskRow, Error> {
   return Effect.gen(function* () {
@@ -86,18 +83,6 @@ export function createTask(
       }
     }
 
-    // Validate cron expression for scheduled tasks
-    if (taskType === "scheduled") {
-      if (!params.cronExpression) {
-        return yield* Effect.fail(new Error("cronExpression is required for scheduled tasks"))
-      }
-      try {
-        CronExpressionParser.parse(params.cronExpression)
-      } catch {
-        return yield* Effect.fail(new Error(`Invalid cron expression: ${params.cronExpression}`))
-      }
-    }
-
     const id = crypto.randomUUID()
     const resolvedProvider = params.provider ?? projectConfig.defaultProvider ?? "claude-code"
 
@@ -107,16 +92,7 @@ export function createTask(
       ? ["resolve", "predefined-prompts"]
       : taskType === "reviewer"
         ? ["resolve", "predefined-prompts", "diff"]
-        : taskType === "scheduled"
-          ? ["schedule"]
-          : ["resolve", "predefined-prompts", "diff", "continue"]
-
-    // Compute initial next_run_at for scheduled tasks
-    let nextRunAt: string | null = null
-    if (taskType === "scheduled" && params.cronExpression) {
-      const interval = CronExpressionParser.parse(params.cronExpression)
-      nextRunAt = interval.next().toISOString()
-    }
+        : ["resolve", "predefined-prompts", "diff", "continue"]
 
     const task = yield* deps.insertTask({
       id,
@@ -134,9 +110,6 @@ export function createTask(
       branch: params.branch ?? null,
       parent_task_id: params.parentTaskId ?? null,
       capabilities: JSON.stringify(capabilities),
-      cron_expression: params.cronExpression ?? null,
-      schedule_enabled: (taskType === "scheduled" && (params.scheduleEnabled !== false)) ? 1 : 0,
-      next_run_at: nextRunAt,
     })
 
     log.info("Task created", { taskId: id, projectId: params.projectId, source: params.source, title: params.title })
@@ -148,10 +121,8 @@ export function createTask(
 
     emitStatusChange(id, task.status)
 
-    // Orchestrator and scheduled tasks are not auto-started.
-    // Orchestrator: started on-demand when the user enters the chat.
-    // Scheduled: template only — spawns worker children via the scheduler.
-    if (taskType !== "orchestrator" && taskType !== "scheduled") {
+    // Orchestrator tasks are not auto-started — started on-demand when the user enters the chat.
+    if (taskType !== "orchestrator") {
       const taskLifecycleDeps = depsForProvider(deps, resolvedProvider)
       yield* Effect.forkDaemon(
         startSessionWithRetry(task, projectConfig, taskLifecycleDeps, deps.retryDeps)
@@ -276,8 +247,7 @@ export function resumeOrphanedTasks(
     const provisioning = yield* deps.listTasks({ status: "provisioning" })
     const running = yield* deps.listTasks({ status: "running" })
 
-    // Scheduled tasks stay in "created" but never run an agent — skip them
-    const needsFullRestart = [...created, ...provisioning].filter((t) => t.type !== "scheduled")
+    const needsFullRestart = [...created, ...provisioning]
     const needsReconnect = running
 
     const total = needsFullRestart.length + needsReconnect.length
@@ -505,7 +475,6 @@ export function reprovisionTasksForProject(
       (t) => t.project_id === projectId
         && !["done", "cancelled"].includes(t.status)
         && t.type !== "orchestrator"
-        && t.type !== "scheduled"
     )
 
     if (affected.length === 0) return { reprovisioned: 0, failed: 0 }

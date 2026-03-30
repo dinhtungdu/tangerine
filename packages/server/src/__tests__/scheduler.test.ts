@@ -1,24 +1,40 @@
 import { describe, test, expect, mock } from "bun:test"
 import { Effect } from "effect"
-import { computeNextRun, pollScheduledTasks } from "../tasks/scheduler"
+import { computeNextRun, pollCrons } from "../tasks/scheduler"
 import type { SchedulerDeps } from "../tasks/scheduler"
-import type { TaskRow } from "../db/types"
+import type { CronRow, TaskRow } from "../db/types"
 
-function makeScheduledTask(overrides?: Partial<TaskRow>): TaskRow {
+function makeCron(overrides?: Partial<CronRow>): CronRow {
+  return {
+    id: "cron-1",
+    project_id: "test",
+    title: "Nightly check",
+    description: "Run nightly checks",
+    cron: "0 9 * * 1-5",
+    enabled: 1,
+    next_run_at: new Date(Date.now() - 60000).toISOString(), // 1 minute ago (due)
+    task_defaults: null,
+    created_at: new Date().toISOString(),
+    updated_at: new Date().toISOString(),
+    ...overrides,
+  }
+}
+
+function makeTask(overrides?: Partial<TaskRow>): TaskRow {
   const now = new Date().toISOString()
   return {
-    id: "sched-1",
+    id: "task-1",
     project_id: "test",
-    source: "manual",
-    source_id: null,
+    source: "cron",
+    source_id: "cron:cron-1",
     source_url: null,
     repo_url: "https://github.com/test/repo",
     title: "Nightly check",
-    type: "scheduled",
-    description: "Run nightly checks",
-    status: "created",
+    type: "worker",
+    description: null,
+    status: "running",
     provider: "claude-code",
-    model: "claude-sonnet-4-6",
+    model: null,
     reasoning_effort: null,
     branch: null,
     worktree_path: null,
@@ -34,20 +50,7 @@ function makeScheduledTask(overrides?: Partial<TaskRow>): TaskRow {
     completed_at: null,
     last_seen_at: null,
     last_result_at: null,
-    capabilities: '["schedule"]',
-    cron_expression: "0 9 * * 1-5",
-    schedule_enabled: 1,
-    next_run_at: new Date(Date.now() - 60000).toISOString(), // 1 minute ago (due)
-    ...overrides,
-  }
-}
-
-function makeChildTask(overrides?: Partial<TaskRow>): TaskRow {
-  return {
-    ...makeScheduledTask({ id: "child-1", type: "worker", status: "running", parent_task_id: "sched-1" }),
-    cron_expression: null,
-    schedule_enabled: 0,
-    next_run_at: null,
+    capabilities: null,
     ...overrides,
   }
 }
@@ -67,72 +70,66 @@ describe("computeNextRun", () => {
   })
 })
 
-describe("pollScheduledTasks", () => {
-  test("returns 0 when no tasks are due", async () => {
+describe("pollCrons", () => {
+  test("returns 0 when no crons are due", async () => {
     const deps: SchedulerDeps = {
-      getDueScheduledTasks: () => Effect.succeed([]),
-      getChildTasks: () => Effect.succeed([]),
-      createChildWorker: () => Effect.succeed(makeChildTask()),
-      updateTask: () => Effect.succeed(null),
-      logActivity: () => Effect.succeed(undefined),
+      getDueCrons: () => Effect.succeed([]),
+      hasActiveCronTask: () => Effect.succeed(false),
+      createWorkerFromCron: () => Effect.succeed(makeTask()),
+      updateCron: () => Effect.succeed(null),
     }
-    const count = await Effect.runPromise(pollScheduledTasks(deps))
+    const count = await Effect.runPromise(pollCrons(deps))
     expect(count).toBe(0)
   })
 
-  test("spawns a child worker for a due task", async () => {
-    const task = makeScheduledTask()
-    const createChildMock = mock(() => Effect.succeed(makeChildTask()))
-    const updateTaskMock = mock(() => Effect.succeed(null as TaskRow | null))
+  test("spawns a worker task for a due cron", async () => {
+    const cron = makeCron()
+    const createMock = mock(() => Effect.succeed(makeTask()))
+    const updateMock = mock(() => Effect.succeed(null as CronRow | null))
 
     const deps: SchedulerDeps = {
-      getDueScheduledTasks: () => Effect.succeed([task]),
-      getChildTasks: () => Effect.succeed([]),
-      createChildWorker: createChildMock,
-      updateTask: updateTaskMock,
-      logActivity: () => Effect.succeed(undefined),
+      getDueCrons: () => Effect.succeed([cron]),
+      hasActiveCronTask: () => Effect.succeed(false),
+      createWorkerFromCron: createMock,
+      updateCron: updateMock,
     }
 
-    const count = await Effect.runPromise(pollScheduledTasks(deps))
+    const count = await Effect.runPromise(pollCrons(deps))
     expect(count).toBe(1)
-    expect(createChildMock).toHaveBeenCalledTimes(1)
+    expect(createMock).toHaveBeenCalledTimes(1)
     // Should update next_run_at
-    expect(updateTaskMock).toHaveBeenCalled()
+    expect(updateMock).toHaveBeenCalled()
   })
 
-  test("skips task when a child is already active", async () => {
-    const task = makeScheduledTask()
-    const activeChild = makeChildTask({ status: "running" })
-    const createChildMock = mock(() => Effect.succeed(makeChildTask()))
+  test("skips cron when a task is already active", async () => {
+    const cron = makeCron()
+    const createMock = mock(() => Effect.succeed(makeTask()))
 
     const deps: SchedulerDeps = {
-      getDueScheduledTasks: () => Effect.succeed([task]),
-      getChildTasks: () => Effect.succeed([activeChild]),
-      createChildWorker: createChildMock,
-      updateTask: () => Effect.succeed(null),
-      logActivity: () => Effect.succeed(undefined),
+      getDueCrons: () => Effect.succeed([cron]),
+      hasActiveCronTask: () => Effect.succeed(true),
+      createWorkerFromCron: createMock,
+      updateCron: () => Effect.succeed(null),
     }
 
-    const count = await Effect.runPromise(pollScheduledTasks(deps))
+    const count = await Effect.runPromise(pollCrons(deps))
     expect(count).toBe(1)
-    // createChildWorker should NOT have been called since a child is active
-    expect(createChildMock).toHaveBeenCalledTimes(0)
+    // createWorkerFromCron should NOT have been called since a task is active
+    expect(createMock).toHaveBeenCalledTimes(0)
   })
 
-  test("allows spawn when previous children are all terminal", async () => {
-    const task = makeScheduledTask()
-    const doneChild = makeChildTask({ status: "done" })
-    const createChildMock = mock(() => Effect.succeed(makeChildTask()))
+  test("allows spawn when previous tasks are all terminal", async () => {
+    const cron = makeCron()
+    const createMock = mock(() => Effect.succeed(makeTask()))
 
     const deps: SchedulerDeps = {
-      getDueScheduledTasks: () => Effect.succeed([task]),
-      getChildTasks: () => Effect.succeed([doneChild]),
-      createChildWorker: createChildMock,
-      updateTask: () => Effect.succeed(null),
-      logActivity: () => Effect.succeed(undefined),
+      getDueCrons: () => Effect.succeed([cron]),
+      hasActiveCronTask: () => Effect.succeed(false),
+      createWorkerFromCron: createMock,
+      updateCron: () => Effect.succeed(null),
     }
 
-    await Effect.runPromise(pollScheduledTasks(deps))
-    expect(createChildMock).toHaveBeenCalledTimes(1)
+    await Effect.runPromise(pollCrons(deps))
+    expect(createMock).toHaveBeenCalledTimes(1)
   })
 })

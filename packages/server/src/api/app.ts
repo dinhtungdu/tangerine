@@ -13,6 +13,7 @@ import type { TaskSource } from "../tasks/manager"
 import { verifyWebhookSignature, processWebhookPayload } from "../integrations/github"
 import type { WebhookIssuePayload } from "../integrations/github"
 import { taskRoutes } from "./routes/tasks"
+import { cronRoutes } from "./routes/crons"
 import { sessionRoutes } from "./routes/sessions"
 import { systemRoutes } from "./routes/system"
 import { projectRoutes } from "./routes/project"
@@ -30,7 +31,7 @@ interface TaggedError { _tag: string; message?: string }
 export interface AppDeps {
   db: Database
   taskManager: {
-    createTask(params: { source: TaskSource; projectId: string; title: string; type?: import("@tangerine/shared").TaskType; description?: string; sourceId?: string; sourceUrl?: string; provider?: string; model?: string; reasoningEffort?: string; branch?: string; parentTaskId?: string; images?: import("../agent/provider").PromptImage[]; cronExpression?: string; scheduleEnabled?: boolean }): Effect.Effect<TaskRow, TaggedError>
+    createTask(params: { source: TaskSource; projectId: string; title: string; type?: import("@tangerine/shared").TaskType; description?: string; sourceId?: string; sourceUrl?: string; provider?: string; model?: string; reasoningEffort?: string; branch?: string; parentTaskId?: string; images?: import("../agent/provider").PromptImage[] }): Effect.Effect<TaskRow, TaggedError>
     cancelTask(taskId: string): Effect.Effect<void, TaggedError>
     completeTask(taskId: string): Effect.Effect<void, TaggedError>
     resolveTask(taskId: string): Effect.Effect<void, TaggedError>
@@ -65,6 +66,7 @@ export function createApp(deps: AppDeps): { app: Hono; websocket: ReturnType<typ
   app.route("/api", systemRoutes(deps))
   app.route("/api/tasks", taskRoutes(deps))
   app.route("/api/tasks", sessionRoutes(deps))
+  app.route("/api/crons", cronRoutes(deps))
   app.route("/api/projects", projectRoutes(deps))
 
   // Test-only routes — returns 404 unless TEST_MODE=1

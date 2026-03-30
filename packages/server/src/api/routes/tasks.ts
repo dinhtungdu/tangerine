@@ -1,6 +1,5 @@
 import { Effect } from "effect"
 import { Hono } from "hono"
-import { CronExpressionParser } from "cron-parser"
 import type { AppDeps } from "../app"
 import { mapTaskRow } from "../helpers"
 import { runEffect, runEffectVoid } from "../effect-helpers"
@@ -33,7 +32,7 @@ export function taskRoutes(deps: AppDeps): Hono {
   })
 
   app.post("/", async (c) => {
-    const body = await c.req.json<{ projectId?: string; title?: string; type?: "worker" | "orchestrator" | "reviewer" | "scheduled"; description?: string; provider?: string; model?: string; reasoningEffort?: string; source?: string; sourceId?: string; sourceUrl?: string; branch?: string; parentTaskId?: string; images?: import("../../agent/provider").PromptImage[]; cronExpression?: string; scheduleEnabled?: boolean }>()
+    const body = await c.req.json<{ projectId?: string; title?: string; type?: "worker" | "orchestrator" | "reviewer"; description?: string; provider?: string; model?: string; reasoningEffort?: string; source?: string; sourceId?: string; sourceUrl?: string; branch?: string; parentTaskId?: string; images?: import("../../agent/provider").PromptImage[] }>()
     if (!body.title) {
       return c.json({ error: "title is required" }, 400)
     }
@@ -47,12 +46,9 @@ export function taskRoutes(deps: AppDeps): Hono {
     if (body.provider !== undefined && !validProviders.has(body.provider)) {
       return c.json({ error: `Invalid provider: ${body.provider}. Must be opencode, claude-code, or codex` }, 400)
     }
-    const validTypes = new Set(["worker", "orchestrator", "reviewer", "scheduled"])
+    const validTypes = new Set(["worker", "orchestrator", "reviewer"])
     if (body.type && !validTypes.has(body.type)) {
-      return c.json({ error: `Invalid type: ${body.type}. Must be worker, orchestrator, reviewer, or scheduled` }, 400)
-    }
-    if (body.type === "scheduled" && !body.cronExpression) {
-      return c.json({ error: "cronExpression is required for scheduled tasks" }, 400)
+      return c.json({ error: `Invalid type: ${body.type}. Must be worker, orchestrator, or reviewer` }, 400)
     }
     const source = body.source === "cross-project" ? "cross-project" : "manual"
 
@@ -74,7 +70,7 @@ export function taskRoutes(deps: AppDeps): Hono {
     }
 
     return runEffect(c,
-      deps.taskManager.createTask({ source, projectId, title: body.title, type: body.type, description: body.description, provider: body.provider, model: body.model, reasoningEffort: body.reasoningEffort, sourceId, sourceUrl, branch, parentTaskId: body.parentTaskId, images: body.images, cronExpression: body.cronExpression, scheduleEnabled: body.scheduleEnabled }).pipe(
+      deps.taskManager.createTask({ source, projectId, title: body.title, type: body.type, description: body.description, provider: body.provider, model: body.model, reasoningEffort: body.reasoningEffort, sourceId, sourceUrl, branch, parentTaskId: body.parentTaskId, images: body.images }).pipe(
         Effect.map(mapTaskRow)
       ),
       { status: 201 }
@@ -155,10 +151,9 @@ export function taskRoutes(deps: AppDeps): Hono {
   })
 
   // Partial update for agent-writable fields (e.g. pr_url after gh pr create)
-  // Also supports schedule fields (cronExpression, scheduleEnabled) for scheduled tasks.
   app.patch("/:id", async (c) => {
     const taskId = c.req.param("id")
-    const body = await c.req.json<{ prUrl?: string; scheduleEnabled?: boolean; cronExpression?: string }>()
+    const body = await c.req.json<{ prUrl?: string }>()
     return runEffect(c,
       Effect.gen(function* () {
         const row = yield* getTask(deps.db, taskId)
@@ -166,22 +161,8 @@ export function taskRoutes(deps: AppDeps): Hono {
         if ("prUrl" in body && !mapTaskRow(row).capabilities.includes("pr-track")) {
           return yield* Effect.fail(new PrCapabilityError({ taskId }))
         }
-        // Only scheduled tasks can update schedule fields
-        if (("scheduleEnabled" in body || "cronExpression" in body) && row.type !== "scheduled") {
-          return yield* Effect.fail(new Error("Schedule fields can only be updated on scheduled tasks"))
-        }
         const fields: Record<string, string | number | null> = {}
         if ("prUrl" in body) fields.pr_url = body.prUrl ?? null
-        if ("scheduleEnabled" in body) fields.schedule_enabled = body.scheduleEnabled ? 1 : 0
-        if ("cronExpression" in body && body.cronExpression) {
-          try {
-            const interval = CronExpressionParser.parse(body.cronExpression)
-            fields.cron_expression = body.cronExpression
-            fields.next_run_at = interval.next().toISOString()
-          } catch {
-            return yield* Effect.fail(new Error(`Invalid cron expression: ${body.cronExpression}`))
-          }
-        }
         const updated = yield* updateTask(deps.db, taskId, fields)
         if (!updated) return yield* Effect.fail(new TaskNotFoundError({ taskId }))
         return mapTaskRow(updated)

@@ -85,8 +85,6 @@ export async function createTask(data: {
   parentTaskId?: string
   type?: string
   images?: import("@tangerine/shared").PromptImage[]
-  cronExpression?: string
-  scheduleEnabled?: boolean
 }): Promise<Task> {
   return request<Task>("/api/tasks", {
     method: "POST",
@@ -94,14 +92,42 @@ export async function createTask(data: {
   })
 }
 
-export async function updateTaskSchedule(id: string, data: {
-  scheduleEnabled?: boolean
-  cronExpression?: string
-}): Promise<Task> {
-  return request<Task>(`/api/tasks/${id}`, {
+// --- Crons ---
+
+export async function listCrons(projectId?: string): Promise<import("@tangerine/shared").Cron[]> {
+  const params = projectId ? `?project=${projectId}` : ""
+  return request<import("@tangerine/shared").Cron[]>(`/api/crons${params}`)
+}
+
+export async function createCron(data: {
+  projectId: string
+  title: string
+  description?: string
+  cron: string
+  enabled?: boolean
+  taskDefaults?: { provider?: string; model?: string; reasoningEffort?: string; branch?: string }
+}): Promise<import("@tangerine/shared").Cron> {
+  return request<import("@tangerine/shared").Cron>("/api/crons", {
+    method: "POST",
+    body: JSON.stringify(data),
+  })
+}
+
+export async function updateCron(id: string, data: {
+  title?: string
+  description?: string
+  cron?: string
+  enabled?: boolean
+  taskDefaults?: { provider?: string; model?: string; reasoningEffort?: string; branch?: string } | null
+}): Promise<import("@tangerine/shared").Cron> {
+  return request<import("@tangerine/shared").Cron>(`/api/crons/${id}`, {
     method: "PATCH",
     body: JSON.stringify(data),
   })
+}
+
+export async function deleteCron(id: string): Promise<void> {
+  return request<void>(`/api/crons/${id}`, { method: "DELETE" })
 }
 
 export async function cancelTask(id: string): Promise<void> {

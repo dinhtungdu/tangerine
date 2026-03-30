@@ -27,9 +27,19 @@ export interface TaskRow {
   last_seen_at: string | null
   last_result_at: string | null
   capabilities: string | null
-  cron_expression: string | null
-  schedule_enabled: number
+}
+
+export interface CronRow {
+  id: string
+  project_id: string
+  title: string
+  description: string | null
+  cron: string
+  enabled: number
   next_run_at: string | null
+  task_defaults: string | null
+  created_at: string
+  updated_at: string
 }
 
 export interface SessionLogRow {
