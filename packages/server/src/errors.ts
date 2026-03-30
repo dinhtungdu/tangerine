@@ -18,3 +18,7 @@ export class TaskNotTerminalError extends Data.TaggedError("TaskNotTerminalError
 export class PrCapabilityError extends Data.TaggedError("PrCapabilityError")<{ taskId: string }> {
   get message() { return `Task ${this.taskId} does not have the "pr-track" capability` }
 }
+export class CronNotFoundError extends Data.TaggedError("CronNotFoundError")<{ cronId: string }> {
+  get message() { return `Cron ${this.cronId} not found` }
+}
+export class CronValidationError extends Data.TaggedError("CronValidationError")<{ message: string }> {}
