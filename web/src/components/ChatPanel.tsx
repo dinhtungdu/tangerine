@@ -28,6 +28,7 @@ interface ChatPanelProps {
   predefinedPrompts?: PredefinedPrompt[]
   onResolve?: () => Promise<void>
   onEndSession?: () => Promise<void>
+  autoFocusKey?: string
 }
 
 export function ChatPanel({
@@ -49,6 +50,7 @@ export function ChatPanel({
   predefinedPrompts,
   onResolve,
   onEndSession,
+  autoFocusKey,
 }: ChatPanelProps) {
   const scrollRef = useRef<HTMLDivElement>(null)
   const { navigate } = useProjectNav()
@@ -278,6 +280,7 @@ export function ChatPanel({
           onReasoningEffortChange={onReasoningEffortChange}
           predefinedPrompts={predefinedPrompts}
           draftInsert={draftInsert}
+          autoFocusKey={autoFocusKey}
         />
         </>
       )}

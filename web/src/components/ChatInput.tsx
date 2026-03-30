@@ -25,6 +25,8 @@ interface ChatInputProps {
     id: number
     text: string
   } | null
+  /** When this value changes, the input is focused. Pass the task ID to focus on navigation. */
+  autoFocusKey?: string
 }
 
 export function appendQuotedText(existingText: string, quotedText: string): string {
@@ -32,7 +34,7 @@ export function appendQuotedText(existingText: string, quotedText: string): stri
   return `${prefix}${quotedText}\n\n`
 }
 
-export function ChatInput({ onSend, disabled, queueLength, taskId, isWorking, onAbort, model, provider, providerModels, reasoningEffort, onModelChange, onReasoningEffortChange, predefinedPrompts, draftInsert }: ChatInputProps) {
+export function ChatInput({ onSend, disabled, queueLength, taskId, isWorking, onAbort, model, provider, providerModels, reasoningEffort, onModelChange, onReasoningEffortChange, predefinedPrompts, draftInsert, autoFocusKey }: ChatInputProps) {
   const draftKey = taskId ? `tangerine:chat-draft:${taskId}` : null
   const loadDraft = useCallback((): { text?: string; pendingImages?: PendingImage[] } => {
     if (!draftKey) return {}
@@ -129,6 +131,13 @@ export function ChatInput({ onSend, disabled, queueLength, taskId, isWorking, on
     textarea.style.height = "auto"
     textarea.style.height = `${Math.min(textarea.scrollHeight, 144)}px`
   }, [text, isFocused])
+
+  useEffect(() => {
+    if (autoFocusKey === undefined) return
+    requestAnimationFrame(() => {
+      textareaRef.current?.focus()
+    })
+  }, [autoFocusKey])
 
   useEffect(() => {
     if (!draftInsert || appliedDraftInsertIdRef.current === draftInsert.id) return
