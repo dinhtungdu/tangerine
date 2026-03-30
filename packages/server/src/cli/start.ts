@@ -51,9 +51,9 @@ function classifyTool(toolName: string): { activityType: "file" | "system"; acti
 }
 
 /**
- * Try to save a detected PR URL for a task — checks "pr" capability, verifies
- * branch match, then persists to DB and emits activity. No-op if the task
- * lacks the capability or the branch doesn't match.
+ * Try to save a detected PR URL for a task — checks "pr-create" capability,
+ * verifies branch match, then persists to DB and emits activity. No-op if the
+ * task lacks the capability or the branch doesn't match.
  */
 function trySavePrUrl(
   db: import("bun:sqlite").Database,
@@ -64,7 +64,7 @@ function trySavePrUrl(
 ) {
   const taskRow = db.prepare("SELECT branch, type, capabilities FROM tasks WHERE id = ?")
     .get(taskId) as { branch: string | null; type: string; capabilities: string | null } | null
-  if (!taskRow || !taskHasCapability(taskRow.type, taskRow.capabilities, "pr")) return
+  if (!taskRow || !taskHasCapability(taskRow.type, taskRow.capabilities, "pr-create")) return
 
   const taskBranch = taskRow.branch
   Effect.runPromise(
@@ -532,7 +532,7 @@ export async function start(): Promise<void> {
 
                       // Check DB for existing pr_url (in-memory set is lost on restart)
                       const task = db.prepare("SELECT project_id, pr_url, type, capabilities FROM tasks WHERE id = ?").get(taskId) as { project_id: string; pr_url: string | null; type: string; capabilities: string | null } | null
-                      if (!task || !taskHasCapability(task.type, task.capabilities, "pr")) return
+                      if (!task || !taskHasCapability(task.type, task.capabilities, "pr-create")) return
                       if (task?.pr_url) {
                         prUrlSaved.add(taskId)
                         return
