@@ -39,7 +39,24 @@ curl -X POST "$API/api/tasks/$TANGERINE_TASK_ID/seen"
 curl -X POST "$API/api/tasks/$TANGERINE_TASK_ID/done"
 ```
 
-Create a task:
+Create a worker task:
+
+```bash
+curl -X POST "$API/api/tasks" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "projectId": "my-project",
+    "title": "Fix flaky timeout in retry loop",
+    "type": "worker",
+    "description": "The retry loop uses a fixed 5s timeout...",
+    "provider": "claude-code",
+    "model": "anthropic/claude-sonnet-4-6",
+    "parentTaskId": "abc123",
+    "source": "cross-project"
+  }'
+```
+
+Create a reviewer task:
 
 ```bash
 curl -X POST "$API/api/tasks" \
@@ -58,7 +75,7 @@ curl -X POST "$API/api/tasks" \
   }'
 ```
 
-> **Reviewer tasks — branch field is critical**: Always set `branch` to the **PR's source branch** (e.g. `tangerine/abc12345`), NOT the PR number shorthand (`#123`). The PR detector and clean poller match reviewer tasks to PRs by comparing the task branch to the PR's head branch — using the wrong value breaks that association.
+> **Reviewer branch requirement**: Set `branch` to the **PR's source branch** (e.g. `tangerine/abc12345`), NOT the PR number shorthand (`#123`) or a new branch. The reviewer must check out the same branch as the PR. The PR detector and clean poller match tasks to PRs by comparing the task branch to the PR's head branch — a wrong value breaks that association.
 
 Provider values:
 
@@ -145,30 +162,30 @@ PARENT=$(curl -s "$API/api/tasks/$TANGERINE_TASK_ID" | jq -r '.parentTaskId')
 test "$PARENT" != "null" && curl "$API/api/tasks/$PARENT/messages"
 ```
 
-## Required Before PR
+## Required: Codex Review
 
-Run self-review before creating the PR:
+All worker and reviewer tasks must run `codex review` — but for different purposes.
+
+### Worker tasks — self-review before PR
+
+Run before pushing or creating a PR:
 
 ```bash
 codex review --base main -c model="gpt-5.4" -c reasoning.effort="xhigh"
 ```
-
-Then:
 
 1. Read the findings
 2. Fix every issue found
 3. Share the review result
 4. Only then run `git push origin HEAD` and `gh pr create`
 
-## Required for Reviewer Tasks
+### Reviewer tasks — review the PR changes
 
-When the task type is `reviewer` (reviewing a PR), also run `codex review` before reporting findings:
+Run as part of the review:
 
 ```bash
 codex review --base main -c model="gpt-5.4" -c reasoning.effort="xhigh"
 ```
-
-Then:
 
 1. Read the findings
 2. Include them in the review report
