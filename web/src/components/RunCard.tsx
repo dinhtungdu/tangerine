@@ -2,6 +2,7 @@ import { Link } from "react-router-dom"
 import type { Task } from "@tangerine/shared"
 import { getStatusConfig, hasUnseenUpdates } from "../lib/status"
 import { formatDuration, formatDate, formatPrNumber } from "../lib/format"
+import { useProjectNav } from "../hooks/useProjectNav"
 import { useProject } from "../context/ProjectContext"
 import { buildSshEditorUri, EDITOR_NAMES } from "../lib/ssh-editor"
 
@@ -33,6 +34,7 @@ export function RunCard({ task, parentTask, onCancel, onRetry, onDelete }: RunCa
   const { label, textClass, bgClass } = getStatusConfig(task.status)
   const isTerminated = ["done", "failed", "cancelled"].includes(task.status)
   const unseen = hasUnseenUpdates(task)
+  const { link } = useProjectNav()
   const { sshHost, sshUser, editor } = useProject()
   // Zed requires a username; suppress the link when sshUser is absent for Zed
   const sshEditorUri = (sshHost && editor && task.worktreePath && (editor !== "zed" || sshUser))
@@ -41,7 +43,7 @@ export function RunCard({ task, parentTask, onCancel, onRetry, onDelete }: RunCa
 
   return (
     <Link
-      to={`/tasks/${task.id}`}
+      to={link(`/tasks/${task.id}`)}
       className="rounded-[10px] border border-edge p-3.5 transition active:bg-surface"
     >
       <div className="flex items-center justify-between gap-3">

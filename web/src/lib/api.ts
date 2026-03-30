@@ -83,6 +83,7 @@ export async function createTask(data: {
   reasoningEffort?: string
   branch?: string
   parentTaskId?: string
+  type?: string
   images?: import("@tangerine/shared").PromptImage[]
 }): Promise<Task> {
   return request<Task>("/api/tasks", {

@@ -307,6 +307,32 @@ describe("NewAgentForm", () => {
     expect(screen.getByAltText("Pasted image")).toBeTruthy()
   })
 
+  test("type selector defaults to worker and can be changed to reviewer", async () => {
+    mockProjectsFetch()
+    const submitted: { type?: string }[] = []
+
+    render(
+      <MemoryRouter initialEntries={["/?project=test-project"]}>
+        <ProjectProvider>
+          <NewAgentForm onSubmit={(data) => submitted.push({ type: data.type })} />
+        </ProjectProvider>
+      </MemoryRouter>
+    )
+
+    await screen.findByText("What should the agent work on?")
+
+    // Default value is worker
+    const typeSelects = screen.getAllByRole("combobox", { name: "Task type" })
+    expect((typeSelects[0] as HTMLSelectElement).value).toBe("worker")
+
+    // Change to reviewer
+    fireEvent.change(typeSelects[0]!, { target: { value: "reviewer" } })
+    expect((typeSelects[0] as HTMLSelectElement).value).toBe("reviewer")
+
+    // Orchestrator option must not be present
+    expect(screen.queryByRole("option", { name: "Orchestrator" })).toBeNull()
+  })
+
   test("supports fuzzy model search in the selector", () => {
     render(
       <ModelSelector
