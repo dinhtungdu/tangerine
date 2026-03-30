@@ -23,6 +23,7 @@ Current behavior:
 - search/filter over tasks
 - orchestrator launcher / entry row
 - runs table for non-orchestrator tasks
+- SSH editor deep-link on task cards (when configured)
 - new-run navigation
 
 ### New Run Page
@@ -51,6 +52,7 @@ Current task-detail feature set includes:
 - terminal pane
 - pane controls and resizing
 - image lightbox support
+- SSH editor deep-link ("Open in {editor}") — shown when `sshHost` and `editor` are configured and the task has a worktree
 
 UI gating is capability-based. The client should check `task.capabilities.includes(...)` rather than infer behavior from a task title.
 

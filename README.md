@@ -40,6 +40,7 @@ specs/             # design and implementation docs
 - Git diff, activity log, terminal attach, system log, and project update controls in the UI
 - GitHub PR reference resolution from branch input like `#123` or full PR URLs
 - Self-update flow for project repos via `postUpdateCommand`
+- SSH editor deep-links to open task worktrees in VS Code, Cursor, or Zed (requires `sshHost`/`editor` in config and a matching `Host` entry in `~/.ssh/config` on the host machine)
 
 ## Development
 
