@@ -230,6 +230,51 @@ describe("API routes", () => {
       }))
       expect(res.status).toBe(400)
     })
+
+    test("passes undefined provider to createTask when not specified (lets manager use defaultProvider)", async () => {
+      let capturedProvider: string | undefined = "sentinel"
+      const original = deps.taskManager.createTask
+      deps.taskManager.createTask = (params) => {
+        capturedProvider = params.provider
+        return original(params)
+      }
+
+      const res = await app.fetch(new Request("http://localhost/api/tasks", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ projectId: "test-project", title: "New task" }),
+      }))
+      expect(res.status).toBe(201)
+      expect(capturedProvider).toBeUndefined()
+    })
+
+    test("returns 400 for invalid provider", async () => {
+      const res = await app.fetch(new Request("http://localhost/api/tasks", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ projectId: "test-project", title: "New task", provider: "openai" }),
+      }))
+      expect(res.status).toBe(400)
+      const body = await res.json() as { error: string }
+      expect(body.error).toContain("provider")
+    })
+
+    test("passes explicit provider to createTask when specified", async () => {
+      let capturedProvider: string | undefined
+      const original = deps.taskManager.createTask
+      deps.taskManager.createTask = (params) => {
+        capturedProvider = params.provider
+        return original(params)
+      }
+
+      const res = await app.fetch(new Request("http://localhost/api/tasks", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ projectId: "test-project", title: "New task", provider: "claude-code" }),
+      }))
+      expect(res.status).toBe(201)
+      expect(capturedProvider).toBe("claude-code")
+    })
   })
 
   describe("POST /api/tasks (cross-project)", () => {

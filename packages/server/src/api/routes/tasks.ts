@@ -42,9 +42,10 @@ export function taskRoutes(deps: AppDeps): Hono {
     if (!project) {
       return c.json({ error: `Unknown project: ${projectId}` }, 400)
     }
-    const provider = body.provider === "claude-code" ? "claude-code"
-      : body.provider === "codex" ? "codex"
-      : "opencode"
+    const validProviders = new Set(["opencode", "claude-code", "codex"])
+    if (body.provider !== undefined && !validProviders.has(body.provider)) {
+      return c.json({ error: `Invalid provider: ${body.provider}. Must be opencode, claude-code, or codex` }, 400)
+    }
     const validTypes = new Set(["worker", "orchestrator", "reviewer"])
     if (body.type && !validTypes.has(body.type)) {
       return c.json({ error: `Invalid type: ${body.type}. Must be worker, orchestrator, or reviewer` }, 400)
@@ -69,7 +70,7 @@ export function taskRoutes(deps: AppDeps): Hono {
     }
 
     return runEffect(c,
-      deps.taskManager.createTask({ source, projectId, title: body.title, type: body.type, description: body.description, provider, model: body.model, reasoningEffort: body.reasoningEffort, sourceId, sourceUrl, branch, parentTaskId: body.parentTaskId, images: body.images }).pipe(
+      deps.taskManager.createTask({ source, projectId, title: body.title, type: body.type, description: body.description, provider: body.provider, model: body.model, reasoningEffort: body.reasoningEffort, sourceId, sourceUrl, branch, parentTaskId: body.parentTaskId, images: body.images }).pipe(
         Effect.map(mapTaskRow)
       ),
       { status: 201 }
