@@ -211,6 +211,20 @@ export function NewAgentForm({ onSubmit, refTaskId, refTaskTitle }: NewAgentForm
             </p>
           </div>
 
+          {/* Worker / Reviewer toggle */}
+          <div className="flex justify-center">
+            <div className="inline-flex rounded-lg border border-edge bg-surface-secondary p-0.5">
+              <button
+                onClick={() => setTaskType("worker")}
+                className={`rounded-md px-4 py-1.5 text-[13px] font-medium transition ${taskType === "worker" ? "bg-surface text-fg shadow-sm" : "text-fg-muted hover:text-fg"}`}
+              >Worker</button>
+              <button
+                onClick={() => setTaskType("reviewer")}
+                className={`rounded-md px-4 py-1.5 text-[13px] font-medium transition ${taskType === "reviewer" ? "bg-surface text-fg shadow-sm" : "text-fg-muted hover:text-fg"}`}
+              >Reviewer</button>
+            </div>
+          </div>
+
           {/* Reference badge */}
           {refTaskId && (
             <div className="flex items-center gap-2 rounded-lg border border-accent-border bg-accent-bg px-3 py-2">
@@ -278,15 +292,6 @@ export function NewAgentForm({ onSubmit, refTaskId, refTaskTitle }: NewAgentForm
                   menuPlacement="bottom"
                 />
                 <ReasoningEffortSelector value={reasoningEffort} onChange={(e) => { setReasoningEffort(e); savePrefs({ reasoningEffort: e }) }} provider={provider} />
-                <select
-                  value={taskType}
-                  onChange={(e) => setTaskType(e.target.value as "worker" | "reviewer")}
-                  aria-label="Task type"
-                  className="rounded-md border border-edge bg-surface px-2 py-1 text-[11px] text-fg outline-none"
-                >
-                  <option value="worker">Worker</option>
-                  <option value="reviewer">Reviewer</option>
-                </select>
               </div>
               <button
                 onClick={handleSubmit}
@@ -348,15 +353,6 @@ export function NewAgentForm({ onSubmit, refTaskId, refTaskTitle }: NewAgentForm
                   {getEfforts(provider).map((e) => (
                     <option key={e.value} value={e.value}>Effort: {e.label}</option>
                   ))}
-                </select>
-                <select
-                  value={taskType}
-                  onChange={(e) => setTaskType(e.target.value as "worker" | "reviewer")}
-                  aria-label="Task type"
-                  className="h-10 flex-1 rounded-lg border border-edge bg-surface px-3 text-[16px] text-fg outline-none md:text-[13px]"
-                >
-                  <option value="worker">Worker</option>
-                  <option value="reviewer">Reviewer</option>
                 </select>
               </div>
             </div>

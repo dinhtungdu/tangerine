@@ -321,16 +321,16 @@ describe("NewAgentForm", () => {
 
     await screen.findByText("What should the agent work on?")
 
-    // Default value is worker
-    const typeSelects = screen.getAllByRole("combobox", { name: "Task type" })
-    expect((typeSelects[0] as HTMLSelectElement).value).toBe("worker")
+    // Default is worker (active toggle has shadow-sm class)
+    const workerBtn = screen.getAllByText("Worker")[0]!
+    const reviewerBtn = screen.getAllByText("Reviewer")[0]!
+    expect(workerBtn.className).toContain("shadow-sm")
+    expect(reviewerBtn.className).not.toContain("shadow-sm")
 
-    // Change to reviewer
-    fireEvent.change(typeSelects[0]!, { target: { value: "reviewer" } })
-    expect((typeSelects[0] as HTMLSelectElement).value).toBe("reviewer")
-
-    // Orchestrator option must not be present
-    expect(screen.queryByRole("option", { name: "Orchestrator" })).toBeNull()
+    // Click reviewer toggle
+    fireEvent.click(reviewerBtn)
+    expect(reviewerBtn.className).toContain("shadow-sm")
+    expect(workerBtn.className).not.toContain("shadow-sm")
   })
 
   test("supports fuzzy model search in the selector", () => {
