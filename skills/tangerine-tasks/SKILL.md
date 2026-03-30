@@ -196,7 +196,7 @@ When the command finishes:
 
 ## Reviewing External PRs
 
-To review a PR from another contributor, create a task that runs `codex review` with xhigh reasoning. Use the `codex` provider pointed at the PR branch:
+To review a PR from another contributor, create a Claude Sonnet task that runs `codex review` as a subprocess with gpt-5.4 xhigh reasoning:
 
 ```bash
 curl -X POST $API/api/tasks \
@@ -206,11 +206,12 @@ curl -X POST $API/api/tasks \
     "title": "Review PR #123",
     "description": "Run: codex review --pr 123 -c model=\"gpt-5.4\" -c reasoning.effort=\"xhigh\"\n\nShare the full review output. Do not fix anything unless asked.",
     "branch": "#123",
-    "provider": "codex"
+    "provider": "claude-code",
+    "model": "claude-sonnet-4-6"
   }'
 ```
 
-The task agent runs `codex review` as a subprocess with gpt-5.4 xhigh — the task itself does not need xhigh reasoning.
+The Sonnet agent shells out to `codex review` (which uses gpt-5.4 xhigh) and reports the findings.
 
 When the review finishes:
 1. Read the review output from the task's messages
