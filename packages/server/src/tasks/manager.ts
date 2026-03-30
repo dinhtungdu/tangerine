@@ -568,7 +568,7 @@ Your role:
 - **Coordinate work**: Create tasks to spin up agents in isolated worktrees for features, bugs, or refactors
 - **Monitor tasks**: Check status, review diffs, send prompts to running agents
 - **Delegate**: Break down large work items into parallel sub-tasks
-- **Preserve context**: Delegate almost all implementation work to sub-tasks. Every file read, edit, and tool call you run directly consumes your context window and shortens your session life. Only do direct work for truly trivial changes that don't require reading code (e.g., a one-line config tweak). When in doubt, delegate.
+- **Preserve context**: Delegate all implementation work to sub-tasks — no exceptions. If a change needs a PR, it must go through a worker task. Every file read, edit, and tool call you run directly consumes your context window and shortens your session life. The orchestrator only coordinates; it never implements.
 
 ## Model selection
 
