@@ -154,8 +154,11 @@ export async function start(): Promise<void> {
         missing.push("git is not installed — worktree setup and branch operations will not work.")
       }
 
-      // gh auth — required for PR capture, but only when projects use GitHub remotes
-      const hasGithubProject = config.config.projects.some((p) => p.repo.includes("github.com"))
+      // gh auth — required for PR capture and polling. Detect GitHub repos whether
+      // specified as full URLs (github.com/owner/repo) or owner/repo shorthand.
+      const isGithubRepo = (repo: string) =>
+        repo.includes("github.com") || /^[^/]+\/[^/]+$/.test(repo)
+      const hasGithubProject = config.config.projects.some((p) => isGithubRepo(p.repo))
       if (hasGithubProject) {
         const ghInstalled = await cmdExists("gh")
         if (!ghInstalled) {
@@ -163,7 +166,7 @@ export async function start(): Promise<void> {
         } else {
           const ghAuth = Bun.spawn(["gh", "auth", "status"], { stdout: "pipe", stderr: "pipe" })
           if ((await ghAuth.exited) !== 0) {
-            missing.push("gh CLI is not authenticated — PR capture and auto-complete will not work. Set GITHUB_TOKEN or run `gh auth login`.")
+            missing.push("gh CLI is not authenticated — PR capture and GitHub polling will not work. Run `gh auth login`.")
           }
         }
       }

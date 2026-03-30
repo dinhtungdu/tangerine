@@ -27,7 +27,6 @@ Credentials stored in `~/tangerine/.credentials` (mode `0600`). Plain text, one 
 |-----|----------|---------|
 | `ANTHROPIC_API_KEY` | Claude Code, OpenCode | LLM API key |
 | `CLAUDE_CODE_OAUTH_TOKEN` | Claude Code | OAuth token (alternative to API key) |
-| `GITHUB_TOKEN` | All | GitHub API + git HTTPS auth |
 
 ### Subcommands
 
@@ -49,8 +48,9 @@ env var > ~/tangerine/.credentials > OpenCode auth.json (for OpenCode only)
 Resolved in `loadConfig()`:
 - `ANTHROPIC_API_KEY`: `$ANTHROPIC_API_KEY` → dotfile → (not set)
 - `CLAUDE_CODE_OAUTH_TOKEN`: `$CLAUDE_CODE_OAUTH_TOKEN` → dotfile → (not set)
-- `GITHUB_TOKEN`: `$GITHUB_TOKEN` → dotfile → (not set)
 - OpenCode auth: existence check on `~/.local/share/opencode/auth.json`
+
+GitHub auth is handled entirely by the `gh` CLI (`gh auth login` or `GITHUB_TOKEN` env var). Tangerine does not manage it.
 
 ### Validation
 

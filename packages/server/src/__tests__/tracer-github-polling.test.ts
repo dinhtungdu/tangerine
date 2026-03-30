@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeEach, mock, afterEach } from "bun:test"
+import { describe, it, expect, beforeEach, afterEach, spyOn } from "bun:test"
 import { Effect } from "effect"
 import { pollGitHubIssues, type GitHubDeps } from "../integrations/github"
 /** Local ProjectConfig type matching github module's interface */
@@ -19,7 +19,7 @@ interface ProjectConfig {
  *
  * Tests the GitHub polling integration: parsing issues, filtering by
  * trigger, creating tasks, deduplicating by sourceId, and handling
- * API errors. Mocks global fetch to simulate GitHub API responses.
+ * API errors. Mocks Bun.spawn to simulate `gh api` responses.
  */
 
 interface MockGitHubIssue {
@@ -54,11 +54,29 @@ function makeConfig(trigger: { type: "label" | "assignee"; value: string }): Pro
   }
 }
 
+/** Create a fake Bun.spawn result that returns the given stdout and exits 0. */
+function makeSpawnResult(stdout: string, exitCode = 0): ReturnType<typeof Bun.spawn> {
+  return {
+    stdout: new ReadableStream({
+      start(controller) {
+        controller.enqueue(new TextEncoder().encode(stdout))
+        controller.close()
+      },
+    }),
+    stderr: new ReadableStream({
+      start(controller) {
+        controller.close()
+      },
+    }),
+    exited: Promise.resolve(exitCode),
+  } as unknown as ReturnType<typeof Bun.spawn>
+}
+
 describe("tracer: github polling -> task creation -> dedup", () => {
   let createdTasks: Array<{ sourceId: string; title: string; description: string }>
   let existingSourceIds: Set<string>
   let deps: GitHubDeps
-  const originalFetch = globalThis.fetch
+  let spawnSpy: ReturnType<typeof spyOn>
 
   beforeEach(() => {
     createdTasks = []
@@ -78,13 +96,11 @@ describe("tracer: github polling -> task creation -> dedup", () => {
       },
     }
 
-    // Set token so the poller authenticates
-    process.env.GITHUB_TOKEN = "test-token"
+    spawnSpy = spyOn(Bun, "spawn")
   })
 
   afterEach(() => {
-    globalThis.fetch = originalFetch
-    delete process.env.GITHUB_TOKEN
+    spawnSpy.mockRestore()
   })
 
   it("creates tasks from matching GitHub issues (assignee trigger)", async () => {
@@ -94,12 +110,7 @@ describe("tracer: github polling -> task creation -> dedup", () => {
       makeIssue(3, { assignee: { login: "other" } }), // not matching
     ]
 
-    globalThis.fetch = mock(() =>
-      Promise.resolve(new Response(JSON.stringify(issues), {
-        status: 200,
-        headers: { "Content-Type": "application/json" },
-      }))
-    ) as unknown as typeof fetch
+    spawnSpy.mockReturnValue(makeSpawnResult(JSON.stringify(issues)))
 
     const config = makeConfig({ type: "assignee", value: "bot" })
     await Effect.runPromise(pollGitHubIssues(config, deps))
@@ -116,12 +127,7 @@ describe("tracer: github polling -> task creation -> dedup", () => {
       makeIssue(3, { labels: [{ name: "agent" }, { name: "priority" }] }),
     ]
 
-    globalThis.fetch = mock(() =>
-      Promise.resolve(new Response(JSON.stringify(issues), {
-        status: 200,
-        headers: { "Content-Type": "application/json" },
-      }))
-    ) as unknown as typeof fetch
+    spawnSpy.mockReturnValue(makeSpawnResult(JSON.stringify(issues)))
 
     const config = makeConfig({ type: "label", value: "agent" })
     await Effect.runPromise(pollGitHubIssues(config, deps))
@@ -137,12 +143,7 @@ describe("tracer: github polling -> task creation -> dedup", () => {
       makeIssue(2, { assignee: { login: "bot" } }),
     ]
 
-    globalThis.fetch = mock(() =>
-      Promise.resolve(new Response(JSON.stringify(issues), {
-        status: 200,
-        headers: { "Content-Type": "application/json" },
-      }))
-    ) as unknown as typeof fetch
+    spawnSpy.mockReturnValue(makeSpawnResult(JSON.stringify(issues)))
 
     const config = makeConfig({ type: "assignee", value: "bot" })
 
@@ -151,6 +152,7 @@ describe("tracer: github polling -> task creation -> dedup", () => {
     expect(createdTasks).toHaveLength(2)
 
     // Second poll with same issues — should not create duplicates
+    spawnSpy.mockReturnValue(makeSpawnResult(JSON.stringify(issues)))
     await Effect.runPromise(pollGitHubIssues(config, deps))
     expect(createdTasks).toHaveLength(2)
   })
@@ -165,12 +167,7 @@ describe("tracer: github polling -> task creation -> dedup", () => {
       makeIssue(3, { assignee: { login: "bot" } }),
     ]
 
-    globalThis.fetch = mock(() =>
-      Promise.resolve(new Response(JSON.stringify(issues), {
-        status: 200,
-        headers: { "Content-Type": "application/json" },
-      }))
-    ) as unknown as typeof fetch
+    spawnSpy.mockReturnValue(makeSpawnResult(JSON.stringify(issues)))
 
     const config = makeConfig({ type: "assignee", value: "bot" })
     await Effect.runPromise(pollGitHubIssues(config, deps))
@@ -183,39 +180,26 @@ describe("tracer: github polling -> task creation -> dedup", () => {
   })
 
   it("handles API error gracefully (does not throw)", async () => {
-    globalThis.fetch = mock(() =>
-      Promise.resolve(new Response("internal error", {
-        status: 500,
-        statusText: "Internal Server Error",
-      }))
-    ) as unknown as typeof fetch
+    spawnSpy.mockReturnValue(makeSpawnResult("internal error", 1))
 
     const config = makeConfig({ type: "assignee", value: "bot" })
 
-    // pollGitHubIssues returns a GitHubPollError for non-OK responses
+    // pollGitHubIssues returns a GitHubPollError for non-zero exit
     await expect(Effect.runPromise(pollGitHubIssues(config, deps))).rejects.toThrow()
     expect(createdTasks).toHaveLength(0)
   })
 
-  it("skips polling when no trigger configured", async () => {
-    const fetchMock = mock(() => Promise.resolve(new Response("[]")))
-    globalThis.fetch = fetchMock as unknown as typeof fetch
-
+  it("skips polling when no github integration configured", async () => {
     const config = { repo: "test/repo" } as ProjectConfig
     await Effect.runPromise(pollGitHubIssues(config, deps))
 
-    // fetch should not have been called
-    expect(fetchMock).not.toHaveBeenCalled()
+    // spawn should not have been called
+    expect(spawnSpy).not.toHaveBeenCalled()
     expect(createdTasks).toHaveLength(0)
   })
 
   it("handles empty issue list", async () => {
-    globalThis.fetch = mock(() =>
-      Promise.resolve(new Response(JSON.stringify([]), {
-        status: 200,
-        headers: { "Content-Type": "application/json" },
-      }))
-    ) as unknown as typeof fetch
+    spawnSpy.mockReturnValue(makeSpawnResult(JSON.stringify([])))
 
     const config = makeConfig({ type: "assignee", value: "bot" })
     await Effect.runPromise(pollGitHubIssues(config, deps))
@@ -233,12 +217,7 @@ describe("tracer: github polling -> task creation -> dedup", () => {
       }),
     ]
 
-    globalThis.fetch = mock(() =>
-      Promise.resolve(new Response(JSON.stringify(issues), {
-        status: 200,
-        headers: { "Content-Type": "application/json" },
-      }))
-    ) as unknown as typeof fetch
+    spawnSpy.mockReturnValue(makeSpawnResult(JSON.stringify(issues)))
 
     const config = makeConfig({ type: "assignee", value: "bot" })
     await Effect.runPromise(pollGitHubIssues(config, deps))
@@ -248,5 +227,17 @@ describe("tracer: github polling -> task creation -> dedup", () => {
     expect(task.title).toBe("Fix critical bug")
     expect(task.description).toBe("The app crashes when...")
     expect(task.sourceId).toBe("github:test/repo#42")
+  })
+
+  it("calls gh api with correct endpoint", async () => {
+    spawnSpy.mockReturnValue(makeSpawnResult(JSON.stringify([])))
+
+    const config = makeConfig({ type: "assignee", value: "bot" })
+    await Effect.runPromise(pollGitHubIssues(config, deps))
+
+    expect(spawnSpy).toHaveBeenCalledWith(
+      ["gh", "api", "repos/test/repo/issues?state=open&per_page=50"],
+      expect.objectContaining({ stdout: "pipe", stderr: "pipe" }),
+    )
   })
 })
