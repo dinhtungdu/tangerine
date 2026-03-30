@@ -220,11 +220,14 @@ export function TaskDetail() {
     async (text: string, images?: import("@tangerine/shared").PromptImage[]) => {
       if (chatTask?.status === "created") {
         await startTask(chatTask.id)
-        setTask((prev) => prev ? { ...prev, status: "provisioning" } : prev)
+        // Only optimistically update the viewed task's status when it IS the chat task
+        if (!isCrossProject) {
+          setTask((prev) => prev ? { ...prev, status: "provisioning" } : prev)
+        }
       }
       session.sendPrompt(text, images)
     },
-    [chatTask?.status, chatTask?.id, session],
+    [chatTask?.status, chatTask?.id, isCrossProject, session],
   )
 
   // Fetch parent and children once per task ID (not on every poll)
