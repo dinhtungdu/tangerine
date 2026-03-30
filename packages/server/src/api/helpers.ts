@@ -1,5 +1,4 @@
-import type { Task, TaskSource, TaskStatus, ProviderType, TaskCapability } from "@tangerine/shared"
-import { ORCHESTRATOR_TASK_NAME } from "@tangerine/shared"
+import type { Task, TaskType, TaskSource, TaskStatus, ProviderType, TaskCapability } from "@tangerine/shared"
 import type { TaskRow } from "../db/types"
 
 /**
@@ -16,17 +15,19 @@ export function utc(ts: string | null): string | null {
 }
 
 // Canonical capabilities per task type. Used as baseline for all tasks.
-function canonicalCapabilities(title: string): TaskCapability[] {
-  return title === ORCHESTRATOR_TASK_NAME
+// Reviewer capabilities are identical to worker for now — the type field
+// enables future differentiation without another migration.
+function canonicalCapabilities(type: string): TaskCapability[] {
+  return type === "orchestrator"
     ? ["resolve", "end-session"]
-    : ["resolve", "predefined-prompts", "diff"]
+    : ["resolve", "predefined-prompts", "diff", "continue"]
 }
 
 // Merge stored capabilities with canonical ones so that:
 // - New capabilities added to the canonical set appear on existing rows
 // - Custom per-task capabilities stored in the DB are preserved
-function mergeCapabilities(stored: string | null, title: string): TaskCapability[] {
-  const canonical = canonicalCapabilities(title)
+function mergeCapabilities(stored: string | null, type: string): TaskCapability[] {
+  const canonical = canonicalCapabilities(type)
   if (!stored) return canonical
   const parsed: TaskCapability[] = JSON.parse(stored)
   const merged = new Set([...canonical, ...parsed])
@@ -38,6 +39,7 @@ export function mapTaskRow(row: TaskRow): Task {
   return {
     id: row.id,
     projectId: row.project_id,
+    type: (row.type ?? "worker") as TaskType,
     source: row.source as TaskSource,
     sourceId: row.source_id,
     sourceUrl: row.source_url,
@@ -61,7 +63,7 @@ export function mapTaskRow(row: TaskRow): Task {
     completedAt: utc(row.completed_at),
     lastSeenAt: utc(row.last_seen_at),
     lastResultAt: utc(row.last_result_at),
-    capabilities: mergeCapabilities(row.capabilities, row.title),
+    capabilities: mergeCapabilities(row.capabilities, row.type ?? "worker"),
   }
 }
 

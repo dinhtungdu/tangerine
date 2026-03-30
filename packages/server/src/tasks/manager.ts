@@ -3,7 +3,7 @@
 
 import { Effect } from "effect"
 import { createLogger } from "../logger"
-import { type ActivityType, type TaskCapability, ORCHESTRATOR_TASK_NAME, TERMINAL_STATUSES } from "@tangerine/shared"
+import { type ActivityType, type TaskType, type TaskCapability, ORCHESTRATOR_TASK_NAME, TERMINAL_STATUSES } from "@tangerine/shared"
 import {
   TaskNotFoundError,
   TaskNotTerminalError,
@@ -32,7 +32,7 @@ function depsForProvider(deps: TaskManagerDeps, provider: string): LifecycleDeps
 export type TaskSource = "github" | "manual" | "api" | "cross-project"
 
 export interface TaskManagerDeps {
-  insertTask(task: Pick<TaskRow, "id" | "project_id" | "source" | "repo_url" | "title"> & Partial<Pick<TaskRow, "source_id" | "source_url" | "description" | "user_id" | "branch" | "provider" | "model" | "reasoning_effort" | "parent_task_id" | "capabilities">>): Effect.Effect<TaskRow, Error>
+  insertTask(task: Pick<TaskRow, "id" | "project_id" | "source" | "repo_url" | "title"> & Partial<Pick<TaskRow, "source_id" | "source_url" | "type" | "description" | "user_id" | "branch" | "provider" | "model" | "reasoning_effort" | "parent_task_id" | "capabilities">>): Effect.Effect<TaskRow, Error>
   updateTask(taskId: string, updates: Partial<Omit<TaskRow, "id">>): Effect.Effect<TaskRow | null, Error>
   getTask(taskId: string): Effect.Effect<TaskRow | null, Error>
   listTasks(filter?: { status?: string; projectId?: string }): Effect.Effect<TaskRow[], Error>
@@ -54,6 +54,7 @@ export function createTask(
     sourceId?: string
     sourceUrl?: string
     title: string
+    type?: TaskType
     description?: string
     provider?: string
     model?: string
@@ -69,10 +70,11 @@ export function createTask(
     }
 
     // Enforce one orchestrator per project
-    if (params.title === ORCHESTRATOR_TASK_NAME) {
+    const taskType: TaskType = params.type ?? "worker"
+    if (taskType === "orchestrator") {
       const allTasks = yield* deps.listTasks({ projectId: params.projectId })
       const active = allTasks.find(
-        (t) => t.title === ORCHESTRATOR_TASK_NAME && !["done", "failed", "cancelled"].includes(t.status)
+        (t) => t.type === "orchestrator" && !["done", "failed", "cancelled"].includes(t.status)
       )
       if (active) {
         return yield* Effect.fail(
@@ -86,8 +88,7 @@ export function createTask(
 
     const description = params.description ?? null
 
-    const isOrchestrator = params.title === ORCHESTRATOR_TASK_NAME
-    const capabilities: TaskCapability[] = isOrchestrator
+    const capabilities: TaskCapability[] = taskType === "orchestrator"
       ? ["resolve", "end-session"]
       : ["resolve", "predefined-prompts", "diff", "continue"]
 
@@ -99,6 +100,7 @@ export function createTask(
       source_url: params.sourceUrl ?? null,
       repo_url: projectConfig.repo,
       title: params.title,
+      type: taskType,
       description,
       provider: resolvedProvider,
       model: params.model ?? null,
@@ -119,7 +121,7 @@ export function createTask(
 
     // Orchestrator tasks are started on-demand (when the user enters the chat),
     // not immediately on creation. All other tasks auto-provision.
-    if (params.title !== ORCHESTRATOR_TASK_NAME) {
+    if (taskType !== "orchestrator") {
       const taskLifecycleDeps = depsForProvider(deps, resolvedProvider)
       yield* Effect.forkDaemon(
         startSessionWithRetry(task, projectConfig, taskLifecycleDeps, deps.retryDeps)
@@ -471,7 +473,7 @@ export function reprovisionTasksForProject(
     const affected = allTasks.filter(
       (t) => t.project_id === projectId
         && !["done", "cancelled"].includes(t.status)
-        && t.title !== ORCHESTRATOR_TASK_NAME
+        && t.type !== "orchestrator"
     )
 
     if (affected.length === 0) return { reprovisioned: 0, failed: 0 }
@@ -538,7 +540,7 @@ export function ensureOrchestrator(
 ): Effect.Effect<TaskRow, Error> {
   return Effect.gen(function* () {
     const orchestrators = (yield* deps.listTasks({ projectId }))
-      .filter((t) => t.title === ORCHESTRATOR_TASK_NAME)
+      .filter((t) => t.type === "orchestrator")
 
     const active = orchestrators.find((t) => !TERMINAL_STATUSES.has(t.status))
     if (active) return active
@@ -557,6 +559,7 @@ export function ensureOrchestrator(
       source: "manual",
       projectId,
       title: ORCHESTRATOR_TASK_NAME,
+      type: "orchestrator",
       description: `You are the orchestrator for the "${projectId}" project. You are running on the default branch (main repo, not a worktree).
 
 Your role:

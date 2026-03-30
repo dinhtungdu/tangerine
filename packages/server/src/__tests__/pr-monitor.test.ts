@@ -85,6 +85,7 @@ function makeTaskRow(overrides?: Partial<TaskRow>): TaskRow {
     source_url: null,
     repo_url: "https://github.com/test/repo",
     title: "Test task",
+    type: "worker",
     description: null,
     status: "running",
     provider: "opencode",

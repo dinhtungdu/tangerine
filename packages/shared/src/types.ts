@@ -1,10 +1,12 @@
 export type TaskStatus = "created" | "provisioning" | "running" | "done" | "failed" | "cancelled"
 export type ProviderType = "opencode" | "claude-code" | "codex"
 export type TaskSource = "github" | "linear" | "manual" | "cross-project"
+export type TaskType = "worker" | "orchestrator" | "reviewer"
 export type TaskCapability = "resolve" | "predefined-prompts" | "diff" | "end-session" | "continue"
 export interface Task {
   id: string
   projectId: string
+  type: TaskType
   source: TaskSource
   sourceId: string | null
   sourceUrl: string | null

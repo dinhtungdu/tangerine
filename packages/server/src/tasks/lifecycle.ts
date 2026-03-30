@@ -7,7 +7,7 @@ import { createLogger } from "../logger"
 import { SessionStartError } from "../errors"
 import { getHandleMeta as getOpenCodeHandleMeta } from "../agent/opencode-provider"
 import { getRepoDir, resolveWorkspace } from "../config"
-import { type TangerineConfig, ORCHESTRATOR_TASK_NAME } from "@tangerine/shared"
+import type { TangerineConfig } from "@tangerine/shared"
 import type { TaskRow } from "../db/types"
 import { initPool, acquireSlot, acquireOrchestratorSlot } from "./worktree-pool"
 
@@ -79,7 +79,7 @@ export function startSession(
     const sessionSpan = taskLog.startOp("session-start")
     const taskPrefix = task.id.slice(0, 8)
     const defaultBranch = config.defaultBranch ?? "main"
-    const isOrchestrator = task.title === ORCHESTRATOR_TASK_NAME
+    const isOrchestrator = task.type === "orchestrator"
     // Orchestrator stays on the default branch in slot 0.
     // Regular tasks use pre-set branch (from PR/branch input) or generate one.
     // Never work directly on the default branch — git worktrees can't share branches

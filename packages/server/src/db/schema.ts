@@ -7,6 +7,7 @@ export const SCHEMA = `
     source_url TEXT,
     repo_url TEXT NOT NULL,
     title TEXT NOT NULL,
+    type TEXT NOT NULL DEFAULT 'worker',
     description TEXT,
     status TEXT NOT NULL DEFAULT 'created',
     provider TEXT NOT NULL DEFAULT 'opencode',
