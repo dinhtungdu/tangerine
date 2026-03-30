@@ -32,6 +32,7 @@ import { createCodexProvider } from "../agent/codex-provider"
 import type { AgentHandle } from "../agent/provider"
 import { enqueue as enqueuePrompt, drainAll as drainQueuedPrompts } from "../agent/prompt-queue"
 import { buildSystemNotes, buildEscalationBlock } from "../tasks/prompts"
+import { getTaskState, clearTaskState } from "../tasks/task-state"
 
 const log = createLogger("cli")
 
@@ -59,7 +60,6 @@ function trySavePrUrl(
   db: import("bun:sqlite").Database,
   taskId: string,
   prUrl: string,
-  prUrlSaved: Set<string>,
   source: "message" | "tool",
 ) {
   const taskRow = db.prepare("SELECT branch, type, capabilities FROM tasks WHERE id = ?")
@@ -71,7 +71,7 @@ function trySavePrUrl(
     verifyPrBranch(prUrl, taskBranch ?? "").pipe(
       Effect.tap((matches) => Effect.sync(() => {
         if (!matches) { log.warn("PR branch mismatch, ignoring", { taskId, prUrl, taskBranch }); return }
-        prUrlSaved.add(taskId)
+        getTaskState(taskId).prUrlSaved = true
         Effect.runPromise(updateTask(db, taskId, { pr_url: prUrl }).pipe(Effect.catchAll(() => Effect.void)))
         Effect.runPromise(logActivity(db, taskId, "lifecycle", "pr.created", `PR created: ${prUrl}`, { prUrl }).pipe(Effect.catchAll(() => Effect.void)))
         log.info(`PR URL detected from ${source}`, { taskId, prUrl })
@@ -82,23 +82,6 @@ function trySavePrUrl(
 
 // In-memory map of taskId -> active AgentHandle (for cleanup and abort)
 const agentHandles = new Map<string, AgentHandle>()
-// Per-task reconnect lock — prevents the health monitor from spawning a duplicate
-// reconnect while one is already in progress. Lock is set by callers before
-// starting a reconnect; unlocked by reconnectSessionWithRetry via Effect.ensuring.
-const reconnectingTasks = new Set<string>()
-// Last error emitted by each agent — used by health monitor to surface real errors
-const lastAgentErrors = new Map<string, string>()
-// Tasks being woken from idle suspension — skip reconnect nudge since the user's
-// new message is already queued and will be delivered via drainQueuedPrompts.
-const idleWakeTasks = new Set<string>()
-// Track which tasks have received their first prompt (for setup note injection)
-const firstPromptSent = new Set<string>()
-// Track tasks that already have a PR URL saved (avoid redundant DB writes)
-const prUrlSaved = new Set<string>()
-// Track tasks that have been nudged about missing PR (avoid repeated nudges)
-const prNudgeSent = new Set<string>()
-// Debounce timers for PR nudge (cancelled if agent goes back to working)
-const prNudgeTimers = new Map<string, Timer>()
 
 /** Delay before nudging an idle agent about missing PR (ms) */
 const PR_NUDGE_DELAY_MS = 15_000
@@ -272,8 +255,8 @@ export async function start(): Promise<void> {
       retryDeps: {
         updateTask: (taskId, updates) => updateTask(db, taskId, updates).pipe(Effect.asVoid),
         cleanupDeps,
-        lockReconnect: (taskId) => reconnectingTasks.add(taskId),
-        unlockReconnect: (taskId) => reconnectingTasks.delete(taskId),
+        lockReconnect: (taskId) => { getTaskState(taskId).reconnecting = true },
+        unlockReconnect: (taskId) => { getTaskState(taskId).reconnecting = false },
         onSessionReady: (taskId, session) => {
           // Shut down any existing handle before storing the new one (e.g. model
           // change restarts the agent with a new handle for the same task).
@@ -290,8 +273,9 @@ export async function start(): Promise<void> {
           // Hydrate in-memory tracking from DB (lost on restart)
           const taskMeta = db.prepare("SELECT pr_url FROM tasks WHERE id = ?").get(taskId) as { pr_url: string | null } | null
           if (taskMeta?.pr_url) {
-            prUrlSaved.add(taskId)
-            prNudgeSent.add(taskId)
+            const s = getTaskState(taskId)
+            s.prUrlSaved = true
+            s.prNudgeSent = true
           }
 
           // Send initial prompt for new tasks, or reconnect nudge for existing ones.
@@ -303,7 +287,7 @@ export async function start(): Promise<void> {
             ? db.prepare("SELECT 1 FROM session_logs WHERE task_id = ? AND role IN ('assistant', 'narration') LIMIT 1").get(taskId)
             : null
           const lastLog = hasLogs ? getLastConversationLog(db, taskId) : null
-          if (hasLogs && hasAssistantResponse && lastLog?.role === "user" && !idleWakeTasks.has(taskId)) {
+          if (hasLogs && hasAssistantResponse && lastLog?.role === "user" && !getTaskState(taskId).idleWake) {
             // Reconnect after server restart or model change — agent had conversation context.
             // Skip for idle-wake: the user's new message is already queued via drainQueuedPrompts.
             const sendReconnectNudge = async () => {
@@ -388,7 +372,7 @@ export async function start(): Promise<void> {
                   setupCommand: projConfig?.setup,
                   taskType: task?.type ?? undefined,
                 })
-                firstPromptSent.add(taskId)
+                getTaskState(taskId).firstPromptSent = true
 
                 // Append escalation block for worker tasks so the agent knows
                 // how to escalate out-of-scope issues. Injected here (not stored
@@ -440,7 +424,7 @@ export async function start(): Promise<void> {
             Effect.runPromise(drainQueuedPrompts(taskId, sendFn))
           }
 
-          idleWakeTasks.delete(taskId)
+          getTaskState(taskId).idleWake = false
 
           session.agentHandle.subscribe((event) => {
             switch (event.kind) {
@@ -508,46 +492,46 @@ export async function start(): Promise<void> {
                   }
 
                   // Fallback PR URL detection from assistant/narration message text
-                  if (!prUrlSaved.has(taskId)) {
+                  if (!getTaskState(taskId).prUrlSaved) {
                     const prUrl = extractPrUrl(event.content)
-                    if (prUrl) trySavePrUrl(db, taskId, prUrl, prUrlSaved, "message")
+                    if (prUrl) trySavePrUrl(db, taskId, prUrl, "message")
                   }
                 }
                 break
               }
               case "status": {
+                const st = getTaskState(taskId)
                 if (event.status === "working") {
                   setAgentWorkingState(taskId, "working")
                   emitTaskEvent(taskId, { event: "agent.start" })
                   // Cancel pending PR nudge — agent is still working
-                  const pendingTimer = prNudgeTimers.get(taskId)
-                  if (pendingTimer) {
-                    clearTimeout(pendingTimer)
-                    prNudgeTimers.delete(taskId)
+                  if (st.prNudgeTimer) {
+                    clearTimeout(st.prNudgeTimer)
+                    st.prNudgeTimer = undefined
                   }
                 } else if (event.status === "idle") {
                   setAgentWorkingState(taskId, "idle")
                   emitTaskEvent(taskId, { event: "agent.idle" })
 
                   // Schedule PR nudge if agent has commits but no PR (skip orchestrators)
-                  if (!prUrlSaved.has(taskId) && !prNudgeSent.has(taskId)) {
+                  if (!st.prUrlSaved && !st.prNudgeSent) {
                     const timer = setTimeout(async () => {
-                      prNudgeTimers.delete(taskId)
-                      if (prUrlSaved.has(taskId) || prNudgeSent.has(taskId)) return
+                      st.prNudgeTimer = undefined
+                      if (st.prUrlSaved || st.prNudgeSent) return
 
                       // Check DB for existing pr_url (in-memory set is lost on restart)
                       const task = db.prepare("SELECT project_id, pr_url, type, capabilities FROM tasks WHERE id = ?").get(taskId) as { project_id: string; pr_url: string | null; type: string; capabilities: string | null } | null
                       if (!task || !taskHasCapability(task.type, task.capabilities, "pr-create")) return
                       if (task?.pr_url) {
-                        prUrlSaved.add(taskId)
+                        st.prUrlSaved = true
                         return
                       }
                       const projConfig = task?.project_id ? getProjectConfig(config.config, task.project_id) : undefined
 
                       const hasCommits = await branchHasCommits(db, taskId, projConfig)
-                      if (!hasCommits || prUrlSaved.has(taskId)) return
+                      if (!hasCommits || st.prUrlSaved) return
 
-                      prNudgeSent.add(taskId)
+                      st.prNudgeSent = true
                       const handle = agentHandles.get(taskId)
                       if (handle) {
                         log.info("Nudging agent to create PR", { taskId })
@@ -565,7 +549,7 @@ export async function start(): Promise<void> {
                         )
                       }
                     }, PR_NUDGE_DELAY_MS)
-                    prNudgeTimers.set(taskId, timer)
+                    st.prNudgeTimer = timer
                   }
                 }
                 break
@@ -587,9 +571,9 @@ export async function start(): Promise<void> {
                 emitTaskEvent(taskId, { event: "tool.end", toolName: event.toolName })
 
                 // Detect PR URL from Bash tool results (e.g. `gh pr create` output)
-                if (event.toolResult && !prUrlSaved.has(taskId)) {
+                if (event.toolResult && !getTaskState(taskId).prUrlSaved) {
                   const prUrl = extractPrUrl(event.toolResult)
-                  if (prUrl) trySavePrUrl(db, taskId, prUrl, prUrlSaved, "tool")
+                  if (prUrl) trySavePrUrl(db, taskId, prUrl, "tool")
                 }
                 break
               }
@@ -614,7 +598,7 @@ export async function start(): Promise<void> {
               }
               case "error": {
                 log.error("Agent event error", { taskId, message: event.message })
-                lastAgentErrors.set(taskId, event.message)
+                getTaskState(taskId).lastError = event.message
                 break
               }
             }
@@ -706,8 +690,8 @@ export async function start(): Promise<void> {
 
             // Prepend system notes to the first prompt for a task
             let promptText = text
-            if (!firstPromptSent.has(taskId)) {
-              firstPromptSent.add(taskId)
+            if (!getTaskState(taskId).firstPromptSent) {
+              getTaskState(taskId).firstPromptSent = true
               const task = yield* getTask(db, taskId).pipe(Effect.catchAll(() => Effect.succeed(null)))
 
               const projConfig = task?.project_id ? getProjectConfig(config.config, task.project_id) : undefined
@@ -734,10 +718,11 @@ export async function start(): Promise<void> {
               const task = yield* getTask(db, taskId).pipe(Effect.catchAll(() => Effect.succeed(null)))
               if (task && task.status === "running") {
                 const projectConfig = task.project_id ? getProjectConfig(config.config, task.project_id) : undefined
-                if (projectConfig && !reconnectingTasks.has(taskId)) {
+                const wakeState = getTaskState(taskId)
+                if (projectConfig && !wakeState.reconnecting) {
                   log.info("Waking suspended task", { taskId, title: task.title })
-                  reconnectingTasks.add(taskId)
-                  idleWakeTasks.add(taskId)
+                  wakeState.reconnecting = true
+                  wakeState.idleWake = true
                   const taskLifecycleDeps = { ...tmDeps.lifecycleDeps, agentFactory: getAgentFactory(task.provider) }
                   yield* Effect.forkDaemon(
                     reconnectSessionWithRetry(task, projectConfig, taskLifecycleDeps, tmDeps.retryDeps)
@@ -773,6 +758,7 @@ export async function start(): Promise<void> {
           ),
         cleanupTask: (taskId) =>
           cleanupSession(taskId, cleanupDeps).pipe(
+            Effect.tap(() => Effect.sync(() => clearTaskState(taskId))),
             Effect.mapError((e) => ({ _tag: e._tag, message: e.message }))
           ),
         ensureOrchestrator: (projectId, provider, model, reasoningEffort) =>
@@ -883,7 +869,8 @@ export async function start(): Promise<void> {
         // Per-task lock: skip if a reconnect is already in progress for this task.
         // Health monitor and resumeOrphanedTasks can race — without this, both spawn
         // a Claude process and only the second handle is tracked, leaving the first orphaned.
-        if (reconnectingTasks.has(task.id)) {
+        const restartState = getTaskState(task.id)
+        if (restartState.reconnecting) {
           log.info("Reconnect already in progress, skipping duplicate", { taskId: task.id })
           return Effect.void
         }
@@ -897,7 +884,7 @@ export async function start(): Promise<void> {
         // lockReconnect is set here (not inside reconnectSessionWithRetry) because
         // the health monitor calls this synchronously — no forkDaemon race.
         // reconnectSessionWithRetry handles unlockReconnect via Effect.ensuring.
-        reconnectingTasks.add(task.id)
+        restartState.reconnecting = true
         return reconnectSessionWithRetry(task, projectConfig, lifecycleDeps, tmDeps.retryDeps)
       },
       failTask: (taskId, reason) =>
@@ -911,7 +898,7 @@ export async function start(): Promise<void> {
         agentHandles.delete(taskId)
         return handle.shutdown().pipe(Effect.catchAll(() => Effect.void))
       },
-      getLastAgentError: (taskId) => lastAgentErrors.get(taskId),
+      getLastAgentError: (taskId) => getTaskState(taskId).lastError,
       isAgentWorking: (taskId) => getAgentWorkingState(taskId) === "working",
       logSuspend: (taskId, idleMs) =>
         logActivity(db, taskId, "lifecycle", "agent.suspended", "Agent suspended due to inactivity", {
