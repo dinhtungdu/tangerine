@@ -94,11 +94,27 @@ User runs `/platform-setup` from INSIDE the VM in a project directory. You help 
    - Detected stack summary
    - Proposed project name
    - Clone path (`{workspace}/{projectName}/0`)
-   - Setup command (runs per-task in worktree)
+   - Setup command — **required**, ask the user if it cannot be detected
    - Test command
    - Post-update command (install deps + build, runs after git pull)
 
-6. **Write config** to `~/tangerine/config.json`:
+6. **Write config** to `~/tangerine/config.json`.
+
+   **Required fields** (Zod schema enforces these — config will fail to load if missing):
+   - `name` — project identifier
+   - `repo` — git remote URL
+   - `setup` — command run per-task in the worktree (e.g. `pnpm install`); **must ask the user** if not detectable from the codebase
+
+   **Optional fields** (omit if not needed):
+   - `test` — test command
+   - `defaultBranch` — defaults to `"main"`
+   - `defaultProvider` — `"claude-code"` | `"opencode"` | `"codex"`, defaults to `"claude-code"`
+   - `model` — override the default LLM model
+   - `env` — key/value pairs injected into agent environment
+   - `postUpdateCommand` — runs after `git pull` (install + build)
+   - `predefinedPrompts` — array of `{label, text}` quick-send buttons
+
+   Example:
    ```json
    {
      "name": "my-project",
@@ -110,6 +126,14 @@ User runs `/platform-setup` from INSIDE the VM in a project directory. You help 
      "postUpdateCommand": "pnpm install && pnpm build"
    }
    ```
+
+7. **Validate the config** after writing — catches missing required fields before the server starts:
+   ```bash
+   jq -e '.projects[-1] | (.name | length > 0) and (.repo | length > 0) and (.setup | length > 0)' ~/tangerine/config.json \
+     && echo "Config valid" || echo "ERROR: missing required field (name, repo, or setup)"
+   ```
+   If validation fails, identify the missing field and ask the user to supply it before continuing.
+
 ### Base Setup Includes
 
 The `deploy/base-setup.sh` installs these globally:
