@@ -16,7 +16,7 @@ export function StatusPage() {
   return (
     <div className="flex h-full">
       {/* Desktop sidebar */}
-      <div className={`hidden shrink-0 overflow-hidden transition-[width] duration-200 ease-in-out md:block ${sidebarOpen ? "md:w-[240px]" : "md:w-0"}`} inert={sidebarOpen ? undefined : true}>
+      <div className={sidebarOpen ? "hidden shrink-0 overflow-hidden transition-[width] duration-200 ease-in-out md:block md:w-[240px]" : "hidden shrink-0 overflow-hidden transition-[width] duration-200 ease-in-out md:block md:w-0"} inert={sidebarOpen ? undefined : true}>
         <TasksSidebar tasks={tasks} searchQuery={query} onSearchChange={setQuery} onNewAgent={() => navigate("/new")} />
       </div>
 

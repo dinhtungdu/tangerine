@@ -324,7 +324,7 @@ export function TaskDetail() {
   if (loading) {
     return (
       <div className="flex h-full">
-        <div className={`hidden shrink-0 overflow-hidden transition-[width] duration-200 ease-in-out md:block ${sidebarOpen ? "md:w-[240px]" : "md:w-0"}`} inert={sidebarOpen ? undefined : true}>
+        <div className={sidebarOpen ? "hidden shrink-0 overflow-hidden transition-[width] duration-200 ease-in-out md:block md:w-[240px]" : "hidden shrink-0 overflow-hidden transition-[width] duration-200 ease-in-out md:block md:w-0"} inert={sidebarOpen ? undefined : true}>
           <TasksSidebar tasks={tasks} searchQuery={query} onSearchChange={setQuery} onNewAgent={() => navigate("/new")} />
         </div>
         <div className="flex flex-1 items-center justify-center text-[13px] text-fg-muted">
@@ -337,7 +337,7 @@ export function TaskDetail() {
   if (!task) {
     return (
       <div className="flex h-full">
-        <div className={`hidden shrink-0 overflow-hidden transition-[width] duration-200 ease-in-out md:block ${sidebarOpen ? "md:w-[240px]" : "md:w-0"}`} inert={sidebarOpen ? undefined : true}>
+        <div className={sidebarOpen ? "hidden shrink-0 overflow-hidden transition-[width] duration-200 ease-in-out md:block md:w-[240px]" : "hidden shrink-0 overflow-hidden transition-[width] duration-200 ease-in-out md:block md:w-0"} inert={sidebarOpen ? undefined : true}>
           <TasksSidebar tasks={tasks} searchQuery={query} onSearchChange={setQuery} onNewAgent={() => navigate("/new")} />
         </div>
         <div className="flex flex-1 items-center justify-center text-[13px] text-fg-muted">
