@@ -40,15 +40,10 @@ export function QuickOpen() {
   const listRef = useRef<HTMLDivElement>(null)
   const navigate = useNavigate()
 
-  // Global Cmd+K / Ctrl+K to open — skip when user is actively typing
+  // Global Cmd+K / Ctrl+K to open — always activates regardless of focus
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       if (!((e.metaKey || e.ctrlKey) && e.key === "k")) return
-      const active = document.activeElement
-      const tag = active?.tagName?.toLowerCase()
-      const isEditing =
-        tag === "input" || tag === "textarea" || (active instanceof HTMLElement && active.isContentEditable)
-      if (isEditing) return
       e.preventDefault()
       setIsOpen((prev) => !prev)
     }
