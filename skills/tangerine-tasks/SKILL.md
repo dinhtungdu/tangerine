@@ -158,6 +158,20 @@ Then:
 3. Share the review result
 4. Only then run `git push origin HEAD` and `gh pr create`
 
+## Required for Reviewer Tasks
+
+When the task type is `reviewer` (reviewing a PR), also run `codex review` before reporting findings:
+
+```bash
+codex review --base main -c model="gpt-5.4" -c reasoning.effort="xhigh"
+```
+
+Then:
+
+1. Read the findings
+2. Include them in the review report
+3. Report back to the parent task with a summary of issues found
+
 ## Task Shape
 
 Typical task fields exposed by the API:
