@@ -312,7 +312,6 @@ describe("API routes", () => {
       expect(res.status).toBe(400)
       const body = await res.json() as { error: string }
       expect(body.error).toContain("pr")
-
     })
   })
 
