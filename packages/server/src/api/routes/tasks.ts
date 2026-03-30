@@ -140,6 +140,27 @@ export function taskRoutes(deps: AppDeps): Hono {
     )
   })
 
+  // Partial update for agent-writable fields (e.g. pr_url after gh pr create)
+  app.patch("/:id", async (c) => {
+    const taskId = c.req.param("id")
+    const body = await c.req.json<{ prUrl?: string }>()
+    return runEffect(c,
+      getTask(deps.db, taskId).pipe(
+        Effect.flatMap((task) =>
+          task ? Effect.succeed(task) : Effect.fail(new TaskNotFoundError({ taskId }))
+        ),
+        Effect.flatMap(() => {
+          const fields: Record<string, string | null> = {}
+          if ("prUrl" in body) fields.pr_url = body.prUrl ?? null
+          return updateTask(deps.db, taskId, fields)
+        }),
+        Effect.flatMap((task) =>
+          task ? Effect.succeed(mapTaskRow(task)) : Effect.fail(new TaskNotFoundError({ taskId }))
+        )
+      )
+    )
+  })
+
   // Delete a terminal task (done/failed/cancelled) with cascading cleanup
   app.delete("/:id", (c) => {
     const taskId = c.req.param("id")
