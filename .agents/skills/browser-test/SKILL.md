@@ -79,6 +79,10 @@ SESSION="task-$TASK_SHORT"
 
 # Open Chromium explicitly (headless by default)
 playwright-cli --browser chromium -s=$SESSION open http://localhost:$VITE_PORT
+
+# Always set viewport explicitly — some environments open Chromium with a
+# non-standard default size, causing screenshots at 1/4 resolution or smaller.
+playwright-cli -s=$SESSION resize 1280 720
 ```
 
 All later `playwright-cli` commands in the session reuse that Chromium instance.
@@ -201,5 +205,6 @@ rm -f "$TEST_DB"
 | Port already in use | Check `lsof -i :$VITE_PORT` and kill the stale process, or use a different port |
 | Vite won't start | Check `cat /tmp/vite-$VITE_PORT.log` for errors. Run `bun install` first if deps are missing |
 | Screenshots are blank | Wait longer for the page to render: `playwright-cli -s=$SESSION eval "await new Promise(r => setTimeout(r, 2000))"` then screenshot |
+| Screenshots are at 1/4 resolution (e.g. 320x180 instead of 1280x720) | The browser opened with a non-standard default viewport. Always run `playwright-cli -s=$SESSION resize 1280 720` immediately after `open` (already in Step 4). |
 | Browser launch fails because Chrome is unavailable | Re-run the command with `--browser chromium`; this skill requires Chromium explicitly |
 | Chromium not found | Run `npx playwright install chromium` |
