@@ -1,10 +1,10 @@
 import { useState, useEffect, useRef, useMemo, useCallback } from "react"
 import { createPortal } from "react-dom"
+import { useNavigate } from "react-router-dom"
 import type { Task } from "@tangerine/shared"
 import { fetchTasks } from "../lib/api"
 import { getStatusConfig } from "../lib/status"
 import { formatRelativeTime } from "../lib/format"
-import { useProjectNav } from "../hooks/useProjectNav"
 
 // Returns a score > 0 if all query chars appear in str as a subsequence.
 // Consecutive character matches add a higher bonus, rewarding tighter matches.
@@ -38,7 +38,7 @@ export function QuickOpen() {
   const [selectedIndex, setSelectedIndex] = useState(0)
   const inputRef = useRef<HTMLInputElement>(null)
   const listRef = useRef<HTMLDivElement>(null)
-  const { navigate } = useProjectNav()
+  const navigate = useNavigate()
 
   // Global Cmd+K / Ctrl+K to open — skip when user is actively typing
   useEffect(() => {
@@ -108,7 +108,8 @@ export function QuickOpen() {
 
   const handleSelect = useCallback(
     (task: Task) => {
-      navigate(`/tasks/${task.id}`)
+      // Always switch to the task's own project so TaskDetail loads the right context
+      navigate(`/tasks/${task.id}?project=${encodeURIComponent(task.projectId)}`)
       close()
     },
     [navigate, close],
