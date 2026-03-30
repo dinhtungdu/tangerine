@@ -118,6 +118,7 @@ export function ChatInput({ onSend, disabled, queueLength, taskId, isWorking, on
   }, [draftKey, loadDraft, text, pendingImages.length])
 
   const [isFocused, setIsFocused] = useState(false)
+  const [promptJustSent, setPromptJustSent] = useState(false)
 
   useEffect(() => {
     const textarea = textareaRef.current
@@ -161,13 +162,14 @@ export function ChatInput({ onSend, disabled, queueLength, taskId, isWorking, on
   const handlePromptClick = useCallback((e: MouseEvent, promptText: string) => {
     e.preventDefault()
     onSend(promptText)
+    setPromptJustSent(true)
     // Only blur on mobile to dismiss the virtual keyboard; desktop doesn't need it
     if ('ontouchstart' in window) {
       textareaRef.current?.blur()
     }
   }, [onSend])
 
-  const showPrompts = isFocused && !text.trim() && predefinedPrompts && predefinedPrompts.length > 0
+  const showPrompts = isFocused && !promptJustSent && !text.trim() && predefinedPrompts && predefinedPrompts.length > 0
 
   const canSend = (text.trim().length > 0 || pendingImages.length > 0) && !disabled
   const canChangeModel = providerModels && providerModels.length > 1 && onModelChange
@@ -224,6 +226,7 @@ export function ChatInput({ onSend, disabled, queueLength, taskId, isWorking, on
             onPaste={handlePaste}
             onFocus={() => {
               setIsFocused(true)
+              setPromptJustSent(false)
               handleInput()
             }}
             onBlur={() => {
