@@ -46,11 +46,8 @@ function ActivityItem({ entry, isLast }: { entry: ActivityEntry; isLast: boolean
 
   return (
     <div className="flex gap-2.5 px-3 py-1">
-      <span className="w-[34px] shrink-0 pt-0.5 text-[10px] text-fg-faint">
-        {formatTimestamp(entry.timestamp)}
-      </span>
       <div
-        className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full"
+        className="mt-0.5 flex h-6 w-6 shrink-0 items-center justify-center rounded-full"
         style={{ backgroundColor: style.bg }}
       >
         <svg width="12" height="12" viewBox="0 0 12 12" fill="none" stroke={style.color} strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
@@ -63,12 +60,15 @@ function ActivityItem({ entry, isLast }: { entry: ActivityEntry; isLast: boolean
         {style.label ? (
           <>
             <p className="text-[12px] font-medium leading-tight text-fg">{style.label}</p>
-            <p className="mt-0.5 line-clamp-2 break-all text-[11px] text-fg-muted">{detail}</p>
+            <p className="mt-0.5 line-clamp-2 break-all font-mono text-[11px] text-fg-muted">{detail}</p>
           </>
         ) : (
-          <p className="line-clamp-2 break-all text-[12px] leading-tight text-fg">{detail}</p>
+          <p className="line-clamp-2 break-all font-mono text-[12px] leading-tight text-fg">{detail}</p>
         )}
         <StatusRow meta={meta} isRunning={isRunning && isLast} />
+        <span className="mt-0.5 block text-[10px] text-fg-faint">
+          {formatTimestamp(entry.timestamp)}
+        </span>
       </div>
     </div>
   )
