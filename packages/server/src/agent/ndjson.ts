@@ -81,13 +81,13 @@ export function parseNdjsonStream(
 
 /**
  * Creates a stateful mapper that converts raw Claude Code stream-json events
- * to normalized AgentEvents. Stateful because images from tool results (user
- * events) need to be buffered and attached to the next assistant/narration message.
+ * to normalized AgentEvents. Stateful because image file paths from Read tool
+ * calls need to be tracked across events and attached to the final result.
  *
  * Claude Code event types (from protocol spike):
  * - system (init): session metadata — ignored
  * - assistant: complete assistant message (text + tool_use + thinking content blocks)
- * - user: tool results — emits tool.end, buffers images for next narration
+ * - user: tool results — emits tool.end, tracks image source paths
  * - rate_limit_event: ignored
  * - stream_event: token-level streaming (only with --include-partial-messages)
  * - result: final event with aggregated stats

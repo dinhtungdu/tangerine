@@ -491,7 +491,7 @@ export async function start(): Promise<void> {
                     }
                     copyImages().then(emitAndInsert)
                   } else if (event.images?.length) {
-                    // Fallback for providers that send base64 images (OpenCode, Codex)
+                    // Fallback for providers that send base64 images (OpenCode)
                     const saveImages = async () => {
                       const imagesDir = `${TANGERINE_HOME}/images/${taskId}`
                       try {
