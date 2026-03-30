@@ -1,13 +1,13 @@
 # Agent Integration
 
-Multi-provider agent abstraction. OpenCode and Claude Code supported via `AgentProvider` interface.
+Multi-provider agent abstraction. OpenCode, Claude Code, and Codex are supported via `AgentProvider` interface.
 
 ## Provider Abstraction
 
 `agent/provider.ts` defines the contract all providers implement:
 
 ```typescript
-type ProviderType = "opencode" | "claude-code"
+type ProviderType = "opencode" | "claude-code" | "codex"
 
 type AgentEvent =
   | { kind: "message.streaming"; content: string; messageId?: string }
@@ -41,7 +41,7 @@ interface AgentStartContext {
   previewPort: number
   model?: string              // e.g. "claude-sonnet-4-6" or "anthropic/claude-sonnet-4-6"
   reasoningEffort?: string    // "low" | "medium" | "high"
-  resumeSessionId?: string   // resume existing session (Claude Code --resume)
+  resumeSessionId?: string   // resume existing session (Claude Code/Codex/OpenCode)
 }
 
 interface AgentFactory {
@@ -122,9 +122,28 @@ claude --output-format stream-json --input-format stream-json \
 
 Used for server restart recovery and model config changes (shutdown + restart with same session).
 
+## Codex Provider (`codex-provider.ts`)
+
+Spawns `codex app-server` locally and talks to it over JSON-RPC 2.0 on stdin/stdout. The Codex thread ID is stored as `agent_session_id` so Tangerine can resume the same thread after idle suspension or server restart.
+
+### Startup
+
+```bash
+cd /workspace/worktrees/<task-prefix>
+codex app-server
+```
+
+### Session Start / Resume
+
+- Fresh sessions use `thread/start` with `approvalPolicy: "never"` and `sandbox: "danger-full-access"`.
+- Resumed sessions use `thread/resume` with the same `approvalPolicy`, `sandbox`, `cwd`, and `model` overrides.
+- Every `turn/start` also reapplies `approvalPolicy: "never"` and `sandboxPolicy: { type: "dangerFullAccess" }`.
+
+Reapplying the policy on resume and on every turn prevents Codex from falling back to its default `read-only` / `on-request` policy after Tangerine suspends an idle task and wakes it later.
+
 ## Provider Selection
 
-`POST /api/tasks` accepts optional `provider` field (`"opencode" | "claude-code"`). Default comes from project config's `defaultProvider` field (defaults to `"opencode"`).
+`POST /api/tasks` accepts optional `provider` field (`"opencode" | "claude-code" | "codex"`). Default comes from project config's `defaultProvider` field (defaults to `"opencode"`).
 
 ## Session Management
 
