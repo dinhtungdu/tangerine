@@ -44,6 +44,7 @@ describe("ensureOrchestrator", () => {
   test("creates orchestrator when none exists", async () => {
     const task = await Effect.runPromise(ensureOrchestrator(deps, PROJECT_ID))
     expect(task.title).toBe(ORCHESTRATOR_TASK_NAME)
+    expect(task.type).toBe("orchestrator")
     expect(task.status).toBe("created")
     expect(task.project_id).toBe(PROJECT_ID)
     expect(task.parent_task_id).toBeNull()
@@ -68,6 +69,7 @@ describe("ensureOrchestrator", () => {
     expect(second.id).not.toBe(first.id)
     expect(second.parent_task_id).toBe(first.id)
     expect(second.title).toBe(ORCHESTRATOR_TASK_NAME)
+    expect(second.type).toBe("orchestrator")
   })
 
   test("links to most recent terminal orchestrator", async () => {
@@ -104,10 +106,10 @@ describe("ensureOrchestrator", () => {
     expect(task.provider).toBe("opencode")
   })
 
-  test("defaults to claude-opus-4-6 model with high reasoning effort", async () => {
+  test("defaults to claude-opus-4-6 model with medium reasoning effort", async () => {
     const task = await Effect.runPromise(ensureOrchestrator(deps, PROJECT_ID))
     expect(task.model).toBe("claude-opus-4-6")
-    expect(task.reasoning_effort).toBe("high")
+    expect(task.reasoning_effort).toBe("medium")
   })
 
   test("explicit model and reasoningEffort override defaults", async () => {

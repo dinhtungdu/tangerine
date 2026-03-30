@@ -90,6 +90,7 @@ function createMockDeps(db: Database, configOverrides?: Partial<AppDeps["config"
           source_url: null,
           repo_url: "https://github.com/test/repo",
           title: "_orchestrator",
+          type: "orchestrator",
           description: null,
         }))
         return Effect.succeed(row)

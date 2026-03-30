@@ -1,7 +1,6 @@
 import { useMemo, useState, useCallback } from "react"
 import { Link, useParams } from "react-router-dom"
 import type { Task } from "@tangerine/shared"
-import { ORCHESTRATOR_TASK_NAME } from "@tangerine/shared"
 import { getStatusConfig, hasUnseenUpdates } from "../lib/status"
 import { formatRelativeTime } from "../lib/format"
 import { useProjectNav } from "../hooks/useProjectNav"
@@ -33,10 +32,10 @@ export function TasksSidebar({ tasks, searchQuery, onSearchChange, onNewAgent }:
   const { link, navigate } = useProjectNav()
   const { current: project } = useProject()
   const [orchLoading, setOrchLoading] = useState(false)
-  const activeTasks = tasks.filter((t) => !TERMINATED_STATUSES.has(t.status) && t.title !== ORCHESTRATOR_TASK_NAME)
+  const activeTasks = tasks.filter((t) => !TERMINATED_STATUSES.has(t.status) && t.type !== "orchestrator")
   const taskById = useMemo(() => new Map(tasks.map((t) => [t.id, t])), [tasks])
   const orchestrator = useMemo(() => {
-    const orchTasks = tasks.filter((t) => t.title === ORCHESTRATOR_TASK_NAME)
+    const orchTasks = tasks.filter((t) => t.type === "orchestrator")
     return orchTasks.find((t) => !TERMINATED_STATUSES.has(t.status)) ?? null
   }, [tasks])
 

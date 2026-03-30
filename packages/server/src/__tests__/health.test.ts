@@ -14,6 +14,7 @@ function makeTask(overrides?: Partial<TaskRow>): TaskRow {
     source_url: null,
     repo_url: "https://github.com/test/repo",
     title: "Test task",
+    type: "worker",
     description: null,
     status: "running",
     provider: "claude-code",
@@ -287,6 +288,7 @@ describe("idle timeout", () => {
     const orchestrator = makeTask({
       id: "orch-1",
       title: ORCHESTRATOR_TASK_NAME,
+      type: "orchestrator",
       started_at: new Date(Date.now() - 700_000).toISOString(),
     })
     const worker = makeTask({

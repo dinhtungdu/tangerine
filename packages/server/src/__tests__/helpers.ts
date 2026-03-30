@@ -20,6 +20,7 @@ export function makeTask(overrides?: Partial<Task>): Task {
     sourceId: null,
     sourceUrl: null,
     title: "Test task",
+    type: "worker",
     description: null,
     status: "created",
     provider: "opencode",
