@@ -337,8 +337,7 @@ export function TaskDetail() {
   const PANE_ORDER: PaneId[] = ["chat", "diff", "terminal", "activity"]
   const orderedVisible = PANE_ORDER.filter((p) => visiblePanes.has(p) && (p !== "diff" || hasDiff))
   const firstVisiblePane = orderedVisible[0]
-  const resizeHandlers: Record<PaneId, (e: React.MouseEvent) => void> = {
-    chat: activityResize.onMouseDown, // unused — chat is never non-first
+  const resizeHandlers: Partial<Record<PaneId, (e: React.MouseEvent) => void>> = {
     diff: diffResize.onMouseDown,
     terminal: terminalResize.onMouseDown,
     activity: activityResize.onMouseDown,
@@ -498,8 +497,8 @@ export function TaskDetail() {
             </div>
           )}
 
-          {orderedVisible.indexOf("diff") > 1 && (
-            <ResizeHandle onMouseDown={resizeHandlers.diff} />
+          {orderedVisible.indexOf("diff") > 0 && (
+            <ResizeHandle onMouseDown={resizeHandlers.diff!} />
           )}
 
           {hasDiff && visiblePanes.has("diff") && (
@@ -527,8 +526,8 @@ export function TaskDetail() {
             </div>
           )}
 
-          {orderedVisible.indexOf("terminal") > 1 && (
-            <ResizeHandle onMouseDown={resizeHandlers.terminal} />
+          {orderedVisible.indexOf("terminal") > 0 && (
+            <ResizeHandle onMouseDown={resizeHandlers.terminal!} />
           )}
 
           {visiblePanes.has("terminal") && (
@@ -537,8 +536,8 @@ export function TaskDetail() {
             </div>
           )}
 
-          {orderedVisible.indexOf("activity") > 1 && (
-            <ResizeHandle onMouseDown={resizeHandlers.activity} />
+          {orderedVisible.indexOf("activity") > 0 && (
+            <ResizeHandle onMouseDown={resizeHandlers.activity!} />
           )}
 
           {visiblePanes.has("activity") && (
