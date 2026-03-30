@@ -86,7 +86,12 @@ export function QuickOpen() {
         return { task: t, score }
       })
       .filter(({ score }) => score > 0)
-      .sort((a, b) => b.score - a.score)
+      .sort((a, b) => {
+        const aActive = ACTIVE_STATUSES.has(a.task.status) ? 1 : 0
+        const bActive = ACTIVE_STATUSES.has(b.task.status) ? 1 : 0
+        if (bActive !== aActive) return bActive - aActive
+        return b.score - a.score
+      })
       .map(({ task }) => task)
   }, [tasks, query])
 

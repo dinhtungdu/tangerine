@@ -2,6 +2,7 @@ import { Link } from "react-router-dom"
 import type { Task } from "@tangerine/shared"
 import { getStatusConfig, hasUnseenUpdates } from "../lib/status"
 import { formatDuration, formatDate, formatPrNumber } from "../lib/format"
+import { useProjectNav } from "../hooks/useProjectNav"
 
 function SourceIcon({ source }: { source: string }) {
   const cls = "h-[13px] w-[13px] text-fg-muted"
@@ -31,10 +32,11 @@ export function RunCard({ task, parentTask, onCancel, onRetry, onDelete }: RunCa
   const { label, textClass, bgClass } = getStatusConfig(task.status)
   const isTerminated = ["done", "failed", "cancelled"].includes(task.status)
   const unseen = hasUnseenUpdates(task)
+  const { link } = useProjectNav()
 
   return (
     <Link
-      to={`/tasks/${task.id}`}
+      to={link(`/tasks/${task.id}`)}
       className="rounded-[10px] border border-edge p-3.5 transition active:bg-surface"
     >
       <div className="flex items-center justify-between gap-3">
