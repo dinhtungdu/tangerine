@@ -27,6 +27,9 @@ export interface TaskRow {
   last_seen_at: string | null
   last_result_at: string | null
   capabilities: string | null
+  cron_expression: string | null
+  schedule_enabled: number
+  next_run_at: string | null
 }
 
 export interface SessionLogRow {

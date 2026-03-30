@@ -27,11 +27,15 @@ export const SCHEMA = `
     completed_at TEXT,
     last_seen_at TEXT,
     last_result_at TEXT,
-    capabilities TEXT
+    capabilities TEXT,
+    cron_expression TEXT,
+    schedule_enabled INTEGER DEFAULT 0,
+    next_run_at TEXT
   );
 
   CREATE INDEX IF NOT EXISTS idx_tasks_status ON tasks(status);
   CREATE INDEX IF NOT EXISTS idx_tasks_project_status ON tasks(project_id, status);
+  CREATE INDEX IF NOT EXISTS idx_tasks_schedule_due ON tasks(schedule_enabled, next_run_at);
 
   CREATE TABLE IF NOT EXISTS session_logs (
     id INTEGER PRIMARY KEY AUTOINCREMENT,

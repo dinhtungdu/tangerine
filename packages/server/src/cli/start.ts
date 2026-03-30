@@ -5,7 +5,7 @@ import { Effect } from "effect"
 import { createLogger } from "../logger"
 import { loadConfig, getProjectConfig, getRepoDir, TANGERINE_HOME, readRawConfig, writeRawConfig, isTestMode } from "../config"
 import { getDb } from "../db/index"
-import { createTask as dbCreateTask, getTask, listTasks, updateTask, insertSessionLog, markTaskResult } from "../db/queries"
+import { createTask as dbCreateTask, getTask, listTasks, updateTask, insertSessionLog, markTaskResult, getDueScheduledTasks, getChildTasks } from "../db/queries"
 import { logActivity, cleanupActivities } from "../activity"
 import type { TaskRow } from "../db/types"
 import { taskHasCapability } from "../api/helpers"
@@ -20,6 +20,8 @@ import type { CleanupDeps } from "../tasks/cleanup"
 import { startOrphanCleanup, findOrphans, cleanupOrphans } from "../tasks/orphan-cleanup"
 import type { OrphanCleanupDeps } from "../tasks/orphan-cleanup"
 import { startHealthMonitor, isTaskSuspended, clearSuspended } from "../tasks/health"
+import { startScheduler } from "../tasks/scheduler"
+import type { SchedulerDeps } from "../tasks/scheduler"
 import type { HealthCheckDeps } from "../tasks/health"
 import { reconnectSessionWithRetry } from "../tasks/retry"
 import { AgentError } from "../errors"
@@ -932,8 +934,32 @@ export async function start(): Promise<void> {
     await Effect.runPromise(startHealthMonitor(healthDeps))
     log.info("Health monitor started")
 
+    // Start scheduler for cron-based scheduled tasks (every 60s)
+    const schedulerDeps: SchedulerDeps = {
+      getDueScheduledTasks: () => getDueScheduledTasks(db),
+      getChildTasks: (parentTaskId) => getChildTasks(db, parentTaskId),
+      createChildWorker: (scheduled) =>
+        taskManager.createTask(tmDeps, {
+          source: "manual",
+          projectId: scheduled.project_id,
+          title: scheduled.title,
+          type: "worker",
+          description: scheduled.description ?? undefined,
+          provider: scheduled.provider,
+          model: scheduled.model ?? undefined,
+          reasoningEffort: scheduled.reasoning_effort ?? undefined,
+          branch: scheduled.branch ?? undefined,
+          parentTaskId: scheduled.id,
+        }),
+      updateTask: (taskId, updates) => updateTask(db, taskId, updates) as Effect.Effect<TaskRow | null, Error>,
+      logActivity: (taskId, type, event, content, metadata) => logActivity(db, taskId, type, event, content, metadata),
+    }
+    const scheduler = startScheduler(schedulerDeps)
+    log.info("Scheduler started")
+
     const shutdown = async (signal: string) => {
       log.info("Shutdown signal received", { signal })
+      scheduler.stop()
       process.exit(0)
     }
 

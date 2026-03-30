@@ -164,4 +164,5 @@ export {
   updateTaskStatus,
   insertSessionLog,
   getSessionLogs,
+  getDueScheduledTasks,
 } from "./queries"

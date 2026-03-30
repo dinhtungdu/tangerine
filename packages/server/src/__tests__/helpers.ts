@@ -40,6 +40,9 @@ export function makeTask(overrides?: Partial<Task>): Task {
     completedAt: null,
     lastSeenAt: null,
     lastResultAt: null,
+    cronExpression: null,
+    scheduleEnabled: false,
+    nextRunAt: null,
     capabilities: ["resolve", "predefined-prompts", "diff"],
     ...overrides,
   }

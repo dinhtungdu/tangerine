@@ -44,3 +44,53 @@ export function formatPrNumber(prUrl: string): string {
   const match = prUrl.match(/\/pull\/(\d+)/)
   return match ? `#${match[1]}` : "PR"
 }
+
+const DAY_NAMES = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"]
+
+/** Convert a 5-field cron expression to a human-readable string.
+ *  Handles common patterns; falls back to the raw expression for complex ones. */
+export function formatCronExpression(cron: string): string {
+  const parts = cron.trim().split(/\s+/)
+  if (parts.length !== 5) return cron
+
+  const [minute, hour, dayOfMonth, month, dayOfWeek] = parts as [string, string, string, string, string]
+
+  // Every minute
+  if (minute === "*" && hour === "*" && dayOfMonth === "*" && month === "*" && dayOfWeek === "*") {
+    return "Every minute"
+  }
+
+  // Every N minutes
+  const everyNMin = minute.match(/^\*\/(\d+)$/)
+  if (everyNMin && hour === "*" && dayOfMonth === "*" && month === "*" && dayOfWeek === "*") {
+    return `Every ${everyNMin[1]} minutes`
+  }
+
+  // Every N hours
+  const everyNHour = hour.match(/^\*\/(\d+)$/)
+  if (minute !== "*" && everyNHour && dayOfMonth === "*" && month === "*" && dayOfWeek === "*") {
+    return `Every ${everyNHour[1]} hours`
+  }
+
+  const formatTime = (h: string, m: string) => {
+    const hr = parseInt(h, 10)
+    const mn = parseInt(m, 10)
+    const ampm = hr >= 12 ? "PM" : "AM"
+    const h12 = hr === 0 ? 12 : hr > 12 ? hr - 12 : hr
+    return `${h12}:${mn.toString().padStart(2, "0")} ${ampm}`
+  }
+
+  // Specific time, every day
+  if (/^\d+$/.test(minute) && /^\d+$/.test(hour) && dayOfMonth === "*" && month === "*") {
+    const time = formatTime(hour, minute)
+    if (dayOfWeek === "*") return `Daily at ${time}`
+    if (dayOfWeek === "1-5") return `Weekdays at ${time}`
+    if (dayOfWeek === "0,6") return `Weekends at ${time}`
+
+    // Specific days
+    const days = dayOfWeek.split(",").map((d) => DAY_NAMES[parseInt(d, 10)] ?? d).join(", ")
+    return `${days} at ${time}`
+  }
+
+  return cron
+}

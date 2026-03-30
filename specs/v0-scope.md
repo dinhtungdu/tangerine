@@ -25,7 +25,7 @@ This file reflects the shipped baseline in the current codebase, not the origina
 - [x] Manual task creation
 - [x] GitHub-sourced task creation via webhook and polling
 - [x] Cross-project prompting between tasks
-- [x] Task types: `worker`, `orchestrator`, `reviewer`
+- [x] Task types: `worker`, `orchestrator`, `reviewer`, `scheduled`
 - [x] Capabilities derived from type
 - [x] Retry, cancel, resolve, complete, delete, and mark-seen actions
 - [x] Parent/child task linkage

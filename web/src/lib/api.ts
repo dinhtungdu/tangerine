@@ -85,9 +85,21 @@ export async function createTask(data: {
   parentTaskId?: string
   type?: string
   images?: import("@tangerine/shared").PromptImage[]
+  cronExpression?: string
+  scheduleEnabled?: boolean
 }): Promise<Task> {
   return request<Task>("/api/tasks", {
     method: "POST",
+    body: JSON.stringify(data),
+  })
+}
+
+export async function updateTaskSchedule(id: string, data: {
+  scheduleEnabled?: boolean
+  cronExpression?: string
+}): Promise<Task> {
+  return request<Task>(`/api/tasks/${id}`, {
+    method: "PATCH",
     body: JSON.stringify(data),
   })
 }

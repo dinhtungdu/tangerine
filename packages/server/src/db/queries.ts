@@ -15,12 +15,12 @@ function dbTry<T>(op: () => T): Effect.Effect<T, DbError> {
 export function createTask(
   db: Database,
   task: Pick<TaskRow, "id" | "project_id" | "source" | "repo_url" | "title"> &
-    Partial<Pick<TaskRow, "source_id" | "source_url" | "type" | "description" | "user_id" | "branch" | "provider" | "model" | "reasoning_effort" | "parent_task_id" | "capabilities">>
+    Partial<Pick<TaskRow, "source_id" | "source_url" | "type" | "description" | "user_id" | "branch" | "provider" | "model" | "reasoning_effort" | "parent_task_id" | "capabilities" | "cron_expression" | "schedule_enabled" | "next_run_at">>
 ): Effect.Effect<TaskRow, DbError> {
   return dbTry(() => {
     const stmt = db.prepare(`
-      INSERT INTO tasks (id, project_id, source, source_id, source_url, repo_url, title, type, description, user_id, branch, provider, model, reasoning_effort, parent_task_id, capabilities)
-      VALUES ($id, $project_id, $source, $source_id, $source_url, $repo_url, $title, $type, $description, $user_id, $branch, $provider, $model, $reasoning_effort, $parent_task_id, $capabilities)
+      INSERT INTO tasks (id, project_id, source, source_id, source_url, repo_url, title, type, description, user_id, branch, provider, model, reasoning_effort, parent_task_id, capabilities, cron_expression, schedule_enabled, next_run_at)
+      VALUES ($id, $project_id, $source, $source_id, $source_url, $repo_url, $title, $type, $description, $user_id, $branch, $provider, $model, $reasoning_effort, $parent_task_id, $capabilities, $cron_expression, $schedule_enabled, $next_run_at)
     `)
     stmt.run({
       $id: task.id,
@@ -39,6 +39,9 @@ export function createTask(
       $reasoning_effort: task.reasoning_effort ?? null,
       $parent_task_id: task.parent_task_id ?? null,
       $capabilities: task.capabilities ?? null,
+      $cron_expression: task.cron_expression ?? null,
+      $schedule_enabled: task.schedule_enabled ?? 0,
+      $next_run_at: task.next_run_at ?? null,
     })
     return db.prepare("SELECT * FROM tasks WHERE id = ?").get(task.id) as TaskRow
   })
@@ -138,6 +141,18 @@ export function insertSessionLog(
 export function getSessionLogs(db: Database, taskId: string): Effect.Effect<SessionLogRow[], DbError> {
   return dbTry(() => {
     return db.prepare("SELECT * FROM session_logs WHERE task_id = ? ORDER BY timestamp ASC").all(taskId) as SessionLogRow[]
+  })
+}
+
+// --- Scheduled Tasks ---
+
+export function getDueScheduledTasks(db: Database): Effect.Effect<TaskRow[], DbError> {
+  return dbTry(() => {
+    // next_run_at is stored as ISO 8601 (e.g. "2026-03-30T08:00:00.000Z").
+    // Compare against strftime in the same format so SQLite's text comparison works.
+    return db.prepare(
+      `SELECT * FROM tasks WHERE type = 'scheduled' AND schedule_enabled = 1 AND next_run_at <= strftime('%Y-%m-%dT%H:%M:%fZ', 'now')`
+    ).all() as TaskRow[]
   })
 }
 

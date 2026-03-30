@@ -18,6 +18,7 @@ export function utc(ts: string | null): string | null {
 function canonicalCapabilities(type: string): TaskCapability[] {
   if (type === "orchestrator") return ["resolve", "predefined-prompts"]
   if (type === "reviewer") return ["resolve", "predefined-prompts", "diff", "pr-track"]
+  if (type === "scheduled") return ["schedule"]
   return ["resolve", "predefined-prompts", "diff", "continue", "pr-track", "pr-create"]
 }
 
@@ -61,6 +62,9 @@ export function mapTaskRow(row: TaskRow): Task {
     completedAt: utc(row.completed_at),
     lastSeenAt: utc(row.last_seen_at),
     lastResultAt: utc(row.last_result_at),
+    cronExpression: row.cron_expression,
+    scheduleEnabled: row.schedule_enabled === 1,
+    nextRunAt: utc(row.next_run_at),
     capabilities: mergeCapabilities(row.capabilities, row.type ?? "worker"),
   }
 }

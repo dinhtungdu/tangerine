@@ -1,5 +1,6 @@
 import { useState, useCallback, useEffect, useRef, type ClipboardEvent } from "react"
 import type { ProviderType, PromptImage } from "@tangerine/shared"
+import { formatCronExpression } from "../lib/format"
 import { useProject } from "../context/ProjectContext"
 import { useProjectNav } from "../hooks/useProjectNav"
 import { ModelSelector } from "./ModelSelector"
@@ -7,7 +8,7 @@ import { HarnessSelector } from "./HarnessSelector"
 import { ReasoningEffortSelector, getEfforts, type ReasoningEffort } from "./ReasoningEffortSelector"
 
 interface NewAgentFormProps {
-  onSubmit: (data: { projectId: string; title: string; description?: string; branch?: string; provider?: string; model?: string; reasoningEffort?: string; parentTaskId?: string; type?: string; images?: PromptImage[] }) => void
+  onSubmit: (data: { projectId: string; title: string; description?: string; branch?: string; provider?: string; model?: string; reasoningEffort?: string; parentTaskId?: string; type?: string; images?: PromptImage[]; cronExpression?: string; scheduleEnabled?: boolean }) => void
   refTaskId?: string
   refTaskTitle?: string
 }
@@ -39,6 +40,12 @@ function TaskIcon({ icon }: { icon: string }) {
   }
 }
 
+function formatCronHint(cron: string): string {
+  const parts = cron.split(/\s+/)
+  if (parts.length !== 5) return "Invalid (need 5 fields)"
+  return formatCronExpression(cron)
+}
+
 /* -- Main form -- */
 
 export function NewAgentForm({ onSubmit, refTaskId, refTaskTitle }: NewAgentFormProps) {
@@ -47,9 +54,9 @@ export function NewAgentForm({ onSubmit, refTaskId, refTaskTitle }: NewAgentForm
   const PREFS_KEY = "tangerine:agent-prefs"
   const draftKey = `tangerine:new-agent-draft:${current?.name ?? "unknown"}:${refTaskId ?? "new"}`
 
-  const loadDraft = useCallback((): { description?: string; customBranch?: string; taskType?: "worker" | "reviewer"; pendingImages?: PendingImage[] } => {
+  const loadDraft = useCallback((): { description?: string; customBranch?: string; taskType?: "worker" | "reviewer" | "scheduled"; pendingImages?: PendingImage[]; cronExpression?: string } => {
     try {
-      return JSON.parse(localStorage.getItem(draftKey) ?? "{}") as { description?: string; customBranch?: string; taskType?: "worker" | "reviewer"; pendingImages?: PendingImage[] }
+      return JSON.parse(localStorage.getItem(draftKey) ?? "{}") as { description?: string; customBranch?: string; taskType?: "worker" | "reviewer" | "scheduled"; pendingImages?: PendingImage[]; cronExpression?: string }
     } catch {
       return {}
     }
@@ -58,6 +65,7 @@ export function NewAgentForm({ onSubmit, refTaskId, refTaskTitle }: NewAgentForm
   const savedDraft = loadDraft()
   const [description, setDescription] = useState(savedDraft.description ?? "")
   const [customBranch, setCustomBranch] = useState(savedDraft.customBranch ?? "")
+  const [cronExpression, setCronExpression] = useState(savedDraft.cronExpression ?? "")
   const [pendingImages, setPendingImages] = useState<PendingImage[]>(savedDraft.pendingImages ?? [])
 
   const loadPrefs = (): { provider?: string; models?: Record<string, string>; reasoningEffort?: string } => {
@@ -68,7 +76,7 @@ export function NewAgentForm({ onSubmit, refTaskId, refTaskTitle }: NewAgentForm
   const [provider, setProvider] = useState<ProviderType>((saved.provider as ProviderType) ?? current?.defaultProvider ?? "claude-code")
   const [modelByProvider, setModelByProvider] = useState<Record<string, string>>(saved.models ?? {})
   const [reasoningEffort, setReasoningEffort] = useState<ReasoningEffort>((saved.reasoningEffort as ReasoningEffort) ?? "medium")
-  const [taskType, setTaskType] = useState<"worker" | "reviewer">(savedDraft.taskType ?? "worker")
+  const [taskType, setTaskType] = useState<"worker" | "reviewer" | "scheduled">(savedDraft.taskType ?? "worker")
   const [submitting, setSubmitting] = useState(false)
   const hydratedDraftKeyRef = useRef<string | null>(null)
   const branch = current?.defaultBranch ?? "main"
@@ -129,21 +137,22 @@ export function NewAgentForm({ onSubmit, refTaskId, refTaskTitle }: NewAgentForm
     setCustomBranch(draft.customBranch ?? "")
     setPendingImages(draft.pendingImages ?? [])
     if (draft.taskType) setTaskType(draft.taskType)
+    if (draft.cronExpression) setCronExpression(draft.cronExpression)
   }, [draftKey, loadDraft, description, customBranch, pendingImages.length])
 
   useEffect(() => {
     try {
-      if (!description && !customBranch && pendingImages.length === 0 && taskType === "worker") {
+      if (!description && !customBranch && pendingImages.length === 0 && taskType === "worker" && !cronExpression) {
         localStorage.removeItem(draftKey)
       } else {
-        localStorage.setItem(draftKey, JSON.stringify({ description, customBranch, taskType, pendingImages }))
+        localStorage.setItem(draftKey, JSON.stringify({ description, customBranch, taskType, pendingImages, cronExpression }))
       }
     } catch {
       // ignore storage failures
     }
-  }, [draftKey, description, customBranch, taskType, pendingImages])
+  }, [draftKey, description, customBranch, taskType, pendingImages, cronExpression])
 
-  const canSubmit = (!!description.trim() || pendingImages.length > 0) && !!current && !submitting
+  const canSubmit = (!!description.trim() || pendingImages.length > 0) && !!current && !submitting && (taskType !== "scheduled" || !!cronExpression.trim())
 
   const submitAndReset = useCallback((data: Parameters<typeof onSubmit>[0]) => {
     setSubmitting(true)
@@ -181,8 +190,10 @@ export function NewAgentForm({ onSubmit, refTaskId, refTaskTitle }: NewAgentForm
       parentTaskId: refTaskId,
       type: taskType,
       images,
+      cronExpression: taskType === "scheduled" ? cronExpression.trim() || undefined : undefined,
+      scheduleEnabled: taskType === "scheduled" ? true : undefined,
     })
-  }, [current, submitting, description, pendingImages, customBranch, provider, activeModel, reasoningEffort, taskType, refTaskId, refTaskTitle, submitAndReset])
+  }, [current, submitting, description, pendingImages, customBranch, provider, activeModel, reasoningEffort, taskType, cronExpression, refTaskId, refTaskTitle, submitAndReset])
 
   const handleSubmit = handleCodeSubmit
 
@@ -280,14 +291,31 @@ export function NewAgentForm({ onSubmit, refTaskId, refTaskTitle }: NewAgentForm
                 <ReasoningEffortSelector value={reasoningEffort} onChange={(e) => { setReasoningEffort(e); savePrefs({ reasoningEffort: e }) }} provider={provider} />
                 <select
                   value={taskType}
-                  onChange={(e) => setTaskType(e.target.value as "worker" | "reviewer")}
+                  onChange={(e) => setTaskType(e.target.value as "worker" | "reviewer" | "scheduled")}
                   aria-label="Task type"
                   className="rounded-md border border-edge bg-surface px-2 py-1 text-[11px] text-fg outline-none"
                 >
                   <option value="worker">Worker</option>
                   <option value="reviewer">Reviewer</option>
+                  <option value="scheduled">Scheduled</option>
                 </select>
               </div>
+              {taskType === "scheduled" && (
+                <div className="flex items-center gap-2">
+                  <label className="text-[11px] text-fg-muted">Cron:</label>
+                  <input
+                    type="text"
+                    value={cronExpression}
+                    onChange={(e) => setCronExpression(e.target.value)}
+                    placeholder="0 9 * * 1-5"
+                    aria-label="Cron expression"
+                    className="flex-1 rounded-md border border-edge bg-surface px-2 py-1 font-mono text-[11px] text-fg placeholder-fg-muted outline-none"
+                  />
+                  {cronExpression.trim() && (
+                    <span className="text-[10px] text-fg-muted">{formatCronHint(cronExpression.trim())}</span>
+                  )}
+                </div>
+              )}
               <button
                 onClick={handleSubmit}
                 disabled={!canSubmit}
@@ -351,14 +379,27 @@ export function NewAgentForm({ onSubmit, refTaskId, refTaskTitle }: NewAgentForm
                 </select>
                 <select
                   value={taskType}
-                  onChange={(e) => setTaskType(e.target.value as "worker" | "reviewer")}
+                  onChange={(e) => setTaskType(e.target.value as "worker" | "reviewer" | "scheduled")}
                   aria-label="Task type"
                   className="h-10 flex-1 rounded-lg border border-edge bg-surface px-3 text-[16px] text-fg outline-none md:text-[13px]"
                 >
                   <option value="worker">Worker</option>
                   <option value="reviewer">Reviewer</option>
+                  <option value="scheduled">Scheduled</option>
                 </select>
               </div>
+              {taskType === "scheduled" && (
+                <div className="flex items-center gap-2">
+                  <input
+                    type="text"
+                    value={cronExpression}
+                    onChange={(e) => setCronExpression(e.target.value)}
+                    placeholder="Cron: 0 9 * * 1-5"
+                    aria-label="Cron expression"
+                    className="h-10 flex-1 rounded-lg border border-edge bg-surface px-3 font-mono text-[16px] text-fg placeholder-fg-muted outline-none md:text-[13px]"
+                  />
+                </div>
+              )}
             </div>
             <button
               onClick={handleSubmit}

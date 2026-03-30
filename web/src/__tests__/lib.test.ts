@@ -5,6 +5,7 @@ import {
   formatDate,
   formatRelativeTime,
   formatTimestamp,
+  formatCronExpression,
 } from "../lib/format"
 import { getStatusConfig, STATUS_CONFIG } from "../lib/status"
 import { getActivityStyle, getActivityDetail } from "../lib/activity"
@@ -94,6 +95,32 @@ describe("format", () => {
     test("formats HH:MM:SS", () => {
       const result = formatTimestamp("2026-03-18T14:32:01Z")
       expect(result).toMatch(/\d{2}:\d{2}:\d{2}/)
+    })
+  })
+
+  describe("formatCronExpression", () => {
+    test("every minute", () => {
+      expect(formatCronExpression("* * * * *")).toBe("Every minute")
+    })
+
+    test("every N minutes", () => {
+      expect(formatCronExpression("*/5 * * * *")).toBe("Every 5 minutes")
+    })
+
+    test("daily at specific time", () => {
+      expect(formatCronExpression("0 9 * * *")).toBe("Daily at 9:00 AM")
+    })
+
+    test("weekdays at specific time", () => {
+      expect(formatCronExpression("0 9 * * 1-5")).toBe("Weekdays at 9:00 AM")
+    })
+
+    test("falls back to raw for complex expressions", () => {
+      expect(formatCronExpression("0 9 1 * *")).toBe("0 9 1 * *")
+    })
+
+    test("returns raw for invalid field count", () => {
+      expect(formatCronExpression("bad")).toBe("bad")
     })
   })
 })
