@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback, useRef, useMemo } from "react"
 import { useParams, Link } from "react-router-dom"
 import type { Task } from "@tangerine/shared"
-import { fetchTask, fetchChildTasks, changeTaskConfig, markTaskSeen, resolveTask } from "../lib/api"
+import { fetchTask, fetchChildTasks, changeTaskConfig, markTaskSeen, resolveTask, startTask } from "../lib/api"
 import { getStatusConfig } from "../lib/status"
 import { useSession } from "../hooks/useSession"
 import { useTaskSearch } from "../hooks/useTaskSearch"
@@ -214,6 +214,21 @@ export function TaskDetail() {
     setDiffComments([])
     setMobilePane("chat")
   }, [session])
+
+  // Start the task on first prompt if it's still in "created" status
+  const handleSend = useCallback(
+    async (text: string, images?: import("@tangerine/shared").PromptImage[]) => {
+      if (chatTask?.status === "created") {
+        await startTask(chatTask.id)
+        // Only optimistically update the viewed task's status when it IS the chat task
+        if (!isCrossProject) {
+          setTask((prev) => prev ? { ...prev, status: "provisioning" } : prev)
+        }
+      }
+      session.sendPrompt(text, images)
+    },
+    [chatTask?.status, chatTask?.id, isCrossProject, session],
+  )
 
   // Fetch parent and children once per task ID (not on every poll)
   useEffect(() => {
@@ -501,7 +516,7 @@ export function TaskDetail() {
                 taskError={chatTask.error}
                 taskId={chatTask.id}
                 taskTitle={chatTask.title}
-                onSend={session.sendPrompt}
+                onSend={handleSend}
                 onAbort={session.abort}
                 onModelChange={handleModelChange}
                 onReasoningEffortChange={handleReasoningEffortChange}
@@ -584,7 +599,7 @@ export function TaskDetail() {
                 taskError={chatTask.error}
                 taskId={chatTask.id}
                 taskTitle={chatTask.title}
-                onSend={session.sendPrompt}
+                onSend={handleSend}
                 onAbort={session.abort}
                 onModelChange={handleModelChange}
                 onReasoningEffortChange={handleReasoningEffortChange}
