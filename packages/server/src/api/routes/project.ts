@@ -159,7 +159,7 @@ export function projectRoutes(deps: AppDeps): Hono {
   })
 
   // Ensure an orchestrator task exists for a project (lazy create/reuse/recreate).
-  // Returns the task and starts the session if it's in "created" status.
+  // Returns the task without starting it — the UI triggers start explicitly.
   app.post("/:name/orchestrator", async (c) => {
     const name = c.req.param("name")
     const project = deps.config.config.projects.find((p) => p.name === name)
@@ -168,12 +168,6 @@ export function projectRoutes(deps: AppDeps): Hono {
     const body = await c.req.json().catch(() => ({})) as { provider?: string; model?: string; reasoningEffort?: string }
     return runEffect(c,
       deps.taskManager.ensureOrchestrator(name, body.provider, body.model, body.reasoningEffort).pipe(
-        Effect.tap((task) =>
-          // Auto-start the session if the task is dormant
-          task.status === "created"
-            ? deps.taskManager.startTask(task.id)
-            : Effect.void
-        ),
         Effect.map(mapTaskRow),
       ),
       { status: 200 }
