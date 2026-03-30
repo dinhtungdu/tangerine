@@ -16,5 +16,5 @@ export class ProjectExistsError extends Data.TaggedError("ProjectExistsError")<{
 export class ConfigValidationError extends Data.TaggedError("ConfigValidationError")<{ message: string }> {}
 export class TaskNotTerminalError extends Data.TaggedError("TaskNotTerminalError")<{ taskId: string; status: string }> {}
 export class PrCapabilityError extends Data.TaggedError("PrCapabilityError")<{ taskId: string }> {
-  get message() { return `Task ${this.taskId} does not have the "pr" capability` }
+  get message() { return `Task ${this.taskId} does not have the "pr-track" capability` }
 }

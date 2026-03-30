@@ -2,7 +2,7 @@ export type TaskStatus = "created" | "provisioning" | "running" | "done" | "fail
 export type ProviderType = "opencode" | "claude-code" | "codex"
 export type TaskSource = "github" | "linear" | "manual" | "cross-project"
 export type TaskType = "worker" | "orchestrator" | "reviewer"
-export type TaskCapability = "resolve" | "predefined-prompts" | "diff" | "continue" | "pr" | "pr-create"
+export type TaskCapability = "resolve" | "predefined-prompts" | "diff" | "continue" | "pr-track" | "pr-create"
 export interface Task {
   id: string
   projectId: string
