@@ -28,6 +28,7 @@ interface ChatPanelProps {
   predefinedPrompts?: PredefinedPrompt[]
   onResolve?: () => Promise<void>
   onEndSession?: () => Promise<void>
+  canContinue?: boolean
   autoFocusKey?: string
 }
 
@@ -50,6 +51,7 @@ export function ChatPanel({
   predefinedPrompts,
   onResolve,
   onEndSession,
+  canContinue,
   autoFocusKey,
 }: ChatPanelProps) {
   const scrollRef = useRef<HTMLDivElement>(null)
@@ -242,12 +244,12 @@ export function ChatPanel({
           taskError={taskError}
           taskId={taskId}
           taskTitle={taskTitle}
-          onContinue={(refTaskId, refTitle) => {
+          onContinue={canContinue ? (refTaskId, refTitle) => {
             const params = new URLSearchParams()
             if (refTaskId) params.set("ref", refTaskId)
             if (refTitle) params.set("refTitle", refTitle)
             navigate(`/new?${params}`)
-          }}
+          } : undefined}
           onResolve={onResolve}
         />
       ) : (
@@ -302,7 +304,7 @@ function TerminatedBanner({
   taskError?: string | null
   taskId?: string
   taskTitle?: string
-  onContinue: (taskId?: string, title?: string) => void
+  onContinue?: (taskId?: string, title?: string) => void
   onResolve?: () => Promise<void>
 }) {
   const { color, label } = getStatusConfig(taskStatus)
@@ -347,15 +349,17 @@ function TerminatedBanner({
               {resolving ? "Marking…" : "Mark as done"}
             </button>
           )}
-          <button
-            onClick={() => onContinue(taskId, taskTitle)}
-            className="flex shrink-0 items-center gap-1.5 rounded-md bg-surface-dark px-3 py-1.5 text-[12px] font-medium text-white transition hover:opacity-80"
-          >
-            <svg className="h-3 w-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-              <path strokeLinecap="round" strokeLinejoin="round" d="M12 4.5v15m7.5-7.5h-15" />
-            </svg>
-            Continue in new task
-          </button>
+          {onContinue && (
+            <button
+              onClick={() => onContinue(taskId, taskTitle)}
+              className="flex shrink-0 items-center gap-1.5 rounded-md bg-surface-dark px-3 py-1.5 text-[12px] font-medium text-white transition hover:opacity-80"
+            >
+              <svg className="h-3 w-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M12 4.5v15m7.5-7.5h-15" />
+              </svg>
+              Continue in new task
+            </button>
+          )}
         </div>
       </div>
     </div>
