@@ -50,7 +50,7 @@ curl -X POST "$API/api/tasks" \
     "type": "worker",
     "description": "The retry loop uses a fixed 5s timeout...",
     "provider": "claude-code",
-    "model": "anthropic/claude-sonnet-4-6",
+    "model": "claude-sonnet-4-6",
     "parentTaskId": "abc123",
     "source": "cross-project"
   }'
@@ -123,7 +123,7 @@ curl "$API/api/projects/my-project"
 
 curl -X POST "$API/api/projects/my-project/orchestrator" \
   -H "Content-Type: application/json" \
-  -d '{"provider":"claude-code","model":"anthropic/claude-sonnet-4-6"}'
+  -d '{"provider":"claude-code","model":"claude-sonnet-4-6"}'
 
 curl "$API/api/projects/my-project/update-status"
 curl -X POST "$API/api/projects/my-project/update"
