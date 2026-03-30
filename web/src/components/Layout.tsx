@@ -1,5 +1,6 @@
 import { Link, Outlet, useLocation } from "react-router-dom"
 import { Topbar } from "./Topbar"
+import { QuickOpen } from "./QuickOpen"
 import { useProjectNav } from "../hooks/useProjectNav"
 
 export function Layout() {
@@ -51,6 +52,8 @@ export function Layout() {
       <main className="min-h-0 flex-1 overflow-hidden">
         <Outlet />
       </main>
+
+      <QuickOpen />
     </div>
   )
 }

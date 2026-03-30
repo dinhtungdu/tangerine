@@ -7,6 +7,7 @@ import { NewAgentForm } from "../components/NewAgentForm"
 import { ChatInput, appendQuotedText } from "../components/ChatInput"
 import { ChatPanel } from "../components/ChatPanel"
 import { ModelSelector } from "../components/ModelSelector"
+import { QuickOpen } from "../components/QuickOpen"
 import { StatusPage } from "../pages/StatusPage"
 import { ProjectProvider } from "../context/ProjectContext"
 import type { Task, ActivityEntry } from "@tangerine/shared"
@@ -538,6 +539,181 @@ describe("ChatPanel", () => {
     expect(textarea.value).toBe("> Quoted text\n\n")
     expect(document.activeElement).toBe(textarea)
     expect(cleared).toBe(true)
+  })
+})
+
+describe("QuickOpen", () => {
+  function mockTasksFetch(tasks: Task[] = []) {
+    global.fetch = async (input) => {
+      const url = typeof input === "string" ? input : (input as Request).url
+      if (url.startsWith("/api/tasks")) {
+        return new Response(JSON.stringify(tasks), {
+          status: 200,
+          headers: { "Content-Type": "application/json" },
+        })
+      }
+      return new Response("Not found", { status: 404 })
+    }
+  }
+
+  test("opens on Ctrl+K and shows search input", async () => {
+    mockTasksFetch([])
+    render(
+      <MemoryRouter>
+        <QuickOpen />
+      </MemoryRouter>
+    )
+
+    expect(screen.queryByPlaceholderText("Search tasks...")).toBeNull()
+
+    await act(async () => {
+      fireEvent.keyDown(document, { key: "k", ctrlKey: true })
+      await new Promise((r) => setTimeout(r, 0))
+    })
+
+    expect(screen.getByPlaceholderText("Search tasks...")).toBeTruthy()
+  })
+
+  test("closes on Escape", async () => {
+    mockTasksFetch([])
+    render(
+      <MemoryRouter>
+        <QuickOpen />
+      </MemoryRouter>
+    )
+
+    await act(async () => {
+      fireEvent.keyDown(document, { key: "k", ctrlKey: true })
+      await new Promise((r) => setTimeout(r, 0))
+    })
+
+    expect(screen.getByPlaceholderText("Search tasks...")).toBeTruthy()
+
+    fireEvent.keyDown(document, { key: "Escape" })
+    expect(screen.queryByPlaceholderText("Search tasks...")).toBeNull()
+  })
+
+  test("shows active tasks by default", async () => {
+    mockTasksFetch([
+      makeTask({ id: "run1", title: "Active task", status: "running", projectId: "proj-a" }),
+      makeTask({ id: "done1", title: "Done task", status: "done", projectId: "proj-a" }),
+    ])
+
+    render(
+      <MemoryRouter>
+        <QuickOpen />
+      </MemoryRouter>
+    )
+
+    await act(async () => {
+      fireEvent.keyDown(document, { key: "k", ctrlKey: true })
+      await new Promise((r) => setTimeout(r, 50))
+    })
+
+    expect(screen.getByText("Active task")).toBeTruthy()
+    expect(screen.queryByText("Done task")).toBeNull()
+  })
+
+  test("shows done tasks when searching", async () => {
+    mockTasksFetch([
+      makeTask({ id: "done1", title: "Finished feature", status: "done", projectId: "proj-a" }),
+    ])
+
+    render(
+      <MemoryRouter>
+        <QuickOpen />
+      </MemoryRouter>
+    )
+
+    await act(async () => {
+      fireEvent.keyDown(document, { key: "k", ctrlKey: true })
+      await new Promise((r) => setTimeout(r, 50))
+    })
+
+    const input = screen.getByPlaceholderText("Search tasks...")
+    fireEvent.change(input, { target: { value: "finished" } })
+
+    expect(screen.getByText("Finished feature")).toBeTruthy()
+  })
+
+  test("shows empty state when no active tasks", async () => {
+    mockTasksFetch([])
+    render(
+      <MemoryRouter>
+        <QuickOpen />
+      </MemoryRouter>
+    )
+
+    await act(async () => {
+      fireEvent.keyDown(document, { key: "k", ctrlKey: true })
+      await new Promise((r) => setTimeout(r, 50))
+    })
+
+    expect(screen.getByText("No active tasks")).toBeTruthy()
+  })
+
+  test("shows no matching message when query has no results", async () => {
+    mockTasksFetch([
+      makeTask({ id: "t1", title: "Fix login", status: "running" }),
+    ])
+
+    render(
+      <MemoryRouter>
+        <QuickOpen />
+      </MemoryRouter>
+    )
+
+    await act(async () => {
+      fireEvent.keyDown(document, { key: "k", ctrlKey: true })
+      await new Promise((r) => setTimeout(r, 50))
+    })
+
+    const input = screen.getByPlaceholderText("Search tasks...")
+    fireEvent.change(input, { target: { value: "zzznomatch" } })
+
+    expect(screen.getByText("No matching tasks")).toBeTruthy()
+  })
+
+  test("navigates to task on click", async () => {
+    mockTasksFetch([
+      makeTask({ id: "abc12345", title: "Click me", status: "running" }),
+    ])
+
+    render(
+      <MemoryRouter initialEntries={["/"]}>
+        <Routes>
+          <Route path="/" element={<QuickOpen />} />
+          <Route path="/tasks/abc12345" element={<div>Task Detail</div>} />
+        </Routes>
+      </MemoryRouter>
+    )
+
+    await act(async () => {
+      fireEvent.keyDown(document, { key: "k", ctrlKey: true })
+      await new Promise((r) => setTimeout(r, 50))
+    })
+
+    fireEvent.click(screen.getByText("Click me"))
+    expect(screen.getByText("Task Detail")).toBeTruthy()
+  })
+
+  test("shows task type badge for orchestrator tasks", async () => {
+    mockTasksFetch([
+      makeTask({ id: "orch1", title: "Orchestrator task", status: "running", type: "orchestrator" }),
+    ])
+
+    render(
+      <MemoryRouter>
+        <QuickOpen />
+      </MemoryRouter>
+    )
+
+    await act(async () => {
+      fireEvent.keyDown(document, { key: "k", ctrlKey: true })
+      await new Promise((r) => setTimeout(r, 50))
+    })
+
+    expect(screen.getByText("orchestrator")).toBeTruthy()
   })
 })
 
