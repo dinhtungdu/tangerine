@@ -15,12 +15,10 @@ export function utc(ts: string | null): string | null {
 }
 
 // Canonical capabilities per task type. Used as baseline for all tasks.
-// Reviewer capabilities are identical to worker for now — the type field
-// enables future differentiation without another migration.
 function canonicalCapabilities(type: string): TaskCapability[] {
-  return type === "orchestrator"
-    ? ["resolve", "end-session"]
-    : ["resolve", "predefined-prompts", "diff", "continue"]
+  if (type === "orchestrator") return ["resolve", "predefined-prompts"]
+  if (type === "reviewer") return ["resolve", "predefined-prompts", "diff"]
+  return ["resolve", "predefined-prompts", "diff", "continue"]
 }
 
 // Merge stored capabilities with canonical ones so that:

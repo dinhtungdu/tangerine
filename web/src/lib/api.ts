@@ -89,10 +89,6 @@ export async function cancelTask(id: string): Promise<void> {
   return request<void>(`/api/tasks/${id}/cancel`, { method: "POST" })
 }
 
-export async function completeTask(id: string): Promise<void> {
-  return request<void>(`/api/tasks/${id}/done`, { method: "POST" })
-}
-
 export async function resolveTask(id: string): Promise<void> {
   return request<void>(`/api/tasks/${id}/resolve`, { method: "POST" })
 }
