@@ -8,6 +8,7 @@ import { DEFAULT_IDLE_TIMEOUT_MS } from "@tangerine/shared"
 import type { TaskRow } from "../db/types"
 import type { CleanupDeps } from "./cleanup"
 import { cleanupSession } from "./cleanup"
+import { getTaskState, clearTaskState } from "./task-state"
 
 const log = createLogger("health")
 
@@ -15,13 +16,6 @@ const HEALTH_CHECK_INTERVAL_MS = 30_000
 // After this many consecutive failed restarts, give up and mark the task failed.
 // Prevents infinite restart loops if a new bug causes every restart to fail immediately.
 const MAX_CONSECUTIVE_RESTARTS = 3
-
-// Per-task consecutive restart counter — reset to 0 when the agent has real activity.
-const consecutiveRestarts = new Map<string, number>()
-
-// Tasks whose agent was intentionally suspended due to idle timeout.
-// The health monitor skips restart for these — they wake on next user message.
-const suspendedTasks = new Set<string>()
 
 /**
  * SQLite datetime('now') returns UTC without a timezone suffix. Normalize bare
@@ -36,12 +30,12 @@ export function parseTaskTimestampMs(timestamp: string): number {
 
 /** Check whether a task's agent has been suspended due to idle timeout. */
 export function isTaskSuspended(taskId: string): boolean {
-  return suspendedTasks.has(taskId)
+  return getTaskState(taskId).suspended
 }
 
 /** Clear the suspended flag when a task's agent is restarted. */
 export function clearSuspended(taskId: string): void {
-  suspendedTasks.delete(taskId)
+  getTaskState(taskId).suspended = false
 }
 
 // Error patterns that will never self-heal — no point restarting.
@@ -84,7 +78,7 @@ export interface HealthCheckDeps {
 
 /** Reset the restart counter when the task has real agent activity. */
 export function resetRestartCount(taskId: string): void {
-  consecutiveRestarts.delete(taskId)
+  getTaskState(taskId).consecutiveRestarts = 0
 }
 
 export function checkTask(
@@ -95,10 +89,11 @@ export function checkTask(
     const taskLog = log.child({ taskId: task.id })
 
     // Check if agent process is alive (via PID or handle)
+    const state = getTaskState(task.id)
     const alive = yield* deps.checkAgentAlive(task.id)
     if (!alive) {
       // Skip restart for tasks intentionally suspended due to idle timeout
-      if (suspendedTasks.has(task.id)) {
+      if (state.suspended) {
         taskLog.debug("Task suspended (idle), skipping restart")
         return "healthy"
       }
@@ -111,11 +106,12 @@ export function checkTask(
         taskLog.error("Agent died with unrecoverable error, skipping restart", { error: lastError })
         yield* deps.failTask(task.id, lastError).pipe(Effect.ignoreLogged)
         yield* cleanupSession(task.id, deps.cleanupDeps).pipe(Effect.ignoreLogged)
-        consecutiveRestarts.delete(task.id)
+        clearTaskState(task.id)
         return "failed"
       }
 
-      const restarts = (consecutiveRestarts.get(task.id) ?? 0) + 1
+      state.consecutiveRestarts += 1
+      const restarts = state.consecutiveRestarts
       if (restarts > MAX_CONSECUTIVE_RESTARTS) {
         const reason = lastError
           ? `Agent error: ${lastError}`
@@ -123,10 +119,9 @@ export function checkTask(
         taskLog.error("Agent dead and max consecutive restarts reached, marking failed", { restarts, lastError })
         yield* deps.failTask(task.id, reason).pipe(Effect.ignoreLogged)
         yield* cleanupSession(task.id, deps.cleanupDeps).pipe(Effect.ignoreLogged)
-        consecutiveRestarts.delete(task.id)
+        clearTaskState(task.id)
         return "failed"
       }
-      consecutiveRestarts.set(task.id, restarts)
       taskLog.warn("Agent not alive, attempting restart", { attempt: restarts, maxAttempts: MAX_CONSECUTIVE_RESTARTS })
       return yield* attemptRestart(task, deps, taskLog, "agent_dead")
     }
@@ -139,11 +134,11 @@ export function checkTask(
       taskLog.error("Agent alive but reported unrecoverable error, marking failed", { error: lastError })
       yield* deps.failTask(task.id, lastError).pipe(Effect.ignoreLogged)
       yield* cleanupSession(task.id, deps.cleanupDeps).pipe(Effect.ignoreLogged)
-      consecutiveRestarts.delete(task.id)
+      clearTaskState(task.id)
       return "failed"
     }
 
-    consecutiveRestarts.delete(task.id)
+    state.consecutiveRestarts = 0
     taskLog.debug("Task healthy")
     return "healthy"
   })
@@ -172,6 +167,7 @@ function attemptRestart(
         taskLog.error("Recovery failed, marking task failed", { error: failReason })
         yield* deps.failTask(task.id, failReason).pipe(Effect.ignoreLogged)
         yield* cleanupSession(task.id, deps.cleanupDeps).pipe(Effect.ignoreLogged)
+        clearTaskState(task.id)
         return yield* new HealthCheckError({
           message: failReason,
           taskId: task.id,
@@ -198,8 +194,10 @@ function checkIdleTimeout(
   return Effect.gen(function* () {
     if (!SUSPENDABLE_PROVIDERS.has(task.provider)) return
 
+    const state = getTaskState(task.id)
+
     // Already suspended — don't re-log or re-suspend
-    if (suspendedTasks.has(task.id)) return
+    if (state.suspended) return
 
     // Don't suspend if the agent is actively processing a request
     if (deps.isAgentWorking(task.id)) return
@@ -209,7 +207,7 @@ function checkIdleTimeout(
       const idleMs = Date.now() - parseTaskTimestampMs(lastMsgTime)
       if (idleMs >= DEFAULT_IDLE_TIMEOUT_MS) {
         log.info("Task idle, suspending agent", { taskId: task.id, title: task.title, idleMs })
-        suspendedTasks.add(task.id)
+        state.suspended = true
         yield* deps.suspendAgent(task.id)
         yield* deps.logSuspend(task.id, idleMs)
         return
@@ -219,7 +217,7 @@ function checkIdleTimeout(
       const idleMs = Date.now() - parseTaskTimestampMs(task.started_at)
       if (idleMs >= DEFAULT_IDLE_TIMEOUT_MS) {
         log.info("Task idle (no messages), suspending agent", { taskId: task.id, title: task.title, idleMs })
-        suspendedTasks.add(task.id)
+        state.suspended = true
         yield* deps.suspendAgent(task.id)
         yield* deps.logSuspend(task.id, idleMs)
       }
