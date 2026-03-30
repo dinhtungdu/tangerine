@@ -52,11 +52,13 @@ curl -X POST "$API/api/tasks" \
     "provider": "codex",
     "model": "openai/gpt-5.4",
     "reasoningEffort": "high",
-    "branch": "#123",
+    "branch": "tangerine/abc12345",
     "parentTaskId": "abc123",
     "source": "cross-project"
   }'
 ```
+
+> **Reviewer tasks — branch field is critical**: Always set `branch` to the **PR's source branch** (e.g. `tangerine/abc12345`), NOT the PR number shorthand (`#123`). The PR detector and clean poller match reviewer tasks to PRs by comparing the task branch to the PR's head branch — using the wrong value breaks that association.
 
 Provider values:
 
@@ -159,6 +161,8 @@ Then:
 4. Only then run `git push origin HEAD` and `gh pr create`
 
 ## Required for Reviewer Tasks
+
+> **Branch requirement**: Reviewer tasks MUST use the same branch as the PR being reviewed (the PR's source/head branch, e.g. `tangerine/abc12345`). Do NOT create a new branch. The PR detector and clean poller rely on this branch match to correctly associate the reviewer task with the PR.
 
 When the task type is `reviewer` (reviewing a PR), also run `codex review` before reporting findings:
 
