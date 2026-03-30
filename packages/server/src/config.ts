@@ -83,7 +83,6 @@ export interface AppConfig {
     opencodeAuthPath: string | null
     claudeOauthToken: string | null
     anthropicApiKey: string | null
-    githubToken: string | null
     serverPort: number
     externalHost: string
   }
@@ -92,7 +91,6 @@ export interface AppConfig {
 export const ALLOWED_CREDENTIAL_KEYS = [
   "ANTHROPIC_API_KEY",
   "CLAUDE_CODE_OAUTH_TOKEN",
-  "GITHUB_TOKEN",
   "EXTERNAL_HOST",
 ] as const
 
@@ -209,7 +207,6 @@ export function loadConfig(overrides?: { configPath?: string }): AppConfig {
       opencodeAuthPath,
       claudeOauthToken,
       anthropicApiKey,
-      githubToken: process.env["GITHUB_TOKEN"] ?? dotfile.GITHUB_TOKEN ?? null,
       serverPort: parseInt(process.env["PORT"] ?? "", 10) || DEFAULT_API_PORT,
       externalHost: process.env["EXTERNAL_HOST"] ?? dotfile.EXTERNAL_HOST ?? "localhost",
     },

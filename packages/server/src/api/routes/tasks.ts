@@ -61,6 +61,10 @@ export function taskRoutes(deps: AppDeps): Hono {
         branch = prInfo.branch
         sourceUrl = sourceUrl ?? prInfo.url
         sourceId = sourceId ?? prInfo.sourceId
+      } else if (PR_NUM_RE.test(branch)) {
+        // PR ref like "#123" that failed to resolve — refuse rather than pass a
+        // literal "#123" as a branch name (would crash git checkout)
+        return c.json({ error: `Could not resolve PR reference: ${branch}` }, 400)
       }
     }
 

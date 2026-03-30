@@ -127,8 +127,5 @@ export async function install(): Promise<void> {
     console.log("    (using CLAUDE_CODE_OAUTH_TOKEN)")
   else if (readClaudeCliToken()) console.log("    (using ~/.claude/.credentials.json)")
 
-  const hasGithub = !!(process.env["GITHUB_TOKEN"] || dotfile.GITHUB_TOKEN)
-  check("GITHUB_TOKEN", hasGithub, "Set GITHUB_TOKEN for PR creation and repo access")
-
   console.log()
 }

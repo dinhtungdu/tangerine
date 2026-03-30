@@ -163,7 +163,7 @@ export async function start(): Promise<void> {
         } else {
           const ghAuth = Bun.spawn(["gh", "auth", "status"], { stdout: "pipe", stderr: "pipe" })
           if ((await ghAuth.exited) !== 0) {
-            missing.push("gh CLI is not authenticated — PR capture and auto-complete will not work. Set GITHUB_TOKEN or run `gh auth login`.")
+            missing.push("gh CLI is not authenticated — PR capture and GitHub polling will not work. Run `gh auth login`.")
           }
         }
       }

@@ -9,14 +9,19 @@ How API keys and tokens are configured. All credentials live on the machine wher
 | OpenCode `auth.json` | LLM provider auth for OpenCode (API keys or OAuth tokens) | `~/.local/share/opencode/auth.json` |
 | `CLAUDE_CODE_OAUTH_TOKEN` | Claude Code OAuth authentication | Dotfile or env var |
 | `ANTHROPIC_API_KEY` | Direct Anthropic API key (both providers) | Dotfile or env var |
-| `GITHUB_TOKEN` | git push, `gh pr create` | Dotfile or env var |
 | `EXTERNAL_HOST` | External hostname for access (e.g. Tailscale hostname) | Dotfile or env var (default: `localhost`) |
+
+## GitHub Authentication
+
+All GitHub access goes through the `gh` CLI, which supports both `gh auth login` (OAuth) and the `GITHUB_TOKEN` environment variable. Tangerine does **not** store or manage `GITHUB_TOKEN` itself — configure it via `gh auth login` or set it in your shell environment before starting Tangerine.
+
+The startup check (`tangerine start`) verifies `gh auth status` and warns if unauthenticated.
 
 ## Credential Storage
 
 Three sources (in priority order — first match wins):
 
-1. **Environment variables** — `ANTHROPIC_API_KEY`, `CLAUDE_CODE_OAUTH_TOKEN`, `GITHUB_TOKEN`, etc.
+1. **Environment variables** — `ANTHROPIC_API_KEY`, `CLAUDE_CODE_OAUTH_TOKEN`, etc.
 2. **Dotfile** (`~/tangerine/.credentials`) — managed via CLI, mode 0600
 3. **OpenCode auth.json** (`~/.local/share/opencode/auth.json`) — LLM provider credentials for OpenCode
 
@@ -31,7 +36,7 @@ tangerine config unset ANTHROPIC_API_KEY
 tangerine config list                          # shows all keys, values masked
 ```
 
-Allowed keys: `ANTHROPIC_API_KEY`, `CLAUDE_CODE_OAUTH_TOKEN`, `GITHUB_TOKEN`, `EXTERNAL_HOST`.
+Allowed keys: `ANTHROPIC_API_KEY`, `CLAUDE_CODE_OAUTH_TOKEN`, `EXTERNAL_HOST`.
 
 Env vars override dotfile values. Server reads dotfile at startup via `loadConfig()`.
 
@@ -56,7 +61,7 @@ Agent uses `gh` CLI:
 gh pr create --base main --head tangerine/abc123 --fill
 ```
 
-`GITHUB_TOKEN` is in the environment. The `gh` CLI auto-detects this env var.
+`gh` CLI handles auth automatically via `gh auth login` or `GITHUB_TOKEN` in the environment.
 
 ## Security Notes
 

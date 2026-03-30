@@ -163,7 +163,7 @@ When health checks detect failure (VM unreachable, OpenCode unresponsive + resta
 
 ### Polling (primary)
 
-Runs on a configurable interval (`integrations.github.pollIntervalMinutes`, default 60). Uses `GITHUB_TOKEN` to fetch open issues via GitHub REST API. Filters by trigger config (label or assignee), deduplicates by `github:<repo>#<number>`, creates tasks for new matches.
+Runs on a configurable interval (`integrations.github.pollIntervalMinutes`, default 60). Uses `gh api` to fetch open issues (auth via `gh auth login` or `GITHUB_TOKEN` env var). Filters by trigger config (label or assignee), deduplicates by `github:<repo>#<number>`, creates tasks for new matches.
 
 ### Webhook (optional)
 

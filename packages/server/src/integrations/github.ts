@@ -51,32 +51,28 @@ export function pollGitHubIssues(
     const repo = config.repo
     log.debug("Polling GitHub", { repo, trigger: trigger ? `${trigger.type}:${trigger.value}` : "all" })
 
-    const response = yield* Effect.tryPromise({
-      try: () =>
-        fetch(
-          `https://api.github.com/repos/${repo}/issues?state=open&per_page=50`,
-          {
-            headers: {
-              Authorization: `Bearer ${process.env.GITHUB_TOKEN}`,
-              Accept: "application/vnd.github+json",
-            },
-          },
-        ),
+    const stdout = yield* Effect.tryPromise({
+      try: async () => {
+        const proc = Bun.spawn(
+          ["gh", "api", `repos/${repo}/issues?state=open&per_page=50`],
+          { stdout: "pipe", stderr: "pipe" },
+        )
+        const [out, err, exitCode] = await Promise.all([
+          new Response(proc.stdout).text(),
+          new Response(proc.stderr).text(),
+          proc.exited,
+        ])
+        if (exitCode !== 0) {
+          throw new Error(`gh api exited ${exitCode}: ${err.trim()}`)
+        }
+        return out
+      },
       catch: (e) =>
         new GitHubPollError({ message: "GitHub API request failed", cause: e }),
     })
 
-    if (!response.ok) {
-      return yield* Effect.fail(
-        new GitHubPollError({
-          message: `GitHub API returned ${response.status}: ${response.statusText}`,
-          statusCode: response.status,
-        }),
-      )
-    }
-
     const issues = yield* Effect.tryPromise({
-      try: () => response.json() as Promise<GitHubIssue[]>,
+      try: () => Promise.resolve(JSON.parse(stdout) as GitHubIssue[]),
       catch: (e) =>
         new GitHubPollError({ message: "Failed to parse GitHub response", cause: e }),
     })
