@@ -10,6 +10,7 @@ import { getStatusConfig, STATUS_CONFIG } from "../lib/status"
 import { getActivityStyle, getActivityDetail } from "../lib/activity"
 import { searchModels } from "../lib/model-search"
 import { copyToClipboard } from "../lib/clipboard"
+import { buildSshEditorUri } from "../lib/ssh-editor"
 
 describe("format", () => {
   describe("formatModelName", () => {
@@ -176,6 +177,44 @@ describe("model search", () => {
     expect(searchModels(["openai/gpt-5-mini", "openai/gpt-5.4", "openrouter/gemma-3"], "gpt5m")).toEqual([
       "openai/gpt-5-mini",
     ])
+  })
+})
+
+describe("ssh-editor", () => {
+  test("builds VS Code URI", () => {
+    expect(buildSshEditorUri("vscode", "dev-vm", "/workspace/project/1")).toBe(
+      "vscode://vscode-remote/ssh-remote+dev-vm/workspace/project/1"
+    )
+  })
+
+  test("builds Cursor URI", () => {
+    expect(buildSshEditorUri("cursor", "dev-vm", "/workspace/project/1")).toBe(
+      "cursor://vscode-remote/ssh-remote+dev-vm/workspace/project/1"
+    )
+  })
+
+  test("builds Zed URI with user", () => {
+    expect(buildSshEditorUri("zed", "dev-vm", "/workspace/project/1", "tung.linux")).toBe(
+      "zed://ssh/tung.linux@dev-vm/workspace/project/1"
+    )
+  })
+
+  test("builds Zed URI without user", () => {
+    expect(buildSshEditorUri("zed", "dev-vm", "/workspace/project/1")).toBe(
+      "zed://ssh/dev-vm/workspace/project/1"
+    )
+  })
+
+  test("VS Code URI does not include user", () => {
+    const uri = buildSshEditorUri("vscode", "dev-vm", "/workspace/project/1", "tung.linux")
+    expect(uri).not.toContain("tung.linux")
+    expect(uri).toBe("vscode://vscode-remote/ssh-remote+dev-vm/workspace/project/1")
+  })
+
+  test("Cursor URI does not include user", () => {
+    const uri = buildSshEditorUri("cursor", "dev-vm", "/workspace/project/1", "tung.linux")
+    expect(uri).not.toContain("tung.linux")
+    expect(uri).toBe("cursor://vscode-remote/ssh-remote+dev-vm/workspace/project/1")
   })
 })
 
