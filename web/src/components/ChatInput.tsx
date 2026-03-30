@@ -120,6 +120,15 @@ export function ChatInput({ onSend, disabled, queueLength, taskId, isWorking, on
   const [isFocused, setIsFocused] = useState(false)
   const [promptJustSent, setPromptJustSent] = useState(false)
 
+  // Reset prompt chips when the agent finishes responding (disabled → false)
+  const prevDisabledRef = useRef(disabled)
+  useEffect(() => {
+    if (prevDisabledRef.current && !disabled) {
+      setPromptJustSent(false)
+    }
+    prevDisabledRef.current = disabled
+  }, [disabled])
+
   useEffect(() => {
     const textarea = textareaRef.current
     if (!textarea) return
