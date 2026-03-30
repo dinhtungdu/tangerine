@@ -161,6 +161,7 @@ export function TaskDetail() {
   const hasPredefinedPrompts = task?.capabilities.includes("predefined-prompts") ?? false
   const hasDiff = task?.capabilities.includes("diff") ?? false
   const canEndSession = task?.capabilities.includes("end-session") ?? false
+  const canContinue = task?.capabilities.includes("continue") ?? false
 
   const handleResolve = useCallback(async () => {
     if (!task) return
@@ -466,6 +467,7 @@ export function TaskDetail() {
                 predefinedPrompts={hasPredefinedPrompts ? current?.predefinedPrompts : undefined}
                 onResolve={canResolve ? handleResolve : undefined}
                 onEndSession={canEndSession ? handleEndSession : undefined}
+                canContinue={canContinue}
                 autoFocusKey={id}
               />
             </div>
@@ -553,6 +555,7 @@ export function TaskDetail() {
                 predefinedPrompts={hasPredefinedPrompts ? current?.predefinedPrompts : undefined}
                 onResolve={canResolve ? handleResolve : undefined}
                 onEndSession={canEndSession ? handleEndSession : undefined}
+                canContinue={canContinue}
               />
             </div>
           )}
