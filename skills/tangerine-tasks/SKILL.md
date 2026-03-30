@@ -64,11 +64,11 @@ Provider values:
 - `claude-code`
 - `codex`
 
-Task types:
+Task types — **always pass the correct type**:
 
-- `worker`
-- `orchestrator`
-- `reviewer`
+- `worker` — default for implementation (features, fixes, refactors)
+- `reviewer` — **MUST use for any code review task** (reviewing a PR, auditing a diff, checking for regressions). Never use `worker` for review work — reviewer tasks get review-specific capabilities and UI treatment.
+- `orchestrator` — system-managed, do not create manually
 
 ### Session / Chat
 
