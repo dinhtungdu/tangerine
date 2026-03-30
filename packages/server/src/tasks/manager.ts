@@ -70,10 +70,11 @@ export function createTask(
     }
 
     // Enforce one orchestrator per project
-    if (params.title === ORCHESTRATOR_TASK_NAME) {
+    const taskType: TaskType = params.type ?? "worker"
+    if (taskType === "orchestrator") {
       const allTasks = yield* deps.listTasks({ projectId: params.projectId })
       const active = allTasks.find(
-        (t) => t.title === ORCHESTRATOR_TASK_NAME && !["done", "failed", "cancelled"].includes(t.status)
+        (t) => t.type === "orchestrator" && !["done", "failed", "cancelled"].includes(t.status)
       )
       if (active) {
         return yield* Effect.fail(
@@ -84,7 +85,6 @@ export function createTask(
 
     const id = crypto.randomUUID()
     const resolvedProvider = params.provider ?? projectConfig.defaultProvider ?? "claude-code"
-    const taskType: TaskType = params.type ?? "worker"
 
     const description = params.description ?? null
 

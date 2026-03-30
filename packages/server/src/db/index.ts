@@ -103,6 +103,20 @@ function migrateWorktreeSlots(db: Database): void {
   console.error("[db] Migrated worktree_slots: dropped v0 table (vm_id NOT NULL → project_id)")
 }
 
+/**
+ * Backfill type='orchestrator' for legacy _orchestrator rows.
+ * Before the type column existed, orchestrators were identified by title.
+ * The autoMigrate DEFAULT 'worker' leaves them misclassified.
+ */
+function migrateOrchestratorType(db: Database): void {
+  const result = db.prepare(
+    "UPDATE tasks SET type = 'orchestrator' WHERE title = '_orchestrator' AND type = 'worker'"
+  ).run()
+  if (result.changes > 0) {
+    console.error(`[db] Backfilled type='orchestrator' for ${result.changes} legacy orchestrator row(s)`)
+  }
+}
+
 /** Returns a singleton DB connection, creating it if needed. Pass ":memory:" for tests.
  *  Respects TANGERINE_DB env var for path override. */
 export function getDb(path?: string): Database {
@@ -124,6 +138,9 @@ export function getDb(path?: string): Database {
   // CREATE INDEX statements in SCHEMA don't fail on new columns
   autoMigrate(db)
   db.exec(SCHEMA)
+
+  // Backfill type for legacy orchestrator rows that got DEFAULT 'worker'
+  migrateOrchestratorType(db)
 
   instance = db
   return db
