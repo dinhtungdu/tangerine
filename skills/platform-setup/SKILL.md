@@ -69,9 +69,11 @@ User runs `/platform-setup` from INSIDE the VM in a project directory. You help 
 
 1. **Get repo URL** from the user (and optionally a project name; default to the repo name).
 
-2. **Read the workspace path** from the existing config:
+2. **Read the workspace path** from the existing config (default `~/tangerine-workspace` if the file doesn't exist yet):
    ```bash
-   jq -r '.workspace // "~/tangerine-workspace"' ~/tangerine/config.json
+   [ -f ~/tangerine/config.json ] \
+     && jq -r '.workspace // "~/tangerine-workspace"' ~/tangerine/config.json \
+     || echo ~/tangerine-workspace
    ```
    Use this resolved path as `{workspace}` for all subsequent steps. Never hardcode `~/tangerine-workspace`.
 
@@ -114,16 +116,20 @@ User runs `/platform-setup` from INSIDE the VM in a project directory. You help 
    - `postUpdateCommand` — runs after `git pull` (install + build)
    - `predefinedPrompts` — array of `{label, text}` quick-send buttons
 
-   Example:
+   The top-level config file is `{ "projects": [...] }`. On a fresh install, create the file with the project inside the array. On an existing install, append to `projects[]`. Example full config:
    ```json
    {
-     "name": "my-project",
-     "repo": "https://github.com/org/repo",
-     "defaultBranch": "main",
-     "setup": "pnpm install",
-     "test": "pnpm test",
-     "defaultProvider": "claude-code",
-     "postUpdateCommand": "pnpm install && pnpm build"
+     "projects": [
+       {
+         "name": "my-project",
+         "repo": "https://github.com/org/repo",
+         "defaultBranch": "main",
+         "setup": "pnpm install",
+         "test": "pnpm test",
+         "defaultProvider": "claude-code",
+         "postUpdateCommand": "pnpm install && pnpm build"
+       }
+     ]
    }
    ```
 
