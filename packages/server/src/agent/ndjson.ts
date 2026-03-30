@@ -81,20 +81,24 @@ export function parseNdjsonStream(
 
 /**
  * Creates a stateful mapper that converts raw Claude Code stream-json events
- * to normalized AgentEvents. Stateful because images from tool results (user
- * events) need to be buffered and attached to the next assistant/narration message.
+ * to normalized AgentEvents. Stateful because image file paths from Read tool
+ * calls need to be tracked across events and attached to the final result.
  *
  * Claude Code event types (from protocol spike):
  * - system (init): session metadata — ignored
  * - assistant: complete assistant message (text + tool_use + thinking content blocks)
- * - user: tool results — emits tool.end, buffers images for next narration
+ * - user: tool results — emits tool.end, tracks image source paths
  * - rate_limit_event: ignored
  * - stream_event: token-level streaming (only with --include-partial-messages)
  * - result: final event with aggregated stats
  */
 export function createClaudeCodeMapper(): (raw: Record<string, unknown>) => AgentEvent[] {
-  // Images from tool results are buffered here until the result event
-  let pendingToolImages: PromptImage[] = []
+  // Track file paths from Read tool_use blocks so we can copy original full-size
+  // images instead of the downscaled base64 that Claude Code streams.
+  const toolUseFilePaths = new Map<string, string>()
+  let pendingImagePaths: string[] = []
+  // Fallback: buffer base64 images from assistant content blocks (rare but possible)
+  let pendingFallbackImages: PromptImage[] = []
 
   return function mapClaudeCodeEvent(raw: Record<string, unknown>): AgentEvent[] {
     const type = raw.type as string | undefined
@@ -108,7 +112,6 @@ export function createClaudeCodeMapper(): (raw: Record<string, unknown>) => Agen
         const events: AgentEvent[] = []
         const blocks = Array.isArray(message.content) ? message.content : []
         const textParts: string[] = []
-        const imageParts: PromptImage[] = []
 
         for (const block of blocks) {
           if (typeof block !== "object" || block === null) continue
@@ -117,6 +120,13 @@ export function createClaudeCodeMapper(): (raw: Record<string, unknown>) => Agen
           if (b.type === "thinking" && typeof b.thinking === "string") {
             events.push({ kind: "thinking", content: truncate(b.thinking, 300) })
           } else if (b.type === "tool_use" && typeof b.name === "string") {
+            // Track file paths from Read tool for resolving full-size images later
+            if (b.name === "Read" && typeof b.id === "string" && b.input && typeof b.input === "object") {
+              const input = b.input as Record<string, unknown>
+              if (typeof input.file_path === "string") {
+                toolUseFilePaths.set(b.id, input.file_path)
+              }
+            }
             events.push({
               kind: "tool.start",
               toolName: b.name,
@@ -125,21 +135,16 @@ export function createClaudeCodeMapper(): (raw: Record<string, unknown>) => Agen
           } else if (b.type === "text" && typeof b.text === "string" && b.text.length > 0) {
             textParts.push(b.text)
           } else if (b.type === "image") {
+            // Rare: inline image in assistant message. Buffer as base64 fallback
+            // in case there's no corresponding Read tool_use to resolve the original.
             const source = b.source as Record<string, unknown> | undefined
             if (source?.type === "base64" && typeof source.media_type === "string" && typeof source.data === "string") {
-              imageParts.push({
+              pendingFallbackImages.push({
                 mediaType: source.media_type as PromptImage["mediaType"],
                 data: source.data,
               })
             }
           }
-        }
-
-        // Images from assistant content blocks (rare) go to pending pool
-        // along with tool result images — all will be attached to the final
-        // assistant message from the "result" event, not to narration.
-        if (imageParts.length > 0) {
-          pendingToolImages.push(...imageParts)
         }
 
         // Per-turn text is narration (agent explaining what it's doing between tool
@@ -164,7 +169,7 @@ export function createClaudeCodeMapper(): (raw: Record<string, unknown>) => Agen
       }
 
       case "user": {
-        // Tool results being fed back — extract tool name, result content, and images
+        // Tool results being fed back — extract tool name, result content, and image paths
         const events: AgentEvent[] = []
         const message = raw.message as Record<string, unknown> | undefined
         const blocks = Array.isArray(message?.content) ? message!.content : []
@@ -181,18 +186,15 @@ export function createClaudeCodeMapper(): (raw: Record<string, unknown>) => Agen
               toolName: typeof b.name === "string" ? b.name : "unknown",
               toolResult: truncate(resultText, 500),
             })
-            // Buffer images from tool results to attach to the next narration
+            // Collect source file path for any image in this tool result
             if (Array.isArray(b.content)) {
-              for (const sub of b.content) {
-                if (typeof sub !== "object" || sub === null) continue
-                const s = sub as Record<string, unknown>
-                if (s.type === "image") {
-                  const source = s.source as Record<string, unknown> | undefined
-                  if (source?.type === "base64" && typeof source.media_type === "string" && typeof source.data === "string") {
-                    pendingToolImages.push({
-                      mediaType: source.media_type as PromptImage["mediaType"],
-                      data: source.data,
-                    })
+              const sourcePath = toolUseFilePaths.get(b.tool_use_id as string)
+              if (sourcePath) {
+                for (const sub of b.content) {
+                  if (typeof sub !== "object" || sub === null) continue
+                  const s = sub as Record<string, unknown>
+                  if (s.type === "image") {
+                    pendingImagePaths.push(sourcePath)
                   }
                 }
               }
@@ -209,21 +211,29 @@ export function createClaudeCodeMapper(): (raw: Record<string, unknown>) => Agen
         const content = typeof raw.result === "string" ? raw.result : ""
 
         if (subtype === "error" || raw.is_error === true) {
-          pendingToolImages = []
+          pendingImagePaths = []
+          pendingFallbackImages = []
+          toolUseFilePaths.clear()
           return [{ kind: "error", message: content || "Agent error" }]
         }
 
-        // Attach any remaining buffered images to the final assistant message
-        const images = pendingToolImages.length > 0 ? pendingToolImages : undefined
-        pendingToolImages = []
+        // Attach original image paths to the final assistant message.
+        // Also include base64 fallback images (from inline assistant blocks
+        // without a corresponding Read tool_use).
+        const imagePaths = pendingImagePaths.length > 0 ? pendingImagePaths : undefined
+        const images = pendingFallbackImages.length > 0 ? pendingFallbackImages : undefined
+        pendingImagePaths = []
+        pendingFallbackImages = []
+        toolUseFilePaths.clear()
 
-        if (!content && !images) return []
+        if (!content && !imagePaths && !images) return []
 
         return [{
           kind: "message.complete",
           role: "assistant",
           content,
           messageId: optStr(raw.session_id),
+          imagePaths,
           images,
         }]
       }
