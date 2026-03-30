@@ -1,5 +1,5 @@
 // CLI entrypoint: one-time setup for Tangerine.
-// Checks system deps, creates directories, symlinks Claude Code skill.
+// Checks system deps, creates directories, symlinks agent skills.
 
 import { existsSync, lstatSync, mkdirSync, rmSync, symlinkSync, readlinkSync } from "fs"
 import { join, resolve } from "path"
@@ -7,15 +7,22 @@ import { homedir } from "os"
 import { TANGERINE_HOME, OPENCODE_AUTH_PATH, readCredentialsFile, readClaudeCliToken } from "../config"
 
 const CLAUDE_SKILLS_DIR = join(homedir(), ".claude", "skills")
+const CODEX_SKILLS_DIR = join(homedir(), ".codex", "skills")
 
 // Resolve project root relative to this file:
 // packages/server/src/cli/install.ts → 4 levels up
 const PROJECT_ROOT = resolve(import.meta.dir, "../../../../")
 
-// Skills to symlink into ~/.claude/skills/:
+// Skills to symlink into agent skill directories.
+// source: path relative to PROJECT_ROOT
 // - platform-setup: for the operator to set up projects
 // - tangerine-tasks: for agents running inside tasks to understand the API
-const SKILLS_TO_INSTALL = ["platform-setup", "tangerine-tasks"]
+// - browser-test: for agents to visually verify web UI changes
+const SKILLS_TO_INSTALL: Array<{ name: string; source: string }> = [
+  { name: "platform-setup", source: join(PROJECT_ROOT, "skills", "platform-setup") },
+  { name: "tangerine-tasks", source: join(PROJECT_ROOT, "skills", "tangerine-tasks") },
+  { name: "browser-test", source: join(PROJECT_ROOT, ".agents", "skills", "browser-test") },
+]
 
 function check(label: string, ok: boolean, hint?: string): void {
   if (ok) {
@@ -30,9 +37,12 @@ function ensureDir(dir: string): void {
   mkdirSync(dir, { recursive: true })
 }
 
-function symlinkSkill(skillName: string): { created: boolean; skipped: string | null } {
-  const skillSource = join(PROJECT_ROOT, "skills", skillName)
-  const target = join(CLAUDE_SKILLS_DIR, skillName)
+function symlinkSkill(
+  skillSource: string,
+  targetDir: string,
+): { created: boolean; skipped: string | null } {
+  const skillName = skillSource.split("/").at(-1)!
+  const target = join(targetDir, skillName)
 
   // lstatSync detects broken symlinks that existsSync misses
   let targetExists = false
@@ -57,7 +67,7 @@ function symlinkSkill(skillName: string): { created: boolean; skipped: string | 
     rmSync(target)
   }
 
-  ensureDir(CLAUDE_SKILLS_DIR)
+  ensureDir(targetDir)
   symlinkSync(skillSource, target)
   return { created: true, skipped: null }
 }
@@ -72,21 +82,35 @@ export async function install(): Promise<void> {
 
   // 2. Claude Code skills
   console.log("\nClaude Code skills:")
-  for (const skillName of SKILLS_TO_INSTALL) {
-    const skillSource = join(PROJECT_ROOT, "skills", skillName)
-    if (!existsSync(skillSource)) {
-      check(`${skillName} skill`, false, `skill source not found at ${skillSource}`)
+  for (const skill of SKILLS_TO_INSTALL) {
+    if (!existsSync(skill.source)) {
+      check(`${skill.name} skill`, false, `skill source not found at ${skill.source}`)
     } else {
-      const result = symlinkSkill(skillName)
+      const result = symlinkSkill(skill.source, CLAUDE_SKILLS_DIR)
       if (result.created) {
-        check(`${skillName} skill → ${CLAUDE_SKILLS_DIR}/${skillName}`, true)
+        check(`${skill.name} skill → ${CLAUDE_SKILLS_DIR}/${skill.name}`, true)
       } else {
-        check(`${skillName} skill (${result.skipped})`, true)
+        check(`${skill.name} skill (${result.skipped})`, true)
       }
     }
   }
 
-  // 3. Credentials (env vars override dotfile)
+  // 3. Codex skills (same set, different target directory)
+  console.log("\nCodex skills:")
+  for (const skill of SKILLS_TO_INSTALL) {
+    if (!existsSync(skill.source)) {
+      check(`${skill.name} skill`, false, `skill source not found at ${skill.source}`)
+    } else {
+      const result = symlinkSkill(skill.source, CODEX_SKILLS_DIR)
+      if (result.created) {
+        check(`${skill.name} skill → ${CODEX_SKILLS_DIR}/${skill.name}`, true)
+      } else {
+        check(`${skill.name} skill (${result.skipped})`, true)
+      }
+    }
+  }
+
+  // 4. Credentials (env vars override dotfile)
   console.log("\nCredentials:")
   const dotfile = readCredentialsFile()
   const hasOpencode = existsSync(OPENCODE_AUTH_PATH)

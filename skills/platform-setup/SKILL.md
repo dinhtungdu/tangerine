@@ -152,17 +152,18 @@ The `deploy/base-setup.sh` installs these globally:
 
 ## Agent Skills
 
-Skills are installed by running `bin/tangerine install` inside the VM. This symlinks skill directories from `skills/` into `~/.claude/skills/`.
+Skills are installed by running `bin/tangerine install` inside the VM. This symlinks skill directories into both `~/.claude/skills/` (Claude Code) and `~/.codex/skills/` (Codex).
 
 ```bash
 # Inside the VM:
 bin/tangerine install
 ```
 
-This installs the built-in skills (`tangerine-tasks`, `platform-setup`). For project-specific skills, symlink them manually:
+This installs the built-in skills (`tangerine-tasks`, `platform-setup`, `browser-test`) for both Claude Code and Codex agents. For project-specific skills, symlink them manually:
 
 ```bash
 ln -s /path/to/skill ~/.claude/skills/my-skill
+ln -s /path/to/skill ~/.codex/skills/my-skill
 ```
 
 ## Credentials
