@@ -1,5 +1,5 @@
 import { createContext, useContext, useState, useEffect, useCallback, type ReactNode } from "react"
-import { useSearchParams } from "react-router-dom"
+import { useSearchParams, useNavigate, useLocation } from "react-router-dom"
 import type { ProjectConfig } from "@tangerine/shared"
 import { fetchProjects } from "../lib/api"
 
@@ -29,6 +29,8 @@ const ProjectContext = createContext<ProjectContextValue>({
 
 export function ProjectProvider({ children }: { children: ReactNode }) {
   const [searchParams, setSearchParams] = useSearchParams()
+  const navigate = useNavigate()
+  const location = useLocation()
   const [projects, setProjects] = useState<ProjectConfig[]>([])
   const [globalModel, setGlobalModel] = useState("")
   const [models, setModels] = useState<string[]>([])
@@ -66,24 +68,35 @@ export function ProjectProvider({ children }: { children: ReactNode }) {
   const switchProject = useCallback(
     (name: string, { replace = false }: { replace?: boolean } = {}) => {
       setSelectedModel(null)
-      setSearchParams((prev) => {
-        const next = new URLSearchParams(prev)
-        next.set("project", name)
-        return next
-      }, { replace })
+      // Clear selected task when switching projects by navigating to root
+      if (location.pathname.startsWith("/tasks/")) {
+        navigate(`/?project=${encodeURIComponent(name)}`, { replace })
+      } else {
+        setSearchParams((prev) => {
+          const next = new URLSearchParams(prev)
+          next.set("project", name)
+          return next
+        }, { replace })
+      }
     },
-    [setSearchParams],
+    [setSearchParams, navigate, location.pathname],
   )
 
   // Set URL param to first project if none specified and projects loaded.
   // Uses replace to avoid polluting the history stack — without this,
   // navigating back to a URL without ?project= would trigger a push forward,
   // trapping the user and preventing browser back navigation.
+  // Calls setSearchParams directly (not switchProject) to avoid redirecting
+  // away from the current page (e.g. a bookmarked /tasks/:id URL).
   useEffect(() => {
     if (!loading && projects.length > 0 && !projectParam) {
-      switchProject(projects[0]!.name, { replace: true })
+      setSearchParams((prev) => {
+        const next = new URLSearchParams(prev)
+        next.set("project", projects[0]!.name)
+        return next
+      }, { replace: true })
     }
-  }, [loading, projects, projectParam, switchProject])
+  }, [loading, projects, projectParam, setSearchParams])
 
   return (
     <ProjectContext.Provider value={{ projects, current, model, models, modelsByProvider, setModel: setSelectedModel, switchProject, refreshProjects, loading }}>
