@@ -116,6 +116,14 @@ User runs `/platform-setup` from INSIDE the VM in a project directory. You help 
    - `postUpdateCommand` — runs after `git pull` (install + build)
    - `predefinedPrompts` — array of `{label, text}` quick-send buttons
 
+   **Top-level optional fields** (outside `projects[]`):
+   - `model` — default LLM model for new tasks
+   - `models` — array of available model strings
+   - `workspace` — base directory for clones/worktrees (default: `~/tangerine-workspace`)
+   - `sshHost` — SSH hostname for editor deep-links (e.g. `"dev-vm"`)
+   - `sshUser` — SSH username for Zed editor links (e.g. `"tung.linux"`)
+   - `editor` — `"vscode"` | `"cursor"` | `"zed"` — enables "Open in editor" links in the dashboard
+
    The top-level config file is `{ "projects": [...] }`. On a fresh install, create the file with the project inside the array. On an existing install, append to `projects[]`. Example full config:
    ```json
    {
@@ -129,7 +137,10 @@ User runs `/platform-setup` from INSIDE the VM in a project directory. You help 
          "defaultProvider": "claude-code",
          "postUpdateCommand": "pnpm install && pnpm build"
        }
-     ]
+     ],
+     "sshHost": "dev-vm",
+     "sshUser": "tung.linux",
+     "editor": "vscode"
    }
    ```
 
