@@ -7,7 +7,7 @@ import { HarnessSelector } from "./HarnessSelector"
 import { ReasoningEffortSelector, getEfforts, type ReasoningEffort } from "./ReasoningEffortSelector"
 
 interface NewAgentFormProps {
-  onSubmit: (data: { projectId: string; title: string; description?: string; branch?: string; provider?: string; model?: string; reasoningEffort?: string; parentTaskId?: string; images?: PromptImage[] }) => void
+  onSubmit: (data: { projectId: string; title: string; description?: string; branch?: string; provider?: string; model?: string; reasoningEffort?: string; parentTaskId?: string; type?: string; images?: PromptImage[] }) => void
   refTaskId?: string
   refTaskTitle?: string
 }
@@ -68,6 +68,7 @@ export function NewAgentForm({ onSubmit, refTaskId, refTaskTitle }: NewAgentForm
   const [provider, setProvider] = useState<ProviderType>((saved.provider as ProviderType) ?? current?.defaultProvider ?? "claude-code")
   const [modelByProvider, setModelByProvider] = useState<Record<string, string>>(saved.models ?? {})
   const [reasoningEffort, setReasoningEffort] = useState<ReasoningEffort>((saved.reasoningEffort as ReasoningEffort) ?? "medium")
+  const [taskType, setTaskType] = useState<"worker" | "reviewer">("worker")
   const [submitting, setSubmitting] = useState(false)
   const hydratedDraftKeyRef = useRef<string | null>(null)
   const branch = current?.defaultBranch ?? "main"
@@ -177,6 +178,7 @@ export function NewAgentForm({ onSubmit, refTaskId, refTaskTitle }: NewAgentForm
       model: activeModel || undefined,
       reasoningEffort: reasoningEffort !== "medium" ? reasoningEffort : undefined,
       parentTaskId: refTaskId,
+      type: taskType,
       images,
     })
   }, [current, submitting, description, pendingImages, customBranch, provider, activeModel, reasoningEffort, refTaskId, refTaskTitle, submitAndReset])
@@ -275,6 +277,15 @@ export function NewAgentForm({ onSubmit, refTaskId, refTaskTitle }: NewAgentForm
                   menuPlacement="bottom"
                 />
                 <ReasoningEffortSelector value={reasoningEffort} onChange={(e) => { setReasoningEffort(e); savePrefs({ reasoningEffort: e }) }} provider={provider} />
+                <select
+                  value={taskType}
+                  onChange={(e) => setTaskType(e.target.value as "worker" | "reviewer")}
+                  aria-label="Task type"
+                  className="rounded-md border border-edge bg-surface px-2 py-1 text-[11px] text-fg outline-none"
+                >
+                  <option value="worker">Worker</option>
+                  <option value="reviewer">Reviewer</option>
+                </select>
               </div>
               <button
                 onClick={handleSubmit}
@@ -336,6 +347,15 @@ export function NewAgentForm({ onSubmit, refTaskId, refTaskTitle }: NewAgentForm
                   {getEfforts(provider).map((e) => (
                     <option key={e.value} value={e.value}>Effort: {e.label}</option>
                   ))}
+                </select>
+                <select
+                  value={taskType}
+                  onChange={(e) => setTaskType(e.target.value as "worker" | "reviewer")}
+                  aria-label="Task type"
+                  className="h-10 flex-1 rounded-lg border border-edge bg-surface px-3 text-[16px] text-fg outline-none md:text-[13px]"
+                >
+                  <option value="worker">Worker</option>
+                  <option value="reviewer">Reviewer</option>
                 </select>
               </div>
             </div>
