@@ -47,6 +47,9 @@ Stored in `tangerine.json` at the project root (or `~/.config/tangerine/config.j
   "projects": [...],
   "model": "openai/gpt-5.4",
   "models": ["openai/gpt-5.4", "anthropic/claude-sonnet-4-20250514", ...],
+  "sshHost": "dev-vm",
+  "sshUser": "tung.linux",
+  "editor": "vscode",
   "integrations": {
     "github": {
       "webhookSecret": "...",
@@ -56,6 +59,18 @@ Stored in `tangerine.json` at the project root (or `~/.config/tangerine/config.j
   }
 }
 ```
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `model` | string | Default LLM model for new tasks |
+| `models` | string[] | Available models shown in the UI |
+| `workspace` | string | Base directory for project clones and worktrees (default: `~/tangerine-workspace`) |
+| `sshHost` | string | SSH hostname for editor deep-links (e.g. `"dev-vm"`) |
+| `sshUser` | string | SSH username for Zed editor links (e.g. `"tung.linux"`) |
+| `editor` | `"vscode" \| "cursor" \| "zed"` | Editor for deep-link URIs. VS Code/Cursor use `vscode-remote` scheme; Zed uses `zed://ssh/` |
+| `integrations` | object | GitHub webhook and polling configuration |
+
+When `sshHost` and `editor` are set, the web dashboard shows "Open in {editor}" links on task cards and the task detail page for tasks with worktrees. `sshUser` is required for Zed links.
 
 ## Golden Images
 
