@@ -212,6 +212,15 @@ export function getDueCrons(db: Database): Effect.Effect<CronRow[], DbError> {
   })
 }
 
+export function hasActiveCronTask(db: Database, cronId: string): Effect.Effect<boolean, DbError> {
+  return dbTry(() => {
+    const row = db.prepare(
+      `SELECT 1 FROM tasks WHERE source = 'cron' AND source_id = $source_id AND status NOT IN ('done', 'failed', 'cancelled') LIMIT 1`
+    ).get({ $source_id: `cron:${cronId}` })
+    return row != null
+  })
+}
+
 const TERMINAL_STATUSES = new Set(["done", "failed", "cancelled"])
 
 export function deleteTask(db: Database, id: string): Effect.Effect<void, DbError> {

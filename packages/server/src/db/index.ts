@@ -170,5 +170,6 @@ export {
   updateCron,
   deleteCron,
   getDueCrons,
+  hasActiveCronTask,
   getChildTasks,
 } from "./queries"

@@ -5,7 +5,7 @@ import { Effect } from "effect"
 import { createLogger } from "../logger"
 import { loadConfig, getProjectConfig, getRepoDir, TANGERINE_HOME, readRawConfig, writeRawConfig, isTestMode } from "../config"
 import { getDb } from "../db/index"
-import { createTask as dbCreateTask, getTask, listTasks, updateTask, insertSessionLog, markTaskResult, getDueCrons, updateCron } from "../db/queries"
+import { createTask as dbCreateTask, getTask, listTasks, updateTask, insertSessionLog, markTaskResult, getDueCrons, hasActiveCronTask as dbHasActiveCronTask, updateCron } from "../db/queries"
 import { logActivity, cleanupActivities } from "../activity"
 import type { TaskRow, CronRow } from "../db/types"
 import { taskHasCapability } from "../api/helpers"
@@ -937,14 +937,7 @@ export async function start(): Promise<void> {
     // Start scheduler for cron-based task spawning (every 60s)
     const schedulerDeps: SchedulerDeps = {
       getDueCrons: () => getDueCrons(db),
-      hasActiveCronTask: (cronId) =>
-        listTasks(db, {}).pipe(
-          Effect.map((tasks) =>
-            tasks.some(
-              (t) => t.source_id === `cron:${cronId}` && !["done", "failed", "cancelled"].includes(t.status)
-            )
-          )
-        ),
+      hasActiveCronTask: (cronId) => dbHasActiveCronTask(db, cronId),
       createWorkerFromCron: (cron) => {
         const defaults = cron.task_defaults ? JSON.parse(cron.task_defaults) as Record<string, string> : {}
         return taskManager.createTask(tmDeps, {
