@@ -439,7 +439,7 @@ export async function start(): Promise<void> {
                 break
               }
               case "message.complete": {
-                if ((event.role === "assistant" || event.role === "narration") && (event.content || event.images?.length)) {
+                if ((event.role === "assistant" || event.role === "narration") && (event.content || event.imagePaths?.length || event.images?.length)) {
                   const role = event.role
 
                   const emitAndInsert = (imageFilenames?: string[]) => {
@@ -461,8 +461,37 @@ export async function start(): Promise<void> {
                     )
                   }
 
-                  if (event.images?.length) {
-                    // Save agent-produced images to disk (same pattern as user images)
+                  if (event.imagePaths?.length) {
+                    // Copy original full-size images from the worktree to the
+                    // serving directory. Claude Code downscales images in its
+                    // stream, so we skip base64 and copy originals from disk.
+                    const copyImages = async () => {
+                      const imagesDir = `${TANGERINE_HOME}/images/${taskId}`
+                      // Resolve relative paths against the task's worktree
+                      const taskRow = db.prepare("SELECT worktree_path FROM tasks WHERE id = ?").get(taskId) as { worktree_path: string | null } | null
+                      const worktree = taskRow?.worktree_path
+                      try {
+                        await Bun.write(`${imagesDir}/.keep`, "")
+                        const filenames: string[] = []
+                        for (const srcPath of event.imagePaths!) {
+                          const resolvedPath = srcPath.startsWith("/") ? srcPath
+                            : worktree ? `${worktree}/${srcPath}` : srcPath
+                          const ext = resolvedPath.split(".").pop() ?? "png"
+                          const filename = `${Date.now()}-${Math.random().toString(36).slice(2, 8)}.${ext}`
+                          const file = Bun.file(resolvedPath)
+                          if (await file.exists()) {
+                            await Bun.write(`${imagesDir}/${filename}`, file)
+                            filenames.push(filename)
+                          }
+                        }
+                        return filenames.length > 0 ? filenames : undefined
+                      } catch {
+                        return undefined
+                      }
+                    }
+                    copyImages().then(emitAndInsert)
+                  } else if (event.images?.length) {
+                    // Fallback for providers that send base64 images (OpenCode)
                     const saveImages = async () => {
                       const imagesDir = `${TANGERINE_HOME}/images/${taskId}`
                       try {
