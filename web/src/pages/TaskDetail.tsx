@@ -58,6 +58,7 @@ export function TaskDetail() {
   const session = useSession(chatTaskId)
   const { files: diffFiles } = useDiffFiles(id ?? "")
   const [diffComments, setDiffComments] = useState<DiffComment[]>([])
+  const [showAllChildren, setShowAllChildren] = useState(false)
   const [copiedId, setCopiedId] = useState(false)
   const handleCopyId = useCallback(() => {
     if (!id) return
@@ -487,17 +488,26 @@ export function TaskDetail() {
               </Link>
             )}
             {childTasks.length > 0 && (
-              <div className="flex items-center gap-1.5">
+              <div className="flex min-w-0 flex-wrap items-center gap-1.5">
                 <span>Related:</span>
-                {childTasks.map((child) => (
+                {(showAllChildren ? childTasks : childTasks.slice(0, 3)).map((child) => (
                   <Link
                     key={child.id}
                     to={link(`/tasks/${child.id}`)}
-                    className="rounded bg-surface-secondary px-1.5 py-0.5 text-[11px] font-medium text-fg hover:bg-edge"
+                    className="max-w-[200px] truncate rounded bg-surface-secondary px-1.5 py-0.5 text-[11px] font-medium text-fg hover:bg-edge"
+                    title={child.title}
                   >
                     Continued in: {child.title}
                   </Link>
                 ))}
+                {childTasks.length > 3 && (
+                  <button
+                    onClick={() => setShowAllChildren((v) => !v)}
+                    className="rounded bg-surface-secondary px-1.5 py-0.5 text-[11px] font-medium text-fg-muted hover:bg-edge hover:text-fg"
+                  >
+                    {showAllChildren ? "Show less" : `+${childTasks.length - 3} more`}
+                  </button>
+                )}
               </div>
             )}
           </div>
