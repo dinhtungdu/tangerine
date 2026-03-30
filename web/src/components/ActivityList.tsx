@@ -63,10 +63,10 @@ function ActivityItem({ entry, isLast }: { entry: ActivityEntry; isLast: boolean
         {style.label ? (
           <>
             <p className="text-[12px] font-medium leading-tight text-fg">{style.label}</p>
-            <p className="mt-0.5 line-clamp-2 text-[11px] text-fg-muted">{detail}</p>
+            <p className="mt-0.5 line-clamp-2 break-all text-[11px] text-fg-muted">{detail}</p>
           </>
         ) : (
-          <p className="line-clamp-2 text-[12px] leading-tight text-fg">{detail}</p>
+          <p className="line-clamp-2 break-all text-[12px] leading-tight text-fg">{detail}</p>
         )}
         <StatusRow meta={meta} isRunning={isRunning && isLast} />
       </div>
