@@ -34,7 +34,8 @@ export function RunCard({ task, parentTask, onCancel, onRetry, onDelete }: RunCa
   const isTerminated = ["done", "failed", "cancelled"].includes(task.status)
   const unseen = hasUnseenUpdates(task)
   const { sshHost, sshUser, editor } = useProject()
-  const sshEditorUri = (sshHost && editor && task.worktreePath)
+  // Zed requires a username; suppress the link when sshUser is absent for Zed
+  const sshEditorUri = (sshHost && editor && task.worktreePath && (editor !== "zed" || sshUser))
     ? buildSshEditorUri(editor, sshHost, task.worktreePath, sshUser)
     : null
 
@@ -97,9 +98,11 @@ export function RunCard({ task, parentTask, onCancel, onRetry, onDelete }: RunCa
             <span>{formatDate(task.createdAt)}</span>
           </div>
           {sshEditorUri && editor && (
-            <a
-              href={sshEditorUri}
-              onClick={(e) => e.stopPropagation()}
+            // Use a button to avoid nesting <a> inside the card's outer <Link> anchor,
+            // which would cause undefined navigation behavior across browsers.
+            <button
+              type="button"
+              onClick={(e) => { e.preventDefault(); e.stopPropagation(); window.location.href = sshEditorUri }}
               title={`Open in ${EDITOR_NAMES[editor]}`}
               className="flex items-center gap-1 text-fg-muted hover:text-fg"
             >
@@ -107,7 +110,7 @@ export function RunCard({ task, parentTask, onCancel, onRetry, onDelete }: RunCa
                 <path strokeLinecap="round" strokeLinejoin="round" d="M17.25 6.75 22.5 12l-5.25 5.25m-10.5 0L1.5 12l5.25-5.25m7.5-3-4.5 16.5" />
               </svg>
               <span>{EDITOR_NAMES[editor]}</span>
-            </a>
+            </button>
           )}
         </div>
         {/* Actions */}

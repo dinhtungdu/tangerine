@@ -373,7 +373,7 @@ export function TaskDetail() {
                 <span className="font-mono text-[12px] text-fg-muted">{copiedBranch ? "Copied!" : task.branch}</span>
               </button>
             )}
-            {sshHost && editor && task.worktreePath && (() => {
+            {sshHost && editor && task.worktreePath && (editor !== "zed" || sshUser) && (() => {
               const uri = buildSshEditorUri(editor, sshHost, task.worktreePath, sshUser)
               return (
                 <a
