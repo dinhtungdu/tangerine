@@ -834,6 +834,11 @@ export async function start(): Promise<void> {
       },
       getLastAgentError: (taskId) => lastAgentErrors.get(taskId),
       isAgentWorking: (taskId) => getAgentWorkingState(taskId) === "working",
+      logSuspend: (taskId, idleMs) =>
+        logActivity(db, taskId, "lifecycle", "agent.suspended", "Agent suspended due to inactivity", {
+          idleMs,
+          reason: "idle_timeout",
+        }).pipe(Effect.asVoid, Effect.catchAll(() => Effect.void)),
       getLastUserMessageTime: (() => {
         const stmt = db.prepare(
           "SELECT timestamp FROM session_logs WHERE task_id = ? AND role = 'user' ORDER BY id DESC LIMIT 1"

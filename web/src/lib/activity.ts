@@ -157,6 +157,12 @@ const LIFECYCLE_STYLES: Record<string, ActivityStyle> = {
     bg: "#8b5cf618",
     iconPaths: ["M4 1l7 5-7 5V1z"], // play
   },
+  "agent.suspended": {
+    label: "Agent suspended",
+    color: "#f59e0b",
+    bg: "#f59e0b18",
+    iconPaths: ["M3 2v8", "M9 2v8"], // pause (two vertical bars)
+  },
   "session.ready": {
     label: "Session ready",
     color: "#22c55e",
@@ -239,6 +245,14 @@ export function getActivityDetail(event: string, content: string, metadata: Reco
     }
     case "agent.thinking":
       return content
+    case "agent.suspended": {
+      const idleMs = metadata?.idleMs as number | undefined
+      if (idleMs) {
+        const mins = Math.round(idleMs / 60_000)
+        return `Idle for ${mins}m`
+      }
+      return content
+    }
     default: {
       // Fallback: try to extract useful detail from toolInput for unclassified tools
       if (toolInput) {
