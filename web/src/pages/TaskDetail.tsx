@@ -466,6 +466,7 @@ export function TaskDetail() {
                 predefinedPrompts={hasPredefinedPrompts ? current?.predefinedPrompts : undefined}
                 onResolve={canResolve ? handleResolve : undefined}
                 onEndSession={canEndSession ? handleEndSession : undefined}
+                autoFocusKey={id}
               />
             </div>
           )}
@@ -552,6 +553,7 @@ export function TaskDetail() {
                 predefinedPrompts={hasPredefinedPrompts ? current?.predefinedPrompts : undefined}
                 onResolve={canResolve ? handleResolve : undefined}
                 onEndSession={canEndSession ? handleEndSession : undefined}
+                autoFocusKey={id}
               />
             </div>
           )}
