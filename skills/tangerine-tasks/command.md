@@ -1,7 +1,7 @@
 ---
 description: Orient yourself within Tangerine — get your task ID, API base URL, and available endpoints
 ---
-Read ~/.claude/skills/tangerine-tasks/SKILL.md for full API reference.
+Read SKILL.md for full API reference (`~/.claude/skills/tangerine-tasks/SKILL.md` on Claude Code, `~/.codex/skills/tangerine-tasks/SKILL.md` on Codex).
 
 **You are running inside a Tangerine task.**
 
