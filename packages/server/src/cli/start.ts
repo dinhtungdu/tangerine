@@ -315,19 +315,24 @@ export async function start(): Promise<void> {
                 await new Promise((r) => setTimeout(r, 1500))
 
                 const taskRow = db.prepare(
-                  "SELECT title, description FROM tasks WHERE id = ?"
-                ).get(taskId) as { title: string; description: string | null } | null
+                  "SELECT title, description, type FROM tasks WHERE id = ?"
+                ).get(taskId) as { title: string; description: string | null; type: string | null } | null
 
                 const originalTask = taskRow?.description || taskRow?.title || ""
                 const unansweredUserMsg = lastLog?.role === "user" ? lastLog.content : null
 
-                const nudge = [
+                const nudgeParts = [
                   `[TANGERINE: Server restarted. You are working on: ${originalTask}]`,
-                  `[NOTE: When your work is complete, you MUST push your branch and create a pull request. Use \`git push origin HEAD\` then \`gh pr create\`.]`,
+                ]
+                if (taskRow?.type !== "reviewer") {
+                  nudgeParts.push(`[NOTE: When your work is complete, you MUST push your branch and create a pull request. Use \`git push origin HEAD\` then \`gh pr create\`.]`)
+                }
+                nudgeParts.push(
                   unansweredUserMsg
                     ? `The last message you had not yet responded to was: ${unansweredUserMsg}\n\nPlease continue.`
                     : "Please continue where you left off.",
-                ].join("\n\n")
+                )
+                const nudge = nudgeParts.join("\n\n")
 
                 await Effect.runPromise(
                   session.agentHandle.sendPrompt(nudge).pipe(Effect.catchAll(() => Effect.void))
