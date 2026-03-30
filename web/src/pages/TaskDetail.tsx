@@ -337,7 +337,12 @@ export function TaskDetail() {
   const PANE_ORDER: PaneId[] = ["chat", "diff", "terminal", "activity"]
   const orderedVisible = PANE_ORDER.filter((p) => visiblePanes.has(p) && (p !== "diff" || hasDiff))
   const firstVisiblePane = orderedVisible[0]
-  const secondVisiblePane = orderedVisible[1]
+  const resizeHandlers: Record<PaneId, (e: React.MouseEvent) => void> = {
+    chat: activityResize.onMouseDown, // unused — chat is never non-first
+    diff: diffResize.onMouseDown,
+    terminal: terminalResize.onMouseDown,
+    activity: activityResize.onMouseDown,
+  }
 
   return (
     <div className="flex h-full">
@@ -493,12 +498,8 @@ export function TaskDetail() {
             </div>
           )}
 
-          {visiblePanes.has("chat") && !(hasDiff && visiblePanes.has("diff")) && visiblePanes.has("activity") && secondVisiblePane !== "activity" && (
-            <ResizeHandle onMouseDown={activityResize.onMouseDown} />
-          )}
-
-          {hasDiff && visiblePanes.has("diff") && visiblePanes.has("chat") && secondVisiblePane !== "diff" && (
-            <ResizeHandle onMouseDown={diffResize.onMouseDown} />
+          {orderedVisible.indexOf("diff") > 1 && (
+            <ResizeHandle onMouseDown={resizeHandlers.diff} />
           )}
 
           {hasDiff && visiblePanes.has("diff") && (
@@ -526,8 +527,8 @@ export function TaskDetail() {
             </div>
           )}
 
-          {visiblePanes.has("terminal") && (visiblePanes.has("chat") || (hasDiff && visiblePanes.has("diff"))) && secondVisiblePane !== "terminal" && (
-            <ResizeHandle onMouseDown={terminalResize.onMouseDown} />
+          {orderedVisible.indexOf("terminal") > 1 && (
+            <ResizeHandle onMouseDown={resizeHandlers.terminal} />
           )}
 
           {visiblePanes.has("terminal") && (
@@ -536,8 +537,8 @@ export function TaskDetail() {
             </div>
           )}
 
-          {visiblePanes.has("activity") && ((hasDiff && visiblePanes.has("diff")) || visiblePanes.has("terminal")) && secondVisiblePane !== "activity" && (
-            <ResizeHandle onMouseDown={activityResize.onMouseDown} />
+          {orderedVisible.indexOf("activity") > 1 && (
+            <ResizeHandle onMouseDown={resizeHandlers.activity} />
           )}
 
           {visiblePanes.has("activity") && (
