@@ -62,12 +62,18 @@ export function verifyPrBranch(prUrl: string, expectedBranch: string): Effect.Ef
         ["gh", "pr", "view", prUrl, "--json", "headRefName", "--jq", ".headRefName"],
         { stdout: "pipe", stderr: "pipe" },
       )
-      const text = await new Response(proc.stdout).text()
+      const [text, stderr] = await Promise.all([
+        new Response(proc.stdout).text(),
+        new Response(proc.stderr).text(),
+      ])
       const exitCode = await proc.exited
-      if (exitCode !== 0) return false
+      if (exitCode !== 0) {
+        log.warn("gh pr view failed in verifyPrBranch", { prUrl, exitCode, stderr: stderr.trim() })
+        return false
+      }
       return text.trim() === expectedBranch
     },
-    catch: () => false,
+    catch: (err) => { log.warn("verifyPrBranch threw", { prUrl, error: String(err) }); return false },
   }).pipe(Effect.catchAll(() => Effect.succeed(false)))
 }
 
@@ -85,13 +91,19 @@ export function lookupPrByBranch(repoUrl: string, branch: string): Effect.Effect
         ["gh", "pr", "list", "--head", branch, "--repo", slug, "--json", "url", "--jq", ".[0].url"],
         { stdout: "pipe", stderr: "pipe" },
       )
-      const text = await new Response(proc.stdout).text()
+      const [text, stderr] = await Promise.all([
+        new Response(proc.stdout).text(),
+        new Response(proc.stderr).text(),
+      ])
       const exitCode = await proc.exited
-      if (exitCode !== 0) return null
+      if (exitCode !== 0) {
+        log.warn("gh pr list failed in lookupPrByBranch", { branch, slug, exitCode, stderr: stderr.trim() })
+        return null
+      }
       const url = text.trim()
       return url.startsWith("https://") ? url : null
     },
-    catch: () => null,
+    catch: (err) => { log.warn("lookupPrByBranch threw", { branch, slug, error: String(err) }); return null },
   }).pipe(Effect.catchAll(() => Effect.succeed(null)))
 }
 
