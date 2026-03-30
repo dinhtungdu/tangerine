@@ -215,6 +215,8 @@ function truncate(s: string, maxLen: number): string {
 }
 
 function isDangerFullAccessPolicy(value: unknown): boolean {
+  // thread/start and thread/resume may echo back the string mode or the object form
+  if (value === CODEX_SANDBOX_MODE) return true
   return typeof value === "object"
     && value !== null
     && (value as Record<string, unknown>).type === CODEX_SANDBOX_POLICY.type
