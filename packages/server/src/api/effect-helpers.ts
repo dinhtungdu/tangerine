@@ -13,7 +13,7 @@ const DEFAULT_ERROR_MAP: Record<string, number> = {
   ProjectExistsError: 409,
   ConfigValidationError: 400,
   TaskNotTerminalError: 400,
-  OrchestratorPrUrlError: 400,
+  PrCapabilityError: 400,
   PoolExhaustedError: 503,
   AgentError: 502,
   AgentConnectionError: 502,

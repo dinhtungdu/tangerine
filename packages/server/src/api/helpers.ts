@@ -17,8 +17,8 @@ export function utc(ts: string | null): string | null {
 // Canonical capabilities per task type. Used as baseline for all tasks.
 function canonicalCapabilities(type: string): TaskCapability[] {
   if (type === "orchestrator") return ["resolve", "predefined-prompts"]
-  if (type === "reviewer") return ["resolve", "predefined-prompts", "diff"]
-  return ["resolve", "predefined-prompts", "diff", "continue"]
+  if (type === "reviewer") return ["resolve", "predefined-prompts", "diff", "pr"]
+  return ["resolve", "predefined-prompts", "diff", "continue", "pr"]
 }
 
 // Merge stored capabilities with canonical ones so that:
@@ -75,6 +75,15 @@ export function normalizeTimestamps<T extends object>(row: T): T {
     }
   }
   return result as T
+}
+
+/** Check if a task (by type + stored capabilities) has a given capability. */
+export function taskHasCapability(type: string, storedCapabilities: string | null, cap: TaskCapability): boolean {
+  const canonical = canonicalCapabilities(type)
+  if (canonical.includes(cap)) return true
+  if (!storedCapabilities) return false
+  const parsed: TaskCapability[] = JSON.parse(storedCapabilities)
+  return parsed.includes(cap)
 }
 
 /** Generates a unique ID using the built-in crypto API */

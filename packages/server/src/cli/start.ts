@@ -8,6 +8,7 @@ import { getDb } from "../db/index"
 import { createTask as dbCreateTask, getTask, listTasks, updateTask, insertSessionLog, markTaskResult } from "../db/queries"
 import { logActivity, cleanupActivities } from "../activity"
 import type { TaskRow } from "../db/types"
+import { taskHasCapability } from "../api/helpers"
 import { createApp } from "../api/app"
 import type { AppDeps } from "../api/app"
 import { DEFAULT_API_PORT } from "@tangerine/shared"
@@ -460,12 +461,12 @@ export async function start(): Promise<void> {
                     )
                   }
 
-                  // Fallback PR URL detection from assistant/narration message text (skip orchestrators)
+                  // Fallback PR URL detection from assistant/narration message text (only for tasks with "pr" capability)
                   if (!prUrlSaved.has(taskId)) {
                     const prUrl = extractPrUrl(event.content)
                     if (prUrl) {
-                      const taskRow = db.prepare("SELECT branch, type FROM tasks WHERE id = ?").get(taskId) as { branch: string | null; type: string } | null
-                      if (taskRow?.type !== "orchestrator") {
+                      const taskRow = db.prepare("SELECT branch, type, capabilities FROM tasks WHERE id = ?").get(taskId) as { branch: string | null; type: string; capabilities: string | null } | null
+                      if (taskRow && taskHasCapability(taskRow.type, taskRow.capabilities, "pr")) {
                         const taskBranch = taskRow?.branch
                         Effect.runPromise(
                           verifyPrBranch(prUrl, taskBranch ?? "").pipe(
@@ -505,8 +506,8 @@ export async function start(): Promise<void> {
                       if (prUrlSaved.has(taskId) || prNudgeSent.has(taskId)) return
 
                       // Check DB for existing pr_url (in-memory set is lost on restart)
-                      const task = db.prepare("SELECT project_id, pr_url, type FROM tasks WHERE id = ?").get(taskId) as { project_id: string; pr_url: string | null; type: string } | null
-                      if (task?.type === "orchestrator") return
+                      const task = db.prepare("SELECT project_id, pr_url, type, capabilities FROM tasks WHERE id = ?").get(taskId) as { project_id: string; pr_url: string | null; type: string; capabilities: string | null } | null
+                      if (!task || !taskHasCapability(task.type, task.capabilities, "pr")) return
                       if (task?.pr_url) {
                         prUrlSaved.add(taskId)
                         return
@@ -555,12 +556,12 @@ export async function start(): Promise<void> {
                 // Just emit for real-time WS updates (e.g. clearing "in progress").
                 emitTaskEvent(taskId, { event: "tool.end", toolName: event.toolName })
 
-                // Detect PR URL from Bash tool results (e.g. `gh pr create` output) — skip orchestrators
+                // Detect PR URL from Bash tool results (e.g. `gh pr create` output) — only for tasks with "pr" capability
                 if (event.toolResult && !prUrlSaved.has(taskId)) {
                   const prUrl = extractPrUrl(event.toolResult)
                   if (prUrl) {
-                    const taskRow = db.prepare("SELECT branch, type FROM tasks WHERE id = ?").get(taskId) as { branch: string | null; type: string } | null
-                    if (taskRow?.type !== "orchestrator") {
+                    const taskRow = db.prepare("SELECT branch, type, capabilities FROM tasks WHERE id = ?").get(taskId) as { branch: string | null; type: string; capabilities: string | null } | null
+                    if (taskRow && taskHasCapability(taskRow.type, taskRow.capabilities, "pr")) {
                       const taskBranch = taskRow?.branch
                       Effect.runPromise(
                         verifyPrBranch(prUrl, taskBranch ?? "").pipe(

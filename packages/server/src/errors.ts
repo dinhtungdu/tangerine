@@ -15,6 +15,6 @@ export class ProjectNotFoundError extends Data.TaggedError("ProjectNotFoundError
 export class ProjectExistsError extends Data.TaggedError("ProjectExistsError")<{ name: string }> {}
 export class ConfigValidationError extends Data.TaggedError("ConfigValidationError")<{ message: string }> {}
 export class TaskNotTerminalError extends Data.TaggedError("TaskNotTerminalError")<{ taskId: string; status: string }> {}
-export class OrchestratorPrUrlError extends Data.TaggedError("OrchestratorPrUrlError")<{ taskId: string }> {
-  get message() { return `Orchestrator tasks cannot have a PR URL (task ${this.taskId})` }
+export class PrCapabilityError extends Data.TaggedError("PrCapabilityError")<{ taskId: string }> {
+  get message() { return `Task ${this.taskId} does not have the "pr" capability` }
 }
