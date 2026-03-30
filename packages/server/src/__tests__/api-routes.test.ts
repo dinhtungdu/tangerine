@@ -301,6 +301,18 @@ describe("API routes", () => {
       }))
       expect(res.status).toBe(404)
     })
+
+    test("rejects prUrl for orchestrator tasks", async () => {
+      const row = seedTask(db, { type: "orchestrator" })
+      const res = await app.fetch(new Request(`http://localhost/api/tasks/${row.id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ prUrl: "https://github.com/test/repo/pull/99" }),
+      }))
+      expect(res.status).toBe(400)
+      const body = await res.json() as { error: string }
+      expect(body.error).toContain("pr")
+    })
   })
 
   describe("DELETE /api/tasks/:id", () => {

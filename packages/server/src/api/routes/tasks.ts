@@ -4,7 +4,7 @@ import type { AppDeps } from "../app"
 import { mapTaskRow } from "../helpers"
 import { runEffect, runEffectVoid } from "../effect-helpers"
 import { getTask, listTasks, updateTask, deleteTask, markTaskSeen, getChildTasks } from "../../db/queries"
-import { TaskNotFoundError, TaskNotTerminalError } from "../../errors"
+import { TaskNotFoundError, TaskNotTerminalError, PrCapabilityError } from "../../errors"
 import { getRepoDir } from "../../config"
 
 export function taskRoutes(deps: AppDeps): Hono {
@@ -154,19 +154,18 @@ export function taskRoutes(deps: AppDeps): Hono {
     const taskId = c.req.param("id")
     const body = await c.req.json<{ prUrl?: string }>()
     return runEffect(c,
-      getTask(deps.db, taskId).pipe(
-        Effect.flatMap((task) =>
-          task ? Effect.succeed(task) : Effect.fail(new TaskNotFoundError({ taskId }))
-        ),
-        Effect.flatMap(() => {
-          const fields: Record<string, string | null> = {}
-          if ("prUrl" in body) fields.pr_url = body.prUrl ?? null
-          return updateTask(deps.db, taskId, fields)
-        }),
-        Effect.flatMap((task) =>
-          task ? Effect.succeed(mapTaskRow(task)) : Effect.fail(new TaskNotFoundError({ taskId }))
-        )
-      )
+      Effect.gen(function* () {
+        const row = yield* getTask(deps.db, taskId)
+        if (!row) return yield* Effect.fail(new TaskNotFoundError({ taskId }))
+        if ("prUrl" in body && !mapTaskRow(row).capabilities.includes("pr")) {
+          return yield* Effect.fail(new PrCapabilityError({ taskId }))
+        }
+        const fields: Record<string, string | null> = {}
+        if ("prUrl" in body) fields.pr_url = body.prUrl ?? null
+        const updated = yield* updateTask(deps.db, taskId, fields)
+        if (!updated) return yield* Effect.fail(new TaskNotFoundError({ taskId }))
+        return mapTaskRow(updated)
+      })
     )
   })
 

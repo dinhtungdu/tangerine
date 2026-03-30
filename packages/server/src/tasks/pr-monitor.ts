@@ -10,6 +10,7 @@ import type { TaskRow } from "../db/types"
 import type { CleanupDeps } from "./cleanup"
 import { cleanupSession } from "./cleanup"
 import { emitStatusChange, clearAgentWorkingState } from "./events"
+import { taskHasCapability } from "../api/helpers"
 
 const log = createLogger("pr-monitor")
 
@@ -126,8 +127,8 @@ export function pollPrStatuses(deps: PrMonitorDeps): Effect.Effect<void, never> 
       Effect.catchAll(() => Effect.succeed([] as TaskRow[]))
     )
 
-    // Phase 1: discover PR URLs for tasks that don't have one yet
-    const withoutPr = running.filter((t) => !t.pr_url && t.branch && t.repo_url)
+    // Phase 1: discover PR URLs for tasks that have the "pr" capability but no URL yet
+    const withoutPr = running.filter((t) => !t.pr_url && t.branch && t.repo_url && taskHasCapability(t.type, t.capabilities, "pr"))
     if (withoutPr.length > 0) {
       const lookup = deps.lookupPrByBranch ?? lookupPrByBranch
       log.debug("Discovering PRs for tasks without pr_url", { count: withoutPr.length })
