@@ -42,12 +42,18 @@ export async function fetchProjects(): Promise<{
   model: string
   models: string[]
   modelsByProvider: Record<string, string[]>
+  sshHost?: string
+  sshUser?: string
+  editor?: "vscode" | "cursor" | "zed"
 }> {
   return request<{
     projects: ProjectConfig[]
     model: string
     models: string[]
     modelsByProvider: Record<string, string[]>
+    sshHost?: string
+    sshUser?: string
+    editor?: "vscode" | "cursor" | "zed"
   }>("/api/projects")
 }
 

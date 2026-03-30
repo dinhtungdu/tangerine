@@ -58,6 +58,9 @@ export const tangerineConfigSchema = z.object({
   model: z.string().default("anthropic/claude-sonnet-4-6"),
   models: z.array(z.string()).default(defaultModels),
   integrations: integrationsSchema.optional(),
+  sshHost: z.string().optional(),
+  sshUser: z.string().optional(),
+  editor: z.enum(["vscode", "cursor", "zed"]).optional(),
 })
 
 export type PredefinedPrompt = z.infer<typeof predefinedPromptSchema>

@@ -2,6 +2,8 @@ import { Link } from "react-router-dom"
 import type { Task } from "@tangerine/shared"
 import { getStatusConfig, hasUnseenUpdates } from "../lib/status"
 import { formatDuration, formatDate, formatPrNumber } from "../lib/format"
+import { useProject } from "../context/ProjectContext"
+import { buildSshEditorUri, EDITOR_NAMES } from "../lib/ssh-editor"
 
 function SourceIcon({ source }: { source: string }) {
   const cls = "h-[13px] w-[13px] text-fg-muted"
@@ -31,6 +33,10 @@ export function RunCard({ task, parentTask, onCancel, onRetry, onDelete }: RunCa
   const { label, textClass, bgClass } = getStatusConfig(task.status)
   const isTerminated = ["done", "failed", "cancelled"].includes(task.status)
   const unseen = hasUnseenUpdates(task)
+  const { sshHost, sshUser, editor } = useProject()
+  const sshEditorUri = (sshHost && editor && task.worktreePath)
+    ? buildSshEditorUri(editor, sshHost, task.worktreePath, sshUser)
+    : null
 
   return (
     <Link
@@ -90,6 +96,19 @@ export function RunCard({ task, parentTask, onCancel, onRetry, onDelete }: RunCa
             </svg>
             <span>{formatDate(task.createdAt)}</span>
           </div>
+          {sshEditorUri && editor && (
+            <a
+              href={sshEditorUri}
+              onClick={(e) => e.stopPropagation()}
+              title={`Open in ${EDITOR_NAMES[editor]}`}
+              className="flex items-center gap-1 text-fg-muted hover:text-fg"
+            >
+              <svg className="h-[13px] w-[13px]" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.8}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M17.25 6.75 22.5 12l-5.25 5.25m-10.5 0L1.5 12l5.25-5.25m7.5-3-4.5 16.5" />
+              </svg>
+              <span>{EDITOR_NAMES[editor]}</span>
+            </a>
+          )}
         </div>
         {/* Actions */}
         {(onCancel || onRetry || onDelete) && (task.status === "running" || isTerminated) && (

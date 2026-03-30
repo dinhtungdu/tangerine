@@ -6,6 +6,7 @@ import { getStatusConfig } from "../lib/status"
 import { useSession } from "../hooks/useSession"
 import { useTaskSearch } from "../hooks/useTaskSearch"
 import { useProject } from "../context/ProjectContext"
+import { buildSshEditorUri, EDITOR_NAMES } from "../lib/ssh-editor"
 import { useProjectNav } from "../hooks/useProjectNav"
 import { useDiffFiles } from "../hooks/useDiffFiles"
 import { useResizable } from "../hooks/useResizable"
@@ -37,7 +38,7 @@ export function TaskDetail() {
   })
   const [mobilePane, setMobilePane] = useState<PaneId>("chat")
 
-  const { current, modelsByProvider } = useProject()
+  const { current, modelsByProvider, sshHost, sshUser, editor } = useProject()
 
   const { query, setQuery, tasks } = useTaskSearch(current?.name)
 
@@ -372,6 +373,21 @@ export function TaskDetail() {
                 <span className="font-mono text-[12px] text-fg-muted">{copiedBranch ? "Copied!" : task.branch}</span>
               </button>
             )}
+            {sshHost && editor && task.worktreePath && (() => {
+              const uri = buildSshEditorUri(editor, sshHost, task.worktreePath, sshUser)
+              return (
+                <a
+                  href={uri}
+                  title={`Open in ${EDITOR_NAMES[editor]}`}
+                  className="hidden shrink-0 items-center gap-1 text-fg-muted hover:text-fg md:flex"
+                >
+                  <svg className="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M17.25 6.75 22.5 12l-5.25 5.25m-10.5 0L1.5 12l5.25-5.25m7.5-3-4.5 16.5" />
+                  </svg>
+                  <span className="text-[12px]">{EDITOR_NAMES[editor]}</span>
+                </a>
+              )
+            })()}
             {task.prUrl && (
               <a
                 href={task.prUrl}

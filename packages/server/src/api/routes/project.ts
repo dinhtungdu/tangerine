@@ -37,6 +37,9 @@ export function projectRoutes(deps: AppDeps): Hono {
       model: deps.config.config.model,
       models,
       modelsByProvider,
+      sshHost: deps.config.config.sshHost,
+      sshUser: deps.config.config.sshUser,
+      editor: deps.config.config.editor,
     })
   })
 

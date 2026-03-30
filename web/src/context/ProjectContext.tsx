@@ -9,6 +9,9 @@ interface ProjectContextValue {
   model: string
   models: string[]
   modelsByProvider: Record<string, string[]>
+  sshHost: string | undefined
+  sshUser: string | undefined
+  editor: "vscode" | "cursor" | "zed" | undefined
   setModel: (model: string) => void
   switchProject: (name: string, options?: { replace?: boolean }) => void
   refreshProjects: () => void
@@ -21,6 +24,9 @@ const ProjectContext = createContext<ProjectContextValue>({
   model: "",
   models: [],
   modelsByProvider: {},
+  sshHost: undefined,
+  sshUser: undefined,
+  editor: undefined,
   setModel: () => {},
   switchProject: () => {},
   refreshProjects: () => {},
@@ -36,6 +42,9 @@ export function ProjectProvider({ children }: { children: ReactNode }) {
   const [models, setModels] = useState<string[]>([])
   const [modelsByProvider, setModelsByProvider] = useState<Record<string, string[]>>({})
   const [selectedModel, setSelectedModel] = useState<string | null>(null)
+  const [sshHost, setSshHost] = useState<string | undefined>(undefined)
+  const [sshUser, setSshUser] = useState<string | undefined>(undefined)
+  const [editor, setEditor] = useState<"vscode" | "cursor" | "zed" | undefined>(undefined)
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
@@ -45,6 +54,9 @@ export function ProjectProvider({ children }: { children: ReactNode }) {
         setGlobalModel(data.model)
         setModels(data.models ?? [])
         setModelsByProvider(data.modelsByProvider ?? {})
+        setSshHost(data.sshHost)
+        setSshUser(data.sshUser)
+        setEditor(data.editor)
       })
       .catch(() => {})
       .finally(() => setLoading(false))
@@ -61,6 +73,9 @@ export function ProjectProvider({ children }: { children: ReactNode }) {
         setGlobalModel(data.model)
         setModels(data.models ?? [])
         setModelsByProvider(data.modelsByProvider ?? {})
+        setSshHost(data.sshHost)
+        setSshUser(data.sshUser)
+        setEditor(data.editor)
       })
       .catch(() => {})
   }, [])
@@ -105,7 +120,7 @@ export function ProjectProvider({ children }: { children: ReactNode }) {
   }, [loading, projects, projectParam, setSearchParams])
 
   return (
-    <ProjectContext.Provider value={{ projects, current, model, models, modelsByProvider, setModel: setSelectedModel, switchProject, refreshProjects, loading }}>
+    <ProjectContext.Provider value={{ projects, current, model, models, modelsByProvider, sshHost, sshUser, editor, setModel: setSelectedModel, switchProject, refreshProjects, loading }}>
       {children}
     </ProjectContext.Provider>
   )
