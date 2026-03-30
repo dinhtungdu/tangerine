@@ -196,26 +196,26 @@ When the command finishes:
 
 ## Reviewing External PRs
 
-When asked to review a PR from another contributor (not your own diff), use `codex review` pointed at the PR:
+To review a PR from another contributor, create a Tangerine task using the `codex` provider with `gpt-5.4` and `xhigh` reasoning effort. Point it at the PR branch:
 
 ```bash
-codex review --pr <number> -c model="gpt-5.4" -c reasoning.effort="xhigh"
-```
-
-Alternative harnesses:
-
-```bash
-# Claude Code
-gh pr diff <number> | claude -p "Review this diff. Focus on bugs, logic errors, edge cases, missing error handling, and code quality. List each issue with file path and line reference." --model <model>
-
-# OpenCode
-opencode run "Review this diff. Focus on bugs, logic errors, edge cases, missing error handling, and code quality. List each issue with file path and line reference." -m <provider/model> <<< "$(gh pr diff <number>)"
+curl -X POST $API/api/tasks \
+  -H "Content-Type: application/json" \
+  -d '{
+    "projectId": "my-project",
+    "title": "Review PR #123",
+    "description": "Review this PR. Focus on bugs, logic errors, edge cases, missing error handling, and code quality. List each issue with file path and line reference.",
+    "branch": "#123",
+    "provider": "codex",
+    "model": "gpt-5.4",
+    "reasoningEffort": "xhigh"
+  }'
 ```
 
 When the review finishes:
-1. Read the full review output
+1. Read the review output from the task's messages
 2. Share findings with the user
-3. If asked to fix issues, create a task on the PR's branch using `"branch": "#<number>"`
+3. If asked to fix issues, create a follow-up task on the same PR branch using `"branch": "#<number>"`
 
 ## Task Object Shape
 
