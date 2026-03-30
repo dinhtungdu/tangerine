@@ -120,6 +120,16 @@ export function ChatInput({ onSend, disabled, queueLength, taskId, isWorking, on
   }, [draftKey, loadDraft, text, pendingImages.length])
 
   const [isFocused, setIsFocused] = useState(false)
+  const [showChips, setShowChips] = useState(false)
+
+  // Re-show chips when the agent finishes responding and the input is ready for a new turn
+  const prevDisabledRef = useRef(disabled)
+  useEffect(() => {
+    if (prevDisabledRef.current && !disabled && isFocused && !text.trim() && predefinedPrompts?.length) {
+      setShowChips(true)
+    }
+    prevDisabledRef.current = disabled
+  }, [disabled, isFocused, text, predefinedPrompts])
 
   useEffect(() => {
     const textarea = textareaRef.current
@@ -170,10 +180,14 @@ export function ChatInput({ onSend, disabled, queueLength, taskId, isWorking, on
   const handlePromptClick = useCallback((e: MouseEvent, promptText: string) => {
     e.preventDefault()
     onSend(promptText)
-    textareaRef.current?.blur()
+    setShowChips(false)
+    // Only blur on mobile to dismiss the virtual keyboard; desktop doesn't need it
+    if ('ontouchstart' in window) {
+      textareaRef.current?.blur()
+    }
   }, [onSend])
 
-  const showPrompts = isFocused && !text.trim() && predefinedPrompts && predefinedPrompts.length > 0
+  const showPrompts = showChips
 
   const canSend = (text.trim().length > 0 || pendingImages.length > 0) && !disabled
   const canChangeModel = providerModels && providerModels.length > 1 && onModelChange
@@ -181,7 +195,7 @@ export function ChatInput({ onSend, disabled, queueLength, taskId, isWorking, on
   return (
     <div className="border-t border-edge bg-surface px-3 py-2 md:bg-surface md:p-3 md:px-4">
       {/* Predefined prompt chips */}
-      {showPrompts && (
+      {showPrompts && predefinedPrompts && (
         <div className="mb-2 flex flex-wrap gap-1.5">
           {predefinedPrompts.map((prompt, i) => (
             <button
@@ -224,16 +238,19 @@ export function ChatInput({ onSend, disabled, queueLength, taskId, isWorking, on
             value={text}
             onChange={(e) => {
               setText(e.target.value)
+              setShowChips(false)
               handleInput()
             }}
             onKeyDown={handleKeyDown}
             onPaste={handlePaste}
             onFocus={() => {
               setIsFocused(true)
+              setShowChips(!text.trim() && !!predefinedPrompts?.length)
               handleInput()
             }}
             onBlur={() => {
               setIsFocused(false)
+              setShowChips(false)
               if (textareaRef.current) {
                 textareaRef.current.style.height = "auto"
               }
