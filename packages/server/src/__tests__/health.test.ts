@@ -47,6 +47,7 @@ function makeDeps(overrides?: Partial<HealthCheckDeps>): HealthCheckDeps {
     suspendAgent: () => Effect.void,
     getLastAgentError: () => undefined,
     isAgentWorking: () => false,
+    logSuspend: () => Effect.void,
     getLastUserMessageTime: () => new Date().toISOString(),
     cleanupDeps: {
       db: null as never,

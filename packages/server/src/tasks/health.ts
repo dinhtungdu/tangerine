@@ -66,6 +66,8 @@ export interface HealthCheckDeps {
   getLastUserMessageTime(taskId: string): string | null
   /** Returns whether the agent is currently processing (working) or idle. */
   isAgentWorking(taskId: string): boolean
+  /** Log an activity entry when an agent is suspended due to idle timeout. */
+  logSuspend(taskId: string, idleMs: number): Effect.Effect<void, never>
   cleanupDeps: CleanupDeps
 }
 
@@ -185,6 +187,9 @@ function checkIdleTimeout(
   return Effect.gen(function* () {
     if (!SUSPENDABLE_PROVIDERS.has(task.provider)) return
 
+    // Already suspended — don't re-log or re-suspend
+    if (suspendedTasks.has(task.id)) return
+
     // Don't suspend if the agent is actively processing a request
     if (deps.isAgentWorking(task.id)) return
 
@@ -195,6 +200,7 @@ function checkIdleTimeout(
         log.info("Task idle, suspending agent", { taskId: task.id, title: task.title, idleMs })
         suspendedTasks.add(task.id)
         yield* deps.suspendAgent(task.id)
+        yield* deps.logSuspend(task.id, idleMs)
         return
       }
     } else if (task.started_at) {
@@ -204,6 +210,7 @@ function checkIdleTimeout(
         log.info("Task idle (no messages), suspending agent", { taskId: task.id, title: task.title, idleMs })
         suspendedTasks.add(task.id)
         yield* deps.suspendAgent(task.id)
+        yield* deps.logSuspend(task.id, idleMs)
       }
     }
   }).pipe(Effect.catchAll(() => Effect.void))
