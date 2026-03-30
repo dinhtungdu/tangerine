@@ -211,6 +211,20 @@ export function NewAgentForm({ onSubmit, refTaskId, refTaskTitle }: NewAgentForm
             </p>
           </div>
 
+          {/* Worker / Reviewer toggle */}
+          <div className="flex justify-center">
+            <div className="inline-flex rounded-lg border border-edge bg-surface-secondary p-0.5">
+              <button
+                onClick={() => setTaskType("worker")}
+                className={`rounded-md px-4 py-1.5 text-[13px] font-medium transition ${taskType === "worker" ? "bg-surface text-fg shadow-sm" : "text-fg-muted hover:text-fg"}`}
+              >Worker</button>
+              <button
+                onClick={() => setTaskType("reviewer")}
+                className={`rounded-md px-4 py-1.5 text-[13px] font-medium transition ${taskType === "reviewer" ? "bg-surface text-fg shadow-sm" : "text-fg-muted hover:text-fg"}`}
+              >Reviewer</button>
+            </div>
+          </div>
+
           {/* Reference badge */}
           {refTaskId && (
             <div className="flex items-center gap-2 rounded-lg border border-accent-border bg-accent-bg px-3 py-2">
@@ -278,15 +292,6 @@ export function NewAgentForm({ onSubmit, refTaskId, refTaskTitle }: NewAgentForm
                   menuPlacement="bottom"
                 />
                 <ReasoningEffortSelector value={reasoningEffort} onChange={(e) => { setReasoningEffort(e); savePrefs({ reasoningEffort: e }) }} provider={provider} />
-                <select
-                  value={taskType}
-                  onChange={(e) => setTaskType(e.target.value as "worker" | "reviewer")}
-                  aria-label="Task type"
-                  className="rounded-md border border-edge bg-surface px-2 py-1 text-[11px] text-fg outline-none"
-                >
-                  <option value="worker">Worker</option>
-                  <option value="reviewer">Reviewer</option>
-                </select>
               </div>
               <button
                 onClick={handleSubmit}
@@ -305,7 +310,7 @@ export function NewAgentForm({ onSubmit, refTaskId, refTaskTitle }: NewAgentForm
           <div className="flex flex-col gap-6 md:hidden">
             <div className="flex flex-col gap-2">
               <div className="flex gap-2">
-                <div className="flex h-10 flex-1 items-center gap-2 rounded-lg border border-edge bg-surface px-3">
+                <div className="flex h-10 items-center gap-2 rounded-lg border border-edge bg-surface px-3">
                   <svg className="h-4 w-4 shrink-0 text-fg-muted" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                     <path strokeLinecap="round" strokeLinejoin="round" d="M7.217 10.907a2.25 2.25 0 1 0 0 2.186m0-2.186c.18.324.283.696.283 1.093s-.103.77-.283 1.093m0-2.186 9.566-5.314m-9.566 7.5 9.566 5.314m0-12.814a2.25 2.25 0 1 0 0-2.186m0 2.186a2.25 2.25 0 1 0 0 2.186" />
                   </svg>
@@ -315,10 +320,11 @@ export function NewAgentForm({ onSubmit, refTaskId, refTaskTitle }: NewAgentForm
                     onChange={(e) => setCustomBranch(e.target.value)}
                     placeholder={branch}
                     aria-label="Branch or PR"
-                    className="min-w-0 flex-1 bg-transparent text-[13px] text-fg placeholder-fg-muted outline-none"
+                    size={6}
+                    className="w-16 min-w-0 bg-transparent text-[13px] text-fg placeholder-fg-muted outline-none"
                   />
                 </div>
-                <div className="flex h-10 flex-1 items-center rounded-lg border border-edge bg-surface px-3">
+                <div className="flex h-10 min-w-0 flex-1 items-center rounded-lg border border-edge bg-surface px-3">
                   <ModelSelector
                     models={providerModels}
                     model={activeModel}
@@ -348,15 +354,6 @@ export function NewAgentForm({ onSubmit, refTaskId, refTaskTitle }: NewAgentForm
                   {getEfforts(provider).map((e) => (
                     <option key={e.value} value={e.value}>Effort: {e.label}</option>
                   ))}
-                </select>
-                <select
-                  value={taskType}
-                  onChange={(e) => setTaskType(e.target.value as "worker" | "reviewer")}
-                  aria-label="Task type"
-                  className="h-10 flex-1 rounded-lg border border-edge bg-surface px-3 text-[16px] text-fg outline-none md:text-[13px]"
-                >
-                  <option value="worker">Worker</option>
-                  <option value="reviewer">Reviewer</option>
                 </select>
               </div>
             </div>
