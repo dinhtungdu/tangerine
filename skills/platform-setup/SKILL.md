@@ -17,13 +17,14 @@ Host (laptop)
 │  browser → localhost:3456
 └── VM (Lima)
     ├── tangerine server + dashboard (:3456)
-    ├── ~/tangerine-workspace/project-a/0 (main clone)
-    │                                   1 (task worktree)
-    │                                   2 (task worktree)
-    ├── ~/tangerine-workspace/project-b/0, 1, ...
+    ├── {workspace}/project-a/0 (main clone)
+    │                          1 (task worktree)
+    │                          2 (task worktree)
+    ├── {workspace}/project-b/0, 1, ...
     ├── agents (claude, opencode) — local processes
     └── Apache, MariaDB, tools — shared
 ```
+`{workspace}` defaults to `~/tangerine-workspace` but is configurable via `config.workspace` in `~/tangerine/config.json`.
 
 No SSH tunnels, no per-project VMs. One VM, all projects.
 
@@ -66,37 +67,79 @@ User runs `/platform-setup` from INSIDE the VM in a project directory. You help 
 
 ## Project Setup Workflow
 
-1. **Scan the codebase** for stack indicators (see references/stacks.md)
-2. **Detect**:
+1. **Get repo URL** from the user (and optionally a project name; default to the repo name).
+
+2. **Read the workspace path** from the existing config (default `~/tangerine-workspace` if the file doesn't exist yet):
+   ```bash
+   [ -f ~/tangerine/config.json ] \
+     && jq -r '.workspace // "~/tangerine-workspace"' ~/tangerine/config.json \
+     || echo ~/tangerine-workspace
+   ```
+   Use this resolved path as `{workspace}` for all subsequent steps. Never hardcode `~/tangerine-workspace`.
+
+3. **Clone the repo** into `{workspace}/{projectName}/0/`:
+   ```bash
+   mkdir -p {workspace}/my-project
+   git clone <repo-url> {workspace}/my-project/0
+   ```
+   The `/0` directory is the **main branch clone** — it is never assigned to tasks. This path must match what `getRepoDir()` in `packages/server/src/config.ts` computes: `join(resolveWorkspace(config), projectId, "0")`.
+
+4. **Scan the cloned repo** for stack indicators (see references/stacks.md):
    - Language runtimes and versions
    - Package managers
    - Frameworks and dev server configuration
    - Database/service dependencies
    - Test runners and commands
    - CI config (reveals required tooling)
-3. **Present the plan** before writing:
+
+5. **Present the plan** before writing:
    - Detected stack summary
    - Proposed project name
-   - Setup command (runs per-task in worktree)
+   - Clone path (`{workspace}/{projectName}/0`)
+   - Setup command — **required**, ask the user if it cannot be detected
    - Test command
    - Post-update command (install deps + build, runs after git pull)
-4. **Write config** to `~/tangerine/config.json`:
+
+6. **Write config** to `~/tangerine/config.json`.
+
+   **Required fields** (Zod schema enforces these — config will fail to load if missing):
+   - `name` — project identifier
+   - `repo` — git remote URL
+   - `setup` — command run per-task in the worktree (e.g. `pnpm install`); **must ask the user** if not detectable from the codebase
+
+   **Optional fields** (omit if not needed):
+   - `test` — test command
+   - `defaultBranch` — defaults to `"main"`
+   - `defaultProvider` — `"claude-code"` | `"opencode"` | `"codex"`, defaults to `"claude-code"`
+   - `model` — override the default LLM model
+   - `env` — key/value pairs injected into agent environment
+   - `postUpdateCommand` — runs after `git pull` (install + build)
+   - `predefinedPrompts` — array of `{label, text}` quick-send buttons
+
+   The top-level config file is `{ "projects": [...] }`. On a fresh install, create the file with the project inside the array. On an existing install, append to `projects[]`. Example full config:
    ```json
    {
-     "name": "my-project",
-     "repo": "https://github.com/org/repo",
-     "defaultBranch": "main",
-     "setup": "pnpm install",
-     "test": "pnpm test",
-     "defaultProvider": "claude-code",
-     "postUpdateCommand": "pnpm install && pnpm build"
+     "projects": [
+       {
+         "name": "my-project",
+         "repo": "https://github.com/org/repo",
+         "defaultBranch": "main",
+         "setup": "pnpm install",
+         "test": "pnpm test",
+         "defaultProvider": "claude-code",
+         "postUpdateCommand": "pnpm install && pnpm build"
+       }
+     ]
    }
    ```
-5. **Clone the repo** (into 0):
+
+7. **Validate the config** after writing — catches missing required fields before the server starts:
    ```bash
-   mkdir -p ~/tangerine-workspace/my-project
-   git clone <repo-url> ~/tangerine-workspace/my-project/0
+   jq -e '.projects[-1] | (.name | length > 0) and (.repo | length > 0) and (.setup | length > 0)' ~/tangerine/config.json \
+     && echo "Config valid" || echo "ERROR: missing required field (name, repo, or setup)"
    ```
+   If validation fails, identify the missing field and ask the user to supply it before continuing.
+
 ### Base Setup Includes
 
 The `deploy/base-setup.sh` installs these globally:
