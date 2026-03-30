@@ -7,6 +7,8 @@ import { runEffect, runEffectVoid } from "../effect-helpers"
 import { createCron, getCron, listCrons, updateCron, deleteCron } from "../../db/queries"
 import { CronNotFoundError, CronValidationError } from "../../errors"
 
+const VALID_PROVIDERS = new Set(["opencode", "claude-code", "codex"])
+
 /** Validate a cron expression is exactly 5 fields (no seconds field). */
 function validateCron(expr: string): Effect.Effect<void, CronValidationError> {
   const fields = expr.trim().split(/\s+/)
@@ -60,6 +62,10 @@ export function cronRoutes(deps: AppDeps): Hono {
     const project = deps.config.config.projects.find((p) => p.name === projectId)
     if (!project) return c.json({ error: `Unknown project: ${projectId}` }, 400)
 
+    if (body.taskDefaults?.provider && !VALID_PROVIDERS.has(body.taskDefaults.provider)) {
+      return c.json({ error: `Invalid provider: ${body.taskDefaults.provider}` }, 400)
+    }
+
     return runEffect(c,
       Effect.gen(function* () {
         yield* validateCron(body.cron!)
@@ -92,6 +98,10 @@ export function cronRoutes(deps: AppDeps): Hono {
       taskDefaults?: { provider?: string; model?: string; reasoningEffort?: string; branch?: string } | null
     }>()
 
+    if (body.taskDefaults?.provider && !VALID_PROVIDERS.has(body.taskDefaults.provider)) {
+      return c.json({ error: `Invalid provider: ${body.taskDefaults.provider}` }, 400)
+    }
+
     return runEffect(c,
       Effect.gen(function* () {
         const existing = yield* getCron(deps.db, id)
@@ -107,6 +117,13 @@ export function cronRoutes(deps: AppDeps): Hono {
           yield* validateCron(body.cron)
           fields.cron = body.cron
           const interval = CronExpressionParser.parse(body.cron)
+          fields.next_run_at = interval.next().toISOString() as string
+        }
+
+        // Recompute next_run_at when re-enabling so a stale time doesn't fire immediately
+        if (body.enabled === true && existing.enabled === 0 && !("cron" in body)) {
+          const cronExpr = existing.cron
+          const interval = CronExpressionParser.parse(cronExpr)
           fields.next_run_at = interval.next().toISOString() as string
         }
 
