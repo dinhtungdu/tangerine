@@ -137,6 +137,55 @@ export async function start(): Promise<void> {
     const projectNames = config.config.projects.map((p) => p.name)
     log.info("Config loaded", { projects: projectNames, home: TANGERINE_HOME, testMode: isTestMode() })
 
+    // Verify required external tools before proceeding. Each feature gates on
+    // the tools it needs — fail early with an actionable message rather than
+    // letting features silently malfunction at runtime.
+    if (!isTestMode()) {
+      const missing: string[] = []
+
+      const cmdExists = async (cmd: string) => {
+        const proc = Bun.spawn(["which", cmd], { stdout: "pipe", stderr: "pipe" })
+        return (await proc.exited) === 0
+      }
+
+      // git — required for worktrees, fetch, branch operations
+      if (!(await cmdExists("git"))) {
+        missing.push("git is not installed — worktree setup and branch operations will not work.")
+      }
+
+      // gh auth — required for PR capture and auto-complete
+      const ghInstalled = await cmdExists("gh")
+      if (!ghInstalled) {
+        missing.push("gh CLI is not installed — PR capture and auto-complete will not work. Install from https://cli.github.com/")
+      } else {
+        const ghAuth = Bun.spawn(["gh", "auth", "status"], { stdout: "pipe", stderr: "pipe" })
+        if ((await ghAuth.exited) !== 0) {
+          missing.push("gh CLI is not authenticated — PR capture and auto-complete will not work. Set GITHUB_TOKEN or run `gh auth login`.")
+        }
+      }
+
+      // tmux — required for terminal sessions
+      if (!(await cmdExists("tmux"))) {
+        missing.push("tmux is not installed — terminal sessions will not work.")
+      }
+
+      // Agent provider CLIs — only check providers referenced by configured projects
+      const requiredProviders = new Set(config.config.projects.map((p) => p.defaultProvider ?? "claude-code"))
+      const providerCli: Record<string, string> = { "claude-code": "claude", "opencode": "opencode", "codex": "codex" }
+      for (const provider of requiredProviders) {
+        const cli = providerCli[provider]
+        if (cli && !(await cmdExists(cli))) {
+          missing.push(`${cli} CLI is not installed — provider "${provider}" will not work.`)
+        }
+      }
+
+      if (missing.length > 0) {
+        for (const msg of missing) log.error(msg)
+        log.error("Fix the above issues and restart the server.")
+        process.exit(1)
+      }
+    }
+
     const db = getDb(flags.dbPath)
     initSystemLog(db)
     cleanupSystemLogs(db)
@@ -767,17 +816,6 @@ export async function start(): Promise<void> {
         defaultBranch: p.defaultBranch ?? "main",
       }))
       await Effect.runPromise(startUpdateChecker(projectInfos))
-    }
-
-    // PR capture requires gh CLI auth — fail early with a clear message rather than
-    // letting the monitor run silently and producing misleading "branch mismatch" logs.
-    if (!isTestMode()) {
-      const ghProc = Bun.spawn(["gh", "auth", "status"], { stdout: "pipe", stderr: "pipe" })
-      const ghExitCode = await ghProc.exited
-      if (ghExitCode !== 0) {
-        log.error("gh CLI is not authenticated — PR capture and auto-complete will not work. Set GITHUB_TOKEN or run `gh auth login`, then restart the server.")
-        process.exit(1)
-      }
     }
 
     // Start PR status monitor (every 60s)
