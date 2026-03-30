@@ -50,6 +50,7 @@ export function ChatInput({ onSend, disabled, queueLength, taskId, isWorking, on
   const [pendingImages, setPendingImages] = useState<PendingImage[]>(savedDraft.pendingImages ?? [])
   const textareaRef = useRef<HTMLTextAreaElement>(null)
   const hydratedDraftKeyRef = useRef<string | null>(null)
+  const lastPersistedKeyRef = useRef<string | null>(draftKey)
   const appliedDraftInsertIdRef = useRef<number | null>(null)
 
   const handleSend = useCallback(() => {
@@ -112,12 +113,23 @@ export function ChatInput({ onSend, disabled, queueLength, taskId, isWorking, on
 
   useEffect(() => {
     if (!draftKey || hydratedDraftKeyRef.current === draftKey) return
+    // Save current draft under the previous task's key before switching
+    const prevKey = hydratedDraftKeyRef.current
+    if (prevKey) {
+      try {
+        if (!text && pendingImages.length === 0) {
+          localStorage.removeItem(prevKey)
+        } else {
+          localStorage.setItem(prevKey, JSON.stringify({ text, pendingImages }))
+        }
+      } catch { /* ignore */ }
+    }
     hydratedDraftKeyRef.current = draftKey
-    if (text || pendingImages.length > 0) return
+    lastPersistedKeyRef.current = draftKey
     const draft = loadDraft()
     setText(draft.text ?? "")
     setPendingImages(draft.pendingImages ?? [])
-  }, [draftKey, loadDraft, text, pendingImages.length])
+  }, [draftKey, loadDraft, text, pendingImages])
 
   const [isFocused, setIsFocused] = useState(false)
 
@@ -156,6 +168,11 @@ export function ChatInput({ onSend, disabled, queueLength, taskId, isWorking, on
 
   useEffect(() => {
     if (!draftKey) return
+    // Skip when draftKey just changed — hydration effect handles the transition
+    if (lastPersistedKeyRef.current !== draftKey) {
+      lastPersistedKeyRef.current = draftKey
+      return
+    }
     try {
       if (!text && pendingImages.length === 0) {
         localStorage.removeItem(draftKey)

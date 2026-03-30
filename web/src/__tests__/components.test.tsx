@@ -405,6 +405,28 @@ describe("ChatInput", () => {
     expect(screen.getByAltText("Pasted image")).toBeTruthy()
   })
 
+  test("isolates drafts when switching between tasks", () => {
+    window.localStorage.setItem("tangerine:chat-draft:task-A", JSON.stringify({ text: "Draft for A" }))
+    window.localStorage.setItem("tangerine:chat-draft:task-B", JSON.stringify({ text: "Draft for B" }))
+
+    const { rerender } = render(
+      <ChatInput onSend={() => {}} disabled={false} queueLength={0} taskId="task-A" />
+    )
+    expect(screen.getByDisplayValue("Draft for A")).toBeTruthy()
+
+    // Switch to task B — should show B's draft, not A's
+    rerender(
+      <ChatInput onSend={() => {}} disabled={false} queueLength={0} taskId="task-B" />
+    )
+    expect(screen.getByDisplayValue("Draft for B")).toBeTruthy()
+
+    // Switch back to task A — should restore A's draft
+    rerender(
+      <ChatInput onSend={() => {}} disabled={false} queueLength={0} taskId="task-A" />
+    )
+    expect(screen.getByDisplayValue("Draft for A")).toBeTruthy()
+  })
+
   test("applies quoted text and focuses the composer", async () => {
     await act(async () => {
       render(
