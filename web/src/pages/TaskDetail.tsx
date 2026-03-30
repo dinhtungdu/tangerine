@@ -541,7 +541,7 @@ export function TaskDetail() {
               className={`flex flex-col bg-surface-secondary${desktopIsSolo ? " flex-1" : ""}`}
               style={desktopIsSolo ? undefined : { width: activityWidth, flexShrink: 0 }}
             >
-              <div className="min-h-0 flex-1 overflow-y-auto px-4 pt-3">
+              <div className="min-h-0 flex-1 overflow-y-auto pt-3">
                 <ActivityList activities={session.activities} variant="compact" />
               </div>
             </div>
@@ -605,7 +605,7 @@ export function TaskDetail() {
           )}
           {mobilePane === "activity" && (
             <div className="flex flex-1 flex-col bg-surface-secondary">
-              <div className="min-h-0 flex-1 overflow-y-auto px-4 pt-3">
+              <div className="min-h-0 flex-1 overflow-y-auto pt-3">
                 <ActivityList activities={session.activities} variant="compact" />
               </div>
             </div>
