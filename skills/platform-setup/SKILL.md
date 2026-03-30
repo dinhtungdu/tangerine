@@ -17,13 +17,14 @@ Host (laptop)
 │  browser → localhost:3456
 └── VM (Lima)
     ├── tangerine server + dashboard (:3456)
-    ├── ~/tangerine-workspace/project-a/0 (main clone)
-    │                                   1 (task worktree)
-    │                                   2 (task worktree)
-    ├── ~/tangerine-workspace/project-b/0, 1, ...
+    ├── {workspace}/project-a/0 (main clone)
+    │                          1 (task worktree)
+    │                          2 (task worktree)
+    ├── {workspace}/project-b/0, 1, ...
     ├── agents (claude, opencode) — local processes
     └── Apache, MariaDB, tools — shared
 ```
+`{workspace}` defaults to `~/tangerine-workspace` but is configurable via `config.workspace` in `~/tangerine/config.json`.
 
 No SSH tunnels, no per-project VMs. One VM, all projects.
 
@@ -66,21 +67,38 @@ User runs `/platform-setup` from INSIDE the VM in a project directory. You help 
 
 ## Project Setup Workflow
 
-1. **Scan the codebase** for stack indicators (see references/stacks.md)
-2. **Detect**:
+1. **Get repo URL** from the user (and optionally a project name; default to the repo name).
+
+2. **Read the workspace path** from the existing config:
+   ```bash
+   jq -r '.workspace // "~/tangerine-workspace"' ~/tangerine/config.json
+   ```
+   Use this resolved path as `{workspace}` for all subsequent steps. Never hardcode `~/tangerine-workspace`.
+
+3. **Clone the repo** into `{workspace}/{projectName}/0/`:
+   ```bash
+   mkdir -p {workspace}/my-project
+   git clone <repo-url> {workspace}/my-project/0
+   ```
+   The `/0` directory is the **main branch clone** — it is never assigned to tasks. This path must match what `getRepoDir()` in `packages/server/src/config.ts` computes: `join(resolveWorkspace(config), projectId, "0")`.
+
+4. **Scan the cloned repo** for stack indicators (see references/stacks.md):
    - Language runtimes and versions
    - Package managers
    - Frameworks and dev server configuration
    - Database/service dependencies
    - Test runners and commands
    - CI config (reveals required tooling)
-3. **Present the plan** before writing:
+
+5. **Present the plan** before writing:
    - Detected stack summary
    - Proposed project name
+   - Clone path (`{workspace}/{projectName}/0`)
    - Setup command (runs per-task in worktree)
    - Test command
    - Post-update command (install deps + build, runs after git pull)
-4. **Write config** to `~/tangerine/config.json`:
+
+6. **Write config** to `~/tangerine/config.json`:
    ```json
    {
      "name": "my-project",
@@ -91,11 +109,6 @@ User runs `/platform-setup` from INSIDE the VM in a project directory. You help 
      "defaultProvider": "claude-code",
      "postUpdateCommand": "pnpm install && pnpm build"
    }
-   ```
-5. **Clone the repo** (into 0):
-   ```bash
-   mkdir -p ~/tangerine-workspace/my-project
-   git clone <repo-url> ~/tangerine-workspace/my-project/0
    ```
 ### Base Setup Includes
 
