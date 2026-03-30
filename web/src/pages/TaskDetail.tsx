@@ -1,6 +1,7 @@
-import { useState, useEffect, useCallback, useRef } from "react"
+import { useState, useEffect, useCallback, useRef, useMemo } from "react"
 import { useParams, Link } from "react-router-dom"
 import type { Task } from "@tangerine/shared"
+import { ORCHESTRATOR_TASK_NAME } from "@tangerine/shared"
 import { fetchTask, fetchChildTasks, changeTaskConfig, markTaskSeen, resolveTask, completeTask } from "../lib/api"
 import { getStatusConfig } from "../lib/status"
 import { useSession } from "../hooks/useSession"
@@ -38,8 +39,20 @@ export function TaskDetail() {
   const [mobilePane, setMobilePane] = useState<PaneId>("chat")
 
   const { current, modelsByProvider } = useProject()
-  const session = useSession(id ?? "")
+
   const { query, setQuery, tasks } = useTaskSearch(current?.name)
+
+  // When viewing a task from a different project, show that project's orchestrator chat
+  const isCrossProject = task !== null && current !== null && task.projectId !== current.name
+  const TERMINATED = useMemo(() => new Set(["done", "completed", "cancelled"]), [])
+  const orchestratorTask = useMemo(() => {
+    if (!isCrossProject) return null
+    const orchTasks = tasks.filter((t) => t.title === ORCHESTRATOR_TASK_NAME)
+    return orchTasks.find((t) => !TERMINATED.has(t.status)) ?? null
+  }, [isCrossProject, tasks, TERMINATED])
+
+  const chatTaskId = (isCrossProject && orchestratorTask) ? orchestratorTask.id : (id ?? "")
+  const session = useSession(chatTaskId)
   const { files: diffFiles } = useDiffFiles(id ?? "")
   const [diffComments, setDiffComments] = useState<DiffComment[]>([])
   const [copiedId, setCopiedId] = useState(false)
@@ -135,55 +148,67 @@ export function TaskDetail() {
     el?.scrollIntoView({ behavior: "smooth", block: "start" })
   }, [])
 
-  const providerModels = task ? (modelsByProvider[task.provider] ?? []) : []
+  // The task whose chat is shown — orchestrator when cross-project, otherwise the viewed task
+  const chatTask = (isCrossProject && orchestratorTask) ? orchestratorTask : task
+  const providerModels = chatTask ? (modelsByProvider[chatTask.provider] ?? []) : []
 
   const handleModelChange = useCallback(async (model: string) => {
-    if (!id || !task) return
+    const targetId = chatTask?.id
+    if (!targetId) return
     try {
-      await changeTaskConfig(id, { model })
-      setTask((prev) => prev ? { ...prev, model } : prev)
+      await changeTaskConfig(targetId, { model })
+      if (!isCrossProject) {
+        setTask((prev) => prev ? { ...prev, model } : prev)
+      }
     } catch {
       // TODO: error toast
     }
-  }, [id, task])
+  }, [chatTask?.id, isCrossProject])
 
   const handleReasoningEffortChange = useCallback(async (reasoningEffort: string) => {
-    if (!id || !task) return
+    const targetId = chatTask?.id
+    if (!targetId) return
     try {
-      await changeTaskConfig(id, { reasoningEffort })
-      setTask((prev) => prev ? { ...prev, reasoningEffort } : prev)
+      await changeTaskConfig(targetId, { reasoningEffort })
+      if (!isCrossProject) {
+        setTask((prev) => prev ? { ...prev, reasoningEffort } : prev)
+      }
     } catch {
       // TODO: error toast
     }
-  }, [id, task])
+  }, [chatTask?.id, isCrossProject])
 
-  const canResolve = task?.capabilities.includes("resolve") ?? false
-  const hasPredefinedPrompts = task?.capabilities.includes("predefined-prompts") ?? false
+  const canResolve = chatTask?.capabilities.includes("resolve") ?? false
+  const hasPredefinedPrompts = chatTask?.capabilities.includes("predefined-prompts") ?? false
   const hasDiff = task?.capabilities.includes("diff") ?? false
-  const canEndSession = task?.capabilities.includes("end-session") ?? false
-  const canContinue = task?.capabilities.includes("continue") ?? false
+  const canEndSession = chatTask?.capabilities.includes("end-session") ?? false
+  const canContinue = chatTask?.capabilities.includes("continue") ?? false
 
   const handleResolve = useCallback(async () => {
-    if (!task) return
+    if (!chatTask) return
     try {
-      await resolveTask(task.id)
-      const updated = await fetchTask(task.id)
-      setTask(updated)
+      await resolveTask(chatTask.id)
+      if (!isCrossProject) {
+        const updated = await fetchTask(chatTask.id)
+        setTask(updated)
+      }
     } catch {
       // TODO: error toast
     }
-  }, [task])
+  }, [chatTask, isCrossProject])
 
   const handleEndSession = useCallback(async () => {
-    if (!task) return
+    if (!chatTask) return
     try {
-      await completeTask(task.id)
-      const updated = await fetchTask(task.id)
-      setTask(updated)
+      await completeTask(chatTask.id)
+      if (!isCrossProject) {
+        const updated = await fetchTask(chatTask.id)
+        setTask(updated)
+      }
     } catch {
       // TODO: error toast
     }
-  }, [task])
+  }, [chatTask, isCrossProject])
 
   const handleSendComments = useCallback((comments: DiffComment[]) => {
     const text = comments
@@ -275,7 +300,7 @@ export function TaskDetail() {
   }, [task?.id, task?.capabilities])
 
   useEffect(() => {
-    if (!session.taskStatus) return
+    if (!session.taskStatus || isCrossProject) return
     const terminal = ["done", "failed", "cancelled"]
     if (terminal.includes(session.taskStatus)) {
       // Refetch the full task to capture error and other fields set on completion
@@ -283,7 +308,7 @@ export function TaskDetail() {
     } else {
       setTask((prev) => (prev ? { ...prev, status: session.taskStatus! } : prev))
     }
-  }, [session.taskStatus, id])
+  }, [session.taskStatus, id, isCrossProject])
 
   if (loading) {
     return (
@@ -446,20 +471,20 @@ export function TaskDetail() {
 
         {/* Desktop pane layout — multi-pane with resize handles */}
         <div ref={containerRef} className="hidden min-h-0 flex-1 md:flex">
-          {visiblePanes.has("chat") && (
+          {visiblePanes.has("chat") && chatTask && (
             <div className="flex min-w-0 flex-1 flex-col">
               <ChatPanel
                 messages={session.messages}
                 agentStatus={session.agentStatus}
                 queueLength={session.queueLength}
-                model={task.model}
-                provider={task.provider}
+                model={chatTask.model}
+                provider={chatTask.provider}
                 providerModels={providerModels}
-                reasoningEffort={task.reasoningEffort}
-                taskStatus={task.status}
-                taskError={task.error}
-                taskId={task.id}
-                taskTitle={task.title}
+                reasoningEffort={chatTask.reasoningEffort}
+                taskStatus={chatTask.status}
+                taskError={chatTask.error}
+                taskId={chatTask.id}
+                taskTitle={chatTask.title}
                 onSend={session.sendPrompt}
                 onAbort={session.abort}
                 onModelChange={handleModelChange}
@@ -468,7 +493,7 @@ export function TaskDetail() {
                 onResolve={canResolve ? handleResolve : undefined}
                 onEndSession={canEndSession ? handleEndSession : undefined}
                 canContinue={canContinue}
-                autoFocusKey={id}
+                autoFocusKey={chatTaskId}
               />
             </div>
           )}
@@ -534,20 +559,20 @@ export function TaskDetail() {
 
         {/* Mobile pane layout — single pane, switched by mobilePane */}
         <div className="flex min-h-0 flex-1 md:hidden">
-          {mobilePane === "chat" && (
+          {mobilePane === "chat" && chatTask && (
             <div className="flex min-w-0 flex-1 flex-col">
               <ChatPanel
                 messages={session.messages}
                 agentStatus={session.agentStatus}
                 queueLength={session.queueLength}
-                model={task.model}
-                provider={task.provider}
+                model={chatTask.model}
+                provider={chatTask.provider}
                 providerModels={providerModels}
-                reasoningEffort={task.reasoningEffort}
-                taskStatus={task.status}
-                taskError={task.error}
-                taskId={task.id}
-                taskTitle={task.title}
+                reasoningEffort={chatTask.reasoningEffort}
+                taskStatus={chatTask.status}
+                taskError={chatTask.error}
+                taskId={chatTask.id}
+                taskTitle={chatTask.title}
                 onSend={session.sendPrompt}
                 onAbort={session.abort}
                 onModelChange={handleModelChange}

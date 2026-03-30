@@ -1,7 +1,7 @@
 import { createContext, useContext, useState, useEffect, useCallback, type ReactNode } from "react"
 import { useSearchParams, useNavigate, useLocation } from "react-router-dom"
 import type { ProjectConfig } from "@tangerine/shared"
-import { fetchProjects } from "../lib/api"
+import { fetchProjects, ensureOrchestrator } from "../lib/api"
 
 interface ProjectContextValue {
   projects: ProjectConfig[]
@@ -68,9 +68,15 @@ export function ProjectProvider({ children }: { children: ReactNode }) {
   const switchProject = useCallback(
     (name: string, { replace = false }: { replace?: boolean } = {}) => {
       setSelectedModel(null)
-      // Clear selected task when switching projects by navigating to root
       if (location.pathname.startsWith("/tasks/")) {
-        navigate(`/?project=${encodeURIComponent(name)}`, { replace })
+        // Navigate to the new project's orchestrator chat
+        const projectParam = `?project=${encodeURIComponent(name)}`
+        ensureOrchestrator(name).then((task) => {
+          navigate(`/tasks/${task.id}${projectParam}`, { replace })
+        }).catch(() => {
+          // Fallback to runs page if orchestrator can't be found
+          navigate(`/${projectParam}`, { replace })
+        })
       } else {
         setSearchParams((prev) => {
           const next = new URLSearchParams(prev)
