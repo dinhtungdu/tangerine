@@ -1,174 +1,166 @@
 # Architecture
 
-Local background coding agent platform. Agents run in isolated VMs, users interact via web dashboard or terminal. Tasks sourced from GitHub/Linear issues.
+Tangerine is a local background coding agent platform. The current implementation runs on a single machine: the Bun server, SQLite database, git repos, worktrees, and agent CLIs all live in the same environment.
 
 ## Overview
 
-```
-┌──────────────────────────────────────────────────────────┐
-│                    Web Dashboard (Vite + React)           │
-│  Task list ← GitHub/Linear webhooks                      │
-│  Click task → Chat UI + Preview iframe                   │
-│  Provider selector (OpenCode / Claude Code)              │
-├──────────────────────────────────────────────────────────┤
-│                    API Server (Hono + Bun)                │
-│  REST: tasks, sessions, projects, VMs                    │
-│  WebSocket: real-time chat stream                        │
-│  Proxy: preview port forwarding per session              │
-│  Webhooks: GitHub issues, Linear (later)                 │
-│  Auth: none (v0) → GitHub OAuth + accounts (hosted)      │
-├──────────────────────────────────────────────────────────┤
-│                Agent Provider Abstraction                 │
-│  AgentFactory → AgentHandle (normalized AgentEvent)      │
-│  OpenCode: SSE over SSH tunnel                           │
-│  Claude Code: NDJSON over SSH stdin/stdout               │
-├──────────────────────────────────────────────────────────┤
-│                    VM Layer                               │
-│  Per-project persistent VMs (ProjectVmManager)           │
-│  Lima provisioning, golden image clones                  │
-│  Git worktrees for task isolation                        │
-│  SSH tunnels: agent API + preview port                   │
-├──────────────────────────────────────────────────────────┤
-│                    Inside Each VM                         │
-│  opencode serve OR claude --stream-json (per task)       │
-│  Git worktrees at /workspace/worktrees/<task-prefix>     │
-│  Project dev server on configured preview port           │
-│  Git + gh CLI (user's token injected via ~/.env)         │
-│  Project-specific tooling (Docker, wp-env, etc.)         │
-└──────────────────────────────────────────────────────────┘
+```text
+┌─────────────────────────────────────────────────────────────┐
+│ Web Dashboard (Vite + React)                               │
+│ Runs list, task detail, status page, project switcher      │
+├─────────────────────────────────────────────────────────────┤
+│ API Server (Hono + Bun)                                    │
+│ REST routes, WebSocket streams, static asset serving       │
+├─────────────────────────────────────────────────────────────┤
+│ Task Runtime                                                │
+│ Task manager, lifecycle, retry, health, PR monitor         │
+│ Worktree pool, prompt queue, orphan cleanup                │
+├─────────────────────────────────────────────────────────────┤
+│ Agent Providers                                             │
+│ OpenCode | Claude Code | Codex                             │
+│ Local subprocesses behind a shared AgentFactory API        │
+├─────────────────────────────────────────────────────────────┤
+│ Persistence + Workspace                                     │
+│ SQLite + git repos + per-task worktrees                    │
+└─────────────────────────────────────────────────────────────┘
 ```
 
 ## Key Principles
 
-- **Multi-provider agents**: OpenCode and Claude Code via `AgentFactory`/`AgentHandle` abstraction
-- **Per-project persistent VMs**: one VM per project, survives task completion and server restarts
-- **Git worktrees for isolation**: each task gets its own worktree, not its own VM
-- **Project-agnostic**: each project defines its own golden image, setup, preview port, test command
-- **Bidirectional agent comms**: both providers emit normalized `AgentEvent` stream
-- **Terminal attach**: devs can `opencode attach` for OpenCode tasks
-- **Multiplayer-ready data model**: user_id nullable for v0
-- **Local-first**: runs on your machine, no auth for v0. Upgradeable to hosted
+- Local-first: Tangerine runs locally and serves the built web app itself
+- Single-machine architecture: no VM provisioning, SSH tunneling, or preview port forwarding in the active design
+- Multi-provider agents behind a shared abstraction
+- Git worktree isolation per task
+- Project-agnostic setup through per-project config
+- Typed task model: source, type, capabilities, provider, model, reasoning effort
+- Recoverable sessions: restart, reconnect, retry, and orphan cleanup are first-class paths
 
 ## Stack
 
-| Layer | Choice | Why |
-|-------|--------|-----|
-| Runtime | Bun | Fast, native TS, same as hal9999 |
-| API | Hono | Lightweight, Bun-native WebSocket via `upgradeWebSocket` |
-| Frontend | Vite + React | SPA dashboard, fast HMR, clean separation from API |
-| Agent | OpenCode + Claude Code | Dual provider via `AgentFactory` abstraction |
-| VM | Lima (macOS) / Incus (Linux) | hal9999's battle-tested providers |
-| DB | SQLite (bun:sqlite) | Tasks, VMs, activity logs |
+| Layer | Choice |
+|-------|--------|
+| Runtime | Bun |
+| API | Hono |
+| Frontend | Vite + React |
+| Database | SQLite (`bun:sqlite`) |
+| Agent CLIs | OpenCode, Claude Code, Codex |
+| Shared validation | Zod |
 
-## Structure
+## Source Layout
 
-```
+```text
 packages/
-  shared/              # @tangerine/shared — types, constants, config schema
-    src/
-      types.ts         # TaskStatus, VmStatus, ProviderType, WsMessage, etc.
-      config.ts        # ProjectConfig, TangerineConfig Zod schemas
-      constants.ts     # Status values, default ports, timeouts
-  server/              # tangerine-server — Hono API + VM + Agent
-    src/
-      api/             # Hono routes
-      vm/
-        providers/     # Lima provider (Provider interface)
-        project-vm.ts  # ProjectVmManager (per-project persistent VMs)
-        pool.ts        # Legacy VMPoolManager (deprecated)
-        tunnel.ts      # SSH tunnel manager
-        ssh.ts         # SSH exec, waitForSsh
-      agent/
-        provider.ts    # AgentFactory, AgentHandle, AgentEvent interfaces
-        opencode-provider.ts   # OpenCode agent implementation
-        claude-code-provider.ts # Claude Code agent implementation
-        ndjson.ts      # NDJSON parser + Claude Code event mapper
-        client.ts      # Per-task agent client instances
-        events.ts      # SSE subscription for OpenCode
-        prompt-queue.ts # Prompt queue (per-task)
-      tasks/           # Task lifecycle, cleanup, health, retry, orphan-cleanup
-      integrations/    # GitHub polling
-      db/              # SQLite schema + queries
-      image/           # Golden image build (two-layer: base + project)
-      types.ts
-web/                   # tangerine-web — Vite + React
-  src/
-    ...
-specs/                 # Architecture and design docs
+  shared/src/
+    config.ts
+    constants.ts
+    types.ts
+  server/src/
+    agent/
+    api/
+      routes/
+    cli/
+    db/
+    integrations/
+    tasks/
+  web/src/
+    components/
+    context/
+    hooks/
+    lib/
+    pages/
+skills/
+specs/
 ```
 
-## Specs
+## Core Runtime Flow
 
-| Spec | Scope |
-|------|-------|
-| [project.md](./project.md) | Project config, golden images, setup |
-| [vm.md](./vm.md) | Per-project VMs, ProjectVmManager, worktrees |
-| [agent.md](./agent.md) | Multi-provider agent abstraction, AgentHandle API |
-| [tasks.md](./tasks.md) | Task lifecycle, retry, cleanup, orphan detection, webhook sources |
-| [api.md](./api.md) | HTTP + WebSocket API surface, activity log |
-| [cli.md](./cli.md) | CLI commands, credential management |
-| [web.md](./web.md) | Dashboard UI, chat, preview, provider selector |
-| [credentials.md](./credentials.md) | Auth, token injection, Claude Code OAuth |
-| [testing.md](./testing.md) | Testing inside VMs |
-| [claude-code-protocol.md](./claude-code-protocol.md) | Claude Code stream-json protocol details |
+1. A task is created through the API, web UI, GitHub webhook/poller, or cross-project prompt.
+2. `tasks/manager.ts` assigns task type capabilities and starts non-orchestrator tasks immediately.
+3. `tasks/lifecycle.ts` fetches the repo, allocates a worktree slot, creates a branch/worktree, and starts the provider process locally.
+4. Provider events are normalized and forwarded to WebSocket clients, activity logs, and session logs.
+5. The task can be prompted, aborted, reconfigured, retried, completed, cancelled, or reconnected after restart.
 
-## Testing Infrastructure
+## Data Model
 
-End-to-end testing of the web dashboard against deterministic, seeded state.
+The main persisted tables are:
 
-### Config & DB Isolation
+- `tasks`
+- `session_logs`
+- `activity_log`
+- `system_logs`
+- `worktree_slots`
 
-- `TANGERINE_CONFIG` env var (or `--config <path>` CLI flag) → load config from arbitrary path
-- `TANGERINE_DB` env var (or `--db <path>` CLI flag) → use separate SQLite database
-- Allows spinning up an isolated test server alongside the real instance (different port, DB, config)
+Notable task fields in the active schema:
 
-### Test Mode
+- `type`
+- `provider`
+- `model`
+- `reasoning_effort`
+- `branch`
+- `worktree_path`
+- `parent_task_id`
+- `agent_session_id`
+- `agent_pid`
+- `last_seen_at`
+- `last_result_at`
+- `capabilities`
 
-Set `TEST_MODE=1` env var to enable test-only API endpoints. These are **never** available in normal operation.
+## Major Subsystems
 
-### Test API Endpoints (TEST_MODE only)
+### Agent Providers
 
-| Endpoint | Purpose |
-|----------|---------|
-| `POST /api/test/seed` | Populate DB with fixture data (tasks, activity logs, session logs) |
-| `POST /api/test/reset` | Truncate all seeded data (tasks, activity_log, session_logs) |
-| `POST /api/test/simulate-webhook` | Process a GitHub webhook payload through the handler without signature verification |
+- `opencode-provider.ts`
+- `claude-code-provider.ts`
+- `codex-provider.ts`
 
-### Fixture Data
+All providers implement the shared contract in `agent/provider.ts`, emit normalized events, and support prompt delivery plus shutdown. OpenCode exposes a richer live update path; Claude Code and Codex use subprocess streams.
 
-Default fixture file at `packages/server/src/test-fixtures/seed-data.json` with:
-- Tasks in all statuses (created, provisioning, running, done, failed, cancelled)
-- Activity log entries for task lifecycle events
-- Session log entries (conversation messages)
-- Edge cases: long titles, error messages, PR URLs
+### Task Management
 
-### GitHub Webhook Simulation
+- `tasks/manager.ts` handles task creation, type-based capabilities, retries, completion, cancellation, config changes, orchestrator creation, and restart recovery.
+- `tasks/retry.ts` wraps session start and reconnect flows.
+- `tasks/health.ts` suspends idle tasks and revives unhealthy sessions.
+- `tasks/pr-monitor.ts` detects and records PR URLs.
+- `tasks/orphan-cleanup.ts` removes leftover worktrees for terminal tasks.
 
-Sample payloads in `packages/server/src/test-fixtures/webhooks/`:
-- `issue-opened-label.json` — issue.opened with matching label
-- `issue-opened-assignee.json` — issue.opened with matching assignee
-- `issue-labeled.json` — issue.labeled (label added after creation)
+### API Surface
 
-### Browser-Test Skill Integration
+The API is organized under `packages/server/src/api/routes/`:
 
-The `browser-test` skill can optionally start a test server instance:
-1. Start server with test config, test DB, separate port, `TEST_MODE=1`
-2. Seed data via `POST /api/test/seed`
-3. Take screenshots against deterministic state
-4. Reset data via `POST /api/test/reset`
-5. Optionally simulate webhooks and screenshot resulting tasks
+- `tasks.ts`
+- `sessions.ts`
+- `project.ts`
+- `system.ts`
+- `ws.ts`
+- `terminal-ws.ts`
+- `test.ts`
 
-## What We Reuse from hal9999
+The server also serves the built dashboard from `web/dist`.
 
-- VM provisioning (Lima/Incus providers, `Provider` interface)
-- Golden image build pipeline (two-layer: base + project)
-- SSH exec layer (`sshExec`, `sshExecStreaming`, `waitForSsh`)
-- DB patterns (SQLite schema, typed queries)
+### Web App
 
-## What We Don't Reuse
+The dashboard currently exposes:
 
-- Warm pool management (replaced by per-project persistent VMs)
-- Fire-and-forget orchestrator (replaced by bidirectional agent abstraction)
-- Agent presets/wrapper scripts (replaced by `AgentFactory` providers)
-- Poll-based output (replaced by SSE/NDJSON streaming)
-- hal9999's task manager (replaced by our own with webhook integration)
+- Runs list at `/`
+- New run page at `/new`
+- Status page at `/status`
+- Task detail at `/tasks/:id`
+
+Notable UI features:
+
+- project switching
+- orchestrator entry point
+- diff viewer
+- terminal pane
+- model/harness/reasoning selectors
+- predefined prompt editors
+- project update status and pull-latest controls
+
+## Related Specs
+
+- [agent.md](./agent.md)
+- [api.md](./api.md)
+- [tasks.md](./tasks.md)
+- [web.md](./web.md)
+- [cli.md](./cli.md)
+- [v1-local-server.md](./v1-local-server.md)
