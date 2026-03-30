@@ -196,7 +196,7 @@ When the command finishes:
 
 ## Reviewing External PRs
 
-To review a PR from another contributor, create a Tangerine task using the `codex` provider with `gpt-5.4` and `xhigh` reasoning effort. Point it at the PR branch:
+To review a PR from another contributor, create a task that runs `codex review` with xhigh reasoning. Use the `codex` provider pointed at the PR branch:
 
 ```bash
 curl -X POST $API/api/tasks \
@@ -204,13 +204,13 @@ curl -X POST $API/api/tasks \
   -d '{
     "projectId": "my-project",
     "title": "Review PR #123",
-    "description": "Review this PR. Focus on bugs, logic errors, edge cases, missing error handling, and code quality. List each issue with file path and line reference.",
+    "description": "Run: codex review --pr 123 -c model=\"gpt-5.4\" -c reasoning.effort=\"xhigh\"\n\nShare the full review output. Do not fix anything unless asked.",
     "branch": "#123",
-    "provider": "codex",
-    "model": "gpt-5.4",
-    "reasoningEffort": "xhigh"
+    "provider": "codex"
   }'
 ```
+
+The task agent runs `codex review` as a subprocess with gpt-5.4 xhigh — the task itself does not need xhigh reasoning.
 
 When the review finishes:
 1. Read the review output from the task's messages
