@@ -334,6 +334,10 @@ export function TaskDetail() {
   // Desktop: multi-pane from visiblePanes set. Mobile: single pane from mobilePane.
   // Both states are tracked; CSS breakpoints control which layout renders.
   const desktopIsSolo = visiblePanes.size === 1
+  const PANE_ORDER: PaneId[] = ["chat", "diff", "terminal", "activity"]
+  const orderedVisible = PANE_ORDER.filter((p) => visiblePanes.has(p) && (p !== "diff" || hasDiff))
+  const firstVisiblePane = orderedVisible[0]
+  const secondVisiblePane = orderedVisible[1]
 
   return (
     <div className="flex h-full">
@@ -489,16 +493,16 @@ export function TaskDetail() {
             </div>
           )}
 
-          {visiblePanes.has("chat") && !(hasDiff && visiblePanes.has("diff")) && visiblePanes.has("activity") && (
+          {visiblePanes.has("chat") && !(hasDiff && visiblePanes.has("diff")) && visiblePanes.has("activity") && secondVisiblePane !== "activity" && (
             <ResizeHandle onMouseDown={activityResize.onMouseDown} />
           )}
 
-          {hasDiff && visiblePanes.has("diff") && visiblePanes.has("chat") && (
+          {hasDiff && visiblePanes.has("diff") && visiblePanes.has("chat") && secondVisiblePane !== "diff" && (
             <ResizeHandle onMouseDown={diffResize.onMouseDown} />
           )}
 
           {hasDiff && visiblePanes.has("diff") && (
-            <div className={`@container/diff flex min-w-0 flex-col${desktopIsSolo ? " flex-1" : ""}`} style={desktopIsSolo ? undefined : { width: diffWidth, flexShrink: 0 }}>
+            <div className={`@container/diff flex min-w-0 flex-col${desktopIsSolo || firstVisiblePane === "diff" ? " flex-1" : ""}`} style={desktopIsSolo || firstVisiblePane === "diff" ? undefined : { width: diffWidth, flexShrink: 0 }}>
               <div className="flex min-h-0 flex-1 flex-col @min-[700px]/diff:flex-row">
                 <div className="min-w-0 flex-1 overflow-y-auto">
                   {diffFiles.length > 0 ? (
@@ -522,24 +526,24 @@ export function TaskDetail() {
             </div>
           )}
 
-          {visiblePanes.has("terminal") && (visiblePanes.has("chat") || (hasDiff && visiblePanes.has("diff"))) && (
+          {visiblePanes.has("terminal") && (visiblePanes.has("chat") || (hasDiff && visiblePanes.has("diff"))) && secondVisiblePane !== "terminal" && (
             <ResizeHandle onMouseDown={terminalResize.onMouseDown} />
           )}
 
           {visiblePanes.has("terminal") && (
-            <div className={`flex min-w-0 flex-col${desktopIsSolo ? " flex-1" : ""}`} style={desktopIsSolo ? undefined : { width: terminalWidth, flexShrink: 0 }}>
+            <div className={`flex min-w-0 flex-col${desktopIsSolo || firstVisiblePane === "terminal" ? " flex-1" : ""}`} style={desktopIsSolo || firstVisiblePane === "terminal" ? undefined : { width: terminalWidth, flexShrink: 0 }}>
               <TerminalPane taskId={id!} />
             </div>
           )}
 
-          {visiblePanes.has("activity") && ((hasDiff && visiblePanes.has("diff")) || visiblePanes.has("terminal")) && (
+          {visiblePanes.has("activity") && ((hasDiff && visiblePanes.has("diff")) || visiblePanes.has("terminal")) && secondVisiblePane !== "activity" && (
             <ResizeHandle onMouseDown={activityResize.onMouseDown} />
           )}
 
           {visiblePanes.has("activity") && (
             <div
-              className={`flex flex-col bg-surface-secondary${desktopIsSolo ? " flex-1" : ""}`}
-              style={desktopIsSolo ? undefined : { width: activityWidth, flexShrink: 0 }}
+              className={`flex flex-col bg-surface-secondary${desktopIsSolo || firstVisiblePane === "activity" ? " flex-1" : ""}`}
+              style={desktopIsSolo || firstVisiblePane === "activity" ? undefined : { width: activityWidth, flexShrink: 0 }}
             >
               <div className="min-h-0 flex-1 overflow-y-auto px-4 pt-3">
                 <ActivityList activities={session.activities} variant="compact" />
