@@ -142,6 +142,7 @@ export async function start(): Promise<void> {
     // letting features silently malfunction at runtime.
     if (!isTestMode()) {
       const missing: string[] = []
+      const warnings: string[] = []
 
       const cmdExists = async (cmd: string) => {
         const proc = Bun.spawn(["which", cmd], { stdout: "pipe", stderr: "pipe" })
@@ -153,32 +154,35 @@ export async function start(): Promise<void> {
         missing.push("git is not installed — worktree setup and branch operations will not work.")
       }
 
-      // gh auth — required for PR capture and auto-complete
-      const ghInstalled = await cmdExists("gh")
-      if (!ghInstalled) {
-        missing.push("gh CLI is not installed — PR capture and auto-complete will not work. Install from https://cli.github.com/")
-      } else {
-        const ghAuth = Bun.spawn(["gh", "auth", "status"], { stdout: "pipe", stderr: "pipe" })
-        if ((await ghAuth.exited) !== 0) {
-          missing.push("gh CLI is not authenticated — PR capture and auto-complete will not work. Set GITHUB_TOKEN or run `gh auth login`.")
+      // gh auth — required for PR capture, but only when projects use GitHub remotes
+      const hasGithubProject = config.config.projects.some((p) => p.repo.includes("github.com"))
+      if (hasGithubProject) {
+        const ghInstalled = await cmdExists("gh")
+        if (!ghInstalled) {
+          missing.push("gh CLI is not installed — PR capture and auto-complete will not work. Install from https://cli.github.com/")
+        } else {
+          const ghAuth = Bun.spawn(["gh", "auth", "status"], { stdout: "pipe", stderr: "pipe" })
+          if ((await ghAuth.exited) !== 0) {
+            missing.push("gh CLI is not authenticated — PR capture and auto-complete will not work. Set GITHUB_TOKEN or run `gh auth login`.")
+          }
         }
       }
 
-      // tmux — required for terminal sessions
+      // tmux — needed for terminal sessions, but not critical for core operation
       if (!(await cmdExists("tmux"))) {
-        missing.push("tmux is not installed — terminal sessions will not work.")
+        warnings.push("tmux is not installed — terminal sessions will not work.")
       }
 
-      // Agent provider CLIs — only check providers referenced by configured projects
-      const requiredProviders = new Set(config.config.projects.map((p) => p.defaultProvider ?? "claude-code"))
+      // Agent provider CLIs — any provider can be selected at task creation time,
+      // so check all supported providers, not just the configured defaults.
       const providerCli: Record<string, string> = { "claude-code": "claude", "opencode": "opencode", "codex": "codex" }
-      for (const provider of requiredProviders) {
-        const cli = providerCli[provider]
-        if (cli && !(await cmdExists(cli))) {
-          missing.push(`${cli} CLI is not installed — provider "${provider}" will not work.`)
+      for (const [provider, cli] of Object.entries(providerCli)) {
+        if (!(await cmdExists(cli))) {
+          warnings.push(`${cli} CLI is not installed — provider "${provider}" will not be available.`)
         }
       }
 
+      for (const msg of warnings) log.warn(msg)
       if (missing.length > 0) {
         for (const msg of missing) log.error(msg)
         log.error("Fix the above issues and restart the server.")
