@@ -194,6 +194,29 @@ When the command finishes:
 3. Fix every issue found
 4. Only then create the PR
 
+## Reviewing External PRs
+
+When asked to review a PR from another contributor (not your own diff), use `codex review` pointed at the PR:
+
+```bash
+codex review --pr <number> -c model="gpt-5.4" -c reasoning.effort="xhigh"
+```
+
+Alternative harnesses:
+
+```bash
+# Claude Code
+gh pr diff <number> | claude -p "Review this diff. Focus on bugs, logic errors, edge cases, missing error handling, and code quality. List each issue with file path and line reference." --model <model>
+
+# OpenCode
+opencode run "Review this diff. Focus on bugs, logic errors, edge cases, missing error handling, and code quality. List each issue with file path and line reference." -m <provider/model> <<< "$(gh pr diff <number>)"
+```
+
+When the review finishes:
+1. Read the full review output
+2. Share findings with the user
+3. If asked to fix issues, create a task on the PR's branch using `"branch": "#<number>"`
+
 ## Task Object Shape
 
 ```json
