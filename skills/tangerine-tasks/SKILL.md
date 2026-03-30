@@ -162,8 +162,6 @@ Then:
 
 ## Required for Reviewer Tasks
 
-> **Branch requirement**: Reviewer tasks MUST use the same branch as the PR being reviewed (the PR's source/head branch, e.g. `tangerine/abc12345`). Do NOT create a new branch. The PR detector and clean poller rely on this branch match to correctly associate the reviewer task with the PR.
-
 When the task type is `reviewer` (reviewing a PR), also run `codex review` before reporting findings:
 
 ```bash
