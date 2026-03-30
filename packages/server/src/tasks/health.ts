@@ -23,6 +23,17 @@ const consecutiveRestarts = new Map<string, number>()
 // The health monitor skips restart for these — they wake on next user message.
 const suspendedTasks = new Set<string>()
 
+/**
+ * SQLite datetime('now') returns UTC without a timezone suffix. Normalize bare
+ * timestamps before parsing so idle timeout is based on real UTC time.
+ */
+export function parseTaskTimestampMs(timestamp: string): number {
+  const normalized = /Z$|[+-]\d{2}:\d{2}$/.test(timestamp)
+    ? timestamp
+    : timestamp.replace(" ", "T") + "Z"
+  return new Date(normalized).getTime()
+}
+
 /** Check whether a task's agent has been suspended due to idle timeout. */
 export function isTaskSuspended(taskId: string): boolean {
   return suspendedTasks.has(taskId)
@@ -195,7 +206,7 @@ function checkIdleTimeout(
 
     const lastMsgTime = deps.getLastUserMessageTime(task.id)
     if (lastMsgTime) {
-      const idleMs = Date.now() - new Date(lastMsgTime).getTime()
+      const idleMs = Date.now() - parseTaskTimestampMs(lastMsgTime)
       if (idleMs >= DEFAULT_IDLE_TIMEOUT_MS) {
         log.info("Task idle, suspending agent", { taskId: task.id, title: task.title, idleMs })
         suspendedTasks.add(task.id)
@@ -205,7 +216,7 @@ function checkIdleTimeout(
       }
     } else if (task.started_at) {
       // No user messages at all — check time since start
-      const idleMs = Date.now() - new Date(task.started_at).getTime()
+      const idleMs = Date.now() - parseTaskTimestampMs(task.started_at)
       if (idleMs >= DEFAULT_IDLE_TIMEOUT_MS) {
         log.info("Task idle (no messages), suspending agent", { taskId: task.id, title: task.title, idleMs })
         suspendedTasks.add(task.id)
