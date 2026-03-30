@@ -51,9 +51,9 @@ function classifyTool(toolName: string): { activityType: "file" | "system"; acti
 }
 
 /**
- * Try to save a detected PR URL for a task — checks "pr" capability, verifies
- * branch match, then persists to DB and emits activity. No-op if the task
- * lacks the capability or the branch doesn't match.
+ * Try to save a detected PR URL for a task — checks "pr-create" capability,
+ * verifies branch match, then persists to DB and emits activity. No-op if the
+ * task lacks the capability or the branch doesn't match.
  */
 function trySavePrUrl(
   db: import("bun:sqlite").Database,
@@ -64,7 +64,7 @@ function trySavePrUrl(
 ) {
   const taskRow = db.prepare("SELECT branch, type, capabilities FROM tasks WHERE id = ?")
     .get(taskId) as { branch: string | null; type: string; capabilities: string | null } | null
-  if (!taskRow || !taskHasCapability(taskRow.type, taskRow.capabilities, "pr")) return
+  if (!taskRow || !taskHasCapability(taskRow.type, taskRow.capabilities, "pr-create")) return
 
   const taskBranch = taskRow.branch
   Effect.runPromise(
@@ -315,19 +315,24 @@ export async function start(): Promise<void> {
                 await new Promise((r) => setTimeout(r, 1500))
 
                 const taskRow = db.prepare(
-                  "SELECT title, description FROM tasks WHERE id = ?"
-                ).get(taskId) as { title: string; description: string | null } | null
+                  "SELECT title, description, type FROM tasks WHERE id = ?"
+                ).get(taskId) as { title: string; description: string | null; type: string | null } | null
 
                 const originalTask = taskRow?.description || taskRow?.title || ""
                 const unansweredUserMsg = lastLog?.role === "user" ? lastLog.content : null
 
-                const nudge = [
+                const nudgeParts = [
                   `[TANGERINE: Server restarted. You are working on: ${originalTask}]`,
-                  `[NOTE: When your work is complete, you MUST push your branch and create a pull request. Use \`git push origin HEAD\` then \`gh pr create\`.]`,
+                ]
+                if (taskRow?.type !== "reviewer") {
+                  nudgeParts.push(`[NOTE: When your work is complete, you MUST push your branch and create a pull request. Use \`git push origin HEAD\` then \`gh pr create\`.]`)
+                }
+                nudgeParts.push(
                   unansweredUserMsg
                     ? `The last message you had not yet responded to was: ${unansweredUserMsg}\n\nPlease continue.`
                     : "Please continue where you left off.",
-                ].join("\n\n")
+                )
+                const nudge = nudgeParts.join("\n\n")
 
                 await Effect.runPromise(
                   session.agentHandle.sendPrompt(nudge).pipe(Effect.catchAll(() => Effect.void))
@@ -346,7 +351,7 @@ export async function start(): Promise<void> {
             // Queued prompts are drained AFTER the initial prompt so the agent gets
             // its task description (including orchestrator system prompt) first.
             const isRetry = !!hasLogs // User message already saved, just re-deliver prompt
-            const task = db.prepare("SELECT description, title, project_id FROM tasks WHERE id = ?").get(taskId) as { description: string | null; title: string; project_id: string } | null
+            const task = db.prepare("SELECT description, title, project_id, type FROM tasks WHERE id = ?").get(taskId) as { description: string | null; title: string; project_id: string; type: string | null } | null
             const initialPrompt = task?.description || task?.title
             if (initialPrompt) {
               // Load initial images saved during task creation (if any)
@@ -381,6 +386,7 @@ export async function start(): Promise<void> {
 
                 const notes = buildSystemNotes(taskId, {
                   setupCommand: projConfig?.setup,
+                  taskType: task?.type ?? undefined,
                 })
                 firstPromptSent.add(taskId)
 
@@ -531,7 +537,7 @@ export async function start(): Promise<void> {
 
                       // Check DB for existing pr_url (in-memory set is lost on restart)
                       const task = db.prepare("SELECT project_id, pr_url, type, capabilities FROM tasks WHERE id = ?").get(taskId) as { project_id: string; pr_url: string | null; type: string; capabilities: string | null } | null
-                      if (!task || !taskHasCapability(task.type, task.capabilities, "pr")) return
+                      if (!task || !taskHasCapability(task.type, task.capabilities, "pr-create")) return
                       if (task?.pr_url) {
                         prUrlSaved.add(taskId)
                         return
@@ -707,6 +713,7 @@ export async function start(): Promise<void> {
               const projConfig = task?.project_id ? getProjectConfig(config.config, task.project_id) : undefined
               const notes = buildSystemNotes(taskId, {
                 setupCommand: projConfig?.setup,
+                taskType: task?.type ?? undefined,
               })
 
               if (notes.length > 0) {

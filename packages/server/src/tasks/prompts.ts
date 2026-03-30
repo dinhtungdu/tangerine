@@ -5,6 +5,7 @@ import { DEFAULT_API_PORT } from "@tangerine/shared"
 
 export interface SystemNotesInfo {
   setupCommand?: string
+  taskType?: string
 }
 
 /** Build system notes prepended to the first prompt for a task. */
@@ -15,7 +16,11 @@ export function buildSystemNotes(taskId: string, info: SystemNotesInfo): string[
     const prefix = taskId.slice(0, 8)
     notes.push(`[NOTE: Project setup is running in the background (\`${info.setupCommand}\`). Before running builds, tests, or linters, check if setup is done: \`cat /tmp/tangerine-setup-${prefix}.status\` (running/done/failed). Log: \`cat /tmp/tangerine-setup-${prefix}.log\`]`)
   }
-  notes.push(`[NOTE: When your work is complete, push your branch and create a pull request. Use \`git push origin HEAD\` then \`gh pr create\`. Do not stop at just committing.]`)
+  // Reviewer tasks don't create PRs — they review existing ones on their branch.
+  // The PR monitor completes them when the PR merges, so don't tell them to push/create PRs.
+  if (info.taskType !== "reviewer") {
+    notes.push(`[NOTE: When your work is complete, push your branch and create a pull request. Use \`git push origin HEAD\` then \`gh pr create\`. Do not stop at just committing.]`)
+  }
   return notes
 }
 
