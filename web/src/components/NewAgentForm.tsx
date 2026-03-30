@@ -47,9 +47,9 @@ export function NewAgentForm({ onSubmit, refTaskId, refTaskTitle }: NewAgentForm
   const PREFS_KEY = "tangerine:agent-prefs"
   const draftKey = `tangerine:new-agent-draft:${current?.name ?? "unknown"}:${refTaskId ?? "new"}`
 
-  const loadDraft = useCallback((): { description?: string; customBranch?: string; pendingImages?: PendingImage[] } => {
+  const loadDraft = useCallback((): { description?: string; customBranch?: string; taskType?: "worker" | "reviewer"; pendingImages?: PendingImage[] } => {
     try {
-      return JSON.parse(localStorage.getItem(draftKey) ?? "{}") as { description?: string; customBranch?: string; pendingImages?: PendingImage[] }
+      return JSON.parse(localStorage.getItem(draftKey) ?? "{}") as { description?: string; customBranch?: string; taskType?: "worker" | "reviewer"; pendingImages?: PendingImage[] }
     } catch {
       return {}
     }
@@ -68,7 +68,7 @@ export function NewAgentForm({ onSubmit, refTaskId, refTaskTitle }: NewAgentForm
   const [provider, setProvider] = useState<ProviderType>((saved.provider as ProviderType) ?? current?.defaultProvider ?? "claude-code")
   const [modelByProvider, setModelByProvider] = useState<Record<string, string>>(saved.models ?? {})
   const [reasoningEffort, setReasoningEffort] = useState<ReasoningEffort>((saved.reasoningEffort as ReasoningEffort) ?? "medium")
-  const [taskType, setTaskType] = useState<"worker" | "reviewer">("worker")
+  const [taskType, setTaskType] = useState<"worker" | "reviewer">(savedDraft.taskType ?? "worker")
   const [submitting, setSubmitting] = useState(false)
   const hydratedDraftKeyRef = useRef<string | null>(null)
   const branch = current?.defaultBranch ?? "main"
@@ -128,19 +128,20 @@ export function NewAgentForm({ onSubmit, refTaskId, refTaskTitle }: NewAgentForm
     setDescription(draft.description ?? "")
     setCustomBranch(draft.customBranch ?? "")
     setPendingImages(draft.pendingImages ?? [])
+    if (draft.taskType) setTaskType(draft.taskType)
   }, [draftKey, loadDraft, description, customBranch, pendingImages.length])
 
   useEffect(() => {
     try {
-      if (!description && !customBranch && pendingImages.length === 0) {
+      if (!description && !customBranch && pendingImages.length === 0 && taskType === "worker") {
         localStorage.removeItem(draftKey)
       } else {
-        localStorage.setItem(draftKey, JSON.stringify({ description, customBranch, pendingImages }))
+        localStorage.setItem(draftKey, JSON.stringify({ description, customBranch, taskType, pendingImages }))
       }
     } catch {
       // ignore storage failures
     }
-  }, [draftKey, description, customBranch, pendingImages])
+  }, [draftKey, description, customBranch, taskType, pendingImages])
 
   const canSubmit = (!!description.trim() || pendingImages.length > 0) && !!current && !submitting
 
@@ -181,7 +182,7 @@ export function NewAgentForm({ onSubmit, refTaskId, refTaskTitle }: NewAgentForm
       type: taskType,
       images,
     })
-  }, [current, submitting, description, pendingImages, customBranch, provider, activeModel, reasoningEffort, refTaskId, refTaskTitle, submitAndReset])
+  }, [current, submitting, description, pendingImages, customBranch, provider, activeModel, reasoningEffort, taskType, refTaskId, refTaskTitle, submitAndReset])
 
   const handleSubmit = handleCodeSubmit
 
