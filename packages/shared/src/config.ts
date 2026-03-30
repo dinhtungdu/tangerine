@@ -20,6 +20,14 @@ export const projectConfigSchema = z.object({
     { label: "Yes", text: "Yes" },
     { label: "Merge", text: "Merge" },
   ]),
+  orchestratorPrompts: z.array(predefinedPromptSchema).optional().default([
+    { label: "Check active tasks", text: "Check active tasks" },
+    { label: "Status update", text: "Status update" },
+  ]),
+  reviewerPrompts: z.array(predefinedPromptSchema).optional().default([
+    { label: "Summarize findings", text: "Summarize findings" },
+    { label: "Approve", text: "Approve" },
+  ]),
 })
 
 const githubTriggerSchema = z.object({

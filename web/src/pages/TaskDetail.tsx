@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback, useRef, useMemo } from "react"
 import { useParams, Link } from "react-router-dom"
-import type { Task, PredefinedPrompt } from "@tangerine/shared"
+import type { Task } from "@tangerine/shared"
 import { fetchTask, fetchChildTasks, changeTaskConfig, markTaskSeen, resolveTask } from "../lib/api"
 import { getStatusConfig } from "../lib/status"
 import { useSession } from "../hooks/useSession"
@@ -18,16 +18,6 @@ import { ResizeHandle, PaneToggle } from "../components/PaneControls"
 import { TerminalPane } from "../components/TerminalPane"
 import { formatPrNumber } from "../lib/format"
 import { copyToClipboard } from "../lib/clipboard"
-
-const ORCHESTRATOR_PROMPTS: PredefinedPrompt[] = [
-  { label: "Check active tasks", text: "Check active tasks" },
-  { label: "Status update", text: "Status update" },
-]
-
-const REVIEWER_PROMPTS: PredefinedPrompt[] = [
-  { label: "Summarize findings", text: "Summarize findings" },
-  { label: "Approve", text: "Approve" },
-]
 
 type PaneId = "chat" | "diff" | "terminal" | "activity"
 
@@ -194,10 +184,10 @@ export function TaskDetail() {
 
   const resolvedPrompts = useMemo(() => {
     if (!hasPredefinedPrompts || !chatTask) return undefined
-    if (chatTask.type === "orchestrator") return ORCHESTRATOR_PROMPTS
-    if (chatTask.type === "reviewer") return REVIEWER_PROMPTS
+    if (chatTask.type === "orchestrator") return current?.orchestratorPrompts
+    if (chatTask.type === "reviewer") return current?.reviewerPrompts
     return current?.predefinedPrompts
-  }, [hasPredefinedPrompts, chatTask, current?.predefinedPrompts])
+  }, [hasPredefinedPrompts, chatTask, current?.orchestratorPrompts, current?.reviewerPrompts, current?.predefinedPrompts])
 
   const handleResolve = useCallback(async () => {
     if (!chatTask) return
