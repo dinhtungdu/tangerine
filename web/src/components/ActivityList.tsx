@@ -21,7 +21,7 @@ export function ActivityList({ activities, variant = "compact" }: ActivityListPr
 
   return (
     <div className="flex flex-col">
-      <div className="flex items-center justify-between px-4 py-3">
+      <div className="flex items-center justify-between px-3 py-2">
         <span className="font-mono text-[11px] font-semibold tracking-wider text-fg-muted">ACTIVITY</span>
         <span className="font-mono text-[11px] font-medium text-fg-muted">{activities.length}</span>
       </div>
@@ -45,15 +45,15 @@ function ActivityItem({ entry, isLast }: { entry: ActivityEntry; isLast: boolean
   const meta = entry.metadata as Record<string, unknown> | null
 
   return (
-    <div className="flex gap-2.5 px-4 py-1.5">
-      <span className="w-[42px] shrink-0 pt-0.5 text-[11px] text-fg-faint">
+    <div className="flex gap-1.5 px-3 py-1">
+      <span className="w-[34px] shrink-0 pt-0.5 text-[10px] text-fg-faint">
         {formatTimestamp(entry.timestamp)}
       </span>
       <div
-        className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full"
+        className="flex h-4 w-4 shrink-0 items-center justify-center rounded-full"
         style={{ backgroundColor: style.bg }}
       >
-        <svg width="12" height="12" viewBox="0 0 12 12" fill="none" stroke={style.color} strokeWidth="1.2" strokeLinecap="round" strokeLinejoin="round">
+        <svg width="9" height="9" viewBox="0 0 12 12" fill="none" stroke={style.color} strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
           {style.iconPaths.map((d, i) => (
             <path key={i} d={d} />
           ))}
