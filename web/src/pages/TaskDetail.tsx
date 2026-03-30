@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback, useRef, useMemo } from "react"
 import { useParams, Link } from "react-router-dom"
-import type { Task } from "@tangerine/shared"
-import { fetchTask, fetchChildTasks, changeTaskConfig, markTaskSeen, resolveTask, completeTask } from "../lib/api"
+import type { Task, PredefinedPrompt } from "@tangerine/shared"
+import { fetchTask, fetchChildTasks, changeTaskConfig, markTaskSeen, resolveTask } from "../lib/api"
 import { getStatusConfig } from "../lib/status"
 import { useSession } from "../hooks/useSession"
 import { useTaskSearch } from "../hooks/useTaskSearch"
@@ -18,6 +18,16 @@ import { ResizeHandle, PaneToggle } from "../components/PaneControls"
 import { TerminalPane } from "../components/TerminalPane"
 import { formatPrNumber } from "../lib/format"
 import { copyToClipboard } from "../lib/clipboard"
+
+const ORCHESTRATOR_PROMPTS: PredefinedPrompt[] = [
+  { label: "Check active tasks", text: "Check active tasks" },
+  { label: "Status update", text: "Status update" },
+]
+
+const REVIEWER_PROMPTS: PredefinedPrompt[] = [
+  { label: "Summarize findings", text: "Summarize findings" },
+  { label: "Approve", text: "Approve" },
+]
 
 type PaneId = "chat" | "diff" | "terminal" | "activity"
 
@@ -180,26 +190,19 @@ export function TaskDetail() {
   const canResolve = chatTask?.capabilities.includes("resolve") ?? false
   const hasPredefinedPrompts = chatTask?.capabilities.includes("predefined-prompts") ?? false
   const hasDiff = task?.capabilities.includes("diff") ?? false
-  const canEndSession = chatTask?.capabilities.includes("end-session") ?? false
   const canContinue = chatTask?.capabilities.includes("continue") ?? false
+
+  const resolvedPrompts = useMemo(() => {
+    if (!hasPredefinedPrompts || !chatTask) return undefined
+    if (chatTask.type === "orchestrator") return ORCHESTRATOR_PROMPTS
+    if (chatTask.type === "reviewer") return REVIEWER_PROMPTS
+    return current?.predefinedPrompts
+  }, [hasPredefinedPrompts, chatTask, current?.predefinedPrompts])
 
   const handleResolve = useCallback(async () => {
     if (!chatTask) return
     try {
       await resolveTask(chatTask.id)
-      if (!isCrossProject) {
-        const updated = await fetchTask(chatTask.id)
-        setTask(updated)
-      }
-    } catch {
-      // TODO: error toast
-    }
-  }, [chatTask, isCrossProject])
-
-  const handleEndSession = useCallback(async () => {
-    if (!chatTask) return
-    try {
-      await completeTask(chatTask.id)
       if (!isCrossProject) {
         const updated = await fetchTask(chatTask.id)
         setTask(updated)
@@ -488,9 +491,8 @@ export function TaskDetail() {
                 onAbort={session.abort}
                 onModelChange={handleModelChange}
                 onReasoningEffortChange={handleReasoningEffortChange}
-                predefinedPrompts={hasPredefinedPrompts ? current?.predefinedPrompts : undefined}
+                predefinedPrompts={resolvedPrompts}
                 onResolve={canResolve ? handleResolve : undefined}
-                onEndSession={canEndSession ? handleEndSession : undefined}
                 canContinue={canContinue}
                 autoFocusKey={chatTaskId}
               />
@@ -576,9 +578,8 @@ export function TaskDetail() {
                 onAbort={session.abort}
                 onModelChange={handleModelChange}
                 onReasoningEffortChange={handleReasoningEffortChange}
-                predefinedPrompts={hasPredefinedPrompts ? current?.predefinedPrompts : undefined}
+                predefinedPrompts={resolvedPrompts}
                 onResolve={canResolve ? handleResolve : undefined}
-                onEndSession={canEndSession ? handleEndSession : undefined}
                 canContinue={canContinue}
               />
             </div>

@@ -89,8 +89,10 @@ export function createTask(
     const description = params.description ?? null
 
     const capabilities: TaskCapability[] = taskType === "orchestrator"
-      ? ["resolve", "end-session"]
-      : ["resolve", "predefined-prompts", "diff", "continue"]
+      ? ["resolve", "predefined-prompts"]
+      : taskType === "reviewer"
+        ? ["resolve", "predefined-prompts", "diff"]
+        : ["resolve", "predefined-prompts", "diff", "continue"]
 
     const task = yield* deps.insertTask({
       id,
