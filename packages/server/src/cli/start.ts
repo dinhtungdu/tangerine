@@ -439,7 +439,7 @@ export async function start(): Promise<void> {
                 break
               }
               case "message.complete": {
-                if ((event.role === "assistant" || event.role === "narration") && (event.content || event.images?.length)) {
+                if ((event.role === "assistant" || event.role === "narration") && (event.content || event.imagePaths?.length || event.images?.length)) {
                   const role = event.role
 
                   const emitAndInsert = (imageFilenames?: string[]) => {
@@ -461,38 +461,41 @@ export async function start(): Promise<void> {
                     )
                   }
 
-                  if (event.images?.length) {
-                    // Save agent-produced images to disk. When a sourcePath is available
-                    // (original file in the worktree), copy that instead of the base64
-                    // data — Claude Code downscales images in its stream output.
+                  if (event.imagePaths?.length) {
+                    // Copy original full-size images from the worktree to the
+                    // serving directory. Claude Code downscales images in its
+                    // stream, so we skip base64 and copy originals from disk.
+                    const copyImages = async () => {
+                      const imagesDir = `${TANGERINE_HOME}/images/${taskId}`
+                      try {
+                        await Bun.write(`${imagesDir}/.keep`, "")
+                        const filenames: string[] = []
+                        for (const srcPath of event.imagePaths!) {
+                          const ext = srcPath.split(".").pop() ?? "png"
+                          const filename = `${Date.now()}-${Math.random().toString(36).slice(2, 8)}.${ext}`
+                          const file = Bun.file(srcPath)
+                          if (await file.exists()) {
+                            await Bun.write(`${imagesDir}/${filename}`, file)
+                            filenames.push(filename)
+                          }
+                        }
+                        return filenames.length > 0 ? filenames : undefined
+                      } catch {
+                        return undefined
+                      }
+                    }
+                    copyImages().then(emitAndInsert)
+                  } else if (event.images?.length) {
+                    // Fallback for providers that send base64 images (OpenCode, Codex)
                     const saveImages = async () => {
                       const imagesDir = `${TANGERINE_HOME}/images/${taskId}`
                       try {
                         await Bun.write(`${imagesDir}/.keep`, "")
                         const filenames: string[] = []
-                        const imgs = event.images!
-                        for (let i = 0; i < imgs.length; i++) {
-                          const img = imgs[i]!
+                        for (const img of event.images!) {
                           const ext = img.mediaType.split("/")[1] ?? "png"
                           const filename = `${Date.now()}-${Math.random().toString(36).slice(2, 8)}.${ext}`
-                          const destPath = `${imagesDir}/${filename}`
-
-                          // Try to copy the original full-size file from the worktree
-                          let usedOriginal = false
-                          const sourcePath = event.sourcePaths?.[i]
-                          if (sourcePath) {
-                            try {
-                              const file = Bun.file(sourcePath)
-                              if (await file.exists()) {
-                                await Bun.write(destPath, file)
-                                usedOriginal = true
-                              }
-                            } catch { /* fall through to base64 */ }
-                          }
-
-                          if (!usedOriginal) {
-                            await Bun.write(destPath, Buffer.from(img.data, "base64"))
-                          }
+                          await Bun.write(`${imagesDir}/${filename}`, Buffer.from(img.data, "base64"))
                           filenames.push(filename)
                         }
                         return filenames

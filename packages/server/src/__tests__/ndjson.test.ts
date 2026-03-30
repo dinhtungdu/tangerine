@@ -138,16 +138,30 @@ describe("mapClaudeCodeEvent", () => {
   })
 })
 
-describe("createClaudeCodeMapper — image buffering", () => {
+describe("createClaudeCodeMapper — image path tracking", () => {
   const fakeImage = {
     type: "image",
     source: { type: "base64", media_type: "image/png", data: "iVBOR..." },
   }
 
-  test("buffers images from tool_result and attaches to result (not narration)", () => {
+  // Helper: emit a Read tool_use so the mapper tracks the file path
+  function emitReadToolUse(mapper: ReturnType<typeof createClaudeCodeMapper>, toolUseId: string, filePath: string) {
+    mapper({
+      type: "assistant",
+      message: {
+        id: `msg_${toolUseId}`,
+        content: [{ type: "tool_use", id: toolUseId, name: "Read", input: { file_path: filePath } }],
+      },
+    })
+  }
+
+  test("tracks image paths from tool_result and attaches to result (not narration)", () => {
     const mapper = createClaudeCodeMapper()
 
-    // 1. User event with tool_result containing an image
+    // 1. Assistant emits Read tool_use — mapper records file path
+    emitReadToolUse(mapper, "tu_1", "/workspace/web/screenshot.png")
+
+    // 2. User event with tool_result containing an image
     const userEvents = mapper({
       type: "user",
       message: {
@@ -163,11 +177,11 @@ describe("createClaudeCodeMapper — image buffering", () => {
       },
     })
 
-    // Should emit tool.end + status, no images yet
+    // Should emit tool.end + status, no image paths yet
     expect(userEvents.find((e) => e.kind === "tool.end")).toBeDefined()
     expect(userEvents.find((e) => e.kind === "message.complete")).toBeUndefined()
 
-    // 2. Next assistant message does NOT get the image (stays buffered)
+    // 3. Next assistant message does NOT get image paths (stays buffered)
     const assistantEvents = mapper({
       type: "assistant",
       message: {
@@ -182,10 +196,10 @@ describe("createClaudeCodeMapper — image buffering", () => {
       role: "narration",
       content: "Here is the screenshot",
     })
-    // Narration should NOT have images
-    expect((narration as { images?: unknown[] }).images).toBeUndefined()
+    // Narration should NOT have imagePaths
+    expect((narration as { imagePaths?: unknown[] }).imagePaths).toBeUndefined()
 
-    // 3. Result event picks up the buffered image
+    // 4. Result event picks up the buffered image path
     const resultEvents = mapper({
       type: "result",
       result: "Here is the screenshot",
@@ -195,12 +209,14 @@ describe("createClaudeCodeMapper — image buffering", () => {
     const complete = resultEvents.find((e) => e.kind === "message.complete")
     expect(complete).toBeDefined()
     expect(complete).toMatchObject({ kind: "message.complete", role: "assistant", content: "Here is the screenshot" })
-    expect((complete as { images?: unknown[] }).images).toHaveLength(1)
-    expect((complete as { images?: Array<{ mediaType: string }> }).images?.[0]?.mediaType).toBe("image/png")
+    expect((complete as { imagePaths?: string[] }).imagePaths).toHaveLength(1)
+    expect((complete as { imagePaths?: string[] }).imagePaths?.[0]).toBe("/workspace/web/screenshot.png")
   })
 
-  test("attaches buffered images to result event if no assistant message follows", () => {
+  test("attaches buffered image paths to result event if no assistant message follows", () => {
     const mapper = createClaudeCodeMapper()
+
+    emitReadToolUse(mapper, "tu_2", "/workspace/web/page.png")
 
     // User event with image in tool_result
     mapper({
@@ -215,7 +231,7 @@ describe("createClaudeCodeMapper — image buffering", () => {
       },
     })
 
-    // Result event should pick up the buffered image
+    // Result event should pick up the buffered image path
     const resultEvents = mapper({
       type: "result",
       result: "Done",
@@ -224,11 +240,13 @@ describe("createClaudeCodeMapper — image buffering", () => {
 
     const complete = resultEvents.find((e) => e.kind === "message.complete")
     expect(complete).toBeDefined()
-    expect((complete as { images?: unknown[] }).images).toHaveLength(1)
+    expect((complete as { imagePaths?: string[] }).imagePaths).toHaveLength(1)
   })
 
-  test("emits result with images even when result text is empty", () => {
+  test("emits result with image paths even when result text is empty", () => {
     const mapper = createClaudeCodeMapper()
+
+    emitReadToolUse(mapper, "tu_3", "/workspace/web/empty.png")
 
     mapper({
       type: "user",
@@ -242,7 +260,7 @@ describe("createClaudeCodeMapper — image buffering", () => {
       },
     })
 
-    // Empty result text — should still emit because images are present
+    // Empty result text — should still emit because image paths are present
     const resultEvents = mapper({
       type: "result",
       result: "",
@@ -254,11 +272,13 @@ describe("createClaudeCodeMapper — image buffering", () => {
       role: "assistant",
       content: "",
     })
-    expect((resultEvents[0] as { images?: unknown[] }).images).toHaveLength(1)
+    expect((resultEvents[0] as { imagePaths?: string[] }).imagePaths).toHaveLength(1)
   })
 
-  test("clears buffered images on error result", () => {
+  test("clears buffered image paths on error result", () => {
     const mapper = createClaudeCodeMapper()
+
+    emitReadToolUse(mapper, "tu_4", "/workspace/web/error.png")
 
     mapper({
       type: "user",
@@ -272,7 +292,7 @@ describe("createClaudeCodeMapper — image buffering", () => {
       },
     })
 
-    // Error result should clear buffered images
+    // Error result should clear buffered image paths
     const errorEvents = mapper({
       type: "result",
       subtype: "error",
@@ -280,48 +300,34 @@ describe("createClaudeCodeMapper — image buffering", () => {
     })
     expect(errorEvents).toEqual([{ kind: "error", message: "fail" }])
 
-    // Subsequent assistant should have no images
-    const assistantEvents = mapper({
-      type: "assistant",
-      message: { id: "msg_after_error", content: [{ type: "text", text: "recovered" }] },
+    // Subsequent result should have no image paths
+    const resultEvents = mapper({
+      type: "result",
+      result: "recovered",
     })
-    const complete = assistantEvents.find((e) => e.kind === "message.complete")
-    expect((complete as { images?: unknown[] }).images).toBeUndefined()
+    const complete = resultEvents.find((e) => e.kind === "message.complete")
+    expect((complete as { imagePaths?: string[] }).imagePaths).toBeUndefined()
   })
 
-  test("merges tool-result images with assistant-produced images on result", () => {
+  test("collects multiple image paths from separate tool results", () => {
     const mapper = createClaudeCodeMapper()
 
-    // Buffer an image from tool result
+    // Two Read tool_use calls
+    emitReadToolUse(mapper, "tu_5a", "/workspace/web/first.png")
+    emitReadToolUse(mapper, "tu_5b", "/workspace/web/second.png")
+
+    // Two tool results with images
     mapper({
       type: "user",
       message: {
-        content: [{
-          type: "tool_result",
-          tool_use_id: "tu_5",
-          name: "Read",
-          content: [fakeImage],
-        }],
-      },
-    })
-
-    // Assistant event also has an inline image — both should be buffered
-    const assistantEvents = mapper({
-      type: "assistant",
-      message: {
-        id: "msg_both",
         content: [
-          { type: "text", text: "Two images" },
-          { type: "image", source: { type: "base64", media_type: "image/jpeg", data: "/9j/4AAQ..." } },
+          { type: "tool_result", tool_use_id: "tu_5a", name: "Read", content: [fakeImage] },
+          { type: "tool_result", tool_use_id: "tu_5b", name: "Read", content: [fakeImage] },
         ],
       },
     })
 
-    // Narration should NOT have images
-    const narration = assistantEvents.find((e) => e.kind === "message.complete")
-    expect((narration as { images?: unknown[] }).images).toBeUndefined()
-
-    // Result event gets both images
+    // Result event gets both image paths
     const resultEvents = mapper({
       type: "result",
       result: "Two images",
@@ -330,15 +336,16 @@ describe("createClaudeCodeMapper — image buffering", () => {
 
     const complete = resultEvents.find((e) => e.kind === "message.complete")
     expect(complete).toMatchObject({ content: "Two images" })
-    const images = (complete as { images?: Array<{ mediaType: string }> }).images
-    expect(images).toHaveLength(2)
-    // Tool-result image first, then inline image
-    expect(images?.[0]?.mediaType).toBe("image/png")
-    expect(images?.[1]?.mediaType).toBe("image/jpeg")
+    const paths = (complete as { imagePaths?: string[] }).imagePaths
+    expect(paths).toHaveLength(2)
+    expect(paths?.[0]).toBe("/workspace/web/first.png")
+    expect(paths?.[1]).toBe("/workspace/web/second.png")
   })
 
-  test("tool-result images are NOT attached to narration, only to result", () => {
+  test("image paths are NOT attached to narration, only to result", () => {
     const mapper = createClaudeCodeMapper()
+
+    emitReadToolUse(mapper, "tu_6", "/workspace/web/narration.png")
 
     mapper({
       type: "user",
@@ -363,17 +370,42 @@ describe("createClaudeCodeMapper — image buffering", () => {
       },
     })
 
-    // No narration emitted (no text, images stay buffered)
+    // No narration emitted (no text, image paths stay buffered)
     expect(events.find((e) => e.kind === "message.complete")).toBeUndefined()
 
-    // Result gets the buffered image
+    // Result gets the buffered image path
     const resultEvents = mapper({
       type: "result",
       result: "Done",
     })
     const complete = resultEvents.find((e) => e.kind === "message.complete")
     expect(complete).toBeDefined()
-    expect((complete as { images?: unknown[] }).images).toHaveLength(1)
+    expect((complete as { imagePaths?: string[] }).imagePaths).toHaveLength(1)
+  })
+
+  test("skips images from tool results without a tracked Read tool_use", () => {
+    const mapper = createClaudeCodeMapper()
+
+    // No preceding Read tool_use — tool_use_id won't match anything
+    mapper({
+      type: "user",
+      message: {
+        content: [{
+          type: "tool_result",
+          tool_use_id: "tu_unknown",
+          name: "Bash",
+          content: [fakeImage],
+        }],
+      },
+    })
+
+    const resultEvents = mapper({
+      type: "result",
+      result: "No images",
+    })
+
+    const complete = resultEvents.find((e) => e.kind === "message.complete")
+    expect((complete as { imagePaths?: string[] }).imagePaths).toBeUndefined()
   })
 })
 
@@ -402,14 +434,23 @@ describe("createClaudeCodeMapper — result always emits assistant", () => {
     }])
   })
 
-  test("emits result with images attached", () => {
+  test("emits result with image paths attached", () => {
     const mapper = createClaudeCodeMapper()
     const fakeImage = {
       type: "image",
       source: { type: "base64", media_type: "image/png", data: "iVBOR..." },
     }
 
-    // Buffer an image
+    // Read tool_use to track file path
+    mapper({
+      type: "assistant",
+      message: {
+        id: "msg_tu",
+        content: [{ type: "tool_use", id: "tu_1", name: "Read", input: { file_path: "/workspace/img.png" } }],
+      },
+    })
+
+    // Buffer an image path
     mapper({
       type: "user",
       message: {
@@ -428,7 +469,7 @@ describe("createClaudeCodeMapper — result always emits assistant", () => {
       message: { id: "msg_1", content: [{ type: "text", text: "Here is the image" }] },
     })
 
-    // Result with images
+    // Result with image paths
     const resultEvents = mapper({
       type: "result",
       result: "Here is the image",
@@ -440,7 +481,7 @@ describe("createClaudeCodeMapper — result always emits assistant", () => {
       role: "assistant",
       content: "Here is the image",
     })
-    expect((resultEvents[0] as { images?: unknown[] }).images).toHaveLength(1)
+    expect((resultEvents[0] as { imagePaths?: string[] }).imagePaths).toHaveLength(1)
   })
 
   test("skips result with no content and no images", () => {

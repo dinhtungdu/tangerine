@@ -1,7 +1,7 @@
 // NDJSON streaming line parser for Claude Code's stdout.
 // Buffers partial lines, parses complete JSON objects, maps to AgentEvent.
 
-import type { AgentEvent, PromptImage } from "./provider"
+import type { AgentEvent } from "./provider"
 
 export interface NdjsonParserOptions {
   onLine: (data: unknown) => void
@@ -93,11 +93,10 @@ export function parseNdjsonStream(
  * - result: final event with aggregated stats
  */
 export function createClaudeCodeMapper(): (raw: Record<string, unknown>) => AgentEvent[] {
-  // Images from tool results are buffered here until the result event
-  let pendingToolImages: PromptImage[] = []
-  let pendingSourcePaths: (string | undefined)[] = []
-  // Track file paths from Read tool_use blocks so we can resolve original full-size images
+  // Track file paths from Read tool_use blocks so we can copy original full-size
+  // images instead of the downscaled base64 that Claude Code streams.
   const toolUseFilePaths = new Map<string, string>()
+  let pendingImagePaths: string[] = []
 
   return function mapClaudeCodeEvent(raw: Record<string, unknown>): AgentEvent[] {
     const type = raw.type as string | undefined
@@ -111,7 +110,6 @@ export function createClaudeCodeMapper(): (raw: Record<string, unknown>) => Agen
         const events: AgentEvent[] = []
         const blocks = Array.isArray(message.content) ? message.content : []
         const textParts: string[] = []
-        const imageParts: PromptImage[] = []
 
         for (const block of blocks) {
           if (typeof block !== "object" || block === null) continue
@@ -134,22 +132,8 @@ export function createClaudeCodeMapper(): (raw: Record<string, unknown>) => Agen
             })
           } else if (b.type === "text" && typeof b.text === "string" && b.text.length > 0) {
             textParts.push(b.text)
-          } else if (b.type === "image") {
-            const source = b.source as Record<string, unknown> | undefined
-            if (source?.type === "base64" && typeof source.media_type === "string" && typeof source.data === "string") {
-              imageParts.push({
-                mediaType: source.media_type as PromptImage["mediaType"],
-                data: source.data,
-              })
-            }
           }
-        }
-
-        // Images from assistant content blocks (rare) go to pending pool
-        // along with tool result images — all will be attached to the final
-        // assistant message from the "result" event, not to narration.
-        if (imageParts.length > 0) {
-          pendingToolImages.push(...imageParts)
+          // Skip image content blocks — we copy originals from disk instead
         }
 
         // Per-turn text is narration (agent explaining what it's doing between tool
@@ -174,7 +158,7 @@ export function createClaudeCodeMapper(): (raw: Record<string, unknown>) => Agen
       }
 
       case "user": {
-        // Tool results being fed back — extract tool name, result content, and images
+        // Tool results being fed back — extract tool name, result content, and image paths
         const events: AgentEvent[] = []
         const message = raw.message as Record<string, unknown> | undefined
         const blocks = Array.isArray(message?.content) ? message!.content : []
@@ -191,20 +175,15 @@ export function createClaudeCodeMapper(): (raw: Record<string, unknown>) => Agen
               toolName: typeof b.name === "string" ? b.name : "unknown",
               toolResult: truncate(resultText, 500),
             })
-            // Buffer images from tool results to attach to the next narration
+            // Collect source file path for any image in this tool result
             if (Array.isArray(b.content)) {
               const sourcePath = toolUseFilePaths.get(b.tool_use_id as string)
-              for (const sub of b.content) {
-                if (typeof sub !== "object" || sub === null) continue
-                const s = sub as Record<string, unknown>
-                if (s.type === "image") {
-                  const source = s.source as Record<string, unknown> | undefined
-                  if (source?.type === "base64" && typeof source.media_type === "string" && typeof source.data === "string") {
-                    pendingToolImages.push({
-                      mediaType: source.media_type as PromptImage["mediaType"],
-                      data: source.data,
-                    })
-                    pendingSourcePaths.push(sourcePath)
+              if (sourcePath) {
+                for (const sub of b.content) {
+                  if (typeof sub !== "object" || sub === null) continue
+                  const s = sub as Record<string, unknown>
+                  if (s.type === "image") {
+                    pendingImagePaths.push(sourcePath)
                   }
                 }
               }
@@ -221,28 +200,24 @@ export function createClaudeCodeMapper(): (raw: Record<string, unknown>) => Agen
         const content = typeof raw.result === "string" ? raw.result : ""
 
         if (subtype === "error" || raw.is_error === true) {
-          pendingToolImages = []
-          pendingSourcePaths = []
+          pendingImagePaths = []
           toolUseFilePaths.clear()
           return [{ kind: "error", message: content || "Agent error" }]
         }
 
-        // Attach any remaining buffered images to the final assistant message
-        const images = pendingToolImages.length > 0 ? pendingToolImages : undefined
-        const sourcePaths = pendingSourcePaths.length > 0 ? pendingSourcePaths : undefined
-        pendingToolImages = []
-        pendingSourcePaths = []
+        // Attach original image paths to the final assistant message
+        const imagePaths = pendingImagePaths.length > 0 ? pendingImagePaths : undefined
+        pendingImagePaths = []
         toolUseFilePaths.clear()
 
-        if (!content && !images) return []
+        if (!content && !imagePaths) return []
 
         return [{
           kind: "message.complete",
           role: "assistant",
           content,
           messageId: optStr(raw.session_id),
-          images,
-          sourcePaths,
+          imagePaths,
         }]
       }
 
