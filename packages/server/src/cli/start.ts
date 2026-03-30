@@ -346,7 +346,7 @@ export async function start(): Promise<void> {
             // Queued prompts are drained AFTER the initial prompt so the agent gets
             // its task description (including orchestrator system prompt) first.
             const isRetry = !!hasLogs // User message already saved, just re-deliver prompt
-            const task = db.prepare("SELECT description, title, project_id FROM tasks WHERE id = ?").get(taskId) as { description: string | null; title: string; project_id: string } | null
+            const task = db.prepare("SELECT description, title, project_id, type FROM tasks WHERE id = ?").get(taskId) as { description: string | null; title: string; project_id: string; type: string | null } | null
             const initialPrompt = task?.description || task?.title
             if (initialPrompt) {
               // Load initial images saved during task creation (if any)
@@ -381,6 +381,7 @@ export async function start(): Promise<void> {
 
                 const notes = buildSystemNotes(taskId, {
                   setupCommand: projConfig?.setup,
+                  taskType: task?.type ?? undefined,
                 })
                 firstPromptSent.add(taskId)
 
@@ -707,6 +708,7 @@ export async function start(): Promise<void> {
               const projConfig = task?.project_id ? getProjectConfig(config.config, task.project_id) : undefined
               const notes = buildSystemNotes(taskId, {
                 setupCommand: projConfig?.setup,
+                taskType: task?.type ?? undefined,
               })
 
               if (notes.length > 0) {

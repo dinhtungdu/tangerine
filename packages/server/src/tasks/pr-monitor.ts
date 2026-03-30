@@ -127,8 +127,10 @@ export function pollPrStatuses(deps: PrMonitorDeps): Effect.Effect<void, never> 
       Effect.catchAll(() => Effect.succeed([] as TaskRow[]))
     )
 
-    // Phase 1: discover PR URLs for tasks that have the "pr" capability but no URL yet
-    const withoutPr = running.filter((t) => !t.pr_url && t.branch && t.repo_url && taskHasCapability(t.type, t.capabilities, "pr"))
+    // Phase 1: discover PR URLs for tasks without one yet.
+    // Workers have the "pr" capability (they create PRs); reviewers share the
+    // same branch as the PR they review, so they also need discovery.
+    const withoutPr = running.filter((t) => !t.pr_url && t.branch && t.repo_url && (taskHasCapability(t.type, t.capabilities, "pr") || t.type === "reviewer"))
     if (withoutPr.length > 0) {
       const lookup = deps.lookupPrByBranch ?? lookupPrByBranch
       log.debug("Discovering PRs for tasks without pr_url", { count: withoutPr.length })

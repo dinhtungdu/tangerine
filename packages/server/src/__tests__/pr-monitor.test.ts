@@ -5,6 +5,7 @@ import { createTestDb } from "./helpers"
 import { extractPrUrl, extractGithubSlug, pollPrStatuses } from "../tasks/pr-monitor"
 import type { PrMonitorDeps, PrState } from "../tasks/pr-monitor"
 import type { TaskRow } from "../db/types"
+import { buildSystemNotes } from "../tasks/prompts"
 
 // ---------------------------------------------------------------------------
 // extractPrUrl
@@ -281,6 +282,43 @@ describe("pollPrStatuses", () => {
     expect(deps.activities).toHaveLength(0)
   })
 
+  test("discovers pr_url for reviewer tasks by branch", async () => {
+    const prUrl = "https://github.com/test/repo/pull/20"
+    const task = makeTaskRow({ pr_url: null, branch: "tangerine/abc123", type: "reviewer" })
+    const deps = makeDeps([task], { [prUrl]: "open" }, { "tangerine/abc123": prUrl })
+
+    await Effect.runPromise(pollPrStatuses(deps))
+
+    const prUpdate = deps.updates.find((u) => u.updates.pr_url)
+    expect(prUpdate).toBeDefined()
+    expect(prUpdate!.updates.pr_url).toBe(prUrl)
+    expect(deps.activities.some((a) => a.event === "pr.discovered")).toBe(true)
+  })
+
+  test("completes reviewer task when PR is merged", async () => {
+    const prUrl = "https://github.com/test/repo/pull/21"
+    const task = makeTaskRow({ pr_url: prUrl, type: "reviewer" })
+    const deps = makeDeps([task], { [prUrl]: "merged" })
+
+    await Effect.runPromise(pollPrStatuses(deps))
+
+    expect(deps.updates).toHaveLength(1)
+    expect(deps.updates[0]!.taskId).toBe(task.id)
+    expect(deps.updates[0]!.updates.status).toBe("done")
+    expect(deps.activities[0]!.event).toBe("task.completed")
+  })
+
+  test("discovers and completes reviewer task in same cycle", async () => {
+    const prUrl = "https://github.com/test/repo/pull/22"
+    const task = makeTaskRow({ pr_url: null, branch: "tangerine/review1", type: "reviewer" })
+    const deps = makeDeps([task], { [prUrl]: "merged" }, { "tangerine/review1": prUrl })
+
+    await Effect.runPromise(pollPrStatuses(deps))
+
+    const statusUpdate = deps.updates.find((u) => u.updates.status)
+    expect(statusUpdate?.updates.status).toBe("done")
+  })
+
   test("handles listTasks failure gracefully", async () => {
     const deps: PrMonitorDeps = {
       db,
@@ -298,5 +336,26 @@ describe("pollPrStatuses", () => {
 
     // Should not throw
     await Effect.runPromise(pollPrStatuses(deps))
+  })
+})
+
+// ---------------------------------------------------------------------------
+// buildSystemNotes — reviewer tasks should not get the "push and create PR" note
+// ---------------------------------------------------------------------------
+
+describe("buildSystemNotes", () => {
+  test("includes PR push note for worker tasks", () => {
+    const notes = buildSystemNotes("test-id", { taskType: "worker" })
+    expect(notes.some((n) => n.includes("push your branch"))).toBe(true)
+  })
+
+  test("includes PR push note when taskType is undefined", () => {
+    const notes = buildSystemNotes("test-id", {})
+    expect(notes.some((n) => n.includes("push your branch"))).toBe(true)
+  })
+
+  test("excludes PR push note for reviewer tasks", () => {
+    const notes = buildSystemNotes("test-id", { taskType: "reviewer" })
+    expect(notes.some((n) => n.includes("push your branch"))).toBe(false)
   })
 })
