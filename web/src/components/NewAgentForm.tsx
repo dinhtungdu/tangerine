@@ -323,7 +323,7 @@ export function NewAgentForm({ onSubmit, refTaskId, refTaskTitle }: NewAgentForm
                     className="min-w-0 flex-1 bg-transparent text-[13px] text-fg placeholder-fg-muted outline-none"
                   />
                 </div>
-                <div className="flex h-10 flex-1 items-center rounded-lg border border-edge bg-surface px-3">
+                <div className="flex h-10 min-w-0 flex-1 items-center rounded-lg border border-edge bg-surface px-3">
                   <ModelSelector
                     models={providerModels}
                     model={activeModel}
