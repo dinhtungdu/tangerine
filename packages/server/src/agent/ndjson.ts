@@ -95,6 +95,9 @@ export function parseNdjsonStream(
 export function createClaudeCodeMapper(): (raw: Record<string, unknown>) => AgentEvent[] {
   // Images from tool results are buffered here until the result event
   let pendingToolImages: PromptImage[] = []
+  let pendingSourcePaths: (string | undefined)[] = []
+  // Track file paths from Read tool_use blocks so we can resolve original full-size images
+  const toolUseFilePaths = new Map<string, string>()
 
   return function mapClaudeCodeEvent(raw: Record<string, unknown>): AgentEvent[] {
     const type = raw.type as string | undefined
@@ -117,6 +120,13 @@ export function createClaudeCodeMapper(): (raw: Record<string, unknown>) => Agen
           if (b.type === "thinking" && typeof b.thinking === "string") {
             events.push({ kind: "thinking", content: truncate(b.thinking, 300) })
           } else if (b.type === "tool_use" && typeof b.name === "string") {
+            // Track file paths from Read tool for resolving full-size images later
+            if (b.name === "Read" && typeof b.id === "string" && b.input && typeof b.input === "object") {
+              const input = b.input as Record<string, unknown>
+              if (typeof input.file_path === "string") {
+                toolUseFilePaths.set(b.id, input.file_path)
+              }
+            }
             events.push({
               kind: "tool.start",
               toolName: b.name,
@@ -183,6 +193,7 @@ export function createClaudeCodeMapper(): (raw: Record<string, unknown>) => Agen
             })
             // Buffer images from tool results to attach to the next narration
             if (Array.isArray(b.content)) {
+              const sourcePath = toolUseFilePaths.get(b.tool_use_id as string)
               for (const sub of b.content) {
                 if (typeof sub !== "object" || sub === null) continue
                 const s = sub as Record<string, unknown>
@@ -193,6 +204,7 @@ export function createClaudeCodeMapper(): (raw: Record<string, unknown>) => Agen
                       mediaType: source.media_type as PromptImage["mediaType"],
                       data: source.data,
                     })
+                    pendingSourcePaths.push(sourcePath)
                   }
                 }
               }
@@ -210,12 +222,17 @@ export function createClaudeCodeMapper(): (raw: Record<string, unknown>) => Agen
 
         if (subtype === "error" || raw.is_error === true) {
           pendingToolImages = []
+          pendingSourcePaths = []
+          toolUseFilePaths.clear()
           return [{ kind: "error", message: content || "Agent error" }]
         }
 
         // Attach any remaining buffered images to the final assistant message
         const images = pendingToolImages.length > 0 ? pendingToolImages : undefined
+        const sourcePaths = pendingSourcePaths.length > 0 ? pendingSourcePaths : undefined
         pendingToolImages = []
+        pendingSourcePaths = []
+        toolUseFilePaths.clear()
 
         if (!content && !images) return []
 
@@ -225,6 +242,7 @@ export function createClaudeCodeMapper(): (raw: Record<string, unknown>) => Agen
           content,
           messageId: optStr(raw.session_id),
           images,
+          sourcePaths,
         }]
       }
 
