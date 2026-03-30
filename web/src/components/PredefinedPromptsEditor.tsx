@@ -6,9 +6,16 @@ import { useProject } from "../context/ProjectContext"
 interface PredefinedPromptsEditorProps {
   project: string
   prompts: PredefinedPrompt[]
+  title?: string
+  configKey?: "predefinedPrompts" | "orchestratorPrompts" | "reviewerPrompts"
 }
 
-export function PredefinedPromptsEditor({ project, prompts: initial }: PredefinedPromptsEditorProps) {
+export function PredefinedPromptsEditor({
+  project,
+  prompts: initial,
+  title = "Predefined Prompts",
+  configKey = "predefinedPrompts",
+}: PredefinedPromptsEditorProps) {
   const { refreshProjects } = useProject()
   const [prompts, setPrompts] = useState<PredefinedPrompt[]>(initial)
   const [saving, setSaving] = useState(false)
@@ -33,7 +40,7 @@ export function PredefinedPromptsEditor({ project, prompts: initial }: Predefine
     setStatus("idle")
     try {
       const valid = prompts.filter((p) => p.label.trim() && p.text.trim())
-      await updateProject(project, { predefinedPrompts: valid })
+      await updateProject(project, { [configKey]: valid })
       setPrompts(valid)
       refreshProjects()
       setStatus("saved")
@@ -43,12 +50,12 @@ export function PredefinedPromptsEditor({ project, prompts: initial }: Predefine
     } finally {
       setSaving(false)
     }
-  }, [project, prompts, refreshProjects])
+  }, [project, prompts, configKey, refreshProjects])
 
   return (
     <div className="flex flex-1 flex-col rounded-xl border border-edge bg-surface p-4 md:p-5">
       <div className="mb-3 flex items-center justify-between">
-        <h2 className="text-[15px] font-semibold text-fg md:text-[16px]">Predefined Prompts</h2>
+        <h2 className="text-[15px] font-semibold text-fg md:text-[16px]">{title}</h2>
         <div className="flex items-center gap-2">
           {status === "saved" && <span className="text-[12px] text-status-success">Saved</span>}
           {status === "error" && <span className="text-[12px] text-status-error">Failed to save</span>}
