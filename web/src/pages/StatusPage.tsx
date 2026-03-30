@@ -45,11 +45,29 @@ export function StatusPage() {
 
             {/* Predefined prompts */}
             {current && (
-              <PredefinedPromptsEditor
-                key={current.name}
-                project={current.name}
-                prompts={current.predefinedPrompts ?? []}
-              />
+              <>
+                <PredefinedPromptsEditor
+                  key={`${current.name}-worker`}
+                  project={current.name}
+                  title="Worker Quick Replies"
+                  configKey="predefinedPrompts"
+                  prompts={current.predefinedPrompts ?? []}
+                />
+                <PredefinedPromptsEditor
+                  key={`${current.name}-orchestrator`}
+                  project={current.name}
+                  title="Orchestrator Quick Replies"
+                  configKey="orchestratorPrompts"
+                  prompts={current.orchestratorPrompts ?? []}
+                />
+                <PredefinedPromptsEditor
+                  key={`${current.name}-reviewer`}
+                  project={current.name}
+                  title="Reviewer Quick Replies"
+                  configKey="reviewerPrompts"
+                  prompts={current.reviewerPrompts ?? []}
+                />
+              </>
             )}
 
             {/* System log */}
