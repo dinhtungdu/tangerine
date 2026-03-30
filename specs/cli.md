@@ -1,66 +1,88 @@
 # CLI
 
-`tangerine` CLI for managing the platform. All commands run locally.
+The `tangerine` CLI is implemented under `packages/server/src/cli/`.
 
-## Commands
+## Top-Level Commands
 
 | Command | Description |
 |---------|-------------|
-| `tangerine start` | Start the API server |
-| `tangerine install` | Install dependencies (Lima, base image) |
-| `tangerine project add` | Register a project |
-| `tangerine image build` | Build golden image for a project |
-| `tangerine image build-base` | Build base image |
-| `tangerine task list` | List tasks |
-| `tangerine pool status` | VM pool status |
-| `tangerine config` | Credential management |
+| `tangerine start` | Start the Tangerine server |
+| `tangerine install` | Create local directories and install skills into Claude/Codex skill dirs |
+| `tangerine project ...` | Manage registered projects |
+| `tangerine task ...` | Create manual tasks |
+| `tangerine config ...` | Manage stored credentials |
 
-## Credential Management
+## `tangerine start`
 
-### Storage
+Starts the Bun server and loads config/database state.
 
-Credentials stored in `~/tangerine/.credentials` (mode `0600`). Plain text, one `KEY=VALUE` per line.
+Supported flags:
 
-### Allowed Keys
+- `--config <path>`
+- `--db <path>`
 
-| Key | Provider | Purpose |
-|-----|----------|---------|
-| `ANTHROPIC_API_KEY` | Claude Code, OpenCode | LLM API key |
-| `CLAUDE_CODE_OAUTH_TOKEN` | Claude Code | OAuth token (alternative to API key) |
+The server verifies required external tools at startup, including `git`, `gh` for GitHub-backed repos, and optional agent CLIs.
 
-### Subcommands
+## `tangerine install`
 
-```
-tangerine config set KEY=VALUE   # Set a credential
-tangerine config get KEY         # Get a credential value
-tangerine config unset KEY       # Remove a credential
-tangerine config list            # List all credentials (masked)
-```
+Current behavior:
 
-### Precedence
+- ensures `~/tangerine` exists
+- symlinks repo skills into `~/.claude/skills`
+- symlinks repo skills into `~/.codex/skills`
+- checks whether usable LLM credentials are present
 
-Environment variables override dotfile values:
+Installed skills:
 
-```
-env var > ~/tangerine/.credentials > OpenCode auth.json (for OpenCode only)
-```
+- `platform-setup`
+- `tangerine-tasks`
+- `browser-test`
 
-Resolved in `loadConfig()`:
-- `ANTHROPIC_API_KEY`: `$ANTHROPIC_API_KEY` → dotfile → (not set)
-- `CLAUDE_CODE_OAUTH_TOKEN`: `$CLAUDE_CODE_OAUTH_TOKEN` → dotfile → (not set)
-- OpenCode auth: existence check on `~/.local/share/opencode/auth.json`
+## `tangerine project`
 
-GitHub auth is handled entirely by the `gh` CLI (`gh auth login` or `GITHUB_TOKEN` env var). Tangerine does not manage it.
+Subcommands:
 
-### Validation
+- `add`
+- `list`
+- `show <name>`
+- `remove <name>`
 
-On task creation, the server validates credentials for the requested provider:
+`project add` currently supports:
 
-- **claude-code**: requires `CLAUDE_CODE_OAUTH_TOKEN` or `ANTHROPIC_API_KEY`
-- **opencode**: requires OpenCode `auth.json` or `ANTHROPIC_API_KEY`
+- `--name`
+- `--repo`
+- `--setup`
+- `--branch`
+- `--test`
 
-Missing credentials → 400 error with instructions to set them via `tangerine config set`.
+## `tangerine task`
 
-### Credential Injection
+Current subcommands:
 
-Agents run as local processes and inherit credential env vars from the server. Activity log records which credentials were available (`creds.injected`) or missing (`creds.missing`).
+- `create`
+
+`task create` supports:
+
+- `--project`
+- `--title`
+- `--description`
+- `--branch`
+
+It inserts a manual task row directly into the DB.
+
+## `tangerine config`
+
+Subcommands:
+
+- `set KEY=VALUE`
+- `get KEY`
+- `unset KEY`
+- `list`
+
+Allowed keys currently come from `ALLOWED_CREDENTIAL_KEYS`:
+
+- `ANTHROPIC_API_KEY`
+- `CLAUDE_CODE_OAUTH_TOKEN`
+- `EXTERNAL_HOST`
+
+Credentials are stored in `~/tangerine/.credentials` with mode `0600`.

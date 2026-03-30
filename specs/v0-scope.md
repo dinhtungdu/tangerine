@@ -1,99 +1,67 @@
 # v0 Scope
 
-Minimal viable version. Single project, single user, local VMs.
+This file reflects the shipped baseline in the current codebase, not the original VM-era plan.
 
 ## In Scope
 
-### Core
-- [x] Project config (`.tangerine/config.json`) with `defaultProvider` field
-- [x] VM provisioning via Lima (reuse hal9999 provider)
-- [x] Golden image build (two-layer: base + project)
-- [x] Per-project persistent VMs (`ProjectVmManager`)
-- [x] SSH tunnel management (agent API + preview port)
-- [x] Git worktrees for task isolation
+### Core Runtime
 
-### Agent
-- [x] Multi-provider abstraction (`AgentFactory` → `AgentHandle`)
-- [x] OpenCode server mode inside VM (SSE events via tunnel)
-- [x] Claude Code CLI inside VM (NDJSON via stdin/stdout)
-- [x] Normalized `AgentEvent` stream from both providers
-- [x] Credential injection (ANTHROPIC_API_KEY, CLAUDE_CODE_OAUTH_TOKEN, GITHUB_TOKEN)
-- [x] Terminal attach (`opencode attach`) for OpenCode tasks
+- [x] Single-machine local server architecture
+- [x] Git worktrees for task isolation
+- [x] Shared SQLite persistence for tasks, logs, and worktree slots
+- [x] Worktree pool management and stale-slot reconciliation
+- [x] Health monitoring, idle suspension, reconnect, and orphan cleanup
+
+### Agents
+
+- [x] Provider abstraction with OpenCode, Claude Code, and Codex
+- [x] Normalized event stream for message, tool, status, and error events
+- [x] Prompt queueing while tasks are busy
+- [x] Session resume across restart / reconnect flows
+- [x] Runtime model and reasoning-effort updates
+
+### Tasks
+
+- [x] Manual task creation
+- [x] GitHub-sourced task creation via webhook and polling
+- [x] Cross-project prompting between tasks
+- [x] Task types: `worker`, `orchestrator`, `reviewer`
+- [x] Capabilities derived from type
+- [x] Retry, cancel, resolve, complete, delete, and mark-seen actions
+- [x] Parent/child task linkage
 
 ### API Server
-- [x] Hono + Bun
-- [x] REST: tasks CRUD, proxy to agent, VM management
-- [x] WebSocket: real-time chat relay (AgentEvent → WS → browser)
-- [x] Preview proxy (reverse proxy to VM dev server)
-- [x] GitHub webhook handler (issues → tasks)
-- [x] Image build endpoints (base + project)
-- [x] System logs, activity log
+
+- [x] REST routes for tasks, sessions, projects, system state, and test helpers
+- [x] WebSocket task event stream
+- [x] Terminal WebSocket support
+- [x] Static serving for the built dashboard
+- [x] GitHub webhook signature verification
 
 ### Web Dashboard
-- [x] Vite + React
-- [x] Dashboard: task list with real-time status
-- [x] Task detail: chat panel + preview iframe
-- [x] Streaming agent output
-- [x] Send prompts, abort execution
-- [x] Provider selector (OpenCode / Claude Code)
-- [x] VM summary card
-- [x] Activity log panel
 
-### Integration
-- [x] GitHub issues as task source (polling + optional webhook, label/assignee trigger)
-- [x] PR creation via `gh` CLI
-- [x] Branch management (auto-create per task via worktrees)
+- [x] Runs page with project switcher and orchestrator entry point
+- [x] Task detail page with chat, diff, tool calls, and terminal pane
+- [x] Status page with system logs and predefined prompt editors
+- [x] Provider, model, and reasoning-effort controls
+- [x] Project update status and pull-latest flow
 
 ### CLI
-- [x] `tangerine start` — start API server + dashboard
-- [x] `tangerine image build <name>` — build golden image
-- [x] `tangerine image build-base` — build base image
-- [x] `tangerine task create` — manual task creation
 
-## Out of Scope (future)
+- [x] `tangerine start`
+- [x] `tangerine install`
+- [x] `tangerine project add|list|show|remove`
+- [x] `tangerine task create`
+- [x] `tangerine config set|get|unset|list`
 
-- Multiplayer (data model ready, not wired)
+## Out of Scope
+
+- Managed VM lifecycle inside Tangerine
+- SSH tunnels and remote agent spawning
+- Golden image build flow as part of the active runtime
 - Linear integration
-- GitHub OAuth (static PAT for v0)
-- Hosted version + user accounts
-- Orange workflow engine (plan/review loops)
-- Multiple projects simultaneously
-- Incus/DO providers
-- code-server (web VS Code) embed
-- Image registry with periodic auto-rebuild
-- Slack bot
-- Chrome extension
-- Statistics/analytics page
-- Voice input
+- Hosted multi-user productization
 
-## Implementation Order
+## Notes
 
-### Phase 1: Foundation
-1. Project scaffolding (Bun + Hono + Vite + React)
-2. DB schema (tasks, VMs)
-3. Project config loading
-4. Extract/import hal9999 VM layer (Lima provider, SSH)
-
-### Phase 2: VM + Agent
-5. Golden image build (two-layer: base + project)
-6. Session lifecycle: get/create VM → worktree → start agent → tunnel
-7. Agent provider abstraction + OpenCode provider
-8. Credential injection
-
-### Phase 3: API + WebSocket
-9. REST endpoints (tasks, sessions, VMs, images)
-10. WebSocket endpoint (AgentEvent bridge)
-11. Preview proxy
-12. GitHub webhook handler
-
-### Phase 4: Web Dashboard
-13. Dashboard page (task list + VM summary)
-14. Task detail page (chat + preview + activity log)
-15. Provider selector
-16. Streaming chat UI
-
-### Phase 5: Multi-Provider + Polish
-17. Claude Code provider
-18. NDJSON parser + event mapping
-19. Error handling + recovery
-20. Server restart reconciliation
+- The older VM/image architecture is preserved historically in older docs and the transition spec at [v1-local-server.md](./v1-local-server.md), but it is not the active source-of-truth runtime.

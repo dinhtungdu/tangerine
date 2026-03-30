@@ -1,62 +1,84 @@
-# 🍊 Tangerine
+# Tangerine
 
-Local background coding agent platform. Server, agents, and repos run together inside a single VM. Users interact via web dashboard or terminal. Tasks sourced from GitHub/Linear issues.
+Local background coding agent platform. Tangerine runs as a local Bun server, spawns agent CLIs as local processes, isolates work in git worktrees, and exposes a web dashboard for managing runs.
 
-Like [Ramp Inspect](https://builders.ramp.com/post/why-we-built-our-background-agent) or [Stripe Minion](https://stripe.dev/blog/minions-stripes-one-shot-end-to-end-coding-agents), but running locally.
+## Current Architecture
 
-## How It Works
+- Single-machine runtime: no per-project VMs, SSH tunnels, or image builds in the active codepath
+- Multi-provider agents: OpenCode, Claude Code, and Codex
+- Git worktrees per task under a shared workspace
+- Hono API server with REST + WebSocket endpoints
+- Vite + React dashboard served from `web/dist`
+- SQLite for tasks, session logs, activity logs, system logs, and worktree slots
 
-1. GitHub issue labeled `agent` → Tangerine creates a task
-2. Agent starts locally, clones repo into a git worktree, begins work
-3. Web dashboard: click task → chat with agent
-4. Agent pushes branch, creates PR when done
+See [specs/architecture.md](specs/architecture.md) for the source-of-truth architecture doc.
 
-## Architecture
+## Repo Layout
 
-See [specs/architecture.md](specs/architecture.md) for full details.
-
+```text
+packages/
+  shared/src/      # shared types, config schema, constants
+  server/src/
+    agent/         # provider adapters: OpenCode, Claude Code, Codex
+    api/           # Hono routes + WebSocket handlers
+    cli/           # tangerine CLI
+    db/            # SQLite schema + queries
+    integrations/  # GitHub webhook + polling
+    tasks/         # lifecycle, retry, health, PR monitor, worktree pool
+web/src/           # React dashboard
+skills/            # in-repo skills installed for agents
+specs/             # design and implementation docs
 ```
-Web Dashboard → API Server → Agent (local process)
+
+## Key Features
+
+- Manual, GitHub, and cross-project task creation
+- Task types: `worker`, `orchestrator`, `reviewer`
+- Task capabilities derived from type, not title
+- On-demand orchestrator startup
+- Model and reasoning-effort changes on running tasks
+- Git diff, activity log, terminal attach, system log, and project update controls in the UI
+- GitHub PR reference resolution from branch input like `#123` or full PR URLs
+- Self-update flow for project repos via `postUpdateCommand`
+
+## Development
+
+```bash
+bun install
+bun run check
+bun test
+bun run build
 ```
 
-## Stack
-
-- **Runtime**: Bun
-- **API**: Hono (REST + WebSocket)
-- **Frontend**: Vite + React
-- **Agent**: Claude Code / OpenCode
-- **DB**: SQLite
-
-## Specs
-
-- [Architecture](specs/architecture.md)
-- [Project Config](specs/project.md)
-- [Agent Integration](specs/agent.md)
-- [Tasks](specs/tasks.md)
-- [API](specs/api.md)
-- [Web Dashboard](specs/web.md)
-- [Credentials](specs/credentials.md)
-- [Testing](specs/testing.md)
-- [v0 Scope](specs/v0-scope.md)
-
-## Running
-
-Start the server directly:
+Run the server:
 
 ```bash
 bin/tangerine start
 ```
 
-For auto-restart on updates (recommended for production), use the watch loop:
+During development you can run the API and web processes separately:
 
 ```bash
-tmux new-session -d -s tangerine 'bin/tangerine-watch'
+bun run dev:api
+bun run dev:web
 ```
 
-This starts the watch loop in a background tmux session. The server runs with `TANGERINE_SELF_UPDATE=1`, which enables a background poller that checks for new commits every 60 seconds. When an update is applied (via the dashboard's "Pull latest" button), the server exits cleanly and the watch loop restarts it automatically. Non-zero exits (crashes) stop the loop.
+## CLI
 
-To attach to the session: `tmux attach -t tangerine`
+- `tangerine start`
+- `tangerine install`
+- `tangerine project add|list|show|remove`
+- `tangerine task create`
+- `tangerine config set|get|unset|list`
 
-## Status
+## Specs
 
-Planning phase. See [v0 scope](specs/v0-scope.md) for implementation plan.
+- [Architecture](specs/architecture.md)
+- [Agent Integration](specs/agent.md)
+- [API](specs/api.md)
+- [Tasks](specs/tasks.md)
+- [Web Dashboard](specs/web.md)
+- [CLI](specs/cli.md)
+- [Credentials](specs/credentials.md)
+- [v0 Scope](specs/v0-scope.md)
+- [v1 Local Server](specs/v1-local-server.md)
