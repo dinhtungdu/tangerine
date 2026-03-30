@@ -283,11 +283,9 @@ export async function start(): Promise<void> {
           }
           agentHandles.set(taskId, session.agentHandle)
 
-          // Drain any prompts queued while the agent was starting
           const sendFn = async (_tid: string, text: string, imgs?: import("../agent/provider").PromptImage[]) => {
             await Effect.runPromise(session.agentHandle.sendPrompt(text, imgs).pipe(Effect.catchAll(() => Effect.void)))
           }
-          Effect.runPromise(drainQueuedPrompts(taskId, sendFn))
 
           // Hydrate in-memory tracking from DB (lost on restart)
           const taskMeta = db.prepare("SELECT pr_url FROM tasks WHERE id = ?").get(taskId) as { pr_url: string | null } | null
@@ -339,11 +337,14 @@ export async function start(): Promise<void> {
               }
             }
             sendReconnectNudge()
-          }
-          if (!hasLogs || (hasLogs && !hasAssistantResponse)) {
+            // Drain queued prompts for reconnect — agent already has conversation context
+            Effect.runPromise(drainQueuedPrompts(taskId, sendFn))
+          } else if (!hasLogs || (hasLogs && !hasAssistantResponse)) {
             // No logs at all (fresh task) or logs exist but agent never responded
             // (e.g. killed by model change before processing prompt). Either way,
             // send the full initial prompt — don't resume a nonexistent conversation.
+            // Queued prompts are drained AFTER the initial prompt so the agent gets
+            // its task description (including orchestrator system prompt) first.
             const isRetry = !!hasLogs // User message already saved, just re-deliver prompt
             const task = db.prepare("SELECT description, title, project_id FROM tasks WHERE id = ?").get(taskId) as { description: string | null; title: string; project_id: string } | null
             const initialPrompt = task?.description || task?.title
@@ -375,7 +376,7 @@ export async function start(): Promise<void> {
                 }
               }
 
-              loadInitialImages().then(({ images, filenames }) => {
+              loadInitialImages().then(async ({ images, filenames }) => {
                 const projConfig = task?.project_id ? getProjectConfig(config.config, task.project_id) : undefined
 
                 const notes = buildSystemNotes(taskId, {
@@ -398,7 +399,7 @@ export async function start(): Promise<void> {
 
                 const fullPrompt = notes.join("\n") + "\n\n" + initialPrompt + escalationBlock
 
-                Effect.runPromise(
+                await Effect.runPromise(
                   session.agentHandle.sendPrompt(fullPrompt, images).pipe(Effect.catchAll(() => Effect.void))
                 )
 
@@ -409,7 +410,7 @@ export async function start(): Promise<void> {
                     content: initialPrompt,
                     timestamp: new Date().toISOString(),
                   })
-                  Effect.runPromise(
+                  await Effect.runPromise(
                     insertSessionLog(db, {
                       task_id: taskId,
                       role: "user",
@@ -420,8 +421,17 @@ export async function start(): Promise<void> {
                     )
                   )
                 }
+
+                // Now drain any queued prompts (e.g. user message sent while task was starting)
+                await Effect.runPromise(drainQueuedPrompts(taskId, sendFn))
               })
+            } else {
+              // No initial prompt — just drain the queue
+              Effect.runPromise(drainQueuedPrompts(taskId, sendFn))
             }
+          } else {
+            // Fallback: drain queued prompts for any other case
+            Effect.runPromise(drainQueuedPrompts(taskId, sendFn))
           }
 
           idleWakeTasks.delete(taskId)
