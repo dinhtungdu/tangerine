@@ -44,6 +44,7 @@ describe("ensureOrchestrator", () => {
   test("creates orchestrator when none exists", async () => {
     const task = await Effect.runPromise(ensureOrchestrator(deps, PROJECT_ID))
     expect(task.title).toBe(ORCHESTRATOR_TASK_NAME)
+    expect(task.type).toBe("orchestrator")
     expect(task.status).toBe("created")
     expect(task.project_id).toBe(PROJECT_ID)
     expect(task.parent_task_id).toBeNull()
@@ -68,6 +69,7 @@ describe("ensureOrchestrator", () => {
     expect(second.id).not.toBe(first.id)
     expect(second.parent_task_id).toBe(first.id)
     expect(second.title).toBe(ORCHESTRATOR_TASK_NAME)
+    expect(second.type).toBe("orchestrator")
   })
 
   test("links to most recent terminal orchestrator", async () => {

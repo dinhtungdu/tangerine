@@ -46,7 +46,7 @@ specs/             # Architecture and design docs
 - Comments explain "why" not "what"
 - **Keep specs up to date**: When changing architecture, DB schema, APIs, or agent providers, update the corresponding file in `specs/`. Specs are the source of truth for design decisions — stale specs cause bugs.
 - **Spec-first for new features**: New features or architecture changes → write/update the spec before coding. Bug fixes, small refactors, spikes → code first, update specs if architecture changed. At the start of each task, ask: "Does this need a spec update first?"
-- **Gate UI on capabilities, not titles**: Use `task.capabilities.includes("feature")` to show/hide UI features per task type. Never compare `task.title` to constants like `ORCHESTRATOR_TASK_NAME`. Add new capabilities in `shared/types.ts` → assign in `manager.ts` → check in UI.
+- **Gate UI on capabilities, not titles**: Use `task.capabilities.includes("feature")` to show/hide UI features per task type. Use `task.type` (worker/orchestrator/reviewer) as the source of truth for task behavior — capabilities are derived from type in `manager.ts`. Never compare `task.title` to constants like `ORCHESTRATOR_TASK_NAME`. Add new capabilities in `shared/types.ts` → assign by type in `manager.ts` → check in UI.
 
 ## Web UI Rules
 

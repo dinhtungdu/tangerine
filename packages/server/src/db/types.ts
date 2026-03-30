@@ -6,6 +6,7 @@ export interface TaskRow {
   source_url: string | null
   repo_url: string
   title: string
+  type: string
   description: string | null
   status: string
   provider: string

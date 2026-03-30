@@ -10,7 +10,7 @@ import { logActivity, cleanupActivities } from "../activity"
 import type { TaskRow } from "../db/types"
 import { createApp } from "../api/app"
 import type { AppDeps } from "../api/app"
-import { DEFAULT_API_PORT, ORCHESTRATOR_TASK_NAME } from "@tangerine/shared"
+import { DEFAULT_API_PORT } from "@tangerine/shared"
 import * as taskManager from "../tasks/manager"
 import type { TaskManagerDeps } from "../tasks/manager"
 import { onTaskEvent, onStatusChange, emitTaskEvent, setAgentWorkingState, getAgentWorkingState } from "../tasks/events"
@@ -355,8 +355,8 @@ export async function start(): Promise<void> {
                 let escalationBlock = ""
                 if (task?.project_id) {
                   const orchestratorRow = db.prepare(
-                    "SELECT id FROM tasks WHERE project_id = ? AND title = ? AND status NOT IN ('done', 'failed', 'cancelled') LIMIT 1"
-                  ).get(task.project_id, ORCHESTRATOR_TASK_NAME) as { id: string } | null
+                    "SELECT id FROM tasks WHERE project_id = ? AND type = 'orchestrator' AND status NOT IN ('done', 'failed', 'cancelled') LIMIT 1"
+                  ).get(task.project_id) as { id: string } | null
                   if (orchestratorRow && orchestratorRow.id !== taskId) {
                     escalationBlock = buildEscalationBlock(orchestratorRow.id)
                   }

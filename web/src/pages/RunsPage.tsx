@@ -1,5 +1,4 @@
 import { useState, useMemo, useCallback } from "react"
-import { ORCHESTRATOR_TASK_NAME } from "@tangerine/shared"
 import { useProject } from "../context/ProjectContext"
 import { useTaskSearch } from "../hooks/useTaskSearch"
 import { useProjectNav } from "../hooks/useProjectNav"
@@ -17,12 +16,12 @@ export function RunsPage() {
   const [orchLoading, setOrchLoading] = useState(false)
 
   const orchestrator = useMemo(() => {
-    const orchTasks = tasks.filter((t) => t.title === ORCHESTRATOR_TASK_NAME)
+    const orchTasks = tasks.filter((t) => t.type === "orchestrator")
     return orchTasks.find((t) => !TERMINATED_STATUSES.has(t.status)) ?? null
   }, [tasks])
 
   const nonOrchestratorTasks = useMemo(
-    () => tasks.filter((t) => t.title !== ORCHESTRATOR_TASK_NAME),
+    () => tasks.filter((t) => t.type !== "orchestrator"),
     [tasks]
   )
 

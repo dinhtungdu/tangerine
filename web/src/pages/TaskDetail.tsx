@@ -1,7 +1,6 @@
 import { useState, useEffect, useCallback, useRef, useMemo } from "react"
 import { useParams, Link } from "react-router-dom"
 import type { Task } from "@tangerine/shared"
-import { ORCHESTRATOR_TASK_NAME } from "@tangerine/shared"
 import { fetchTask, fetchChildTasks, changeTaskConfig, markTaskSeen, resolveTask, completeTask } from "../lib/api"
 import { getStatusConfig } from "../lib/status"
 import { useSession } from "../hooks/useSession"
@@ -47,7 +46,7 @@ export function TaskDetail() {
   const TERMINATED = useMemo(() => new Set(["done", "completed", "cancelled"]), [])
   const orchestratorTask = useMemo(() => {
     if (!isCrossProject) return null
-    const orchTasks = tasks.filter((t) => t.title === ORCHESTRATOR_TASK_NAME)
+    const orchTasks = tasks.filter((t) => t.type === "orchestrator")
     return orchTasks.find((t) => !TERMINATED.has(t.status)) ?? null
   }, [isCrossProject, tasks, TERMINATED])
 

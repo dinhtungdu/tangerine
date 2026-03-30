@@ -244,6 +244,7 @@ describe("tracer: config -> db -> api", () => {
       source_url: "https://github.com/owner/repo/issues/1",
       repo_url: "https://github.com/owner/repo",
       title: "Test",
+      type: "worker",
       description: "desc",
       status: "running",
       provider: "opencode",
