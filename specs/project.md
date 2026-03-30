@@ -72,6 +72,14 @@ Stored in `tangerine.json` at the project root (or `~/.config/tangerine/config.j
 
 When `sshHost` and `editor` are set, the web dashboard shows "Open in {editor}" links on task cards and the task detail page for tasks with worktrees. `sshUser` is required for Zed links.
 
+The `sshHost` value must match an entry in `~/.ssh/config` on the **host machine** (where the editor runs). Example:
+
+```
+Host dev-vm
+  HostName 192.168.64.5
+  User tung.linux
+```
+
 ## Golden Images
 
 Base environments with common tooling pre-installed. Project-specific setup runs on top at session start.

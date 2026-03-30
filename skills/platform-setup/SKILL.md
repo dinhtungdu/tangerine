@@ -120,7 +120,7 @@ User runs `/platform-setup` from INSIDE the VM in a project directory. You help 
    - `model` — default LLM model for new tasks
    - `models` — array of available model strings
    - `workspace` — base directory for clones/worktrees (default: `~/tangerine-workspace`)
-   - `sshHost` — SSH hostname for editor deep-links (e.g. `"dev-vm"`)
+   - `sshHost` — SSH hostname for editor deep-links (e.g. `"dev-vm"`). Must match a `Host` entry in `~/.ssh/config` on the host machine where the editor runs
    - `sshUser` — SSH username for Zed editor links (e.g. `"tung.linux"`)
    - `editor` — `"vscode"` | `"cursor"` | `"zed"` — enables "Open in editor" links in the dashboard
 
