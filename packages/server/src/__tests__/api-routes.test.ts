@@ -267,6 +267,42 @@ describe("API routes", () => {
     })
   })
 
+  describe("PATCH /api/tasks/:id", () => {
+    test("updates prUrl", async () => {
+      const row = seedTask(db)
+      const res = await app.fetch(new Request(`http://localhost/api/tasks/${row.id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ prUrl: "https://github.com/test/repo/pull/42" }),
+      }))
+      expect(res.status).toBe(200)
+      const body = await res.json() as { prUrl: string }
+      expect(body.prUrl).toBe("https://github.com/test/repo/pull/42")
+    })
+
+    test("clears prUrl when set to null", async () => {
+      const row = seedTask(db)
+      db.prepare("UPDATE tasks SET pr_url = 'https://github.com/test/repo/pull/1' WHERE id = ?").run(row.id)
+      const res = await app.fetch(new Request(`http://localhost/api/tasks/${row.id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ prUrl: null }),
+      }))
+      expect(res.status).toBe(200)
+      const body = await res.json() as { prUrl: string | null }
+      expect(body.prUrl).toBeNull()
+    })
+
+    test("returns 404 for unknown task", async () => {
+      const res = await app.fetch(new Request("http://localhost/api/tasks/nonexistent", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ prUrl: "https://github.com/test/repo/pull/1" }),
+      }))
+      expect(res.status).toBe(404)
+    })
+  })
+
   describe("DELETE /api/tasks/:id", () => {
     test("deletes a terminal task", async () => {
       const row = seedTask(db)
