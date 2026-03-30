@@ -104,10 +104,10 @@ describe("ensureOrchestrator", () => {
     expect(task.provider).toBe("opencode")
   })
 
-  test("defaults to claude-opus-4-6 model with high reasoning effort", async () => {
+  test("defaults to claude-opus-4-6 model with medium reasoning effort", async () => {
     const task = await Effect.runPromise(ensureOrchestrator(deps, PROJECT_ID))
     expect(task.model).toBe("claude-opus-4-6")
-    expect(task.reasoning_effort).toBe("high")
+    expect(task.reasoning_effort).toBe("medium")
   })
 
   test("explicit model and reasoningEffort override defaults", async () => {

@@ -576,7 +576,7 @@ Default to opus for ambiguous cases. Pass the chosen model in the \`"model"\` fi
 Start by loading the tangerine-tasks skill (\`/tangerine-tasks\`) and checking the current state of the project (active tasks, recent PRs, git status).`,
       provider,
       model: model ?? (isClaude ? "claude-opus-4-6" : undefined),
-      reasoningEffort: reasoningEffort ?? (isClaude ? "high" : undefined),
+      reasoningEffort: reasoningEffort ?? (isClaude ? "medium" : undefined),
       parentTaskId: parent?.id,
     })
   })
