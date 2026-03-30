@@ -1,101 +1,102 @@
 # Web Dashboard
 
-Vite + React SPA. Task list, chat with agent, live preview, provider selection.
+The web app is a Vite + React SPA under `web/src/`. It is served by the API server in production and can run separately in development.
 
-## Pages
+## Routes
 
-### Dashboard (`/`)
+| Route | Purpose |
+|------|---------|
+| `/` | Runs page |
+| `/new` | New run form |
+| `/status` | System status page |
+| `/tasks/:id` | Task detail view |
 
-Task list with real-time status, provider indicator, project context.
+## Main Screens
 
-Features:
-- Real-time status updates (poll or WebSocket)
-- Filter by status
-- Click task → task detail view
-- Shows source (GitHub issue link)
-- Shows PR URL when available
-- Provider badge per task (OpenCode / Claude Code)
-- New task form with provider dropdown
+### Runs Page
 
-### Task Detail (`/tasks/:id`)
+Implemented in `pages/RunsPage.tsx`.
 
-Split view: chat + preview + activity log.
+Current behavior:
 
-#### Chat Panel
+- project switcher
+- search/filter over tasks
+- orchestrator launcher / entry row
+- runs table for non-orchestrator tasks
+- new-run navigation
 
-- Message history (scrollable)
-- User messages vs agent responses (different styling)
-- Tool call display (file edits, shell commands, results)
-- Streaming tokens (live typing effect)
-- Input box with send button
-- Abort button (visible when agent is working)
-- Queue indicator (shows pending prompts)
+### New Run Page
 
-#### Preview Panel
+Implemented in `pages/NewAgentPage.tsx`.
 
-- iframe loading `http://localhost:<api-port>/preview/<task-id>/`
-- Refresh button
-- Open in new tab link
-- Resizable split
+Current controls include:
 
-#### Activity Log
-
-- Lifecycle events (VM acquired, worktree created, agent started, etc.)
-- Filterable by type (lifecycle, file, system)
-
-## Provider Selection
-
-Task creation UI includes a provider dropdown:
-- **OpenCode** (default) — OpenCode server mode via SSE
-- **Claude Code** — Claude CLI via stdin/stdout NDJSON
-
-Default comes from project's `defaultProvider` config field.
-
-## VM Summary
-
-Dashboard shows VM status per project:
-- Active VMs with IP, provider, creation time
-- Destroy VM action
-- Pool stats (provisioning/active/stopped counts)
-
-## Components
-
-Key components (see `web/src/` for full list):
-- `CreateTaskModal` / `NewAgentForm` — task creation with provider selection
-- `TasksSidebar` — filterable task list
-- `RunCard` — task row with status, provider badge
-- `ChatPanel` / `ChatMessage` — message list + input
-- `PreviewPanel` — iframe + controls
-- `StatusBadge` — colored status indicator
-- `Layout` — app shell
-
-## Real-time Updates
-
-### Dashboard
-
-Poll `GET /api/tasks` every 5s, or upgrade to WebSocket for push updates.
+- project selection
+- harness/provider selection
+- model selection
+- reasoning-effort selection
+- branch / PR reference input
+- task type selection
 
 ### Task Detail
 
-WebSocket to `WS /api/tasks/:id/ws`:
-- Receive agent events (tokens, tool calls, completion)
-- Send prompts
-- Receive status changes
+Implemented in `pages/TaskDetail.tsx`.
 
-### Reconnection
+Current task-detail feature set includes:
 
-WebSocket auto-reconnects on disconnect. Loads message history via REST on reconnect to avoid gaps.
+- chat panel
+- streamed messages
+- tool call display
+- diff / changes panel
+- terminal pane
+- pane controls and resizing
+- image lightbox support
 
-## Styling
+UI gating is capability-based. The client should check `task.capabilities.includes(...)` rather than infer behavior from a task title.
 
-Tailwind CSS. Dark theme.
+### Status Page
 
-## Dev Setup
+Implemented in `pages/StatusPage.tsx`.
 
-```bash
-cd web
-bun install
-bun run dev    # Vite dev server on :5173, proxies /api to :3456
-```
+Current sections:
 
-Production: `bun run build` → static files served by Hono.
+- active runs summary
+- project update status / update action
+- predefined prompt editors for worker, orchestrator, and reviewer prompts
+- system log viewer
+
+## State and Data Flow
+
+- project context comes from `context/ProjectContext.tsx`
+- task lists and filtering come from hooks in `web/src/hooks/`
+- API access is centralized in `web/src/lib/api.ts`
+- per-task streaming uses WebSocket hooks
+
+## Shared Components
+
+Key components include:
+
+- `RunsTable`
+- `TasksSidebar`
+- `ChatPanel`
+- `TerminalPane`
+- `ChangesPanel`
+- `ModelSelector`
+- `HarnessSelector`
+- `ReasoningEffortSelector`
+- `PredefinedPromptsEditor`
+
+## Testing
+
+Current test buckets under `web/src/__tests__/`:
+
+- `architecture.test.ts`
+- `components.test.tsx`
+- `hooks.test.tsx`
+- `lib.test.ts`
+
+The architecture test enforces structural constraints such as:
+
+- no mobile-only component files
+- no inline component definitions in pages
+- no JS viewport detection

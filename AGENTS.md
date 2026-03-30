@@ -1,6 +1,6 @@
 # Tangerine
 
-Local background coding agent platform. Multi-provider agents (OpenCode, Claude Code) + web dashboard.
+Local background coding agent platform. Multi-provider local agents (OpenCode, Claude Code, Codex) + web dashboard.
 
 ## Setup
 
@@ -14,10 +14,10 @@ Local background coding agent platform. Multi-provider agents (OpenCode, Claude 
 packages/
   shared/src/      # @tangerine/shared — types, config schema, constants
   server/src/
-    api/           # Hono server (REST + WebSocket + webhooks)
-    agent/         # Agent providers (OpenCode, Claude Code) + provider abstraction
-    tasks/         # Task lifecycle, cleanup, health, retry, worktree setup
-    integrations/  # GitHub webhook handler
+    api/           # Hono server (REST + WebSocket + test/webhook routes)
+    agent/         # Agent providers (OpenCode, Claude Code, Codex) + abstraction
+    tasks/         # Task lifecycle, cleanup, health, retry, PR/worktree management
+    integrations/  # GitHub webhook handler + polling
     db/            # SQLite schema + queries
 web/
   src/             # Vite + React dashboard
@@ -26,7 +26,8 @@ specs/             # Architecture and design docs
 
 ## Key Decisions
 
-- Multi-provider: OpenCode (HTTP/SSE) and Claude Code (stdin/stdout NDJSON) behind AgentProvider abstraction
+- Multi-provider: OpenCode, Claude Code, and Codex behind AgentProvider abstraction
+- Local-server architecture: agents spawn locally, not in per-project VMs
 - Git worktrees for task isolation
 - Project-agnostic: each project defines setup + test commands
 - Multiplayer-ready data model (user_id nullable for v0)
@@ -37,6 +38,7 @@ specs/             # Architecture and design docs
 - orange: `~/workspace/orange/` — workflow engine (future integration)
 - OpenCode: agent backend (server mode + SDK)
 - Claude Code: agent backend (CLI stdin/stdout with stream-json)
+- Codex: agent backend (`codex app-server` + JSON-RPC)
 
 ## Rules
 

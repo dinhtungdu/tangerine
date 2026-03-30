@@ -1,198 +1,99 @@
 # Agent Integration
 
-Multi-provider agent abstraction. OpenCode, Claude Code, and Codex are supported via `AgentProvider` interface.
+Tangerine currently supports three providers through a shared abstraction:
 
-## Provider Abstraction
+- `opencode`
+- `claude-code`
+- `codex`
 
-`agent/provider.ts` defines the contract all providers implement:
+All providers run as local subprocesses and are wrapped behind the interfaces in `packages/server/src/agent/provider.ts`.
+
+## Shared Provider Contract
+
+The provider layer exposes:
+
+- `AgentFactory`
+- `AgentHandle`
+- normalized `AgentEvent` messages
+- prompt images support
+- optional hot config updates
+
+Current provider selection type:
 
 ```typescript
 type ProviderType = "opencode" | "claude-code" | "codex"
+```
 
-type AgentEvent =
-  | { kind: "message.streaming"; content: string; messageId?: string }
-  | { kind: "message.complete"; role: "assistant" | "user"; content: string; messageId?: string }
-  | { kind: "status"; status: "idle" | "working" }
-  | { kind: "error"; message: string }
-  | { kind: "tool.start"; toolName: string; toolInput?: string }
-  | { kind: "tool.end"; toolName: string; toolResult?: string }
-  | { kind: "thinking"; content: string }
+The runtime stores `agent_session_id` and `agent_pid` on tasks so sessions can be resumed or inspected after restart.
 
-interface AgentConfig {
-  model?: string
-  reasoningEffort?: string
-}
+## AgentStartContext
 
-interface AgentHandle {
-  sendPrompt(text: string): Effect<void, PromptError>
-  abort(): Effect<void, AgentError>
-  subscribe(onEvent: (e: AgentEvent) => void): { unsubscribe(): void }
-  shutdown(): Effect<void, never>
-  /** Hot-swap config without restart. Returns true if applied. Falls back to restart if not implemented. */
-  updateConfig?(config: AgentConfig): Effect<boolean, AgentError>
-}
+The active architecture is local-only. Provider startup context centers on the task and worktree, not VM networking:
 
+```typescript
 interface AgentStartContext {
   taskId: string
-  vmIp: string
-  sshPort: number
-  workdir: string      // worktree path inside VM
+  workdir: string
   title: string
-  previewPort: number
-  model?: string              // e.g. "claude-sonnet-4-6" or "anthropic/claude-sonnet-4-6"
-  reasoningEffort?: string    // "low" | "medium" | "high"
-  resumeSessionId?: string   // resume existing session (Claude Code/Codex/OpenCode)
-}
-
-interface AgentFactory {
-  start(ctx: AgentStartContext): Effect<AgentHandle, SessionStartError>
+  model?: string
+  reasoningEffort?: string
+  resumeSessionId?: string
+  env?: Record<string, string>
 }
 ```
 
-## OpenCode Provider (`opencode-provider.ts`)
+## OpenCode
 
-Spawns `opencode serve` inside VM, establishes SSH tunnel, creates a session, bridges SSE events.
+Implementation: `agent/opencode-provider.ts`
 
-### Startup
+- uses the OpenCode SDK / server flow
+- supports prompt sending, abort, event subscription, and config updates
+- can hot-apply model config changes when supported
 
-```bash
-# Inside VM (sources ~/.env for API keys first)
-test -f ~/.env && set -a && . ~/.env && set +a
-cd /workspace/worktrees/<task-prefix>
-opencode serve --port 4096 --hostname 0.0.0.0
-```
+## Claude Code
 
-### Communication
+Implementation: `agent/claude-code-provider.ts`
 
-1. SSH tunnel from host to VM port 4096
-2. REST API via tunnel: create session, send prompts (`prompt_async`), abort
-3. SSE stream from `GET /event` relayed to subscribers via `AgentEvent`
+- communicates over stdin/stdout NDJSON
+- event parsing lives in `agent/ndjson.ts`
+- uses resume sessions when Tangerine restarts or reconfigures a task
 
-### Event Mapping
+## Codex
 
-OpenCode SSE events → `AgentEvent`:
-- `message.part.updated` → `message.streaming` (accumulates text per message ID)
-- `message.updated` (with `time.completed`) → `message.complete`
-- `session.status` → `status` (idle/working)
+Implementation: `agent/codex-provider.ts`
 
-### Metadata
+- starts `codex app-server`
+- communicates over JSON-RPC
+- preserves the underlying Codex thread through `agent_session_id`
+- reapplies `approvalPolicy: "never"` and danger-full-access sandboxing on resume and each turn
 
-`AgentHandleWithMeta` extends `AgentHandle` with `__meta: { sessionId, agentPort, previewPort }`. Retrieved via `getHandleMeta(handle)`.
+## Event Flow
 
-## Claude Code Provider (`claude-code-provider.ts`)
+Provider-specific streams are normalized into a common event shape and then fan out to:
 
-Spawns `claude` CLI inside VM via SSH with stdin/stdout piping. No tunnel, no HTTP, no port allocation.
+- WebSocket clients
+- session log persistence
+- activity log classification
+- task status / working-state updates
 
-### Startup
+The prompt queue in `agent/prompt-queue.ts` ensures prompts sent while a task is busy are drained in order.
 
-```bash
-ssh -T -p <sshPort> root@<vmIp> \
-  "test -f ~/.env && set -a && . ~/.env && set +a; \
-   cd /workspace/worktrees/<task-prefix> && \
-   claude --output-format stream-json --input-format stream-json \
-          --verbose --session-id <uuid> --dangerously-skip-permissions"
-```
+## Config Changes
 
-### Communication
+`POST /api/tasks/:id/model` changes `model` and/or `reasoningEffort` for a running task.
 
-- **Prompts**: JSON written to stdin: `{"type":"user","message":{"role":"user","content":"..."}}`
-- **Events**: NDJSON from stdout, parsed by `ndjson.ts`
-- **Abort**: `SIGINT` to SSH process
+The task manager attempts:
 
-### Event Mapping (`ndjson.ts`)
+1. provider hot-swap via `updateConfig()`
+2. restart-with-resume fallback when hot-swap is unsupported
 
-Claude Code stream-json events → `AgentEvent`:
-- `assistant` with text content → `message.streaming`
-- `assistant` with `tool_use` blocks → `tool.start` (per tool) + `status: working`
-- `assistant` with `thinking` blocks → `thinking`
-- `user` (tool results) → `tool.end` (per tool) + `status: working`
-- `result` → `message.complete` (or `error` if `is_error`)
-- `stream_event` with `content_block_delta` → `message.streaming`
-- `system` with `subtype: init` → `status: working`
+## Tool Activity Classification
 
-### Session Resume
+Tool calls are classified into activity log events:
 
-When `resumeSessionId` is set in `AgentStartContext`, Claude Code is started with `--resume`:
+- file reads: `tool.read`
+- file writes: `tool.write`
+- shell commands: `tool.bash`
+- everything else: `tool.other`
 
-```bash
-claude --output-format stream-json --input-format stream-json \
-       --verbose --resume --session-id <existing-uuid> \
-       --dangerously-skip-permissions
-```
-
-Used for server restart recovery and model config changes (shutdown + restart with same session).
-
-## Codex Provider (`codex-provider.ts`)
-
-Spawns `codex app-server` locally and talks to it over JSON-RPC 2.0 on stdin/stdout. The Codex thread ID is stored as `agent_session_id` so Tangerine can resume the same thread after idle suspension or server restart.
-
-### Startup
-
-```bash
-cd /workspace/worktrees/<task-prefix>
-codex app-server
-```
-
-### Session Start / Resume
-
-- Fresh sessions use `thread/start` with `approvalPolicy: "never"` and `sandbox: "danger-full-access"`.
-- Resumed sessions use `thread/resume` with the same `approvalPolicy`, `sandbox`, `cwd`, and `model` overrides.
-- Every `turn/start` also reapplies `approvalPolicy: "never"` and `sandboxPolicy: { type: "dangerFullAccess" }`.
-
-Reapplying the policy on resume and on every turn prevents Codex from falling back to its default `read-only` / `on-request` policy after Tangerine suspends an idle task and wakes it later.
-
-## Provider Selection
-
-`POST /api/tasks` accepts optional `provider` field (`"opencode" | "claude-code" | "codex"`). Default comes from project config's `defaultProvider` field (defaults to `"opencode"`).
-
-## Session Management
-
-### Prompt Queue
-
-Per-task queue. Prompts sent while agent is working are queued on the API server. When agent goes idle (detected via `AgentEvent` status), next prompt is sent.
-
-### Agent Capabilities Inside VM
-
-Both providers have access to:
-- **File read/write** — edit project source code
-- **Shell execution** — run builds, tests, dev server
-- **Git** — commit, push, create branches
-- **gh CLI** — create PRs (with injected token)
-- **Project tooling** — whatever's in the golden image
-
-## OpenCode Configuration
-
-The OpenCode provider auto-creates `~/.config/opencode/opencode.json` before first server spawn with permissions that allow headless operation:
-
-```json
-{
-  "agent": {
-    "build": {
-      "permission": {
-        "external_directory": "allow",
-        "doom_loop": "allow"
-      }
-    }
-  }
-}
-```
-
-This allows the `build` agent to access paths outside the project dir (e.g. `/tmp/*`) and continue past doom-loop detection without user approval — both safe in a sandbox VM.
-
-As a safety net, the provider also subscribes to `permission.asked` SSE events and auto-approves them via `POST /session/{id}/permissions/{permissionId}` with `{"response": "always"}`.
-
-## Model / Config Changes
-
-`POST /api/tasks/:id/model` changes model or reasoning effort for a running task:
-
-1. Try `handle.updateConfig()` (hot-swap — works for OpenCode)
-2. If not supported or fails → shutdown agent + restart with `--resume` and new config (Claude Code path)
-3. Update task record with new model/reasoning_effort
-
-## Terminal Attach (OpenCode only)
-
-```bash
-opencode attach http://localhost:<tunneled-opencode-port>
-```
-
-Full TUI access to the same session. Not available for Claude Code provider.
+This powers the task detail UI and persisted audit trail.

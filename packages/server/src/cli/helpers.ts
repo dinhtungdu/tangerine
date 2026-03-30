@@ -141,27 +141,19 @@ Commands:
   project list       List registered projects
   project show       Show project config details
   project remove     Remove a project
+  task create        Create a task manually
   config set         Set a credential (KEY=VALUE)
   config get         Get a credential value
   config unset       Remove a credential
   config list        List all credentials (masked)
-  image build-base   Build base VM from template (one-time)
-  image build        Build project golden image (clones from base + runs build.sh)
-  image init <name>  Create a build.sh template for an image
-  image list         List available images
-  task create        Create a task manually
-  pool status        Show pool status
-  pool reconcile     Reconcile pool state with provider
 
 Options:
   --help, -h         Show help text
 
 Examples:
-  tangerine project add --name my-app --repo https://github.com/me/app --image node-dev --setup "npm install"
+  tangerine project add --name my-app --repo https://github.com/me/app --setup "npm install"
   tangerine project list
   tangerine start
-  tangerine image build
   tangerine task create --title "Fix bug"
-  tangerine pool status
 `)
 }
