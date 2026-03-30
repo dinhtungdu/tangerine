@@ -94,7 +94,7 @@ export const ChatMessage = memo(function ChatMessage({ message }: ChatMessagePro
   if (isUser) {
     return (
       <div className="animate-fade-in flex justify-end">
-        <div className="max-w-[280px] rounded-xl bg-surface-dark px-3.5 py-2.5">
+        <div className="max-w-[280px] md:max-w-[480px] rounded-xl bg-surface-dark px-3.5 py-2.5">
           {message.images && message.images.length > 0 && (
             <>
               <div className="mb-2 flex flex-wrap gap-1">
