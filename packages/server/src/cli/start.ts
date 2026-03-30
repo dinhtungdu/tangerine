@@ -133,6 +133,19 @@ export async function start(): Promise<void> {
       process.env["TANGERINE_DB"] = flags.dbPath
     }
 
+    // Verify gh CLI is authenticated before starting — PR monitor requires it.
+    // Without auth, verifyPrBranch and lookupPrByBranch silently fail and log
+    // misleading "PR branch mismatch" warnings that are hard to diagnose.
+    if (!isTestMode()) {
+      const ghProc = Bun.spawn(["gh", "auth", "status"], { stdout: "pipe", stderr: "pipe" })
+      const ghExitCode = await ghProc.exited
+      if (ghExitCode !== 0) {
+        log.error("gh CLI is not authenticated. Set GITHUB_TOKEN or run `gh auth login`. Server cannot start without GitHub access for PR monitoring.")
+        process.exit(1)
+      }
+      log.info("gh CLI authenticated")
+    }
+
     const config = loadConfig({ configPath: flags.configPath })
     const projectNames = config.config.projects.map((p) => p.name)
     log.info("Config loaded", { projects: projectNames, home: TANGERINE_HOME, testMode: isTestMode() })
