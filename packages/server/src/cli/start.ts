@@ -50,6 +50,36 @@ function classifyTool(toolName: string): { activityType: "file" | "system"; acti
   }
 }
 
+/**
+ * Try to save a detected PR URL for a task — checks "pr" capability, verifies
+ * branch match, then persists to DB and emits activity. No-op if the task
+ * lacks the capability or the branch doesn't match.
+ */
+function trySavePrUrl(
+  db: import("bun:sqlite").Database,
+  taskId: string,
+  prUrl: string,
+  prUrlSaved: Set<string>,
+  source: "message" | "tool",
+) {
+  const taskRow = db.prepare("SELECT branch, type, capabilities FROM tasks WHERE id = ?")
+    .get(taskId) as { branch: string | null; type: string; capabilities: string | null } | null
+  if (!taskRow || !taskHasCapability(taskRow.type, taskRow.capabilities, "pr")) return
+
+  const taskBranch = taskRow.branch
+  Effect.runPromise(
+    verifyPrBranch(prUrl, taskBranch ?? "").pipe(
+      Effect.tap((matches) => Effect.sync(() => {
+        if (!matches) { log.warn("PR branch mismatch, ignoring", { taskId, prUrl, taskBranch }); return }
+        prUrlSaved.add(taskId)
+        Effect.runPromise(updateTask(db, taskId, { pr_url: prUrl }).pipe(Effect.catchAll(() => Effect.void)))
+        Effect.runPromise(logActivity(db, taskId, "lifecycle", "pr.created", `PR created: ${prUrl}`, { prUrl }).pipe(Effect.catchAll(() => Effect.void)))
+        log.info(`PR URL detected from ${source}`, { taskId, prUrl })
+      }))
+    )
+  )
+}
+
 // In-memory map of taskId -> active AgentHandle (for cleanup and abort)
 const agentHandles = new Map<string, AgentHandle>()
 // Per-task reconnect lock — prevents the health monitor from spawning a duplicate
@@ -461,26 +491,10 @@ export async function start(): Promise<void> {
                     )
                   }
 
-                  // Fallback PR URL detection from assistant/narration message text (only for tasks with "pr" capability)
+                  // Fallback PR URL detection from assistant/narration message text
                   if (!prUrlSaved.has(taskId)) {
                     const prUrl = extractPrUrl(event.content)
-                    if (prUrl) {
-                      const taskRow = db.prepare("SELECT branch, type, capabilities FROM tasks WHERE id = ?").get(taskId) as { branch: string | null; type: string; capabilities: string | null } | null
-                      if (taskRow && taskHasCapability(taskRow.type, taskRow.capabilities, "pr")) {
-                        const taskBranch = taskRow?.branch
-                        Effect.runPromise(
-                          verifyPrBranch(prUrl, taskBranch ?? "").pipe(
-                            Effect.tap((matches) => Effect.sync(() => {
-                              if (!matches) { log.warn("PR branch mismatch, ignoring", { taskId, prUrl, taskBranch }); return }
-                              prUrlSaved.add(taskId)
-                              Effect.runPromise(updateTask(db, taskId, { pr_url: prUrl }).pipe(Effect.catchAll(() => Effect.void)))
-                              Effect.runPromise(logActivity(db, taskId, "lifecycle", "pr.created", `PR created: ${prUrl}`, { prUrl }).pipe(Effect.catchAll(() => Effect.void)))
-                              log.info("PR URL detected from message", { taskId, prUrl })
-                            }))
-                          )
-                        )
-                      }
-                    }
+                    if (prUrl) trySavePrUrl(db, taskId, prUrl, prUrlSaved, "message")
                   }
                 }
                 break
@@ -556,26 +570,10 @@ export async function start(): Promise<void> {
                 // Just emit for real-time WS updates (e.g. clearing "in progress").
                 emitTaskEvent(taskId, { event: "tool.end", toolName: event.toolName })
 
-                // Detect PR URL from Bash tool results (e.g. `gh pr create` output) — only for tasks with "pr" capability
+                // Detect PR URL from Bash tool results (e.g. `gh pr create` output)
                 if (event.toolResult && !prUrlSaved.has(taskId)) {
                   const prUrl = extractPrUrl(event.toolResult)
-                  if (prUrl) {
-                    const taskRow = db.prepare("SELECT branch, type, capabilities FROM tasks WHERE id = ?").get(taskId) as { branch: string | null; type: string; capabilities: string | null } | null
-                    if (taskRow && taskHasCapability(taskRow.type, taskRow.capabilities, "pr")) {
-                      const taskBranch = taskRow?.branch
-                      Effect.runPromise(
-                        verifyPrBranch(prUrl, taskBranch ?? "").pipe(
-                          Effect.tap((matches) => Effect.sync(() => {
-                            if (!matches) { log.warn("PR branch mismatch, ignoring", { taskId, prUrl, taskBranch }); return }
-                            prUrlSaved.add(taskId)
-                            Effect.runPromise(updateTask(db, taskId, { pr_url: prUrl }).pipe(Effect.catchAll(() => Effect.void)))
-                            Effect.runPromise(logActivity(db, taskId, "lifecycle", "pr.created", `PR created: ${prUrl}`, { prUrl }).pipe(Effect.catchAll(() => Effect.void)))
-                            log.info("PR URL detected from tool result", { taskId, prUrl })
-                          }))
-                        )
-                      )
-                    }
-                  }
+                  if (prUrl) trySavePrUrl(db, taskId, prUrl, prUrlSaved, "tool")
                 }
                 break
               }
