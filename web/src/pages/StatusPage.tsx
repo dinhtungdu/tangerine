@@ -1,7 +1,9 @@
+import { useOutletContext } from "react-router-dom"
 import { useProject } from "../context/ProjectContext"
 import { useTaskSearch } from "../hooks/useTaskSearch"
 import { useProjectNav } from "../hooks/useProjectNav"
 import { TasksSidebar } from "../components/TasksSidebar"
+import type { SidebarContext } from "../components/Layout"
 import { ActiveRunsCard, SystemLog, ProjectUpdateCard } from "../components/StatusWidgets"
 import { PredefinedPromptsEditor } from "../components/PredefinedPromptsEditor"
 
@@ -9,10 +11,12 @@ export function StatusPage() {
   const { navigate } = useProjectNav()
   const { current } = useProject()
   const { query, setQuery, tasks } = useTaskSearch(current?.name)
+  const outletCtx = useOutletContext<SidebarContext | null>()
+  const sidebarOpen = outletCtx?.sidebarOpen ?? true
   return (
     <div className="flex h-full">
       {/* Desktop sidebar */}
-      <div className="hidden md:block">
+      <div className={sidebarOpen ? "hidden shrink-0 overflow-hidden transition-[width] duration-200 ease-in-out md:block md:w-[240px]" : "hidden shrink-0 overflow-hidden transition-[width] duration-200 ease-in-out md:block md:w-0"} inert={sidebarOpen ? undefined : true}>
         <TasksSidebar tasks={tasks} searchQuery={query} onSearchChange={setQuery} onNewAgent={() => navigate("/new")} />
       </div>
 
