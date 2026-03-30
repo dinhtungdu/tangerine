@@ -1,6 +1,6 @@
 import { describe, test, expect, mock } from "bun:test"
 import { Effect } from "effect"
-import { checkTask, checkAllTasks, startHealthMonitor, isTaskSuspended, clearSuspended } from "../tasks/health"
+import { checkTask, checkAllTasks, startHealthMonitor, isTaskSuspended, clearSuspended, parseTaskTimestampMs } from "../tasks/health"
 import type { HealthCheckDeps } from "../tasks/health"
 import type { TaskRow } from "../db/types"
 import { ORCHESTRATOR_TASK_NAME } from "@tangerine/shared"
@@ -210,6 +210,11 @@ describe("health check", () => {
 })
 
 describe("idle timeout", () => {
+  test("parses bare SQLite timestamps as UTC", () => {
+    expect(parseTaskTimestampMs("2026-03-30 04:49:28")).toBe(Date.parse("2026-03-30T04:49:28Z"))
+    expect(parseTaskTimestampMs("2026-03-30T04:49:28Z")).toBe(Date.parse("2026-03-30T04:49:28Z"))
+  })
+
   test("idle task agent is suspended after timeout", async () => {
     const task = makeTask({
       started_at: new Date(Date.now() - 700_000).toISOString(),

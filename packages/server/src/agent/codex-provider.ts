@@ -13,6 +13,9 @@ import { homedir } from "node:os"
 import { join } from "node:path"
 
 const log = createLogger("codex-provider")
+export const CODEX_APPROVAL_POLICY = "never" as const
+export const CODEX_SANDBOX_MODE = "danger-full-access" as const
+export const CODEX_SANDBOX_POLICY = { type: "dangerFullAccess" } as const
 
 // ---------------------------------------------------------------------------
 // JSON-RPC 2.0 helpers
@@ -209,6 +212,82 @@ function mapItemComplete(item: Record<string, unknown>): AgentEvent[] {
 
 function truncate(s: string, maxLen: number): string {
   return s.length <= maxLen ? s : s.slice(0, maxLen) + "\u2026"
+}
+
+function isDangerFullAccessPolicy(value: unknown): boolean {
+  return typeof value === "object"
+    && value !== null
+    && (value as Record<string, unknown>).type === CODEX_SANDBOX_POLICY.type
+}
+
+function logThreadConfig(
+  taskLog: ReturnType<typeof log.child>,
+  phase: "started" | "resumed",
+  threadId: string,
+  result: Record<string, unknown>,
+): void {
+  const approvalPolicy = result.approvalPolicy
+  const sandbox = result.sandbox
+  taskLog.info(`Codex thread ${phase}`, {
+    threadId,
+    approvalPolicy,
+    sandbox,
+    cwd: result.cwd,
+    model: result.model,
+  })
+
+  if (approvalPolicy !== CODEX_APPROVAL_POLICY || !isDangerFullAccessPolicy(sandbox)) {
+    taskLog.warn("Codex thread execution policy differs from Tangerine default", {
+      threadId,
+      expectedApprovalPolicy: CODEX_APPROVAL_POLICY,
+      actualApprovalPolicy: approvalPolicy,
+      expectedSandbox: CODEX_SANDBOX_POLICY.type,
+      actualSandbox: sandbox,
+    })
+  }
+}
+
+export function buildCodexThreadStartParams(
+  ctx: Pick<AgentStartContext, "workdir" | "model">,
+): Record<string, unknown> {
+  return {
+    cwd: ctx.workdir,
+    ...(ctx.model ? { model: ctx.model } : {}),
+    approvalPolicy: CODEX_APPROVAL_POLICY,
+    sandbox: CODEX_SANDBOX_MODE,
+    ephemeral: false,
+  }
+}
+
+export function buildCodexThreadResumeParams(
+  ctx: Pick<AgentStartContext, "workdir" | "model"> & { threadId: string },
+): Record<string, unknown> {
+  return {
+    threadId: ctx.threadId,
+    cwd: ctx.workdir,
+    ...(ctx.model ? { model: ctx.model } : {}),
+    approvalPolicy: CODEX_APPROVAL_POLICY,
+    sandbox: CODEX_SANDBOX_MODE,
+    persistExtendedHistory: false,
+  }
+}
+
+export function buildCodexTurnStartParams(
+  ctx: Pick<AgentStartContext, "workdir" | "model"> & {
+    threadId: string
+    input: Array<Record<string, unknown>>
+    effort?: string
+  },
+): Record<string, unknown> {
+  return {
+    threadId: ctx.threadId,
+    input: ctx.input,
+    cwd: ctx.workdir,
+    ...(ctx.model ? { model: ctx.model } : {}),
+    ...(ctx.effort ? { effort: ctx.effort } : {}),
+    approvalPolicy: CODEX_APPROVAL_POLICY,
+    sandboxPolicy: CODEX_SANDBOX_POLICY,
+  }
 }
 
 // ---------------------------------------------------------------------------
@@ -409,13 +488,14 @@ export function createCodexProvider(): AgentFactory {
           // Step 3: start or resume thread
           if (ctx.resumeSessionId) {
             try {
-              const resumeResult = await rpcCall("thread/resume", {
+              const resumeResult = await rpcCall("thread/resume", buildCodexThreadResumeParams({
                 threadId: ctx.resumeSessionId,
-                persistExtendedHistory: false,
-              })
+                workdir: ctx.workdir,
+                model: ctx.model,
+              }))
               const thread = resumeResult.thread as Record<string, unknown> | undefined
               threadId = typeof thread?.id === "string" ? thread.id : ctx.resumeSessionId
-              taskLog.info("Codex thread resumed", { threadId })
+              logThreadConfig(taskLog, "resumed", threadId, resumeResult)
             } catch (err) {
               taskLog.warn("Thread resume failed, starting fresh", { error: String(err) })
               // Fall through to fresh start below
@@ -423,16 +503,15 @@ export function createCodexProvider(): AgentFactory {
           }
 
           if (!threadId) {
-            const threadResult = await rpcCall("thread/start", {
-              cwd: ctx.workdir,
-              ...(ctx.model ? { model: ctx.model } : {}),
-              approvalPolicy: "never",
-              sandbox: "danger-full-access",
-              ephemeral: false,
-            })
+            const threadResult = await rpcCall("thread/start", buildCodexThreadStartParams({
+              workdir: ctx.workdir,
+              model: ctx.model,
+            }))
             const thread = threadResult.thread as Record<string, unknown> | undefined
             threadId = typeof thread?.id === "string" ? thread.id : null
-            taskLog.info("Codex thread started", { threadId })
+            if (threadId) {
+              logThreadConfig(taskLog, "started", threadId, threadResult)
+            }
           }
 
           if (!threadId) {
@@ -461,11 +540,13 @@ export function createCodexProvider(): AgentFactory {
                   input.push({ type: "text", text, text_elements: [] })
 
                   // Send turn/start — response is immediate, events stream as notifications
-                  write(rpcRequest("turn/start", {
+                  write(rpcRequest("turn/start", buildCodexTurnStartParams({
                     threadId,
+                    workdir: ctx.workdir,
+                    model: ctx.model,
                     input,
-                    ...(activeEffort ? { effort: activeEffort } : {}),
-                  }))
+                    effort: activeEffort,
+                  })))
                 },
                 catch: (e) =>
                   new PromptError({ message: `Failed to send turn: ${e}`, taskId: ctx.taskId }),
