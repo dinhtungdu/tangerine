@@ -201,6 +201,10 @@ PARENT=$(curl -s "$API/api/tasks/$TANGERINE_TASK_ID" | jq -r '.parentTaskId')
 test "$PARENT" != "null" && curl "$API/api/tasks/$PARENT/messages"
 ```
 
+## GitHub PR Etiquette
+
+**Never post comments or reviews on GitHub PRs.** Do not use `gh pr review`, `gh pr comment`, or any API call that posts to a PR thread. Report findings back to the parent task via the Tangerine API (`/prompt` or `/chat`) instead.
+
 ## Required: Codex Review
 
 All worker and reviewer tasks must run `codex review` — but for different purposes.
