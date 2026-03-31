@@ -168,7 +168,7 @@ export function CronEditModal({ cron, modelsByProvider, onSaved, onClose }: {
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4" onClick={onClose}>
       <div className="w-full max-w-lg rounded-lg border border-edge bg-surface p-5 shadow-xl" onClick={(e) => e.stopPropagation()}>
         <div className="mb-4 flex items-center justify-between">
-          <h3 className="text-[14px] font-semibold text-fg">Edit Cron</h3>
+          <h3 className="text-sm font-semibold text-fg">Edit Cron</h3>
           <button onClick={onClose} className="rounded p-1 text-fg-muted hover:bg-surface-secondary">
             <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
               <path strokeLinecap="round" strokeLinejoin="round" d="M6 18 18 6M6 6l12 12" />
@@ -181,28 +181,28 @@ export function CronEditModal({ cron, modelsByProvider, onSaved, onClose }: {
             value={title}
             onChange={(e) => setTitle(e.target.value)}
             placeholder="Title"
-            className="rounded-md border border-edge bg-surface px-3 py-2 text-[13px] text-fg placeholder-fg-muted outline-none"
+            className="rounded-md border border-edge bg-surface px-3 py-2 text-md text-fg placeholder-fg-muted outline-none"
           />
           <textarea
             value={description}
             onChange={(e) => setDescription(e.target.value)}
             placeholder="Task description / prompt (optional)"
             rows={2}
-            className="resize-none rounded-md border border-edge bg-surface px-3 py-2 text-[13px] text-fg placeholder-fg-muted outline-none"
+            className="resize-none rounded-md border border-edge bg-surface px-3 py-2 text-md text-fg placeholder-fg-muted outline-none"
           />
           <div className="flex flex-col gap-2 md:flex-row md:items-center">
             <div className="flex flex-1 items-center gap-2">
-              <label className="shrink-0 text-[12px] text-fg-muted">Cron:</label>
+              <label className="shrink-0 text-xs text-fg-muted">Cron:</label>
               <input
                 type="text"
                 value={cronExpr}
                 onChange={(e) => setCronExpr(e.target.value)}
                 placeholder="0 9 * * 1-5"
-                className="flex-1 rounded-md border border-edge bg-surface px-3 py-1.5 font-mono text-[13px] text-fg placeholder-fg-muted outline-none"
+                className="flex-1 rounded-md border border-edge bg-surface px-3 py-1.5 font-mono text-md text-fg placeholder-fg-muted outline-none"
               />
             </div>
             {cronExpr.trim() && cronExpr.trim().split(/\s+/).length === 5 && (
-              <span className="text-[11px] text-fg-muted">{formatCronExpression(cronExpr.trim())}</span>
+              <span className="text-xxs text-fg-muted">{formatCronExpression(cronExpr.trim())}</span>
             )}
           </div>
           <div className="flex flex-col gap-2 md:flex-row md:items-center">
@@ -218,21 +218,21 @@ export function CronEditModal({ cron, modelsByProvider, onSaved, onClose }: {
               value={branch}
               onChange={(e) => setBranch(e.target.value)}
               placeholder="Branch (optional)"
-              className="rounded-md border border-edge bg-surface px-3 py-1.5 text-[13px] text-fg placeholder-fg-muted outline-none md:w-[180px]"
+              className="rounded-md border border-edge bg-surface px-3 py-1.5 text-md text-fg placeholder-fg-muted outline-none md:w-[180px]"
             />
           </div>
-          {error && <p className="text-[12px] text-status-error">{error}</p>}
+          {error && <p className="text-xs text-status-error">{error}</p>}
           <div className="flex gap-2">
             <button
               onClick={handleSave}
               disabled={!canSubmit}
-              className="flex h-9 flex-1 items-center justify-center rounded-md bg-surface-dark px-4 text-[13px] font-medium text-white transition hover:opacity-80 disabled:opacity-30"
+              className="flex h-9 flex-1 items-center justify-center rounded-md bg-surface-dark px-4 text-md font-medium text-white transition hover:opacity-80 disabled:opacity-30"
             >
               {submitting ? "Saving..." : "Save Changes"}
             </button>
             <button
               onClick={onClose}
-              className="flex h-9 items-center justify-center rounded-md border border-edge px-4 text-[13px] text-fg-muted transition hover:bg-surface-secondary"
+              className="flex h-9 items-center justify-center rounded-md border border-edge px-4 text-md text-fg-muted transition hover:bg-surface-secondary"
             >
               Cancel
             </button>
