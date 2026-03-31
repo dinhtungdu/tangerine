@@ -57,6 +57,12 @@ Use these skills when writing or reviewing web UI code:
 - `/vercel-react-best-practices` — React/Next.js performance (62 rules)
 - `/vercel-composition-patterns` — Component architecture and composition
 
+### Native browser over JS
+- **HTML/CSS first**: Before reaching for JS (useEffect, scroll logic, refs), ask if a native browser feature solves it
+- Scroll to element → `id` + hash navigation (`#anchor`) instead of `scrollIntoView` in useEffect
+- Form validation → HTML `required`/`pattern` attributes instead of JS validation
+- Responsive layout → CSS/Tailwind instead of JS viewport detection
+
 ### Responsive Design
 - **CSS-first**: Use Tailwind responsive prefixes (`md:`, `lg:`) — never JS-based viewport detection
 - **Single components**: One component handles all breakpoints via `hidden md:flex` / `md:hidden` patterns
