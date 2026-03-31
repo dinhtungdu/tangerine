@@ -126,13 +126,19 @@ export function CronEditModal({ cron, modelsByProvider, onSaved, onClose }: {
   const [title, setTitle] = useState(cron.title)
   const [description, setDescription] = useState(cron.description ?? "")
   const [cronExpr, setCronExpr] = useState(cron.cron)
+  // taskDefaultsEnabled tracks whether to send taskDefaults at all.
+  // Crons with null taskDefaults use project-level defaults at run time — don't overwrite unless user opts in.
+  const [taskDefaultsEnabled, setTaskDefaultsEnabled] = useState(cron.taskDefaults !== null)
   const [provider, setProvider] = useState<ProviderType>((cron.taskDefaults?.provider as ProviderType) ?? "claude-code")
+  // model state holds exactly what was saved; we don't fall back to the first available model to avoid
+  // silently changing future runs when the saved model is temporarily unavailable.
   const [model, setModel] = useState(cron.taskDefaults?.model ?? "")
   const [branch, setBranch] = useState(cron.taskDefaults?.branch ?? "")
   const [submitting, setSubmitting] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
   const providerModels = modelsByProvider[provider] ?? []
+  // activeModel is only used for the ModelSelector display; saving uses raw `model` state
   const activeModel = model && providerModels.includes(model) ? model : providerModels[0] ?? ""
 
   const canSubmit = title.trim() && cronExpr.trim() && !submitting
@@ -147,13 +153,14 @@ export function CronEditModal({ cron, modelsByProvider, onSaved, onClose }: {
         // Send null explicitly when cleared so server removes the description
         description: description.trim() || null,
         cron: cronExpr.trim(),
-        taskDefaults: {
+        taskDefaults: taskDefaultsEnabled ? {
           // Preserve reasoningEffort from original since this modal doesn't expose it
           ...(cron.taskDefaults?.reasoningEffort ? { reasoningEffort: cron.taskDefaults.reasoningEffort } : {}),
           provider,
-          model: activeModel || undefined,
+          // Use raw model state to avoid silent fallback to a different model
+          model: model || undefined,
           branch: branch.trim() || undefined,
-        },
+        } : null,
       })
       onSaved()
       onClose()
@@ -162,7 +169,7 @@ export function CronEditModal({ cron, modelsByProvider, onSaved, onClose }: {
     } finally {
       setSubmitting(false)
     }
-  }, [canSubmit, cron.id, title, description, cronExpr, provider, activeModel, branch, onSaved, onClose])
+  }, [canSubmit, cron.id, title, description, cronExpr, taskDefaultsEnabled, provider, model, branch, onSaved, onClose, cron.taskDefaults?.reasoningEffort])
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4" onClick={onClose}>
@@ -205,22 +212,33 @@ export function CronEditModal({ cron, modelsByProvider, onSaved, onClose }: {
               <span className="text-xxs text-fg-muted">{formatCronExpression(cronExpr.trim())}</span>
             )}
           </div>
-          <div className="flex flex-col gap-2 md:flex-row md:items-center">
-            <HarnessSelector value={provider} onChange={setProvider} />
-            <ModelSelector
-              models={providerModels}
-              model={activeModel}
-              onModelChange={setModel}
-              menuPlacement="bottom"
-            />
+          <label className="flex cursor-pointer items-center gap-2">
             <input
-              type="text"
-              value={branch}
-              onChange={(e) => setBranch(e.target.value)}
-              placeholder="Branch (optional)"
-              className="rounded-md border border-edge bg-surface px-3 py-1.5 text-md text-fg placeholder-fg-muted outline-none md:w-[180px]"
+              type="checkbox"
+              checked={taskDefaultsEnabled}
+              onChange={(e) => setTaskDefaultsEnabled(e.target.checked)}
+              className="rounded"
             />
-          </div>
+            <span className="text-xs text-fg-muted">Override task defaults</span>
+          </label>
+          {taskDefaultsEnabled && (
+            <div className="flex flex-col gap-2 md:flex-row md:items-center">
+              <HarnessSelector value={provider} onChange={setProvider} />
+              <ModelSelector
+                models={providerModels}
+                model={activeModel}
+                onModelChange={setModel}
+                menuPlacement="bottom"
+              />
+              <input
+                type="text"
+                value={branch}
+                onChange={(e) => setBranch(e.target.value)}
+                placeholder="Branch (optional)"
+                className="rounded-md border border-edge bg-surface px-3 py-1.5 text-md text-fg placeholder-fg-muted outline-none md:w-[180px]"
+              />
+            </div>
+          )}
           {error && <p className="text-xs text-status-error">{error}</p>}
           <div className="flex gap-2">
             <button
