@@ -23,29 +23,6 @@ function loadDraftFromKey(key: string): { description?: string; customBranch?: s
   }
 }
 
-const suggestedTasks = [
-  { icon: "bug", label: "Fix failing tests" },
-  { icon: "wrench", label: "Add API docs" },
-  { icon: "code", label: "Refactor DB queries" },
-  { icon: "sparkles", label: "Update deps" },
-]
-
-/* -- Suggested task icon -- */
-
-function TaskIcon({ icon }: { icon: string }) {
-  const cls = "h-3 w-3 text-fg-muted"
-  switch (icon) {
-    case "bug":
-      return <svg className={cls} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M12 12.75c1.148 0 2.278.08 3.383.237 1.037.146 1.866.966 1.866 2.013 0 3.728-2.35 6.75-5.25 6.75S6.75 18.728 6.75 15c0-1.046.83-1.867 1.866-2.013A24.204 24.204 0 0 1 12 12.75Zm0 0c2.883 0 5.647.508 8.207 1.44a23.91 23.91 0 0 1-1.152 6.06M12 12.75c-2.883 0-5.647.508-8.208 1.44.125 2.104.52 4.136 1.153 6.06M12 12.75a2.25 2.25 0 0 0 2.248-2.354M12 12.75a2.25 2.25 0 0 1-2.248-2.354M12 8.25c.995 0 1.971-.08 2.922-.236.403-.066.74-.358.795-.762a3.778 3.778 0 0 0-.399-2.25M12 8.25c-.995 0-1.97-.08-2.922-.236-.402-.066-.74-.358-.795-.762a3.734 3.734 0 0 1 .4-2.253M12 8.25a2.25 2.25 0 0 0-2.248 2.146M12 8.25a2.25 2.25 0 0 1 2.248 2.146M8.683 5a6.032 6.032 0 0 1 6.634 0M7 6.5h10" /></svg>
-    case "wrench":
-      return <svg className={cls} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M11.42 15.17 17.25 21A2.652 2.652 0 0 0 21 17.25l-5.877-5.877M11.42 15.17l2.496-3.03c.317-.384.74-.626 1.208-.766M11.42 15.17l-4.655 5.653a2.548 2.548 0 1 1-3.586-3.586l6.837-5.63m5.108-.233c.55-.164 1.163-.188 1.743-.14a4.5 4.5 0 0 0 4.486-6.336l-3.276 3.277a3.004 3.004 0 0 1-2.25-2.25l3.276-3.276a4.5 4.5 0 0 0-6.336 4.486c.091 1.076-.071 2.264-.904 2.95l-.102.085m-1.745 1.437L5.909 7.5H4.5L2.25 3.75l1.5-1.5L7.5 4.5v1.409l4.26 4.26m-1.745 1.437 1.745-1.437m6.615 8.206L15.75 15.75M4.867 19.125h.008v.008h-.008v-.008Z" /></svg>
-    case "code":
-      return <svg className={cls} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M17.25 6.75 22.5 12l-5.25 5.25m-10.5 0L1.5 12l5.25-5.25m7.5-3-4.5 16.5" /></svg>
-    default:
-      return <svg className={cls} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M9.813 15.904 9 18.75l-.813-2.846a4.5 4.5 0 0 0-3.09-3.09L2.25 12l2.846-.813a4.5 4.5 0 0 0 3.09-3.09L9 5.25l.813 2.846a4.5 4.5 0 0 0 3.09 3.09L15.75 12l-2.846.813a4.5 4.5 0 0 0-3.09 3.09ZM18.259 8.715 18 9.75l-.259-1.035a3.375 3.375 0 0 0-2.455-2.456L14.25 6l1.036-.259a3.375 3.375 0 0 0 2.455-2.456L18 2.25l.259 1.035a3.375 3.375 0 0 0 2.455 2.456L21.75 6l-1.036.259a3.375 3.375 0 0 0-2.455 2.456Z" /></svg>
-  }
-}
-
 /* -- Main form -- */
 
 export function NewAgentForm({ onSubmit, refTaskId, refTaskTitle }: NewAgentFormProps) {
@@ -355,52 +332,6 @@ export function NewAgentForm({ onSubmit, refTaskId, refTaskTitle }: NewAgentForm
               </svg>
               <span className="text-[16px] font-semibold">Start Agent</span>
             </button>
-          </div>
-
-          {/* Divider -- mobile only */}
-          <div className="h-px bg-edge md:hidden" />
-
-          {/* Suggested tasks -- desktop: flex-wrap with icons, mobile: 2x2 grid */}
-          <div className="flex flex-col gap-3">
-            <span className="text-[12px] font-medium text-fg-muted md:text-[12px]">Suggested tasks</span>
-            {/* Desktop */}
-            <div className="hidden flex-wrap gap-2 md:flex">
-              {suggestedTasks.map((task) => (
-                <button
-                  key={task.label}
-                  onClick={() => setDescription(task.label)}
-                  className="flex items-center gap-1.5 rounded-lg border border-edge bg-surface px-3 py-1.5 text-[12px] text-fg transition hover:bg-surface-secondary"
-                >
-                  <TaskIcon icon={task.icon} />
-                  {task.label}
-                </button>
-              ))}
-            </div>
-            {/* Mobile: 2x2 grid */}
-            <div className="flex flex-col gap-2 md:hidden">
-              <div className="flex gap-2">
-                {suggestedTasks.slice(0, 2).map((task) => (
-                  <button
-                    key={task.label}
-                    onClick={() => setDescription(task.label)}
-                    className="flex h-9 items-center rounded-[18px] bg-surface-secondary px-3.5 text-[13px] text-fg transition active:bg-edge"
-                  >
-                    {task.label}
-                  </button>
-                ))}
-              </div>
-              <div className="flex gap-2">
-                {suggestedTasks.slice(2).map((task) => (
-                  <button
-                    key={task.label}
-                    onClick={() => setDescription(task.label)}
-                    className="flex h-9 items-center rounded-[18px] bg-surface-secondary px-3.5 text-[13px] text-fg transition active:bg-edge"
-                  >
-                    {task.label}
-                  </button>
-                ))}
-              </div>
-            </div>
           </div>
 
         </div>
