@@ -15,8 +15,12 @@ export function taskRoutes(deps: AppDeps): Hono {
     const status = c.req.query("status") || undefined
     const projectId = c.req.query("project") || undefined
     const search = c.req.query("search") || undefined
+    const limitStr = c.req.query("limit")
+    const offsetStr = c.req.query("offset")
+    const limit = limitStr ? Math.max(1, parseInt(limitStr, 10)) : undefined
+    const offset = offsetStr ? Math.max(0, parseInt(offsetStr, 10)) : undefined
     return runEffect(c,
-      listTasks(deps.db, { status, projectId, search }).pipe(
+      listTasks(deps.db, { status, projectId, search, limit, offset }).pipe(
         Effect.map(rows => rows.map(mapTaskRow))
       )
     )
