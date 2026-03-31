@@ -3,7 +3,6 @@ import { useProject } from "../context/ProjectContext"
 import type { SidebarContext } from "../components/Layout"
 import { ActiveRunsCard, SystemLog, ProjectUpdateCard } from "../components/StatusWidgets"
 import { PredefinedPromptsEditor } from "../components/PredefinedPromptsEditor"
-import { ProjectSwitcher } from "../components/ProjectSwitcher"
 
 export function StatusPage() {
   const { current } = useProject()
@@ -12,11 +11,6 @@ export function StatusPage() {
 
   return (
     <div className="flex h-full w-full flex-col">
-      {/* Mobile project switcher */}
-      <div className="md:hidden">
-        <ProjectSwitcher variant="mobile" />
-      </div>
-
       {/* Scrollable content */}
       <div className="flex-1 overflow-y-auto p-4 md:p-6">
         <div className="flex flex-col gap-4 md:gap-6">
