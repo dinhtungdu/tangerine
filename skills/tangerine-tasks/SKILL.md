@@ -204,6 +204,22 @@ PARENT=$(curl -s "$API/api/tasks/$TANGERINE_TASK_ID" | jq -r '.parentTaskId')
 test "$PARENT" != "null" && curl "$API/api/tasks/$PARENT/messages"
 ```
 
+## PR Mode
+
+Projects can configure how worker agents handle PRs via the `prMode` field in project config. Before creating a PR, check the project's `prMode`:
+
+```bash
+PROJECT_NAME=$(curl -s "$API/api/tasks/$TANGERINE_TASK_ID" | jq -r '.projectId')
+PR_MODE=$(curl -s "$API/api/projects/$PROJECT_NAME" | jq -r '.prMode // "draft"')
+```
+
+Then act accordingly:
+- `"ready"`: `gh pr create` (normal ready-to-review PR)
+- `"draft"` (default): `gh pr create --draft`
+- `"none"`: skip PR creation entirely — just `git push origin HEAD`
+
+Always push the branch regardless of `prMode`.
+
 ## Required: Codex Review
 
 All worker and reviewer tasks must run `codex review` — but for different purposes.
@@ -219,7 +235,7 @@ codex review --base main -c model="gpt-5.4" -c reasoning.effort="xhigh"
 1. Read the findings
 2. Fix every issue found
 3. Share the review result
-4. Only then run `git push origin HEAD` and `gh pr create`
+4. Only then run `git push origin HEAD` and create PR according to project `prMode` (see above)
 
 ### Reviewer tasks — review the PR changes
 
