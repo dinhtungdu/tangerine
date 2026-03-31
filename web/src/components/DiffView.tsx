@@ -333,7 +333,7 @@ function UnifiedDiff({ diff, filePath, onAddComment }: { diff: string; filePath:
     useLineComment(filePath, getLineNum, onAddComment)
 
   return (
-    <pre className="whitespace-pre-wrap break-all py-2 font-mono text-xxs leading-[1.7]">
+    <pre className="w-full whitespace-pre-wrap break-all py-2 font-mono text-xxs leading-[1.7]">
       {rawLines.map((line, i) => {
         if (line.startsWith("---") || line.startsWith("+++")) return null
 
@@ -432,7 +432,7 @@ export function DiffView({ files, onAddComment }: DiffViewProps) {
   if (files.length === 0) return null
 
   return (
-    <div className="@container h-full overflow-y-auto bg-surface">
+    <div className="@container h-full overflow-x-hidden overflow-y-auto bg-surface">
       {files.map((file) => (
         <div key={file.path} id={`diff-file-${file.path}`}>
           <FileSection file={file} onAddComment={onAddComment} />
