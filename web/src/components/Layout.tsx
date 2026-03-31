@@ -31,7 +31,7 @@ export function Layout() {
   const hasSidebar = !isCrons
 
   return (
-    <div className="flex h-[100dvh] flex-col bg-surface md:h-screen">
+    <div className={`flex flex-col bg-surface md:h-screen ${isRoot ? "min-h-[100dvh]" : "h-[100dvh]"}`}>
       {/* Desktop topbar */}
       <div className="hidden shrink-0 md:block">
         <Topbar sidebarOpen={sidebarOpen} onToggleSidebar={hasSidebar ? () => setSidebarOpen((o) => !o) : undefined} />
@@ -78,7 +78,7 @@ export function Layout() {
       )}
 
       {/* On root: flex-col on mobile (form above, sidebar below), flex-row on desktop */}
-      <main className={`min-h-0 flex-1 overflow-hidden ${isRoot ? "flex flex-col md:flex-row" : "flex"}`}>
+      <main className={`flex-1 ${isRoot ? "flex flex-col md:flex-row md:min-h-0 md:overflow-hidden" : "min-h-0 overflow-hidden flex"}`}>
         {/* Sidebar — on root mobile: stacked below form with max height; otherwise full-screen or hidden */}
         {hasSidebar && (
           <div className={`
@@ -96,7 +96,7 @@ export function Layout() {
           </div>
         )}
 
-        <div className={`min-w-0 flex-1 overflow-hidden ${isRoot ? "order-1 md:order-2" : ""}`}>
+        <div className={`min-w-0 flex-1 ${isRoot ? "order-1 md:order-2 md:overflow-hidden" : "overflow-hidden"}`}>
           <Outlet context={{ sidebarOpen, tasks, refetch } satisfies SidebarContext} />
         </div>
       </main>

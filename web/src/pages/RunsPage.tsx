@@ -23,7 +23,7 @@ export function RunsPage() {
   }, [current, navigate])
 
   return (
-    <div className="h-full">
+    <div className="md:h-full">
       <NewAgentForm onSubmit={handleSubmit} refTaskId={refTaskId} refTaskTitle={refTaskTitle} />
     </div>
   )
