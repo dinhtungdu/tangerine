@@ -173,9 +173,9 @@ export function NewAgentForm({ onSubmit, refTaskId, refTaskTitle }: NewAgentForm
   const handleSubmit = handleCodeSubmit
 
   return (
-    <div className="flex h-full flex-1 flex-col bg-surface">
+    <div className="flex flex-1 flex-col bg-surface md:h-full">
       {/* Desktop: centered card layout / Mobile: full-width scrollable */}
-      <div className="flex flex-1 flex-col items-center overflow-y-auto px-4 pt-6 md:justify-center md:p-12">
+      <div className="flex flex-1 flex-col items-center px-4 pt-6 pb-6 md:overflow-y-auto md:justify-center md:p-12">
         <div className="flex w-full max-w-[640px] flex-col gap-6">
           {/* Heading */}
           <div className="flex flex-col gap-2">

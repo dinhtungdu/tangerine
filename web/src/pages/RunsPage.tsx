@@ -24,7 +24,7 @@ export function RunsPage() {
   }, [current, navigate])
 
   return (
-    <div className="flex h-full flex-col">
+    <div className="flex flex-col md:h-full">
       {/* Mobile project switcher */}
       <div className="md:hidden">
         <ProjectSwitcher variant="mobile" />
