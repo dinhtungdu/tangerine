@@ -1,7 +1,6 @@
 import { describe, test, expect, afterEach } from "bun:test"
 import { render, screen, cleanup, fireEvent, act } from "@testing-library/react"
 import { MemoryRouter, Route, Routes } from "react-router-dom"
-import { RunCard } from "../components/RunCard"
 import { ActivityList } from "../components/ActivityList"
 import { NewAgentForm } from "../components/NewAgentForm"
 import { ChatInput, appendQuotedText } from "../components/ChatInput"
@@ -153,74 +152,6 @@ function mockStatusPageFetch() {
   }
 }
 
-describe("RunCard", () => {
-  test("renders task title and status", () => {
-    render(
-      <MemoryRouter>
-        <RunCard task={makeTask({ title: "Fix auth bug", status: "running" })} />
-      </MemoryRouter>
-    )
-
-    expect(screen.getByText("Fix auth bug")).toBeTruthy()
-    expect(screen.getByText("Running")).toBeTruthy()
-  })
-
-  test("renders failed badge", () => {
-    render(
-      <MemoryRouter>
-        <RunCard task={makeTask({ status: "failed" })} />
-      </MemoryRouter>
-    )
-
-    expect(screen.getByText("Failed")).toBeTruthy()
-  })
-
-  test("shows error message for failed tasks", () => {
-    render(
-      <MemoryRouter>
-        <RunCard task={makeTask({ status: "failed", error: "Payment Required: deactivated_workspace" })} />
-      </MemoryRouter>
-    )
-
-    expect(screen.getByText("Payment Required: deactivated_workspace")).toBeTruthy()
-  })
-
-  test("does not show error for non-failed tasks", () => {
-    render(
-      <MemoryRouter>
-        <RunCard task={makeTask({ status: "done", error: "leftover error" })} />
-      </MemoryRouter>
-    )
-
-    expect(screen.queryByText("leftover error")).toBeNull()
-  })
-
-  test("renders as a link to task detail", () => {
-    render(
-      <MemoryRouter>
-        <RunCard task={makeTask({ id: "task-123" })} />
-      </MemoryRouter>
-    )
-
-    const link = screen.getByRole("link")
-    expect(link.getAttribute("href")).toBe("/tasks/task-123")
-  })
-
-  test("shows duration and date", () => {
-    render(
-      <MemoryRouter>
-        <RunCard task={makeTask({
-          startedAt: "2026-03-17T10:00:00Z",
-          completedAt: "2026-03-17T10:04:32Z",
-        })} />
-      </MemoryRouter>
-    )
-
-    expect(screen.getByText("4m 32s")).toBeTruthy()
-    expect(screen.getByText("Mar 17")).toBeTruthy()
-  })
-})
-
 describe("ActivityList", () => {
   test("shows empty state", () => {
     render(<ActivityList activities={[]} variant="compact" />)
@@ -358,7 +289,7 @@ describe("NewAgentForm", () => {
 })
 
 describe("StatusPage", () => {
-  test("sidebar New Agent button navigates to the new agent route", async () => {
+  test("renders system status heading", async () => {
     mockStatusPageFetch()
 
     render(
@@ -366,17 +297,12 @@ describe("StatusPage", () => {
         <ProjectProvider>
           <Routes>
             <Route path="/status" element={<StatusPage />} />
-            <Route path="/new" element={<div>New Agent Route</div>} />
           </Routes>
         </ProjectProvider>
       </MemoryRouter>
     )
 
-    await screen.findByText("System Status")
-
-    fireEvent.click(screen.getByRole("button", { name: "New Agent" }))
-
-    expect(await screen.findByText("New Agent Route")).toBeTruthy()
+    expect(await screen.findByText("System Status")).toBeTruthy()
   })
 })
 

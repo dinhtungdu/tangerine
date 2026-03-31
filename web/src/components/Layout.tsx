@@ -1,22 +1,34 @@
 import { useState } from "react"
 import { Link, Outlet, useLocation } from "react-router-dom"
+import type { Task } from "@tangerine/shared"
 import { Topbar } from "./Topbar"
 import { QuickOpen } from "./QuickOpen"
+import { TasksSidebar } from "./TasksSidebar"
 import { useProjectNav } from "../hooks/useProjectNav"
+import { useProject } from "../context/ProjectContext"
+import { useTaskSearch } from "../hooks/useTaskSearch"
 
 export interface SidebarContext {
   sidebarOpen: boolean
+  tasks: Task[]
+  refetch: () => void
 }
 
 export function Layout() {
   const [sidebarOpen, setSidebarOpen] = useState(true)
   const location = useLocation()
-  const { link } = useProjectNav()
+  const { link, navigate } = useProjectNav()
+  const { current } = useProject()
+  const { query, setQuery, tasks, refetch } = useTaskSearch(current?.name)
+
   const isTaskDetail = location.pathname.startsWith("/tasks/")
   const isRuns = location.pathname === "/" || location.pathname.startsWith("/tasks") || location.pathname === "/new"
   const isStatus = location.pathname === "/status"
-  // Only routes that actually render a TasksSidebar should show the toggle
-  const hasSidebar = isTaskDetail || isStatus
+  const isNew = location.pathname === "/new"
+  const isCrons = location.pathname === "/crons"
+
+  // Show sidebar on task-related routes (index, task detail, status)
+  const hasSidebar = !isNew && !isCrons
 
   return (
     <div className="flex h-[100dvh] flex-col bg-surface md:h-screen">
@@ -46,6 +58,14 @@ export function Layout() {
               Runs
             </Link>
             <Link
+              to={link("/crons")}
+              className={`rounded-md px-3 py-1.5 text-[13px] font-medium ${
+                isCrons ? "bg-surface-secondary text-fg" : "text-fg-muted hover:text-fg"
+              }`}
+            >
+              Crons
+            </Link>
+            <Link
               to={link("/status")}
               className={`rounded-md px-3 py-1.5 text-[13px] font-medium ${
                 isStatus ? "bg-surface-secondary text-fg" : "text-fg-muted hover:text-fg"
@@ -57,8 +77,23 @@ export function Layout() {
         </div>
       )}
 
-      <main className="min-h-0 flex-1 overflow-hidden">
-        <Outlet context={{ sidebarOpen } satisfies SidebarContext} />
+      <main className="flex min-h-0 flex-1 overflow-hidden">
+        {/* Desktop sidebar — rendered once for all routes */}
+        {hasSidebar && (
+          <div className={`hidden shrink-0 overflow-hidden transition-[width] duration-200 ease-in-out md:block ${sidebarOpen ? "md:w-[240px]" : "md:w-0"}`} inert={sidebarOpen ? undefined : true}>
+            <TasksSidebar
+              tasks={tasks}
+              searchQuery={query}
+              onSearchChange={setQuery}
+              onNewAgent={() => navigate("/new")}
+              onRefetch={refetch}
+            />
+          </div>
+        )}
+
+        <div className="min-w-0 flex-1 overflow-hidden">
+          <Outlet context={{ sidebarOpen, tasks, refetch } satisfies SidebarContext} />
+        </div>
       </main>
 
       <QuickOpen />
