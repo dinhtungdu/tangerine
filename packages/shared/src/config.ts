@@ -14,6 +14,7 @@ export const projectConfigSchema = z.object({
   env: z.record(z.string()).optional(),
   model: z.string().optional(),
   defaultProvider: z.enum(["opencode", "claude-code", "codex"]).default("claude-code"),
+  prMode: z.enum(["ready", "draft", "none"]).default("draft"),
   postUpdateCommand: z.string().optional(),
   predefinedPrompts: z.array(predefinedPromptSchema).optional().default([
     { label: "Are you proud of your code?", text: "Are you proud of your code?" },

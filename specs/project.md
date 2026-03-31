@@ -39,6 +39,7 @@ Stored in `tangerine.json` at the project root (or `~/.config/tangerine/config.j
 | `extraPorts` | number[] | no | Additional ports to forward |
 | `env` | object | no | Extra env vars passed to VM |
 | `model` | string | no | Model override for this project |
+| `prMode` | `"ready" \| "draft" \| "none"` | no | How worker agents handle PRs. `ready`: normal PR, `draft`: draft PR, `none`: push branch only. Default: `"draft"` |
 
 ### Top-Level Config
 
