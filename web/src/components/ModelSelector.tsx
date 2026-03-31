@@ -64,7 +64,7 @@ export function ModelSelector({ models: propModels, model: propModel, onModelCha
         <svg className="h-3 w-3 text-fg-muted" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
           <path strokeLinecap="round" strokeLinejoin="round" d="M9.813 15.904 9 18.75l-.813-2.846a4.5 4.5 0 0 0-3.09-3.09L2.25 12l2.846-.813a4.5 4.5 0 0 0 3.09-3.09L9 5.25l.813 2.846a4.5 4.5 0 0 0 3.09 3.09L15.75 12l-2.846.813a4.5 4.5 0 0 0-3.09 3.09Z" />
         </svg>
-        <span className="min-w-0 truncate text-[11px] font-medium text-fg">{formatModelName(model)}</span>
+        <span className={`min-w-0 truncate font-medium text-fg ${borderless ? "text-[16px] md:text-[11px]" : "text-[11px]"}`}>{formatModelName(model)}</span>
         <svg
           className={`h-2.5 w-2.5 text-fg-muted transition-transform ${open ? "rotate-180" : ""}`}
           fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}

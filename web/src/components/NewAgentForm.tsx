@@ -297,7 +297,7 @@ export function NewAgentForm({ onSubmit, refTaskId, refTaskTitle }: NewAgentForm
                     placeholder={branch}
                     aria-label="Branch or PR"
                     size={6}
-                    className="w-16 min-w-0 bg-transparent text-[13px] text-fg placeholder-fg-muted outline-none"
+                    className="w-16 min-w-0 bg-transparent text-[16px] text-fg placeholder-fg-muted outline-none md:text-[13px]"
                   />
                 </div>
                 <div className="flex h-10 min-w-0 flex-1 items-center rounded-lg border border-edge bg-surface px-3">
