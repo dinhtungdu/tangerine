@@ -115,7 +115,7 @@ export async function createCron(data: {
 
 export async function updateCron(id: string, data: {
   title?: string
-  description?: string
+  description?: string | null
   cron?: string
   enabled?: boolean
   taskDefaults?: { provider?: string; model?: string; reasoningEffort?: string; branch?: string } | null
