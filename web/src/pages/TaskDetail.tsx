@@ -502,8 +502,9 @@ export function TaskDetail() {
              Desktop (md:flex-row): multi-pane with resize handles via visiblePanes.
              ChatPanel is rendered ONCE to avoid duplicate ChatInput draft saves. */}
         <div ref={containerRef} className="flex min-h-0 flex-1 flex-col md:flex-row">
-          {/* Chat pane — single instance for both breakpoints */}
-          {chatTask && (
+          {/* Chat pane — single instance for both breakpoints.
+               Unmount when hidden at both breakpoints to avoid focusing an invisible input. */}
+          {chatTask && (mobilePane === "chat" || visiblePanes.has("chat")) && (
             <div className={[
               "flex min-w-0 flex-col",
               mobilePane === "chat" ? "flex-1" : "hidden",
