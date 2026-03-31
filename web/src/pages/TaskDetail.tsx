@@ -18,6 +18,7 @@ import { ResizeHandle, PaneToggle } from "../components/PaneControls"
 import { TerminalPane } from "../components/TerminalPane"
 import { formatPrNumber } from "../lib/format"
 import { copyToClipboard } from "../lib/clipboard"
+import { TaskOverflowMenu } from "../components/TaskListItem"
 
 type PaneId = "chat" | "diff" | "terminal" | "activity"
 
@@ -217,6 +218,17 @@ export function TaskDetail() {
     setDiffComments([])
     setMobilePane("chat")
   }, [])
+
+  const handleRefetch = useCallback(async () => {
+    if (!id) return
+    try {
+      const data = await fetchTask(id)
+      setTask(data)
+    } catch {
+      // Task was deleted — navigate back to the runs list
+      navigate("/")
+    }
+  }, [id, navigate])
 
   // Start the task on first prompt if it's still in "created" status
   const handleSend = useCallback(
@@ -448,11 +460,7 @@ export function TaskDetail() {
               </PaneToggle>
             </div>
             <div className="h-5 w-px bg-edge" />
-            <button className="flex h-8 w-8 items-center justify-center rounded-md hover:bg-surface-secondary" aria-label="More options">
-              <svg className="h-4 w-4 text-fg-muted" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                <circle cx="12" cy="12" r="1" /><circle cx="19" cy="12" r="1" /><circle cx="5" cy="12" r="1" />
-              </svg>
-            </button>
+            <TaskOverflowMenu task={task} onRefetch={handleRefetch} size="md" />
           </div>
         </div>
 
