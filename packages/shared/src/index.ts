@@ -4,6 +4,7 @@ export type {
   TaskType,
   TaskCapability,
   Task,
+  Cron,
   ProviderType,
   ActivityType,
   ActivityEntry,

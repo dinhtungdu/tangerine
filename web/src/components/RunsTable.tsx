@@ -149,6 +149,11 @@ export function RunsTable({ tasks, searchQuery, onSearchChange, onRefetch }: Run
               <div className="flex flex-1 flex-col gap-0.5 truncate px-3 py-2.5">
                 <div className="flex items-center gap-2 font-medium text-fg">
                   {unseen && <span className="h-2 w-2 shrink-0 rounded-full bg-status-info" title="New activity" />}
+                  {task.source === "cron" && (
+                    <svg className="h-3.5 w-3.5 shrink-0 text-fg-muted" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                      <path strokeLinecap="round" strokeLinejoin="round" d="M12 6v6h4.5m4.5 0a9 9 0 1 1-18 0 9 9 0 0 1 18 0Z" />
+                    </svg>
+                  )}
                   <span className="truncate">{task.title}</span>
                   {task.prUrl && (
                     <a
@@ -161,6 +166,11 @@ export function RunsTable({ tasks, searchQuery, onSearchChange, onRefetch }: Run
                       {formatPrNumber(task.prUrl)}
                     </a>
                   )}
+                  {task.source === "cron" && (
+                    <span className="shrink-0 rounded bg-blue-500/10 px-1.5 py-0.5 text-[10px] font-medium text-blue-700">
+                      cron
+                    </span>
+                  )}
                 </div>
                 <ParentLabel task={task} taskById={taskById} />
                 {task.status === "failed" && task.error && (
@@ -168,7 +178,9 @@ export function RunsTable({ tasks, searchQuery, onSearchChange, onRefetch }: Run
                 )}
               </div>
               <div className="w-[120px] px-3 py-2.5"><StatusBadge status={task.status} /></div>
-              <div className="w-[100px] px-3 py-2.5 text-fg-muted">{formatDuration(task.startedAt, task.completedAt, task.createdAt)}</div>
+              <div className="w-[100px] px-3 py-2.5 text-fg-muted">
+                {formatDuration(task.startedAt, task.completedAt, task.createdAt)}
+              </div>
               <div className="w-[100px] px-3 py-2.5 text-fg-muted capitalize">{task.source}</div>
               <div className="w-[160px] px-3 py-2.5 text-fg-muted">{formatStartedAt(task.startedAt, task.createdAt)}</div>
               <div className="flex w-[70px] items-center justify-end px-2">

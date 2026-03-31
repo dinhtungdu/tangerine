@@ -29,7 +29,7 @@ function depsForProvider(deps: TaskManagerDeps, provider: string): LifecycleDeps
   return { ...deps.lifecycleDeps, agentFactory: deps.getAgentFactory(provider) }
 }
 
-export type TaskSource = "github" | "manual" | "api" | "cross-project"
+export type TaskSource = "github" | "manual" | "api" | "cross-project" | "cron"
 
 export interface TaskManagerDeps {
   insertTask(task: Pick<TaskRow, "id" | "project_id" | "source" | "repo_url" | "title"> & Partial<Pick<TaskRow, "source_id" | "source_url" | "type" | "description" | "user_id" | "branch" | "provider" | "model" | "reasoning_effort" | "parent_task_id" | "capabilities">>): Effect.Effect<TaskRow, Error>
@@ -121,8 +121,7 @@ export function createTask(
 
     emitStatusChange(id, task.status)
 
-    // Orchestrator tasks are started on-demand (when the user enters the chat),
-    // not immediately on creation. All other tasks auto-provision.
+    // Orchestrator tasks are not auto-started — started on-demand when the user enters the chat.
     if (taskType !== "orchestrator") {
       const taskLifecycleDeps = depsForProvider(deps, resolvedProvider)
       yield* Effect.forkDaemon(

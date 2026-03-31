@@ -79,6 +79,7 @@ specs/
 3. `tasks/lifecycle.ts` fetches the repo, allocates a worktree slot, creates a branch/worktree, and starts the provider process locally.
 4. Provider events are normalized and forwarded to WebSocket clients, activity logs, and session logs.
 5. The task can be prompted, aborted, reconfigured, retried, completed, cancelled, or reconnected after restart.
+6. Crons are separate entities that fire on a cron schedule, spawning regular worker tasks.
 
 ## Data Model
 

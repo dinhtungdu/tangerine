@@ -5,9 +5,9 @@ import { Effect } from "effect"
 import { createLogger } from "../logger"
 import { loadConfig, getProjectConfig, getRepoDir, TANGERINE_HOME, readRawConfig, writeRawConfig, isTestMode } from "../config"
 import { getDb } from "../db/index"
-import { createTask as dbCreateTask, getTask, listTasks, updateTask, insertSessionLog, markTaskResult } from "../db/queries"
+import { createTask as dbCreateTask, getTask, listTasks, updateTask, insertSessionLog, markTaskResult, getDueCrons, hasActiveCronTask as dbHasActiveCronTask, updateCron } from "../db/queries"
 import { logActivity, cleanupActivities } from "../activity"
-import type { TaskRow } from "../db/types"
+import type { TaskRow, CronRow } from "../db/types"
 import { taskHasCapability } from "../api/helpers"
 import { createApp } from "../api/app"
 import type { AppDeps } from "../api/app"
@@ -20,6 +20,8 @@ import type { CleanupDeps } from "../tasks/cleanup"
 import { startOrphanCleanup, findOrphans, cleanupOrphans } from "../tasks/orphan-cleanup"
 import type { OrphanCleanupDeps } from "../tasks/orphan-cleanup"
 import { startHealthMonitor, isTaskSuspended, clearSuspended } from "../tasks/health"
+import { startScheduler } from "../tasks/scheduler"
+import type { SchedulerDeps } from "../tasks/scheduler"
 import type { HealthCheckDeps } from "../tasks/health"
 import { reconnectSessionWithRetry } from "../tasks/retry"
 import { AgentError } from "../errors"
@@ -948,8 +950,33 @@ export async function start(): Promise<void> {
     await Effect.runPromise(startHealthMonitor(healthDeps))
     log.info("Health monitor started")
 
+    // Start scheduler for cron-based task spawning (every 60s)
+    const schedulerDeps: SchedulerDeps = {
+      getDueCrons: () => getDueCrons(db),
+      hasActiveCronTask: (cronId) => dbHasActiveCronTask(db, cronId),
+      createWorkerFromCron: (cron) => {
+        const defaults = cron.task_defaults ? JSON.parse(cron.task_defaults) as Record<string, string> : {}
+        return taskManager.createTask(tmDeps, {
+          source: "cron",
+          sourceId: `cron:${cron.id}`,
+          projectId: cron.project_id,
+          title: cron.title,
+          type: "worker",
+          description: cron.description ?? undefined,
+          provider: defaults.provider ?? undefined,
+          model: defaults.model ?? undefined,
+          reasoningEffort: defaults.reasoningEffort ?? undefined,
+          branch: defaults.branch ?? undefined,
+        })
+      },
+      updateCron: (cronId, updates) => updateCron(db, cronId, updates) as Effect.Effect<CronRow | null, Error>,
+    }
+    const scheduler = startScheduler(schedulerDeps)
+    log.info("Scheduler started")
+
     const shutdown = async (signal: string) => {
       log.info("Shutdown signal received", { signal })
+      scheduler.stop()
       process.exit(0)
     }
 

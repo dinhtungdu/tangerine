@@ -4,6 +4,7 @@ import { Layout } from "./components/Layout"
 import { RunsPage } from "./pages/RunsPage"
 import { TaskDetail } from "./pages/TaskDetail"
 import { NewAgentPage } from "./pages/NewAgentPage"
+import { CronsPage } from "./pages/CronsPage"
 import { StatusPage } from "./pages/StatusPage"
 import { ProjectProvider } from "./context/ProjectContext"
 
@@ -14,6 +15,7 @@ export function App() {
         <Route element={<Layout />}>
           <Route index element={<RunsPage />} />
           <Route path="new" element={<NewAgentPage />} />
+          <Route path="crons" element={<CronsPage />} />
           <Route path="status" element={<StatusPage />} />
           <Route path="tasks/:id" element={<TaskDetail />} />
         </Route>
