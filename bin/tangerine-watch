@@ -12,18 +12,11 @@ CONFIG_FILE="${TANGERINE_CONFIG:-$HOME/tangerine/config.json}"
 echo "[tangerine-watch] Starting..."
 
 watch_config() {
-  local last_mtime
-  last_mtime=$(stat -c %Y "$CONFIG_FILE" 2>/dev/null || echo "0")
-  while true; do
-    sleep 2
-    local current_mtime
-    current_mtime=$(stat -c %Y "$CONFIG_FILE" 2>/dev/null || echo "0")
-    if [ "$current_mtime" != "$last_mtime" ]; then
-      echo "[tangerine-watch] Config changed, restarting server..."
-      kill "$SERVER_PID" 2>/dev/null
-      return
-    fi
-  done
+  # Use inotifywait for event-driven watching — no polling overhead.
+  inotifywait -q -e close_write,moved_to "$(dirname "$CONFIG_FILE")" \
+    --include "$(basename "$CONFIG_FILE")" 2>/dev/null
+  echo "[tangerine-watch] Config changed, restarting server..."
+  kill "$SERVER_PID" 2>/dev/null
 }
 
 while true; do
