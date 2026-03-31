@@ -58,6 +58,24 @@ provision:
         echo 'set +a' >> ~/.bashrc
       fi
 
+      # GitHub Enterprise proxy setup.
+      # Set in .credentials:
+      #   GHE_PROXY=socks5://127.0.0.1:8080   (Lima rewrites 127.0.0.1 → host gateway)
+      #   GHE_HOST=github.example.com          (your GHE hostname)
+      # Only GHE traffic is proxied; github.com is accessed directly.
+      cat >> ~/.bashrc << 'PROXY_EOF'
+      if [ -n "${GHE_PROXY:-}" ] && [ -n "${GHE_HOST:-}" ]; then
+        # git: per-host proxy so only GHE traffic is proxied, github.com goes direct
+        # socks5h:// ensures hostnames resolve through the proxy (required for private GHE)
+        git config --global "http.https://${GHE_HOST}.proxy" "${GHE_PROXY/socks5:/socks5h:}"
+        # gh CLI (Go binary): ALL_PROXY for SOCKS5, but exclude github.com via NO_PROXY
+        export ALL_PROXY="$GHE_PROXY"
+        export all_proxy="$GHE_PROXY"
+        export NO_PROXY="localhost,127.0.0.1,host.lima.internal,github.com,api.github.com"
+        export no_proxy="$NO_PROXY"
+      fi
+PROXY_EOF
+
 message: |
   Tangerine VM ready. Next steps:
     1. Clone tangerine repo.
