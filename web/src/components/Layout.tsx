@@ -22,13 +22,12 @@ export function Layout() {
   const { query, setQuery, tasks, refetch } = useTaskSearch(current?.name)
 
   const isTaskDetail = location.pathname.startsWith("/tasks/")
-  const isRuns = location.pathname === "/" || location.pathname.startsWith("/tasks") || location.pathname === "/new"
+  const isRuns = location.pathname === "/" || location.pathname.startsWith("/tasks")
   const isStatus = location.pathname === "/status"
-  const isNew = location.pathname === "/new"
   const isCrons = location.pathname === "/crons"
 
   // Show sidebar on task-related routes (index, task detail, status)
-  const hasSidebar = !isNew && !isCrons
+  const hasSidebar = !isCrons
 
   return (
     <div className="flex h-[100dvh] flex-col bg-surface md:h-screen">
@@ -85,7 +84,7 @@ export function Layout() {
               tasks={tasks}
               searchQuery={query}
               onSearchChange={setQuery}
-              onNewAgent={() => navigate("/new")}
+              onNewAgent={() => navigate("/")}
               onRefetch={refetch}
             />
           </div>
