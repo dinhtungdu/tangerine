@@ -129,6 +129,41 @@ curl "$API/api/projects/my-project/update-status"
 curl -X POST "$API/api/projects/my-project/update"
 ```
 
+### Crons
+
+> **IMPORTANT:** Never use Claude Code's built-in `CronCreate` tool — it is session-only and invisible to Tangerine. Always use the Tangerine cron API below.
+
+```bash
+# List crons
+curl "$API/api/crons"
+curl "$API/api/crons?project=my-project"
+
+# Create a cron (cron expression is always UTC)
+curl -X POST "$API/api/crons" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "projectId": "my-project",
+    "title": "Daily PR check",
+    "description": "The prompt that the spawned task will execute.",
+    "cron": "0 3 * * 1-5",
+    "enabled": true,
+    "taskDefaults": {
+      "provider": "claude-code",
+      "model": "claude-sonnet-4-6"
+    }
+  }'
+
+# Update a cron
+curl -X PATCH "$API/api/crons/<id>" \
+  -H "Content-Type: application/json" \
+  -d '{"enabled": false}'
+
+# Delete a cron
+curl -X DELETE "$API/api/crons/<id>"
+```
+
+When converting user-specified local times to UTC cron expressions, always confirm the conversion (e.g. "10am Vietnam = 3am UTC → `0 3 * * 1-5`").
+
 ### System
 
 ```bash
