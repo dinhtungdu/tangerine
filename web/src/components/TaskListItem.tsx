@@ -6,7 +6,7 @@ import { formatRelativeTime } from "../lib/format"
 import { useProjectNav } from "../hooks/useProjectNav"
 import { cancelTask, retryTask, deleteTask } from "../lib/api"
 
-const TERMINATED_STATUSES = new Set(["done", "completed", "cancelled"])
+const TERMINATED_STATUSES = new Set(["done", "completed", "failed", "cancelled"])
 
 export function TaskOverflowMenu({
   task,
@@ -23,7 +23,7 @@ export function TaskOverflowMenu({
   const isRunning = task.status === "running"
   const isRetryable = task.status === "failed" || task.status === "cancelled"
   const isTerminated = TERMINATED_STATUSES.has(task.status)
-  const isDeletable = isTerminated && task.status !== "done"
+  const isDeletable = isTerminated
 
   const hasActions = isRunning || isRetryable || isDeletable
   if (!hasActions) return null

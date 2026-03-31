@@ -8,7 +8,7 @@ import { MobileTaskItem } from "../components/TaskListItem"
 import { getStatusConfig } from "../lib/status"
 import { ensureOrchestrator } from "../lib/api"
 
-const TERMINATED_STATUSES = new Set(["done", "completed", "cancelled"])
+const TERMINATED_STATUSES = new Set(["done", "completed", "failed", "cancelled"])
 const SHOW_COMPLETED_KEY = "tangerine:sidebar-show-completed"
 
 export function RunsPage() {

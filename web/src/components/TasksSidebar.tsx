@@ -16,7 +16,7 @@ interface TasksSidebarProps {
   onRefetch?: () => void
 }
 
-const TERMINATED_STATUSES = new Set(["done", "completed", "cancelled"])
+const TERMINATED_STATUSES = new Set(["done", "completed", "failed", "cancelled"])
 const SHOW_COMPLETED_KEY = "tangerine:sidebar-show-completed"
 
 function readShowCompleted(): boolean {
