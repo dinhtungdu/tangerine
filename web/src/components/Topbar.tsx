@@ -40,7 +40,7 @@ function ThemeToggle() {
 export function Topbar({ sidebarOpen, onToggleSidebar }: TopbarProps) {
   const location = useLocation()
   const [searchParams] = useSearchParams()
-  const isRuns = location.pathname === "/" || location.pathname.startsWith("/tasks") || location.pathname === "/new"
+  const isRuns = location.pathname === "/" || location.pathname.startsWith("/tasks")
   const isCrons = location.pathname === "/crons"
   const isStatus = location.pathname === "/status"
   const projectParam = searchParams.get("project")

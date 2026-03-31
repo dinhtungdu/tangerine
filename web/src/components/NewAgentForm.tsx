@@ -1,7 +1,6 @@
 import { useState, useCallback, useEffect, useRef, type ClipboardEvent } from "react"
 import type { ProviderType, PromptImage } from "@tangerine/shared"
 import { useProject } from "../context/ProjectContext"
-import { useProjectNav } from "../hooks/useProjectNav"
 import { ModelSelector } from "./ModelSelector"
 import { HarnessSelector } from "./HarnessSelector"
 import { ReasoningEffortSelector, getEfforts, type ReasoningEffort } from "./ReasoningEffortSelector"
@@ -50,7 +49,6 @@ function TaskIcon({ icon }: { icon: string }) {
 /* -- Main form -- */
 
 export function NewAgentForm({ onSubmit, refTaskId, refTaskTitle }: NewAgentFormProps) {
-  const { navigate } = useProjectNav()
   const { current, modelsByProvider } = useProject()
   const PREFS_KEY = "tangerine:agent-prefs"
   const draftKey = `tangerine:new-agent-draft:${current?.name ?? "unknown"}:${refTaskId ?? "new"}`
@@ -188,16 +186,6 @@ export function NewAgentForm({ onSubmit, refTaskId, refTaskTitle }: NewAgentForm
 
   return (
     <div className="flex h-full flex-1 flex-col bg-surface">
-      {/* Mobile header -- hidden on desktop */}
-      <div className="flex h-[52px] items-center gap-3 border-b border-edge px-4 md:hidden">
-        <button onClick={() => navigate("/")} aria-label="Back" className="text-fg">
-          <svg className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-            <path strokeLinecap="round" strokeLinejoin="round" d="M15.75 19.5 8.25 12l7.5-7.5" />
-          </svg>
-        </button>
-        <span className="text-[18px] font-semibold text-fg">New Agent</span>
-      </div>
-
       {/* Desktop: centered card layout / Mobile: full-width scrollable */}
       <div className="flex flex-1 flex-col items-center overflow-y-auto px-4 pt-6 md:justify-center md:p-12">
         <div className="flex w-full max-w-[640px] flex-col gap-6">
