@@ -9,6 +9,7 @@ import type { TaskRow } from "../db/types"
 import type { CleanupDeps } from "./cleanup"
 import { cleanupSession } from "./cleanup"
 import { getTaskState, clearTaskState } from "./task-state"
+import { utc } from "../api/helpers"
 
 const log = createLogger("health")
 
@@ -18,14 +19,11 @@ const HEALTH_CHECK_INTERVAL_MS = 30_000
 const MAX_CONSECUTIVE_RESTARTS = 3
 
 /**
- * SQLite datetime('now') returns UTC without a timezone suffix. Normalize bare
- * timestamps before parsing so idle timeout is based on real UTC time.
+ * Parse a SQLite/ISO timestamp into epoch milliseconds.
+ * Uses utc() to normalize bare SQLite timestamps to proper UTC.
  */
 export function parseTaskTimestampMs(timestamp: string): number {
-  const normalized = /Z$|[+-]\d{2}:\d{2}$/.test(timestamp)
-    ? timestamp
-    : timestamp.replace(" ", "T") + "Z"
-  return new Date(normalized).getTime()
+  return new Date(utc(timestamp) ?? timestamp).getTime()
 }
 
 /** Check whether a task's agent has been suspended due to idle timeout. */
