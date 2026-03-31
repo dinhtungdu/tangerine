@@ -9,7 +9,7 @@ interface ActivityListProps {
 
 export function ActivityList({ activities, variant = "compact" }: ActivityListProps) {
   if (activities.length === 0) {
-    return <div className="py-8 text-center text-[12px] text-fg-muted">No activity yet</div>
+    return <div className="py-8 text-center text-xs text-fg-muted">No activity yet</div>
   }
 
   // Show newest activity first so users don't have to scroll to see latest events
@@ -22,8 +22,8 @@ export function ActivityList({ activities, variant = "compact" }: ActivityListPr
   return (
     <div className="flex flex-col">
       <div className="flex items-center justify-between px-3 py-2">
-        <span className="font-mono text-[11px] font-semibold tracking-wider text-fg-muted">ACTIVITY</span>
-        <span className="font-mono text-[11px] font-medium text-fg-muted">{activities.length}</span>
+        <span className="font-mono text-xxs font-semibold tracking-wider text-fg-muted">ACTIVITY</span>
+        <span className="font-mono text-xxs font-medium text-fg-muted">{activities.length}</span>
       </div>
       <div className="flex flex-col">
         {reversed.map((entry, i) => (
@@ -59,14 +59,14 @@ function ActivityItem({ entry, isLast }: { entry: ActivityEntry; isLast: boolean
       <div className="min-w-0 flex-1">
         {style.label ? (
           <>
-            <p className="text-[12px] font-medium leading-tight text-fg">{style.label}</p>
-            <p className="mt-0.5 line-clamp-2 break-all font-mono text-[11px] text-fg-muted" title={detail}>{detail}</p>
+            <p className="text-xs font-medium leading-tight text-fg">{style.label}</p>
+            <p className="mt-0.5 line-clamp-2 break-all font-mono text-xxs text-fg-muted" title={detail}>{detail}</p>
           </>
         ) : (
-          <p className="line-clamp-2 break-all font-mono text-[12px] leading-tight text-fg">{detail}</p>
+          <p className="line-clamp-2 break-all font-mono text-xs leading-tight text-fg">{detail}</p>
         )}
         <StatusRow meta={meta} isRunning={isRunning && isLast} />
-        <span className="mt-0.5 block text-[10px] text-fg-faint">
+        <span className="mt-0.5 block text-2xs text-fg-faint">
           {formatTimestamp(entry.timestamp)}
         </span>
       </div>
@@ -87,13 +87,13 @@ function StatusRow({ meta, isRunning }: { meta: Record<string, unknown> | null; 
     return (
       <div className="mt-1 flex gap-1">
         {testPassed !== undefined && (
-          <span className="text-[11px] font-medium text-diff-add">{testPassed} passed{testFailed !== undefined ? "," : ""}</span>
+          <span className="text-xxs font-medium text-diff-add">{testPassed} passed{testFailed !== undefined ? "," : ""}</span>
         )}
         {testFailed !== undefined && testFailed > 0 && (
-          <span className="text-[11px] font-medium text-diff-remove">{testFailed} failed</span>
+          <span className="text-xxs font-medium text-diff-remove">{testFailed} failed</span>
         )}
         {testFailed === 0 && testPassed !== undefined && (
-          <span className="text-[11px] font-medium text-diff-add">0 failed</span>
+          <span className="text-xxs font-medium text-diff-add">0 failed</span>
         )}
       </div>
     )
@@ -103,8 +103,8 @@ function StatusRow({ meta, isRunning }: { meta: Record<string, unknown> | null; 
   if (linesAdded !== undefined || linesRemoved !== undefined) {
     return (
       <div className="mt-1 flex gap-1.5">
-        {linesAdded !== undefined && <span className="text-[11px] font-semibold text-diff-add">+{linesAdded}</span>}
-        {linesRemoved !== undefined && <span className="text-[11px] font-semibold text-diff-remove">-{linesRemoved}</span>}
+        {linesAdded !== undefined && <span className="text-xxs font-semibold text-diff-add">+{linesAdded}</span>}
+        {linesRemoved !== undefined && <span className="text-xxs font-semibold text-diff-remove">-{linesRemoved}</span>}
       </div>
     )
   }
@@ -113,7 +113,7 @@ function StatusRow({ meta, isRunning }: { meta: Record<string, unknown> | null; 
   if (isRunning) {
     return (
       <div className="mt-1">
-        <span className="rounded bg-accent-bg px-1.5 py-0.5 text-[10px] font-medium text-accent">
+        <span className="rounded bg-accent-bg px-1.5 py-0.5 text-2xs font-medium text-accent">
           in progress
         </span>
       </div>
@@ -148,7 +148,7 @@ function TimelineView({ activities }: { activities: ActivityEntry[] }) {
     <div className="h-full overflow-y-auto px-4 py-4">
       {groups.map((group) => (
         <div key={group.label} className="mb-6">
-          <div className="mb-3 text-[12px] font-semibold text-fg-faint">{group.label}</div>
+          <div className="mb-3 text-xs font-semibold text-fg-faint">{group.label}</div>
           <div className="flex flex-col gap-4">
             {group.items.map((entry) => {
               const style = getActivityStyle(entry.event)
@@ -171,11 +171,11 @@ function TimelineView({ activities }: { activities: ActivityEntry[] }) {
                   <div className="min-w-0 flex-1 pb-2">
                     {style.label ? (
                       <>
-                        <p className="text-[13px] font-medium leading-tight text-fg">{style.label}</p>
-                        <p className="mt-0.5 text-[11px] text-fg-faint">{detail}</p>
+                        <p className="text-md font-medium leading-tight text-fg">{style.label}</p>
+                        <p className="mt-0.5 text-xxs text-fg-faint">{detail}</p>
                       </>
                     ) : (
-                      <p className="text-[13px] leading-tight text-fg">{detail}</p>
+                      <p className="text-md leading-tight text-fg">{detail}</p>
                     )}
                   </div>
                 </div>

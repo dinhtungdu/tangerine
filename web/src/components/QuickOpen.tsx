@@ -168,7 +168,7 @@ export function QuickOpen() {
             value={query}
             onChange={(e) => setQuery(e.target.value)}
             placeholder="Search tasks..."
-            className="w-full bg-transparent py-3.5 text-[14px] text-fg placeholder:text-fg-muted outline-none"
+            className="w-full bg-transparent py-3.5 text-sm text-fg placeholder:text-fg-muted outline-none"
           />
           {query && (
             <button
@@ -186,7 +186,7 @@ export function QuickOpen() {
         {/* Results list */}
         <div ref={listRef} className="max-h-[400px] overflow-y-auto py-1">
           {filtered.length === 0 ? (
-            <div className="px-4 py-8 text-center text-[13px] text-fg-muted">
+            <div className="px-4 py-8 text-center text-md text-fg-muted">
               {query ? "No matching tasks" : "No active tasks"}
             </div>
           ) : (
@@ -210,20 +210,20 @@ export function QuickOpen() {
 
                   {/* Title + project name */}
                   <div className="min-w-0 flex-1">
-                    <p className="truncate text-[13px] font-medium text-fg">{task.title}</p>
-                    <p className="truncate text-[11px] text-fg-muted">{task.projectId}</p>
+                    <p className="truncate text-md font-medium text-fg">{task.title}</p>
+                    <p className="truncate text-xxs text-fg-muted">{task.projectId}</p>
                   </div>
 
                   {/* Type badge (only for non-worker tasks) */}
                   <div className="flex shrink-0 items-center gap-1.5">
                     {task.type !== "worker" && (
-                      <span className="rounded bg-surface-dark px-1.5 py-0.5 text-[10px] font-medium text-fg-muted">
+                      <span className="rounded bg-surface-dark px-1.5 py-0.5 text-2xs font-medium text-fg-muted">
                         {task.type}
                       </span>
                     )}
                     {/* Status badge */}
                     <span
-                      className={`rounded px-1.5 py-0.5 text-[10px] font-medium ${statusConfig.bgClass} ${statusConfig.textClass}`}
+                      className={`rounded px-1.5 py-0.5 text-2xs font-medium ${statusConfig.bgClass} ${statusConfig.textClass}`}
                     >
                       {statusConfig.label}
                     </span>
@@ -231,8 +231,8 @@ export function QuickOpen() {
 
                   {/* Short ID + time ago */}
                   <div className="flex shrink-0 flex-col items-end gap-0.5">
-                    <span className="font-mono text-[11px] text-fg-muted">{task.id.slice(0, 8)}</span>
-                    <span className="text-[11px] text-fg-muted">{formatRelativeTime(task.createdAt)}</span>
+                    <span className="font-mono text-xxs text-fg-muted">{task.id.slice(0, 8)}</span>
+                    <span className="text-xxs text-fg-muted">{formatRelativeTime(task.createdAt)}</span>
                   </div>
                 </button>
               )
@@ -241,7 +241,7 @@ export function QuickOpen() {
         </div>
 
         {/* Footer shortcuts hint */}
-        <div className="flex items-center gap-3 border-t border-edge px-4 py-2 text-[11px] text-fg-muted">
+        <div className="flex items-center gap-3 border-t border-edge px-4 py-2 text-xxs text-fg-muted">
           <span>
             <kbd className="font-sans">↵</kbd> open
           </span>

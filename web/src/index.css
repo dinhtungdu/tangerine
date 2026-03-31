@@ -7,6 +7,14 @@
 
   --font-mono: "JetBrains Mono", "IBM Plex Mono", ui-monospace, monospace;
 
+  /* Semantic font size scale — extends Tailwind defaults (xs=12px, sm=14px, base=16px, lg=18px, xl=20px, 2xl=24px) */
+  --text-3xs: 9px;   /* mobile badge abbreviations */
+  --text-2xs: 10px;  /* badge/pill/tag labels */
+  --text-xxs: 11px;  /* secondary metadata: timestamps, IDs, hints */
+  --text-md: 13px;   /* primary compact UI body text */
+  --text-sub: 15px;  /* minor headings: section titles, app name */
+  --text-3xl: 1.75rem; /* large stat/display numbers (28px) */
+
   /* Semantic surface colors */
   --color-surface: #fafafa;
   --color-surface-secondary: #f5f5f5;

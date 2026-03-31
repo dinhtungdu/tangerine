@@ -335,7 +335,7 @@ export function TaskDetail() {
 
   if (loading) {
     return (
-      <div className="flex h-full items-center justify-center text-[13px] text-fg-muted">
+      <div className="flex h-full items-center justify-center text-md text-fg-muted">
         Loading...
       </div>
     )
@@ -343,7 +343,7 @@ export function TaskDetail() {
 
   if (!task) {
     return (
-      <div className="flex h-full items-center justify-center text-[13px] text-fg-muted">
+      <div className="flex h-full items-center justify-center text-md text-fg-muted">
         Task not found
       </div>
     )
@@ -380,7 +380,7 @@ export function TaskDetail() {
             <button
               onClick={handleCopyId}
               title="Click to copy task ID"
-              className="min-w-0 truncate text-[14px] font-semibold text-fg hover:text-fg-muted"
+              className="min-w-0 truncate text-sm font-semibold text-fg hover:text-fg-muted"
             >
               {copiedId ? "Copied ID!" : task.title}
             </button>
@@ -393,7 +393,7 @@ export function TaskDetail() {
                 <svg className="h-3.5 w-3.5 text-fg-muted" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                   <path strokeLinecap="round" strokeLinejoin="round" d="M6 3v12m0 0a3 3 0 1 0 3 3m-3-3a3 3 0 0 1 3 3m0 0h6a3 3 0 0 0 3-3V9m0 0a3 3 0 1 0 0-6 3 3 0 0 0 0 6Z" />
                 </svg>
-                <span className="font-mono text-[12px] text-fg-muted">{copiedBranch ? "Copied!" : task.branch}</span>
+                <span className="font-mono text-xs text-fg-muted">{copiedBranch ? "Copied!" : task.branch}</span>
               </button>
             )}
             {sshHost && editor && task.worktreePath && (editor !== "zed" || sshUser) && (() => {
@@ -407,7 +407,7 @@ export function TaskDetail() {
                   <svg className="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                     <path strokeLinecap="round" strokeLinejoin="round" d="M17.25 6.75 22.5 12l-5.25 5.25m-10.5 0L1.5 12l5.25-5.25m7.5-3-4.5 16.5" />
                   </svg>
-                  <span className="text-[12px]">{EDITOR_NAMES[editor]}</span>
+                  <span className="text-xs">{EDITOR_NAMES[editor]}</span>
                 </a>
               )
             })()}
@@ -416,13 +416,13 @@ export function TaskDetail() {
                 href={task.prUrl}
                 target="_blank"
                 rel="noopener noreferrer"
-                className="flex shrink-0 items-center gap-1 rounded bg-status-success-bg px-1.5 py-0.5 text-[10px] font-medium text-status-success-text"
+                className="flex shrink-0 items-center gap-1 rounded bg-status-success-bg px-1.5 py-0.5 text-2xs font-medium text-status-success-text"
               >
                 {formatPrNumber(task.prUrl)}
               </a>
             )}
             <span
-              className="flex shrink-0 items-center gap-1 rounded px-1.5 py-0.5 text-[10px] font-medium"
+              className="flex shrink-0 items-center gap-1 rounded px-1.5 py-0.5 text-2xs font-medium"
               style={{ backgroundColor: `color-mix(in srgb, ${statusColor} 10%, transparent)`, color: statusColor }}
             >
               <span className="h-1.5 w-1.5 rounded-full" style={{ backgroundColor: statusColor }} />
@@ -466,7 +466,7 @@ export function TaskDetail() {
 
         {/* Parent / children relationship bar */}
         {(parentTask || childTasks.length > 0) && (
-          <div className="flex flex-wrap items-center gap-x-4 gap-y-1 border-b border-edge px-3 py-1.5 text-[12px] text-fg-muted md:px-5">
+          <div className="flex flex-wrap items-center gap-x-4 gap-y-1 border-b border-edge px-3 py-1.5 text-xs text-fg-muted md:px-5">
             {parentTask && (
               <Link
                 to={link(`/tasks/${parentTask.id}`)}
@@ -486,7 +486,7 @@ export function TaskDetail() {
                   <Link
                     key={child.id}
                     to={link(`/tasks/${child.id}`)}
-                    className="max-w-[200px] truncate rounded bg-surface-secondary px-1.5 py-0.5 text-[11px] font-medium text-fg hover:bg-edge"
+                    className="max-w-[200px] truncate rounded bg-surface-secondary px-1.5 py-0.5 text-xxs font-medium text-fg hover:bg-edge"
                     title={child.title}
                   >
                     Continued in: {child.title}
@@ -495,7 +495,7 @@ export function TaskDetail() {
                 {childTasks.length > 3 && (
                   <button
                     onClick={() => setShowAllChildren((v) => !v)}
-                    className="rounded bg-surface-secondary px-1.5 py-0.5 text-[11px] font-medium text-fg-muted hover:bg-edge hover:text-fg"
+                    className="rounded bg-surface-secondary px-1.5 py-0.5 text-xxs font-medium text-fg-muted hover:bg-edge hover:text-fg"
                   >
                     {showAllChildren ? "Show less" : `+${childTasks.length - 3} more`}
                   </button>
@@ -562,7 +562,7 @@ export function TaskDetail() {
                   {diffFiles.length > 0 ? (
                     <DiffView files={diffFiles} onAddComment={isTerminated ? undefined : handleAddComment} />
                   ) : (
-                    <div className="flex h-full items-center justify-center text-[13px] text-fg-muted">
+                    <div className="flex h-full items-center justify-center text-md text-fg-muted">
                       No file changes yet
                     </div>
                   )}

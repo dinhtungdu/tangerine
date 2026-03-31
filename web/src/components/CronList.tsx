@@ -54,35 +54,35 @@ export function CronForm({ projectId, onCreated, modelsByProvider }: {
 
   return (
     <div className="rounded-lg border border-edge bg-surface p-4">
-      <h3 className="mb-3 text-[14px] font-semibold text-fg">New Cron</h3>
+      <h3 className="mb-3 text-sm font-semibold text-fg">New Cron</h3>
       <div className="flex flex-col gap-3">
         <input
           type="text"
           value={title}
           onChange={(e) => setTitle(e.target.value)}
           placeholder="Title (e.g. Nightly test suite)"
-          className="rounded-md border border-edge bg-surface px-3 py-2 text-[13px] text-fg placeholder-fg-muted outline-none"
+          className="rounded-md border border-edge bg-surface px-3 py-2 text-md text-fg placeholder-fg-muted outline-none"
         />
         <textarea
           value={description}
           onChange={(e) => setDescription(e.target.value)}
           placeholder="Task description / prompt (optional)"
           rows={2}
-          className="resize-none rounded-md border border-edge bg-surface px-3 py-2 text-[13px] text-fg placeholder-fg-muted outline-none"
+          className="resize-none rounded-md border border-edge bg-surface px-3 py-2 text-md text-fg placeholder-fg-muted outline-none"
         />
         <div className="flex flex-col gap-2 md:flex-row md:items-center">
           <div className="flex flex-1 items-center gap-2">
-            <label className="shrink-0 text-[12px] text-fg-muted">Cron:</label>
+            <label className="shrink-0 text-xs text-fg-muted">Cron:</label>
             <input
               type="text"
               value={cron}
               onChange={(e) => setCron(e.target.value)}
               placeholder="0 9 * * 1-5"
-              className="flex-1 rounded-md border border-edge bg-surface px-3 py-1.5 font-mono text-[13px] text-fg placeholder-fg-muted outline-none"
+              className="flex-1 rounded-md border border-edge bg-surface px-3 py-1.5 font-mono text-md text-fg placeholder-fg-muted outline-none"
             />
           </div>
           {cron.trim() && cron.trim().split(/\s+/).length === 5 && (
-            <span className="text-[11px] text-fg-muted">{formatCronExpression(cron.trim())}</span>
+            <span className="text-xxs text-fg-muted">{formatCronExpression(cron.trim())}</span>
           )}
         </div>
         <div className="flex flex-col gap-2 md:flex-row md:items-center">
@@ -101,14 +101,14 @@ export function CronForm({ projectId, onCreated, modelsByProvider }: {
             value={branch}
             onChange={(e) => setBranch(e.target.value)}
             placeholder="Branch (optional)"
-            className="rounded-md border border-edge bg-surface px-3 py-1.5 text-[13px] text-fg placeholder-fg-muted outline-none md:w-[180px]"
+            className="rounded-md border border-edge bg-surface px-3 py-1.5 text-md text-fg placeholder-fg-muted outline-none md:w-[180px]"
           />
         </div>
-        {error && <p className="text-[12px] text-status-error">{error}</p>}
+        {error && <p className="text-xs text-status-error">{error}</p>}
         <button
           onClick={handleSubmit}
           disabled={!canSubmit}
-          className="flex h-9 items-center justify-center rounded-md bg-surface-dark px-4 text-[13px] font-medium text-white transition hover:opacity-80 disabled:opacity-30"
+          className="flex h-9 items-center justify-center rounded-md bg-surface-dark px-4 text-md font-medium text-white transition hover:opacity-80 disabled:opacity-30"
         >
           {submitting ? "Creating..." : "Create Cron"}
         </button>
@@ -135,19 +135,19 @@ export function CronRow({ cron, onToggle, onDelete }: {
 
       {/* Title + cron expression */}
       <div className="flex min-w-0 flex-1 flex-col gap-0.5">
-        <span className="truncate text-[13px] font-medium text-fg">{cron.title}</span>
+        <span className="truncate text-md font-medium text-fg">{cron.title}</span>
         <div className="flex items-center gap-2">
-          <span className="rounded bg-blue-500/10 px-1.5 py-0.5 font-mono text-[10px] font-medium text-blue-700">
+          <span className="rounded bg-blue-500/10 px-1.5 py-0.5 font-mono text-2xs font-medium text-blue-700">
             {cron.cron}
           </span>
-          <span className="text-[11px] text-fg-muted">{formatCronExpression(cron.cron)}</span>
+          <span className="text-xxs text-fg-muted">{formatCronExpression(cron.cron)}</span>
         </div>
       </div>
 
       {/* Next run */}
       <div className="hidden flex-col items-end gap-0.5 md:flex">
-        <span className="text-[11px] text-fg-muted">Next run</span>
-        <span className="text-[12px] text-fg">
+        <span className="text-xxs text-fg-muted">Next run</span>
+        <span className="text-xs text-fg">
           {cron.enabled && cron.nextRunAt ? formatRelativeTime(cron.nextRunAt) : "\u2014"}
         </span>
       </div>
@@ -155,12 +155,12 @@ export function CronRow({ cron, onToggle, onDelete }: {
       {/* Task defaults badges */}
       <div className="hidden items-center gap-1.5 md:flex">
         {cron.taskDefaults?.provider && (
-          <span className="rounded bg-surface-secondary px-1.5 py-0.5 text-[10px] text-fg-muted">
+          <span className="rounded bg-surface-secondary px-1.5 py-0.5 text-2xs text-fg-muted">
             {cron.taskDefaults.provider}
           </span>
         )}
         {cron.taskDefaults?.model && (
-          <span className="rounded bg-surface-secondary px-1.5 py-0.5 text-[10px] text-fg-muted">
+          <span className="rounded bg-surface-secondary px-1.5 py-0.5 text-2xs text-fg-muted">
             {cron.taskDefaults.model.split("/").pop()}
           </span>
         )}

@@ -35,34 +35,34 @@ export function ActiveRunsCard({ tasks }: { tasks: Task[] }) {
   return (
     <div className="flex flex-1 flex-col gap-2.5 rounded-[10px] border border-edge p-3.5 md:gap-3 md:p-4">
       <div className="flex items-center justify-between">
-        <span className="text-[13px] font-medium text-fg-muted">Active Runs</span>
-        <span className="rounded-xl bg-status-info-bg px-2.5 py-0.5 text-[11px] font-semibold text-status-info-text">
+        <span className="text-md font-medium text-fg-muted">Active Runs</span>
+        <span className="rounded-xl bg-status-info-bg px-2.5 py-0.5 text-xxs font-semibold text-status-info-text">
           {running} Running
         </span>
       </div>
       <div className="flex gap-4">
         <div className="flex flex-col gap-0.5">
-          <span className="text-[24px] font-bold text-fg md:text-[28px]">{running}</span>
-          <span className="text-[11px] font-medium text-status-info md:text-[12px]">Running</span>
+          <span className="text-2xl font-bold text-fg md:text-3xl">{running}</span>
+          <span className="text-xxs font-medium text-status-info md:text-xs">Running</span>
         </div>
         <div className="flex flex-col gap-0.5">
-          <span className="text-[24px] font-bold text-fg md:text-[28px]">{queued}</span>
-          <span className="text-[11px] font-medium text-status-warning md:text-[12px]">Queued</span>
+          <span className="text-2xl font-bold text-fg md:text-3xl">{queued}</span>
+          <span className="text-xxs font-medium text-status-warning md:text-xs">Queued</span>
         </div>
         <div className="flex flex-col gap-0.5">
-          <span className="text-[24px] font-bold text-fg md:text-[28px]">{done}</span>
-          <span className="text-[11px] font-medium text-status-success md:text-[12px]">Completed</span>
+          <span className="text-2xl font-bold text-fg md:text-3xl">{done}</span>
+          <span className="text-xxs font-medium text-status-success md:text-xs">Completed</span>
         </div>
       </div>
       {orphanCount > 0 && (
         <div className="flex items-center justify-between rounded-lg bg-status-warning-bg px-3 py-2">
-          <span className="text-[12px] font-medium text-status-warning-text">
+          <span className="text-xs font-medium text-status-warning-text">
             {orphanCount} orphaned worktree{orphanCount !== 1 ? "s" : ""}
           </span>
           <button
             onClick={handleCleanup}
             disabled={cleaning}
-            className="flex items-center gap-1 rounded-md bg-status-warning-text px-2 py-0.5 text-[11px] font-medium text-white disabled:opacity-50"
+            className="flex items-center gap-1 rounded-md bg-status-warning-text px-2 py-0.5 text-xxs font-medium text-white disabled:opacity-50"
           >
             {cleaning ? "Cleaning…" : "Clean up"}
           </button>
@@ -80,7 +80,7 @@ function LogContext({ context }: { context: Record<string, unknown> }) {
   const entries = Object.entries(context).filter(([k]) => !LOG_CONTEXT_SKIP_KEYS.has(k))
   if (entries.length === 0) return null
   return (
-    <span className="ml-1.5 font-mono text-[12px] text-fg-muted">
+    <span className="ml-1.5 font-mono text-xs text-fg-muted">
       {entries.map(([k, v], i) => (
         <span key={k}>
           {i > 0 && " "}
@@ -102,7 +102,7 @@ function LogLevelBadge({ level }: { level: string }) {
   const fallback = { color: "var(--color-status-info-text)", bg: "var(--color-status-info-bg)" }
   const s = styles[level] ?? fallback
   return (
-    <span className="rounded px-1.5 py-0.5 text-[10px] font-semibold uppercase" style={{ color: s.color, backgroundColor: s.bg }}>
+    <span className="rounded px-1.5 py-0.5 text-2xs font-semibold uppercase" style={{ color: s.color, backgroundColor: s.bg }}>
       {level}
     </span>
   )
@@ -162,9 +162,9 @@ export function ProjectUpdateCard({ project }: { project?: string }) {
   return (
     <div className="flex flex-1 flex-col gap-2.5 rounded-[10px] border border-edge p-3.5 md:gap-3 md:p-4">
       <div className="flex items-center justify-between">
-        <span className="text-[13px] font-medium text-fg-muted">Repository</span>
+        <span className="text-md font-medium text-fg-muted">Repository</span>
         {status?.available && (
-          <span className="rounded-xl bg-status-info-bg px-2.5 py-0.5 text-[11px] font-semibold text-status-info-text">
+          <span className="rounded-xl bg-status-info-bg px-2.5 py-0.5 text-xxs font-semibold text-status-info-text">
             Update available
           </span>
         )}
@@ -173,8 +173,8 @@ export function ProjectUpdateCard({ project }: { project?: string }) {
       <div className="flex items-center gap-3">
         {status?.local && (
           <div className="flex flex-col gap-0.5">
-            <span className="font-mono text-[13px] font-medium text-fg">{status.local}</span>
-            <span className="text-[11px] text-fg-muted">Current</span>
+            <span className="font-mono text-md font-medium text-fg">{status.local}</span>
+            <span className="text-xxs text-fg-muted">Current</span>
           </div>
         )}
         {status?.available && status.remote && (
@@ -183,8 +183,8 @@ export function ProjectUpdateCard({ project }: { project?: string }) {
               <path strokeLinecap="round" strokeLinejoin="round" d="M13.5 4.5 21 12m0 0-7.5 7.5M21 12H3" />
             </svg>
             <div className="flex flex-col gap-0.5">
-              <span className="font-mono text-[13px] font-medium text-status-info">{status.remote}</span>
-              <span className="text-[11px] text-fg-muted">Latest</span>
+              <span className="font-mono text-md font-medium text-status-info">{status.remote}</span>
+              <span className="text-xxs text-fg-muted">Latest</span>
             </div>
           </>
         )}
@@ -192,7 +192,7 @@ export function ProjectUpdateCard({ project }: { project?: string }) {
           <button
             onClick={handleUpdate}
             disabled={updating}
-            className="flex items-center gap-1.5 rounded-md border border-edge px-3 py-1.5 text-[12px] font-medium text-fg transition hover:bg-surface-secondary active:bg-surface-secondary disabled:opacity-50"
+            className="flex items-center gap-1.5 rounded-md border border-edge px-3 py-1.5 text-xs font-medium text-fg transition hover:bg-surface-secondary active:bg-surface-secondary disabled:opacity-50"
           >
             {updating ? (
               <>
@@ -215,7 +215,7 @@ export function ProjectUpdateCard({ project }: { project?: string }) {
       </div>
 
       {result && (
-        <div className={`rounded-lg px-3 py-2 text-[12px] font-medium ${
+        <div className={`rounded-lg px-3 py-2 text-xs font-medium ${
           result.startsWith("Failed")
             ? "bg-status-error-bg text-status-error-text"
             : result.startsWith("Server")
@@ -227,7 +227,7 @@ export function ProjectUpdateCard({ project }: { project?: string }) {
       )}
 
       {status?.checkedAt && (
-        <span className="text-[11px] text-fg-faint">
+        <span className="text-xxs text-fg-faint">
           Last checked {formatRelativeTime(status.checkedAt)}
         </span>
       )}
@@ -269,8 +269,8 @@ export function SystemLog({ project }: { project?: string }) {
   return (
     <div className="flex flex-col gap-3">
       <div className="flex items-center justify-between">
-        <span className="text-[15px] font-semibold text-fg md:text-[16px]">System Log</span>
-        <span className="rounded-xl bg-surface-secondary px-2.5 py-0.5 text-[11px] font-semibold text-fg-muted">
+        <span className="text-sub font-semibold text-fg md:text-base">System Log</span>
+        <span className="rounded-xl bg-surface-secondary px-2.5 py-0.5 text-xxs font-semibold text-fg-muted">
           {logs.length} entries
         </span>
       </div>
@@ -281,7 +281,7 @@ export function SystemLog({ project }: { project?: string }) {
           <button
             key={f.label}
             onClick={() => setActiveFilter(i)}
-            className={`rounded-lg px-2.5 py-1 text-[12px] font-medium transition-colors ${
+            className={`rounded-lg px-2.5 py-1 text-xs font-medium transition-colors ${
               i === activeFilter
                 ? "bg-fg text-surface"
                 : "bg-surface-secondary text-fg-muted hover:text-fg"
@@ -293,28 +293,28 @@ export function SystemLog({ project }: { project?: string }) {
       </div>
 
       {logs.length === 0 ? (
-        <div className="py-8 text-center text-[13px] text-fg-faint">No system logs yet</div>
+        <div className="py-8 text-center text-md text-fg-faint">No system logs yet</div>
       ) : (
         <div className="max-h-[400px] overflow-y-auto rounded-lg border border-edge">
           {/* Desktop: table with task context */}
           <div className="hidden md:block">
             <div className="grid grid-cols-[100px_50px_80px_80px_1fr] bg-surface-secondary px-3 py-2">
-              <span className="text-[12px] font-medium text-fg-muted">Time</span>
-              <span className="text-[12px] font-medium text-fg-muted">Level</span>
-              <span className="text-[12px] font-medium text-fg-muted">Source</span>
-              <span className="text-[12px] font-medium text-fg-muted">Task</span>
-              <span className="text-[12px] font-medium text-fg-muted">Message</span>
+              <span className="text-xs font-medium text-fg-muted">Time</span>
+              <span className="text-xs font-medium text-fg-muted">Level</span>
+              <span className="text-xs font-medium text-fg-muted">Source</span>
+              <span className="text-xs font-medium text-fg-muted">Task</span>
+              <span className="text-xs font-medium text-fg-muted">Message</span>
             </div>
             {logs.map((log) => {
               const ctx = log.context as Record<string, string> | null
               const taskId = ctx?.taskId ? String(ctx.taskId).slice(0, 8) : ""
               return (
                 <div key={log.id} className="grid grid-cols-[100px_50px_80px_80px_1fr] items-center border-t border-edge px-3 py-2">
-                  <span className="font-mono text-[11px] text-fg-muted">{formatLogTimestamp(log.timestamp)}</span>
+                  <span className="font-mono text-xxs text-fg-muted">{formatLogTimestamp(log.timestamp)}</span>
                   <div><LogLevelBadge level={log.level} /></div>
-                  <span className="truncate text-[12px] font-medium text-fg-muted">{log.logger}</span>
-                  <span className="truncate font-mono text-[11px] text-fg-faint">{taskId}</span>
-                  <span className="min-w-0 font-mono text-[12px] text-fg">
+                  <span className="truncate text-xs font-medium text-fg-muted">{log.logger}</span>
+                  <span className="truncate font-mono text-xxs text-fg-faint">{taskId}</span>
+                  <span className="min-w-0 font-mono text-xs text-fg">
                     <span className="truncate">{log.message}</span>
                     {ctx && <LogContext context={ctx} />}
                   </span>
@@ -331,12 +331,12 @@ export function SystemLog({ project }: { project?: string }) {
               return (
                 <div key={log.id} className="flex flex-col gap-0.5 border-b border-edge px-3 py-2 last:border-b-0">
                   <div className="flex items-center gap-2">
-                    <span className="font-mono text-[10px] text-fg-muted">{formatLogTimestamp(log.timestamp)}</span>
+                    <span className="font-mono text-2xs text-fg-muted">{formatLogTimestamp(log.timestamp)}</span>
                     <LogLevelBadge level={log.level} />
-                    <span className="text-[11px] font-medium text-fg-muted">{log.logger}</span>
-                    {taskId && <span className="font-mono text-[10px] text-fg-faint">{taskId}</span>}
+                    <span className="text-xxs font-medium text-fg-muted">{log.logger}</span>
+                    {taskId && <span className="font-mono text-2xs text-fg-faint">{taskId}</span>}
                   </div>
-                  <span className="font-mono text-[12px] text-fg">{log.message}</span>
+                  <span className="font-mono text-xs text-fg">{log.message}</span>
                   {ctx && <LogContext context={ctx} />}
                 </div>
               )

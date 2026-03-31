@@ -16,8 +16,8 @@ export function StatusPage() {
         <div className="flex flex-col gap-4 md:gap-6">
           {/* Title — desktop only */}
           <div className="hidden flex-col gap-1 md:flex">
-            <h1 className="text-[24px] font-semibold text-fg">System Status</h1>
-            <p className="text-[14px] text-fg-muted">Infrastructure health for the current project</p>
+            <h1 className="text-2xl font-semibold text-fg">System Status</h1>
+            <p className="text-sm text-fg-muted">Infrastructure health for the current project</p>
           </div>
 
           {/* Project update + Active runs */}
