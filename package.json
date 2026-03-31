@@ -16,6 +16,7 @@
     "dev:api": "bun run --filter tangerine-server dev",
     "dev:web": "bun run --filter tangerine-web dev",
     "build": "bun run --filter tangerine-web build",
+    "build:dev": "bun run --filter tangerine-web build:dev",
     "lint": "eslint 'packages/*/src/**/*.ts' 'web/src/**/*.{ts,tsx}'",
     "check": "bun run --filter '*' check && bun run lint",
     "test": "bun run --filter '*' test",

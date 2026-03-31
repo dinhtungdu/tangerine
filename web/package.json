@@ -6,6 +6,7 @@
   "scripts": {
     "dev": "bunx vite",
     "build": "bunx vite build",
+    "build:dev": "bunx vite build --mode development --minify false",
     "check": "bun x tsc --noEmit"
   },
   "dependencies": {
