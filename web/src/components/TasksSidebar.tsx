@@ -92,7 +92,7 @@ function TaskItem({
         </span>
         <ParentLabel task={task} taskById={taskById} />
       </div>
-      <div className="shrink-0 opacity-0 group-hover:opacity-100">
+      <div className="shrink-0 [@media(hover:hover)]:opacity-0 [@media(hover:hover)]:group-hover:opacity-100">
         <TaskOverflowMenu task={task} onRefetch={onRefetch} size="sm" />
       </div>
     </Link>
