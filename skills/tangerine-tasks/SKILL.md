@@ -8,6 +8,9 @@ metadata:
 
 # Tangerine Agent Reference
 
+> 🚨 **CRITICAL — READ FIRST:**
+> **NEVER post comments or reviews on GitHub PRs.** No `gh pr review`, `gh pr comment`, or any GitHub API call that writes to a PR thread. Report all findings back to the parent task via Tangerine (`POST /api/tasks/$TANGERINE_TASK_ID/prompt`) — never on GitHub directly.
+
 You are running inside a **Tangerine task**. Tangerine manages local agent processes, git worktrees, task lifecycle, and a web/API control plane.
 
 ## Environment
@@ -200,10 +203,6 @@ curl "$API/api/tasks/$TANGERINE_TASK_ID" | jq '{id, type, status, provider, bran
 PARENT=$(curl -s "$API/api/tasks/$TANGERINE_TASK_ID" | jq -r '.parentTaskId')
 test "$PARENT" != "null" && curl "$API/api/tasks/$PARENT/messages"
 ```
-
-## GitHub PR Etiquette
-
-**Never post comments or reviews on GitHub PRs.** Do not use `gh pr review`, `gh pr comment`, or any API call that posts to a PR thread. Report findings back to the parent task via the Tangerine API (`/prompt` or `/chat`) instead.
 
 ## Required: Codex Review
 
