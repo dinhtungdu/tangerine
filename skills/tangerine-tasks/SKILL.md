@@ -231,7 +231,8 @@ codex review --base main -c model="gpt-5.4" -c reasoning.effort="xhigh"
 
 1. Read the findings
 2. Include them in the review report
-3. Report back to the parent task with a summary of issues found
+3. **Post the full review summary as your final message in this task** — verdict, key findings, any bugs found. This is what the user sees when they open the reviewer task.
+4. Then also report back to the parent task with a summary of issues found
 
 ## Task Shape
 
