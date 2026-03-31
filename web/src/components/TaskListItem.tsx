@@ -50,8 +50,8 @@ export function TaskOverflowMenu({
   const iconCls = size === "sm" ? "h-3.5 w-3.5" : "h-4 w-4"
   const topCls = size === "sm" ? "top-7" : "top-8"
   const itemCls = size === "sm"
-    ? "px-3 py-1.5 text-[12px]"
-    : "px-3 py-2 text-[13px]"
+    ? "px-3 py-1.5 text-xs"
+    : "px-3 py-2 text-md"
 
   return (
     <div ref={menuRef} className="relative">

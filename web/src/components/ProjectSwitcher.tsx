@@ -49,16 +49,16 @@ export function ProjectSwitcher({ variant = "desktop" }: ProjectSwitcherProps) {
           {current ? (
             <>
               <div className={`flex items-center justify-center rounded ${getProjectColor(currentIndex)} ${isMobile ? "h-5 w-5" : "h-[18px] w-[18px]"}`}>
-                <span className={`font-bold text-white ${isMobile ? "text-[9px]" : "text-[10px]"}`}>
+                <span className={`font-bold text-white ${isMobile ? "text-3xs" : "text-2xs"}`}>
                   {current.name.charAt(0).toUpperCase()}
                 </span>
               </div>
-              <span className={`truncate font-medium text-fg ${isMobile ? "text-[14px]" : "max-w-[180px] text-[13px]"}`}>
+              <span className={`truncate font-medium text-fg ${isMobile ? "text-sm" : "max-w-[180px] text-md"}`}>
                 {current.name}
               </span>
             </>
           ) : (
-            <span className="text-[13px] text-fg-muted">No projects</span>
+            <span className="text-md text-fg-muted">No projects</span>
           )}
         </div>
         <svg
@@ -76,7 +76,7 @@ export function ProjectSwitcher({ variant = "desktop" }: ProjectSwitcherProps) {
         }`}>
           {!isMobile && (
             <div className="px-3 py-2">
-              <span className="text-[11px] font-medium tracking-wider text-fg-muted">PROJECTS</span>
+              <span className="text-xxs font-medium tracking-wider text-fg-muted">PROJECTS</span>
             </div>
           )}
           <div className="max-h-[300px] overflow-y-auto">
@@ -94,13 +94,13 @@ export function ProjectSwitcher({ variant = "desktop" }: ProjectSwitcherProps) {
                   }`}
                 >
                   <div className={`flex shrink-0 items-center justify-center rounded ${getProjectColor(i)} ${isMobile ? "h-5 w-5" : "h-[22px] w-[22px]"}`}>
-                    <span className={`font-bold text-white ${isMobile ? "text-[9px]" : "text-[11px]"}`}>
+                    <span className={`font-bold text-white ${isMobile ? "text-3xs" : "text-xxs"}`}>
                       {project.name.charAt(0).toUpperCase()}
                     </span>
                   </div>
                   <div className="flex min-w-0 flex-col">
-                    <span className="truncate text-[13px] font-medium text-fg">{project.name}</span>
-                    <span className="truncate text-[11px] text-fg-muted">{project.repo}</span>
+                    <span className="truncate text-md font-medium text-fg">{project.name}</span>
+                    <span className="truncate text-xxs text-fg-muted">{project.repo}</span>
                   </div>
                   {isActive && (
                     <svg className="ml-auto h-3.5 w-3.5 shrink-0 text-fg" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>

@@ -86,7 +86,7 @@ export function ImageLightbox({ images, initialIndex, onClose }: ImageLightboxPr
 
       {/* Counter */}
       {multi && (
-        <div className="absolute bottom-6 left-1/2 -translate-x-1/2 rounded-full bg-white/10 px-3 py-1 text-[12px] text-white">
+        <div className="absolute bottom-6 left-1/2 -translate-x-1/2 rounded-full bg-white/10 px-3 py-1 text-xs text-white">
           {index + 1} / {images.length}
         </div>
       )}

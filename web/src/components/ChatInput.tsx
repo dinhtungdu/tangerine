@@ -202,7 +202,7 @@ export function ChatInput({ onSend, disabled, queueLength, taskId, isWorking, on
               <button
                 key={i}
                 onMouseDown={(e) => handlePromptClick(e, prompt.text)}
-                className="pointer-events-auto rounded-full border border-edge bg-surface-secondary px-3 py-1 text-[12px] text-fg-muted shadow-sm transition hover:bg-surface-dark hover:text-white"
+                className="pointer-events-auto rounded-full border border-edge bg-surface-secondary px-3 py-1 text-xs text-fg-muted shadow-sm transition hover:bg-surface-dark hover:text-white"
               >
                 {prompt.label}
               </button>
@@ -224,7 +224,7 @@ export function ChatInput({ onSend, disabled, queueLength, taskId, isWorking, on
               <button
                 onClick={() => removeImage(i)}
                 aria-label="Remove image"
-                className="absolute -right-1 -top-1 flex h-4 w-4 items-center justify-center rounded-full bg-fg text-[10px] text-white"
+                className="absolute -right-1 -top-1 flex h-4 w-4 items-center justify-center rounded-full bg-fg text-2xs text-white"
               >
                 ×
               </button>
@@ -257,10 +257,10 @@ export function ChatInput({ onSend, disabled, queueLength, taskId, isWorking, on
             placeholder={isWorking ? "Agent is working... (messages will be queued)" : "Message agent..."}
             disabled={disabled}
             rows={1}
-            className="min-h-9 w-full resize-none rounded-lg border border-edge bg-surface px-3 py-2 text-[16px] text-fg placeholder-fg-faint outline-none transition focus:border-fg-faint disabled:cursor-not-allowed disabled:opacity-50 md:px-3.5 md:text-[13px] md:placeholder-fg-muted"
+            className="min-h-9 w-full resize-none rounded-lg border border-edge bg-surface px-3 py-2 text-base text-fg placeholder-fg-faint outline-none transition focus:border-fg-faint disabled:cursor-not-allowed disabled:opacity-50 md:px-3.5 md:text-md md:placeholder-fg-muted"
           />
           {queueLength > 0 && (
-            <span className="absolute right-2 top-2 flex h-5 w-5 items-center justify-center rounded-full bg-tangerine text-[10px] font-bold text-white">
+            <span className="absolute right-2 top-2 flex h-5 w-5 items-center justify-center rounded-full bg-tangerine text-2xs font-bold text-white">
               {queueLength}
             </span>
           )}
@@ -310,7 +310,7 @@ export function ChatInput({ onSend, disabled, queueLength, taskId, isWorking, on
             <svg className="h-2.5 w-2.5 text-white" fill="currentColor" viewBox="0 0 24 24">
               <rect x="6" y="6" width="12" height="12" rx="1" />
             </svg>
-            <span className="text-[11px] font-medium text-white">Stop agent</span>
+            <span className="text-xxs font-medium text-white">Stop agent</span>
           </button>
         )}
       </div>

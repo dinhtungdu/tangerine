@@ -72,7 +72,7 @@ export function ReasoningEffortSelector({ value, onChange, provider }: Reasoning
         <svg className="h-3 w-3 text-fg-muted" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.8}>
           <path strokeLinecap="round" strokeLinejoin="round" d="M3.75 13.5l10.5-11.25L12 10.5h8.25L9.75 21.75 12 13.5H3.75z" />
         </svg>
-        <span className="text-[11px] font-medium text-fg">{current.label}</span>
+        <span className="text-xxs font-medium text-fg">{current.label}</span>
         <svg
           className={`h-2.5 w-2.5 text-fg-muted transition-transform ${open ? "rotate-180" : ""}`}
           fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}
@@ -97,10 +97,10 @@ export function ReasoningEffortSelector({ value, onChange, provider }: Reasoning
                 }`}
               >
                 <div className="flex flex-col">
-                  <span className={`text-[12px] ${isActive ? "font-medium text-fg" : "text-fg-muted"}`}>
+                  <span className={`text-xs ${isActive ? "font-medium text-fg" : "text-fg-muted"}`}>
                     {e.label}
                   </span>
-                  <span className="text-[10px] text-fg-muted">{e.description}</span>
+                  <span className="text-2xs text-fg-muted">{e.description}</span>
                 </div>
                 {isActive && (
                   <svg className="h-3 w-3 shrink-0 text-fg" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>

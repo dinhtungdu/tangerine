@@ -45,8 +45,8 @@ export function CronsPage() {
         {/* Header */}
         <div className="mb-6">
           <div className="hidden md:block">
-            <h1 className="text-[20px] font-bold text-fg md:text-[24px]">Crons</h1>
-            <p className="mt-0.5 text-[13px] text-fg-muted">Recurring tasks on a schedule</p>
+            <h1 className="text-xl font-bold text-fg md:text-2xl">Crons</h1>
+            <p className="mt-0.5 text-md text-fg-muted">Recurring tasks on a schedule</p>
           </div>
           {/* Mobile header */}
           <div className="flex items-center gap-3 md:hidden">
@@ -55,7 +55,7 @@ export function CronsPage() {
                 <path strokeLinecap="round" strokeLinejoin="round" d="M15.75 19.5 8.25 12l7.5-7.5" />
               </svg>
             </button>
-            <span className="text-[18px] font-semibold text-fg">Crons</span>
+            <span className="text-lg font-semibold text-fg">Crons</span>
           </div>
         </div>
 
@@ -72,9 +72,9 @@ export function CronsPage() {
           {/* Cron list */}
           <div className="overflow-hidden rounded-lg border border-edge">
             {loading ? (
-              <div className="py-12 text-center text-[13px] text-fg-muted">Loading...</div>
+              <div className="py-12 text-center text-md text-fg-muted">Loading...</div>
             ) : crons.length === 0 ? (
-              <div className="py-12 text-center text-[13px] text-fg-muted">No crons configured</div>
+              <div className="py-12 text-center text-md text-fg-muted">No crons configured</div>
             ) : (
               crons.map((c) => (
                 <CronRow key={c.id} cron={c} onToggle={handleToggle} onDelete={handleDelete} />
@@ -84,7 +84,7 @@ export function CronsPage() {
 
           {/* Footer */}
           {crons.length > 0 && (
-            <div className="text-[12px] text-fg-muted">
+            <div className="text-xs text-fg-muted">
               {crons.length} cron{crons.length !== 1 ? "s" : ""} &middot; {crons.filter((c) => c.enabled).length} enabled
             </div>
           )}
