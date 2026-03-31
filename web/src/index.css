@@ -8,9 +8,10 @@
   --font-mono: "JetBrains Mono", "IBM Plex Mono", ui-monospace, monospace;
 
   /* Semantic font size scale — extends Tailwind defaults (xs=12px, sm=14px, base=16px, lg=18px, xl=20px, 2xl=24px) */
-  --text-3xs: 9px;   /* mobile badge abbreviations */
-  --text-2xs: 10px;  /* badge/pill/tag labels */
-  --text-xxs: 11px;  /* secondary metadata: timestamps, IDs, hints */
+  /* Minimum sizes follow WCAG accessibility guidance: 11px absolute floor, 12px for captions/labels */
+  --text-3xs: 11px;  /* mobile badge abbreviations (was 9px — below 11px a11y floor) */
+  --text-2xs: 11px;  /* badge/pill/tag labels (was 10px — below 12px caption minimum) */
+  --text-xxs: 12px;  /* secondary metadata: timestamps, IDs, hints (was 11px) */
   --text-md: 13px;   /* primary compact UI body text */
   --text-sub: 15px;  /* minor headings: section titles, app name */
   --text-3xl: 1.75rem; /* large stat/display numbers (28px) */
