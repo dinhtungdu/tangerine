@@ -249,7 +249,7 @@ export function ChatPanel({
             const params = new URLSearchParams()
             if (refTaskId) params.set("ref", refTaskId)
             if (refTitle) params.set("refTitle", refTitle)
-            navigate(`/new?${params}`)
+            navigate(`/?${params}`)
           } : undefined}
           onResolve={onResolve}
         />
