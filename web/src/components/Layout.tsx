@@ -22,7 +22,8 @@ export function Layout() {
   const { query, setQuery, tasks, refetch } = useTaskSearch(current?.name)
 
   const isTaskDetail = location.pathname.startsWith("/tasks/")
-  const isRuns = location.pathname === "/" || location.pathname.startsWith("/tasks")
+  const isRoot = location.pathname === "/"
+  const isRuns = isRoot || location.pathname.startsWith("/tasks")
   const isStatus = location.pathname === "/status"
   const isCrons = location.pathname === "/crons"
 
@@ -76,10 +77,15 @@ export function Layout() {
         </div>
       )}
 
-      <main className="flex min-h-0 flex-1 overflow-hidden">
-        {/* Sidebar — full-screen on mobile (except task detail), fixed width on desktop */}
+      {/* On root: flex-col on mobile (form above, sidebar below), flex-row on desktop */}
+      <main className={`min-h-0 flex-1 overflow-hidden ${isRoot ? "flex flex-col md:flex-row" : "flex"}`}>
+        {/* Sidebar — on root mobile: stacked below form with max height; otherwise full-screen or hidden */}
         {hasSidebar && (
-          <div className={`${isTaskDetail || isStatus ? "hidden md:block" : "block"} overflow-hidden transition-[width] duration-200 ease-in-out ${sidebarOpen ? "md:w-[240px]" : "md:w-0"}`} inert={sidebarOpen ? undefined : true}>
+          <div className={`
+            ${isTaskDetail || isStatus ? "hidden md:block" : "block"}
+            ${isRoot ? "order-2 max-h-[45vh] overflow-y-auto md:order-1 md:max-h-none md:overflow-hidden" : "overflow-hidden"}
+            transition-[width] duration-200 ease-in-out ${sidebarOpen ? "md:w-[240px]" : "md:w-0"}
+          `} inert={sidebarOpen ? undefined : true}>
             <TasksSidebar
               tasks={tasks}
               searchQuery={query}
@@ -90,7 +96,7 @@ export function Layout() {
           </div>
         )}
 
-        <div className="min-w-0 flex-1 overflow-hidden">
+        <div className={`min-w-0 flex-1 overflow-hidden ${isRoot ? "order-1 md:order-2" : ""}`}>
           <Outlet context={{ sidebarOpen, tasks, refetch } satisfies SidebarContext} />
         </div>
       </main>
