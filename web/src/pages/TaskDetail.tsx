@@ -5,13 +5,11 @@ import type { Task } from "@tangerine/shared"
 import { fetchTask, fetchChildTasks, changeTaskConfig, markTaskSeen, resolveTask, startTask } from "../lib/api"
 import { getStatusConfig } from "../lib/status"
 import { useSession } from "../hooks/useSession"
-import { useTaskSearch } from "../hooks/useTaskSearch"
 import { useProject } from "../context/ProjectContext"
 import { buildSshEditorUri, EDITOR_NAMES } from "../lib/ssh-editor"
 import { useProjectNav } from "../hooks/useProjectNav"
 import { useDiffFiles } from "../hooks/useDiffFiles"
 import { useResizable } from "../hooks/useResizable"
-import { TasksSidebar } from "../components/TasksSidebar"
 import { ChatPanel } from "../components/ChatPanel"
 import { DiffView } from "../components/DiffView"
 import { ActivityList } from "../components/ActivityList"
@@ -27,7 +25,7 @@ export function TaskDetail() {
   const { id } = useParams<{ id: string }>()
   const { navigate, link } = useProjectNav()
   const outletCtx = useOutletContext<SidebarContext | null>()
-  const sidebarOpen = outletCtx?.sidebarOpen ?? true
+  const tasks = outletCtx?.tasks ?? []
   const [task, setTask] = useState<Task | null>(null)
   const [parentTask, setParentTask] = useState<Task | null>(null)
   const [childTasks, setChildTasks] = useState<Task[]>([])
@@ -42,8 +40,6 @@ export function TaskDetail() {
   const [mobilePane, setMobilePane] = useState<PaneId>("chat")
 
   const { current, modelsByProvider, sshHost, sshUser, editor } = useProject()
-
-  const { query, setQuery, tasks } = useTaskSearch(current?.name)
 
   // When viewing a task from a different project, show that project's orchestrator chat
   const isCrossProject = task !== null && current !== null && task.projectId !== current.name
@@ -324,26 +320,16 @@ export function TaskDetail() {
 
   if (loading) {
     return (
-      <div className="flex h-full">
-        <div className={sidebarOpen ? "hidden shrink-0 overflow-hidden transition-[width] duration-200 ease-in-out md:block md:w-[240px]" : "hidden shrink-0 overflow-hidden transition-[width] duration-200 ease-in-out md:block md:w-0"} inert={sidebarOpen ? undefined : true}>
-          <TasksSidebar tasks={tasks} searchQuery={query} onSearchChange={setQuery} onNewAgent={() => navigate("/new")} />
-        </div>
-        <div className="flex flex-1 items-center justify-center text-[13px] text-fg-muted">
-          Loading...
-        </div>
+      <div className="flex h-full items-center justify-center text-[13px] text-fg-muted">
+        Loading...
       </div>
     )
   }
 
   if (!task) {
     return (
-      <div className="flex h-full">
-        <div className={sidebarOpen ? "hidden shrink-0 overflow-hidden transition-[width] duration-200 ease-in-out md:block md:w-[240px]" : "hidden shrink-0 overflow-hidden transition-[width] duration-200 ease-in-out md:block md:w-0"} inert={sidebarOpen ? undefined : true}>
-          <TasksSidebar tasks={tasks} searchQuery={query} onSearchChange={setQuery} onNewAgent={() => navigate("/new")} />
-        </div>
-        <div className="flex flex-1 items-center justify-center text-[13px] text-fg-muted">
-          Task not found
-        </div>
+      <div className="flex h-full items-center justify-center text-[13px] text-fg-muted">
+        Task not found
       </div>
     )
   }
@@ -365,11 +351,6 @@ export function TaskDetail() {
 
   return (
     <div className="flex h-full">
-      {/* Sidebar — desktop only */}
-      <div className={`hidden shrink-0 overflow-hidden transition-[width] duration-200 ease-in-out md:block ${sidebarOpen ? "md:w-[240px]" : "md:w-0"}`}>
-        <TasksSidebar tasks={tasks} searchQuery={query} onSearchChange={setQuery} onNewAgent={() => navigate("/new")} />
-      </div>
-
       {/* Main column */}
       <div className="flex min-w-0 flex-1 flex-col">
         {/* Task header — two rows on mobile (flex-col), one row on desktop (md:flex-row) */}
