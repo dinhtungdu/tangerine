@@ -1,4 +1,4 @@
-import { useCallback } from "react"
+import { useCallback, useEffect, useRef } from "react"
 import { useSearchParams } from "react-router-dom"
 import { useProject } from "../context/ProjectContext"
 import { useProjectNav } from "../hooks/useProjectNav"
@@ -11,6 +11,15 @@ export function RunsPage() {
   const [searchParams] = useSearchParams()
   const refTaskId = searchParams.get("ref") ?? undefined
   const refTaskTitle = searchParams.get("refTitle") ?? undefined
+  const formRef = useRef<HTMLDivElement>(null)
+
+  // On mobile the sidebar stacks above the form. Scroll the form into view
+  // when continuing from a completed task so the user doesn't have to scroll manually.
+  useEffect(() => {
+    if (refTaskId && formRef.current) {
+      formRef.current.scrollIntoView({ behavior: "smooth", block: "start" })
+    }
+  }, [refTaskId])
 
   const handleSubmit = useCallback(async (data: { projectId: string; title: string; description?: string; branch?: string; provider?: string; model?: string; reasoningEffort?: string; parentTaskId?: string; type?: string; images?: import("@tangerine/shared").PromptImage[] }) => {
     if (!current) return
@@ -24,7 +33,7 @@ export function RunsPage() {
 
   return (
     <div className="flex flex-col md:h-full">
-      <div className="min-h-0 flex-1">
+      <div ref={formRef} className="min-h-0 flex-1">
         <NewAgentForm onSubmit={handleSubmit} refTaskId={refTaskId} refTaskTitle={refTaskTitle} />
       </div>
     </div>
