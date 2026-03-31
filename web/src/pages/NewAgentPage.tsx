@@ -1,3 +1,4 @@
+import { useCallback } from "react"
 import { useSearchParams } from "react-router-dom"
 import { useProject } from "../context/ProjectContext"
 import { useProjectNav } from "../hooks/useProjectNav"
@@ -11,7 +12,7 @@ export function NewAgentPage() {
   const refTaskId = searchParams.get("ref") ?? undefined
   const refTaskTitle = searchParams.get("refTitle") ?? undefined
 
-  const handleSubmit = async (data: { projectId: string; title: string; description?: string; branch?: string; provider?: string; model?: string; reasoningEffort?: string; parentTaskId?: string; type?: string; images?: import("@tangerine/shared").PromptImage[] }) => {
+  const handleSubmit = useCallback(async (data: { projectId: string; title: string; description?: string; branch?: string; provider?: string; model?: string; reasoningEffort?: string; parentTaskId?: string; type?: string; images?: import("@tangerine/shared").PromptImage[] }) => {
     if (!current) return
     try {
       const task = await createTask(data)
@@ -19,7 +20,7 @@ export function NewAgentPage() {
     } catch {
       // TODO: error toast
     }
-  }
+  }, [current, navigate])
 
   return (
     <div className="h-full">
