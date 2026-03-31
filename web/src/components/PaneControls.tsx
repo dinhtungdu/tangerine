@@ -1,10 +1,10 @@
 import type { ReactNode, MouseEvent } from "react"
 
-export function ResizeHandle({ onMouseDown }: { onMouseDown: (e: MouseEvent) => void }) {
+export function ResizeHandle({ onMouseDown, className }: { onMouseDown: (e: MouseEvent) => void; className?: string }) {
   return (
     <div
       onMouseDown={onMouseDown}
-      className="flex w-0.5 shrink-0 cursor-col-resize bg-edge transition-colors hover:bg-accent"
+      className={`w-0.5 shrink-0 cursor-col-resize bg-edge transition-colors hover:bg-accent${className ? ` ${className}` : ""}`}
     >
       <span />
     </div>

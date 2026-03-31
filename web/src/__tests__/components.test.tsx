@@ -348,6 +348,9 @@ describe("ChatInput", () => {
     expect(screen.getByDisplayValue("Draft for B")).toBeTruthy()
   })
 
+  // Duplicate ChatInput instances no longer occur — TaskDetail renders a single
+  // ChatPanel for both mobile and desktop via responsive CSS classes.
+
   test("applies quoted text and focuses the composer", async () => {
     await act(async () => {
       render(
