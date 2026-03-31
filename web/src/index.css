@@ -7,14 +7,14 @@
 
   --font-mono: "JetBrains Mono", "IBM Plex Mono", ui-monospace, monospace;
 
-  /* Semantic font size scale — extends Tailwind defaults (xs=12px, sm=14px, base=16px, lg=18px, xl=20px, 2xl=24px) */
+  /* Semantic font size scale — extends Tailwind defaults (xs=0.75rem, sm=0.875rem, base=1rem, lg=1.125rem, xl=1.25rem, 2xl=1.5rem) */
+  /* rem units respect user browser font size preferences (WCAG 1.4.4) */
   /* Minimum sizes follow WCAG accessibility guidance: 11px absolute floor, 12px for captions/labels */
-  --text-3xs: 11px;  /* mobile badge abbreviations (was 9px — below 11px a11y floor) */
-  --text-2xs: 11px;  /* badge/pill/tag labels (was 10px — below 12px caption minimum) */
-  --text-xxs: 12px;  /* secondary metadata: timestamps, IDs, hints (was 11px) */
-  --text-md: 13px;   /* primary compact UI body text */
-  --text-sub: 15px;  /* minor headings: section titles, app name */
-  --text-3xl: 1.75rem; /* large stat/display numbers (28px) */
+  --text-2xs: 0.6875rem; /* badge/pill/tag labels (~11px) */
+  --text-xxs: 0.75rem;   /* secondary metadata: timestamps, IDs, hints (~12px) — same as text-xs */
+  --text-md: 0.8125rem;  /* primary compact UI body text (~13px) */
+  --text-sub: 0.9375rem; /* minor headings: section titles, app name (~15px) */
+  --text-3xl: 1.75rem;   /* large stat/display numbers (~28px) */
 
   /* Semantic surface colors */
   --color-surface: #fafafa;
