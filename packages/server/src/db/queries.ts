@@ -67,8 +67,9 @@ export function listTasks(db: Database, filter?: { status?: string; projectId?: 
       params.$search = `%${filter.search}%`
     }
     const where = conditions.length > 0 ? ` WHERE ${conditions.join(" AND ")}` : ""
+    // OFFSET requires LIMIT in SQLite — only apply offset when limit is also set
     const limitClause = filter?.limit !== undefined ? ` LIMIT ${Math.floor(filter.limit)}` : ""
-    const offsetClause = filter?.offset !== undefined ? ` OFFSET ${Math.floor(filter.offset)}` : ""
+    const offsetClause = filter?.limit !== undefined && filter?.offset !== undefined ? ` OFFSET ${Math.floor(filter.offset)}` : ""
     return db.prepare(`SELECT * FROM tasks${where} ORDER BY created_at DESC${limitClause}${offsetClause}`).all(params) as TaskRow[]
   })
 }

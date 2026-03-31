@@ -17,8 +17,10 @@ export function taskRoutes(deps: AppDeps): Hono {
     const search = c.req.query("search") || undefined
     const limitStr = c.req.query("limit")
     const offsetStr = c.req.query("offset")
-    const limit = limitStr ? Math.max(1, parseInt(limitStr, 10)) : undefined
-    const offset = offsetStr ? Math.max(0, parseInt(offsetStr, 10)) : undefined
+    const limitParsed = limitStr ? parseInt(limitStr, 10) : NaN
+    const offsetParsed = offsetStr ? parseInt(offsetStr, 10) : NaN
+    const limit = !isNaN(limitParsed) ? Math.max(1, limitParsed) : undefined
+    const offset = !isNaN(offsetParsed) ? Math.max(0, offsetParsed) : undefined
     return runEffect(c,
       listTasks(deps.db, { status, projectId, search, limit, offset }).pipe(
         Effect.map(rows => rows.map(mapTaskRow))

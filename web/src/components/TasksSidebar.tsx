@@ -154,9 +154,8 @@ export function TasksSidebar({ tasks, searchQuery, onSearchChange, onNewAgent, o
   const pagedActiveTasks = activeTasks.slice(clampedActivePage * ITEMS_PER_PAGE, (clampedActivePage + 1) * ITEMS_PER_PAGE)
   const pagedCompletedTasks = completedTasks.slice(clampedCompletedPage * ITEMS_PER_PAGE, (clampedCompletedPage + 1) * ITEMS_PER_PAGE)
 
-  // Reset pages when tasks change due to search
-  useEffect(() => { setActivePage(0) }, [activeTasks.length])
-  useEffect(() => { setCompletedPage(0) }, [completedTasks.length])
+  // Reset pages only when search query changes, not on every polling update
+  useEffect(() => { setActivePage(0); setCompletedPage(0) }, [searchQuery])
 
   const orchestrator = useMemo(() => {
     const orchTasks = tasks.filter((t) => t.type === "orchestrator")
