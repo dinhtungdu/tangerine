@@ -64,6 +64,9 @@ export function ChatPanel({
   const [draftInsert, setDraftInsert] = useState<{ id: number, text: string } | null>(null)
   const [selectionMenu, setSelectionMenu] = useState<{ text: string, top: number, left: number } | null>(null)
 
+  // Clear pending quote when switching tasks so the remounted ChatInput doesn't re-apply a stale quote
+  useEffect(() => { setDraftInsert(null) }, [taskId])
+
   const clearSelectionMenu = useCallback(() => {
     setSelectionMenu(null)
     window.getSelection()?.removeAllRanges()
