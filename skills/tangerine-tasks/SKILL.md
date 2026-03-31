@@ -206,14 +206,14 @@ test "$PARENT" != "null" && curl "$API/api/tasks/$PARENT/messages"
 
 ## PR Mode
 
-Projects can configure how worker agents handle PRs via the `prMode` field in project config. Before creating a PR, check the project's `prMode`:
+> 🚨 **CRITICAL**: You **MUST** check `prMode` before creating any PR. Do NOT default to `gh pr create` without checking.
 
 ```bash
 PROJECT_NAME=$(curl -s "$API/api/tasks/$TANGERINE_TASK_ID" | jq -r '.projectId')
 PR_MODE=$(curl -s "$API/api/projects/$PROJECT_NAME" | jq -r '.prMode // "draft"')
 ```
 
-Then act accordingly:
+Act according to `PR_MODE`:
 - `"ready"`: `gh pr create` (normal ready-to-review PR)
 - `"draft"` (default): `gh pr create --draft`
 - `"none"`: skip PR creation entirely — just `git push origin HEAD`
