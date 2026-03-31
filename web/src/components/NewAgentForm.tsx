@@ -98,7 +98,18 @@ export function NewAgentForm({ onSubmit, refTaskId, refTaskTitle }: NewAgentForm
 
   useEffect(() => {
     if (prevDraftKeyRef.current !== draftKey) {
-      // Project (or refTask) changed — load the new draft instead of saving old content under the new key
+      // Project (or refTask) changed — save old draft under the OLD key first,
+      // then load the new draft. This prevents data loss if React batches the
+      // text change with the project switch (skipping the intermediate save).
+      const oldKey = prevDraftKeyRef.current
+      try {
+        if (!description && !customBranch && pendingImages.length === 0 && taskType === "worker") {
+          localStorage.removeItem(oldKey)
+        } else {
+          localStorage.setItem(oldKey, JSON.stringify({ description, customBranch, taskType, pendingImages }))
+        }
+      } catch { /* ignore */ }
+
       prevDraftKeyRef.current = draftKey
       const draft = loadDraftFromKey(draftKey)
       setDescription(draft.description ?? "")

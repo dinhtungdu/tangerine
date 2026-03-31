@@ -348,6 +348,32 @@ describe("ChatInput", () => {
     expect(screen.getByDisplayValue("Draft for B")).toBeTruthy()
   })
 
+  test("passive instance does not overwrite active instance's draft on unmount", () => {
+    // Simulates desktop + mobile ChatInput sharing the same taskId (TaskDetail renders both).
+    // The "passive" instance (never edited) should NOT overwrite the "active" instance's draft.
+    window.localStorage.setItem("tangerine:chat-draft:shared-task", JSON.stringify({ text: "initial" }))
+
+    // Mount two instances with the same taskId (like desktop + mobile)
+    const { unmount: unmountActive } = render(
+      <ChatInput onSend={() => {}} disabled={false} queueLength={0} taskId="shared-task" />
+    )
+    const { unmount: unmountPassive } = render(
+      <ChatInput onSend={() => {}} disabled={false} queueLength={0} taskId="shared-task" />
+    )
+
+    // Simulate typing in the active (first) instance
+    const textareas = screen.getAllByPlaceholderText("Message agent...")
+    fireEvent.change(textareas[0]!, { target: { value: "updated by active" } })
+
+    // Both unmount (as happens on navigation)
+    unmountActive()
+    unmountPassive()
+
+    // The active instance's draft should be preserved, not overwritten by the passive one
+    const saved = JSON.parse(window.localStorage.getItem("tangerine:chat-draft:shared-task") ?? "{}")
+    expect(saved.text).toBe("updated by active")
+  })
+
   test("applies quoted text and focuses the composer", async () => {
     await act(async () => {
       render(
