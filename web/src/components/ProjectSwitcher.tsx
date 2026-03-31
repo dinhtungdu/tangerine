@@ -49,7 +49,7 @@ export function ProjectSwitcher({ variant = "desktop" }: ProjectSwitcherProps) {
           {current ? (
             <>
               <div className={`flex items-center justify-center rounded ${getProjectColor(currentIndex)} ${isMobile ? "h-5 w-5" : "h-[18px] w-[18px]"}`}>
-                <span className={`font-bold text-white ${isMobile ? "text-3xs" : "text-2xs"}`}>
+                <span className="font-bold text-white text-2xs">
                   {current.name.charAt(0).toUpperCase()}
                 </span>
               </div>
@@ -94,7 +94,7 @@ export function ProjectSwitcher({ variant = "desktop" }: ProjectSwitcherProps) {
                   }`}
                 >
                   <div className={`flex shrink-0 items-center justify-center rounded ${getProjectColor(i)} ${isMobile ? "h-5 w-5" : "h-[22px] w-[22px]"}`}>
-                    <span className={`font-bold text-white ${isMobile ? "text-3xs" : "text-xxs"}`}>
+                    <span className="font-bold text-white text-2xs">
                       {project.name.charAt(0).toUpperCase()}
                     </span>
                   </div>
