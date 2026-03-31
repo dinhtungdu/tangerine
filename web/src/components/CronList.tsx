@@ -128,7 +128,7 @@ export function CronEditModal({ cron, modelsByProvider, onSaved, onClose }: {
   const [cronExpr, setCronExpr] = useState(cron.cron)
   // taskDefaultsEnabled tracks whether to send taskDefaults at all.
   // Crons with null taskDefaults use project-level defaults at run time — don't overwrite unless user opts in.
-  const [taskDefaultsEnabled, setTaskDefaultsEnabled] = useState(cron.taskDefaults !== null)
+  const [taskDefaultsEnabled, setTaskDefaultsEnabled] = useState(false)
   const [provider, setProvider] = useState<ProviderType>((cron.taskDefaults?.provider as ProviderType) ?? "claude-code")
   // model state holds exactly what was saved; we don't fall back to the first available model to avoid
   // silently changing future runs when the saved model is temporarily unavailable.
