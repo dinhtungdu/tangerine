@@ -81,13 +81,13 @@ export function Layout() {
         </div>
       )}
 
-      {/* On root: flex-col on mobile (form above, sidebar below), flex-row on desktop */}
+      {/* On root: flex-col on mobile (sidebar above, form below), flex-row on desktop */}
       <main className={`flex-1 ${isRoot ? "flex flex-col md:flex-row md:min-h-0 md:overflow-hidden" : "min-h-0 overflow-hidden flex"}`}>
-        {/* Sidebar — on root mobile: stacked below form with max height; otherwise full-screen or hidden */}
+        {/* Sidebar — on root mobile: stacked above form; otherwise full-screen or hidden */}
         {hasSidebar && (
           <div className={`
             ${isTaskDetail || isStatus ? "hidden md:block" : "block"}
-            ${isRoot ? "order-2 md:order-1 md:max-h-none md:overflow-hidden" : "overflow-hidden"}
+            ${isRoot ? "order-1 md:max-h-none md:overflow-hidden" : "overflow-hidden"}
             transition-[width] duration-200 ease-in-out ${sidebarOpen ? "md:w-[240px]" : "md:w-0"}
           `} inert={sidebarOpen ? undefined : true}>
             <TasksSidebar
@@ -100,7 +100,7 @@ export function Layout() {
           </div>
         )}
 
-        <div className={`min-w-0 flex-1 ${isRoot ? "order-1 md:order-2 md:overflow-hidden" : "overflow-hidden"}`}>
+        <div className={`min-w-0 flex-1 ${isRoot ? "order-2 md:overflow-hidden" : "overflow-hidden"}`}>
           <Outlet context={{ sidebarOpen, tasks, refetch } satisfies SidebarContext} />
         </div>
       </main>
