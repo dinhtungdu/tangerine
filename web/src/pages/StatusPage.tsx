@@ -1,26 +1,20 @@
 import { useOutletContext } from "react-router-dom"
 import { useProject } from "../context/ProjectContext"
-import { useProjectNav } from "../hooks/useProjectNav"
 import type { SidebarContext } from "../components/Layout"
 import { ActiveRunsCard, SystemLog, ProjectUpdateCard } from "../components/StatusWidgets"
 import { PredefinedPromptsEditor } from "../components/PredefinedPromptsEditor"
+import { ProjectSwitcher } from "../components/ProjectSwitcher"
 
 export function StatusPage() {
-  const { navigate } = useProjectNav()
   const { current } = useProject()
   const outletCtx = useOutletContext<SidebarContext | null>()
   const tasks = outletCtx?.tasks ?? []
 
   return (
     <div className="flex h-full w-full flex-col">
-      {/* Mobile header */}
-      <div className="flex h-[52px] items-center gap-3 border-b border-edge px-4 md:hidden">
-        <button onClick={() => navigate("/")} aria-label="Back" className="text-fg">
-          <svg className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-            <path strokeLinecap="round" strokeLinejoin="round" d="M15.75 19.5 8.25 12l7.5-7.5" />
-          </svg>
-        </button>
-        <span className="text-[18px] font-semibold text-fg">Status</span>
+      {/* Mobile project switcher */}
+      <div className="md:hidden">
+        <ProjectSwitcher variant="mobile" />
       </div>
 
       {/* Scrollable content */}
