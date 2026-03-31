@@ -6,6 +6,7 @@ import { runEffect, runEffectVoid } from "../effect-helpers"
 import { getTask, listTasks, updateTask, deleteTask, markTaskSeen, getChildTasks } from "../../db/queries"
 import { TaskNotFoundError, TaskNotTerminalError, PrCapabilityError } from "../../errors"
 import { getRepoDir } from "../../config"
+import { ghSpawnEnv } from "../../gh"
 
 export function taskRoutes(deps: AppDeps): Hono {
   const app = new Hono()
@@ -191,7 +192,7 @@ export function taskRoutes(deps: AppDeps): Hono {
 }
 
 /** Patterns that look like a PR reference rather than a plain branch name */
-const PR_URL_RE = /github\.com\/([^/]+)\/([^/]+)\/pull\/(\d+)/
+const PR_URL_RE = /github(?:\.[a-z0-9-]+)*\.[a-z]+\/([^/]+)\/([^/]+)\/pull\/(\d+)/
 const PR_NUM_RE = /^#?(\d+)$/
 
 interface PrInfo {
@@ -213,7 +214,7 @@ async function resolvePrBranch(input: string, repoDir: string): Promise<PrInfo |
   try {
     const proc = Bun.spawn(
       ["gh", "pr", "view", prRef, "--json", "headRefName,url,number"],
-      { cwd: repoDir, stdout: "pipe", stderr: "pipe" },
+      ghSpawnEnv({ cwd: repoDir }),
     )
     const [stdout, , exitCode] = await Promise.all([
       new Response(proc.stdout).text(),

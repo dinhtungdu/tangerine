@@ -48,6 +48,17 @@ describe("extractPrUrl", () => {
   test("does not match non-github URLs", () => {
     expect(extractPrUrl("https://gitlab.com/owner/repo/pull/1")).toBeNull()
   })
+
+  test("extracts PR URL from GitHub Enterprise host", () => {
+    expect(extractPrUrl("https://github.a8c.com/owner/repo/pull/99")).toBe(
+      "https://github.a8c.com/owner/repo/pull/99",
+    )
+  })
+
+  test("extracts PR URL from GHE host in surrounding text", () => {
+    const text = "Created PR: https://github.a8c.com/acme/widgets/pull/42 — please review"
+    expect(extractPrUrl(text)).toBe("https://github.a8c.com/acme/widgets/pull/42")
+  })
 })
 
 // ---------------------------------------------------------------------------
@@ -69,6 +80,18 @@ describe("extractGithubSlug", () => {
 
   test("returns null for non-github URLs", () => {
     expect(extractGithubSlug("https://gitlab.com/owner/repo")).toBeNull()
+  })
+
+  test("extracts slug from GHE https URL", () => {
+    expect(extractGithubSlug("https://github.a8c.com/owner/repo")).toBe("owner/repo")
+  })
+
+  test("extracts slug from GHE https URL with .git suffix", () => {
+    expect(extractGithubSlug("https://github.a8c.com/owner/repo.git")).toBe("owner/repo")
+  })
+
+  test("handles GHE SSH remote URL", () => {
+    expect(extractGithubSlug("git@github.a8c.com:owner/repo.git")).toBe("owner/repo")
   })
 })
 

@@ -5,6 +5,7 @@
 import { Effect } from "effect"
 import { createLogger } from "../logger"
 import { GitHubPollError } from "../errors"
+import { ghSpawnEnv } from "../gh"
 /** Config shape needed by GitHub polling */
 interface ProjectConfig {
   repo: string
@@ -55,7 +56,7 @@ export function pollGitHubIssues(
       try: async () => {
         const proc = Bun.spawn(
           ["gh", "api", `repos/${repo}/issues?state=open&per_page=50`],
-          { stdout: "pipe", stderr: "pipe" },
+          ghSpawnEnv(),
         )
         const [out, err, exitCode] = await Promise.all([
           new Response(proc.stdout).text(),

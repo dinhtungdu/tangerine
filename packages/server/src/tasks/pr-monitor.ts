@@ -11,23 +11,13 @@ import type { CleanupDeps } from "./cleanup"
 import { cleanupSession } from "./cleanup"
 import { emitStatusChange, clearAgentWorkingState } from "./events"
 import { taskHasCapability } from "../api/helpers"
+import { ghSpawnEnv, extractPrUrl, extractGithubSlug } from "../gh"
+
+export { extractPrUrl, extractGithubSlug }
 
 const log = createLogger("pr-monitor")
 
 const PR_POLL_INTERVAL_MS = 60_000
-const GITHUB_PR_URL_RE = /https:\/\/github\.com\/[\w.-]+\/[\w.-]+\/pull\/\d+/
-
-/** Extract a GitHub PR URL from text, if present. */
-export function extractPrUrl(text: string): string | null {
-  const match = text.match(GITHUB_PR_URL_RE)
-  return match ? match[0] : null
-}
-
-/** Extract `owner/repo` slug from a GitHub repo URL. Returns null for non-GitHub URLs. */
-export function extractGithubSlug(repoUrl: string): string | null {
-  const match = repoUrl.match(/github\.com[/:]([^/]+\/[^/.]+?)(?:\.git)?$/)
-  return match ? match[1]! : null
-}
 
 export type PrState = "open" | "merged" | "closed"
 
@@ -35,10 +25,7 @@ export type PrState = "open" | "merged" | "closed"
 export function checkPrState(prUrl: string): Effect.Effect<PrState | null, never> {
   return Effect.tryPromise({
     try: async () => {
-      const proc = Bun.spawn(["gh", "pr", "view", prUrl, "--json", "state", "--jq", ".state"], {
-        stdout: "pipe",
-        stderr: "pipe",
-      })
+      const proc = Bun.spawn(["gh", "pr", "view", prUrl, "--json", "state", "--jq", ".state"], ghSpawnEnv())
       const text = await new Response(proc.stdout).text()
       const exitCode = await proc.exited
       if (exitCode !== 0) return null
@@ -61,7 +48,7 @@ export function verifyPrBranch(prUrl: string, expectedBranch: string): Effect.Ef
     try: async () => {
       const proc = Bun.spawn(
         ["gh", "pr", "view", prUrl, "--json", "headRefName", "--jq", ".headRefName"],
-        { stdout: "pipe", stderr: "pipe" },
+        ghSpawnEnv(),
       )
       const [text, stderr] = await Promise.all([
         new Response(proc.stdout).text(),
@@ -90,7 +77,7 @@ export function lookupPrByBranch(repoUrl: string, branch: string): Effect.Effect
     try: async () => {
       const proc = Bun.spawn(
         ["gh", "pr", "list", "--head", branch, "--repo", slug, "--json", "url", "--jq", ".[0].url"],
-        { stdout: "pipe", stderr: "pipe" },
+        ghSpawnEnv(),
       )
       const [text, stderr] = await Promise.all([
         new Response(proc.stdout).text(),

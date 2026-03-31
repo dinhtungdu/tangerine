@@ -26,6 +26,7 @@ import type { HealthCheckDeps } from "../tasks/health"
 import { reconnectSessionWithRetry } from "../tasks/retry"
 import { AgentError } from "../errors"
 import { extractPrUrl, verifyPrBranch, startPrMonitor } from "../tasks/pr-monitor"
+import { ghSpawnEnv, isGithubRepo } from "../gh"
 import type { PrMonitorDeps } from "../tasks/pr-monitor"
 import { initSystemLog, cleanupSystemLogs } from "../system-log"
 import { createOpenCodeProvider } from "../agent/opencode-provider"
@@ -171,16 +172,14 @@ export async function start(): Promise<void> {
       }
 
       // gh auth — required for PR capture and polling. Detect GitHub repos whether
-      // specified as full URLs (github.com/owner/repo) or owner/repo shorthand.
-      const isGithubRepo = (repo: string) =>
-        repo.includes("github.com") || /^[^/]+\/[^/]+$/.test(repo)
+      // specified as full URLs (github.com/owner/repo, github.a8c.com/owner/repo) or owner/repo shorthand.
       const hasGithubProject = config.config.projects.some((p) => isGithubRepo(p.repo))
       if (hasGithubProject) {
         const ghInstalled = await cmdExists("gh")
         if (!ghInstalled) {
           missing.push("gh CLI is not installed — PR capture and auto-complete will not work. Install from https://cli.github.com/")
         } else {
-          const ghAuth = Bun.spawn(["gh", "auth", "status"], { stdout: "pipe", stderr: "pipe" })
+          const ghAuth = Bun.spawn(["gh", "auth", "status"], ghSpawnEnv())
           if ((await ghAuth.exited) !== 0) {
             missing.push("gh CLI is not authenticated — PR capture and GitHub polling will not work. Run `gh auth login`.")
           }
