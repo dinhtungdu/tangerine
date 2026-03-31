@@ -31,6 +31,11 @@ while true; do
   kill "$WATCHER_PID" 2>/dev/null
   wait "$WATCHER_PID" 2>/dev/null
 
-  echo "[tangerine-watch] Server exited with code $EXIT_CODE, restarting in 2s..."
-  sleep 2
+  if [ "$EXIT_CODE" -eq 0 ]; then
+    echo "[tangerine-watch] Clean exit (self-update), restarting in 2s..."
+    sleep 2
+  else
+    echo "[tangerine-watch] Server exited with code $EXIT_CODE, stopping."
+    exit "$EXIT_CODE"
+  fi
 done
