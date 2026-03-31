@@ -94,7 +94,7 @@ function InlineCommentForm({ onSubmit, onCancel, rangeLabel }: { onSubmit: (text
   return (
     <div className="mx-4 my-2 rounded-lg border border-edge bg-surface p-3 shadow-sm">
       {rangeLabel && (
-        <div className="mb-2 flex items-center gap-1.5 text-[12px] text-fg-muted">
+        <div className="mb-2 flex items-center gap-1.5 text-xs text-fg-muted">
           <svg className="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
             <path strokeLinecap="round" strokeLinejoin="round" d="M7.5 8.25h9m-9 3H12m-9.75 1.51c0 1.6 1.123 2.994 2.707 3.227 1.087.16 2.185.283 3.293.369V21l4.076-4.076a1.526 1.526 0 0 1 1.037-.443 48.282 48.282 0 0 0 5.68-.494c1.584-.233 2.707-1.626 2.707-3.228V6.741c0-1.602-1.123-2.995-2.707-3.228A48.394 48.394 0 0 0 12 3c-2.392 0-4.744.175-7.043.513C3.373 3.746 2.25 5.14 2.25 6.741v6.018Z" />
           </svg>
@@ -113,20 +113,20 @@ function InlineCommentForm({ onSubmit, onCancel, rangeLabel }: { onSubmit: (text
           if (e.key === "Escape") onCancel()
         }}
         placeholder="Add a comment..."
-        className="w-full resize-none rounded-md border border-edge bg-surface px-3 py-2 text-[16px] text-fg placeholder:text-fg-faint focus:border-status-info focus:outline-none md:text-[13px]"
+        className="w-full resize-none rounded-md border border-edge bg-surface px-3 py-2 text-base text-fg placeholder:text-fg-faint focus:border-status-info focus:outline-none md:text-md"
         rows={3}
       />
       <div className="mt-2 flex items-center justify-end gap-2">
         <button
           onClick={onCancel}
-          className="rounded-md px-3 py-1.5 text-[13px] font-medium text-fg-muted hover:text-fg"
+          className="rounded-md px-3 py-1.5 text-md font-medium text-fg-muted hover:text-fg"
         >
           Cancel
         </button>
         <button
           onClick={() => { if (text.trim()) onSubmit(text.trim()) }}
           disabled={!text.trim()}
-          className="rounded-md bg-fg px-4 py-1.5 text-[13px] font-medium text-surface hover:bg-fg/90 disabled:opacity-40"
+          className="rounded-md bg-fg px-4 py-1.5 text-md font-medium text-surface hover:bg-fg/90 disabled:opacity-40"
         >
           Comment
         </button>
@@ -261,12 +261,12 @@ function SplitDiff({ diff, filePath, onAddComment }: { diff: string; filePath: s
       <div className="flex w-full">
         <div className="min-w-0 flex-1 border-r border-edge">
           <div className="flex h-8 items-center bg-surface-secondary px-4">
-            <span className="font-mono text-[11px] font-medium text-fg-muted">Before</span>
+            <span className="font-mono text-xxs font-medium text-fg-muted">Before</span>
           </div>
         </div>
         <div className="min-w-0 flex-1">
           <div className="flex h-8 items-center bg-surface-secondary px-4">
-            <span className="font-mono text-[11px] font-medium text-fg-muted">After</span>
+            <span className="font-mono text-xxs font-medium text-fg-muted">After</span>
           </div>
         </div>
       </div>
@@ -282,7 +282,7 @@ function SplitDiff({ diff, filePath, onAddComment }: { diff: string; filePath: s
             <div key={i}>
               <div className="flex w-full">
                 <div
-                  className={`flex min-h-[22px] min-w-0 flex-1 border-r border-edge font-mono text-[11px] ${leftBg} ${leftSelected ? "border-l-2 border-l-status-info bg-status-info/5" : ""}`}
+                  className={`flex min-h-[22px] min-w-0 flex-1 border-r border-edge font-mono text-xxs ${leftBg} ${leftSelected ? "border-l-2 border-l-status-info bg-status-info/5" : ""}`}
                   onMouseEnter={() => handleLineMouseEnter(i, "left")}
                 >
                   <LineNum num={l?.num ?? ""} canComment={!!onAddComment} onMouseDown={() => handleGutterMouseDown(i, "left")} />
@@ -291,7 +291,7 @@ function SplitDiff({ diff, filePath, onAddComment }: { diff: string; filePath: s
                   </span>
                 </div>
                 <div
-                  className={`flex min-h-[22px] min-w-0 flex-1 font-mono text-[11px] ${rightBg} ${rightSelected ? "border-l-2 border-l-status-info bg-status-info/5" : ""}`}
+                  className={`flex min-h-[22px] min-w-0 flex-1 font-mono text-xxs ${rightBg} ${rightSelected ? "border-l-2 border-l-status-info bg-status-info/5" : ""}`}
                   onMouseEnter={() => handleLineMouseEnter(i, "right")}
                 >
                   <LineNum num={r?.num ?? ""} canComment={!!onAddComment} onMouseDown={() => handleGutterMouseDown(i, "right")} />
@@ -333,7 +333,7 @@ function UnifiedDiff({ diff, filePath, onAddComment }: { diff: string; filePath:
     useLineComment(filePath, getLineNum, onAddComment)
 
   return (
-    <pre className="whitespace-pre-wrap break-all py-2 font-mono text-[11px] leading-[1.7]">
+    <pre className="whitespace-pre-wrap break-all py-2 font-mono text-xxs leading-[1.7]">
       {rawLines.map((line, i) => {
         if (line.startsWith("---") || line.startsWith("+++")) return null
 
@@ -381,23 +381,23 @@ function FileSection({ file, onAddComment }: { file: DiffFile; onAddComment?: (c
           <svg className="h-3.5 w-3.5 shrink-0 text-fg-muted" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
             <path strokeLinecap="round" strokeLinejoin="round" d="M19.5 14.25v-2.625a3.375 3.375 0 0 0-3.375-3.375h-1.5A1.125 1.125 0 0 1 13.5 7.125v-1.5a3.375 3.375 0 0 0-3.375-3.375H8.25m2.25 0H5.625c-.621 0-1.125.504-1.125 1.125v17.25c0 .621.504 1.125 1.125 1.125h12.75c.621 0 1.125-.504 1.125-1.125V11.25a9 9 0 0 0-9-9Z" />
           </svg>
-          <span className="truncate font-mono text-[13px] font-medium text-fg">
+          <span className="truncate font-mono text-md font-medium text-fg">
             {file.path.replace(/\//g, " / ")}
           </span>
         </button>
         <div className="flex shrink-0 items-center gap-2.5">
-          <span className="text-[12px] font-semibold text-diff-add">+{stats.added}</span>
-          <span className="text-[12px] font-semibold text-diff-remove">&minus;{stats.removed}</span>
+          <span className="text-xs font-semibold text-diff-add">+{stats.added}</span>
+          <span className="text-xs font-semibold text-diff-remove">&minus;{stats.removed}</span>
           <div className="hidden overflow-hidden rounded-md border border-edge @min-[900px]:flex">
             <button
               onClick={() => setViewMode("split")}
-              className={`px-2.5 py-1 text-[11px] font-medium ${viewMode === "split" ? "bg-surface-secondary text-fg" : "text-fg-muted"}`}
+              className={`px-2.5 py-1 text-xxs font-medium ${viewMode === "split" ? "bg-surface-secondary text-fg" : "text-fg-muted"}`}
             >
               Split
             </button>
             <button
               onClick={() => setViewMode("unified")}
-              className={`border-l border-edge px-2.5 py-1 text-[11px] font-medium ${viewMode === "unified" ? "bg-surface-secondary text-fg" : "text-fg-muted"}`}
+              className={`border-l border-edge px-2.5 py-1 text-xxs font-medium ${viewMode === "unified" ? "bg-surface-secondary text-fg" : "text-fg-muted"}`}
             >
               Unified
             </button>

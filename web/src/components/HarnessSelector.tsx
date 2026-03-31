@@ -38,7 +38,7 @@ export function HarnessSelector({ value, onChange }: HarnessSelectorProps) {
         <svg className="h-3 w-3 text-fg-muted" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.8}>
           <path strokeLinecap="round" strokeLinejoin="round" d="m5.25 4.5 7.5 7.5-7.5 7.5m6 0h6.75" />
         </svg>
-        <span className="text-[11px] font-medium text-fg">{current.label}</span>
+        <span className="text-xxs font-medium text-fg">{current.label}</span>
         <svg
           className={`h-2.5 w-2.5 text-fg-muted transition-transform ${open ? "rotate-180" : ""}`}
           fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}
@@ -58,7 +58,7 @@ export function HarnessSelector({ value, onChange }: HarnessSelectorProps) {
                   onChange(h.value)
                   setOpen(false)
                 }}
-                className={`flex w-full items-center justify-between px-3 py-2 text-left text-[12px] transition ${
+                className={`flex w-full items-center justify-between px-3 py-2 text-left text-xs transition ${
                   isActive ? "bg-surface-secondary font-medium text-fg" : "text-fg-muted hover:bg-surface"
                 }`}
               >

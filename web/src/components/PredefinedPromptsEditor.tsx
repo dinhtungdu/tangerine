@@ -55,14 +55,14 @@ export function PredefinedPromptsEditor({
   return (
     <div className="flex flex-1 flex-col rounded-xl border border-edge bg-surface p-4 md:p-5">
       <div className="mb-3 flex items-center justify-between">
-        <h2 className="text-[15px] font-semibold text-fg md:text-[16px]">{title}</h2>
+        <h2 className="text-sub font-semibold text-fg md:text-base">{title}</h2>
         <div className="flex items-center gap-2">
-          {status === "saved" && <span className="text-[12px] text-status-success">Saved</span>}
-          {status === "error" && <span className="text-[12px] text-status-error">Failed to save</span>}
+          {status === "saved" && <span className="text-xs text-status-success">Saved</span>}
+          {status === "error" && <span className="text-xs text-status-error">Failed to save</span>}
           <button
             onClick={handleSave}
             disabled={saving || !isDirty}
-            className="rounded-md bg-surface-dark px-3 py-1.5 text-[12px] font-medium text-white transition hover:opacity-80 disabled:cursor-not-allowed disabled:opacity-30"
+            className="rounded-md bg-surface-dark px-3 py-1.5 text-xs font-medium text-white transition hover:opacity-80 disabled:cursor-not-allowed disabled:opacity-30"
           >
             {saving ? "Saving..." : "Save"}
           </button>
@@ -77,14 +77,14 @@ export function PredefinedPromptsEditor({
               value={prompt.label}
               onChange={(e) => handleChange(i, "label", e.target.value)}
               placeholder="Label"
-              className="w-28 shrink-0 rounded-md border border-edge bg-surface px-2.5 py-1.5 text-[13px] text-fg placeholder-fg-faint outline-none focus:border-fg-faint"
+              className="w-28 shrink-0 rounded-md border border-edge bg-surface px-2.5 py-1.5 text-md text-fg placeholder-fg-faint outline-none focus:border-fg-faint"
             />
             <input
               type="text"
               value={prompt.text}
               onChange={(e) => handleChange(i, "text", e.target.value)}
               placeholder="Prompt text sent to agent..."
-              className="min-w-0 flex-1 rounded-md border border-edge bg-surface px-2.5 py-1.5 text-[13px] text-fg placeholder-fg-faint outline-none focus:border-fg-faint"
+              className="min-w-0 flex-1 rounded-md border border-edge bg-surface px-2.5 py-1.5 text-md text-fg placeholder-fg-faint outline-none focus:border-fg-faint"
             />
             <button
               onClick={() => handleRemove(i)}
@@ -101,7 +101,7 @@ export function PredefinedPromptsEditor({
 
       <button
         onClick={handleAdd}
-        className="mt-2 flex w-fit items-center gap-1.5 rounded-md px-2.5 py-1.5 text-[12px] text-fg-muted transition hover:bg-surface-secondary hover:text-fg"
+        className="mt-2 flex w-fit items-center gap-1.5 rounded-md px-2.5 py-1.5 text-xs text-fg-muted transition hover:bg-surface-secondary hover:text-fg"
       >
         <svg className="h-3 w-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
           <path strokeLinecap="round" strokeLinejoin="round" d="M12 4.5v15m7.5-7.5h-15" />

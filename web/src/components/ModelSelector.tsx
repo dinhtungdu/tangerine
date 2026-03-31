@@ -64,7 +64,7 @@ export function ModelSelector({ models: propModels, model: propModel, onModelCha
         <svg className="h-3 w-3 text-fg-muted" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
           <path strokeLinecap="round" strokeLinejoin="round" d="M9.813 15.904 9 18.75l-.813-2.846a4.5 4.5 0 0 0-3.09-3.09L2.25 12l2.846-.813a4.5 4.5 0 0 0 3.09-3.09L9 5.25l.813 2.846a4.5 4.5 0 0 0 3.09 3.09L15.75 12l-2.846.813a4.5 4.5 0 0 0-3.09 3.09Z" />
         </svg>
-        <span className={`min-w-0 truncate font-medium text-fg ${borderless ? "text-[16px] md:text-[11px]" : "text-[11px]"}`}>{formatModelName(model)}</span>
+        <span className={`min-w-0 truncate font-medium text-fg ${borderless ? "text-base md:text-xxs" : "text-xxs"}`}>{formatModelName(model)}</span>
         <svg
           className={`h-2.5 w-2.5 text-fg-muted transition-transform ${open ? "rotate-180" : ""}`}
           fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}
@@ -83,13 +83,13 @@ export function ModelSelector({ models: propModels, model: propModel, onModelCha
                 value={search}
                 onChange={(e) => setSearch(e.target.value)}
                 placeholder="Search models..."
-                className="w-full bg-transparent text-[16px] text-fg placeholder:text-fg-muted outline-none md:text-[12px]"
+                className="w-full bg-transparent text-base text-fg placeholder:text-fg-muted outline-none md:text-xs"
               />
             </div>
           )}
           <div className="max-h-[200px] overflow-y-auto md:max-h-[280px]">
             {filtered.length === 0 ? (
-              <div className="px-3 py-2 text-[12px] text-fg-muted">No models match</div>
+              <div className="px-3 py-2 text-xs text-fg-muted">No models match</div>
             ) : (
               filtered.map((m) => {
                 const isActive = m === model
@@ -97,7 +97,7 @@ export function ModelSelector({ models: propModels, model: propModel, onModelCha
                   <button
                     key={m}
                     onClick={() => handleSelect(m)}
-                    className={`flex w-full items-center justify-between px-3 py-2 text-left text-[12px] transition ${
+                    className={`flex w-full items-center justify-between px-3 py-2 text-left text-xs transition ${
                       isActive ? "bg-surface-secondary font-medium text-fg" : "text-fg-muted hover:bg-surface"
                     }`}
                   >

@@ -37,7 +37,7 @@ export function ToolCallDisplay({ content }: ToolCallDisplayProps) {
 
   if (!toolData) {
     return (
-      <pre className="overflow-x-auto rounded-md border border-edge bg-surface-secondary p-2 text-[11px] text-fg-muted">
+      <pre className="overflow-x-auto rounded-md border border-edge bg-surface-secondary p-2 text-xxs text-fg-muted">
         {content}
       </pre>
     )
@@ -66,15 +66,15 @@ export function ToolCallDisplay({ content }: ToolCallDisplayProps) {
             <path strokeLinecap="round" strokeLinejoin="round" d="m21 21-5.197-5.197m0 0A7.5 7.5 0 1 0 5.196 5.196a7.5 7.5 0 0 0 10.607 10.607Z" />
           )}
         </svg>
-        <span className="text-[12px] font-medium text-fg-muted">{label}</span>
+        <span className="text-xs font-medium text-fg-muted">{label}</span>
         {toolData.path && (
-          <span className="font-mono text-[12px] text-fg">{toolData.path}</span>
+          <span className="font-mono text-xs text-fg">{toolData.path}</span>
         )}
         {toolData.command && (
-          <span className="font-mono text-[12px] text-fg">{toolData.command}</span>
+          <span className="font-mono text-xs text-fg">{toolData.command}</span>
         )}
         {isWrite && toolData.path && (
-          <span className="ml-auto rounded bg-modified-bg px-1.5 py-0.5 text-[10px] font-medium text-modified">modified</span>
+          <span className="ml-auto rounded bg-modified-bg px-1.5 py-0.5 text-2xs font-medium text-modified">modified</span>
         )}
       </button>
 
@@ -83,20 +83,20 @@ export function ToolCallDisplay({ content }: ToolCallDisplayProps) {
         <div className="border-t border-edge p-3">
           {toolData.command && (
             <div className="mb-2">
-              <pre className="overflow-x-auto rounded bg-surface-secondary p-2 font-mono text-[11px] leading-[1.6] text-fg">
+              <pre className="overflow-x-auto rounded bg-surface-secondary p-2 font-mono text-xxs leading-[1.6] text-fg">
                 $ {toolData.command}
               </pre>
             </div>
           )}
 
           {toolData.output && (
-            <pre className="max-h-48 overflow-auto rounded bg-surface-secondary p-2 font-mono text-[11px] leading-[1.6] text-fg-muted">
+            <pre className="max-h-48 overflow-auto rounded bg-surface-secondary p-2 font-mono text-xxs leading-[1.6] text-fg-muted">
               {toolData.output}
             </pre>
           )}
 
           {toolData.diff && (
-            <pre className="overflow-x-auto rounded bg-surface-secondary p-2 font-mono text-[11px] leading-[1.6]">
+            <pre className="overflow-x-auto rounded bg-surface-secondary p-2 font-mono text-xxs leading-[1.6]">
               {toolData.diff.split("\n").map((line, i) => (
                 <div
                   key={i}
@@ -115,7 +115,7 @@ export function ToolCallDisplay({ content }: ToolCallDisplayProps) {
           )}
 
           {toolData.input && !toolData.command && !toolData.diff && (
-            <pre className="overflow-x-auto rounded bg-surface-secondary p-2 font-mono text-[11px] leading-[1.6] text-fg-muted">
+            <pre className="overflow-x-auto rounded bg-surface-secondary p-2 font-mono text-xxs leading-[1.6] text-fg-muted">
               {JSON.stringify(toolData.input, null, 2)}
             </pre>
           )}
