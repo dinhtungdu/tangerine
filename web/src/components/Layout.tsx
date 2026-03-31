@@ -83,7 +83,7 @@ export function Layout() {
         {hasSidebar && (
           <div className={`
             ${isTaskDetail || isStatus ? "hidden md:block" : "block"}
-            ${isRoot ? "order-2 max-h-[45vh] overflow-y-auto md:order-1 md:max-h-none md:overflow-hidden" : "overflow-hidden"}
+            ${isRoot ? "order-2 md:order-1 md:max-h-none md:overflow-hidden" : "overflow-hidden"}
             transition-[width] duration-200 ease-in-out ${sidebarOpen ? "md:w-[240px]" : "md:w-0"}
           `} inert={sidebarOpen ? undefined : true}>
             <TasksSidebar
