@@ -60,7 +60,7 @@ function ActivityItem({ entry, isLast }: { entry: ActivityEntry; isLast: boolean
         {style.label ? (
           <>
             <p className="text-[12px] font-medium leading-tight text-fg">{style.label}</p>
-            <p className="mt-0.5 line-clamp-2 break-all font-mono text-[11px] text-fg-muted">{detail}</p>
+            <p className="mt-0.5 line-clamp-2 break-all font-mono text-[11px] text-fg-muted" title={detail}>{detail}</p>
           </>
         ) : (
           <p className="line-clamp-2 break-all font-mono text-[12px] leading-tight text-fg">{detail}</p>
