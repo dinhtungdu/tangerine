@@ -16,6 +16,14 @@ interface PendingImage extends PromptImage {
   dataUrl: string
 }
 
+function loadDraftFromKey(key: string): { description?: string; customBranch?: string; taskType?: "worker" | "reviewer"; pendingImages?: PendingImage[] } {
+  try {
+    return JSON.parse(localStorage.getItem(key) ?? "{}") as { description?: string; customBranch?: string; taskType?: "worker" | "reviewer"; pendingImages?: PendingImage[] }
+  } catch {
+    return {}
+  }
+}
+
 const suggestedTasks = [
   { icon: "bug", label: "Fix failing tests" },
   { icon: "wrench", label: "Add API docs" },
@@ -47,18 +55,12 @@ export function NewAgentForm({ onSubmit, refTaskId, refTaskTitle }: NewAgentForm
   const PREFS_KEY = "tangerine:agent-prefs"
   const draftKey = `tangerine:new-agent-draft:${current?.name ?? "unknown"}:${refTaskId ?? "new"}`
 
-  const loadDraft = useCallback((): { description?: string; customBranch?: string; taskType?: "worker" | "reviewer"; pendingImages?: PendingImage[] } => {
-    try {
-      return JSON.parse(localStorage.getItem(draftKey) ?? "{}") as { description?: string; customBranch?: string; taskType?: "worker" | "reviewer"; pendingImages?: PendingImage[] }
-    } catch {
-      return {}
-    }
-  }, [draftKey])
+  // prevDraftKeyRef tracks the last draftKey the effects operated on, to detect project switches
+  const prevDraftKeyRef = useRef(draftKey)
 
-  const savedDraft = loadDraft()
-  const [description, setDescription] = useState(savedDraft.description ?? "")
-  const [customBranch, setCustomBranch] = useState(savedDraft.customBranch ?? "")
-  const [pendingImages, setPendingImages] = useState<PendingImage[]>(savedDraft.pendingImages ?? [])
+  const [description, setDescription] = useState(() => loadDraftFromKey(draftKey).description ?? "")
+  const [customBranch, setCustomBranch] = useState(() => loadDraftFromKey(draftKey).customBranch ?? "")
+  const [pendingImages, setPendingImages] = useState<PendingImage[]>(() => loadDraftFromKey(draftKey).pendingImages ?? [])
 
   const loadPrefs = (): { provider?: string; models?: Record<string, string>; reasoningEffort?: string } => {
     try { return JSON.parse(localStorage.getItem(PREFS_KEY) ?? "{}") } catch { return {} }
@@ -68,9 +70,8 @@ export function NewAgentForm({ onSubmit, refTaskId, refTaskTitle }: NewAgentForm
   const [provider, setProvider] = useState<ProviderType>((saved.provider as ProviderType) ?? current?.defaultProvider ?? "claude-code")
   const [modelByProvider, setModelByProvider] = useState<Record<string, string>>(saved.models ?? {})
   const [reasoningEffort, setReasoningEffort] = useState<ReasoningEffort>((saved.reasoningEffort as ReasoningEffort) ?? "medium")
-  const [taskType, setTaskType] = useState<"worker" | "reviewer">(savedDraft.taskType ?? "worker")
+  const [taskType, setTaskType] = useState<"worker" | "reviewer">(() => loadDraftFromKey(draftKey).taskType ?? "worker")
   const [submitting, setSubmitting] = useState(false)
-  const hydratedDraftKeyRef = useRef<string | null>(null)
   const branch = current?.defaultBranch ?? "main"
 
   const providerModels = modelsByProvider[provider] ?? []
@@ -121,17 +122,16 @@ export function NewAgentForm({ onSubmit, refTaskId, refTaskTitle }: NewAgentForm
   }, [])
 
   useEffect(() => {
-    if (hydratedDraftKeyRef.current === draftKey) return
-    hydratedDraftKeyRef.current = draftKey
-    if (description || customBranch || pendingImages.length > 0) return
-    const draft = loadDraft()
-    setDescription(draft.description ?? "")
-    setCustomBranch(draft.customBranch ?? "")
-    setPendingImages(draft.pendingImages ?? [])
-    if (draft.taskType) setTaskType(draft.taskType)
-  }, [draftKey, loadDraft, description, customBranch, pendingImages.length])
-
-  useEffect(() => {
+    if (prevDraftKeyRef.current !== draftKey) {
+      // Project (or refTask) changed — load the new draft instead of saving old content under the new key
+      prevDraftKeyRef.current = draftKey
+      const draft = loadDraftFromKey(draftKey)
+      setDescription(draft.description ?? "")
+      setCustomBranch(draft.customBranch ?? "")
+      setPendingImages(draft.pendingImages ?? [])
+      setTaskType(draft.taskType ?? "worker")
+      return
+    }
     try {
       if (!description && !customBranch && pendingImages.length === 0 && taskType === "worker") {
         localStorage.removeItem(draftKey)
