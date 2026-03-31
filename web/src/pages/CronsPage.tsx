@@ -2,7 +2,7 @@ import { useState, useEffect, useCallback } from "react"
 import type { Cron } from "@tangerine/shared"
 import { useProject } from "../context/ProjectContext"
 import { useProjectNav } from "../hooks/useProjectNav"
-import { CronForm, CronRow } from "../components/CronList"
+import { CronForm, CronRow, CronEditModal } from "../components/CronList"
 import { listCrons, updateCron, deleteCron } from "../lib/api"
 
 export function CronsPage() {
@@ -10,6 +10,7 @@ export function CronsPage() {
   const { current, modelsByProvider } = useProject()
   const [crons, setCrons] = useState<Cron[]>([])
   const [loading, setLoading] = useState(true)
+  const [editingCron, setEditingCron] = useState<Cron | null>(null)
 
   const fetchCrons = useCallback(async () => {
     if (!current) return
@@ -41,6 +42,14 @@ export function CronsPage() {
 
   return (
     <div className="flex h-full flex-col overflow-y-auto">
+      {editingCron && (
+        <CronEditModal
+          cron={editingCron}
+          modelsByProvider={modelsByProvider}
+          onSaved={fetchCrons}
+          onClose={() => setEditingCron(null)}
+        />
+      )}
       <div className="mx-auto w-full max-w-[1200px] px-4 py-6 md:px-8 md:py-8">
         {/* Header */}
         <div className="mb-6">
@@ -77,7 +86,7 @@ export function CronsPage() {
               <div className="py-12 text-center text-md text-fg-muted">No crons configured</div>
             ) : (
               crons.map((c) => (
-                <CronRow key={c.id} cron={c} onToggle={handleToggle} onDelete={handleDelete} />
+                <CronRow key={c.id} cron={c} onToggle={handleToggle} onDelete={handleDelete} onEdit={setEditingCron} />
               ))
             )}
           </div>

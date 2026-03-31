@@ -1,6 +1,6 @@
 import { useState, useCallback } from "react"
 import type { Cron, ProviderType } from "@tangerine/shared"
-import { createCron } from "../lib/api"
+import { createCron, updateCron } from "../lib/api"
 import { formatCronExpression, formatRelativeTime } from "../lib/format"
 import { HarnessSelector } from "./HarnessSelector"
 import { ModelSelector } from "./ModelSelector"
@@ -117,10 +117,137 @@ export function CronForm({ projectId, onCreated, modelsByProvider }: {
   )
 }
 
-export function CronRow({ cron, onToggle, onDelete }: {
+export function CronEditModal({ cron, modelsByProvider, onSaved, onClose }: {
+  cron: Cron
+  modelsByProvider: Record<string, string[]>
+  onSaved: () => void
+  onClose: () => void
+}) {
+  const [title, setTitle] = useState(cron.title)
+  const [description, setDescription] = useState(cron.description ?? "")
+  const [cronExpr, setCronExpr] = useState(cron.cron)
+  const [provider, setProvider] = useState<ProviderType>((cron.taskDefaults?.provider as ProviderType) ?? "claude-code")
+  const [model, setModel] = useState(cron.taskDefaults?.model ?? "")
+  const [branch, setBranch] = useState(cron.taskDefaults?.branch ?? "")
+  const [submitting, setSubmitting] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+
+  const providerModels = modelsByProvider[provider] ?? []
+  const activeModel = model && providerModels.includes(model) ? model : providerModels[0] ?? ""
+
+  const canSubmit = title.trim() && cronExpr.trim() && !submitting
+
+  const handleSave = useCallback(async () => {
+    if (!canSubmit) return
+    setSubmitting(true)
+    setError(null)
+    try {
+      await updateCron(cron.id, {
+        title: title.trim(),
+        // Send null explicitly when cleared so server removes the description
+        description: description.trim() || null,
+        cron: cronExpr.trim(),
+        taskDefaults: {
+          // Preserve reasoningEffort from original since this modal doesn't expose it
+          ...(cron.taskDefaults?.reasoningEffort ? { reasoningEffort: cron.taskDefaults.reasoningEffort } : {}),
+          provider,
+          model: activeModel || undefined,
+          branch: branch.trim() || undefined,
+        },
+      })
+      onSaved()
+      onClose()
+    } catch (e) {
+      setError(e instanceof Error ? e.message : String(e))
+    } finally {
+      setSubmitting(false)
+    }
+  }, [canSubmit, cron.id, title, description, cronExpr, provider, activeModel, branch, onSaved, onClose])
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4" onClick={onClose}>
+      <div className="w-full max-w-lg rounded-lg border border-edge bg-surface p-5 shadow-xl" onClick={(e) => e.stopPropagation()}>
+        <div className="mb-4 flex items-center justify-between">
+          <h3 className="text-[14px] font-semibold text-fg">Edit Cron</h3>
+          <button onClick={onClose} className="rounded p-1 text-fg-muted hover:bg-surface-secondary">
+            <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+              <path strokeLinecap="round" strokeLinejoin="round" d="M6 18 18 6M6 6l12 12" />
+            </svg>
+          </button>
+        </div>
+        <div className="flex flex-col gap-3">
+          <input
+            type="text"
+            value={title}
+            onChange={(e) => setTitle(e.target.value)}
+            placeholder="Title"
+            className="rounded-md border border-edge bg-surface px-3 py-2 text-[13px] text-fg placeholder-fg-muted outline-none"
+          />
+          <textarea
+            value={description}
+            onChange={(e) => setDescription(e.target.value)}
+            placeholder="Task description / prompt (optional)"
+            rows={2}
+            className="resize-none rounded-md border border-edge bg-surface px-3 py-2 text-[13px] text-fg placeholder-fg-muted outline-none"
+          />
+          <div className="flex flex-col gap-2 md:flex-row md:items-center">
+            <div className="flex flex-1 items-center gap-2">
+              <label className="shrink-0 text-[12px] text-fg-muted">Cron:</label>
+              <input
+                type="text"
+                value={cronExpr}
+                onChange={(e) => setCronExpr(e.target.value)}
+                placeholder="0 9 * * 1-5"
+                className="flex-1 rounded-md border border-edge bg-surface px-3 py-1.5 font-mono text-[13px] text-fg placeholder-fg-muted outline-none"
+              />
+            </div>
+            {cronExpr.trim() && cronExpr.trim().split(/\s+/).length === 5 && (
+              <span className="text-[11px] text-fg-muted">{formatCronExpression(cronExpr.trim())}</span>
+            )}
+          </div>
+          <div className="flex flex-col gap-2 md:flex-row md:items-center">
+            <HarnessSelector value={provider} onChange={setProvider} />
+            <ModelSelector
+              models={providerModels}
+              model={activeModel}
+              onModelChange={setModel}
+              menuPlacement="bottom"
+            />
+            <input
+              type="text"
+              value={branch}
+              onChange={(e) => setBranch(e.target.value)}
+              placeholder="Branch (optional)"
+              className="rounded-md border border-edge bg-surface px-3 py-1.5 text-[13px] text-fg placeholder-fg-muted outline-none md:w-[180px]"
+            />
+          </div>
+          {error && <p className="text-[12px] text-status-error">{error}</p>}
+          <div className="flex gap-2">
+            <button
+              onClick={handleSave}
+              disabled={!canSubmit}
+              className="flex h-9 flex-1 items-center justify-center rounded-md bg-surface-dark px-4 text-[13px] font-medium text-white transition hover:opacity-80 disabled:opacity-30"
+            >
+              {submitting ? "Saving..." : "Save Changes"}
+            </button>
+            <button
+              onClick={onClose}
+              className="flex h-9 items-center justify-center rounded-md border border-edge px-4 text-[13px] text-fg-muted transition hover:bg-surface-secondary"
+            >
+              Cancel
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+  )
+}
+
+export function CronRow({ cron, onToggle, onDelete, onEdit }: {
   cron: Cron
   onToggle: (id: string, enabled: boolean) => void
   onDelete: (id: string) => void
+  onEdit: (cron: Cron) => void
 }) {
   return (
     <div className="flex items-center gap-3 border-t border-edge px-4 py-3 first:border-t-0">
@@ -165,6 +292,17 @@ export function CronRow({ cron, onToggle, onDelete }: {
           </span>
         )}
       </div>
+
+      {/* Edit */}
+      <button
+        onClick={() => onEdit(cron)}
+        className="shrink-0 rounded p-1.5 text-fg-muted hover:bg-surface-secondary hover:text-fg"
+        title="Edit"
+      >
+        <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+          <path strokeLinecap="round" strokeLinejoin="round" d="m16.862 4.487 1.687-1.688a1.875 1.875 0 1 1 2.652 2.652L10.582 16.07a4.5 4.5 0 0 1-1.897 1.13L6 18l.8-2.685a4.5 4.5 0 0 1 1.13-1.897l8.932-8.931Zm0 0L19.5 7.125" />
+        </svg>
+      </button>
 
       {/* Delete */}
       <button
