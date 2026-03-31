@@ -253,6 +253,7 @@ export function ChatPanel({
       ) : (
         <>
           <ChatInput
+          key={taskId}
           onSend={onSend}
           disabled={false}
           queueLength={queueLength}

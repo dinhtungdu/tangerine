@@ -29,6 +29,14 @@ interface ChatInputProps {
   autoFocusKey?: string
 }
 
+function loadChatDraft(key: string): { text?: string; pendingImages?: PendingImage[] } {
+  try {
+    return JSON.parse(localStorage.getItem(key) ?? "{}") as { text?: string; pendingImages?: PendingImage[] }
+  } catch {
+    return {}
+  }
+}
+
 export function appendQuotedText(existingText: string, quotedText: string): string {
   const prefix = existingText.trim().length > 0 ? `${existingText.replace(/\s+$/, "")}\n\n` : ""
   return `${prefix}${quotedText}\n\n`
@@ -36,22 +44,30 @@ export function appendQuotedText(existingText: string, quotedText: string): stri
 
 export function ChatInput({ onSend, disabled, queueLength, taskId, isWorking, onAbort, model, provider, providerModels, reasoningEffort, onModelChange, onReasoningEffortChange, predefinedPrompts, draftInsert, autoFocusKey }: ChatInputProps) {
   const draftKey = taskId ? `tangerine:chat-draft:${taskId}` : null
-  const loadDraft = useCallback((): { text?: string; pendingImages?: PendingImage[] } => {
-    if (!draftKey) return {}
-    try {
-      return JSON.parse(localStorage.getItem(draftKey) ?? "{}") as { text?: string; pendingImages?: PendingImage[] }
-    } catch {
-      return {}
+
+  const [text, setText] = useState(() => draftKey ? (loadChatDraft(draftKey).text ?? "") : "")
+  const [pendingImages, setPendingImages] = useState<PendingImage[]>(() => draftKey ? (loadChatDraft(draftKey).pendingImages ?? []) : [])
+  const textareaRef = useRef<HTMLTextAreaElement>(null)
+  const appliedDraftInsertIdRef = useRef<number | null>(null)
+
+  // Ref to latest draft state — used in the unmount cleanup to avoid stale closures
+  const draftStateRef = useRef({ text, pendingImages })
+  useEffect(() => { draftStateRef.current = { text, pendingImages } }, [text, pendingImages])
+
+  // Save draft on unmount so switching tasks (via key={taskId}) doesn't lose in-progress text
+  useEffect(() => {
+    return () => {
+      if (!draftKey) return
+      const { text: t, pendingImages: imgs } = draftStateRef.current
+      try {
+        if (!t && imgs.length === 0) {
+          localStorage.removeItem(draftKey)
+        } else {
+          localStorage.setItem(draftKey, JSON.stringify({ text: t, pendingImages: imgs }))
+        }
+      } catch { /* ignore */ }
     }
   }, [draftKey])
-  const savedDraft = loadDraft()
-
-  const [text, setText] = useState(savedDraft.text ?? "")
-  const [pendingImages, setPendingImages] = useState<PendingImage[]>(savedDraft.pendingImages ?? [])
-  const textareaRef = useRef<HTMLTextAreaElement>(null)
-  const hydratedDraftKeyRef = useRef<string | null>(null)
-  const lastPersistedKeyRef = useRef<string | null>(draftKey)
-  const appliedDraftInsertIdRef = useRef<number | null>(null)
 
   const handleSend = useCallback(() => {
     const trimmed = text.trim()
@@ -111,25 +127,6 @@ export function ChatInput({ onSend, disabled, queueLength, taskId, isWorking, on
     setPendingImages((prev) => prev.filter((_, i) => i !== index))
   }, [])
 
-  useEffect(() => {
-    if (!draftKey || hydratedDraftKeyRef.current === draftKey) return
-    // Save current draft under the previous task's key before switching
-    const prevKey = hydratedDraftKeyRef.current
-    if (prevKey) {
-      try {
-        if (!text && pendingImages.length === 0) {
-          localStorage.removeItem(prevKey)
-        } else {
-          localStorage.setItem(prevKey, JSON.stringify({ text, pendingImages }))
-        }
-      } catch { /* ignore */ }
-    }
-    hydratedDraftKeyRef.current = draftKey
-    lastPersistedKeyRef.current = draftKey
-    const draft = loadDraft()
-    setText(draft.text ?? "")
-    setPendingImages(draft.pendingImages ?? [])
-  }, [draftKey, loadDraft, text, pendingImages])
 
   const [isFocused, setIsFocused] = useState(false)
 
@@ -166,13 +163,9 @@ export function ChatInput({ onSend, disabled, queueLength, taskId, isWorking, on
     })
   }, [draftInsert])
 
+  // Continuously save draft while editing
   useEffect(() => {
     if (!draftKey) return
-    // Skip when draftKey just changed — hydration effect handles the transition
-    if (lastPersistedKeyRef.current !== draftKey) {
-      lastPersistedKeyRef.current = draftKey
-      return
-    }
     try {
       if (!text && pendingImages.length === 0) {
         localStorage.removeItem(draftKey)

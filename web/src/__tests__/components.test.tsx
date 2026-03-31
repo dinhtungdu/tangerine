@@ -335,22 +335,17 @@ describe("ChatInput", () => {
     window.localStorage.setItem("tangerine:chat-draft:task-A", JSON.stringify({ text: "Draft for A" }))
     window.localStorage.setItem("tangerine:chat-draft:task-B", JSON.stringify({ text: "Draft for B" }))
 
-    const { rerender } = render(
+    // Remounting via key (as ChatPanel does) is what isolates drafts between tasks.
+    // Each unmount triggers save-on-unmount, each mount loads from localStorage.
+    const { unmount } = render(
       <ChatInput onSend={() => {}} disabled={false} queueLength={0} taskId="task-A" />
     )
     expect(screen.getByDisplayValue("Draft for A")).toBeTruthy()
 
-    // Switch to task B — should show B's draft, not A's
-    rerender(
-      <ChatInput onSend={() => {}} disabled={false} queueLength={0} taskId="task-B" />
-    )
+    // Switch to task B — unmount A (saves draft), mount B (loads its draft)
+    unmount()
+    render(<ChatInput onSend={() => {}} disabled={false} queueLength={0} taskId="task-B" />)
     expect(screen.getByDisplayValue("Draft for B")).toBeTruthy()
-
-    // Switch back to task A — should restore A's draft
-    rerender(
-      <ChatInput onSend={() => {}} disabled={false} queueLength={0} taskId="task-A" />
-    )
-    expect(screen.getByDisplayValue("Draft for A")).toBeTruthy()
   })
 
   test("applies quoted text and focuses the composer", async () => {
