@@ -3,9 +3,12 @@
 
 /**
  * Build env + spawn options for `gh` CLI commands.
- * When GHE_PROXY is set, injects ALL_PROXY/NO_PROXY so `gh` can reach
- * GitHub Enterprise through the SOCKS proxy. github.com traffic is excluded
+ * When GHE_PROXY is set, injects HTTPS_PROXY/HTTP_PROXY so `gh` (Go net/http)
+ * can reach GitHub Enterprise through the SOCKS proxy. github.com is excluded
  * via NO_PROXY so public repos still go direct.
+ *
+ * Uses HTTPS_PROXY rather than ALL_PROXY because Go's net/http honours
+ * HTTPS_PROXY for HTTPS URLs but handles ALL_PROXY inconsistently with SOCKS5.
  */
 export function ghSpawnEnv(extra?: Record<string, unknown>): Record<string, unknown> {
   const proxy = process.env.GHE_PROXY
@@ -21,8 +24,8 @@ export function ghSpawnEnv(extra?: Record<string, unknown>): Record<string, unkn
     ...base,
     env: {
       ...process.env,
-      ALL_PROXY: proxy,
-      all_proxy: proxy,
+      HTTPS_PROXY: proxy,
+      HTTP_PROXY: proxy,
       NO_PROXY: "localhost,127.0.0.1,host.lima.internal,github.com,api.github.com",
       no_proxy: "localhost,127.0.0.1,host.lima.internal,github.com,api.github.com",
       ...(extra?.env as Record<string, string> | undefined),
