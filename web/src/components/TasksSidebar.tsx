@@ -1,5 +1,5 @@
 import { useMemo, useState, useCallback } from "react"
-import { Link, useParams } from "react-router-dom"
+import { Link, useLocation, useParams } from "react-router-dom"
 import type { Task } from "@tangerine/shared"
 import { getStatusConfig, hasUnseenUpdates } from "../lib/status"
 import { formatRelativeTime } from "../lib/format"
@@ -101,6 +101,8 @@ function TaskItem({
 
 export function TasksSidebar({ tasks, searchQuery, onSearchChange, onNewAgent, onRefetch }: TasksSidebarProps) {
   const { id: activeId } = useParams<{ id: string }>()
+  const location = useLocation()
+  const isRoot = location.pathname === "/"
   const { navigate } = useProjectNav()
   const { current: project } = useProject()
   const [orchLoading, setOrchLoading] = useState(false)
@@ -150,15 +152,17 @@ export function TasksSidebar({ tasks, searchQuery, onSearchChange, onNewAgent, o
     <div className="flex h-full w-full shrink-0 flex-col border-r border-edge bg-surface md:w-[240px]">
       {/* Top section */}
       <div className="flex flex-col gap-3 p-4 pt-5">
-        <button
-          onClick={onNewAgent}
-          className="flex h-9 items-center justify-center gap-1.5 rounded-md bg-surface-dark text-white"
-        >
-          <svg className="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-            <path strokeLinecap="round" strokeLinejoin="round" d="M12 4.5v15m7.5-7.5h-15" />
-          </svg>
-          <span className="text-[13px] font-medium">New Agent</span>
-        </button>
+        {!isRoot && (
+          <button
+            onClick={onNewAgent}
+            className="flex h-9 items-center justify-center gap-1.5 rounded-md bg-surface-dark text-white"
+          >
+            <svg className="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+              <path strokeLinecap="round" strokeLinejoin="round" d="M12 4.5v15m7.5-7.5h-15" />
+            </svg>
+            <span className="text-[13px] font-medium">New Agent</span>
+          </button>
+        )}
         <div className="flex h-[34px] items-center gap-2 rounded-md border border-edge bg-surface px-2.5">
           <svg className="h-3.5 w-3.5 shrink-0 text-fg-muted" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
             <path strokeLinecap="round" strokeLinejoin="round" d="m21 21-5.197-5.197m0 0A7.5 7.5 0 1 0 5.196 5.196a7.5 7.5 0 0 0 10.607 10.607Z" />
