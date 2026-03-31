@@ -131,6 +131,7 @@ export function ChatInput({ onSend, disabled, queueLength, taskId, isWorking, on
   }, [])
 
   const removeImage = useCallback((index: number) => {
+    dirtyRef.current = true
     setPendingImages((prev) => prev.filter((_, i) => i !== index))
   }, [])
 
