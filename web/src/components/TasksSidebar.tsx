@@ -81,6 +81,14 @@ function TaskItem({
           <span className="rounded bg-surface-secondary px-1 py-px text-[10px]">
             {task.provider === "claude-code" ? "CC" : task.provider === "codex" ? "CX" : "OC"}
           </span>
+          {task.type !== "worker" && (
+            <>
+              {" · "}
+              <span className="rounded bg-surface-secondary px-1 py-px text-[10px]">
+                {task.type}
+              </span>
+            </>
+          )}
         </span>
         <ParentLabel task={task} taskById={taskById} />
       </div>
@@ -139,7 +147,7 @@ export function TasksSidebar({ tasks, searchQuery, onSearchChange, onNewAgent, o
   }, [])
 
   return (
-    <div className="flex h-full w-[240px] shrink-0 flex-col border-r border-edge bg-surface">
+    <div className="flex h-full w-full shrink-0 flex-col border-r border-edge bg-surface md:w-[240px]">
       {/* Top section */}
       <div className="flex flex-col gap-3 p-4 pt-5">
         <button

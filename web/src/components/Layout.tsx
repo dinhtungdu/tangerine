@@ -78,9 +78,9 @@ export function Layout() {
       )}
 
       <main className="flex min-h-0 flex-1 overflow-hidden">
-        {/* Desktop sidebar — rendered once for all routes */}
+        {/* Sidebar — full-screen on mobile (except task detail), fixed width on desktop */}
         {hasSidebar && (
-          <div className={`hidden shrink-0 overflow-hidden transition-[width] duration-200 ease-in-out md:block ${sidebarOpen ? "md:w-[240px]" : "md:w-0"}`} inert={sidebarOpen ? undefined : true}>
+          <div className={`${isTaskDetail || isStatus ? "hidden md:block" : "block"} shrink-0 overflow-hidden transition-[width] duration-200 ease-in-out ${sidebarOpen ? "md:w-[240px]" : "md:w-0"}`} inert={sidebarOpen ? undefined : true}>
             <TasksSidebar
               tasks={tasks}
               searchQuery={query}
