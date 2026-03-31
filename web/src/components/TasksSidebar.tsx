@@ -81,6 +81,14 @@ function TaskItem({
           <span className="rounded bg-surface-secondary px-1 py-px text-[10px]">
             {task.provider === "claude-code" ? "CC" : task.provider === "codex" ? "CX" : "OC"}
           </span>
+          {task.type !== "worker" && (
+            <>
+              {" · "}
+              <span className="rounded bg-surface-secondary px-1 py-px text-[10px]">
+                {task.type}
+              </span>
+            </>
+          )}
         </span>
         <ParentLabel task={task} taskById={taskById} />
       </div>
