@@ -3,6 +3,7 @@ import { useSearchParams } from "react-router-dom"
 import { useProject } from "../context/ProjectContext"
 import { useProjectNav } from "../hooks/useProjectNav"
 import { NewAgentForm } from "../components/NewAgentForm"
+import { ProjectSwitcher } from "../components/ProjectSwitcher"
 import { createTask } from "../lib/api"
 
 export function RunsPage() {
@@ -23,8 +24,14 @@ export function RunsPage() {
   }, [current, navigate])
 
   return (
-    <div className="md:h-full">
-      <NewAgentForm onSubmit={handleSubmit} refTaskId={refTaskId} refTaskTitle={refTaskTitle} />
+    <div className="flex flex-col md:h-full">
+      {/* Mobile project switcher */}
+      <div className="md:hidden">
+        <ProjectSwitcher variant="mobile" />
+      </div>
+      <div className="min-h-0 flex-1">
+        <NewAgentForm onSubmit={handleSubmit} refTaskId={refTaskId} refTaskTitle={refTaskTitle} />
+      </div>
     </div>
   )
 }
