@@ -203,13 +203,13 @@ export function ChatInput({ onSend, disabled, queueLength, taskId, isWorking, on
     <div className="relative border-t border-edge bg-surface px-3 py-2 md:bg-surface md:p-3 md:px-4">
       {/* Predefined prompt chips — absolutely positioned to avoid layout shift */}
       {showPrompts && predefinedPrompts && (
-        <div className="absolute bottom-full left-0 right-0 px-3 pb-2 md:px-4">
+        <div className="pointer-events-none absolute bottom-full left-0 right-0 px-3 pb-2 md:px-4">
           <div className="flex flex-wrap gap-1.5">
             {predefinedPrompts.map((prompt, i) => (
               <button
                 key={i}
                 onMouseDown={(e) => handlePromptClick(e, prompt.text)}
-                className="rounded-full border border-edge bg-surface-secondary px-3 py-1 text-[12px] text-fg-muted shadow-sm transition hover:bg-surface-dark hover:text-white"
+                className="pointer-events-auto rounded-full border border-edge bg-surface-secondary px-3 py-1 text-[12px] text-fg-muted shadow-sm transition hover:bg-surface-dark hover:text-white"
               >
                 {prompt.label}
               </button>
