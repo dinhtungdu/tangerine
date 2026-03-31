@@ -50,12 +50,6 @@ export function ChatInput({ onSend, disabled, queueLength, taskId, isWorking, on
   const textareaRef = useRef<HTMLTextAreaElement>(null)
   const appliedDraftInsertIdRef = useRef<number | null>(null)
 
-  // Track whether this instance was actually edited — prevents passive (hidden)
-  // duplicate instances from overwriting the active instance's draft on unmount.
-  // TaskDetail renders desktop + mobile ChatPanels simultaneously (CSS show/hide),
-  // so two ChatInput instances share the same draftKey.
-  const dirtyRef = useRef(false)
-
   // Ref to latest draft state — used in the unmount cleanup to avoid stale closures
   const draftStateRef = useRef({ text, pendingImages })
   useEffect(() => { draftStateRef.current = { text, pendingImages } }, [text, pendingImages])
@@ -63,7 +57,7 @@ export function ChatInput({ onSend, disabled, queueLength, taskId, isWorking, on
   // Save draft on unmount so switching tasks (via key={taskId}) doesn't lose in-progress text
   useEffect(() => {
     return () => {
-      if (!draftKey || !dirtyRef.current) return
+      if (!draftKey) return
       const { text: t, pendingImages: imgs } = draftStateRef.current
       try {
         if (!t && imgs.length === 0) {
@@ -122,7 +116,6 @@ export function ChatInput({ onSend, disabled, queueLength, taskId, isWorking, on
           const meta = dataUrl.slice(5, commaIdx) // strip "data:"
           const mediaType = meta.split(";")[0] as PromptImage["mediaType"]
           const data = dataUrl.slice(commaIdx + 1)
-          dirtyRef.current = true
           setPendingImages((prev) => [...prev, { dataUrl, mediaType, data }])
         }
         reader.readAsDataURL(file)
@@ -131,7 +124,6 @@ export function ChatInput({ onSend, disabled, queueLength, taskId, isWorking, on
   }, [])
 
   const removeImage = useCallback((index: number) => {
-    dirtyRef.current = true
     setPendingImages((prev) => prev.filter((_, i) => i !== index))
   }, [])
 
@@ -160,7 +152,6 @@ export function ChatInput({ onSend, disabled, queueLength, taskId, isWorking, on
     if (!draftInsert || appliedDraftInsertIdRef.current === draftInsert.id) return
 
     appliedDraftInsertIdRef.current = draftInsert.id
-    dirtyRef.current = true
     setText((prev) => appendQuotedText(prev, draftInsert.text))
 
     requestAnimationFrame(() => {
@@ -172,9 +163,9 @@ export function ChatInput({ onSend, disabled, queueLength, taskId, isWorking, on
     })
   }, [draftInsert])
 
-  // Continuously save draft while editing — only when this instance was actually edited
+  // Continuously save draft while editing
   useEffect(() => {
-    if (!draftKey || !dirtyRef.current) return
+    if (!draftKey) return
     try {
       if (!text && pendingImages.length === 0) {
         localStorage.removeItem(draftKey)
@@ -248,7 +239,6 @@ export function ChatInput({ onSend, disabled, queueLength, taskId, isWorking, on
             ref={textareaRef}
             value={text}
             onChange={(e) => {
-              dirtyRef.current = true
               setText(e.target.value)
               handleInput()
             }}

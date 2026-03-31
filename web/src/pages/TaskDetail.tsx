@@ -497,10 +497,18 @@ export function TaskDetail() {
           </div>
         )}
 
-        {/* Desktop pane layout — multi-pane with resize handles */}
-        <div ref={containerRef} className="hidden min-h-0 flex-1 md:flex">
-          {visiblePanes.has("chat") && chatTask && (
-            <div className="flex min-w-0 flex-1 flex-col">
+        {/* Pane layout — single flex container, responsive direction.
+             Mobile (flex-col): one pane at a time via mobilePane.
+             Desktop (md:flex-row): multi-pane with resize handles via visiblePanes.
+             ChatPanel is rendered ONCE to avoid duplicate ChatInput draft saves. */}
+        <div ref={containerRef} className="flex min-h-0 flex-1 flex-col md:flex-row">
+          {/* Chat pane — single instance for both breakpoints */}
+          {chatTask && (
+            <div className={[
+              "flex min-w-0 flex-col",
+              mobilePane === "chat" ? "flex-1" : "hidden",
+              visiblePanes.has("chat") ? "md:flex md:flex-1" : "md:hidden",
+            ].join(" ")}>
               <ChatPanel
                 messages={session.messages}
                 agentStatus={session.agentStatus}
@@ -525,123 +533,105 @@ export function TaskDetail() {
             </div>
           )}
 
-          {orderedVisible.indexOf("diff") > 0 && (
-            <ResizeHandle onMouseDown={resizeHandlers.diff!} />
-          )}
+          {/* Desktop non-chat panes — display:contents makes children direct flex siblings */}
+          <div className="hidden md:contents">
+            {orderedVisible.indexOf("diff") > 0 && (
+              <ResizeHandle onMouseDown={resizeHandlers.diff!} />
+            )}
 
-          {hasDiff && visiblePanes.has("diff") && (
-            <div className={`@container/diff flex min-w-0 flex-col${desktopIsSolo || firstVisiblePane === "diff" ? " flex-1" : ""}`} style={desktopIsSolo || firstVisiblePane === "diff" ? undefined : { width: diffWidth, flexShrink: 0 }}>
-              <div className="flex min-h-0 flex-1 flex-col @min-[700px]/diff:flex-row">
-                <div className="min-w-0 flex-1 overflow-y-auto">
-                  {diffFiles.length > 0 ? (
-                    <DiffView files={diffFiles} onAddComment={isTerminated ? undefined : handleAddComment} />
-                  ) : (
-                    <div className="flex h-full items-center justify-center text-[13px] text-fg-muted">
-                      No file changes yet
-                    </div>
+            {hasDiff && visiblePanes.has("diff") && (
+              <div
+                className={`@container/diff flex min-w-0 flex-col${desktopIsSolo || firstVisiblePane === "diff" ? " flex-1" : ""}`}
+                style={desktopIsSolo || firstVisiblePane === "diff" ? undefined : { width: diffWidth, flexShrink: 0 }}
+              >
+                <div className="flex min-h-0 flex-1 flex-col @min-[700px]/diff:flex-row">
+                  <div className="min-w-0 flex-1 overflow-y-auto">
+                    {diffFiles.length > 0 ? (
+                      <DiffView files={diffFiles} onAddComment={isTerminated ? undefined : handleAddComment} />
+                    ) : (
+                      <div className="flex h-full items-center justify-center text-[13px] text-fg-muted">
+                        No file changes yet
+                      </div>
+                    )}
+                  </div>
+                  {diffFiles.length > 0 && (
+                    <DiffSidebar
+                      files={diffFiles}
+                      comments={diffComments}
+                      onScrollToFile={handleScrollToFile}
+                      onRemoveComment={handleRemoveComment}
+                      onSendComments={handleSendComments}
+                    />
                   )}
                 </div>
-                {diffFiles.length > 0 && (
-                  <DiffSidebar
-                    files={diffFiles}
-                    comments={diffComments}
-                    onScrollToFile={handleScrollToFile}
-                    onRemoveComment={handleRemoveComment}
-                    onSendComments={handleSendComments}
-                  />
-                )}
               </div>
-            </div>
-          )}
+            )}
 
-          {orderedVisible.indexOf("terminal") > 0 && (
-            <ResizeHandle onMouseDown={resizeHandlers.terminal!} />
-          )}
+            {orderedVisible.indexOf("terminal") > 0 && (
+              <ResizeHandle onMouseDown={resizeHandlers.terminal!} />
+            )}
 
-          {visiblePanes.has("terminal") && (
-            <div className={`flex min-w-0 flex-col${desktopIsSolo || firstVisiblePane === "terminal" ? " flex-1" : ""}`} style={desktopIsSolo || firstVisiblePane === "terminal" ? undefined : { width: terminalWidth, flexShrink: 0 }}>
-              <TerminalPane taskId={id!} />
-            </div>
-          )}
-
-          {orderedVisible.indexOf("activity") > 0 && (
-            <ResizeHandle onMouseDown={resizeHandlers.activity!} />
-          )}
-
-          {visiblePanes.has("activity") && (
-            <div
-              className={`flex flex-col bg-surface-secondary${desktopIsSolo || firstVisiblePane === "activity" ? " flex-1" : ""}`}
-              style={desktopIsSolo || firstVisiblePane === "activity" ? undefined : { width: activityWidth, flexShrink: 0 }}
-            >
-              <div className="min-h-0 flex-1 overflow-y-auto pt-3">
-                <ActivityList activities={session.activities} variant="compact" />
+            {visiblePanes.has("terminal") && (
+              <div className={`flex min-w-0 flex-col${desktopIsSolo || firstVisiblePane === "terminal" ? " flex-1" : ""}`} style={desktopIsSolo || firstVisiblePane === "terminal" ? undefined : { width: terminalWidth, flexShrink: 0 }}>
+                <TerminalPane taskId={id!} />
               </div>
-            </div>
-          )}
-        </div>
+            )}
 
-        {/* Mobile pane layout — single pane, switched by mobilePane */}
-        <div className="flex min-h-0 flex-1 md:hidden">
-          {mobilePane === "chat" && chatTask && (
-            <div className="flex min-w-0 flex-1 flex-col">
-              <ChatPanel
-                messages={session.messages}
-                agentStatus={session.agentStatus}
-                queueLength={session.queueLength}
-                model={chatTask.model}
-                provider={chatTask.provider}
-                providerModels={providerModels}
-                reasoningEffort={chatTask.reasoningEffort}
-                taskStatus={chatTask.status}
-                taskError={chatTask.error}
-                taskId={chatTask.id}
-                taskTitle={chatTask.title}
-                onSend={handleSend}
-                onAbort={session.abort}
-                onModelChange={handleModelChange}
-                onReasoningEffortChange={handleReasoningEffortChange}
-                predefinedPrompts={resolvedPrompts}
-                onResolve={canResolve ? handleResolve : undefined}
-                canContinue={canContinue}
-              />
-            </div>
-          )}
-          {hasDiff && mobilePane === "diff" && (
-            <div className="@container/diff flex min-w-0 flex-1 flex-col">
-              <div className="flex min-h-0 flex-1 flex-col">
-                <div className="min-w-0 flex-1 overflow-y-auto">
-                  {diffFiles.length > 0 ? (
-                    <DiffView files={diffFiles} onAddComment={isTerminated ? undefined : handleAddComment} />
-                  ) : (
-                    <div className="flex h-full items-center justify-center text-[13px] text-fg-muted">
-                      No file changes yet
-                    </div>
+            {orderedVisible.indexOf("activity") > 0 && (
+              <ResizeHandle onMouseDown={resizeHandlers.activity!} />
+            )}
+
+            {visiblePanes.has("activity") && (
+              <div
+                className={`flex flex-col bg-surface-secondary${desktopIsSolo || firstVisiblePane === "activity" ? " flex-1" : ""}`}
+                style={desktopIsSolo || firstVisiblePane === "activity" ? undefined : { width: activityWidth, flexShrink: 0 }}
+              >
+                <div className="min-h-0 flex-1 overflow-y-auto pt-3">
+                  <ActivityList activities={session.activities} variant="compact" />
+                </div>
+              </div>
+            )}
+          </div>
+
+          {/* Mobile non-chat panes — display:contents makes children direct flex siblings */}
+          <div className="contents md:hidden">
+            {hasDiff && mobilePane === "diff" && (
+              <div className="@container/diff flex min-w-0 flex-1 flex-col">
+                <div className="flex min-h-0 flex-1 flex-col">
+                  <div className="min-w-0 flex-1 overflow-y-auto">
+                    {diffFiles.length > 0 ? (
+                      <DiffView files={diffFiles} onAddComment={isTerminated ? undefined : handleAddComment} />
+                    ) : (
+                      <div className="flex h-full items-center justify-center text-[13px] text-fg-muted">
+                        No file changes yet
+                      </div>
+                    )}
+                  </div>
+                  {diffFiles.length > 0 && (
+                    <DiffSidebar
+                      files={diffFiles}
+                      comments={diffComments}
+                      onScrollToFile={handleScrollToFile}
+                      onRemoveComment={handleRemoveComment}
+                      onSendComments={handleSendComments}
+                    />
                   )}
                 </div>
-                {diffFiles.length > 0 && (
-                  <DiffSidebar
-                    files={diffFiles}
-                    comments={diffComments}
-                    onScrollToFile={handleScrollToFile}
-                    onRemoveComment={handleRemoveComment}
-                    onSendComments={handleSendComments}
-                  />
-                )}
               </div>
-            </div>
-          )}
-          {mobilePane === "terminal" && (
-            <div className="flex min-w-0 flex-1 flex-col">
-              <TerminalPane taskId={id!} />
-            </div>
-          )}
-          {mobilePane === "activity" && (
-            <div className="flex flex-1 flex-col bg-surface-secondary">
-              <div className="min-h-0 flex-1 overflow-y-auto pt-3">
-                <ActivityList activities={session.activities} variant="compact" />
+            )}
+            {mobilePane === "terminal" && (
+              <div className="flex min-w-0 flex-1 flex-col">
+                <TerminalPane taskId={id!} />
               </div>
-            </div>
-          )}
+            )}
+            {mobilePane === "activity" && (
+              <div className="flex flex-1 flex-col bg-surface-secondary">
+                <div className="min-h-0 flex-1 overflow-y-auto pt-3">
+                  <ActivityList activities={session.activities} variant="compact" />
+                </div>
+              </div>
+            )}
+          </div>
         </div>
       </div>
     </div>
