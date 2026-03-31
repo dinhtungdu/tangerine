@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback } from "react"
 import type { Task, SystemLogEntry } from "@tangerine/shared"
 import { fetchSystemLogs, fetchOrphans, cleanupOrphans as apiCleanupOrphans, fetchUpdateStatus, updateProjectRepo, fetchHealth, type ProjectUpdateStatus } from "../lib/api"
-import { formatRelativeTime } from "../lib/format"
+import { formatRelativeTime, formatTimestamp } from "../lib/format"
 
 /* ── Cards ── */
 
@@ -242,10 +242,8 @@ const LOG_FILTERS: Array<{ label: string; value: string[] | null; level?: string
   { label: "Errors", value: null, level: ["error"] },
 ]
 
-function formatLogTimestamp(iso: string): string {
-  const d = new Date(iso)
-  return d.toLocaleTimeString(undefined, { hour: "2-digit", minute: "2-digit", second: "2-digit" })
-}
+/** Use shared formatTimestamp for consistent local-timezone display */
+const formatLogTimestamp = formatTimestamp
 
 /* ── System Log ── */
 

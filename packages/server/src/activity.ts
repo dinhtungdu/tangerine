@@ -4,6 +4,7 @@
 import { Effect } from "effect"
 import type { Database } from "bun:sqlite"
 import { emitTaskEvent } from "./tasks/events"
+import { utc } from "./api/helpers"
 export type ActivityType = "lifecycle" | "file" | "system"
 
 export interface ActivityEntry {
@@ -89,7 +90,7 @@ function mapRow(row: ActivityLogRow): ActivityEntry {
     event: row.event,
     content: row.content,
     metadata: row.metadata ? (JSON.parse(row.metadata) as Record<string, unknown>) : null,
-    timestamp: row.timestamp,
+    timestamp: utc(row.timestamp) ?? row.timestamp,
   }
 }
 
