@@ -1,8 +1,7 @@
 #!/bin/bash
 # Restart loop for self-updating Tangerine server.
 # Run this instead of `bin/tangerine start` when developing Tangerine itself.
-# The server polls git every 60s; on new commits it pulls and exits 0, which
-# causes this loop to restart it automatically.
+# After "Pull Latest" the server exits 0, which causes this loop to restart it.
 # Also watches ~/tangerine/config.json (or $TANGERINE_CONFIG) for changes and
 # restarts on modification.
 
@@ -20,7 +19,7 @@ watch_config() {
 }
 
 while true; do
-  TANGERINE_SELF_UPDATE=1 bun "$SCRIPT_DIR/tangerine" start &
+  bun "$SCRIPT_DIR/tangerine" start &
   SERVER_PID=$!
 
   watch_config &

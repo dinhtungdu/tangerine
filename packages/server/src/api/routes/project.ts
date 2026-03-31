@@ -6,7 +6,7 @@ import { runEffect, runEffectVoid } from "../effect-helpers"
 import { discoverModels, discoverModelsByProvider } from "../../models"
 import { projectConfigSchema, tangerineConfigSchema } from "@tangerine/shared"
 import { ProjectNotFoundError, ProjectExistsError, ConfigValidationError } from "../../errors"
-import { getUpdateStatus, clearUpdateStatus } from "../../self-update"
+import { checkForUpdate, clearUpdateStatus } from "../../self-update"
 import { getRepoDir } from "../../config"
 import { createLogger } from "../../logger"
 
@@ -174,16 +174,17 @@ export function projectRoutes(deps: AppDeps): Hono {
     )
   })
 
-  // Get update status for a project (from poller cache)
-  app.get("/:name/update-status", (c) => {
+  // Check for updates on-demand (runs git fetch + compare)
+  app.get("/:name/update-status", async (c) => {
     const name = c.req.param("name")
     const project = deps.config.config.projects.find((p) => p.name === name)
     if (!project) return c.json({ error: "Project not found" }, 404)
 
     const repoDir = getRepoDir(deps.config.config, name)
-    const status = getUpdateStatus(repoDir)
+    const defaultBranch = project.defaultBranch ?? "main"
+    const status = await Effect.runPromise(checkForUpdate(repoDir, defaultBranch))
 
-    return c.json(status ?? { available: false, local: "", remote: "", checkedAt: null })
+    return c.json(status)
   })
 
   // Pull latest from remote and run postUpdateCommand
