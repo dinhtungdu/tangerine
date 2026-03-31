@@ -22,17 +22,6 @@ export function TaskOverflowMenu({
   const isDeletable = isTerminated
 
   const hasActions = isRunning || isRetryable || isDeletable
-  if (!hasActions) return null
-
-  async function handleAction(action: () => Promise<unknown>) {
-    try {
-      await action()
-      onRefetch?.()
-    } catch {
-      // ignore
-    }
-    setOpen(false)
-  }
 
   useEffect(() => {
     if (!open) return
@@ -44,6 +33,18 @@ export function TaskOverflowMenu({
     document.addEventListener("mousedown", onClickOutside)
     return () => document.removeEventListener("mousedown", onClickOutside)
   }, [open])
+
+  if (!hasActions) return null
+
+  async function handleAction(action: () => Promise<unknown>) {
+    try {
+      await action()
+      onRefetch?.()
+    } catch {
+      // ignore
+    }
+    setOpen(false)
+  }
 
   const btnCls = size === "sm" ? "h-6 w-6" : "h-7 w-7"
   const iconCls = size === "sm" ? "h-3.5 w-3.5" : "h-4 w-4"

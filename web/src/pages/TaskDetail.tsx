@@ -203,6 +203,9 @@ export function TaskDetail() {
     }
   }, [chatTask, isCrossProject])
 
+  const sendPromptRef = useRef(session.sendPrompt)
+  sendPromptRef.current = session.sendPrompt
+
   const handleSendComments = useCallback((comments: DiffComment[]) => {
     const text = comments
       .map((c) => {
@@ -210,10 +213,10 @@ export function TaskDetail() {
         return `[${c.filePath}:${c.lineRef} (${sideLabel})] ${c.text}`
       })
       .join("\n\n")
-    session.sendPrompt(text)
+    sendPromptRef.current(text)
     setDiffComments([])
     setMobilePane("chat")
-  }, [session])
+  }, [])
 
   // Start the task on first prompt if it's still in "created" status
   const handleSend = useCallback(
@@ -225,9 +228,9 @@ export function TaskDetail() {
           setTask((prev) => prev ? { ...prev, status: "provisioning" } : prev)
         }
       }
-      session.sendPrompt(text, images)
+      sendPromptRef.current(text, images)
     },
-    [chatTask?.status, chatTask?.id, isCrossProject, session],
+    [chatTask?.status, chatTask?.id, isCrossProject],
   )
 
   // Fetch parent and children once per task ID (not on every poll)
