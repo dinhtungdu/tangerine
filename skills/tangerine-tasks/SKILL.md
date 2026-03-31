@@ -39,6 +39,10 @@ curl -X POST "$API/api/tasks/$TANGERINE_TASK_ID/seen"
 curl -X POST "$API/api/tasks/$TANGERINE_TASK_ID/done"
 ```
 
+> **IMPORTANT — when to call `/done`:**
+> - **Orchestrators only**: call `/done` on yourself when ending the session.
+> - **Workers and reviewers**: NEVER call `/done` on yourself. After pushing a PR, your job is finished — just stop. The orchestrator marks tasks done after the PR is merged.
+
 Create a worker task:
 
 ```bash
