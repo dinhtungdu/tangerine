@@ -197,12 +197,12 @@ export function ChatInput({ onSend, disabled, queueLength, taskId, isWorking, on
       {/* Predefined prompt chips — absolutely positioned to avoid layout shift */}
       {showPrompts && predefinedPrompts && (
         <div className="pointer-events-none absolute bottom-full left-0 right-0 px-3 pb-2 md:px-4">
-          <div className="flex flex-wrap gap-1.5">
+          <div className="flex gap-1.5 overflow-x-auto pb-0.5 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
             {predefinedPrompts.map((prompt, i) => (
               <button
                 key={i}
                 onMouseDown={(e) => handlePromptClick(e, prompt.text)}
-                className="pointer-events-auto rounded-full border border-edge bg-surface-secondary px-3 py-1 text-xs text-fg-muted shadow-sm transition hover:bg-surface-dark hover:text-white"
+                className="pointer-events-auto shrink-0 rounded-full border border-edge bg-surface-secondary px-3 py-1 text-xs text-fg-muted shadow-sm transition hover:bg-surface-dark hover:text-white"
               >
                 {prompt.label}
               </button>
