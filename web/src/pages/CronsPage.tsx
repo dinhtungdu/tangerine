@@ -2,7 +2,6 @@ import { useState, useEffect, useCallback } from "react"
 import type { Cron } from "@tangerine/shared"
 import { useProject } from "../context/ProjectContext"
 import { useProjectNav } from "../hooks/useProjectNav"
-import { ProjectSwitcher } from "../components/ProjectSwitcher"
 import { CronForm, CronRow } from "../components/CronList"
 import { listCrons, updateCron, deleteCron } from "../lib/api"
 
@@ -42,11 +41,6 @@ export function CronsPage() {
 
   return (
     <div className="flex h-full flex-col overflow-y-auto">
-      {/* Mobile project switcher */}
-      <div className="md:hidden">
-        <ProjectSwitcher variant="mobile" />
-      </div>
-
       <div className="mx-auto w-full max-w-[1200px] px-4 py-6 md:px-8 md:py-8">
         {/* Header */}
         <div className="mb-6">
