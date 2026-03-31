@@ -82,7 +82,9 @@ curl -X POST "$API/api/tasks" \
   }'
 ```
 
-> **Reviewer branch requirement**: Set `branch` to the **PR's source branch** (e.g. `tangerine/abc12345`), NOT the PR number shorthand (`#123`) or a new branch. The reviewer must check out the same branch as the PR. The PR detector and clean poller match tasks to PRs by comparing the task branch to the PR's head branch — a wrong value breaks that association.
+> **Reviewer task requirements**:
+> - Set `branch` to the **PR's source branch** (e.g. `tangerine/abc12345`), NOT the PR number shorthand (`#123`) or a new branch. The reviewer must check out the same branch as the PR.
+> - Always set `prUrl` to the full PR URL (e.g. `https://github.com/org/repo/pull/123`). The poller can discover it from the branch as a fallback, but setting it upfront ensures immediate tracking.
 
 Provider values:
 
