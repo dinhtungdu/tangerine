@@ -1,9 +1,5 @@
 import { useState, useEffect, useRef } from "react"
-import { Link } from "react-router-dom"
 import type { Task } from "@tangerine/shared"
-import { getStatusConfig, hasUnseenUpdates } from "../lib/status"
-import { formatRelativeTime } from "../lib/format"
-import { useProjectNav } from "../hooks/useProjectNav"
 import { cancelTask, retryTask, deleteTask } from "../lib/api"
 
 const TERMINATED_STATUSES = new Set(["done", "completed", "failed", "cancelled"])
@@ -114,56 +110,3 @@ export function TaskOverflowMenu({
   )
 }
 
-export function MobileTaskItem({
-  task,
-  taskById,
-  onRefetch,
-}: {
-  task: Task
-  taskById: Map<string, Task>
-  onRefetch?: () => void
-}) {
-  const { link } = useProjectNav()
-  const { color } = getStatusConfig(task.status)
-  const unseen = hasUnseenUpdates(task)
-  const parent = task.parentTaskId ? taskById.get(task.parentTaskId) : undefined
-
-  return (
-    <Link
-      to={link(`/tasks/${task.id}`)}
-      className="flex items-start gap-3 rounded-lg border border-edge px-3.5 py-3"
-    >
-      <div className="flex h-[18px] w-2 items-start pt-[5px]">
-        <div className="h-2.5 w-2.5 rounded-full" style={{ backgroundColor: color }} />
-      </div>
-      <div className="flex min-w-0 flex-1 flex-col gap-1">
-        <div className="flex items-center gap-1.5">
-          {unseen && <span className="h-2 w-2 shrink-0 rounded-full bg-status-info" title="New activity" />}
-          <span className="truncate text-[14px] font-medium text-fg">{task.title}</span>
-        </div>
-        {parent && (
-          <span className="truncate text-[11px] text-fg-muted">Continued from: {parent.title}</span>
-        )}
-        {task.status === "failed" && task.error && (
-          <span className="truncate text-[11px] text-status-error">{task.error}</span>
-        )}
-        <span className="font-mono text-[11px] text-fg-muted">
-          {formatRelativeTime(task.createdAt)} · {task.status}
-          {" · "}
-          <span className="rounded bg-surface-secondary px-1 py-px text-[10px]">
-            {task.provider === "claude-code" ? "CC" : task.provider === "codex" ? "CX" : "OC"}
-          </span>
-          {task.type !== "worker" && (
-            <>
-              {" · "}
-              <span className="rounded bg-surface-secondary px-1 py-px text-[10px]">
-                {task.type}
-              </span>
-            </>
-          )}
-        </span>
-      </div>
-      <TaskOverflowMenu task={task} onRefetch={onRefetch} size="md" />
-    </Link>
-  )
-}
