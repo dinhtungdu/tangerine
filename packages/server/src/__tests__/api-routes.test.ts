@@ -95,6 +95,7 @@ function createMockDeps(db: Database, configOverrides?: Partial<AppDeps["config"
         }))
         return Effect.succeed(row)
       },
+      waitingReviewTask() { return Effect.void },
       startTask() { return Effect.void },
       onTaskEvent() { return () => {} },
       onStatusChange() { return () => {} },

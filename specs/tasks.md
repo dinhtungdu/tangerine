@@ -54,16 +54,20 @@ Orchestrators are created lazily and started on demand. Other task types auto-st
 ## Lifecycle
 
 ```text
-created -> provisioning -> running -> done
+created -> provisioning -> running -> waiting-review -> done
+                                 -> done
                                  -> failed
                                  -> cancelled
 ```
 
+`waiting-review` is an intermediate state between `running` and `done`. A task enters this state when the worker has created a PR and stopped its agent — the work is complete but the PR hasn't been merged yet.
+
 Additional flows:
 
-- `failed` or `cancelled` -> retry creates a fresh task
+- `failed`, `cancelled`, or `waiting-review` -> retry creates a fresh task
+- `failed`, `cancelled`, or `waiting-review` -> resolve marks as done
 - `running` -> restart recovery reconnects or resumes
-- terminal tasks can be deleted after cleanup
+- terminal and `waiting-review` tasks can be deleted after cleanup
 
 ## Start Flow
 

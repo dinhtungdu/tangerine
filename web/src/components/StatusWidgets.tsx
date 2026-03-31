@@ -8,6 +8,7 @@ import { formatRelativeTime, formatTimestamp } from "../lib/format"
 export function ActiveRunsCard({ tasks }: { tasks: Task[] }) {
   const running = tasks.filter((t) => t.status === "running").length
   const queued = tasks.filter((t) => t.status === "created" || t.status === "provisioning").length
+  const waitingReview = tasks.filter((t) => t.status === "waiting-review").length
   const done = tasks.filter((t) => t.status === "done").length
   const [orphanCount, setOrphanCount] = useState(0)
   const [cleaning, setCleaning] = useState(false)
@@ -49,6 +50,12 @@ export function ActiveRunsCard({ tasks }: { tasks: Task[] }) {
           <span className="text-[24px] font-bold text-fg md:text-[28px]">{queued}</span>
           <span className="text-[11px] font-medium text-status-warning md:text-[12px]">Queued</span>
         </div>
+        {waitingReview > 0 && (
+          <div className="flex flex-col gap-0.5">
+            <span className="text-[24px] font-bold text-fg md:text-[28px]">{waitingReview}</span>
+            <span className="text-[11px] font-medium text-status-warning md:text-[12px]">In Review</span>
+          </div>
+        )}
         <div className="flex flex-col gap-0.5">
           <span className="text-[24px] font-bold text-fg md:text-[28px]">{done}</span>
           <span className="text-[11px] font-medium text-status-success md:text-[12px]">Completed</span>

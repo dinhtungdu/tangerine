@@ -18,6 +18,7 @@ Tangerine exposes a Hono API on Bun. The current server provides REST routes, pe
 | POST | `/api/tasks/:id/start` | Start a dormant task, used for on-demand orchestrators |
 | POST | `/api/tasks/:id/seen` | Mark task as seen |
 | POST | `/api/tasks/:id/done` | Mark task complete |
+| POST | `/api/tasks/:id/waiting-review` | Transition running task to waiting-review (PR created, agent stopped) |
 | PATCH | `/api/tasks/:id` | Update agent-writable fields such as `prUrl` |
 | DELETE | `/api/tasks/:id` | Delete a terminal task after cleanup |
 

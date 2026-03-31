@@ -12,4 +12,4 @@ export const MAX_RETRY_ATTEMPTS = 3
 export const ORCHESTRATOR_TASK_NAME = "_orchestrator"
 
 /** Task statuses that represent a completed lifecycle (no longer active). */
-export const TERMINAL_STATUSES = new Set(["done", "failed", "cancelled"])
+export const TERMINAL_STATUSES = new Set(["done", "failed", "cancelled", "waiting-review"])

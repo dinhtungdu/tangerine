@@ -221,7 +221,7 @@ export function hasActiveCronTask(db: Database, cronId: string): Effect.Effect<b
   })
 }
 
-const TERMINAL_STATUSES = new Set(["done", "failed", "cancelled"])
+const TERMINAL_STATUSES = new Set(["done", "failed", "cancelled", "waiting-review"])
 
 export function deleteTask(db: Database, id: string): Effect.Effect<void, DbError> {
   return dbTry(() => {

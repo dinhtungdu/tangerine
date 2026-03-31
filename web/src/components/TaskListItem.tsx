@@ -2,7 +2,7 @@ import { useState, useEffect, useRef } from "react"
 import type { Task } from "@tangerine/shared"
 import { cancelTask, retryTask, deleteTask } from "../lib/api"
 
-const TERMINATED_STATUSES = new Set(["done", "completed", "failed", "cancelled"])
+const TERMINATED_STATUSES = new Set(["done", "completed", "failed", "cancelled", "waiting-review"])
 
 export function TaskOverflowMenu({
   task,

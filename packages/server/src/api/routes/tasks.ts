@@ -103,7 +103,7 @@ export function taskRoutes(deps: AppDeps): Hono {
       getTask(deps.db, taskId).pipe(
         Effect.flatMap((task) => {
           if (!task) return Effect.fail(new TaskNotFoundError({ taskId }))
-          if (task.status !== "failed" && task.status !== "cancelled") return Effect.fail(new Error("Only failed or cancelled tasks can be retried"))
+          if (task.status !== "failed" && task.status !== "cancelled" && task.status !== "waiting-review") return Effect.fail(new Error("Only failed, cancelled, or waiting-review tasks can be retried"))
 
           // Clean up old task's worktree, mark as cancelled, create fresh one
           return deps.taskManager.cleanupTask(taskId).pipe(
@@ -150,6 +150,21 @@ export function taskRoutes(deps: AppDeps): Hono {
     )
   })
 
+  // Transition a running task to waiting-review (agent finished, PR created)
+  app.post("/:id/waiting-review", (c) => {
+    const taskId = c.req.param("id")
+    return runEffectVoid(c,
+      Effect.gen(function* () {
+        const task = yield* getTask(deps.db, taskId)
+        if (!task) return yield* Effect.fail(new TaskNotFoundError({ taskId }))
+        if (task.status !== "running") {
+          return yield* Effect.fail(new Error(`Task must be running to enter waiting-review (current: ${task.status})`))
+        }
+        yield* deps.taskManager.waitingReviewTask(taskId)
+      })
+    )
+  })
+
   // Partial update for agent-writable fields (e.g. pr_url after gh pr create)
   app.patch("/:id", async (c) => {
     const taskId = c.req.param("id")
@@ -177,7 +192,7 @@ export function taskRoutes(deps: AppDeps): Hono {
       Effect.gen(function* () {
         const task = yield* getTask(deps.db, taskId)
         if (!task) return yield* Effect.fail(new TaskNotFoundError({ taskId }))
-        const terminal = new Set(["done", "failed", "cancelled"])
+        const terminal = new Set(["done", "failed", "cancelled", "waiting-review"])
         if (!terminal.has(task.status)) {
           return yield* Effect.fail(new TaskNotTerminalError({ taskId, status: task.status }))
         }

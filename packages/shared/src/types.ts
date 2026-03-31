@@ -1,4 +1,4 @@
-export type TaskStatus = "created" | "provisioning" | "running" | "done" | "failed" | "cancelled"
+export type TaskStatus = "created" | "provisioning" | "running" | "waiting-review" | "done" | "failed" | "cancelled"
 export type ProviderType = "opencode" | "claude-code" | "codex"
 export type TaskSource = "github" | "linear" | "manual" | "cross-project" | "cron"
 export type TaskType = "worker" | "orchestrator" | "reviewer"

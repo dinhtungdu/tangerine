@@ -74,7 +74,7 @@ export function createTask(
     if (taskType === "orchestrator") {
       const allTasks = yield* deps.listTasks({ projectId: params.projectId })
       const active = allTasks.find(
-        (t) => t.type === "orchestrator" && !["done", "failed", "cancelled"].includes(t.status)
+        (t) => t.type === "orchestrator" && !TERMINAL_STATUSES.has(t.status)
       )
       if (active) {
         return yield* Effect.fail(
@@ -223,6 +223,59 @@ export function completeTask(
     yield* cleanupSession(taskId, deps.cleanupDeps).pipe(
       Effect.catchTag("SessionCleanupError", (e) => {
         log.error("Cleanup after completion failed", {
+          taskId,
+          error: e.message,
+        })
+        return Effect.void
+      })
+    )
+
+    if (dbError) return yield* dbError
+  })
+}
+
+/**
+ * Transition a running task to waiting-review.
+ * The agent has finished work and created a PR — it is no longer running
+ * but the task is not yet done (PR hasn't been merged).
+ */
+export function waitingReviewTask(
+  deps: TaskManagerDeps,
+  taskId: string,
+): Effect.Effect<void, TaskNotFoundError | SessionCleanupError | DbError> {
+  return Effect.gen(function* () {
+    const task = yield* deps.getTask(taskId).pipe(
+      Effect.mapError(() => new TaskNotFoundError({ taskId }))
+    )
+
+    if (!task) {
+      return yield* new TaskNotFoundError({ taskId })
+    }
+
+    const dbError = yield* deps.updateTask(taskId, {
+      status: "waiting-review",
+      completed_at: new Date().toISOString(),
+    }).pipe(
+      Effect.map(() => null as DbError | null),
+      Effect.catchAll((cause) => {
+        const err = new DbError({ message: `Failed to persist waiting-review status for task ${taskId}`, cause })
+        log.error(err.message, { taskId, cause: String(cause) })
+        return Effect.succeed(err)
+      })
+    )
+
+    yield* deps.logActivity(taskId, "lifecycle", "task.waiting-review", "Task waiting for PR review").pipe(
+      Effect.catchAll(() => Effect.succeed(undefined))
+    )
+
+    clearAgentWorkingState(taskId)
+    emitStatusChange(taskId, "waiting-review")
+    log.info("Task waiting for review", { taskId })
+
+    // Clean up agent session — the agent is no longer running
+    yield* cleanupSession(taskId, deps.cleanupDeps).pipe(
+      Effect.catchTag("SessionCleanupError", (e) => {
+        log.error("Cleanup after waiting-review failed", {
           taskId,
           error: e.message,
         })
@@ -423,7 +476,7 @@ export function resolveTask(
       return yield* new TaskNotFoundError({ taskId })
     }
 
-    if (task.status !== "failed" && task.status !== "cancelled") {
+    if (task.status !== "failed" && task.status !== "cancelled" && task.status !== "waiting-review") {
       return yield* new TaskNotTerminalError({ taskId, status: task.status })
     }
 
@@ -473,7 +526,7 @@ export function reprovisionTasksForProject(
     const allTasks = yield* deps.listTasks({})
     const affected = allTasks.filter(
       (t) => t.project_id === projectId
-        && !["done", "cancelled"].includes(t.status)
+        && !["done", "cancelled", "waiting-review"].includes(t.status)
         && t.type !== "orchestrator"
     )
 

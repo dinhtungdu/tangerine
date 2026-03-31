@@ -43,7 +43,7 @@ export function TaskDetail() {
 
   // When viewing a task from a different project, show that project's orchestrator chat
   const isCrossProject = task !== null && current !== null && task.projectId !== current.name
-  const TERMINATED = useMemo(() => new Set(["done", "completed", "cancelled"]), [])
+  const TERMINATED = useMemo(() => new Set(["done", "completed", "cancelled", "waiting-review"]), [])
   const orchestratorTask = useMemo(() => {
     if (!isCrossProject) return null
     const orchTasks = tasks.filter((t) => t.type === "orchestrator")
@@ -312,7 +312,7 @@ export function TaskDetail() {
 
   useEffect(() => {
     if (!session.taskStatus || isCrossProject) return
-    const terminal = ["done", "failed", "cancelled"]
+    const terminal = ["done", "failed", "cancelled", "waiting-review"]
     if (terminal.includes(session.taskStatus)) {
       // Refetch the full task to capture error and other fields set on completion
       fetchTask(id!).then(setTask).catch(() => {})
@@ -338,7 +338,7 @@ export function TaskDetail() {
   }
 
   const { color: statusColor, label: statusLabel } = getStatusConfig(task.status)
-  const isTerminated = task.status === "done" || task.status === "failed" || task.status === "cancelled"
+  const isTerminated = task.status === "done" || task.status === "failed" || task.status === "cancelled" || task.status === "waiting-review"
 
   // Desktop: multi-pane from visiblePanes set. Mobile: single pane from mobilePane.
   // Both states are tracked; CSS breakpoints control which layout renders.
@@ -404,8 +404,17 @@ export function TaskDetail() {
                 href={task.prUrl}
                 target="_blank"
                 rel="noopener noreferrer"
-                className="flex shrink-0 items-center gap-1 rounded bg-status-success-bg px-1.5 py-0.5 text-[10px] font-medium text-status-success-text"
+                className={`flex shrink-0 items-center gap-1 rounded font-medium ${
+                  task.status === "waiting-review"
+                    ? "bg-status-warning-bg px-2 py-1 text-[12px] text-status-warning-text"
+                    : "bg-status-success-bg px-1.5 py-0.5 text-[10px] text-status-success-text"
+                }`}
               >
+                {task.status === "waiting-review" && (
+                  <svg className="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M12 6v6h4.5m4.5 0a9 9 0 1 1-18 0 9 9 0 0 1 18 0Z" />
+                  </svg>
+                )}
                 {formatPrNumber(task.prUrl)}
               </a>
             )}

@@ -796,6 +796,10 @@ export async function start(): Promise<void> {
           taskManager.ensureOrchestrator(tmDeps, projectId, provider, model, reasoningEffort).pipe(
             Effect.mapError((e) => ({ _tag: "TaskError" as const, message: e.message }))
           ),
+        waitingReviewTask: (taskId) =>
+          taskManager.waitingReviewTask(tmDeps, taskId).pipe(
+            Effect.mapError((e) => ({ _tag: e._tag, message: e.message }))
+          ),
         startTask: (taskId) =>
           taskManager.startTask(tmDeps, taskId).pipe(
             Effect.mapError((e) => ({ _tag: e._tag, message: e.message }))

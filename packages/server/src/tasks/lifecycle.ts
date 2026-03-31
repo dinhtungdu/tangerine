@@ -322,8 +322,8 @@ export function reconnectSession(
     // Health monitor restarts run async; a cancel/fail can race with reconnect and
     // we must not overwrite the terminal status with "running".
     const currentState = yield* deps.getTask(task.id).pipe(Effect.catchAll(() => Effect.succeed(null)))
-    if (currentState?.status === "cancelled" || currentState?.status === "failed") {
-      taskLog.info("Task was cancelled/failed before reconnect completed, aborting reconnect", { status: currentState.status })
+    if (currentState?.status === "cancelled" || currentState?.status === "failed" || currentState?.status === "waiting-review") {
+      taskLog.info("Task was cancelled/failed/waiting-review before reconnect completed, aborting reconnect", { status: currentState.status })
       return yield* Effect.fail(new SessionStartError({
         message: `Task ${task.id} is ${currentState.status}, not reconnecting`,
         taskId: task.id,

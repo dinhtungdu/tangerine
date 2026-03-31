@@ -23,7 +23,7 @@ export function findOrphans(
   deps: OrphanCleanupDeps,
 ): Effect.Effect<TaskRow[], Error> {
   return Effect.gen(function* () {
-    const terminal = ["done", "failed", "cancelled"]
+    const terminal = ["done", "failed", "cancelled", "waiting-review"]
     const allTerminal: TaskRow[] = []
     for (const status of terminal) {
       const tasks = yield* deps.listTasks({ status })
