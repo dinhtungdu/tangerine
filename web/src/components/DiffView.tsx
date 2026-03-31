@@ -224,7 +224,7 @@ function useLineComment(
 // GitHub-style gutter: "+" button appears to the left of line number on hover
 function LineNum({ num, canComment, onMouseDown }: { num: number | string; canComment?: boolean; onMouseDown?: (e: React.MouseEvent) => void }) {
   return (
-    <span className="group/gutter flex w-12 shrink-0 items-center select-none">
+    <span className="group/gutter flex w-12 shrink-0 items-start select-none">
       {canComment ? (
         <button
           onMouseDown={(e) => { e.preventDefault(); onMouseDown?.(e) }}
@@ -344,7 +344,7 @@ function UnifiedDiff({ diff, filePath, onAddComment }: { diff: string; filePath:
         const selected = isInSelection(i, "right")
         return (
           <span key={i} className="block">
-            <span className="flex items-center" onMouseEnter={() => handleLineMouseEnter(i, "right")}>
+            <span className="flex items-start" onMouseEnter={() => handleLineMouseEnter(i, "right")}>
               <LineNum num={lineNums[i] ?? ""} canComment={!!onAddComment} onMouseDown={() => handleGutterMouseDown(i, "right")} />
               <span className={`flex-1 px-2 ${selected ? "border-l-2 border-status-info bg-status-info/5" : ""} ${color}`}>
                 {line}
