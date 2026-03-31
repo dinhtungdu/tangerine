@@ -6,6 +6,7 @@ interface UseTaskSearchResult {
   query: string
   setQuery: (q: string) => void
   tasks: Task[]
+  loading: boolean
   refetch: () => void
 }
 
@@ -15,7 +16,7 @@ export function useTaskSearch(project?: string): UseTaskSearchResult {
 
   // Only hit the server when we have a query — otherwise fetch all
   const serverSearch = deferredQuery.length >= 2 ? deferredQuery : undefined
-  const { tasks: allTasks, refetch } = useTasks(
+  const { tasks: allTasks, loading, refetch } = useTasks(
     project ? { project, search: serverSearch } : { search: serverSearch }
   )
 
@@ -30,5 +31,5 @@ export function useTaskSearch(project?: string): UseTaskSearchResult {
     )
   }, [allTasks, deferredQuery])
 
-  return { query, setQuery, tasks, refetch }
+  return { query, setQuery, tasks, loading, refetch }
 }

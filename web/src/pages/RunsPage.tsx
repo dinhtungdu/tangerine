@@ -1,25 +1,30 @@
 import { useCallback, useEffect, useRef } from "react"
-import { useSearchParams } from "react-router-dom"
+import { useOutletContext, useSearchParams } from "react-router-dom"
 import { useProject } from "../context/ProjectContext"
 import { useProjectNav } from "../hooks/useProjectNav"
 import { NewAgentForm } from "../components/NewAgentForm"
 import { createTask } from "../lib/api"
+import type { SidebarContext } from "../components/Layout"
 
 export function RunsPage() {
   const { navigate } = useProjectNav()
   const { current } = useProject()
+  const { tasksLoading } = useOutletContext<SidebarContext>()
   const [searchParams] = useSearchParams()
   const refTaskId = searchParams.get("ref") ?? undefined
   const refTaskTitle = searchParams.get("refTitle") ?? undefined
   const formRef = useRef<HTMLDivElement>(null)
+  const hasScrolledRef = useRef(false)
 
-  // On mobile the sidebar stacks above the form. Scroll the form into view
-  // when continuing from a completed task so the user doesn't have to scroll manually.
+  // On mobile the sidebar stacks above the form. Scroll the form into view after
+  // the sidebar's initial task fetch completes so the sidebar has its full height
+  // before we scroll — otherwise the form gets pushed back below the viewport.
   useEffect(() => {
-    if (refTaskId && formRef.current) {
+    if (refTaskId && !tasksLoading && !hasScrolledRef.current && formRef.current) {
+      hasScrolledRef.current = true
       formRef.current.scrollIntoView({ behavior: "smooth", block: "start" })
     }
-  }, [refTaskId])
+  }, [refTaskId, tasksLoading])
 
   const handleSubmit = useCallback(async (data: { projectId: string; title: string; description?: string; branch?: string; provider?: string; model?: string; reasoningEffort?: string; parentTaskId?: string; type?: string; images?: import("@tangerine/shared").PromptImage[] }) => {
     if (!current) return
