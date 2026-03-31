@@ -514,7 +514,7 @@ export function TaskDetail() {
                Unmount when hidden at both breakpoints to avoid focusing an invisible input. */}
           {chatTask && (mobilePane === "chat" || visiblePanes.has("chat")) && (
             <div className={[
-              "flex min-w-0 flex-col",
+              "flex min-h-0 min-w-0 flex-col",
               mobilePane === "chat" ? "flex-1" : "hidden",
               visiblePanes.has("chat") ? "md:flex md:flex-1" : "md:hidden",
             ].join(" ")}>
@@ -549,7 +549,7 @@ export function TaskDetail() {
           {hasDiff && (mobilePane === "diff" || visiblePanes.has("diff")) && (
             <div
               className={[
-                "@container/diff flex min-w-0 flex-col",
+                "@container/diff flex min-h-0 min-w-0 flex-col",
                 mobilePane === "diff" ? "flex-1" : "hidden",
                 visiblePanes.has("diff")
                   ? `md:flex${desktopIsSolo || firstVisiblePane === "diff" ? " md:flex-1" : ""}`
@@ -587,7 +587,7 @@ export function TaskDetail() {
           {(mobilePane === "terminal" || visiblePanes.has("terminal")) && (
             <div
               className={[
-                "flex min-w-0 flex-col",
+                "flex min-h-0 min-w-0 flex-col",
                 mobilePane === "terminal" ? "flex-1" : "hidden",
                 visiblePanes.has("terminal")
                   ? `md:flex${desktopIsSolo || firstVisiblePane === "terminal" ? " md:flex-1" : ""}`
@@ -606,7 +606,7 @@ export function TaskDetail() {
           {(mobilePane === "activity" || visiblePanes.has("activity")) && (
             <div
               className={[
-                "flex flex-col bg-surface-secondary",
+                "flex min-h-0 flex-col bg-surface-secondary",
                 mobilePane === "activity" ? "flex-1" : "hidden",
                 visiblePanes.has("activity")
                   ? `md:flex${desktopIsSolo || firstVisiblePane === "activity" ? " md:flex-1" : ""}`
