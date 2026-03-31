@@ -3,7 +3,7 @@
 
 import { Effect } from "effect"
 import { createLogger } from "../logger"
-import { loadConfig, getProjectConfig, getRepoDir, TANGERINE_HOME, readRawConfig, writeRawConfig, isTestMode } from "../config"
+import { loadConfig, getProjectConfig, TANGERINE_HOME, readRawConfig, writeRawConfig, isTestMode } from "../config"
 import { getDb } from "../db/index"
 import { createTask as dbCreateTask, getTask, listTasks, updateTask, insertSessionLog, markTaskResult, getDueCrons, hasActiveCronTask as dbHasActiveCronTask, updateCron } from "../db/queries"
 import { logActivity, cleanupActivities } from "../activity"
@@ -852,17 +852,6 @@ export async function start(): Promise<void> {
     // Start periodic orphan worktree cleanup (every 30s)
     await Effect.runPromise(startOrphanCleanup(orphanDeps))
     log.info("Orphan worktree cleanup started")
-
-    // Start update checker (polls git remote for available updates, does not auto-apply)
-    {
-      const { startUpdateChecker } = await import("../self-update")
-      const projectInfos = config.config.projects.map((p) => ({
-        name: p.name,
-        repoDir: getRepoDir(config.config, p.name),
-        defaultBranch: p.defaultBranch ?? "main",
-      }))
-      await Effect.runPromise(startUpdateChecker(projectInfos))
-    }
 
     // Start PR status monitor (every 60s)
     const prMonitorDeps: PrMonitorDeps = {
