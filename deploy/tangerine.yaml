@@ -58,6 +58,24 @@ provision:
         echo 'set +a' >> ~/.bashrc
       fi
 
+      # GitHub Enterprise proxy setup.
+      # Set GHE_PROXY in .credentials (e.g. GHE_PROXY=socks5://127.0.0.1:8080).
+      # Lima auto-rewrites 127.0.0.1 → host gateway so the host proxy is reachable.
+      # This snippet runs on every shell login to keep git config in sync.
+      cat >> ~/.bashrc << 'PROXY_EOF'
+      if [ -n "${GHE_PROXY:-}" ]; then
+        # gh CLI (Go binary) needs ALL_PROXY for SOCKS5 support
+        export ALL_PROXY="$GHE_PROXY"
+        export all_proxy="$GHE_PROXY"
+        export NO_PROXY="localhost,127.0.0.1,host.lima.internal,0.0.0.0"
+        export no_proxy="$NO_PROXY"
+        # git uses libcurl which natively supports socks5h (DNS via proxy)
+        # Replace socks5:// with socks5h:// so hostnames resolve through proxy
+        git config --global http.proxy "${GHE_PROXY/socks5:/socks5h:}"
+        git config --global https.proxy "${GHE_PROXY/socks5:/socks5h:}"
+      fi
+PROXY_EOF
+
 message: |
   Tangerine VM ready. Next steps:
     1. Clone tangerine repo.
