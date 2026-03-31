@@ -57,11 +57,13 @@ export async function fetchProjects(): Promise<{
   }>("/api/projects")
 }
 
-export async function fetchTasks(filter?: { status?: string; project?: string; search?: string }): Promise<Task[]> {
+export async function fetchTasks(filter?: { status?: string; project?: string; search?: string; limit?: number; offset?: number }): Promise<Task[]> {
   const params = new URLSearchParams()
   if (filter?.status) params.set("status", filter.status)
   if (filter?.project) params.set("project", filter.project)
   if (filter?.search) params.set("search", filter.search)
+  if (filter?.limit !== undefined) params.set("limit", String(filter.limit))
+  if (filter?.offset !== undefined) params.set("offset", String(filter.offset))
   const query = params.toString() ? `?${params}` : ""
   return request<Task[]>(`/api/tasks${query}`)
 }

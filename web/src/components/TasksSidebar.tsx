@@ -1,4 +1,4 @@
-import { useMemo, useState, useCallback } from "react"
+import { useMemo, useState, useCallback, useEffect } from "react"
 import { Link, useLocation, useParams } from "react-router-dom"
 import type { Task } from "@tangerine/shared"
 import { getStatusConfig, hasUnseenUpdates } from "../lib/status"
@@ -18,6 +18,30 @@ interface TasksSidebarProps {
 
 const TERMINATED_STATUSES = new Set(["done", "completed", "failed", "cancelled"])
 const SHOW_COMPLETED_KEY = "tangerine:sidebar-show-completed"
+const ITEMS_PER_PAGE = 20
+
+function PaginationControls({ page, totalPages, onPrev, onNext }: { page: number; totalPages: number; onPrev: () => void; onNext: () => void }) {
+  if (totalPages <= 1) return null
+  return (
+    <div className="flex items-center justify-between px-4 py-1.5">
+      <button
+        onClick={onPrev}
+        disabled={page === 0}
+        className="rounded px-2 py-0.5 text-xxs text-fg-muted hover:bg-surface-secondary disabled:opacity-30"
+      >
+        ← Prev
+      </button>
+      <span className="font-mono text-xxs text-fg-muted">{page + 1} / {totalPages}</span>
+      <button
+        onClick={onNext}
+        disabled={page === totalPages - 1}
+        className="rounded px-2 py-0.5 text-xxs text-fg-muted hover:bg-surface-secondary disabled:opacity-30"
+      >
+        Next →
+      </button>
+    </div>
+  )
+}
 
 function readShowCompleted(): boolean {
   try {
@@ -107,6 +131,8 @@ export function TasksSidebar({ tasks, searchQuery, onSearchChange, onNewAgent, o
   const { current: project } = useProject()
   const [orchLoading, setOrchLoading] = useState(false)
   const [showCompleted, setShowCompleted] = useState(readShowCompleted)
+  const [activePage, setActivePage] = useState(0)
+  const [completedPage, setCompletedPage] = useState(0)
 
   const taskById = useMemo(() => new Map(tasks.map((t) => [t.id, t])), [tasks])
 
@@ -119,6 +145,17 @@ export function TasksSidebar({ tasks, searchQuery, onSearchChange, onNewAgent, o
     () => tasks.filter((t) => TERMINATED_STATUSES.has(t.status) && t.type !== "orchestrator"),
     [tasks],
   )
+
+  const totalActivePages = Math.max(1, Math.ceil(activeTasks.length / ITEMS_PER_PAGE))
+  const totalCompletedPages = Math.max(1, Math.ceil(completedTasks.length / ITEMS_PER_PAGE))
+  const clampedActivePage = Math.min(activePage, totalActivePages - 1)
+  const clampedCompletedPage = Math.min(completedPage, totalCompletedPages - 1)
+
+  const pagedActiveTasks = activeTasks.slice(clampedActivePage * ITEMS_PER_PAGE, (clampedActivePage + 1) * ITEMS_PER_PAGE)
+  const pagedCompletedTasks = completedTasks.slice(clampedCompletedPage * ITEMS_PER_PAGE, (clampedCompletedPage + 1) * ITEMS_PER_PAGE)
+
+  // Reset pages only when search query changes, not on every polling update
+  useEffect(() => { setActivePage(0); setCompletedPage(0) }, [searchQuery])
 
   const orchestrator = useMemo(() => {
     const orchTasks = tasks.filter((t) => t.type === "orchestrator")
@@ -220,7 +257,7 @@ export function TasksSidebar({ tasks, searchQuery, onSearchChange, onNewAgent, o
       <div className="h-px bg-edge" />
 
       <div className="flex-1 overflow-y-auto">
-        {activeTasks.map((task) => (
+        {pagedActiveTasks.map((task) => (
           <TaskItem
             key={task.id}
             task={task}
@@ -229,8 +266,15 @@ export function TasksSidebar({ tasks, searchQuery, onSearchChange, onNewAgent, o
             onRefetch={onRefetch}
           />
         ))}
+        <PaginationControls
+          page={clampedActivePage}
+          totalPages={totalActivePages}
+          onPrev={() => setActivePage((p) => Math.max(0, p - 1))}
+          onNext={() => setActivePage((p) => Math.min(totalActivePages - 1, p + 1))}
+        />
 
         {/* Completed toggle */}
+        <div className="h-px bg-edge" />
         <button
           onClick={handleToggleCompleted}
           className="flex w-full items-center justify-between px-4 py-2.5 text-left hover:bg-surface-secondary"
@@ -251,14 +295,14 @@ export function TasksSidebar({ tasks, searchQuery, onSearchChange, onNewAgent, o
             </svg>
           </div>
         </button>
+        <div className="h-px bg-edge" />
 
         {showCompleted && (
           <>
-            <div className="h-px bg-edge" />
             {completedTasks.length === 0 ? (
               <div className="px-4 py-3 text-xs text-fg-muted">No completed tasks</div>
             ) : (
-              completedTasks.map((task) => (
+              pagedCompletedTasks.map((task) => (
                 <TaskItem
                   key={task.id}
                   task={task}
@@ -268,6 +312,12 @@ export function TasksSidebar({ tasks, searchQuery, onSearchChange, onNewAgent, o
                 />
               ))
             )}
+            <PaginationControls
+              page={clampedCompletedPage}
+              totalPages={totalCompletedPages}
+              onPrev={() => setCompletedPage((p) => Math.max(0, p - 1))}
+              onNext={() => setCompletedPage((p) => Math.min(totalCompletedPages - 1, p + 1))}
+            />
           </>
         )}
       </div>
