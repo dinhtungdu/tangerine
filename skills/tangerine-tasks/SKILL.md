@@ -171,6 +171,8 @@ curl -X PATCH "$API/api/crons/<id>" \
 curl -X DELETE "$API/api/crons/<id>"
 ```
 
+The `description` field becomes the **prompt** given to the spawned task — write it as a clear, self-contained instruction the agent can execute without extra context.
+
 When converting user-specified local times to UTC cron expressions, always confirm the conversion (e.g. "10am Vietnam = 3am UTC → `0 3 * * 1-5`").
 
 ### System
