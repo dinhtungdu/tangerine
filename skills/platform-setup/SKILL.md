@@ -1,38 +1,94 @@
 ---
 name: platform-setup
-description: Set up Tangerine inside a VM — install tools, configure projects, clone repos, and install agent skills.
+description: Set up Tangerine on the host machine or inside a VM — install tools, configure projects, clone repos, and install agent skills.
 metadata:
   author: tung
-  version: "1.0.0"
+  version: "1.1.0"
 ---
 
 # Tangerine Init Skill
 
-Set up the Tangerine coding agent platform. Tangerine runs INSIDE a VM (or VPS) — the server, dashboard, agents, and all project repos live together on one machine. The VM is a sandbox where agents run with `--dangerously-skip-permissions`.
+Set up the Tangerine coding agent platform. Tangerine can run directly on the host machine OR inside a Lima VM. Either way: one machine runs the server, dashboard, agents, and all project repos.
 
 ## Architecture (v1)
 
 ```
-Host (laptop)
-│  browser → localhost:3456
-└── VM (Lima)
-    ├── tangerine server + dashboard (:3456)
-    ├── {workspace}/project-a/0 (main clone)
-    │                          1 (task worktree)
-    │                          2 (task worktree)
-    ├── {workspace}/project-b/0, 1, ...
-    ├── agents (claude, opencode) — local processes
-    └── Apache, MariaDB, tools — shared
+Host (laptop) — or VM (Lima)
+├── tangerine server + dashboard (:3456)
+├── {workspace}/project-a/0 (main clone)
+│                          1 (task worktree)
+│                          2 (task worktree)
+├── {workspace}/project-b/0, 1, ...
+├── agents (claude, opencode) — local processes
+└── Apache, MariaDB, tools — shared
 ```
 `{workspace}` defaults to `~/tangerine-workspace` but is configurable via `config.workspace` in `~/tangerine/config.json`.
 
-No SSH tunnels, no per-project VMs. One VM, all projects.
+No SSH tunnels, no per-project VMs. One machine, all projects.
 
 ## Setup Modes
 
-### Mode 1: Fresh VM Setup (from host)
+### Mode 1: Host Machine Setup
 
-User runs `/platform-setup` from the HOST machine. You help them:
+User runs `/platform-setup` from their host machine (macOS or Linux) and wants to run Tangerine natively — no VM. You help them:
+
+1. **Install prerequisites**
+
+   Detect OS: `uname -s` → `Darwin` = macOS, `Linux` = Linux.
+
+   **macOS** (use Homebrew; install brew first if missing):
+   ```bash
+   brew install git gh jq tmux node
+   # Bun:
+   curl -fsSL https://bun.sh/install | bash
+   ```
+
+   **Linux (Debian/Ubuntu)**:
+   ```bash
+   sudo apt-get update && sudo apt-get install -y git curl jq tmux
+   # Node.js 22:
+   curl -fsSL https://deb.nodesource.com/setup_22.x | sudo bash -
+   sudo apt-get install -y nodejs
+   # Bun:
+   curl -fsSL https://bun.sh/install | bash
+   # gh CLI:
+   (type -p wget >/dev/null || (sudo apt update && sudo apt-get install wget -y)) \
+     && sudo mkdir -p -m 755 /etc/apt/keyrings \
+     && out=$(mktemp) && wget -nv -O$out https://cli.github.com/packages/githubcli-archive-keyring.gpg \
+     && cat $out | sudo tee /etc/apt/keyrings/githubcli-archive-keyring.gpg > /dev/null \
+     && sudo chmod go+r /etc/apt/keyrings/githubcli-archive-keyring.gpg \
+     && echo "deb [arch=$(dpkg --print-architecture) signed-by=/etc/apt/keyrings/githubcli-archive-keyring.gpg] https://cli.github.com/packages stable main" | sudo tee /etc/apt/sources.list.d/github-cli.list > /dev/null \
+     && sudo apt update && sudo apt install gh -y
+   ```
+
+2. **Install agent CLIs**:
+   ```bash
+   npm install -g @anthropic-ai/claude-code opencode-ai
+   ```
+
+3. **Clone tangerine**:
+   ```bash
+   mkdir -p ~/workspace
+   git clone <tangerine-repo> ~/workspace/tangerine
+   cd ~/workspace/tangerine && bun install
+   ```
+
+4. **Configure projects** (see Project Setup below)
+
+5. **Install agent skills**:
+   ```bash
+   cd ~/workspace/tangerine
+   bin/tangerine install
+   ```
+
+6. **Start server**:
+   ```bash
+   bin/tangerine start
+   ```
+
+### Mode 2: Fresh VM Setup (from host, Lima)
+
+User runs `/platform-setup` from the HOST machine and wants a Lima VM. You help them:
 
 1. **Create Lima VM** (if not exists):
    ```bash
@@ -61,9 +117,9 @@ User runs `/platform-setup` from the HOST machine. You help them:
    bin/tangerine start
    ```
 
-### Mode 2: Project Setup (inside VM)
+### Mode 3: Project Setup (inside VM or on host)
 
-User runs `/platform-setup` from INSIDE the VM in a project directory. You help them add the project to Tangerine.
+User runs `/platform-setup` from inside the VM or on the host in a project directory. You help them add the project to Tangerine.
 
 ## Project Setup Workflow
 
