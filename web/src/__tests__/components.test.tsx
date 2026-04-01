@@ -6,9 +6,10 @@ import { NewAgentForm } from "../components/NewAgentForm"
 import { ChatInput, appendQuotedText } from "../components/ChatInput"
 import { ChatPanel } from "../components/ChatPanel"
 import { ModelSelector } from "../components/ModelSelector"
-import { QuickOpen } from "../components/QuickOpen"
+import { CommandPalette } from "../components/CommandPalette"
 import { StatusPage } from "../pages/StatusPage"
 import { ProjectProvider } from "../context/ProjectContext"
+import { _resetForTesting as resetActions } from "../lib/actions"
 import type { Task, ActivityEntry } from "@tangerine/shared"
 
 const originalFetch = global.fetch
@@ -62,6 +63,7 @@ afterEach(() => {
   cleanup()
   global.fetch = originalFetch
   globalThis.localStorage?.clear()
+  resetActions()
 })
 
 function mockProjectsFetch() {
@@ -514,7 +516,7 @@ describe("ChatPanel", () => {
   })
 })
 
-describe("QuickOpen", () => {
+describe("CommandPalette", () => {
   function mockTasksFetch(tasks: Task[] = []) {
     global.fetch = async (input) => {
       const url = typeof input === "string" ? input : (input as Request).url
@@ -532,25 +534,25 @@ describe("QuickOpen", () => {
     mockTasksFetch([])
     render(
       <MemoryRouter>
-        <QuickOpen />
+        <CommandPalette />
       </MemoryRouter>
     )
 
-    expect(screen.queryByPlaceholderText("Search tasks...")).toBeNull()
+    expect(screen.queryByPlaceholderText("Search tasks and actions...")).toBeNull()
 
     await act(async () => {
       fireEvent.keyDown(document, { key: "k", ctrlKey: true })
       await new Promise((r) => setTimeout(r, 0))
     })
 
-    expect(screen.getByPlaceholderText("Search tasks...")).toBeTruthy()
+    expect(screen.getByPlaceholderText("Search tasks and actions...")).toBeTruthy()
   })
 
   test("closes on Escape", async () => {
     mockTasksFetch([])
     render(
       <MemoryRouter>
-        <QuickOpen />
+        <CommandPalette />
       </MemoryRouter>
     )
 
@@ -559,10 +561,10 @@ describe("QuickOpen", () => {
       await new Promise((r) => setTimeout(r, 0))
     })
 
-    expect(screen.getByPlaceholderText("Search tasks...")).toBeTruthy()
+    expect(screen.getByPlaceholderText("Search tasks and actions...")).toBeTruthy()
 
     fireEvent.keyDown(document, { key: "Escape" })
-    expect(screen.queryByPlaceholderText("Search tasks...")).toBeNull()
+    expect(screen.queryByPlaceholderText("Search tasks and actions...")).toBeNull()
   })
 
   test("shows active tasks by default", async () => {
@@ -573,7 +575,7 @@ describe("QuickOpen", () => {
 
     render(
       <MemoryRouter>
-        <QuickOpen />
+        <CommandPalette />
       </MemoryRouter>
     )
 
@@ -593,7 +595,7 @@ describe("QuickOpen", () => {
 
     render(
       <MemoryRouter>
-        <QuickOpen />
+        <CommandPalette />
       </MemoryRouter>
     )
 
@@ -602,7 +604,7 @@ describe("QuickOpen", () => {
       await new Promise((r) => setTimeout(r, 50))
     })
 
-    const input = screen.getByPlaceholderText("Search tasks...")
+    const input = screen.getByPlaceholderText("Search tasks and actions...")
     fireEvent.change(input, { target: { value: "finished" } })
 
     expect(screen.getByText("Finished feature")).toBeTruthy()
@@ -612,7 +614,7 @@ describe("QuickOpen", () => {
     mockTasksFetch([])
     render(
       <MemoryRouter>
-        <QuickOpen />
+        <CommandPalette />
       </MemoryRouter>
     )
 
@@ -631,7 +633,7 @@ describe("QuickOpen", () => {
 
     render(
       <MemoryRouter>
-        <QuickOpen />
+        <CommandPalette />
       </MemoryRouter>
     )
 
@@ -640,10 +642,10 @@ describe("QuickOpen", () => {
       await new Promise((r) => setTimeout(r, 50))
     })
 
-    const input = screen.getByPlaceholderText("Search tasks...")
+    const input = screen.getByPlaceholderText("Search tasks and actions...")
     fireEvent.change(input, { target: { value: "zzznomatch" } })
 
-    expect(screen.getByText("No matching tasks")).toBeTruthy()
+    expect(screen.getByText("No results")).toBeTruthy()
   })
 
   test("navigates to task on click", async () => {
@@ -654,7 +656,7 @@ describe("QuickOpen", () => {
     render(
       <MemoryRouter initialEntries={["/"]}>
         <Routes>
-          <Route path="/" element={<QuickOpen />} />
+          <Route path="/" element={<CommandPalette />} />
           <Route path="/tasks/abc12345" element={<div>Task Detail</div>} />
         </Routes>
       </MemoryRouter>
@@ -676,7 +678,7 @@ describe("QuickOpen", () => {
 
     render(
       <MemoryRouter>
-        <QuickOpen />
+        <CommandPalette />
       </MemoryRouter>
     )
 

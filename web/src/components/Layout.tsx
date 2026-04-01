@@ -2,12 +2,13 @@ import { useState } from "react"
 import { Link, Outlet, useLocation } from "react-router-dom"
 import type { Task } from "@tangerine/shared"
 import { Topbar } from "./Topbar"
-import { QuickOpen } from "./QuickOpen"
+import { CommandPalette } from "./CommandPalette"
 import { TasksSidebar } from "./TasksSidebar"
 import { ProjectSwitcher } from "./ProjectSwitcher"
 import { useProjectNav } from "../hooks/useProjectNav"
 import { useProject } from "../context/ProjectContext"
 import { useTaskSearch } from "../hooks/useTaskSearch"
+import { useAppActions } from "../hooks/useAppActions"
 
 export interface SidebarContext {
   sidebarOpen: boolean
@@ -22,6 +23,9 @@ export function Layout() {
   const { link, navigate } = useProjectNav()
   const { current } = useProject()
   const { query, setQuery, tasks, loading: tasksLoading, refetch } = useTaskSearch(current?.name)
+
+  // Register all app-wide actions + activate global shortcuts
+  useAppActions()
 
   const isTaskDetail = location.pathname.startsWith("/tasks/")
   const isRoot = location.pathname === "/"
@@ -106,7 +110,7 @@ export function Layout() {
         </div>
       </main>
 
-      <QuickOpen />
+      <CommandPalette />
     </div>
   )
 }
