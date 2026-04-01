@@ -1,3 +1,4 @@
+import { useRef, useEffect } from "react"
 import type { Task } from "@tangerine/shared"
 import { getStatusConfig } from "../lib/status"
 
@@ -6,18 +7,23 @@ interface MentionPickerProps {
   selectedIndex: number
   onSelect: (task: Task) => void
   onHover: (index: number) => void
-  /** Rect of the textarea, used to position the dropdown */
-  anchorRect: DOMRect | null
 }
 
-export function MentionPicker({ tasks, selectedIndex, onSelect, onHover, anchorRect }: MentionPickerProps) {
-  if (tasks.length === 0 || !anchorRect) return null
+export function MentionPicker({ tasks, selectedIndex, onSelect, onHover }: MentionPickerProps) {
+  const listRef = useRef<HTMLDivElement>(null)
+
+  useEffect(() => {
+    const item = listRef.current?.children[selectedIndex] as HTMLElement | undefined
+    item?.scrollIntoView({ block: "nearest" })
+  }, [selectedIndex])
+
+  if (tasks.length === 0) return null
 
   return (
     <div
       className="absolute bottom-full left-0 right-0 z-50 mb-1"
     >
-      <div className="max-h-52 overflow-y-auto rounded-lg border border-edge bg-surface shadow-lg">
+      <div ref={listRef} className="max-h-52 overflow-y-auto rounded-lg border border-edge bg-surface shadow-lg">
         {tasks.map((task, i) => {
           const statusConfig = getStatusConfig(task.status)
           const isSelected = i === selectedIndex

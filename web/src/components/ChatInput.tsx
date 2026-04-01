@@ -51,7 +51,6 @@ export function ChatInput({ onSend, disabled, queueLength, taskId, isWorking, on
   const [text, setText] = useState(() => draftKey ? (loadChatDraft(draftKey).text ?? "") : "")
   const [pendingImages, setPendingImages] = useState<PendingImage[]>(() => draftKey ? (loadChatDraft(draftKey).pendingImages ?? []) : [])
   const textareaRef = useRef<HTMLTextAreaElement>(null)
-  const textareaWrapperRef = useRef<HTMLDivElement>(null)
   const appliedDraftInsertIdRef = useRef<number | null>(null)
 
   const { tasks: allTasks } = useTasks()
@@ -262,14 +261,13 @@ export function ChatInput({ onSend, disabled, queueLength, taskId, isWorking, on
       )}
 
       <div className="flex items-end gap-2">
-        <div ref={textareaWrapperRef} className="relative min-w-0 flex-1">
+        <div className="relative min-w-0 flex-1">
           {mention.state.isOpen && (
             <MentionPicker
               tasks={mention.filteredTasks}
               selectedIndex={mention.state.selectedIndex}
               onSelect={handleMentionSelect}
               onHover={(i) => mention.setSelectedIndex(i)}
-              anchorRect={textareaWrapperRef.current?.getBoundingClientRect() ?? null}
             />
           )}
           <textarea
