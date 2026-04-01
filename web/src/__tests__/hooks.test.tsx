@@ -203,6 +203,30 @@ describe("useMentionPicker", () => {
     expect(result.current.filteredTasks[1].status).toBe("done")
   })
 
+  test("clamps arrow navigation to filtered list bounds", () => {
+    const { result } = renderHook(() => useMentionPicker(mentionTasks))
+    // Filter to single result
+    act(() => result.current.onTextChange("@auth", 5))
+    expect(result.current.filteredTasks).toHaveLength(1)
+
+    // ArrowDown should not go past last filtered item
+    act(() => {
+      result.current.onKeyDown({ key: "ArrowDown", preventDefault: () => {} })
+    })
+    expect(result.current.state.selectedIndex).toBe(0) // clamped to 0 (only 1 item)
+  })
+
+  test("does not consume Enter/Tab when no matches", () => {
+    const { result } = renderHook(() => useMentionPicker(mentionTasks))
+    act(() => result.current.onTextChange("@zzzznotask", 11))
+    expect(result.current.state.isOpen).toBe(true)
+    expect(result.current.filteredTasks).toHaveLength(0)
+
+    // onKeyDown should NOT consume Enter when there are no matches
+    const consumed = result.current.onKeyDown({ key: "Enter", preventDefault: () => {} })
+    expect(consumed).toBe(false)
+  })
+
   test("does not open for @ preceded by non-whitespace", () => {
     const { result } = renderHook(() => useMentionPicker(mentionTasks))
     act(() => result.current.onTextChange("email@auth", 10))

@@ -28,9 +28,8 @@ const CLOSED: MentionPickerState = { isOpen: false, query: "", selectedIndex: 0,
 
 export function useMentionPicker(tasks: Task[]): UseMentionPickerResult {
   const [state, setState] = useState<MentionPickerState>(CLOSED)
-  // Use ref for tasks to avoid re-creating callbacks
-  const tasksRef = useRef(tasks)
-  tasksRef.current = tasks
+  // Ref to track filtered count for keyboard bounds without re-creating callbacks
+  const filteredCountRef = useRef(0)
 
   const filteredTasks = useMemo(() => {
     if (!state.isOpen) return []
@@ -49,6 +48,8 @@ export function useMentionPicker(tasks: Task[]): UseMentionPickerResult {
       })
       .slice(0, 8)
   }, [tasks, state.isOpen, state.query])
+
+  filteredCountRef.current = filteredTasks.length
 
   const close = useCallback(() => setState(CLOSED), [])
 
@@ -88,7 +89,7 @@ export function useMentionPicker(tasks: Task[]): UseMentionPickerResult {
       e.preventDefault()
       setState((s) => ({
         ...s,
-        selectedIndex: Math.min(s.selectedIndex + 1, tasksRef.current.length - 1),
+        selectedIndex: Math.min(s.selectedIndex + 1, filteredCountRef.current - 1),
       }))
       return true
     }
@@ -100,10 +101,7 @@ export function useMentionPicker(tasks: Task[]): UseMentionPickerResult {
       }))
       return true
     }
-    if (e.key === "Enter" || e.key === "Tab") {
-      e.preventDefault()
-      return true // Caller should handle selectTask
-    }
+    // Enter/Tab are handled by the caller only when there's a valid selection
     return false
   }, [state.isOpen])
 
