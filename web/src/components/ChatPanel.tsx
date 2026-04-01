@@ -11,6 +11,7 @@ const TERMINATED_STATUSES: TaskStatus[] = ["done", "failed", "cancelled"]
 
 interface ChatPanelProps {
   messages: ChatMessageType[]
+  tasks?: ReadonlyArray<{ id: string }>
   agentStatus: "idle" | "working"
   queueLength: number
   model?: string | null
@@ -33,6 +34,7 @@ interface ChatPanelProps {
 
 export function ChatPanel({
   messages,
+  tasks,
   agentStatus,
   queueLength,
   model,
@@ -206,7 +208,7 @@ export function ChatPanel({
               No messages yet. Send a prompt to start.
             </div>
           ) : (
-            visibleMessages.map((msg) => <ChatMessage key={msg.id} message={msg} />)
+            visibleMessages.map((msg) => <ChatMessage key={msg.id} message={msg} tasks={tasks} />)
           )}
 
           {/* Thinking indicator */}
