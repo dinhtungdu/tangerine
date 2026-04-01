@@ -9,6 +9,7 @@ interface NewAgentFormProps {
   onSubmit: (data: { projectId: string; title: string; description?: string; branch?: string; provider?: string; model?: string; reasoningEffort?: string; parentTaskId?: string; type?: string; images?: PromptImage[] }) => void
   refTaskId?: string
   refTaskTitle?: string
+  autoFocus?: boolean
 }
 
 interface PendingImage extends PromptImage {
@@ -25,7 +26,7 @@ function loadDraftFromKey(key: string): { description?: string; customBranch?: s
 
 /* -- Main form -- */
 
-export function NewAgentForm({ onSubmit, refTaskId, refTaskTitle }: NewAgentFormProps) {
+export function NewAgentForm({ onSubmit, refTaskId, refTaskTitle, autoFocus }: NewAgentFormProps) {
   const { current, modelsByProvider } = useProject()
   const PREFS_KEY = "tangerine:agent-prefs"
   const draftKey = `tangerine:new-agent-draft:${current?.name ?? "unknown"}:${refTaskId ?? "new"}`
@@ -231,7 +232,7 @@ export function NewAgentForm({ onSubmit, refTaskId, refTaskTitle }: NewAgentForm
               </div>
             )}
             <textarea
-              autoFocus
+              autoFocus={autoFocus}
               value={description}
               onChange={(e) => setDescription(e.target.value)}
               onKeyDown={(e) => {

@@ -99,7 +99,7 @@ export function Layout() {
               tasks={tasks}
               searchQuery={query}
               onSearchChange={setQuery}
-              onNewAgent={() => navigate("/")}
+              onNewAgent={() => navigate("/?focus=1")}
               onRefetch={refetch}
             />
           </div>
