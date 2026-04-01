@@ -256,7 +256,8 @@ export function TasksSidebar({ tasks, searchQuery, onSearchChange, onNewAgent, o
 
       <div className="h-px bg-edge" />
 
-      <div className="flex-1 overflow-y-auto">
+      {/* Active tasks — scrolls internally on desktop, natural height on mobile */}
+      <div className="md:flex-1 md:min-h-0 md:overflow-y-auto">
         {pagedActiveTasks.map((task) => (
           <TaskItem
             key={task.id}
@@ -272,55 +273,53 @@ export function TasksSidebar({ tasks, searchQuery, onSearchChange, onNewAgent, o
           onPrev={() => setActivePage((p) => Math.max(0, p - 1))}
           onNext={() => setActivePage((p) => Math.min(totalActivePages - 1, p + 1))}
         />
-
-        {/* Completed toggle */}
-        <div className="h-px bg-edge" />
-        <button
-          onClick={handleToggleCompleted}
-          className="flex w-full items-center justify-between px-4 py-2.5 text-left hover:bg-surface-secondary"
-        >
-          <span className="text-xxs font-medium tracking-wider text-fg-muted">
-            COMPLETED
-          </span>
-          <div className="flex items-center gap-1.5">
-            <span className="font-mono text-xxs text-fg-muted">{completedTasks.length}</span>
-            <svg
-              className={`h-3 w-3 text-fg-muted transition-transform ${showCompleted ? "rotate-180" : ""}`}
-              fill="none"
-              viewBox="0 0 24 24"
-              stroke="currentColor"
-              strokeWidth={2}
-            >
-              <path strokeLinecap="round" strokeLinejoin="round" d="m19.5 8.25-7.5 7.5-7.5-7.5" />
-            </svg>
-          </div>
-        </button>
-        <div className="h-px bg-edge" />
-
-        {showCompleted && (
-          <>
-            {completedTasks.length === 0 ? (
-              <div className="px-4 py-3 text-xs text-fg-muted">No completed tasks</div>
-            ) : (
-              pagedCompletedTasks.map((task) => (
-                <TaskItem
-                  key={task.id}
-                  task={task}
-                  isActive={task.id === activeId}
-                  taskById={taskById}
-                  onRefetch={onRefetch}
-                />
-              ))
-            )}
-            <PaginationControls
-              page={clampedCompletedPage}
-              totalPages={totalCompletedPages}
-              onPrev={() => setCompletedPage((p) => Math.max(0, p - 1))}
-              onNext={() => setCompletedPage((p) => Math.min(totalCompletedPages - 1, p + 1))}
-            />
-          </>
-        )}
       </div>
+
+      {/* Completed — sibling section at same level as ACTIVE RUNS */}
+      <div className="h-px shrink-0 bg-edge" />
+      <button
+        onClick={handleToggleCompleted}
+        className="flex w-full shrink-0 items-center justify-between px-4 py-2.5 text-left hover:bg-surface-secondary"
+      >
+        <span className="text-xxs font-medium tracking-wider text-fg-muted">COMPLETED</span>
+        <div className="flex items-center gap-1.5">
+          <span className="font-mono text-xxs text-fg-muted">{completedTasks.length}</span>
+          <svg
+            className={`h-3 w-3 text-fg-muted transition-transform ${showCompleted ? "rotate-180" : ""}`}
+            fill="none"
+            viewBox="0 0 24 24"
+            stroke="currentColor"
+            strokeWidth={2}
+          >
+            <path strokeLinecap="round" strokeLinejoin="round" d="m19.5 8.25-7.5 7.5-7.5-7.5" />
+          </svg>
+        </div>
+      </button>
+      <div className="h-px shrink-0 bg-edge" />
+
+      {showCompleted && (
+        <div className="md:max-h-[40%] md:overflow-y-auto">
+          {completedTasks.length === 0 ? (
+            <div className="px-4 py-3 text-xs text-fg-muted">No completed tasks</div>
+          ) : (
+            pagedCompletedTasks.map((task) => (
+              <TaskItem
+                key={task.id}
+                task={task}
+                isActive={task.id === activeId}
+                taskById={taskById}
+                onRefetch={onRefetch}
+              />
+            ))
+          )}
+          <PaginationControls
+            page={clampedCompletedPage}
+            totalPages={totalCompletedPages}
+            onPrev={() => setCompletedPage((p) => Math.max(0, p - 1))}
+            onNext={() => setCompletedPage((p) => Math.min(totalCompletedPages - 1, p + 1))}
+          />
+        </div>
+      )}
     </div>
   )
 }
