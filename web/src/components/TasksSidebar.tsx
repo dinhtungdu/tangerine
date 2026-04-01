@@ -206,7 +206,7 @@ export function TasksSidebar({ tasks, searchQuery, onSearchChange, onNewAgent, o
             <svg className="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
               <path strokeLinecap="round" strokeLinejoin="round" d="M12 4.5v15m7.5-7.5h-15" />
             </svg>
-            <span className="text-md font-medium">New Agent</span>
+            <span className="text-md font-medium">New Run</span>
           </button>
         )}
         <div className="flex h-[34px] items-center gap-2 rounded-md border border-edge bg-surface px-2.5">
