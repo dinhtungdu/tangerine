@@ -19,6 +19,9 @@ watch_config() {
 }
 
 while true; do
+  # Resolve stable symlink so restarts pick up a refreshed SSH agent
+  [ -S "$HOME/.ssh/agent.sock" ] && export SSH_AUTH_SOCK="$HOME/.ssh/agent.sock"
+
   bun "$SCRIPT_DIR/tangerine" start &
   SERVER_PID=$!
 
