@@ -3,12 +3,13 @@ import type { Components } from "react-markdown"
 import ReactMarkdown from "react-markdown"
 import remarkGfm from "remark-gfm"
 import type { ChatMessage as ChatMessageType } from "../hooks/useSession"
-import { formatTimestamp } from "../lib/format"
+import { formatTimestamp, linkifyTaskIds, linkifyTaskIdsMarkdown } from "../lib/format"
 import { ToolCallDisplay } from "./ToolCallDisplay"
 import { ImageLightbox } from "./ImageLightbox"
 
 interface ChatMessageProps {
   message: ChatMessageType
+  tasks?: ReadonlyArray<{ id: string }>
 }
 
 function isToolCall(content: string): boolean {
@@ -25,11 +26,13 @@ function escapeHtml(text: string): string {
   return text.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;")
 }
 
-function linkifyUrls(text: string): string {
-  return escapeHtml(text).replace(
+function linkifyUrls(text: string, tasks?: ReadonlyArray<{ id: string }>): string {
+  const escaped = escapeHtml(text)
+  const withUrls = escaped.replace(
     /(https?:\/\/[^\s<]+)/g,
     '<a href="$1" target="_blank" rel="noopener noreferrer">$1</a>',
   )
+  return tasks ? linkifyTaskIds(withUrls, tasks) : withUrls
 }
 
 const markdownComponents: Components = {
@@ -75,7 +78,7 @@ const markdownComponents: Components = {
 
 const remarkPlugins = [remarkGfm]
 
-export const ChatMessage = memo(function ChatMessage({ message }: ChatMessageProps) {
+export const ChatMessage = memo(function ChatMessage({ message, tasks }: ChatMessageProps) {
   const [lightboxIndex, setLightboxIndex] = useState<number | null>(null)
   const isUser = message.role === "user"
   const isSystem = message.role === "system"
@@ -120,7 +123,7 @@ export const ChatMessage = memo(function ChatMessage({ message }: ChatMessagePro
           {message.content && (
             <p
               className="whitespace-pre-wrap text-md leading-[1.5] text-white [&_a]:underline [&_a]:text-link hover:[&_a]:text-link-hover [&_a]:break-all"
-              dangerouslySetInnerHTML={{ __html: linkifyUrls(message.content) }}
+              dangerouslySetInnerHTML={{ __html: linkifyUrls(message.content, tasks) }}
             />
           )}
           <span className="mt-1 block text-right text-2xs text-fg-muted/50">
@@ -210,7 +213,7 @@ export const ChatMessage = memo(function ChatMessage({ message }: ChatMessagePro
       </div>
       <div className="text-md leading-[1.6] text-fg">
         <ReactMarkdown remarkPlugins={remarkPlugins} components={markdownComponents}>
-          {message.content}
+          {tasks ? linkifyTaskIdsMarkdown(message.content, tasks) : message.content}
         </ReactMarkdown>
       </div>
       {message.images && message.images.length > 0 && (

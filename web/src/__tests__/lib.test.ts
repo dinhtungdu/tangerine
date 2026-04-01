@@ -6,6 +6,8 @@ import {
   formatRelativeTime,
   formatTimestamp,
   formatCronExpression,
+  linkifyTaskIds,
+  linkifyTaskIdsMarkdown,
 } from "../lib/format"
 import { getStatusConfig, STATUS_CONFIG } from "../lib/status"
 import { getActivityStyle, getActivityDetail } from "../lib/activity"
@@ -362,5 +364,60 @@ describe("actions", () => {
     const result = formatShortcut({ key: "k", meta: true })
     // Result depends on navigator.userAgent but should contain the key
     expect(result).toContain("K")
+  })
+})
+
+describe("linkifyTaskIds", () => {
+  const tasks = [
+    { id: "abc12345-0000-0000-0000-000000000001" },
+    { id: "abc12345-0000-0000-0000-000000000002" },
+  ]
+
+  test("replaces known UUID with short anchor tag", () => {
+    const result = linkifyTaskIds("abc12345-0000-0000-0000-000000000001", tasks)
+    expect(result).toContain('<a href="/tasks/abc12345-0000-0000-0000-000000000001"')
+    expect(result).toContain("abc12345</a>")
+  })
+
+  test("does not linkify unknown UUIDs", () => {
+    const result = linkifyTaskIds("deadbeef-0000-0000-0000-000000000099", tasks)
+    expect(result).toBe("deadbeef-0000-0000-0000-000000000099")
+    expect(result).not.toContain("<a")
+  })
+
+  test("handles empty tasks list — no links", () => {
+    const result = linkifyTaskIds("abc12345-0000-0000-0000-000000000001", [])
+    expect(result).not.toContain("<a")
+  })
+
+  test("linkifies UUID embedded in surrounding text", () => {
+    const result = linkifyTaskIds("See task abc12345-0000-0000-0000-000000000001 for details", tasks)
+    expect(result).toContain("See task ")
+    expect(result).toContain('<a href="/tasks/abc12345-0000-0000-0000-000000000001"')
+    expect(result).toContain(" for details")
+  })
+
+  test("is case-insensitive for UUID matching", () => {
+    const result = linkifyTaskIds("ABC12345-0000-0000-0000-000000000001", tasks)
+    expect(result).toContain("<a")
+  })
+})
+
+describe("linkifyTaskIdsMarkdown", () => {
+  const tasks = [{ id: "abc12345-0000-0000-0000-000000000001" }]
+
+  test("replaces known UUID with markdown link", () => {
+    const result = linkifyTaskIdsMarkdown("Task abc12345-0000-0000-0000-000000000001 done", tasks)
+    expect(result).toBe("Task [abc12345](/tasks/abc12345-0000-0000-0000-000000000001) done")
+  })
+
+  test("leaves unknown UUID as plain text", () => {
+    const result = linkifyTaskIdsMarkdown("deadbeef-0000-0000-0000-000000000099", tasks)
+    expect(result).toBe("deadbeef-0000-0000-0000-000000000099")
+  })
+
+  test("handles empty tasks list", () => {
+    const result = linkifyTaskIdsMarkdown("abc12345-0000-0000-0000-000000000001", [])
+    expect(result).toBe("abc12345-0000-0000-0000-000000000001")
   })
 })

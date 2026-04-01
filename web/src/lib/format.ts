@@ -42,6 +42,37 @@ export function formatTimestamp(iso: string): string {
   return `${date} · ${time}`
 }
 
+const UUID_RE = /\b([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})\b/gi
+
+/** Replace full UUIDs matching known task IDs with short HTML anchor tags.
+ *  Input must already be HTML-escaped. Only UUIDs present in tasks are linked;
+ *  unknown UUIDs are left as plain text to avoid false links. */
+export function linkifyTaskIds(
+  html: string,
+  tasks: ReadonlyArray<{ id: string }>,
+): string {
+  if (tasks.length === 0) return html
+  const known = new Set(tasks.map((t) => t.id.toLowerCase()))
+  return html.replace(UUID_RE, (uuid) => {
+    if (!known.has(uuid.toLowerCase())) return uuid
+    return `<a href="/tasks/${uuid}" class="underline text-link hover:text-link-hover">${uuid.slice(0, 8)}</a>`
+  })
+}
+
+/** Replace full UUIDs matching known task IDs with markdown links.
+ *  For pre-processing raw markdown before ReactMarkdown rendering. */
+export function linkifyTaskIdsMarkdown(
+  text: string,
+  tasks: ReadonlyArray<{ id: string }>,
+): string {
+  if (tasks.length === 0) return text
+  const known = new Set(tasks.map((t) => t.id.toLowerCase()))
+  return text.replace(UUID_RE, (uuid) => {
+    if (!known.has(uuid.toLowerCase())) return uuid
+    return `[${uuid.slice(0, 8)}](/tasks/${uuid})`
+  })
+}
+
 /** Extract PR number from a GitHub PR URL, e.g. "https://github.com/owner/repo/pull/123" → "#123" */
 export function formatPrNumber(prUrl: string): string {
   const match = prUrl.match(/\/pull\/(\d+)/)
