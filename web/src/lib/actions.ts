@@ -82,7 +82,11 @@ export function formatShortcut(s: Shortcut): string {
 
 /** Check if a KeyboardEvent matches a Shortcut. */
 export function matchesShortcut(e: KeyboardEvent, s: Shortcut): boolean {
-  const metaMatch = s.meta ? (e.metaKey || e.ctrlKey) : (!e.metaKey && !e.ctrlKey)
+  const isMac = /Mac|iPhone|iPad/.test(navigator.userAgent)
+  // On macOS, meta = Cmd (metaKey). On other platforms, meta = Ctrl (ctrlKey).
+  // Never match Super/Windows key on Linux/Windows — it's reserved for OS shortcuts.
+  const modKey = isMac ? e.metaKey : e.ctrlKey
+  const metaMatch = s.meta ? modKey : !(e.metaKey || e.ctrlKey)
   const shiftMatch = s.shift ? e.shiftKey : !e.shiftKey
   const altMatch = s.alt ? e.altKey : !e.altKey
   return metaMatch && shiftMatch && altMatch && e.key.toLowerCase() === s.key.toLowerCase()

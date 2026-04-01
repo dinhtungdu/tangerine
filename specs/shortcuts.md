@@ -66,7 +66,7 @@ The registry is a plain module singleton (not React context), so it can be impor
 - Default view (no query): shows available actions grouped by section.
 - Typing filters actions by label fuzzy match.
 - Prefix `>` filters to actions only (like VS Code).
-- Prefix `#` or no prefix with matches: shows tasks (preserving QuickOpen behavior).
+- Without prefix: mixed mode shows both tasks and actions (preserving QuickOpen behavior).
 - Arrow keys navigate, Enter executes, Escape closes.
 
 ## Initial Actions

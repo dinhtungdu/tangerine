@@ -336,23 +336,25 @@ describe("actions", () => {
     expect(count).toBe(2)
   })
 
-  test("matchesShortcut matches meta+key", () => {
+  test("matchesShortcut matches ctrl+key on non-Mac (test env)", () => {
     const shortcut = { key: "k", meta: true }
-    const match = { key: "k", metaKey: true, ctrlKey: false, shiftKey: false, altKey: false } as KeyboardEvent
+    // In test env (happy-dom), navigator.userAgent is not Mac, so meta = ctrlKey
+    const ctrlMatch = { key: "k", metaKey: false, ctrlKey: true, shiftKey: false, altKey: false } as KeyboardEvent
     const noMatch = { key: "k", metaKey: false, ctrlKey: false, shiftKey: false, altKey: false } as KeyboardEvent
-    expect(matchesShortcut(match, shortcut)).toBe(true)
+    expect(matchesShortcut(ctrlMatch, shortcut)).toBe(true)
     expect(matchesShortcut(noMatch, shortcut)).toBe(false)
   })
 
-  test("matchesShortcut treats ctrlKey as meta", () => {
+  test("matchesShortcut ignores Super key on non-Mac", () => {
     const shortcut = { key: "k", meta: true }
-    const ctrlMatch = { key: "k", metaKey: false, ctrlKey: true, shiftKey: false, altKey: false } as KeyboardEvent
-    expect(matchesShortcut(ctrlMatch, shortcut)).toBe(true)
+    // Super/metaKey should NOT match on non-Mac — reserved for OS
+    const superKey = { key: "k", metaKey: true, ctrlKey: false, shiftKey: false, altKey: false } as KeyboardEvent
+    expect(matchesShortcut(superKey, shortcut)).toBe(false)
   })
 
   test("matchesShortcut rejects extra modifiers", () => {
     const shortcut = { key: "n", meta: true }
-    const withShift = { key: "n", metaKey: true, ctrlKey: false, shiftKey: true, altKey: false } as KeyboardEvent
+    const withShift = { key: "n", metaKey: false, ctrlKey: true, shiftKey: true, altKey: false } as KeyboardEvent
     expect(matchesShortcut(withShift, shortcut)).toBe(false)
   })
 
