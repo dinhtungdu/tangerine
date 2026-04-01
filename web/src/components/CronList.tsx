@@ -5,6 +5,81 @@ import { formatCronExpression, formatRelativeTime } from "../lib/format"
 import { HarnessSelector } from "./HarnessSelector"
 import { ModelSelector } from "./ModelSelector"
 
+interface CronFieldsProps {
+  title: string
+  setTitle: (v: string) => void
+  description: string
+  setDescription: (v: string) => void
+  cron: string
+  setCron: (v: string) => void
+  provider: ProviderType
+  setProvider: (v: ProviderType) => void
+  providerModels: string[]
+  activeModel: string
+  setModel: (v: string) => void
+  branch: string
+  setBranch: (v: string) => void
+}
+
+function CronFields({
+  title, setTitle,
+  description, setDescription,
+  cron, setCron,
+  provider, setProvider,
+  providerModels, activeModel, setModel,
+  branch, setBranch,
+}: CronFieldsProps) {
+  return (
+    <>
+      <input
+        type="text"
+        value={title}
+        onChange={(e) => setTitle(e.target.value)}
+        placeholder="Title (e.g. Nightly test suite)"
+        className="rounded-md border border-edge bg-surface px-3 py-2 text-md text-fg placeholder-fg-muted outline-none"
+      />
+      <textarea
+        value={description}
+        onChange={(e) => setDescription(e.target.value)}
+        placeholder="Task description / prompt (optional)"
+        rows={2}
+        className="resize-none rounded-md border border-edge bg-surface px-3 py-2 text-md text-fg placeholder-fg-muted outline-none"
+      />
+      <div className="flex flex-col gap-2 md:flex-row md:items-center">
+        <div className="flex flex-1 items-center gap-2">
+          <label className="shrink-0 text-xs text-fg-muted">Cron:</label>
+          <input
+            type="text"
+            value={cron}
+            onChange={(e) => setCron(e.target.value)}
+            placeholder="0 9 * * 1-5"
+            className="flex-1 rounded-md border border-edge bg-surface px-3 py-1.5 font-mono text-md text-fg placeholder-fg-muted outline-none"
+          />
+        </div>
+        {cron.trim() && cron.trim().split(/\s+/).length === 5 && (
+          <span className="text-xxs text-fg-muted">{formatCronExpression(cron.trim())}</span>
+        )}
+      </div>
+      <div className="flex flex-col gap-2 md:flex-row md:items-center">
+        <HarnessSelector value={provider} onChange={setProvider} />
+        <ModelSelector
+          models={providerModels}
+          model={activeModel}
+          onModelChange={setModel}
+          menuPlacement="bottom"
+        />
+        <input
+          type="text"
+          value={branch}
+          onChange={(e) => setBranch(e.target.value)}
+          placeholder="Branch (optional)"
+          className="rounded-md border border-edge bg-surface px-3 py-1.5 text-md text-fg placeholder-fg-muted outline-none md:w-[180px]"
+        />
+      </div>
+    </>
+  )
+}
+
 export function CronForm({ projectId, onCreated, modelsByProvider }: {
   projectId: string
   onCreated: () => void
@@ -56,54 +131,14 @@ export function CronForm({ projectId, onCreated, modelsByProvider }: {
     <div className="rounded-lg border border-edge bg-surface p-4">
       <h3 className="mb-3 text-sm font-semibold text-fg">New Cron</h3>
       <div className="flex flex-col gap-3">
-        <input
-          type="text"
-          value={title}
-          onChange={(e) => setTitle(e.target.value)}
-          placeholder="Title (e.g. Nightly test suite)"
-          className="rounded-md border border-edge bg-surface px-3 py-2 text-md text-fg placeholder-fg-muted outline-none"
+        <CronFields
+          title={title} setTitle={setTitle}
+          description={description} setDescription={setDescription}
+          cron={cron} setCron={setCron}
+          provider={provider} setProvider={setProvider}
+          providerModels={providerModels} activeModel={activeModel} setModel={setModel}
+          branch={branch} setBranch={setBranch}
         />
-        <textarea
-          value={description}
-          onChange={(e) => setDescription(e.target.value)}
-          placeholder="Task description / prompt (optional)"
-          rows={2}
-          className="resize-none rounded-md border border-edge bg-surface px-3 py-2 text-md text-fg placeholder-fg-muted outline-none"
-        />
-        <div className="flex flex-col gap-2 md:flex-row md:items-center">
-          <div className="flex flex-1 items-center gap-2">
-            <label className="shrink-0 text-xs text-fg-muted">Cron:</label>
-            <input
-              type="text"
-              value={cron}
-              onChange={(e) => setCron(e.target.value)}
-              placeholder="0 9 * * 1-5"
-              className="flex-1 rounded-md border border-edge bg-surface px-3 py-1.5 font-mono text-md text-fg placeholder-fg-muted outline-none"
-            />
-          </div>
-          {cron.trim() && cron.trim().split(/\s+/).length === 5 && (
-            <span className="text-xxs text-fg-muted">{formatCronExpression(cron.trim())}</span>
-          )}
-        </div>
-        <div className="flex flex-col gap-2 md:flex-row md:items-center">
-          <HarnessSelector
-            value={provider}
-            onChange={setProvider}
-          />
-          <ModelSelector
-            models={providerModels}
-            model={activeModel}
-            onModelChange={setModel}
-            menuPlacement="bottom"
-          />
-          <input
-            type="text"
-            value={branch}
-            onChange={(e) => setBranch(e.target.value)}
-            placeholder="Branch (optional)"
-            className="rounded-md border border-edge bg-surface px-3 py-1.5 text-md text-fg placeholder-fg-muted outline-none md:w-[180px]"
-          />
-        </div>
         {error && <p className="text-xs text-status-error">{error}</p>}
         <button
           onClick={handleSubmit}
@@ -117,31 +152,40 @@ export function CronForm({ projectId, onCreated, modelsByProvider }: {
   )
 }
 
-export function CronEditModal({ cron, modelsByProvider, onSaved, onClose }: {
+export function CronRow({ cron, onToggle, onDelete, onRefresh, modelsByProvider }: {
   cron: Cron
+  onToggle: (id: string, enabled: boolean) => void
+  onDelete: (id: string) => void
+  onRefresh: () => void
   modelsByProvider: Record<string, string[]>
-  onSaved: () => void
-  onClose: () => void
 }) {
+  const [editing, setEditing] = useState(false)
   const [title, setTitle] = useState(cron.title)
   const [description, setDescription] = useState(cron.description ?? "")
   const [cronExpr, setCronExpr] = useState(cron.cron)
-  // taskDefaultsEnabled tracks whether to send taskDefaults at all.
-  // Crons with null taskDefaults use project-level defaults at run time — don't overwrite unless user opts in.
-  const [taskDefaultsEnabled, setTaskDefaultsEnabled] = useState(false)
   const [provider, setProvider] = useState<ProviderType>((cron.taskDefaults?.provider as ProviderType) ?? "claude-code")
-  // model state holds exactly what was saved; we don't fall back to the first available model to avoid
-  // silently changing future runs when the saved model is temporarily unavailable.
   const [model, setModel] = useState(cron.taskDefaults?.model ?? "")
   const [branch, setBranch] = useState(cron.taskDefaults?.branch ?? "")
   const [submitting, setSubmitting] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
   const providerModels = modelsByProvider[provider] ?? []
-  // activeModel is only used for the ModelSelector display; saving uses raw `model` state
+  // activeModel is only for display; saving uses raw `model` to avoid silent fallback
   const activeModel = model && providerModels.includes(model) ? model : providerModels[0] ?? ""
 
   const canSubmit = title.trim() && cronExpr.trim() && !submitting
+
+  const handleCancel = useCallback(() => {
+    // Reset to saved values
+    setTitle(cron.title)
+    setDescription(cron.description ?? "")
+    setCronExpr(cron.cron)
+    setProvider((cron.taskDefaults?.provider as ProviderType) ?? "claude-code")
+    setModel(cron.taskDefaults?.model ?? "")
+    setBranch(cron.taskDefaults?.branch ?? "")
+    setError(null)
+    setEditing(false)
+  }, [cron])
 
   const handleSave = useCallback(async () => {
     if (!canSubmit) return
@@ -150,95 +194,37 @@ export function CronEditModal({ cron, modelsByProvider, onSaved, onClose }: {
     try {
       await updateCron(cron.id, {
         title: title.trim(),
-        // Send null explicitly when cleared so server removes the description
         description: description.trim() || null,
         cron: cronExpr.trim(),
-        taskDefaults: taskDefaultsEnabled ? {
-          // Preserve reasoningEffort from original since this modal doesn't expose it
+        taskDefaults: {
+          // Preserve reasoningEffort since this form doesn't expose it
           ...(cron.taskDefaults?.reasoningEffort ? { reasoningEffort: cron.taskDefaults.reasoningEffort } : {}),
           provider,
-          // Use raw model state to avoid silent fallback to a different model
           model: model || undefined,
           branch: branch.trim() || undefined,
-        } : null,
+        },
       })
-      onSaved()
-      onClose()
+      onRefresh()
+      setEditing(false)
     } catch (e) {
       setError(e instanceof Error ? e.message : String(e))
     } finally {
       setSubmitting(false)
     }
-  }, [canSubmit, cron.id, title, description, cronExpr, taskDefaultsEnabled, provider, model, branch, onSaved, onClose, cron.taskDefaults?.reasoningEffort])
+  }, [canSubmit, cron.id, cron.taskDefaults, title, description, cronExpr, provider, model, branch, onRefresh])
 
-  return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4" onClick={onClose}>
-      <div className="w-full max-w-lg rounded-lg border border-edge bg-surface p-5 shadow-xl" onClick={(e) => e.stopPropagation()}>
-        <div className="mb-4 flex items-center justify-between">
-          <h3 className="text-sm font-semibold text-fg">Edit Cron</h3>
-          <button onClick={onClose} className="rounded p-1 text-fg-muted hover:bg-surface-secondary">
-            <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-              <path strokeLinecap="round" strokeLinejoin="round" d="M6 18 18 6M6 6l12 12" />
-            </svg>
-          </button>
-        </div>
+  if (editing) {
+    return (
+      <div className="border-t border-edge px-4 py-3 first:border-t-0">
         <div className="flex flex-col gap-3">
-          <input
-            type="text"
-            value={title}
-            onChange={(e) => setTitle(e.target.value)}
-            placeholder="Title"
-            className="rounded-md border border-edge bg-surface px-3 py-2 text-md text-fg placeholder-fg-muted outline-none"
+          <CronFields
+            title={title} setTitle={setTitle}
+            description={description} setDescription={setDescription}
+            cron={cronExpr} setCron={setCronExpr}
+            provider={provider} setProvider={setProvider}
+            providerModels={providerModels} activeModel={activeModel} setModel={setModel}
+            branch={branch} setBranch={setBranch}
           />
-          <textarea
-            value={description}
-            onChange={(e) => setDescription(e.target.value)}
-            placeholder="Task description / prompt (optional)"
-            rows={2}
-            className="resize-none rounded-md border border-edge bg-surface px-3 py-2 text-md text-fg placeholder-fg-muted outline-none"
-          />
-          <div className="flex flex-col gap-2 md:flex-row md:items-center">
-            <div className="flex flex-1 items-center gap-2">
-              <label className="shrink-0 text-xs text-fg-muted">Cron:</label>
-              <input
-                type="text"
-                value={cronExpr}
-                onChange={(e) => setCronExpr(e.target.value)}
-                placeholder="0 9 * * 1-5"
-                className="flex-1 rounded-md border border-edge bg-surface px-3 py-1.5 font-mono text-md text-fg placeholder-fg-muted outline-none"
-              />
-            </div>
-            {cronExpr.trim() && cronExpr.trim().split(/\s+/).length === 5 && (
-              <span className="text-xxs text-fg-muted">{formatCronExpression(cronExpr.trim())}</span>
-            )}
-          </div>
-          <label className="flex cursor-pointer items-center gap-2">
-            <input
-              type="checkbox"
-              checked={taskDefaultsEnabled}
-              onChange={(e) => setTaskDefaultsEnabled(e.target.checked)}
-              className="rounded"
-            />
-            <span className="text-xs text-fg-muted">Override task defaults</span>
-          </label>
-          {taskDefaultsEnabled && (
-            <div className="flex flex-col gap-2 md:flex-row md:items-center">
-              <HarnessSelector value={provider} onChange={setProvider} />
-              <ModelSelector
-                models={providerModels}
-                model={activeModel}
-                onModelChange={setModel}
-                menuPlacement="bottom"
-              />
-              <input
-                type="text"
-                value={branch}
-                onChange={(e) => setBranch(e.target.value)}
-                placeholder="Branch (optional)"
-                className="rounded-md border border-edge bg-surface px-3 py-1.5 text-md text-fg placeholder-fg-muted outline-none md:w-[180px]"
-              />
-            </div>
-          )}
           {error && <p className="text-xs text-status-error">{error}</p>}
           <div className="flex gap-2">
             <button
@@ -249,7 +235,7 @@ export function CronEditModal({ cron, modelsByProvider, onSaved, onClose }: {
               {submitting ? "Saving..." : "Save Changes"}
             </button>
             <button
-              onClick={onClose}
+              onClick={handleCancel}
               className="flex h-9 items-center justify-center rounded-md border border-edge px-4 text-md text-fg-muted transition hover:bg-surface-secondary"
             >
               Cancel
@@ -257,16 +243,9 @@ export function CronEditModal({ cron, modelsByProvider, onSaved, onClose }: {
           </div>
         </div>
       </div>
-    </div>
-  )
-}
+    )
+  }
 
-export function CronRow({ cron, onToggle, onDelete, onEdit }: {
-  cron: Cron
-  onToggle: (id: string, enabled: boolean) => void
-  onDelete: (id: string) => void
-  onEdit: (cron: Cron) => void
-}) {
   return (
     <div className="flex items-center gap-3 border-t border-edge px-4 py-3 first:border-t-0">
       {/* Enable/disable toggle */}
@@ -313,7 +292,7 @@ export function CronRow({ cron, onToggle, onDelete, onEdit }: {
 
       {/* Edit */}
       <button
-        onClick={() => onEdit(cron)}
+        onClick={() => setEditing(true)}
         className="shrink-0 rounded p-1.5 text-fg-muted hover:bg-surface-secondary hover:text-fg"
         title="Edit"
       >
