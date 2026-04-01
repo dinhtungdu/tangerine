@@ -367,18 +367,18 @@ describe("pollPrStatuses", () => {
 // ---------------------------------------------------------------------------
 
 describe("buildSystemNotes", () => {
-  test("includes PR push note for worker tasks", () => {
+  test("includes PR creation note for worker tasks", () => {
     const notes = buildSystemNotes("test-id", { taskType: "worker" })
-    expect(notes.some((n) => n.includes("push your branch"))).toBe(true)
+    expect(notes.some((n) => n.includes("rename-branch") && n.includes("gh pr create"))).toBe(true)
   })
 
-  test("includes PR push note when taskType is undefined", () => {
+  test("includes PR creation note when taskType is undefined", () => {
     const notes = buildSystemNotes("test-id", {})
-    expect(notes.some((n) => n.includes("push your branch"))).toBe(true)
+    expect(notes.some((n) => n.includes("rename-branch") && n.includes("gh pr create"))).toBe(true)
   })
 
-  test("excludes PR push note for reviewer tasks", () => {
+  test("excludes PR creation note for reviewer tasks", () => {
     const notes = buildSystemNotes("test-id", { taskType: "reviewer" })
-    expect(notes.some((n) => n.includes("push your branch"))).toBe(false)
+    expect(notes.some((n) => n.includes("rename-branch"))).toBe(false)
   })
 })
