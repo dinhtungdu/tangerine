@@ -66,8 +66,16 @@ export function ChatPanel({
   const [draftInsert, setDraftInsert] = useState<{ id: number, text: string } | null>(null)
   const [selectionMenu, setSelectionMenu] = useState<{ text: string, top: number, left: number } | null>(null)
 
-  // Clear pending quote when switching tasks so the remounted ChatInput doesn't re-apply a stale quote
-  useEffect(() => { setDraftInsert(null) }, [taskId])
+  // Synchronously suppress stale quotes when switching tasks.
+  // useEffect runs *after* render, so the remounted ChatInput would see the old
+  // draftInsert on its first render and apply the quote to the wrong task.
+  const prevTaskIdRef = useRef(taskId)
+  const effectiveDraftInsert = taskId === prevTaskIdRef.current ? draftInsert : null
+  if (taskId !== prevTaskIdRef.current) {
+    prevTaskIdRef.current = taskId
+    // Also clear state so the stale value doesn't persist across future renders
+    if (draftInsert) setDraftInsert(null)
+  }
 
   // Clean up orphaned draft when a task terminates (ChatInput unmounts, draft would linger forever)
   useEffect(() => {
@@ -279,7 +287,7 @@ export function ChatPanel({
           onModelChange={onModelChange}
           onReasoningEffortChange={onReasoningEffortChange}
           predefinedPrompts={predefinedPrompts}
-          draftInsert={draftInsert}
+          draftInsert={effectiveDraftInsert}
           autoFocusKey={autoFocusKey}
         />
         </>
