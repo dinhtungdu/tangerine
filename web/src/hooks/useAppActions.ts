@@ -69,7 +69,8 @@ export function useAppActions() {
         section: "Tasks",
         hidden: true,
         handler: async (args) => {
-          const { taskId } = args as { taskId: string }
+          const taskId = args?.taskId as string | undefined
+          if (!taskId) return
           await cancelTask(taskId)
         },
       },
@@ -79,7 +80,8 @@ export function useAppActions() {
         section: "Tasks",
         hidden: true,
         handler: async (args) => {
-          const { taskId } = args as { taskId: string }
+          const taskId = args?.taskId as string | undefined
+          if (!taskId) return
           await retryTask(taskId)
         },
       },
@@ -89,7 +91,8 @@ export function useAppActions() {
         section: "Tasks",
         hidden: true,
         handler: async (args) => {
-          const { taskId } = args as { taskId: string }
+          const taskId = args?.taskId as string | undefined
+          if (!taskId) return
           await deleteTask(taskId)
         },
       },
@@ -99,7 +102,8 @@ export function useAppActions() {
         section: "Tasks",
         hidden: true,
         handler: async (args) => {
-          const { taskId } = args as { taskId: string }
+          const taskId = args?.taskId as string | undefined
+          if (!taskId) return
           await resolveTask(taskId)
         },
       },
