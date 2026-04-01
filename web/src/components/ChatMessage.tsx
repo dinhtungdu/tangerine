@@ -1,9 +1,11 @@
-import { memo, useState } from "react"
+import { memo, useState, useMemo } from "react"
 import type { Components } from "react-markdown"
 import ReactMarkdown from "react-markdown"
 import remarkGfm from "remark-gfm"
+import { visit } from "unist-util-visit"
+import type { Root, Text, Parent, Link } from "mdast"
 import type { ChatMessage as ChatMessageType } from "../hooks/useSession"
-import { formatTimestamp, linkifyTaskIdsMarkdown } from "../lib/format"
+import { formatTimestamp } from "../lib/format"
 import { ToolCallDisplay } from "./ToolCallDisplay"
 import { ImageLightbox } from "./ImageLightbox"
 
@@ -88,10 +90,42 @@ const markdownComponents: Components = {
   tr: ({ children }) => <tr className="border-t border-edge">{children}</tr>,
 }
 
-const remarkPlugins = [remarkGfm]
+const UUID_RE = /\b([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})\b/gi
+
+/** Remark plugin that replaces task UUID text nodes with MDAST link nodes.
+ *  Because it operates on the AST, `text` nodes are already outside code
+ *  blocks/spans — no manual splitting needed. */
+function makeRemarkLinkifyTaskIds(tasks: ReadonlyArray<{ id: string }>) {
+  const known = new Map(tasks.map((t) => [t.id.toLowerCase(), t.id]))
+  return () => (tree: Root) => {
+    visit(tree, "text", (node: Text, index: number | undefined, parent: Parent | undefined) => {
+      if (!parent || index === undefined) return
+      const parts: Array<Text | Link> = []
+      let last = 0
+      UUID_RE.lastIndex = 0
+      let m: RegExpExecArray | null
+      while ((m = UUID_RE.exec(node.value)) !== null) {
+        const canonicalId = known.get(m[0].toLowerCase())
+        if (!canonicalId) continue
+        if (m.index > last) parts.push({ type: "text", value: node.value.slice(last, m.index) })
+        parts.push({ type: "link", url: `/tasks/${canonicalId}`, children: [{ type: "text", value: canonicalId.slice(0, 8) }], title: null })
+        last = m.index + m[0].length
+      }
+      if (parts.length === 0) return
+      if (last < node.value.length) parts.push({ type: "text", value: node.value.slice(last) })
+      parent.children.splice(index, 1, ...(parts as Parent["children"]))
+    })
+  }
+}
+
+const BASE_REMARK_PLUGINS = [remarkGfm]
 
 export const ChatMessage = memo(function ChatMessage({ message, tasks }: ChatMessageProps) {
   const [lightboxIndex, setLightboxIndex] = useState<number | null>(null)
+  const remarkPlugins = useMemo(
+    () => tasks && tasks.length > 0 ? [...BASE_REMARK_PLUGINS, makeRemarkLinkifyTaskIds(tasks)] : BASE_REMARK_PLUGINS,
+    [tasks],
+  )
   const isUser = message.role === "user"
   const isSystem = message.role === "system"
   const isThinking = message.role === "thinking"
@@ -225,7 +259,7 @@ export const ChatMessage = memo(function ChatMessage({ message, tasks }: ChatMes
       </div>
       <div className="text-md leading-[1.6] text-fg">
         <ReactMarkdown remarkPlugins={remarkPlugins} components={markdownComponents}>
-          {tasks ? linkifyTaskIdsMarkdown(message.content, tasks) : message.content}
+          {message.content}
         </ReactMarkdown>
       </div>
       {message.images && message.images.length > 0 && (

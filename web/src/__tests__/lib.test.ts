@@ -7,7 +7,6 @@ import {
   formatTimestamp,
   formatCronExpression,
   linkifyTaskIds,
-  linkifyTaskIdsMarkdown,
 } from "../lib/format"
 import { getStatusConfig, STATUS_CONFIG } from "../lib/status"
 import { getActivityStyle, getActivityDetail } from "../lib/activity"
@@ -405,37 +404,3 @@ describe("linkifyTaskIds", () => {
   })
 })
 
-describe("linkifyTaskIdsMarkdown", () => {
-  const tasks = [{ id: "abc12345-0000-0000-0000-000000000001" }]
-
-  test("replaces known UUID with markdown link", () => {
-    const result = linkifyTaskIdsMarkdown("Task abc12345-0000-0000-0000-000000000001 done", tasks)
-    expect(result).toBe("Task [abc12345](/tasks/abc12345-0000-0000-0000-000000000001) done")
-  })
-
-  test("leaves unknown UUID as plain text", () => {
-    const result = linkifyTaskIdsMarkdown("deadbeef-0000-0000-0000-000000000099", tasks)
-    expect(result).toBe("deadbeef-0000-0000-0000-000000000099")
-  })
-
-  test("handles empty tasks list", () => {
-    const result = linkifyTaskIdsMarkdown("abc12345-0000-0000-0000-000000000001", [])
-    expect(result).toBe("abc12345-0000-0000-0000-000000000001")
-  })
-
-  test("does not replace UUID inside inline code span", () => {
-    const result = linkifyTaskIdsMarkdown("run `abc12345-0000-0000-0000-000000000001` to cancel", tasks)
-    expect(result).toBe("run `abc12345-0000-0000-0000-000000000001` to cancel")
-  })
-
-  test("does not replace UUID inside fenced code block", () => {
-    const code = "```\ncurl /tasks/abc12345-0000-0000-0000-000000000001\n```"
-    const result = linkifyTaskIdsMarkdown(code, tasks)
-    expect(result).toBe(code)
-  })
-
-  test("uses canonical ID in markdown link", () => {
-    const result = linkifyTaskIdsMarkdown("ABC12345-0000-0000-0000-000000000001", tasks)
-    expect(result).toBe("[abc12345](/tasks/abc12345-0000-0000-0000-000000000001)")
-  })
-})

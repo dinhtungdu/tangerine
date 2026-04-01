@@ -63,30 +63,6 @@ export function linkifyTaskIds(
   })
 }
 
-/** Replace full UUIDs matching known task IDs with markdown links.
- *  For pre-processing raw markdown before ReactMarkdown rendering.
- *  Skips fenced code blocks and inline code spans to avoid corrupting
- *  code examples that happen to contain task IDs. */
-export function linkifyTaskIdsMarkdown(
-  text: string,
-  tasks: ReadonlyArray<{ id: string }>,
-): string {
-  if (tasks.length === 0) return text
-  const known = new Map(tasks.map((t) => [t.id.toLowerCase(), t.id]))
-  // Split on fenced code blocks (```...```) and inline code (`...`), leaving
-  // code segments (odd indices from a capturing-group split) unchanged.
-  const segments = text.split(/(```[\s\S]*?```|`[^`\n]+`)/g)
-  return segments
-    .map((seg, i) => {
-      if (i % 2 === 1) return seg // code segment — leave as-is
-      return seg.replace(UUID_RE, (uuid) => {
-        const canonicalId = known.get(uuid.toLowerCase())
-        if (!canonicalId) return uuid
-        return `[${canonicalId.slice(0, 8)}](/tasks/${canonicalId})`
-      })
-    })
-    .join("")
-}
 
 /** Extract PR number from a GitHub PR URL, e.g. "https://github.com/owner/repo/pull/123" → "#123" */
 export function formatPrNumber(prUrl: string): string {
