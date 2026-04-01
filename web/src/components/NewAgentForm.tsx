@@ -231,6 +231,7 @@ export function NewAgentForm({ onSubmit, refTaskId, refTaskTitle }: NewAgentForm
               </div>
             )}
             <textarea
+              autoFocus
               value={description}
               onChange={(e) => setDescription(e.target.value)}
               onKeyDown={(e) => {
