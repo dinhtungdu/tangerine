@@ -1,7 +1,8 @@
 import { useEffect } from "react"
 import { useNavigate } from "react-router-dom"
-import { registerActions, type Action } from "../lib/actions"
+import { registerActions, registerActionCombos, type Action } from "../lib/actions"
 import { useProjectNav } from "./useProjectNav"
+import { useProject } from "../context/ProjectContext"
 import { useTheme } from "./useTheme"
 import { useShortcuts } from "./useShortcuts"
 
@@ -12,6 +13,7 @@ import { useShortcuts } from "./useShortcuts"
 export function useAppActions() {
   const navigate = useNavigate()
   const { link } = useProjectNav()
+  const { actionCombos } = useProject()
   const { resolved, setTheme } = useTheme()
 
   // Activate the global shortcut listener
@@ -64,4 +66,10 @@ export function useAppActions() {
 
     return registerActions(actions)
   }, [navigate, link, resolved, setTheme])
+
+  // Register user-defined combo actions from config
+  useEffect(() => {
+    if (actionCombos.length === 0) return
+    return registerActionCombos(actionCombos)
+  }, [actionCombos])
 }

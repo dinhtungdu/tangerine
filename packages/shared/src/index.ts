@@ -17,10 +17,12 @@ export type {
 
 export {
   projectConfigSchema,
+  actionComboSchema,
   tangerineConfigSchema,
 } from "./config"
 
 export type {
+  ActionCombo,
   PredefinedPrompt,
   ProjectConfig,
   TangerineConfig,

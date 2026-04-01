@@ -1,6 +1,6 @@
 import { createContext, useContext, useState, useEffect, useCallback, type ReactNode } from "react"
 import { useSearchParams, useNavigate, useLocation } from "react-router-dom"
-import type { ProjectConfig } from "@tangerine/shared"
+import type { ProjectConfig, ActionCombo } from "@tangerine/shared"
 import { fetchProjects, ensureOrchestrator } from "../lib/api"
 
 interface ProjectContextValue {
@@ -12,6 +12,7 @@ interface ProjectContextValue {
   sshHost: string | undefined
   sshUser: string | undefined
   editor: "vscode" | "cursor" | "zed" | undefined
+  actionCombos: ActionCombo[]
   setModel: (model: string) => void
   switchProject: (name: string, options?: { replace?: boolean }) => void
   refreshProjects: () => void
@@ -27,6 +28,7 @@ const ProjectContext = createContext<ProjectContextValue>({
   sshHost: undefined,
   sshUser: undefined,
   editor: undefined,
+  actionCombos: [],
   setModel: () => {},
   switchProject: () => {},
   refreshProjects: () => {},
@@ -45,6 +47,7 @@ export function ProjectProvider({ children }: { children: ReactNode }) {
   const [sshHost, setSshHost] = useState<string | undefined>(undefined)
   const [sshUser, setSshUser] = useState<string | undefined>(undefined)
   const [editor, setEditor] = useState<"vscode" | "cursor" | "zed" | undefined>(undefined)
+  const [actionCombos, setActionCombos] = useState<ActionCombo[]>([])
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
@@ -57,6 +60,7 @@ export function ProjectProvider({ children }: { children: ReactNode }) {
         setSshHost(data.sshHost)
         setSshUser(data.sshUser)
         setEditor(data.editor)
+        setActionCombos(data.actionCombos ?? [])
       })
       .catch(() => {})
       .finally(() => setLoading(false))
@@ -76,6 +80,7 @@ export function ProjectProvider({ children }: { children: ReactNode }) {
         setSshHost(data.sshHost)
         setSshUser(data.sshUser)
         setEditor(data.editor)
+        setActionCombos(data.actionCombos ?? [])
       })
       .catch(() => {})
   }, [])
@@ -120,7 +125,7 @@ export function ProjectProvider({ children }: { children: ReactNode }) {
   }, [loading, projects, projectParam, setSearchParams])
 
   return (
-    <ProjectContext.Provider value={{ projects, current, model, models, modelsByProvider, sshHost, sshUser, editor, setModel: setSelectedModel, switchProject, refreshProjects, loading }}>
+    <ProjectContext.Provider value={{ projects, current, model, models, modelsByProvider, sshHost, sshUser, editor, actionCombos, setModel: setSelectedModel, switchProject, refreshProjects, loading }}>
       {children}
     </ProjectContext.Provider>
   )

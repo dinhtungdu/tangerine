@@ -1,4 +1,4 @@
-import type { Task, ProjectConfig, SystemLogEntry, ActivityEntry } from "@tangerine/shared"
+import type { Task, ProjectConfig, SystemLogEntry, ActivityEntry, ActionCombo } from "@tangerine/shared"
 
 const BASE = ""
 
@@ -45,6 +45,7 @@ export async function fetchProjects(): Promise<{
   sshHost?: string
   sshUser?: string
   editor?: "vscode" | "cursor" | "zed"
+  actionCombos: ActionCombo[]
 }> {
   return request<{
     projects: ProjectConfig[]
@@ -54,6 +55,7 @@ export async function fetchProjects(): Promise<{
     sshHost?: string
     sshUser?: string
     editor?: "vscode" | "cursor" | "zed"
+    actionCombos: ActionCombo[]
   }>("/api/projects")
 }
 

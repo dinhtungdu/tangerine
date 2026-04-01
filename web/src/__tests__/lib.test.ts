@@ -14,6 +14,7 @@ import { copyToClipboard } from "../lib/clipboard"
 import { buildSshEditorUri } from "../lib/ssh-editor"
 import {
   registerActions,
+  registerActionCombos,
   executeAction,
   getActions,
   getAction,
@@ -362,5 +363,124 @@ describe("actions", () => {
     const result = formatShortcut({ key: "k", meta: true })
     // Result depends on navigator.userAgent but should contain the key
     expect(result).toContain("K")
+  })
+
+  describe("registerActionCombos", () => {
+    test("registers combo actions into registry", () => {
+      registerActionCombos([
+        { id: "combo.test", label: "Test Combo", sequence: ["a", "b"] },
+      ])
+      const action = getAction("combo.test")
+      expect(action).toBeDefined()
+      expect(action!.label).toBe("Test Combo")
+      expect(action!.section).toBe("Combos")
+    })
+
+    test("combo handler executes sequence actions in order", async () => {
+      const order: string[] = []
+      registerActions([
+        { id: "step.one", label: "One", handler: () => { order.push("one") } },
+        { id: "step.two", label: "Two", handler: () => { order.push("two") } },
+        { id: "step.three", label: "Three", handler: () => { order.push("three") } },
+      ])
+      registerActionCombos([
+        { id: "combo.seq", label: "Sequence", sequence: ["step.one", "step.two", "step.three"] },
+      ])
+      await getAction("combo.seq")!.handler()
+      expect(order).toEqual(["one", "two", "three"])
+    })
+
+    test("combo handler awaits async actions", async () => {
+      const order: string[] = []
+      registerActions([
+        {
+          id: "async.first", label: "First", handler: async () => {
+            await new Promise((r) => setTimeout(r, 10))
+            order.push("first")
+          },
+        },
+        { id: "sync.second", label: "Second", handler: () => { order.push("second") } },
+      ])
+      registerActionCombos([
+        { id: "combo.async", label: "Async Combo", sequence: ["async.first", "sync.second"] },
+      ])
+      await getAction("combo.async")!.handler()
+      expect(order).toEqual(["first", "second"])
+    })
+
+    test("combo skips unknown action ids with warning", async () => {
+      const warnings: string[] = []
+      const origWarn = console.warn
+      console.warn = (msg: string) => warnings.push(msg)
+
+      let called = false
+      registerActions([
+        { id: "known.action", label: "Known", handler: () => { called = true } },
+      ])
+      registerActionCombos([
+        { id: "combo.skip", label: "Skip Unknown", sequence: ["nonexistent", "known.action"] },
+      ])
+      await getAction("combo.skip")!.handler()
+
+      expect(called).toBe(true)
+      expect(warnings).toContain("Action combo: unknown action id 'nonexistent', skipping")
+
+      console.warn = origWarn
+    })
+
+    test("combo unregister removes combo actions", () => {
+      const unreg = registerActionCombos([
+        { id: "combo.temp", label: "Temporary", sequence: ["a"] },
+      ])
+      expect(getAction("combo.temp")).toBeDefined()
+      unreg()
+      expect(getAction("combo.temp")).toBeUndefined()
+    })
+
+    test("combo skips self-referencing action ids", async () => {
+      const warnings: string[] = []
+      const origWarn = console.warn
+      console.warn = (msg: string) => warnings.push(msg)
+
+      let called = false
+      registerActions([
+        { id: "other.action", label: "Other", handler: () => { called = true } },
+      ])
+      registerActionCombos([
+        { id: "combo.self", label: "Self Ref", sequence: ["combo.self", "other.action"] },
+      ])
+      await getAction("combo.self")!.handler()
+
+      expect(called).toBe(true)
+      expect(warnings).toContain("Action combo: skipping self-reference 'combo.self'")
+
+      console.warn = origWarn
+    })
+
+    test("combo with colliding id is rejected", () => {
+      const warnings: string[] = []
+      const origWarn = console.warn
+      console.warn = (msg: string) => warnings.push(msg)
+
+      registerActions([
+        { id: "task.create", label: "Original", handler: () => {} },
+      ])
+      registerActionCombos([
+        { id: "task.create", label: "Overwrite", sequence: ["a"] },
+      ])
+      // Original action should still be there
+      expect(getAction("task.create")!.label).toBe("Original")
+      expect(warnings).toContain("Action combo: id 'task.create' collides with existing action, skipping")
+
+      console.warn = origWarn
+    })
+
+    test("combo with shortcut is registered", () => {
+      registerActionCombos([
+        { id: "combo.shortcut", label: "With Shortcut", shortcut: { key: "t", meta: true }, sequence: ["a"] },
+      ])
+      const action = getAction("combo.shortcut")
+      expect(action!.shortcut).toEqual({ key: "t", meta: true })
+    })
   })
 })

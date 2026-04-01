@@ -32,6 +32,20 @@ export const projectConfigSchema = z.object({
   ]),
 })
 
+const shortcutSchema = z.object({
+  key: z.string(),
+  meta: z.boolean().optional(),
+  shift: z.boolean().optional(),
+  alt: z.boolean().optional(),
+})
+
+export const actionComboSchema = z.object({
+  id: z.string(),
+  label: z.string(),
+  shortcut: shortcutSchema.optional(),
+  sequence: z.array(z.string()).min(1),
+})
+
 const githubTriggerSchema = z.object({
   type: z.enum(["label", "assignee"]),
   value: z.string(),
@@ -63,8 +77,10 @@ export const tangerineConfigSchema = z.object({
   sshHost: z.string().optional(),
   sshUser: z.string().optional(),
   editor: z.enum(["vscode", "cursor", "zed"]).optional(),
+  actionCombos: z.array(actionComboSchema).optional().default([]),
 })
 
 export type PredefinedPrompt = z.infer<typeof predefinedPromptSchema>
+export type ActionCombo = z.infer<typeof actionComboSchema>
 export type ProjectConfig = z.infer<typeof projectConfigSchema>
 export type TangerineConfig = z.infer<typeof tangerineConfigSchema>
