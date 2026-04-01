@@ -72,7 +72,7 @@ export function QuickOpen() {
     if (!query.trim()) {
       return tasks
         .filter((t) => ACTIVE_STATUSES.has(t.status))
-        .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())
+        .sort((a, b) => new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime())
     }
     const q = query.trim()
     return tasks
@@ -90,7 +90,8 @@ export function QuickOpen() {
         const aActive = ACTIVE_STATUSES.has(a.task.status) ? 1 : 0
         const bActive = ACTIVE_STATUSES.has(b.task.status) ? 1 : 0
         if (bActive !== aActive) return bActive - aActive
-        return b.score - a.score
+        if (b.score !== a.score) return b.score - a.score
+        return new Date(b.task.updatedAt).getTime() - new Date(a.task.updatedAt).getTime()
       })
       .map(({ task }) => task)
   }, [tasks, query])
@@ -232,7 +233,7 @@ export function QuickOpen() {
                   {/* Short ID + time ago */}
                   <div className="flex shrink-0 flex-col items-end gap-0.5">
                     <span className="font-mono text-xxs text-fg-muted">{task.id.slice(0, 8)}</span>
-                    <span className="text-xxs text-fg-muted">{formatRelativeTime(task.createdAt)}</span>
+                    <span className="text-xxs text-fg-muted">{formatRelativeTime(task.updatedAt)}</span>
                   </div>
                 </button>
               )
