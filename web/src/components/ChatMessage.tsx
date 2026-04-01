@@ -257,7 +257,7 @@ export const ChatMessage = memo(function ChatMessage({ message, tasks }: ChatMes
         <span className="text-xs font-semibold text-fg">Agent</span>
         <span className="text-2xs text-fg-muted/50">{formatTimestamp(message.timestamp)}</span>
       </div>
-      <div className="text-md leading-[1.6] text-fg">
+      <div className="text-md leading-[1.6] text-fg break-words">
         <ReactMarkdown remarkPlugins={remarkPlugins} components={markdownComponents}>
           {message.content}
         </ReactMarkdown>
