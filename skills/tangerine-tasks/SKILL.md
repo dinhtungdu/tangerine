@@ -51,13 +51,10 @@ gh pr create --title "..." --body "..."
 gh pr create --draft --title "..." --body "..."
 ```
 
-**`"none"`** — MUST NOT create a PR, push only:
+**`"none"`** — do NOT push or create a PR, just commit and stop:
 ```bash
-git push -u origin HEAD
-# stop here — do NOT run gh pr create
+# nothing — commit your work and stop here
 ```
-
-Always push the branch regardless of `prMode`.
 
 ## Common API Calls
 

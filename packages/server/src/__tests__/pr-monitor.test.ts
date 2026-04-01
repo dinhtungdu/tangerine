@@ -402,7 +402,7 @@ describe("buildSystemNotes", () => {
   test("injects none prMode instruction for worker tasks", () => {
     const notes = buildSystemNotes("test-id", { taskType: "worker", prMode: "none" })
     expect(notes.some((n) => n.includes("PR MODE") && n.includes('"none"'))).toBe(true)
-    expect(notes.some((n) => n.includes("Never run gh pr create"))).toBe(true)
+    expect(notes.some((n) => n.includes("Do NOT push or create a PR"))).toBe(true)
   })
 
   test("defaults to draft prMode when prMode not provided for worker tasks", () => {

@@ -18,7 +18,7 @@ export interface SystemNotesInfo {
 export function buildPrWorkflowNote(taskId: string, port = apiPort(), prMode: "ready" | "draft" | "none" = "draft"): string {
   const prCommand =
     prMode === "none"
-      ? "`git push -u origin HEAD` (no PR — prMode is none)."
+      ? "nothing — prMode is none, do NOT push or create a PR."
       : prMode === "ready"
         ? "`git push -u origin HEAD` then `gh pr create`."
         : "`git push -u origin HEAD` then `gh pr create --draft`."
@@ -35,7 +35,7 @@ export function buildPrModeInstruction(prMode: "ready" | "draft" | "none"): stri
     return `This project's prMode is "ready". You MUST create a ready-to-review PR: \`gh pr create\`. Never use --draft.`
   }
   if (prMode === "none") {
-    return `This project's prMode is "none". You MUST NOT create a PR. Only push the branch: \`git push -u origin HEAD\`. Never run gh pr create.`
+    return `This project's prMode is "none". Do NOT push or create a PR. Just commit your work and stop.`
   }
   // draft is the default
   return `This project's prMode is "draft". You MUST pass --draft when creating PRs: \`gh pr create --draft\`. Never create a ready PR.`
