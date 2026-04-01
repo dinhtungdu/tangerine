@@ -52,9 +52,22 @@ export function useShortcuts() {
     }
 
     function onTouchStart(e: TouchEvent) {
+      // Stop tracking if a second finger appears (e.g. pinch-zoom)
+      if (e.touches.length !== 1) { tracking = false; return }
       if (!isAtScrollTop(e.target as Element)) return
       startY = e.touches[0]!.clientY
       tracking = true
+    }
+
+    function onTouchMove(e: TouchEvent) {
+      if (!tracking) return
+      // Skip multi-touch — don't interfere with pinch-zoom or other gestures
+      if (e.touches.length !== 1) { tracking = false; return }
+      const delta = e.touches[0]!.clientY - startY
+      // Prevent iOS overscroll bounce while we're handling a downward pull.
+      // Without this, the visual viewport shifts during the animation and the
+      // fixed-position command palette renders as a distorted narrow bar.
+      if (delta > 0) e.preventDefault()
     }
 
     function onTouchEnd(e: TouchEvent) {
@@ -68,10 +81,13 @@ export function useShortcuts() {
     }
 
     document.addEventListener("touchstart", onTouchStart, { passive: true })
+    // Non-passive so we can preventDefault() the iOS overscroll bounce
+    document.addEventListener("touchmove", onTouchMove, { passive: false })
     document.addEventListener("touchend", onTouchEnd, { passive: true })
 
     return () => {
       document.removeEventListener("touchstart", onTouchStart)
+      document.removeEventListener("touchmove", onTouchMove)
       document.removeEventListener("touchend", onTouchEnd)
     }
   }, [])
