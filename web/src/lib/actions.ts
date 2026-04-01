@@ -15,7 +15,7 @@ export interface Action {
   label: string
   description?: string
   shortcut?: Shortcut
-  handler: () => void | Promise<void>
+  handler: (args?: Record<string, unknown>) => void | Promise<void>
   hidden?: boolean
   section?: string
 }
@@ -43,11 +43,11 @@ export function registerActions(defs: Action[]): () => void {
   }
 }
 
-/** Execute an action by id. */
-export function executeAction(id: string): void {
+/** Execute an action by id, forwarding optional args to the handler. */
+export async function executeAction(id: string, args?: Record<string, unknown>): Promise<void> {
   const action = actions.get(id)
   if (action) {
-    action.handler()
+    await action.handler(args)
   }
 }
 

@@ -313,17 +313,35 @@ describe("actions", () => {
     expect(getActions()).toHaveLength(0)
   })
 
-  test("executeAction calls the handler", () => {
+  test("executeAction calls the handler", async () => {
     let called = false
     registerActions([
       { id: "test.exec", label: "Execute Me", handler: () => { called = true } },
     ])
-    executeAction("test.exec")
+    await executeAction("test.exec")
     expect(called).toBe(true)
   })
 
-  test("executeAction with unknown id does nothing", () => {
-    executeAction("nonexistent")
+  test("executeAction forwards args to handler", async () => {
+    let received: Record<string, unknown> | undefined
+    registerActions([
+      { id: "test.args", label: "Args Test", handler: (args) => { received = args } },
+    ])
+    await executeAction("test.args", { taskId: "abc123" })
+    expect(received).toEqual({ taskId: "abc123" })
+  })
+
+  test("executeAction with no args passes undefined to handler", async () => {
+    let received: Record<string, unknown> | undefined = { sentinel: true }
+    registerActions([
+      { id: "test.noargs", label: "No Args", handler: (args) => { received = args } },
+    ])
+    await executeAction("test.noargs")
+    expect(received).toBeUndefined()
+  })
+
+  test("executeAction with unknown id does nothing", async () => {
+    await executeAction("nonexistent")
     // No error thrown
   })
 

@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from "react"
 import type { Task } from "@tangerine/shared"
-import { cancelTask, retryTask, deleteTask } from "../lib/api"
+import { executeAction } from "../lib/actions"
 
 const TERMINATED_STATUSES = new Set(["done", "completed", "failed", "cancelled"])
 
@@ -36,9 +36,9 @@ export function TaskOverflowMenu({
 
   if (!hasActions) return null
 
-  async function handleAction(action: () => Promise<unknown>) {
+  async function handleAction(actionId: string) {
     try {
-      await action()
+      await executeAction(actionId, { taskId: task.id })
       onRefetch?.()
     } catch {
       // ignore
@@ -74,7 +74,7 @@ export function TaskOverflowMenu({
         <div className={`absolute right-0 ${topCls} z-50 min-w-[120px] rounded-md border border-edge bg-surface py-1 shadow-lg`}>
           {isRunning && (
             <button
-              onClick={(e) => { e.preventDefault(); e.stopPropagation(); handleAction(() => cancelTask(task.id)) }}
+              onClick={(e) => { e.preventDefault(); e.stopPropagation(); handleAction("task.cancel") }}
               className={`flex w-full items-center gap-2 text-left text-fg-muted hover:bg-surface-secondary hover:text-fg ${itemCls}`}
             >
               <svg className="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
@@ -85,7 +85,7 @@ export function TaskOverflowMenu({
           )}
           {isRetryable && (
             <button
-              onClick={(e) => { e.preventDefault(); e.stopPropagation(); handleAction(() => retryTask(task.id)) }}
+              onClick={(e) => { e.preventDefault(); e.stopPropagation(); handleAction("task.retry") }}
               className={`flex w-full items-center gap-2 text-left text-fg-muted hover:bg-surface-secondary hover:text-fg ${itemCls}`}
             >
               <svg className="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
@@ -96,7 +96,7 @@ export function TaskOverflowMenu({
           )}
           {isDeletable && (
             <button
-              onClick={(e) => { e.preventDefault(); e.stopPropagation(); handleAction(() => deleteTask(task.id)) }}
+              onClick={(e) => { e.preventDefault(); e.stopPropagation(); handleAction("task.delete") }}
               className={`flex w-full items-center gap-2 text-left text-status-error hover:bg-surface-secondary ${itemCls}`}
             >
               <svg className="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>

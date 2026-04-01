@@ -1,6 +1,7 @@
 import { useEffect } from "react"
 import { useNavigate } from "react-router-dom"
 import { registerActions, registerActionCombos, type Action } from "../lib/actions"
+import { cancelTask, retryTask, deleteTask, resolveTask } from "../lib/api"
 import { useProjectNav } from "./useProjectNav"
 import { useProject } from "../context/ProjectContext"
 import { useTheme } from "./useTheme"
@@ -61,6 +62,46 @@ export function useAppActions() {
         section: "Tasks",
         handler: () => navigate(link("/")),
         shortcut: { key: "n", meta: true, shift: true },
+      },
+      {
+        id: "task.cancel",
+        label: "Cancel task",
+        section: "Tasks",
+        hidden: true,
+        handler: async (args) => {
+          const { taskId } = args as { taskId: string }
+          await cancelTask(taskId)
+        },
+      },
+      {
+        id: "task.retry",
+        label: "Retry task",
+        section: "Tasks",
+        hidden: true,
+        handler: async (args) => {
+          const { taskId } = args as { taskId: string }
+          await retryTask(taskId)
+        },
+      },
+      {
+        id: "task.delete",
+        label: "Delete task",
+        section: "Tasks",
+        hidden: true,
+        handler: async (args) => {
+          const { taskId } = args as { taskId: string }
+          await deleteTask(taskId)
+        },
+      },
+      {
+        id: "task.resolve",
+        label: "Mark task as done",
+        section: "Tasks",
+        hidden: true,
+        handler: async (args) => {
+          const { taskId } = args as { taskId: string }
+          await resolveTask(taskId)
+        },
       },
     ]
 
