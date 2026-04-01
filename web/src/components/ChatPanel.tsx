@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState, useMemo, useCallback } from "react"
-import type { PromptImage, PredefinedPrompt, TaskStatus, ProviderType } from "@tangerine/shared"
+import type { PromptImage, PredefinedPrompt, TaskStatus, ProviderType, Task } from "@tangerine/shared"
 import type { ChatMessage as ChatMessageType } from "../hooks/useSession"
 import { ChatMessage } from "./ChatMessage"
 import { ChatInput } from "./ChatInput"
@@ -11,6 +11,7 @@ const TERMINATED_STATUSES: TaskStatus[] = ["done", "failed", "cancelled"]
 
 interface ChatPanelProps {
   messages: ChatMessageType[]
+  tasks?: Task[]
   agentStatus: "idle" | "working"
   queueLength: number
   model?: string | null
@@ -33,6 +34,7 @@ interface ChatPanelProps {
 
 export function ChatPanel({
   messages,
+  tasks = [],
   agentStatus,
   queueLength,
   model,
@@ -206,7 +208,7 @@ export function ChatPanel({
               No messages yet. Send a prompt to start.
             </div>
           ) : (
-            visibleMessages.map((msg) => <ChatMessage key={msg.id} message={msg} />)
+            visibleMessages.map((msg) => <ChatMessage key={msg.id} message={msg} tasks={tasks} />)
           )}
 
           {/* Thinking indicator */}

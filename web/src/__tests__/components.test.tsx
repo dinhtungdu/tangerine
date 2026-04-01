@@ -716,16 +716,20 @@ describe("CommandPalette", () => {
 describe("ChatMessage", async () => {
   const { ChatMessage } = await import("../components/ChatMessage")
 
+  function renderMsg(props: Parameters<typeof ChatMessage>[0]) {
+    return render(<MemoryRouter><ChatMessage {...props} /></MemoryRouter>)
+  }
+
   test("renders markdown tables as HTML tables", () => {
     const tableContent = "| Feature | Status |\n|---|---|\n| Tables | Yes |\n| Bold | Yes |"
-    render(
-      <ChatMessage
-        message={{
+    renderMsg(
+      {
+        message: {
           role: "assistant",
           content: tableContent,
           timestamp: "2026-03-17T10:00:00Z",
-        }}
-      />,
+        },
+      },
     )
 
     const table = document.querySelector("table")
@@ -737,15 +741,7 @@ describe("ChatMessage", async () => {
 
   test("renders tables mixed with other markdown", () => {
     const content = "Here is a comparison:\n\n| A | B |\n|---|---|\n| 1 | 2 |\n\nDone."
-    render(
-      <ChatMessage
-        message={{
-          role: "assistant",
-          content: content,
-          timestamp: "2026-03-17T10:00:00Z",
-        }}
-      />,
-    )
+    renderMsg({ message: { role: "assistant", content, timestamp: "2026-03-17T10:00:00Z" } })
 
     expect(document.querySelector("table")).toBeTruthy()
     expect(document.body.textContent).toContain("Here is a comparison:")
@@ -753,61 +749,37 @@ describe("ChatMessage", async () => {
   })
 
   test("renders headings", () => {
-    render(
-      <ChatMessage
-        message={{ role: "assistant", content: "# Title\n## Subtitle\n### Section", timestamp: "2026-03-17T10:00:00Z" }}
-      />,
-    )
+    renderMsg({ message: { role: "assistant", content: "# Title\n## Subtitle\n### Section", timestamp: "2026-03-17T10:00:00Z" } })
     expect(document.querySelector("h1")!.textContent).toBe("Title")
     expect(document.querySelector("h2")!.textContent).toBe("Subtitle")
     expect(document.querySelector("h3")!.textContent).toBe("Section")
   })
 
   test("renders unordered lists", () => {
-    render(
-      <ChatMessage
-        message={{ role: "assistant", content: "- First\n- Second\n- Third", timestamp: "2026-03-17T10:00:00Z" }}
-      />,
-    )
+    renderMsg({ message: { role: "assistant", content: "- First\n- Second\n- Third", timestamp: "2026-03-17T10:00:00Z" } })
     const items = document.querySelectorAll("li")
     expect(items.length).toBe(3)
     expect(items[0]!.textContent).toBe("First")
   })
 
   test("renders ordered lists", () => {
-    render(
-      <ChatMessage
-        message={{ role: "assistant", content: "1. One\n2. Two\n3. Three", timestamp: "2026-03-17T10:00:00Z" }}
-      />,
-    )
+    renderMsg({ message: { role: "assistant", content: "1. One\n2. Two\n3. Three", timestamp: "2026-03-17T10:00:00Z" } })
     expect(document.querySelector("ol")).toBeTruthy()
     expect(document.querySelectorAll("li").length).toBe(3)
   })
 
   test("renders blockquotes", () => {
-    render(
-      <ChatMessage
-        message={{ role: "assistant", content: "> This is a quote", timestamp: "2026-03-17T10:00:00Z" }}
-      />,
-    )
+    renderMsg({ message: { role: "assistant", content: "> This is a quote", timestamp: "2026-03-17T10:00:00Z" } })
     expect(document.querySelector("blockquote")!.textContent).toContain("This is a quote")
   })
 
   test("renders horizontal rules", () => {
-    render(
-      <ChatMessage
-        message={{ role: "assistant", content: "Above\n\n---\n\nBelow", timestamp: "2026-03-17T10:00:00Z" }}
-      />,
-    )
+    renderMsg({ message: { role: "assistant", content: "Above\n\n---\n\nBelow", timestamp: "2026-03-17T10:00:00Z" } })
     expect(document.querySelector("hr")).toBeTruthy()
   })
 
   test("renders strikethrough", () => {
-    render(
-      <ChatMessage
-        message={{ role: "assistant", content: "~~deleted~~", timestamp: "2026-03-17T10:00:00Z" }}
-      />,
-    )
+    renderMsg({ message: { role: "assistant", content: "~~deleted~~", timestamp: "2026-03-17T10:00:00Z" } })
     expect(document.querySelector("del")!.textContent).toBe("deleted")
   })
 })

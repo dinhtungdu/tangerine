@@ -1,14 +1,19 @@
-import { memo, useState } from "react"
+import { memo, useState, useMemo } from "react"
 import type { Components } from "react-markdown"
 import ReactMarkdown from "react-markdown"
 import remarkGfm from "remark-gfm"
+import { Link } from "react-router-dom"
+import type { Task } from "@tangerine/shared"
 import type { ChatMessage as ChatMessageType } from "../hooks/useSession"
 import { formatTimestamp } from "../lib/format"
 import { ToolCallDisplay } from "./ToolCallDisplay"
 import { ImageLightbox } from "./ImageLightbox"
+import { useProjectNav } from "../hooks/useProjectNav"
+import { splitTextParts, linkifyTaskRefsInMarkdown } from "../lib/linkify"
 
 interface ChatMessageProps {
   message: ChatMessageType
+  tasks?: Task[]
 }
 
 function isToolCall(content: string): boolean {
@@ -21,18 +26,42 @@ function isToolCall(content: string): boolean {
   }
 }
 
-function escapeHtml(text: string): string {
-  return text.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;")
-}
-
-function linkifyUrls(text: string): string {
-  return escapeHtml(text).replace(
-    /(https?:\/\/[^\s<]+)/g,
-    '<a href="$1" target="_blank" rel="noopener noreferrer">$1</a>',
+/** Renders plain text with URLs and task refs as clickable links. */
+function LinkifiedText({
+  text,
+  tasks,
+  className,
+}: {
+  text: string
+  tasks: Task[]
+  className?: string
+}) {
+  const { link } = useProjectNav()
+  const parts = useMemo(() => splitTextParts(text, tasks), [text, tasks])
+  return (
+    <span className={className}>
+      {parts.map((part, i) => {
+        if (part.type === "url") {
+          return (
+            <a key={i} href={part.url} target="_blank" rel="noopener noreferrer" className="underline text-link hover:text-link-hover break-all">
+              {part.url}
+            </a>
+          )
+        }
+        if (part.type === "taskRef") {
+          return (
+            <Link key={i} to={link(`/tasks/${part.taskId}`)} className="underline text-link hover:text-link-hover">
+              {part.display}
+            </Link>
+          )
+        }
+        return <span key={i}>{part.text}</span>
+      })}
+    </span>
   )
 }
 
-const markdownComponents: Components = {
+const BASE_MARKDOWN_COMPONENTS: Omit<Components, "a"> = {
   h1: ({ children }) => <h1 className="mt-4 mb-1 text-base font-bold">{children}</h1>,
   h2: ({ children }) => <h2 className="mt-3 mb-1 text-sub font-bold">{children}</h2>,
   h3: ({ children }) => <h3 className="mt-3 mb-1 text-sm font-semibold">{children}</h3>,
@@ -56,11 +85,6 @@ const markdownComponents: Components = {
     <blockquote className="my-1 border-l-2 border-edge pl-3 text-fg-muted">{children}</blockquote>
   ),
   hr: () => <hr className="my-2 border-edge" />,
-  a: ({ href, children }) => (
-    <a href={href} target="_blank" rel="noopener noreferrer" className="underline text-link hover:text-link-hover break-all">
-      {children}
-    </a>
-  ),
   table: ({ children }) => (
     <div className="my-2 overflow-x-auto rounded-md border border-edge">
       <table className="w-full border-collapse text-fg">{children}</table>
@@ -75,8 +99,33 @@ const markdownComponents: Components = {
 
 const remarkPlugins = [remarkGfm]
 
-export const ChatMessage = memo(function ChatMessage({ message }: ChatMessageProps) {
+const LINK_CLASS = "underline text-link hover:text-link-hover break-all"
+
+export const ChatMessage = memo(function ChatMessage({ message, tasks = [] }: ChatMessageProps) {
   const [lightboxIndex, setLightboxIndex] = useState<number | null>(null)
+  const { link } = useProjectNav()
+
+  // Build markdown components with a router-aware `a` renderer.
+  // /tasks/<id> links are rendered as React Router <Link> to preserve the ?project= param.
+  const markdownComponents = useMemo<Components>(() => ({
+    ...BASE_MARKDOWN_COMPONENTS,
+    a: ({ href, children }) => {
+      if (href?.startsWith("/tasks/")) {
+        return <Link to={link(href)} className={LINK_CLASS}>{children}</Link>
+      }
+      return (
+        <a href={href} target="_blank" rel="noopener noreferrer" className={LINK_CLASS}>
+          {children}
+        </a>
+      )
+    },
+  }), [link])
+
+  const processedContent = useMemo(
+    () => linkifyTaskRefsInMarkdown(message.content, tasks),
+    [message.content, tasks],
+  )
+
   const isUser = message.role === "user"
   const isSystem = message.role === "system"
   const isThinking = message.role === "thinking"
@@ -118,9 +167,10 @@ export const ChatMessage = memo(function ChatMessage({ message }: ChatMessagePro
             </>
           )}
           {message.content && (
-            <p
+            <LinkifiedText
+              text={message.content}
+              tasks={tasks}
               className="whitespace-pre-wrap text-md leading-[1.5] text-white [&_a]:underline [&_a]:text-link hover:[&_a]:text-link-hover [&_a]:break-all"
-              dangerouslySetInnerHTML={{ __html: linkifyUrls(message.content) }}
             />
           )}
           <span className="mt-1 block text-right text-2xs text-fg-muted/50">
@@ -156,7 +206,7 @@ export const ChatMessage = memo(function ChatMessage({ message }: ChatMessagePro
           <span className="text-2xs text-fg-muted/50">{formatTimestamp(message.timestamp)}</span>
         </div>
         <div className="rounded-lg border border-amber-500/10 bg-amber-500/5 px-3 py-2 text-xs italic leading-[1.6] text-fg-muted break-words">
-          {message.content}
+          <LinkifiedText text={message.content} tasks={tasks} />
         </div>
       </div>
     )
@@ -176,7 +226,7 @@ export const ChatMessage = memo(function ChatMessage({ message }: ChatMessagePro
           <span className="text-2xs text-fg-muted/50">{formatTimestamp(message.timestamp)}</span>
         </div>
         <div className="rounded-lg border border-blue-500/10 bg-blue-500/5 px-3 py-2 text-xs leading-[1.6] text-fg-muted break-words">
-          {message.content}
+          <LinkifiedText text={message.content} tasks={tasks} />
         </div>
         {message.images && message.images.length > 0 && (
           <>
@@ -210,7 +260,7 @@ export const ChatMessage = memo(function ChatMessage({ message }: ChatMessagePro
       </div>
       <div className="text-md leading-[1.6] text-fg">
         <ReactMarkdown remarkPlugins={remarkPlugins} components={markdownComponents}>
-          {message.content}
+          {processedContent}
         </ReactMarkdown>
       </div>
       {message.images && message.images.length > 0 && (

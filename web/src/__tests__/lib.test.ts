@@ -1,4 +1,5 @@
 import { describe, test, expect, beforeEach } from "bun:test"
+import { splitTextParts, linkifyTaskRefsInMarkdown } from "../lib/linkify"
 import {
   formatModelName,
   formatDuration,
@@ -362,5 +363,111 @@ describe("actions", () => {
     const result = formatShortcut({ key: "k", meta: true })
     // Result depends on navigator.userAgent but should contain the key
     expect(result).toContain("K")
+  })
+})
+
+describe("linkify", () => {
+  const TASK_A_ID = "6536bda8-1234-5678-abcd-ef0123456789"
+  const TASK_B_ID = "aabbccdd-0000-1111-2222-333344445555"
+  const tasks = [
+    { id: TASK_A_ID, title: "Task A" },
+    { id: TASK_B_ID, title: "Task B" },
+  ] as never[]
+
+  describe("splitTextParts", () => {
+    test("returns plain text when no refs", () => {
+      const parts = splitTextParts("hello world", tasks)
+      expect(parts).toEqual([{ type: "text", text: "hello world" }])
+    })
+
+    test("detects #short-id matching a known task", () => {
+      const parts = splitTextParts("see #6536bda8 for details", tasks)
+      expect(parts).toEqual([
+        { type: "text", text: "see " },
+        { type: "taskRef", taskId: TASK_A_ID, display: "#6536bda8" },
+        { type: "text", text: " for details" },
+      ])
+    })
+
+    test("detects task: prefix", () => {
+      const parts = splitTextParts("task:aabbccdd done", tasks)
+      expect(parts).toEqual([
+        { type: "taskRef", taskId: TASK_B_ID, display: "#aabbccdd" },
+        { type: "text", text: " done" },
+      ])
+    })
+
+    test("does NOT linkify bare 8-char hex not in task list", () => {
+      const parts = splitTextParts("#deadbeef is a SHA", tasks)
+      expect(parts).toEqual([{ type: "text", text: "#deadbeef is a SHA" }])
+    })
+
+    test("detects full UUID matching a known task", () => {
+      const parts = splitTextParts(`task ${TASK_A_ID} finished`, tasks)
+      expect(parts).toEqual([
+        { type: "text", text: "task " },
+        { type: "taskRef", taskId: TASK_A_ID, display: "#6536bda8" },
+        { type: "text", text: " finished" },
+      ])
+    })
+
+    test("does NOT linkify full UUID not in task list", () => {
+      const unknown = "ffffffff-aaaa-bbbb-cccc-ddddeeee0000"
+      const parts = splitTextParts(unknown, tasks)
+      expect(parts).toEqual([{ type: "text", text: unknown }])
+    })
+
+    test("detects URLs", () => {
+      const parts = splitTextParts("see https://example.com/foo", tasks)
+      expect(parts).toEqual([
+        { type: "text", text: "see " },
+        { type: "url", url: "https://example.com/foo" },
+      ])
+    })
+
+    test("detects URL and task ref in same message", () => {
+      const parts = splitTextParts(`https://example.com #6536bda8`, tasks)
+      expect(parts).toEqual([
+        { type: "url", url: "https://example.com" },
+        { type: "text", text: " " },
+        { type: "taskRef", taskId: TASK_A_ID, display: "#6536bda8" },
+      ])
+    })
+
+    test("returns text part when tasks list is empty", () => {
+      const parts = splitTextParts("#6536bda8", [])
+      expect(parts).toEqual([{ type: "text", text: "#6536bda8" }])
+    })
+  })
+
+  describe("linkifyTaskRefsInMarkdown", () => {
+    test("returns text unchanged when no tasks", () => {
+      expect(linkifyTaskRefsInMarkdown("hello #6536bda8", [])).toBe("hello #6536bda8")
+    })
+
+    test("replaces #short-id with markdown link", () => {
+      const result = linkifyTaskRefsInMarkdown("see #6536bda8 done", tasks)
+      expect(result).toBe(`see [#6536bda8](/tasks/${TASK_A_ID}) done`)
+    })
+
+    test("replaces task: prefix with markdown link", () => {
+      const result = linkifyTaskRefsInMarkdown("task:aabbccdd complete", tasks)
+      expect(result).toBe(`[#aabbccdd](/tasks/${TASK_B_ID}) complete`)
+    })
+
+    test("replaces full UUID with markdown link", () => {
+      const result = linkifyTaskRefsInMarkdown(TASK_A_ID, tasks)
+      expect(result).toBe(`[#6536bda8](/tasks/${TASK_A_ID})`)
+    })
+
+    test("does not replace unknown short ref", () => {
+      const result = linkifyTaskRefsInMarkdown("#deadbeef", tasks)
+      expect(result).toBe("#deadbeef")
+    })
+
+    test("does not replace unknown UUID", () => {
+      const unknown = "ffffffff-aaaa-bbbb-cccc-ddddeeee0000"
+      expect(linkifyTaskRefsInMarkdown(unknown, tasks)).toBe(unknown)
+    })
   })
 })
