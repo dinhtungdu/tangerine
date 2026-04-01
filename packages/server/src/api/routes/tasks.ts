@@ -220,6 +220,14 @@ export function taskRoutes(deps: AppDeps): Hono {
             taskId,
           }))
         }
+        // Reject renames for tasks pinned to an existing (non-tangerine) branch —
+        // these were created from a PR or explicit branch and shouldn't be renamed.
+        if (!oldBranch.startsWith("tangerine/")) {
+          return yield* Effect.fail(new BranchRenameError({
+            message: "Cannot rename a branch not managed by Tangerine",
+            taskId,
+          }))
+        }
         if (oldBranch === newBranch) {
           return mapTaskRow(task)
         }
@@ -227,7 +235,7 @@ export function taskRoutes(deps: AppDeps): Hono {
         const cwd = task.worktree_path
 
         // Rename local branch (agent pushes separately via git push -u origin HEAD)
-        yield* localExecStrict(`cd ${cwd} && git branch -m ${oldBranch} ${newBranch}`).pipe(
+        yield* localExecStrict(`cd "${cwd}" && git branch -m ${oldBranch} ${newBranch}`).pipe(
           Effect.mapError((e) => new BranchRenameError({
             message: `Failed to rename local branch: ${e.message}`,
             taskId,

@@ -431,6 +431,19 @@ describe("API routes", () => {
       expect(body.error).toContain("no worktree")
     })
 
+    test("rejects rename for tasks with non-tangerine branch", async () => {
+      const row = seedTask(db)
+      db.prepare("UPDATE tasks SET worktree_path = '/tmp/test', branch = 'feature/existing' WHERE id = ?").run(row.id)
+      const res = await app.fetch(new Request(`http://localhost/api/tasks/${row.id}/rename-branch`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ branch: "tangerine/new-name" }),
+      }))
+      expect(res.status).toBe(400)
+      const body = await res.json() as { error: string }
+      expect(body.error).toContain("not managed by Tangerine")
+    })
+
     test("returns 400 when task has no branch", async () => {
       const row = seedTask(db)
       db.prepare("UPDATE tasks SET worktree_path = '/tmp/test' WHERE id = ?").run(row.id)
