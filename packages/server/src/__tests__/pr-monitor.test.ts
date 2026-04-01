@@ -372,13 +372,18 @@ describe("buildSystemNotes", () => {
     expect(notes.some((n) => n.includes("rename-branch") && n.includes("gh pr create"))).toBe(true)
   })
 
-  test("includes PR creation note when taskType is undefined", () => {
+  test("excludes PR creation note when taskType is undefined", () => {
     const notes = buildSystemNotes("test-id", {})
-    expect(notes.some((n) => n.includes("rename-branch") && n.includes("gh pr create"))).toBe(true)
+    expect(notes.some((n) => n.includes("rename-branch"))).toBe(false)
   })
 
   test("excludes PR creation note for reviewer tasks", () => {
     const notes = buildSystemNotes("test-id", { taskType: "reviewer" })
+    expect(notes.some((n) => n.includes("rename-branch"))).toBe(false)
+  })
+
+  test("excludes PR creation note for orchestrator tasks", () => {
+    const notes = buildSystemNotes("test-id", { taskType: "orchestrator" })
     expect(notes.some((n) => n.includes("rename-branch"))).toBe(false)
   })
 })
