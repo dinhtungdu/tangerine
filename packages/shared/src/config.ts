@@ -21,6 +21,7 @@ export const projectConfigSchema = z.object({
     { label: "Yes", text: "Yes" },
     { label: "Merge", text: "Merge" },
   ]),
+  orchestratorPrompt: z.string().optional(),
   orchestratorPrompts: z.array(predefinedPromptSchema).optional().default([
     { label: "Check active tasks", text: "Check active tasks" },
     { label: "Status update", text: "Status update" },

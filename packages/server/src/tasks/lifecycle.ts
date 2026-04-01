@@ -40,6 +40,7 @@ export interface ProjectConfig {
   setup: string
   poolSize?: number
   defaultProvider?: string
+  orchestratorPrompt?: string
 }
 
 /** Run a local command via Bun.spawn, return stdout/stderr/exitCode */

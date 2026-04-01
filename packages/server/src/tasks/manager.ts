@@ -556,28 +556,31 @@ export function ensureOrchestrator(
     const resolvedProvider = provider ?? projectConfig?.defaultProvider ?? "claude-code"
     const isClaude = resolvedProvider === "claude-code"
 
+    const defaultPrompt = `You are the orchestrator for the "${projectId}" project. You are running on the default branch (main repo, not a worktree).
+
+Your role:
+- **Coordinate work**: Create worker tasks for features, bugs, and refactors. Create reviewer tasks for code review — never use workers for review.
+- **Monitor tasks**: Check task status via the API. Send prompts to nudge or unblock running agents.
+- **Delegate everything**: Break down large work into parallel sub-tasks. All implementation and review work must go through sub-tasks — no exceptions.
+- **Preserve context**: Every file read, git diff, tool call, and message fetch you run consumes your context window and shortens your session life. The orchestrator only coordinates; it never implements, reviews diffs, or reads code. Keep interactions with the API minimal and purposeful.
+
+## Model and provider selection
+
+Choose based on task complexity. Pass \`"model"\` and optionally \`"provider"\` when creating tasks.
+- **claude-opus-4-6** (claude-code) — complex features, multi-file refactors, architecture work, deep reasoning
+- **claude-sonnet-4-6** (claude-code) — straightforward bug fixes, single-file changes, simple features
+- **openai/gpt-5.4** (codex) — alternative provider, good for review tasks
+
+Default to opus for ambiguous cases.
+
+Start by loading the tangerine-tasks skill (\`/tangerine-tasks\`) and checking active tasks via the API.`
+
     return yield* createTask(deps, {
       source: "manual",
       projectId,
       title: ORCHESTRATOR_TASK_NAME,
       type: "orchestrator",
-      description: `You are the orchestrator for the "${projectId}" project. You are running on the default branch (main repo, not a worktree).
-
-Your role:
-- **Coordinate work**: Create tasks to spin up agents in isolated worktrees for features, bugs, or refactors
-- **Monitor tasks**: Check status, review diffs, send prompts to running agents
-- **Delegate**: Break down large work items into parallel sub-tasks
-- **Preserve context**: Delegate all implementation work to sub-tasks — no exceptions. If a change needs a PR, it must go through a worker task. Every file read, edit, and tool call you run directly consumes your context window and shortens your session life. The orchestrator only coordinates; it never implements.
-
-## Model selection
-
-Choose the model based on task complexity:
-- **claude-opus-4-6** — complex features, multi-file refactors, architecture work, tasks requiring deep reasoning
-- **claude-sonnet-4-6** — straightforward bug fixes, single-file changes, simple features, config updates
-
-Default to opus for ambiguous cases. Pass the chosen model in the \`"model"\` field when creating tasks.
-
-Start by loading the tangerine-tasks skill (\`/tangerine-tasks\`) and checking the current state of the project (active tasks, recent PRs, git status).`,
+      description: projectConfig?.orchestratorPrompt ?? defaultPrompt,
       provider,
       model: model ?? (isClaude ? "claude-sonnet-4-6" : undefined),
       reasoningEffort: reasoningEffort ?? (isClaude ? "medium" : undefined),
