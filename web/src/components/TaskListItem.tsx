@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef } from "react"
 import type { Task } from "@tangerine/shared"
 import { cancelTask, retryTask, deleteTask } from "../lib/api"
+import { useToast } from "../context/ToastContext"
 
 const TERMINATED_STATUSES = new Set(["done", "completed", "failed", "cancelled"])
 
@@ -15,6 +16,7 @@ export function TaskOverflowMenu({
 }) {
   const [open, setOpen] = useState(false)
   const menuRef = useRef<HTMLDivElement>(null)
+  const { showToast } = useToast()
 
   const isRunning = task.status === "running"
   const isRetryable = task.status === "failed" || task.status === "cancelled"
@@ -36,12 +38,12 @@ export function TaskOverflowMenu({
 
   if (!hasActions) return null
 
-  async function handleAction(action: () => Promise<unknown>) {
+  async function handleAction(action: () => Promise<unknown>, errorMessage: string) {
     try {
       await action()
       onRefetch?.()
     } catch {
-      // ignore
+      showToast(errorMessage)
     }
     setOpen(false)
   }
@@ -74,7 +76,7 @@ export function TaskOverflowMenu({
         <div className={`absolute right-0 ${topCls} z-50 min-w-[120px] rounded-md border border-edge bg-surface py-1 shadow-lg`}>
           {isRunning && (
             <button
-              onClick={(e) => { e.preventDefault(); e.stopPropagation(); handleAction(() => cancelTask(task.id)) }}
+              onClick={(e) => { e.preventDefault(); e.stopPropagation(); handleAction(() => cancelTask(task.id), "Failed to cancel task") }}
               className={`flex w-full items-center gap-2 text-left text-fg-muted hover:bg-surface-secondary hover:text-fg ${itemCls}`}
             >
               <svg className="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
@@ -85,7 +87,7 @@ export function TaskOverflowMenu({
           )}
           {isRetryable && (
             <button
-              onClick={(e) => { e.preventDefault(); e.stopPropagation(); handleAction(() => retryTask(task.id)) }}
+              onClick={(e) => { e.preventDefault(); e.stopPropagation(); handleAction(() => retryTask(task.id), "Failed to retry task") }}
               className={`flex w-full items-center gap-2 text-left text-fg-muted hover:bg-surface-secondary hover:text-fg ${itemCls}`}
             >
               <svg className="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
@@ -96,7 +98,7 @@ export function TaskOverflowMenu({
           )}
           {isDeletable && (
             <button
-              onClick={(e) => { e.preventDefault(); e.stopPropagation(); handleAction(() => deleteTask(task.id)) }}
+              onClick={(e) => { e.preventDefault(); e.stopPropagation(); handleAction(() => deleteTask(task.id), "Failed to delete task") }}
               className={`flex w-full items-center gap-2 text-left text-status-error hover:bg-surface-secondary ${itemCls}`}
             >
               <svg className="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>

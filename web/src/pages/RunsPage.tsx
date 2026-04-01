@@ -5,10 +5,12 @@ import { useProjectNav } from "../hooks/useProjectNav"
 import { NewAgentForm } from "../components/NewAgentForm"
 import { createTask } from "../lib/api"
 import type { SidebarContext } from "../components/Layout"
+import { useToast } from "../context/ToastContext"
 
 export function RunsPage() {
   const { navigate } = useProjectNav()
   const { current } = useProject()
+  const { showToast } = useToast()
   const { tasksLoading } = useOutletContext<SidebarContext>()
   const [searchParams] = useSearchParams()
   const refTaskId = searchParams.get("ref") ?? undefined
@@ -34,9 +36,9 @@ export function RunsPage() {
       const task = await createTask(data)
       navigate(`/tasks/${task.id}`)
     } catch {
-      // TODO: error toast
+      showToast("Failed to create task")
     }
-  }, [current, navigate])
+  }, [current, navigate, showToast])
 
   return (
     <div className="flex flex-col md:h-full">
