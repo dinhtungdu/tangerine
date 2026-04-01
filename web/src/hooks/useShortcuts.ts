@@ -52,6 +52,8 @@ export function useShortcuts() {
     }
 
     function onTouchStart(e: TouchEvent) {
+      // Stop tracking if a second finger appears (e.g. pinch-zoom)
+      if (e.touches.length !== 1) { tracking = false; return }
       if (!isAtScrollTop(e.target as Element)) return
       startY = e.touches[0]!.clientY
       tracking = true
@@ -59,6 +61,8 @@ export function useShortcuts() {
 
     function onTouchMove(e: TouchEvent) {
       if (!tracking) return
+      // Skip multi-touch — don't interfere with pinch-zoom or other gestures
+      if (e.touches.length !== 1) { tracking = false; return }
       const delta = e.touches[0]!.clientY - startY
       // Prevent iOS overscroll bounce while we're handling a downward pull.
       // Without this, the visual viewport shifts during the animation and the
