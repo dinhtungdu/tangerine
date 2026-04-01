@@ -7,6 +7,14 @@
 
   --font-mono: "JetBrains Mono", "IBM Plex Mono", ui-monospace, monospace;
 
+  /* Semantic spacing scale — extends Tailwind defaults (2=0.5rem, 3=0.75rem, 4=1rem, 6=1.5rem, 8=2rem) */
+  /* Use these instead of arbitrary Tailwind spacing for consistent layout rhythm */
+  --spacing-xs: 0.5rem;   /* tight: stacked items, minor padding (~8px) */
+  --spacing-sm: 0.75rem;  /* compact: icon-label gap, row gap (~12px) */
+  --spacing-md: 1rem;     /* standard: panel padding, container gaps (~16px) */
+  --spacing-lg: 1.5rem;   /* spacious: section gaps, card padding (~24px) */
+  --spacing-xl: 2rem;     /* generous: empty states, page sections (~32px) */
+
   /* Semantic font size scale — extends Tailwind defaults (xs=0.75rem, sm=0.875rem, base=1rem, lg=1.125rem, xl=1.25rem, 2xl=1.5rem) */
   /* rem units respect user browser font size preferences (WCAG 1.4.4) */
   /* Minimum sizes follow WCAG accessibility guidance: 11px absolute floor, 12px for captions/labels */

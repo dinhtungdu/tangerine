@@ -50,7 +50,7 @@ function TaskResult({ task, isSelected }: { task: Task; isSelected: boolean }) {
   const statusConfig = getStatusConfig(task.status)
   return (
     <div
-      className={`flex w-full items-center gap-3 px-4 py-2.5 text-left transition-colors ${
+      className={`flex w-full items-center gap-sm px-md py-2.5 text-left transition-colors ${
         isSelected ? "bg-surface-secondary" : ""
       }`}
     >
@@ -85,7 +85,7 @@ function TaskResult({ task, isSelected }: { task: Task; isSelected: boolean }) {
 function ActionResult({ action, isSelected }: { action: Action; isSelected: boolean }) {
   return (
     <div
-      className={`flex w-full items-center gap-3 px-4 py-2.5 text-left transition-colors ${
+      className={`flex w-full items-center gap-sm px-md py-2.5 text-left transition-colors ${
         isSelected ? "bg-surface-secondary" : ""
       }`}
     >
@@ -295,7 +295,7 @@ export function CommandPalette() {
         onClick={(e) => e.stopPropagation()}
       >
         {/* Search input */}
-        <div className="flex items-center gap-3 border-b border-edge px-4">
+        <div className="flex items-center gap-sm border-b border-edge px-md">
           <svg
             className="h-4 w-4 shrink-0 text-fg-muted"
             fill="none"
@@ -333,7 +333,7 @@ export function CommandPalette() {
         {/* Results list */}
         <div ref={listRef} className="max-h-[400px] overflow-y-auto py-1">
           {items.length === 0 ? (
-            <div className="px-4 py-8 text-center text-md text-fg-muted">
+            <div className="px-md py-xl text-center text-md text-fg-muted">
               {searchQuery ? "No results" : "No active tasks"}
             </div>
           ) : (
@@ -359,7 +359,7 @@ export function CommandPalette() {
         </div>
 
         {/* Footer shortcuts hint */}
-        <div className="flex items-center gap-3 border-t border-edge px-4 py-2 text-xxs text-fg-muted">
+        <div className="flex items-center gap-sm border-t border-edge px-md py-xs text-xxs text-fg-muted">
           <span>
             <kbd className="font-sans">↵</kbd> select
           </span>
