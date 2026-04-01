@@ -237,10 +237,10 @@ Before creating a PR, rename your branch to something descriptive. Then push wit
 ```bash
 curl -X POST "$API/api/tasks/$TANGERINE_TASK_ID/rename-branch" \
   -H "Content-Type: application/json" \
-  -d "{\"branch\": \"tangerine/<descriptive-slug>\"}"
+  -d "{\"branch\": \"fix/<descriptive-slug>\"}"
 ```
 
-Choose a short slug that describes the change (e.g. `tangerine/fix-worktree-cleanup`, `tangerine/add-retry-logic`). Only alphanumeric, dash, underscore, dot, and slash are allowed.
+Choose a short slug that describes the change (e.g. `fix/worktree-cleanup`, `feat/add-retry-logic`). Only alphanumeric, dash, underscore, dot, and slash are allowed.
 
 ## Required: Codex Review
 
