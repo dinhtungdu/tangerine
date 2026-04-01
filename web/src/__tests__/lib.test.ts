@@ -22,6 +22,9 @@ import {
   subscribe,
   matchesShortcut,
   formatShortcut,
+  setContext,
+  clearContext,
+  getContext,
   _resetForTesting,
 } from "../lib/actions"
 
@@ -483,6 +486,68 @@ describe("actions", () => {
       const action = getAction("combo.shortcut")
       expect(action!.shortcut).toEqual({ key: "t", meta: true })
     })
+  })
+
+  test("context-scoped actions are hidden when no context is set", () => {
+    registerActions([
+      { id: "global", label: "Global", handler: () => {} },
+      { id: "scoped", label: "Scoped", context: "task-1", handler: () => {} },
+    ])
+    expect(getActions()).toHaveLength(1)
+    expect(getActions()[0].id).toBe("global")
+  })
+
+  test("context-scoped actions appear when context matches", () => {
+    registerActions([
+      { id: "global", label: "Global", handler: () => {} },
+      { id: "scoped", label: "Scoped", context: "task-1", handler: () => {} },
+    ])
+    setContext("task-1")
+    expect(getActions()).toHaveLength(2)
+    expect(getActions().map((a) => a.id)).toContain("scoped")
+  })
+
+  test("context-scoped actions are hidden when context does not match", () => {
+    registerActions([
+      { id: "scoped", label: "Scoped", context: "task-1", handler: () => {} },
+    ])
+    setContext("task-2")
+    expect(getActions()).toHaveLength(0)
+  })
+
+  test("clearContext hides context-scoped actions", () => {
+    registerActions([
+      { id: "scoped", label: "Scoped", context: "task-1", handler: () => {} },
+    ])
+    setContext("task-1")
+    expect(getActions()).toHaveLength(1)
+    clearContext()
+    expect(getActions()).toHaveLength(0)
+  })
+
+  test("setContext and getContext round-trip", () => {
+    expect(getContext()).toBeNull()
+    setContext("task-1")
+    expect(getContext()).toBe("task-1")
+    clearContext()
+    expect(getContext()).toBeNull()
+  })
+
+  test("setContext notifies subscribers", () => {
+    let count = 0
+    subscribe(() => { count++ })
+    setContext("task-1")
+    expect(count).toBe(1)
+    clearContext()
+    expect(count).toBe(2)
+  })
+
+  test("getAction returns context-scoped actions regardless of context", () => {
+    registerActions([
+      { id: "scoped", label: "Scoped", context: "task-1", handler: () => {} },
+    ])
+    // getAction bypasses context filtering (for direct execution)
+    expect(getAction("scoped")?.label).toBe("Scoped")
   })
 })
 

@@ -19,6 +19,7 @@ import { TerminalPane } from "../components/TerminalPane"
 import { formatPrNumber } from "../lib/format"
 import { copyToClipboard } from "../lib/clipboard"
 import { TaskOverflowMenu } from "../components/TaskListItem"
+import { useTaskActions } from "../hooks/useTaskActions"
 
 type PaneId = "chat" | "diff" | "terminal" | "activity"
 
@@ -229,6 +230,9 @@ export function TaskDetail() {
       navigate("/")
     }
   }, [id, navigate])
+
+  // Register task-contextual actions in the command palette
+  useTaskActions(task, handleRefetch)
 
   // Start the task on first prompt if it's still in "created" status
   const handleSend = useCallback(
