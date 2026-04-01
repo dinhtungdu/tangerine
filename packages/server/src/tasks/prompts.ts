@@ -17,7 +17,7 @@ export interface SystemNotesInfo {
 export function buildPrWorkflowNote(taskId: string, port = apiPort()): string {
   return (
     `1) Rename your branch via: curl -X POST http://localhost:${port}/api/tasks/${taskId}/rename-branch ` +
-    `-H "Content-Type: application/json" -d '{"branch":"tangerine/<descriptive-slug>"}'. ` +
+    `-H "Content-Type: application/json" -d '{"branch":"fix/<descriptive-slug>"}'. ` +
     `2) Push and create a PR with \`git push -u origin HEAD\` then \`gh pr create\`.`
   )
 }
