@@ -397,9 +397,11 @@ describe("linkifyTaskIds", () => {
     expect(result).toContain(" for details")
   })
 
-  test("is case-insensitive for UUID matching", () => {
+  test("is case-insensitive and uses canonical task ID in href", () => {
     const result = linkifyTaskIds("ABC12345-0000-0000-0000-000000000001", tasks)
-    expect(result).toContain("<a")
+    // Link is produced and href uses canonical lowercase ID, not the matched text
+    expect(result).toContain('<a href="/tasks/abc12345-0000-0000-0000-000000000001"')
+    expect(result).toContain("abc12345</a>")
   })
 })
 
@@ -419,5 +421,21 @@ describe("linkifyTaskIdsMarkdown", () => {
   test("handles empty tasks list", () => {
     const result = linkifyTaskIdsMarkdown("abc12345-0000-0000-0000-000000000001", [])
     expect(result).toBe("abc12345-0000-0000-0000-000000000001")
+  })
+
+  test("does not replace UUID inside inline code span", () => {
+    const result = linkifyTaskIdsMarkdown("run `abc12345-0000-0000-0000-000000000001` to cancel", tasks)
+    expect(result).toBe("run `abc12345-0000-0000-0000-000000000001` to cancel")
+  })
+
+  test("does not replace UUID inside fenced code block", () => {
+    const code = "```\ncurl /tasks/abc12345-0000-0000-0000-000000000001\n```"
+    const result = linkifyTaskIdsMarkdown(code, tasks)
+    expect(result).toBe(code)
+  })
+
+  test("uses canonical ID in markdown link", () => {
+    const result = linkifyTaskIdsMarkdown("ABC12345-0000-0000-0000-000000000001", tasks)
+    expect(result).toBe("[abc12345](/tasks/abc12345-0000-0000-0000-000000000001)")
   })
 })

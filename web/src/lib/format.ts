@@ -46,31 +46,46 @@ const UUID_RE = /\b([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}
 
 /** Replace full UUIDs matching known task IDs with short HTML anchor tags.
  *  Input must already be HTML-escaped. Only UUIDs present in tasks are linked;
- *  unknown UUIDs are left as plain text to avoid false links. */
+ *  unknown UUIDs are left as plain text to avoid false links.
+ *  Always uses the canonical task ID from the tasks array in the href, so
+ *  mixed-case matches in text still produce a valid navigation URL. */
 export function linkifyTaskIds(
   html: string,
   tasks: ReadonlyArray<{ id: string }>,
 ): string {
   if (tasks.length === 0) return html
-  const known = new Set(tasks.map((t) => t.id.toLowerCase()))
+  // Map lowercase → canonical ID so href always uses the stored casing
+  const known = new Map(tasks.map((t) => [t.id.toLowerCase(), t.id]))
   return html.replace(UUID_RE, (uuid) => {
-    if (!known.has(uuid.toLowerCase())) return uuid
-    return `<a href="/tasks/${uuid}" class="underline text-link hover:text-link-hover">${uuid.slice(0, 8)}</a>`
+    const canonicalId = known.get(uuid.toLowerCase())
+    if (!canonicalId) return uuid
+    return `<a href="/tasks/${canonicalId}" class="underline text-link hover:text-link-hover">${canonicalId.slice(0, 8)}</a>`
   })
 }
 
 /** Replace full UUIDs matching known task IDs with markdown links.
- *  For pre-processing raw markdown before ReactMarkdown rendering. */
+ *  For pre-processing raw markdown before ReactMarkdown rendering.
+ *  Skips fenced code blocks and inline code spans to avoid corrupting
+ *  code examples that happen to contain task IDs. */
 export function linkifyTaskIdsMarkdown(
   text: string,
   tasks: ReadonlyArray<{ id: string }>,
 ): string {
   if (tasks.length === 0) return text
-  const known = new Set(tasks.map((t) => t.id.toLowerCase()))
-  return text.replace(UUID_RE, (uuid) => {
-    if (!known.has(uuid.toLowerCase())) return uuid
-    return `[${uuid.slice(0, 8)}](/tasks/${uuid})`
-  })
+  const known = new Map(tasks.map((t) => [t.id.toLowerCase(), t.id]))
+  // Split on fenced code blocks (```...```) and inline code (`...`), leaving
+  // code segments (odd indices from a capturing-group split) unchanged.
+  const segments = text.split(/(```[\s\S]*?```|`[^`\n]+`)/g)
+  return segments
+    .map((seg, i) => {
+      if (i % 2 === 1) return seg // code segment — leave as-is
+      return seg.replace(UUID_RE, (uuid) => {
+        const canonicalId = known.get(uuid.toLowerCase())
+        if (!canonicalId) return uuid
+        return `[${canonicalId.slice(0, 8)}](/tasks/${canonicalId})`
+      })
+    })
+    .join("")
 }
 
 /** Extract PR number from a GitHub PR URL, e.g. "https://github.com/owner/repo/pull/123" → "#123" */

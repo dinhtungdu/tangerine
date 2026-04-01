@@ -3,7 +3,7 @@ import type { Components } from "react-markdown"
 import ReactMarkdown from "react-markdown"
 import remarkGfm from "remark-gfm"
 import type { ChatMessage as ChatMessageType } from "../hooks/useSession"
-import { formatTimestamp, linkifyTaskIds, linkifyTaskIdsMarkdown } from "../lib/format"
+import { formatTimestamp, linkifyTaskIdsMarkdown } from "../lib/format"
 import { ToolCallDisplay } from "./ToolCallDisplay"
 import { ImageLightbox } from "./ImageLightbox"
 
@@ -28,11 +28,23 @@ function escapeHtml(text: string): string {
 
 function linkifyUrls(text: string, tasks?: ReadonlyArray<{ id: string }>): string {
   const escaped = escapeHtml(text)
-  const withUrls = escaped.replace(
-    /(https?:\/\/[^\s<]+)/g,
-    '<a href="$1" target="_blank" rel="noopener noreferrer">$1</a>',
+  const taskMap = tasks && tasks.length > 0
+    ? new Map(tasks.map((t) => [t.id.toLowerCase(), t.id]))
+    : null
+  // Single combined pass so UUIDs that are part of a URL are consumed by the
+  // URL branch and never double-processed into broken nested anchors.
+  return escaped.replace(
+    /(https?:\/\/[^\s<]+)|\b([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})\b/gi,
+    (match, url: string | undefined, uuid: string | undefined) => {
+      if (url) return `<a href="${url}" target="_blank" rel="noopener noreferrer">${url}</a>`
+      if (uuid && taskMap) {
+        const canonicalId = taskMap.get(uuid.toLowerCase())
+        if (!canonicalId) return uuid
+        return `<a href="/tasks/${canonicalId}" class="underline text-link hover:text-link-hover">${canonicalId.slice(0, 8)}</a>`
+      }
+      return match
+    },
   )
-  return tasks ? linkifyTaskIds(withUrls, tasks) : withUrls
 }
 
 const markdownComponents: Components = {
