@@ -4,9 +4,10 @@ import type { AppDeps } from "../app"
 import { mapTaskRow } from "../helpers"
 import { runEffect, runEffectVoid } from "../effect-helpers"
 import { getTask, listTasks, updateTask, deleteTask, markTaskSeen, getChildTasks } from "../../db/queries"
-import { TaskNotFoundError, TaskNotTerminalError, PrCapabilityError } from "../../errors"
+import { TaskNotFoundError, TaskNotTerminalError, PrCapabilityError, BranchRenameError } from "../../errors"
 import { getRepoDir } from "../../config"
 import { ghSpawnEnv } from "../../gh"
+import { localExec } from "./../../tasks/worktree-pool"
 
 export function taskRoutes(deps: AppDeps): Hono {
   const app = new Hono()
@@ -171,6 +172,86 @@ export function taskRoutes(deps: AppDeps): Hono {
         const fields: Record<string, string | number | null> = {}
         if ("prUrl" in body) fields.pr_url = body.prUrl ?? null
         const updated = yield* updateTask(deps.db, taskId, fields)
+        if (!updated) return yield* Effect.fail(new TaskNotFoundError({ taskId }))
+        return mapTaskRow(updated)
+      })
+    )
+  })
+
+  // Rename a task's branch (e.g. before creating a PR with a descriptive name).
+  // Renames locally, pushes new branch with tracking, deletes old remote branch.
+  app.post("/:id/rename-branch", async (c) => {
+    const taskId = c.req.param("id")
+    const body = await c.req.json<{ branch: string }>()
+    if (!body.branch || typeof body.branch !== "string") {
+      return c.json({ error: "branch is required" }, 400)
+    }
+    const newBranch = body.branch.trim()
+    // Strict git ref-name validation: only allow alphanumeric, dash, underscore, dot, slash.
+    // Rejects shell metacharacters (;$`|&(){}[]) to prevent injection via bash -c.
+    if (!newBranch || !/^[a-zA-Z0-9._\-/]+$/.test(newBranch)) {
+      return c.json({ error: "Invalid branch name — only alphanumeric, dash, underscore, dot, and slash allowed" }, 400)
+    }
+
+    return runEffect(c,
+      Effect.gen(function* () {
+        const task = yield* getTask(deps.db, taskId)
+        if (!task) return yield* Effect.fail(new TaskNotFoundError({ taskId }))
+
+        if (!task.worktree_path) {
+          return yield* Effect.fail(new BranchRenameError({
+            message: "Task has no worktree — cannot rename branch",
+            taskId,
+          }))
+        }
+        const oldBranch = task.branch
+        if (!oldBranch) {
+          return yield* Effect.fail(new BranchRenameError({
+            message: "Task has no branch assigned",
+            taskId,
+          }))
+        }
+        if (oldBranch === newBranch) {
+          return mapTaskRow(task)
+        }
+
+        const cwd = task.worktree_path
+
+        // Helper: run localExec and fail on non-zero exit code
+        const execOrFail = (cmd: string, label: string) =>
+          localExec(cmd).pipe(
+            Effect.flatMap((r) =>
+              r.exitCode !== 0
+                ? Effect.fail(new BranchRenameError({
+                    message: `${label}: ${r.stderr || r.stdout}`.trim(),
+                    taskId,
+                  }))
+                : Effect.succeed(r)
+            ),
+            Effect.mapError((e) =>
+              e instanceof BranchRenameError ? e : new BranchRenameError({ message: `${label}: ${e.message}`, taskId, cause: e })
+            ),
+          )
+
+        // Rename local branch
+        yield* execOrFail(
+          `cd ${cwd} && git branch -m ${oldBranch} ${newBranch}`,
+          "Failed to rename local branch",
+        )
+
+        // Push new branch with upstream tracking
+        yield* execOrFail(
+          `cd ${cwd} && git push -u origin ${newBranch}`,
+          "Failed to push renamed branch",
+        )
+
+        // Delete old remote branch (best-effort — may not exist on remote yet)
+        yield* localExec(`cd ${cwd} && git push origin --delete ${oldBranch} 2>/dev/null; true`).pipe(
+          Effect.catchAll(() => Effect.void)
+        )
+
+        // Update DB
+        const updated = yield* updateTask(deps.db, taskId, { branch: newBranch })
         if (!updated) return yield* Effect.fail(new TaskNotFoundError({ taskId }))
         return mapTaskRow(updated)
       })

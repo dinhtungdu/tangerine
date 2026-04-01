@@ -360,6 +360,78 @@ describe("API routes", () => {
     })
   })
 
+  describe("POST /api/tasks/:id/rename-branch", () => {
+    test("returns 400 when branch is missing", async () => {
+      const row = seedTask(db)
+      const res = await app.fetch(new Request(`http://localhost/api/tasks/${row.id}/rename-branch`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({}),
+      }))
+      expect(res.status).toBe(400)
+      const body = await res.json() as { error: string }
+      expect(body.error).toContain("branch is required")
+    })
+
+    test("returns 400 when branch contains whitespace", async () => {
+      const row = seedTask(db)
+      const res = await app.fetch(new Request(`http://localhost/api/tasks/${row.id}/rename-branch`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ branch: "bad branch name" }),
+      }))
+      expect(res.status).toBe(400)
+      const body = await res.json() as { error: string }
+      expect(body.error).toContain("Invalid branch name")
+    })
+
+    test("returns 400 when branch contains shell metacharacters", async () => {
+      const row = seedTask(db)
+      const res = await app.fetch(new Request(`http://localhost/api/tasks/${row.id}/rename-branch`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ branch: "feature; touch /tmp/pwned" }),
+      }))
+      expect(res.status).toBe(400)
+      const body = await res.json() as { error: string }
+      expect(body.error).toContain("Invalid branch name")
+    })
+
+    test("returns 404 for unknown task", async () => {
+      const res = await app.fetch(new Request("http://localhost/api/tasks/nonexistent/rename-branch", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ branch: "new-name" }),
+      }))
+      expect(res.status).toBe(404)
+    })
+
+    test("returns 400 when task has no worktree", async () => {
+      const row = seedTask(db)
+      const res = await app.fetch(new Request(`http://localhost/api/tasks/${row.id}/rename-branch`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ branch: "new-name" }),
+      }))
+      expect(res.status).toBe(400)
+      const body = await res.json() as { error: string }
+      expect(body.error).toContain("no worktree")
+    })
+
+    test("returns 400 when task has no branch", async () => {
+      const row = seedTask(db)
+      db.prepare("UPDATE tasks SET worktree_path = '/tmp/test' WHERE id = ?").run(row.id)
+      const res = await app.fetch(new Request(`http://localhost/api/tasks/${row.id}/rename-branch`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ branch: "new-name" }),
+      }))
+      expect(res.status).toBe(400)
+      const body = await res.json() as { error: string }
+      expect(body.error).toContain("no branch")
+    })
+  })
+
   describe("DELETE /api/tasks/:id", () => {
     test("deletes a terminal task", async () => {
       const row = seedTask(db)

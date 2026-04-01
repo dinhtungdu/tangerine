@@ -16,6 +16,7 @@ const DEFAULT_ERROR_MAP: Record<string, number> = {
   CronValidationError: 400,
   TaskNotTerminalError: 400,
   PrCapabilityError: 400,
+  BranchRenameError: 400,
   PoolExhaustedError: 503,
   AgentError: 502,
   AgentConnectionError: 502,
