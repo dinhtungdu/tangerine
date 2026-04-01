@@ -163,6 +163,9 @@ export function CronRow({ cron, onToggle, onDelete, onRefresh, modelsByProvider 
   const [title, setTitle] = useState(cron.title)
   const [description, setDescription] = useState(cron.description ?? "")
   const [cronExpr, setCronExpr] = useState(cron.cron)
+  // taskDefaultsEnabled: false when cron.taskDefaults is null so we don't silently
+  // override project-level defaults when editing only title/description/schedule.
+  const [taskDefaultsEnabled, setTaskDefaultsEnabled] = useState(cron.taskDefaults !== null)
   const [provider, setProvider] = useState<ProviderType>((cron.taskDefaults?.provider as ProviderType) ?? "claude-code")
   const [model, setModel] = useState(cron.taskDefaults?.model ?? "")
   const [branch, setBranch] = useState(cron.taskDefaults?.branch ?? "")
@@ -184,6 +187,7 @@ export function CronRow({ cron, onToggle, onDelete, onRefresh, modelsByProvider 
     setModel(cron.taskDefaults?.model ?? "")
     setBranch(cron.taskDefaults?.branch ?? "")
     setError(null)
+    setTaskDefaultsEnabled(cron.taskDefaults !== null)
     setEditing(false)
   }, [cron])
 
@@ -196,13 +200,13 @@ export function CronRow({ cron, onToggle, onDelete, onRefresh, modelsByProvider 
         title: title.trim(),
         description: description.trim() || null,
         cron: cronExpr.trim(),
-        taskDefaults: {
+        taskDefaults: taskDefaultsEnabled ? {
           // Preserve reasoningEffort since this form doesn't expose it
           ...(cron.taskDefaults?.reasoningEffort ? { reasoningEffort: cron.taskDefaults.reasoningEffort } : {}),
           provider,
           model: model || undefined,
           branch: branch.trim() || undefined,
-        },
+        } : null,
       })
       onRefresh()
       setEditing(false)
@@ -211,20 +215,68 @@ export function CronRow({ cron, onToggle, onDelete, onRefresh, modelsByProvider 
     } finally {
       setSubmitting(false)
     }
-  }, [canSubmit, cron.id, cron.taskDefaults, title, description, cronExpr, provider, model, branch, onRefresh])
+  }, [canSubmit, cron.id, cron.taskDefaults, title, description, cronExpr, taskDefaultsEnabled, provider, model, branch, onRefresh])
 
   if (editing) {
     return (
       <div className="border-t border-edge px-4 py-3 first:border-t-0">
         <div className="flex flex-col gap-3">
-          <CronFields
-            title={title} setTitle={setTitle}
-            description={description} setDescription={setDescription}
-            cron={cronExpr} setCron={setCronExpr}
-            provider={provider} setProvider={setProvider}
-            providerModels={providerModels} activeModel={activeModel} setModel={setModel}
-            branch={branch} setBranch={setBranch}
+          <input
+            type="text"
+            value={title}
+            onChange={(e) => setTitle(e.target.value)}
+            placeholder="Title (e.g. Nightly test suite)"
+            className="rounded-md border border-edge bg-surface px-3 py-2 text-md text-fg placeholder-fg-muted outline-none"
           />
+          <textarea
+            value={description}
+            onChange={(e) => setDescription(e.target.value)}
+            placeholder="Task description / prompt (optional)"
+            rows={2}
+            className="resize-none rounded-md border border-edge bg-surface px-3 py-2 text-md text-fg placeholder-fg-muted outline-none"
+          />
+          <div className="flex flex-col gap-2 md:flex-row md:items-center">
+            <div className="flex flex-1 items-center gap-2">
+              <label className="shrink-0 text-xs text-fg-muted">Cron:</label>
+              <input
+                type="text"
+                value={cronExpr}
+                onChange={(e) => setCronExpr(e.target.value)}
+                placeholder="0 9 * * 1-5"
+                className="flex-1 rounded-md border border-edge bg-surface px-3 py-1.5 font-mono text-md text-fg placeholder-fg-muted outline-none"
+              />
+            </div>
+            {cronExpr.trim() && cronExpr.trim().split(/\s+/).length === 5 && (
+              <span className="text-xxs text-fg-muted">{formatCronExpression(cronExpr.trim())}</span>
+            )}
+          </div>
+          <label className="flex cursor-pointer items-center gap-2">
+            <input
+              type="checkbox"
+              checked={taskDefaultsEnabled}
+              onChange={(e) => setTaskDefaultsEnabled(e.target.checked)}
+              className="rounded"
+            />
+            <span className="text-xs text-fg-muted">Override task defaults</span>
+          </label>
+          {taskDefaultsEnabled && (
+            <div className="flex flex-col gap-2 md:flex-row md:items-center">
+              <HarnessSelector value={provider} onChange={setProvider} />
+              <ModelSelector
+                models={providerModels}
+                model={activeModel}
+                onModelChange={setModel}
+                menuPlacement="bottom"
+              />
+              <input
+                type="text"
+                value={branch}
+                onChange={(e) => setBranch(e.target.value)}
+                placeholder="Branch (optional)"
+                className="rounded-md border border-edge bg-surface px-3 py-1.5 text-md text-fg placeholder-fg-muted outline-none md:w-[180px]"
+              />
+            </div>
+          )}
           {error && <p className="text-xs text-status-error">{error}</p>}
           <div className="flex gap-2">
             <button
