@@ -20,7 +20,7 @@ export function buildSystemNotes(taskId: string, info: SystemNotesInfo): string[
   // Reviewer tasks don't create PRs — they review existing ones on their branch.
   // The PR monitor completes them when the PR merges, so don't tell them to push/create PRs.
   if (info.taskType !== "reviewer") {
-    notes.push(`[NOTE: When your work is complete: 1) Rename your branch to something descriptive via: curl -X POST http://localhost:3456/api/tasks/${taskId}/rename-branch -H "Content-Type: application/json" -d '{"branch":"tangerine/<descriptive-slug>"}' (this also pushes to origin with tracking). 2) Create a PR with \`gh pr create\`. Do not stop at just committing.]`)
+    notes.push(`[NOTE: When your work is complete: 1) Rename your branch via: curl -X POST http://localhost:3456/api/tasks/${taskId}/rename-branch -H "Content-Type: application/json" -d '{"branch":"tangerine/<descriptive-slug>"}'. 2) Push and create a PR with \`git push -u origin HEAD\` then \`gh pr create\`. Do not stop at just committing.]`)
   }
   return notes
 }

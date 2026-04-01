@@ -230,7 +230,7 @@ Always push the branch regardless of `prMode`.
 
 ### Rename branch before PR
 
-Before creating a PR, rename your branch to something descriptive. The API also pushes the renamed branch to origin with tracking — no separate `git push` needed.
+Before creating a PR, rename your branch to something descriptive. Then push with `git push -u origin HEAD`.
 
 ```bash
 curl -X POST "$API/api/tasks/$TANGERINE_TASK_ID/rename-branch" \

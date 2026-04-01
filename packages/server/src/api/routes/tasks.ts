@@ -233,21 +233,10 @@ export function taskRoutes(deps: AppDeps): Hono {
             ),
           )
 
-        // Rename local branch
+        // Rename local branch (agent pushes separately via git push -u origin HEAD)
         yield* execOrFail(
           `cd ${cwd} && git branch -m ${oldBranch} ${newBranch}`,
           "Failed to rename local branch",
-        )
-
-        // Push new branch with upstream tracking
-        yield* execOrFail(
-          `cd ${cwd} && git push -u origin ${newBranch}`,
-          "Failed to push renamed branch",
-        )
-
-        // Delete old remote branch (best-effort — may not exist on remote yet)
-        yield* localExec(`cd ${cwd} && git push origin --delete ${oldBranch} 2>/dev/null; true`).pipe(
-          Effect.catchAll(() => Effect.void)
         )
 
         // Update DB
