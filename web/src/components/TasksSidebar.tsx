@@ -45,7 +45,12 @@ function PaginationControls({ page, totalPages, onPrev, onNext }: { page: number
 
 function readActiveOnly(): boolean {
   try {
-    return localStorage.getItem(ACTIVE_ONLY_KEY) !== "false"
+    const v = localStorage.getItem(ACTIVE_ONLY_KEY)
+    if (v !== null) return v !== "false"
+    // Migrate from old key: show-completed=true → activeOnly=false
+    const old = localStorage.getItem("tangerine:sidebar-show-completed")
+    if (old === "true") return false
+    return true
   } catch {
     return true
   }
@@ -139,8 +144,15 @@ export function TasksSidebar({ tasks, searchQuery, onSearchChange, onNewAgent, o
   const isSearching = searchQuery.length > 0
   const sortedTasks = useMemo(() => {
     const nonOrch = tasks.filter((t) => t.type !== "orchestrator")
-    if (!activeOnly || isSearching) return nonOrch
-    return nonOrch.filter((t) => !TERMINATED_STATUSES.has(t.status))
+    if (activeOnly && !isSearching) return nonOrch.filter((t) => !TERMINATED_STATUSES.has(t.status))
+    // Active tasks first, then completed — stable within each group (API order)
+    const active: Task[] = []
+    const completed: Task[] = []
+    for (const t of nonOrch) {
+      if (TERMINATED_STATUSES.has(t.status)) completed.push(t)
+      else active.push(t)
+    }
+    return [...active, ...completed]
   }, [tasks, activeOnly, isSearching])
 
   const activeCount = useMemo(
