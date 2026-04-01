@@ -230,11 +230,13 @@ describe("useMentionPicker", () => {
   test("does not open for @ preceded by non-whitespace", () => {
     const { result } = renderHook(() => useMentionPicker(mentionTasks))
     act(() => result.current.onTextChange("email@auth", 10))
-    // The @ is preceded by "email" with no space — should still detect it
-    // since we scan back to find @. Actually our algorithm scans back from cursor,
-    // stops at spaces. "email@auth" → scans back from pos 10, finds "htua@liame"
-    // → finds @ at index 5. So it WILL open with query "auth".
-    // This is acceptable behavior — user can press Escape to dismiss.
+    expect(result.current.state.isOpen).toBe(false)
+  })
+
+  test("opens for @ after whitespace", () => {
+    const { result } = renderHook(() => useMentionPicker(mentionTasks))
+    act(() => result.current.onTextChange("check @auth", 11))
     expect(result.current.state.isOpen).toBe(true)
+    expect(result.current.state.query).toBe("auth")
   })
 })

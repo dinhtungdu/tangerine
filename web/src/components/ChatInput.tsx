@@ -55,6 +55,10 @@ export function ChatInput({ onSend, disabled, queueLength, taskId, isWorking, on
 
   const { tasks: allTasks } = useTasks()
   const mention = useMentionPicker(allTasks)
+  const mentionRef = useRef(mention)
+  mentionRef.current = mention
+  const textRef = useRef(text)
+  textRef.current = text
 
   // Ref to latest draft state — used in the unmount cleanup to avoid stale closures
   const draftStateRef = useRef({ text, pendingImages })
@@ -93,7 +97,7 @@ export function ChatInput({ onSend, disabled, queueLength, taskId, isWorking, on
   }, [text, pendingImages, disabled, onSend, draftKey])
 
   const handleMentionSelect = useCallback((task: Task) => {
-    const { newText, cursorPos } = mention.selectTask(task, text)
+    const { newText, cursorPos } = mentionRef.current.selectTask(task, textRef.current)
     setText(newText)
     requestAnimationFrame(() => {
       const textarea = textareaRef.current
@@ -101,26 +105,27 @@ export function ChatInput({ onSend, disabled, queueLength, taskId, isWorking, on
       textarea.setSelectionRange(cursorPos, cursorPos)
       textarea.focus()
     })
-  }, [mention, text])
+  }, [])
 
   const handleKeyDown = useCallback(
     (e: KeyboardEvent<HTMLTextAreaElement>) => {
+      const m = mentionRef.current
       // Let mention picker consume keys first
-      if (mention.state.isOpen) {
-        const selectedTask = mention.filteredTasks[mention.state.selectedIndex]
+      if (m.state.isOpen) {
+        const selectedTask = m.filteredTasks[m.state.selectedIndex]
         if ((e.key === "Enter" || e.key === "Tab") && selectedTask) {
           e.preventDefault()
           handleMentionSelect(selectedTask)
           return
         }
-        if (mention.onKeyDown(e)) return
+        if (m.onKeyDown(e)) return
       }
       if (e.key === "Enter" && (e.metaKey || e.ctrlKey)) {
         e.preventDefault()
         handleSend()
       }
     },
-    [handleSend, mention, handleMentionSelect],
+    [handleSend, handleMentionSelect],
   )
 
   const handleInput = useCallback(() => {

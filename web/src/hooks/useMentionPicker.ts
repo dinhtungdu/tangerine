@@ -59,10 +59,9 @@ export function useMentionPicker(tasks: Task[]): UseMentionPickerResult {
     while (i >= 0) {
       const ch = text[i]
       if (ch === "@") {
-        // Found trigger — query is everything between @ and cursor
+        // Only trigger after whitespace or at start-of-line to avoid false positives (e.g. email@domain)
+        if (i > 0 && text[i - 1] !== " " && text[i - 1] !== "\n") break
         const query = text.slice(i + 1, cursorPos)
-        // Close if there's a space before any query chars (i.e. user typed "@ something")
-        // But allow empty query (just typed "@")
         if (query.includes("\n")) {
           setState(CLOSED)
           return
