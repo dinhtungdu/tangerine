@@ -9,6 +9,7 @@ import { useProjectNav } from "../hooks/useProjectNav"
 import { useProject } from "../context/ProjectContext"
 import { useTaskSearch } from "../hooks/useTaskSearch"
 import { useAppActions } from "../hooks/useAppActions"
+import { ToastProvider } from "../context/ToastContext"
 
 export interface SidebarContext {
   sidebarOpen: boolean
@@ -37,6 +38,7 @@ export function Layout() {
   const hasSidebar = !isCrons
 
   return (
+    <ToastProvider>
     <div className={`flex flex-col bg-surface md:h-screen ${isRoot ? "min-h-[100dvh]" : "h-[100dvh]"}`}>
       {/* Desktop topbar */}
       <div className="hidden shrink-0 md:block">
@@ -112,5 +114,6 @@ export function Layout() {
 
       <CommandPalette />
     </div>
+    </ToastProvider>
   )
 }

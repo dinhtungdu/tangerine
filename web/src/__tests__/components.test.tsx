@@ -8,7 +8,9 @@ import { ChatPanel } from "../components/ChatPanel"
 import { ModelSelector } from "../components/ModelSelector"
 import { CommandPalette } from "../components/CommandPalette"
 import { StatusPage } from "../pages/StatusPage"
+import { TaskOverflowMenu } from "../components/TaskListItem"
 import { ProjectProvider } from "../context/ProjectContext"
+import { ToastProvider } from "../context/ToastContext"
 import { _resetForTesting as resetActions } from "../lib/actions"
 import { useShortcuts } from "../hooks/useShortcuts"
 import type { Task, ActivityEntry } from "@tangerine/shared"
@@ -812,5 +814,74 @@ describe("ChatMessage", async () => {
       />,
     )
     expect(document.querySelector("del")!.textContent).toBe("deleted")
+  })
+})
+
+describe("ToastProvider", () => {
+  test("renders children without toasts initially", () => {
+    render(
+      <ToastProvider>
+        <span>content</span>
+      </ToastProvider>
+    )
+    expect(screen.getByText("content")).toBeTruthy()
+    // No error toast visible yet
+    expect(screen.queryByRole("img")).toBeNull()
+  })
+})
+
+describe("TaskOverflowMenu error toasts", () => {
+  test("shows error toast when cancel fails", async () => {
+    global.fetch = async () => new Response("Server error", { status: 500 })
+
+    const task = makeTask({ status: "running" })
+    render(
+      <ToastProvider>
+        <TaskOverflowMenu task={task} />
+      </ToastProvider>
+    )
+
+    fireEvent.click(screen.getByLabelText("Task actions"))
+    await act(async () => {
+      fireEvent.click(screen.getByText("Cancel"))
+    })
+
+    expect(screen.getByText("Failed to cancel task")).toBeTruthy()
+  })
+
+  test("shows error toast when retry fails", async () => {
+    global.fetch = async () => new Response("Server error", { status: 500 })
+
+    const task = makeTask({ status: "failed" })
+    render(
+      <ToastProvider>
+        <TaskOverflowMenu task={task} />
+      </ToastProvider>
+    )
+
+    fireEvent.click(screen.getByLabelText("Task actions"))
+    await act(async () => {
+      fireEvent.click(screen.getByText("Retry"))
+    })
+
+    expect(screen.getByText("Failed to retry task")).toBeTruthy()
+  })
+
+  test("shows error toast when delete fails", async () => {
+    global.fetch = async () => new Response("Server error", { status: 500 })
+
+    const task = makeTask({ status: "done" })
+    render(
+      <ToastProvider>
+        <TaskOverflowMenu task={task} />
+      </ToastProvider>
+    )
+
+    fireEvent.click(screen.getByLabelText("Task actions"))
+    await act(async () => {
+      fireEvent.click(screen.getByText("Delete"))
+    })
+
+    expect(screen.getByText("Failed to delete task")).toBeTruthy()
   })
 })
