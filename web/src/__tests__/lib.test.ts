@@ -92,9 +92,9 @@ describe("format", () => {
   })
 
   describe("formatTimestamp", () => {
-    test("formats HH:MM:SS", () => {
+    test("includes date and time", () => {
       const result = formatTimestamp("2026-03-18T14:32:01Z")
-      expect(result).toMatch(/\d{2}:\d{2}:\d{2}/)
+      expect(result).toMatch(/Mar \d+ · \d{2}:\d{2}:\d{2}/)
     })
   })
 

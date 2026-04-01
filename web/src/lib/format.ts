@@ -34,9 +34,12 @@ export function formatRelativeTime(iso: string): string {
   return `${Math.floor(hours / 24)}d ago`
 }
 
-/** "14:32:01" */
+/** "Mar 18 · 14:32:01" */
 export function formatTimestamp(iso: string): string {
-  return new Date(iso).toLocaleTimeString("en-US", { hour12: false, hour: "2-digit", minute: "2-digit", second: "2-digit" })
+  const d = new Date(iso)
+  const date = d.toLocaleDateString("en-US", { month: "short", day: "numeric" })
+  const time = d.toLocaleTimeString("en-US", { hour12: false, hour: "2-digit", minute: "2-digit", second: "2-digit" })
+  return `${date} · ${time}`
 }
 
 /** Extract PR number from a GitHub PR URL, e.g. "https://github.com/owner/repo/pull/123" → "#123" */
