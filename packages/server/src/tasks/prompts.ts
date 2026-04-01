@@ -3,15 +3,29 @@
 
 import { DEFAULT_API_PORT } from "@tangerine/shared"
 
+const apiPort = () => Number(process.env["PORT"] ?? DEFAULT_API_PORT)
+
 export interface SystemNotesInfo {
   setupCommand?: string
   taskType?: string
 }
 
+/**
+ * Build the PR workflow instruction: rename branch, push, create PR.
+ * Used in initial prompts, reconnect nudges, and PR nudges.
+ */
+export function buildPrWorkflowNote(taskId: string, port = apiPort()): string {
+  return (
+    `1) Rename your branch via: curl -X POST http://localhost:${port}/api/tasks/${taskId}/rename-branch ` +
+    `-H "Content-Type: application/json" -d '{"branch":"tangerine/<descriptive-slug>"}'. ` +
+    `2) Push and create a PR with \`git push -u origin HEAD\` then \`gh pr create\`.`
+  )
+}
+
 /** Build system notes prepended to the first prompt for a task. */
-export function buildSystemNotes(taskId: string, info: SystemNotesInfo): string[] {
+export function buildSystemNotes(taskId: string, info: SystemNotesInfo, port = apiPort()): string[] {
   const notes: string[] = []
-  notes.push(`[TANGERINE: You are running inside a Tangerine task (task ID: ${taskId}). The Tangerine API is at http://localhost:3456. Load the tangerine-tasks skill (\`/tangerine-tasks\`) for full API reference and common workflows.]`)
+  notes.push(`[TANGERINE: You are running inside a Tangerine task (task ID: ${taskId}). The Tangerine API is at http://localhost:${port}. Load the tangerine-tasks skill (\`/tangerine-tasks\`) for full API reference and common workflows.]`)
   notes.push(`[STYLE: Be extremely short and concise in all responses — sacrifice grammar for brevity. Key info only, no walls of text. Applies to all conversations and reviews.]`)
   if (info.setupCommand) {
     const prefix = taskId.slice(0, 8)
@@ -20,13 +34,13 @@ export function buildSystemNotes(taskId: string, info: SystemNotesInfo): string[
   // Reviewer tasks don't create PRs — they review existing ones on their branch.
   // The PR monitor completes them when the PR merges, so don't tell them to push/create PRs.
   if (info.taskType !== "reviewer") {
-    notes.push(`[NOTE: When your work is complete, push your branch and create a pull request. Use \`git push origin HEAD\` then \`gh pr create\`. Do not stop at just committing.]`)
+    notes.push(`[NOTE: When your work is complete: ${buildPrWorkflowNote(taskId, port)} Do not stop at just committing.]`)
   }
   return notes
 }
 
 /** Build the escalation block appended to the initial prompt for worker tasks. */
-export function buildEscalationBlock(orchestratorId: string, port = Number(process.env["PORT"] ?? DEFAULT_API_PORT)): string {
+export function buildEscalationBlock(orchestratorId: string, port = apiPort()): string {
   return [
     "",
     "---",
