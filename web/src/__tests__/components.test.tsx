@@ -10,7 +10,13 @@ import { CommandPalette } from "../components/CommandPalette"
 import { StatusPage } from "../pages/StatusPage"
 import { ProjectProvider } from "../context/ProjectContext"
 import { _resetForTesting as resetActions } from "../lib/actions"
+import { useShortcuts } from "../hooks/useShortcuts"
 import type { Task, ActivityEntry } from "@tangerine/shared"
+
+function WithShortcuts({ children }: { children: import("react").ReactNode }) {
+  useShortcuts()
+  return <>{children}</>
+}
 
 const originalFetch = global.fetch
 
@@ -534,7 +540,9 @@ describe("CommandPalette", () => {
     mockTasksFetch([])
     render(
       <MemoryRouter>
-        <CommandPalette />
+        <WithShortcuts>
+          <CommandPalette />
+        </WithShortcuts>
       </MemoryRouter>
     )
 
@@ -552,7 +560,9 @@ describe("CommandPalette", () => {
     mockTasksFetch([])
     render(
       <MemoryRouter>
-        <CommandPalette />
+        <WithShortcuts>
+          <CommandPalette />
+        </WithShortcuts>
       </MemoryRouter>
     )
 
@@ -575,7 +585,9 @@ describe("CommandPalette", () => {
 
     render(
       <MemoryRouter>
-        <CommandPalette />
+        <WithShortcuts>
+          <CommandPalette />
+        </WithShortcuts>
       </MemoryRouter>
     )
 
@@ -595,7 +607,9 @@ describe("CommandPalette", () => {
 
     render(
       <MemoryRouter>
-        <CommandPalette />
+        <WithShortcuts>
+          <CommandPalette />
+        </WithShortcuts>
       </MemoryRouter>
     )
 
@@ -614,7 +628,9 @@ describe("CommandPalette", () => {
     mockTasksFetch([])
     render(
       <MemoryRouter>
-        <CommandPalette />
+        <WithShortcuts>
+          <CommandPalette />
+        </WithShortcuts>
       </MemoryRouter>
     )
 
@@ -633,7 +649,9 @@ describe("CommandPalette", () => {
 
     render(
       <MemoryRouter>
-        <CommandPalette />
+        <WithShortcuts>
+          <CommandPalette />
+        </WithShortcuts>
       </MemoryRouter>
     )
 
@@ -655,10 +673,12 @@ describe("CommandPalette", () => {
 
     render(
       <MemoryRouter initialEntries={["/"]}>
-        <Routes>
-          <Route path="/" element={<CommandPalette />} />
-          <Route path="/tasks/abc12345" element={<div>Task Detail</div>} />
-        </Routes>
+        <WithShortcuts>
+          <Routes>
+            <Route path="/" element={<CommandPalette />} />
+            <Route path="/tasks/abc12345" element={<div>Task Detail</div>} />
+          </Routes>
+        </WithShortcuts>
       </MemoryRouter>
     )
 
@@ -678,7 +698,9 @@ describe("CommandPalette", () => {
 
     render(
       <MemoryRouter>
-        <CommandPalette />
+        <WithShortcuts>
+          <CommandPalette />
+        </WithShortcuts>
       </MemoryRouter>
     )
 
