@@ -17,7 +17,7 @@ interface TasksSidebarProps {
 }
 
 const TERMINATED_STATUSES = new Set(["done", "completed", "failed", "cancelled"])
-const SHOW_COMPLETED_KEY = "tangerine:sidebar-show-completed"
+const ACTIVE_ONLY_KEY = "tangerine:sidebar-active-only"
 const ITEMS_PER_PAGE = 20
 
 function PaginationControls({ page, totalPages, onPrev, onNext }: { page: number; totalPages: number; onPrev: () => void; onNext: () => void }) {
@@ -43,11 +43,11 @@ function PaginationControls({ page, totalPages, onPrev, onNext }: { page: number
   )
 }
 
-function readShowCompleted(): boolean {
+function readActiveOnly(): boolean {
   try {
-    return localStorage.getItem(SHOW_COMPLETED_KEY) === "true"
+    return localStorage.getItem(ACTIVE_ONLY_KEY) !== "false"
   } catch {
-    return false
+    return true
   }
 }
 
@@ -130,32 +130,29 @@ export function TasksSidebar({ tasks, searchQuery, onSearchChange, onNewAgent, o
   const { navigate } = useProjectNav()
   const { current: project } = useProject()
   const [orchLoading, setOrchLoading] = useState(false)
-  const [showCompleted, setShowCompleted] = useState(readShowCompleted)
-  const [activePage, setActivePage] = useState(0)
-  const [completedPage, setCompletedPage] = useState(0)
+  const [activeOnly, setActiveOnly] = useState(readActiveOnly)
+  const [page, setPage] = useState(0)
 
   const taskById = useMemo(() => new Map(tasks.map((t) => [t.id, t])), [tasks])
 
-  const activeTasks = useMemo(
-    () => tasks.filter((t) => !TERMINATED_STATUSES.has(t.status) && t.type !== "orchestrator"),
+  // Single sorted list: active first, then completed — search always shows all statuses
+  const isSearching = searchQuery.length > 0
+  const sortedTasks = useMemo(() => {
+    const nonOrch = tasks.filter((t) => t.type !== "orchestrator")
+    if (!activeOnly || isSearching) return nonOrch
+    return nonOrch.filter((t) => !TERMINATED_STATUSES.has(t.status))
+  }, [tasks, activeOnly, isSearching])
+
+  const activeCount = useMemo(
+    () => tasks.filter((t) => !TERMINATED_STATUSES.has(t.status) && t.type !== "orchestrator").length,
     [tasks],
   )
 
-  const completedTasks = useMemo(
-    () => tasks.filter((t) => TERMINATED_STATUSES.has(t.status) && t.type !== "orchestrator"),
-    [tasks],
-  )
+  const totalPages = Math.max(1, Math.ceil(sortedTasks.length / ITEMS_PER_PAGE))
+  const clampedPage = Math.min(page, totalPages - 1)
+  const pagedTasks = sortedTasks.slice(clampedPage * ITEMS_PER_PAGE, (clampedPage + 1) * ITEMS_PER_PAGE)
 
-  const totalActivePages = Math.max(1, Math.ceil(activeTasks.length / ITEMS_PER_PAGE))
-  const totalCompletedPages = Math.max(1, Math.ceil(completedTasks.length / ITEMS_PER_PAGE))
-  const clampedActivePage = Math.min(activePage, totalActivePages - 1)
-  const clampedCompletedPage = Math.min(completedPage, totalCompletedPages - 1)
-
-  const pagedActiveTasks = activeTasks.slice(clampedActivePage * ITEMS_PER_PAGE, (clampedActivePage + 1) * ITEMS_PER_PAGE)
-  const pagedCompletedTasks = completedTasks.slice(clampedCompletedPage * ITEMS_PER_PAGE, (clampedCompletedPage + 1) * ITEMS_PER_PAGE)
-
-  // Reset pages only when search query changes, not on every polling update
-  useEffect(() => { setActivePage(0); setCompletedPage(0) }, [searchQuery])
+  useEffect(() => { setPage(0) }, [searchQuery, activeOnly])
 
   const orchestrator = useMemo(() => {
     const orchTasks = tasks.filter((t) => t.type === "orchestrator")
@@ -177,10 +174,10 @@ export function TasksSidebar({ tasks, searchQuery, onSearchChange, onNewAgent, o
     }
   }, [project, orchestrator, navigate])
 
-  const handleToggleCompleted = useCallback(() => {
-    setShowCompleted((prev) => {
+  const handleToggleActiveOnly = useCallback(() => {
+    setActiveOnly((prev) => {
       const next = !prev
-      try { localStorage.setItem(SHOW_COMPLETED_KEY, String(next)) } catch { /* ignore */ }
+      try { localStorage.setItem(ACTIVE_ONLY_KEY, String(next)) } catch { /* ignore */ }
       return next
     })
   }, [])
@@ -247,79 +244,43 @@ export function TasksSidebar({ tasks, searchQuery, onSearchChange, onNewAgent, o
 
       <div className="h-px bg-edge" />
 
-      <div className="flex items-center justify-between px-4 py-2.5">
-        <span className="text-xxs font-medium tracking-wider text-fg-muted">ACTIVE RUNS</span>
+      <button
+        onClick={handleToggleActiveOnly}
+        className="flex w-full shrink-0 items-center justify-between px-4 py-2.5 text-left hover:bg-surface-secondary"
+      >
+        <span className="text-xxs font-medium tracking-wider text-fg-muted">
+          {activeOnly && !isSearching ? "ACTIVE RUNS" : "ALL RUNS"}
+        </span>
         <div className="flex items-center justify-center rounded-sm bg-surface-dark px-2 py-0.5">
-          <span className="font-mono text-xxs font-semibold text-white">{activeTasks.length}</span>
+          <span className="font-mono text-xxs font-semibold text-white">
+            {activeOnly && !isSearching ? activeCount : sortedTasks.length}
+          </span>
         </div>
-      </div>
+      </button>
 
       <div className="h-px bg-edge" />
 
-      {/* Active tasks — scrolls internally on desktop, natural height on mobile */}
       <div className="md:flex-1 md:min-h-0 md:overflow-y-auto">
-        {pagedActiveTasks.map((task) => (
-          <TaskItem
-            key={task.id}
-            task={task}
-            isActive={task.id === activeId}
-            taskById={taskById}
-            onRefetch={onRefetch}
-          />
-        ))}
+        {pagedTasks.length === 0 ? (
+          <div className="px-4 py-3 text-xs text-fg-muted">No tasks</div>
+        ) : (
+          pagedTasks.map((task) => (
+            <TaskItem
+              key={task.id}
+              task={task}
+              isActive={task.id === activeId}
+              taskById={taskById}
+              onRefetch={onRefetch}
+            />
+          ))
+        )}
         <PaginationControls
-          page={clampedActivePage}
-          totalPages={totalActivePages}
-          onPrev={() => setActivePage((p) => Math.max(0, p - 1))}
-          onNext={() => setActivePage((p) => Math.min(totalActivePages - 1, p + 1))}
+          page={clampedPage}
+          totalPages={totalPages}
+          onPrev={() => setPage((p) => Math.max(0, p - 1))}
+          onNext={() => setPage((p) => Math.min(totalPages - 1, p + 1))}
         />
       </div>
-
-      {/* Completed — sibling section at same level as ACTIVE RUNS */}
-      <div className="h-px shrink-0 bg-edge" />
-      <button
-        onClick={handleToggleCompleted}
-        className="flex w-full shrink-0 items-center justify-between px-4 py-2.5 text-left hover:bg-surface-secondary"
-      >
-        <span className="text-xxs font-medium tracking-wider text-fg-muted">COMPLETED</span>
-        <div className="flex items-center gap-1.5">
-          <span className="font-mono text-xxs text-fg-muted">{completedTasks.length}</span>
-          <svg
-            className={`h-3 w-3 text-fg-muted transition-transform ${showCompleted ? "rotate-180" : ""}`}
-            fill="none"
-            viewBox="0 0 24 24"
-            stroke="currentColor"
-            strokeWidth={2}
-          >
-            <path strokeLinecap="round" strokeLinejoin="round" d="m19.5 8.25-7.5 7.5-7.5-7.5" />
-          </svg>
-        </div>
-      </button>
-      <div className="h-px shrink-0 bg-edge" />
-
-      {showCompleted && (
-        <div className="md:max-h-[40%] md:overflow-y-auto">
-          {completedTasks.length === 0 ? (
-            <div className="px-4 py-3 text-xs text-fg-muted">No completed tasks</div>
-          ) : (
-            pagedCompletedTasks.map((task) => (
-              <TaskItem
-                key={task.id}
-                task={task}
-                isActive={task.id === activeId}
-                taskById={taskById}
-                onRefetch={onRefetch}
-              />
-            ))
-          )}
-          <PaginationControls
-            page={clampedCompletedPage}
-            totalPages={totalCompletedPages}
-            onPrev={() => setCompletedPage((p) => Math.max(0, p - 1))}
-            onNext={() => setCompletedPage((p) => Math.min(totalCompletedPages - 1, p + 1))}
-          />
-        </div>
-      )}
     </div>
   )
 }
