@@ -218,10 +218,10 @@ export function TaskDetail() {
     setMobilePane("chat")
   }, [])
 
-  // Start the task on first prompt if it's still in "created" or "waiting-review" status
+  // Start the task on first prompt if it's still in "created" status
   const handleSend = useCallback(
     async (text: string, images?: import("@tangerine/shared").PromptImage[]) => {
-      if (chatTask?.status === "created" || chatTask?.status === "waiting-review") {
+      if (chatTask?.status === "created") {
         await startTask(chatTask.id)
         // Only optimistically update the viewed task's status when it IS the chat task
         if (!isCrossProject) {

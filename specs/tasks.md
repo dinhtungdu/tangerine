@@ -64,7 +64,6 @@ created -> provisioning -> running -> waiting-review -> done
 
 Additional flows:
 
-- `waiting-review` -> start resumes the agent on the same branch (for PR updates)
 - `failed`, `cancelled`, or `waiting-review` -> retry creates a fresh task
 - `failed`, `cancelled`, or `waiting-review` -> resolve marks as done
 - `running` -> restart recovery reconnects or resumes

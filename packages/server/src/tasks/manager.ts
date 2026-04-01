@@ -640,10 +640,8 @@ Start by loading the tangerine-tasks skill (\`/tangerine-tasks\`) and checking t
 }
 
 /**
- * Start a session for a task in "created" or "waiting-review" status (on-demand).
- * No-ops if the task is already running or in a non-restartable terminal state.
- * For waiting-review tasks, this resumes the agent on the existing branch so it
- * can push follow-up commits to update the PR.
+ * Start a session for a task in "created" status (on-demand).
+ * No-ops if the task is already running or terminal.
  */
 export function startTask(
   deps: TaskManagerDeps,
@@ -655,7 +653,7 @@ export function startTask(
     )
     if (!task) return yield* new TaskNotFoundError({ taskId })
 
-    if (task.status !== "created" && task.status !== "waiting-review") {
+    if (task.status !== "created") {
       // Already started or terminal — nothing to do
       return
     }
@@ -665,8 +663,10 @@ export function startTask(
       return yield* Effect.fail(new DbError({ message: `Unknown project: ${task.project_id}` }))
     }
 
-    // Atomically transition → provisioning to prevent concurrent starts.
-    yield* deps.updateTask(taskId, { status: "provisioning", completed_at: null }).pipe(
+    // Atomically transition created → provisioning to prevent concurrent starts.
+    // If another request already moved the status, this update is a no-op and
+    // the re-read below will see a non-"created" status, so we bail out.
+    yield* deps.updateTask(taskId, { status: "provisioning" }).pipe(
       Effect.mapError((cause) => new DbError({ message: `Failed to persist provisioning status for task ${taskId}`, cause }))
     )
     const current = yield* deps.getTask(taskId).pipe(
