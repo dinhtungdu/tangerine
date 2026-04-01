@@ -1,7 +1,9 @@
-import { memo, useState } from "react"
+import { memo, useState, useMemo } from "react"
 import type { Components } from "react-markdown"
 import ReactMarkdown from "react-markdown"
 import remarkGfm from "remark-gfm"
+import { visit } from "unist-util-visit"
+import type { Root, Text, Parent, Link } from "mdast"
 import type { ChatMessage as ChatMessageType } from "../hooks/useSession"
 import { formatTimestamp } from "../lib/format"
 import { ToolCallDisplay } from "./ToolCallDisplay"
@@ -9,6 +11,7 @@ import { ImageLightbox } from "./ImageLightbox"
 
 interface ChatMessageProps {
   message: ChatMessageType
+  tasks?: ReadonlyArray<{ id: string }>
 }
 
 function isToolCall(content: string): boolean {
@@ -25,10 +28,24 @@ function escapeHtml(text: string): string {
   return text.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;")
 }
 
-function linkifyUrls(text: string): string {
-  return escapeHtml(text).replace(
-    /(https?:\/\/[^\s<]+)/g,
-    '<a href="$1" target="_blank" rel="noopener noreferrer">$1</a>',
+function linkifyUrls(text: string, tasks?: ReadonlyArray<{ id: string }>): string {
+  const escaped = escapeHtml(text)
+  const taskMap = tasks && tasks.length > 0
+    ? new Map(tasks.map((t) => [t.id.toLowerCase(), t.id]))
+    : null
+  // Single combined pass so UUIDs that are part of a URL are consumed by the
+  // URL branch and never double-processed into broken nested anchors.
+  return escaped.replace(
+    /(https?:\/\/[^\s<]+)|\b([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})\b/gi,
+    (match, url: string | undefined, uuid: string | undefined) => {
+      if (url) return `<a href="${url}" target="_blank" rel="noopener noreferrer">${url}</a>`
+      if (uuid && taskMap) {
+        const canonicalId = taskMap.get(uuid.toLowerCase())
+        if (!canonicalId) return uuid
+        return `<a href="/tasks/${canonicalId}" class="underline text-link hover:text-link-hover">${canonicalId.slice(0, 8)}</a>`
+      }
+      return match
+    },
   )
 }
 
@@ -73,10 +90,42 @@ const markdownComponents: Components = {
   tr: ({ children }) => <tr className="border-t border-edge">{children}</tr>,
 }
 
-const remarkPlugins = [remarkGfm]
+const UUID_RE = /\b([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})\b/gi
 
-export const ChatMessage = memo(function ChatMessage({ message }: ChatMessageProps) {
+/** Remark plugin that replaces task UUID text nodes with MDAST link nodes.
+ *  Because it operates on the AST, `text` nodes are already outside code
+ *  blocks/spans — no manual splitting needed. */
+function makeRemarkLinkifyTaskIds(tasks: ReadonlyArray<{ id: string }>) {
+  const known = new Map(tasks.map((t) => [t.id.toLowerCase(), t.id]))
+  return () => (tree: Root) => {
+    visit(tree, "text", (node: Text, index: number | undefined, parent: Parent | undefined) => {
+      if (!parent || index === undefined) return
+      const parts: Array<Text | Link> = []
+      let last = 0
+      UUID_RE.lastIndex = 0
+      let m: RegExpExecArray | null
+      while ((m = UUID_RE.exec(node.value)) !== null) {
+        const canonicalId = known.get(m[0].toLowerCase())
+        if (!canonicalId) continue
+        if (m.index > last) parts.push({ type: "text", value: node.value.slice(last, m.index) })
+        parts.push({ type: "link", url: `/tasks/${canonicalId}`, children: [{ type: "text", value: canonicalId.slice(0, 8) }], title: null })
+        last = m.index + m[0].length
+      }
+      if (parts.length === 0) return
+      if (last < node.value.length) parts.push({ type: "text", value: node.value.slice(last) })
+      parent.children.splice(index, 1, ...(parts as Parent["children"]))
+    })
+  }
+}
+
+const BASE_REMARK_PLUGINS = [remarkGfm]
+
+export const ChatMessage = memo(function ChatMessage({ message, tasks }: ChatMessageProps) {
   const [lightboxIndex, setLightboxIndex] = useState<number | null>(null)
+  const remarkPlugins = useMemo(
+    () => tasks && tasks.length > 0 ? [...BASE_REMARK_PLUGINS, makeRemarkLinkifyTaskIds(tasks)] : BASE_REMARK_PLUGINS,
+    [tasks],
+  )
   const isUser = message.role === "user"
   const isSystem = message.role === "system"
   const isThinking = message.role === "thinking"
@@ -120,7 +169,7 @@ export const ChatMessage = memo(function ChatMessage({ message }: ChatMessagePro
           {message.content && (
             <p
               className="whitespace-pre-wrap text-md leading-[1.5] text-white [&_a]:underline [&_a]:text-link hover:[&_a]:text-link-hover [&_a]:break-all"
-              dangerouslySetInnerHTML={{ __html: linkifyUrls(message.content) }}
+              dangerouslySetInnerHTML={{ __html: linkifyUrls(message.content, tasks) }}
             />
           )}
           <span className="mt-1 block text-right text-2xs text-fg-muted/50">

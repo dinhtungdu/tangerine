@@ -42,6 +42,28 @@ export function formatTimestamp(iso: string): string {
   return `${date} · ${time}`
 }
 
+const UUID_RE = /\b([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})\b/gi
+
+/** Replace full UUIDs matching known task IDs with short HTML anchor tags.
+ *  Input must already be HTML-escaped. Only UUIDs present in tasks are linked;
+ *  unknown UUIDs are left as plain text to avoid false links.
+ *  Always uses the canonical task ID from the tasks array in the href, so
+ *  mixed-case matches in text still produce a valid navigation URL. */
+export function linkifyTaskIds(
+  html: string,
+  tasks: ReadonlyArray<{ id: string }>,
+): string {
+  if (tasks.length === 0) return html
+  // Map lowercase → canonical ID so href always uses the stored casing
+  const known = new Map(tasks.map((t) => [t.id.toLowerCase(), t.id]))
+  return html.replace(UUID_RE, (uuid) => {
+    const canonicalId = known.get(uuid.toLowerCase())
+    if (!canonicalId) return uuid
+    return `<a href="/tasks/${canonicalId}" class="underline text-link hover:text-link-hover">${canonicalId.slice(0, 8)}</a>`
+  })
+}
+
+
 /** Extract PR number from a GitHub PR URL, e.g. "https://github.com/owner/repo/pull/123" → "#123" */
 export function formatPrNumber(prUrl: string): string {
   const match = prUrl.match(/\/pull\/(\d+)/)

@@ -6,6 +6,7 @@ import {
   formatRelativeTime,
   formatTimestamp,
   formatCronExpression,
+  linkifyTaskIds,
 } from "../lib/format"
 import { getStatusConfig, STATUS_CONFIG } from "../lib/status"
 import { getActivityStyle, getActivityDetail } from "../lib/activity"
@@ -364,3 +365,42 @@ describe("actions", () => {
     expect(result).toContain("K")
   })
 })
+
+describe("linkifyTaskIds", () => {
+  const tasks = [
+    { id: "abc12345-0000-0000-0000-000000000001" },
+    { id: "abc12345-0000-0000-0000-000000000002" },
+  ]
+
+  test("replaces known UUID with short anchor tag", () => {
+    const result = linkifyTaskIds("abc12345-0000-0000-0000-000000000001", tasks)
+    expect(result).toContain('<a href="/tasks/abc12345-0000-0000-0000-000000000001"')
+    expect(result).toContain("abc12345</a>")
+  })
+
+  test("does not linkify unknown UUIDs", () => {
+    const result = linkifyTaskIds("deadbeef-0000-0000-0000-000000000099", tasks)
+    expect(result).toBe("deadbeef-0000-0000-0000-000000000099")
+    expect(result).not.toContain("<a")
+  })
+
+  test("handles empty tasks list — no links", () => {
+    const result = linkifyTaskIds("abc12345-0000-0000-0000-000000000001", [])
+    expect(result).not.toContain("<a")
+  })
+
+  test("linkifies UUID embedded in surrounding text", () => {
+    const result = linkifyTaskIds("See task abc12345-0000-0000-0000-000000000001 for details", tasks)
+    expect(result).toContain("See task ")
+    expect(result).toContain('<a href="/tasks/abc12345-0000-0000-0000-000000000001"')
+    expect(result).toContain(" for details")
+  })
+
+  test("is case-insensitive and uses canonical task ID in href", () => {
+    const result = linkifyTaskIds("ABC12345-0000-0000-0000-000000000001", tasks)
+    // Link is produced and href uses canonical lowercase ID, not the matched text
+    expect(result).toContain('<a href="/tasks/abc12345-0000-0000-0000-000000000001"')
+    expect(result).toContain("abc12345</a>")
+  })
+})
+
