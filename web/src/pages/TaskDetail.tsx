@@ -19,6 +19,8 @@ import { TerminalPane } from "../components/TerminalPane"
 import { formatPrNumber } from "../lib/format"
 import { copyToClipboard } from "../lib/clipboard"
 import { TaskOverflowMenu } from "../components/TaskListItem"
+import { useTaskActions } from "../hooks/useTaskActions"
+import { useToast } from "../context/ToastContext"
 
 type PaneId = "chat" | "diff" | "terminal" | "activity"
 
@@ -41,6 +43,7 @@ export function TaskDetail() {
   const [mobilePane, setMobilePane] = useState<PaneId>("chat")
 
   const { current, modelsByProvider, sshHost, sshUser, editor } = useProject()
+  const { showToast } = useToast()
 
   // When viewing a task from a different project, show that project's orchestrator chat
   const isCrossProject = task !== null && current !== null && task.projectId !== current.name
@@ -162,9 +165,9 @@ export function TaskDetail() {
         setTask((prev) => prev ? { ...prev, model } : prev)
       }
     } catch {
-      // TODO: error toast
+      showToast("Failed to change model")
     }
-  }, [chatTask?.id, isCrossProject])
+  }, [chatTask?.id, isCrossProject, showToast])
 
   const handleReasoningEffortChange = useCallback(async (reasoningEffort: string) => {
     const targetId = chatTask?.id
@@ -175,9 +178,9 @@ export function TaskDetail() {
         setTask((prev) => prev ? { ...prev, reasoningEffort } : prev)
       }
     } catch {
-      // TODO: error toast
+      showToast("Failed to change reasoning effort")
     }
-  }, [chatTask?.id, isCrossProject])
+  }, [chatTask?.id, isCrossProject, showToast])
 
   const canResolve = chatTask?.capabilities.includes("resolve") ?? false
   const hasPredefinedPrompts = chatTask?.capabilities.includes("predefined-prompts") ?? false
@@ -200,9 +203,9 @@ export function TaskDetail() {
         setTask(updated)
       }
     } catch {
-      // TODO: error toast
+      showToast("Failed to resolve task")
     }
-  }, [chatTask, isCrossProject])
+  }, [chatTask, isCrossProject, showToast])
 
   const sendPromptRef = useRef(session.sendPrompt)
   sendPromptRef.current = session.sendPrompt
@@ -229,6 +232,9 @@ export function TaskDetail() {
       navigate("/")
     }
   }, [id, navigate])
+
+  // Register task-contextual actions in the command palette
+  useTaskActions(task, handleRefetch)
 
   // Start the task on first prompt if it's still in "created" status
   const handleSend = useCallback(

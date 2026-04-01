@@ -18,12 +18,15 @@ export interface Action {
   handler: (args?: Record<string, unknown>) => void | Promise<void>
   hidden?: boolean
   section?: string
+  /** When set, this action only appears when the active context matches. */
+  context?: string
 }
 
 type Listener = () => void
 
 const actions = new Map<string, Action>()
 const listeners = new Set<Listener>()
+let activeContext: string | null = null
 
 function notify() {
   for (const fn of listeners) fn()
@@ -43,6 +46,23 @@ export function registerActions(defs: Action[]): () => void {
   }
 }
 
+/** Set the active context (e.g. a task id). Context-scoped actions only appear when matched. */
+export function setContext(ctx: string): void {
+  activeContext = ctx
+  notify()
+}
+
+/** Clear the active context. */
+export function clearContext(): void {
+  activeContext = null
+  notify()
+}
+
+/** Get the current active context. */
+export function getContext(): string | null {
+  return activeContext
+}
+
 /** Execute an action by id, forwarding optional args to the handler. */
 export async function executeAction(id: string, args?: Record<string, unknown>): Promise<void> {
   const action = actions.get(id)
@@ -51,9 +71,11 @@ export async function executeAction(id: string, args?: Record<string, unknown>):
   }
 }
 
-/** Get all registered actions (for palette listing). */
+/** Get all registered actions (for palette listing). Filters out context-scoped actions that don't match. */
 export function getActions(): Action[] {
-  return Array.from(actions.values())
+  return Array.from(actions.values()).filter(
+    (a) => !a.context || a.context === activeContext,
+  )
 }
 
 /** Get a single action by id (for button wiring). */
@@ -138,4 +160,5 @@ export function registerActionCombos(
 export function _resetForTesting(): void {
   actions.clear()
   listeners.clear()
+  activeContext = null
 }

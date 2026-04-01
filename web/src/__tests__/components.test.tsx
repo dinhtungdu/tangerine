@@ -1,4 +1,4 @@
-import { describe, test, expect, afterEach } from "bun:test"
+import { describe, test, expect, afterEach, beforeEach } from "bun:test"
 import { render, screen, cleanup, fireEvent, act } from "@testing-library/react"
 import { MemoryRouter, Route, Routes } from "react-router-dom"
 import { ActivityList } from "../components/ActivityList"
@@ -8,8 +8,11 @@ import { ChatPanel } from "../components/ChatPanel"
 import { ModelSelector } from "../components/ModelSelector"
 import { CommandPalette } from "../components/CommandPalette"
 import { StatusPage } from "../pages/StatusPage"
+import { TaskOverflowMenu } from "../components/TaskListItem"
 import { ProjectProvider } from "../context/ProjectContext"
-import { _resetForTesting as resetActions } from "../lib/actions"
+import { ToastProvider } from "../context/ToastContext"
+import { _resetForTesting as resetActions, registerActions } from "../lib/actions"
+import { cancelTask, retryTask, deleteTask } from "../lib/api"
 import { useShortcuts } from "../hooks/useShortcuts"
 import type { Task, ActivityEntry } from "@tangerine/shared"
 
@@ -259,6 +262,8 @@ describe("NewAgentForm", () => {
     )
 
     await screen.findByText("What should the agent work on?")
+    // Flush the fetchProjects microtask so draftKey stabilizes before interacting
+    await act(async () => {})
 
     // Default is worker (active toggle has shadow-sm class)
     const workerBtn = screen.getAllByText("Worker")[0]!
@@ -268,6 +273,7 @@ describe("NewAgentForm", () => {
 
     // Click reviewer toggle
     fireEvent.click(reviewerBtn)
+    await act(async () => {})
     expect(reviewerBtn.className).toContain("shadow-sm")
     expect(workerBtn.className).not.toContain("shadow-sm")
   })
@@ -809,5 +815,82 @@ describe("ChatMessage", async () => {
       />,
     )
     expect(document.querySelector("del")!.textContent).toBe("deleted")
+  })
+})
+
+describe("ToastProvider", () => {
+  test("renders children without toasts initially", () => {
+    render(
+      <ToastProvider>
+        <span>content</span>
+      </ToastProvider>
+    )
+    expect(screen.getByText("content")).toBeTruthy()
+    // No error toast visible yet
+    expect(screen.queryByRole("img")).toBeNull()
+  })
+})
+
+describe("TaskOverflowMenu error toasts", () => {
+  beforeEach(() => {
+    registerActions([
+      { id: "task.cancel", label: "Cancel task", hidden: true, handler: async (args) => { const taskId = args?.taskId as string | undefined; if (taskId) await cancelTask(taskId) } },
+      { id: "task.retry", label: "Retry task", hidden: true, handler: async (args) => { const taskId = args?.taskId as string | undefined; if (taskId) await retryTask(taskId) } },
+      { id: "task.delete", label: "Delete task", hidden: true, handler: async (args) => { const taskId = args?.taskId as string | undefined; if (taskId) await deleteTask(taskId) } },
+    ])
+  })
+
+  test("shows error toast when cancel fails", async () => {
+    global.fetch = async () => new Response("Server error", { status: 500 })
+
+    const task = makeTask({ status: "running" })
+    render(
+      <ToastProvider>
+        <TaskOverflowMenu task={task} />
+      </ToastProvider>
+    )
+
+    fireEvent.click(screen.getByLabelText("Task actions"))
+    await act(async () => {
+      fireEvent.click(screen.getByText("Cancel"))
+    })
+
+    expect(screen.getByText("Failed to cancel task")).toBeTruthy()
+  })
+
+  test("shows error toast when retry fails", async () => {
+    global.fetch = async () => new Response("Server error", { status: 500 })
+
+    const task = makeTask({ status: "failed" })
+    render(
+      <ToastProvider>
+        <TaskOverflowMenu task={task} />
+      </ToastProvider>
+    )
+
+    fireEvent.click(screen.getByLabelText("Task actions"))
+    await act(async () => {
+      fireEvent.click(screen.getByText("Retry"))
+    })
+
+    expect(screen.getByText("Failed to retry task")).toBeTruthy()
+  })
+
+  test("shows error toast when delete fails", async () => {
+    global.fetch = async () => new Response("Server error", { status: 500 })
+
+    const task = makeTask({ status: "done" })
+    render(
+      <ToastProvider>
+        <TaskOverflowMenu task={task} />
+      </ToastProvider>
+    )
+
+    fireEvent.click(screen.getByLabelText("Task actions"))
+    await act(async () => {
+      fireEvent.click(screen.getByText("Delete"))
+    })
+
+    expect(screen.getByText("Failed to delete task")).toBeTruthy()
   })
 })
