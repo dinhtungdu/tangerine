@@ -199,6 +199,8 @@ curl -X POST "$API/api/tasks/<target-task-id>/prompt" \
   -d '{"text":"Discovered a failing edge case. Please investigate."}'
 ```
 
+> ⚠️ **Orchestrators: do NOT use `/prompt` to add new requirements to a running worker.** `/prompt` is only for unblocking or clarifying the worker's existing scope. New requirements = create a new task.
+
 ### Inspect your task metadata
 
 ```bash
