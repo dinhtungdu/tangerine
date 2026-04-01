@@ -310,7 +310,7 @@ export async function start(): Promise<void> {
                   `[TANGERINE: Server restarted. You are working on: ${originalTask}]`,
                 ]
                 if (taskRow?.type !== "reviewer") {
-                  nudgeParts.push(`[NOTE: When your work is complete, you MUST push your branch and create a pull request. Use \`git push origin HEAD\` then \`gh pr create\`.]`)
+                  nudgeParts.push(`[NOTE: When your work is complete: 1) Rename your branch via: curl -X POST http://localhost:3456/api/tasks/${taskId}/rename-branch -H "Content-Type: application/json" -d '{"branch":"tangerine/<descriptive-slug>"}' (this also pushes). 2) Create a PR with \`gh pr create\`.]`)
                 }
                 nudgeParts.push(
                   unansweredUserMsg
@@ -568,7 +568,8 @@ export async function start(): Promise<void> {
                         Effect.runPromise(
                           handle.sendPrompt(
                             "[TANGERINE: You have commits on your branch but no pull request has been created. " +
-                            "Please push your branch and create a PR with `git push origin HEAD` and `gh pr create`. " +
+                            "First rename your branch to something descriptive via the rename-branch API (it also pushes), " +
+                            "then create a PR with `gh pr create`. " +
                             "A PR is required for the task to be considered complete.]"
                           ).pipe(Effect.catchAll(() => Effect.void))
                         )
