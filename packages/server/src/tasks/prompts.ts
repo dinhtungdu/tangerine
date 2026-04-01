@@ -31,9 +31,9 @@ export function buildSystemNotes(taskId: string, info: SystemNotesInfo, port = a
     const prefix = taskId.slice(0, 8)
     notes.push(`[NOTE: Project setup is running in the background (\`${info.setupCommand}\`). Before running builds, tests, or linters, check if setup is done: \`cat /tmp/tangerine-setup-${prefix}.status\` (running/done/failed). Log: \`cat /tmp/tangerine-setup-${prefix}.log\`]`)
   }
-  // Reviewer tasks don't create PRs — they review existing ones on their branch.
-  // The PR monitor completes them when the PR merges, so don't tell them to push/create PRs.
-  if (info.taskType !== "reviewer") {
+  // Only workers rename their branch, push, and open a PR.
+  // Reviewers review existing PRs on an existing branch; orchestrators run on the project default branch.
+  if (info.taskType === "worker") {
     notes.push(`[NOTE: When your work is complete: ${buildPrWorkflowNote(taskId, port)} Do not stop at just committing.]`)
   }
   return notes
