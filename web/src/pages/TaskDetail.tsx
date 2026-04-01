@@ -555,7 +555,7 @@ export function TaskDetail() {
                   ? `md:flex${desktopIsSolo || firstVisiblePane === "diff" ? " md:flex-1" : ""}`
                   : "md:hidden",
               ].join(" ")}
-              style={!visiblePanes.has("diff") || desktopIsSolo || firstVisiblePane === "diff" ? undefined : { width: diffWidth, flexShrink: 0 }}
+              style={!visiblePanes.has("diff") || desktopIsSolo || firstVisiblePane === "diff" ? undefined : { width: diffWidth, flexShrink: 0, maxWidth: "100%" }}
             >
               <div className="flex min-h-0 flex-1 flex-col @min-[700px]/diff:flex-row">
                 <div className="min-w-0 flex-1 overflow-y-auto">
@@ -593,7 +593,7 @@ export function TaskDetail() {
                   ? `md:flex${desktopIsSolo || firstVisiblePane === "terminal" ? " md:flex-1" : ""}`
                   : "md:hidden",
               ].join(" ")}
-              style={!visiblePanes.has("terminal") || desktopIsSolo || firstVisiblePane === "terminal" ? undefined : { width: terminalWidth, flexShrink: 0 }}
+              style={!visiblePanes.has("terminal") || desktopIsSolo || firstVisiblePane === "terminal" ? undefined : { width: terminalWidth, flexShrink: 0, maxWidth: "100%" }}
             >
               <TerminalPane taskId={id!} />
             </div>
@@ -612,7 +612,7 @@ export function TaskDetail() {
                   ? `md:flex${desktopIsSolo || firstVisiblePane === "activity" ? " md:flex-1" : ""}`
                   : "md:hidden",
               ].join(" ")}
-              style={!visiblePanes.has("activity") || desktopIsSolo || firstVisiblePane === "activity" ? undefined : { width: activityWidth, flexShrink: 0 }}
+              style={!visiblePanes.has("activity") || desktopIsSolo || firstVisiblePane === "activity" ? undefined : { width: activityWidth, flexShrink: 0, maxWidth: "100%" }}
             >
               <div className="min-h-0 flex-1 overflow-y-auto pt-3">
                 <ActivityList activities={session.activities} variant="compact" />
