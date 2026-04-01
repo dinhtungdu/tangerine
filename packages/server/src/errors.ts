@@ -22,3 +22,4 @@ export class CronNotFoundError extends Data.TaggedError("CronNotFoundError")<{ c
   get message() { return `Cron ${this.cronId} not found` }
 }
 export class CronValidationError extends Data.TaggedError("CronValidationError")<{ message: string }> {}
+export class BranchRenameError extends Data.TaggedError("BranchRenameError")<{ message: string; taskId: string; cause?: unknown }> {}

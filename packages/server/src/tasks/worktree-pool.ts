@@ -17,7 +17,7 @@ export type LocalExec = (
   command: string,
 ) => Effect.Effect<{ stdout: string; stderr: string; exitCode: number }, Error>
 
-/** Default local exec via Bun.spawn */
+/** Default local exec via Bun.spawn — does NOT fail on non-zero exit codes */
 export const localExec: LocalExec = (command) =>
   Effect.tryPromise({
     try: async () => {
@@ -31,6 +31,16 @@ export const localExec: LocalExec = (command) =>
     },
     catch: (e) => new Error(`Local exec failed: ${e}`),
   })
+
+/** Like localExec but fails the Effect on non-zero exit codes */
+export const localExecStrict = (command: string): Effect.Effect<{ stdout: string; stderr: string; exitCode: number }, Error> =>
+  localExec(command).pipe(
+    Effect.flatMap((r) =>
+      r.exitCode !== 0
+        ? Effect.fail(new Error(`Command failed (exit ${r.exitCode}): ${r.stderr || r.stdout}`.trim()))
+        : Effect.succeed(r)
+    ),
+  )
 
 type GetTask = (
   id: string,

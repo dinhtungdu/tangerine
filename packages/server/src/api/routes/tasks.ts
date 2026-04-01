@@ -4,9 +4,10 @@ import type { AppDeps } from "../app"
 import { mapTaskRow } from "../helpers"
 import { runEffect, runEffectVoid } from "../effect-helpers"
 import { getTask, listTasks, updateTask, deleteTask, markTaskSeen, getChildTasks } from "../../db/queries"
-import { TaskNotFoundError, TaskNotTerminalError, PrCapabilityError } from "../../errors"
+import { TaskNotFoundError, TaskNotTerminalError, PrCapabilityError, BranchRenameError } from "../../errors"
 import { getRepoDir } from "../../config"
 import { ghSpawnEnv } from "../../gh"
+import { localExecStrict } from "./../../tasks/worktree-pool"
 
 export function taskRoutes(deps: AppDeps): Hono {
   const app = new Hono()
@@ -171,6 +172,79 @@ export function taskRoutes(deps: AppDeps): Hono {
         const fields: Record<string, string | number | null> = {}
         if ("prUrl" in body) fields.pr_url = body.prUrl ?? null
         const updated = yield* updateTask(deps.db, taskId, fields)
+        if (!updated) return yield* Effect.fail(new TaskNotFoundError({ taskId }))
+        return mapTaskRow(updated)
+      })
+    )
+  })
+
+  // Rename a task's branch (e.g. before creating a PR with a descriptive name).
+  // Renames locally, pushes new branch with tracking, deletes old remote branch.
+  app.post("/:id/rename-branch", async (c) => {
+    const taskId = c.req.param("id")
+    const body = await c.req.json<{ branch: string }>()
+    if (!body.branch || typeof body.branch !== "string") {
+      return c.json({ error: "branch is required" }, 400)
+    }
+    const newBranch = body.branch.trim()
+    // Strict git ref-name validation: only allow alphanumeric, dash, underscore, dot, slash.
+    // Rejects shell metacharacters (;$`|&(){}[]) to prevent injection via bash -c.
+    if (!newBranch || !/^[a-zA-Z0-9._\-/]+$/.test(newBranch)) {
+      return c.json({ error: "Invalid branch name — only alphanumeric, dash, underscore, dot, and slash allowed" }, 400)
+    }
+
+    return runEffect(c,
+      Effect.gen(function* () {
+        const task = yield* getTask(deps.db, taskId)
+        if (!task) return yield* Effect.fail(new TaskNotFoundError({ taskId }))
+
+        // Only tasks that create PRs should rename branches — reviewer tasks
+        // track an existing PR by branch name, and renaming would break that.
+        if (!mapTaskRow(task).capabilities.includes("pr-create")) {
+          return yield* Effect.fail(new BranchRenameError({
+            message: "Only tasks with pr-create capability can rename branches",
+            taskId,
+          }))
+        }
+
+        if (!task.worktree_path) {
+          return yield* Effect.fail(new BranchRenameError({
+            message: "Task has no worktree — cannot rename branch",
+            taskId,
+          }))
+        }
+        const oldBranch = task.branch
+        if (!oldBranch) {
+          return yield* Effect.fail(new BranchRenameError({
+            message: "Task has no branch assigned",
+            taskId,
+          }))
+        }
+        // Reject renames for tasks pinned to an existing (non-tangerine) branch —
+        // these were created from a PR or explicit branch and shouldn't be renamed.
+        if (!oldBranch.startsWith("tangerine/")) {
+          return yield* Effect.fail(new BranchRenameError({
+            message: "Cannot rename a branch not managed by Tangerine",
+            taskId,
+          }))
+        }
+        if (oldBranch === newBranch) {
+          return mapTaskRow(task)
+        }
+
+        const cwd = task.worktree_path
+
+        // Rename local branch (agent pushes separately via git push -u origin HEAD)
+        yield* localExecStrict(`cd "${cwd}" && git branch -m ${oldBranch} ${newBranch}`).pipe(
+          Effect.mapError((e) => new BranchRenameError({
+            message: `Failed to rename local branch: ${e.message}`,
+            taskId,
+            cause: e,
+          }))
+        )
+
+        // Update DB
+        const updated = yield* updateTask(deps.db, taskId, { branch: newBranch })
         if (!updated) return yield* Effect.fail(new TaskNotFoundError({ taskId }))
         return mapTaskRow(updated)
       })

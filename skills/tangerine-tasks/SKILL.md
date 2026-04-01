@@ -228,6 +228,18 @@ Act according to `PR_MODE`:
 
 Always push the branch regardless of `prMode`.
 
+### Rename branch before PR
+
+Before creating a PR, rename your branch to something descriptive. Then push with `git push -u origin HEAD`.
+
+```bash
+curl -X POST "$API/api/tasks/$TANGERINE_TASK_ID/rename-branch" \
+  -H "Content-Type: application/json" \
+  -d "{\"branch\": \"tangerine/<descriptive-slug>\"}"
+```
+
+Choose a short slug that describes the change (e.g. `tangerine/fix-worktree-cleanup`, `tangerine/add-retry-logic`). Only alphanumeric, dash, underscore, dot, and slash are allowed.
+
 ## Required: Codex Review
 
 All worker and reviewer tasks must run `codex review` — but for different purposes.
