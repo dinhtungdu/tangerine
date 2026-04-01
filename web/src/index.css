@@ -117,7 +117,10 @@
 }
 
 html, body {
-  overscroll-behavior: contain;
+  /* none (not contain) prevents the iOS rubber-band bounce that shifts the visual
+     viewport — causing fixed-position overlays like CommandPalette to render as a
+     distorted narrow bar when opened via pull-to-open gesture. */
+  overscroll-behavior: none;
 }
 
 body {

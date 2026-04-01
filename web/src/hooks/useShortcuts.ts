@@ -3,6 +3,25 @@ import { getActions, matchesShortcut, executeAction, subscribe } from "../lib/ac
 
 const PULL_THRESHOLD = 80 // px of overscroll needed to trigger
 
+// Wait until the visual viewport is back at the origin (offsetTop/offsetLeft ≈ 0).
+// On iOS, overscroll bounce temporarily shifts the visual viewport; opening a
+// position:fixed overlay while it's shifted produces a distorted narrow-bar rendering.
+function waitForViewportSettle(callback: () => void) {
+  const vv = window.visualViewport
+  if (!vv || (Math.abs(vv.offsetTop) < 1 && Math.abs(vv.offsetLeft) < 1)) {
+    callback()
+    return
+  }
+  const check = () => {
+    if (Math.abs(vv.offsetTop) < 1 && Math.abs(vv.offsetLeft) < 1) {
+      callback()
+    } else {
+      requestAnimationFrame(check)
+    }
+  }
+  requestAnimationFrame(check)
+}
+
 /**
  * Global keyboard shortcut listener + pull-to-refresh interception.
  * Reads from the action registry and fires matching action handlers.
@@ -76,7 +95,10 @@ export function useShortcuts() {
       const endY = e.changedTouches[0]!.clientY
       const delta = endY - startY
       if (delta >= PULL_THRESHOLD && isAtScrollTop(e.target as Element)) {
-        executeAction("palette.open")
+        // On iOS, the visual viewport may still be offset due to overscroll bounce
+        // when touchend fires. Wait for it to settle before opening the fixed overlay,
+        // otherwise the palette renders as a distorted narrow bar.
+        waitForViewportSettle(() => executeAction("palette.open"))
       }
     }
 
