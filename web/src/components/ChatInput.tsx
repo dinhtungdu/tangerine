@@ -1,7 +1,10 @@
 import { useState, useRef, useCallback, useEffect, type KeyboardEvent, type ClipboardEvent, type MouseEvent } from "react"
-import type { PromptImage, PredefinedPrompt, ProviderType } from "@tangerine/shared"
+import type { PromptImage, PredefinedPrompt, ProviderType, Task } from "@tangerine/shared"
 import { ModelSelector } from "./ModelSelector"
 import { ReasoningEffortSelector, type ReasoningEffort } from "./ReasoningEffortSelector"
+import { MentionPicker } from "./MentionPicker"
+import { useMentionPicker } from "../hooks/useMentionPicker"
+import { useTasks } from "../hooks/useTasks"
 
 interface PendingImage extends PromptImage {
   dataUrl: string // for thumbnail preview only
@@ -50,6 +53,13 @@ export function ChatInput({ onSend, disabled, queueLength, taskId, isWorking, on
   const textareaRef = useRef<HTMLTextAreaElement>(null)
   const appliedDraftInsertIdRef = useRef<number | null>(null)
 
+  const { tasks: allTasks } = useTasks()
+  const mention = useMentionPicker(allTasks)
+  const mentionRef = useRef(mention)
+  mentionRef.current = mention
+  const textRef = useRef(text)
+  textRef.current = text
+
   // Ref to latest draft state — used in the unmount cleanup to avoid stale closures
   const draftStateRef = useRef({ text, pendingImages })
   useEffect(() => { draftStateRef.current = { text, pendingImages } }, [text, pendingImages])
@@ -86,14 +96,36 @@ export function ChatInput({ onSend, disabled, queueLength, taskId, isWorking, on
     }
   }, [text, pendingImages, disabled, onSend, draftKey])
 
+  const handleMentionSelect = useCallback((task: Task) => {
+    const { newText, cursorPos } = mentionRef.current.selectTask(task, textRef.current)
+    setText(newText)
+    requestAnimationFrame(() => {
+      const textarea = textareaRef.current
+      if (!textarea) return
+      textarea.setSelectionRange(cursorPos, cursorPos)
+      textarea.focus()
+    })
+  }, [])
+
   const handleKeyDown = useCallback(
     (e: KeyboardEvent<HTMLTextAreaElement>) => {
+      const m = mentionRef.current
+      // Let mention picker consume keys first
+      if (m.state.isOpen) {
+        const selectedTask = m.filteredTasks[m.state.selectedIndex]
+        if ((e.key === "Enter" || e.key === "Tab") && selectedTask) {
+          e.preventDefault()
+          handleMentionSelect(selectedTask)
+          return
+        }
+        if (m.onKeyDown(e)) return
+      }
       if (e.key === "Enter" && (e.metaKey || e.ctrlKey)) {
         e.preventDefault()
         handleSend()
       }
     },
-    [handleSend],
+    [handleSend, handleMentionSelect],
   )
 
   const handleInput = useCallback(() => {
@@ -235,12 +267,21 @@ export function ChatInput({ onSend, disabled, queueLength, taskId, isWorking, on
 
       <div className="flex items-end gap-2">
         <div className="relative min-w-0 flex-1">
+          {mention.state.isOpen && (
+            <MentionPicker
+              tasks={mention.filteredTasks}
+              selectedIndex={mention.state.selectedIndex}
+              onSelect={handleMentionSelect}
+              onHover={(i) => mention.setSelectedIndex(i)}
+            />
+          )}
           <textarea
             ref={textareaRef}
             value={text}
             onChange={(e) => {
               setText(e.target.value)
               handleInput()
+              mention.onTextChange(e.target.value, e.target.selectionStart ?? e.target.value.length)
             }}
             onKeyDown={handleKeyDown}
             onPaste={handlePaste}
@@ -250,6 +291,7 @@ export function ChatInput({ onSend, disabled, queueLength, taskId, isWorking, on
             }}
             onBlur={() => {
               setIsFocused(false)
+              mention.close()
               if (textareaRef.current) {
                 textareaRef.current.style.height = "auto"
               }
