@@ -192,10 +192,12 @@ export function NewAgentForm({ onSubmit, refTaskId, refTaskTitle, autoFocus }: N
           <div className="flex justify-center">
             <div className="inline-flex rounded-lg border border-edge bg-surface-secondary p-0.5">
               <button
+                type="button"
                 onClick={() => setTaskType("worker")}
                 className={`rounded-md px-4 py-1.5 text-md font-medium transition ${taskType === "worker" ? "bg-surface text-fg shadow-sm" : "text-fg-muted hover:text-fg"}`}
               >Worker</button>
               <button
+                type="button"
                 onClick={() => setTaskType("reviewer")}
                 className={`rounded-md px-4 py-1.5 text-md font-medium transition ${taskType === "reviewer" ? "bg-surface text-fg shadow-sm" : "text-fg-muted hover:text-fg"}`}
               >Reviewer</button>

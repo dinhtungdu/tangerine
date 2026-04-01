@@ -259,6 +259,8 @@ describe("NewAgentForm", () => {
     )
 
     await screen.findByText("What should the agent work on?")
+    // Flush the fetchProjects microtask so draftKey stabilizes before interacting
+    await act(async () => {})
 
     // Default is worker (active toggle has shadow-sm class)
     const workerBtn = screen.getAllByText("Worker")[0]!
@@ -268,6 +270,7 @@ describe("NewAgentForm", () => {
 
     // Click reviewer toggle
     fireEvent.click(reviewerBtn)
+    await act(async () => {})
     expect(reviewerBtn.className).toContain("shadow-sm")
     expect(workerBtn.className).not.toContain("shadow-sm")
   })
