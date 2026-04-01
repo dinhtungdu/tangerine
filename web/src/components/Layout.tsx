@@ -12,6 +12,7 @@ import { useTaskSearch } from "../hooks/useTaskSearch"
 export interface SidebarContext {
   sidebarOpen: boolean
   tasks: Task[]
+  tasksLoading: boolean
   refetch: () => void
 }
 
@@ -20,7 +21,7 @@ export function Layout() {
   const location = useLocation()
   const { link, navigate } = useProjectNav()
   const { current } = useProject()
-  const { query, setQuery, tasks, refetch } = useTaskSearch(current?.name)
+  const { query, setQuery, tasks, loading: tasksLoading, refetch } = useTaskSearch(current?.name)
 
   const isTaskDetail = location.pathname.startsWith("/tasks/")
   const isRoot = location.pathname === "/"
@@ -101,7 +102,7 @@ export function Layout() {
         )}
 
         <div className={`min-w-0 flex-1 ${isRoot ? "order-2 md:overflow-hidden" : "overflow-hidden"}`}>
-          <Outlet context={{ sidebarOpen, tasks, refetch } satisfies SidebarContext} />
+          <Outlet context={{ sidebarOpen, tasks, tasksLoading, refetch } satisfies SidebarContext} />
         </div>
       </main>
 
