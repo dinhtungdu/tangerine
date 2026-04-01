@@ -528,7 +528,7 @@ export function TaskDetail() {
                 reasoningEffort={chatTask.reasoningEffort}
                 taskStatus={chatTask.status}
                 taskError={chatTask.error}
-                taskId={chatTask.id}
+                taskId={chatTaskId}
                 taskTitle={chatTask.title}
                 onSend={handleSend}
                 onAbort={session.abort}

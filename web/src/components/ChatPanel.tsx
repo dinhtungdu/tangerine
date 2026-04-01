@@ -67,6 +67,13 @@ export function ChatPanel({
   // Clear pending quote when switching tasks so the remounted ChatInput doesn't re-apply a stale quote
   useEffect(() => { setDraftInsert(null) }, [taskId])
 
+  // Clean up orphaned draft when a task terminates (ChatInput unmounts, draft would linger forever)
+  useEffect(() => {
+    if (isTerminated && taskId) {
+      try { localStorage.removeItem(`tangerine:chat-draft:${taskId}`) } catch { /* ignore */ }
+    }
+  }, [isTerminated, taskId])
+
   const clearSelectionMenu = useCallback(() => {
     setSelectionMenu(null)
     window.getSelection()?.removeAllRanges()
