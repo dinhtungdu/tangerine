@@ -198,6 +198,15 @@ export function taskRoutes(deps: AppDeps): Hono {
         const task = yield* getTask(deps.db, taskId)
         if (!task) return yield* Effect.fail(new TaskNotFoundError({ taskId }))
 
+        // Only tasks that create PRs should rename branches — reviewer tasks
+        // track an existing PR by branch name, and renaming would break that.
+        if (!mapTaskRow(task).capabilities.includes("pr-create")) {
+          return yield* Effect.fail(new BranchRenameError({
+            message: "Only tasks with pr-create capability can rename branches",
+            taskId,
+          }))
+        }
+
         if (!task.worktree_path) {
           return yield* Effect.fail(new BranchRenameError({
             message: "Task has no worktree — cannot rename branch",

@@ -406,6 +406,19 @@ describe("API routes", () => {
       expect(res.status).toBe(404)
     })
 
+    test("rejects rename for reviewer tasks", async () => {
+      const row = seedTask(db, { type: "reviewer" })
+      db.prepare("UPDATE tasks SET worktree_path = '/tmp/test', branch = 'tangerine/old' WHERE id = ?").run(row.id)
+      const res = await app.fetch(new Request(`http://localhost/api/tasks/${row.id}/rename-branch`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ branch: "tangerine/new-name" }),
+      }))
+      expect(res.status).toBe(400)
+      const body = await res.json() as { error: string }
+      expect(body.error).toContain("pr-create")
+    })
+
     test("returns 400 when task has no worktree", async () => {
       const row = seedTask(db)
       const res = await app.fetch(new Request(`http://localhost/api/tasks/${row.id}/rename-branch`, {
