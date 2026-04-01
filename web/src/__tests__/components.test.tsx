@@ -1,4 +1,4 @@
-import { describe, test, expect, afterEach } from "bun:test"
+import { describe, test, expect, afterEach, beforeEach } from "bun:test"
 import { render, screen, cleanup, fireEvent, act } from "@testing-library/react"
 import { MemoryRouter, Route, Routes } from "react-router-dom"
 import { ActivityList } from "../components/ActivityList"
@@ -11,7 +11,8 @@ import { StatusPage } from "../pages/StatusPage"
 import { TaskOverflowMenu } from "../components/TaskListItem"
 import { ProjectProvider } from "../context/ProjectContext"
 import { ToastProvider } from "../context/ToastContext"
-import { _resetForTesting as resetActions } from "../lib/actions"
+import { _resetForTesting as resetActions, registerActions } from "../lib/actions"
+import { cancelTask, retryTask, deleteTask } from "../lib/api"
 import { useShortcuts } from "../hooks/useShortcuts"
 import type { Task, ActivityEntry } from "@tangerine/shared"
 
@@ -831,6 +832,14 @@ describe("ToastProvider", () => {
 })
 
 describe("TaskOverflowMenu error toasts", () => {
+  beforeEach(() => {
+    registerActions([
+      { id: "task.cancel", label: "Cancel task", hidden: true, handler: async (args) => { const taskId = args?.taskId as string | undefined; if (taskId) await cancelTask(taskId) } },
+      { id: "task.retry", label: "Retry task", hidden: true, handler: async (args) => { const taskId = args?.taskId as string | undefined; if (taskId) await retryTask(taskId) } },
+      { id: "task.delete", label: "Delete task", hidden: true, handler: async (args) => { const taskId = args?.taskId as string | undefined; if (taskId) await deleteTask(taskId) } },
+    ])
+  })
+
   test("shows error toast when cancel fails", async () => {
     global.fetch = async () => new Response("Server error", { status: 500 })
 
