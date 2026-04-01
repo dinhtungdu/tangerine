@@ -10,6 +10,7 @@ import { getRepoDir, resolveWorkspace } from "../config"
 import type { TangerineConfig } from "@tangerine/shared"
 import type { TaskRow } from "../db/types"
 import { initPool, acquireSlot, acquireOrchestratorSlot } from "./worktree-pool"
+import { installGhShim, type PrMode } from "../agent/gh-shim"
 
 const log = createLogger("lifecycle")
 
@@ -41,6 +42,7 @@ export interface ProjectConfig {
   poolSize?: number
   defaultProvider?: string
   orchestratorPrompt?: string
+  prMode?: PrMode
 }
 
 /** Run a local command via Bun.spawn, return stdout/stderr/exitCode */
@@ -238,7 +240,23 @@ export function startSession(
       `pkill -f "claude.*${worktreePath}" 2>/dev/null; true`,
     ).pipe(Effect.catchAll(() => Effect.void))
 
-    // 5. Start agent locally (with timeout to prevent indefinite hangs)
+    // 5. Install gh shim to enforce prMode at the infrastructure level
+    const prMode = config.prMode ?? "draft"
+    const agentEnv: Record<string, string> = { TANGERINE_TASK_ID: task.id }
+    if (!isOrchestrator) {
+      const shimBinDir = yield* installGhShim(worktreePath, prMode).pipe(
+        Effect.tap(() => activity("shim.installed", `Installed gh shim (prMode=${prMode})`)),
+        Effect.catchAll((e) => {
+          taskLog.warn("Failed to install gh shim, continuing without it", { error: e.message })
+          return Effect.succeed(null)
+        }),
+      )
+      if (shimBinDir) {
+        agentEnv["PATH"] = `${shimBinDir}:${process.env["PATH"] ?? ""}`
+      }
+    }
+
+    // 6. Start agent locally (with timeout to prevent indefinite hangs)
     yield* activity("agent.starting", "Starting agent")
     const agentHandle = yield* deps.agentFactory.start({
       taskId: task.id,
@@ -246,7 +264,7 @@ export function startSession(
       title: task.title,
       model: task.model ?? undefined,
       reasoningEffort: task.reasoning_effort ?? undefined,
-      env: { TANGERINE_TASK_ID: task.id },
+      env: agentEnv,
     }).pipe(
       Effect.timeoutFail({
         duration: AGENT_START_TIMEOUT,
@@ -332,7 +350,19 @@ export function reconnectSession(
       }))
     }
 
-    // 3. Start agent — resume session if we have a session ID (with timeout)
+    // 3. Install gh shim for reconnected sessions too
+    const prMode = config.prMode ?? "draft"
+    const agentEnv: Record<string, string> = { TANGERINE_TASK_ID: task.id }
+    if (task.type !== "orchestrator") {
+      const shimBinDir = yield* installGhShim(worktreePath, prMode).pipe(
+        Effect.catchAll(() => Effect.succeed(null)),
+      )
+      if (shimBinDir) {
+        agentEnv["PATH"] = `${shimBinDir}:${process.env["PATH"] ?? ""}`
+      }
+    }
+
+    // 4. Start agent — resume session if we have a session ID (with timeout)
     yield* activity("agent.reconnecting", "Restarting agent process")
     const agentHandle = yield* deps.agentFactory.start({
       taskId: task.id,
@@ -341,6 +371,7 @@ export function reconnectSession(
       model: task.model ?? undefined,
       reasoningEffort: task.reasoning_effort ?? undefined,
       resumeSessionId: task.agent_session_id ?? undefined,
+      env: agentEnv,
     }).pipe(
       Effect.timeoutFail({
         duration: AGENT_START_TIMEOUT,

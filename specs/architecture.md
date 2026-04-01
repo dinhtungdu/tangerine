@@ -116,6 +116,18 @@ Notable task fields in the active schema:
 
 All providers implement the shared contract in `agent/provider.ts`, emit normalized events, and support prompt delivery plus shutdown. OpenCode exposes a richer live update path; Claude Code and Codex use subprocess streams.
 
+### PR Mode Enforcement (`agent/gh-shim.ts`)
+
+Each project has a `prMode` setting (`draft`, `ready`, or `none`) that controls how agents create PRs. This is enforced at the infrastructure level via a `gh` shim script:
+
+- On session start, `lifecycle.ts` installs a shim at `<worktree>/.tangerine/bin/gh` and prepends that directory to the agent's PATH.
+- The shim intercepts `gh pr create` commands:
+  - `prMode=draft` → appends `--draft` if not already present
+  - `prMode=ready` → passes through unchanged
+  - `prMode=none` → blocks PR creation entirely (exit 1)
+- All other `gh` subcommands pass through to the real binary.
+- Orchestrator tasks skip shim installation (they don't create PRs).
+
 ### Task Management
 
 - `tasks/manager.ts` handles task creation, type-based capabilities, retries, completion, cancellation, config changes, orchestrator creation, and restart recovery.
