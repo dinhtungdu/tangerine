@@ -8,12 +8,12 @@ metadata:
 
 # Tangerine Agent Reference
 
-> 🚨 **CRITICAL — READ FIRST:**
+> 🚨 **CRITICAL — READ FIRST (applies to ALL task types: orchestrator, worker, reviewer):**
 > **`gh pr review`, `gh pr comment`, `gh pr merge`** — follow these rules strictly:
 > - **Personal repos** (repo owner matches `gh api user --jq .login`): allowed when needed
 > - **All other repos**: NEVER, unless the user has **explicitly asked** you to do so in this task
 >
-> Always detect the GitHub username dynamically — never hardcode it. Report findings back to the parent task via Tangerine (`POST /api/tasks/$TANGERINE_TASK_ID/prompt`) instead of posting to GitHub directly.
+> This applies regardless of task type — orchestrators, workers, and reviewers must all follow these rules.
 
 You are running inside a **Tangerine task**. Tangerine manages local agent processes, git worktrees, task lifecycle, and a web/API control plane.
 
@@ -48,7 +48,7 @@ curl -X POST "$API/api/tasks/$TANGERINE_TASK_ID/done"
 
 > **IMPORTANT — when to call `/done`:**
 > - **Orchestrators only**: call `/done` on yourself when ending the session.
-> - **Workers and reviewers**: NEVER call `/done` on yourself. After pushing a PR, your job is finished — just stop. The orchestrator marks tasks done after the PR is merged.
+> - **Workers and reviewers**: NEVER call `/done` on yourself. After working, the agent auto-suspends, and the PR poller will mark the task as done when the PR is merged, or cancelled when the PR is closed.
 
 Create a worker task:
 
@@ -256,7 +256,8 @@ codex review --base main -c model="gpt-5.4" -c reasoning.effort="xhigh"
 1. Read the findings
 2. Include them in the review report
 3. **Post the full review summary as your final message in this task** — verdict, key findings, any bugs found. This is what the user sees when they open the reviewer task.
-4. Then also report back to the parent task with a summary of issues found
+
+> 🚨 **CRITICAL**: The review summary MUST be posted in **this task's own conversation** — do NOT skip this.
 
 ## Task Shape
 
