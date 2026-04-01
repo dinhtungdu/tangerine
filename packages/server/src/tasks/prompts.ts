@@ -15,11 +15,17 @@ export interface SystemNotesInfo {
  * Build the PR workflow instruction: rename branch, push, create PR.
  * Used in initial prompts, reconnect nudges, and PR nudges.
  */
-export function buildPrWorkflowNote(taskId: string, port = apiPort()): string {
+export function buildPrWorkflowNote(taskId: string, port = apiPort(), prMode: "ready" | "draft" | "none" = "draft"): string {
+  const prCommand =
+    prMode === "none"
+      ? "`git push -u origin HEAD` (no PR — prMode is none)."
+      : prMode === "ready"
+        ? "`git push -u origin HEAD` then `gh pr create`."
+        : "`git push -u origin HEAD` then `gh pr create --draft`."
   return (
     `1) Rename your branch via: curl -X POST http://localhost:${port}/api/tasks/${taskId}/rename-branch ` +
     `-H "Content-Type: application/json" -d '{"branch":"fix/<descriptive-slug>"}'. ` +
-    `2) Push and create a PR with \`git push -u origin HEAD\` then \`gh pr create\`.`
+    `2) Push and create a PR with ${prCommand}`
   )
 }
 
@@ -49,7 +55,7 @@ export function buildSystemNotes(taskId: string, info: SystemNotesInfo, port = a
   if (info.taskType === "worker") {
     const prModeInstruction = buildPrModeInstruction(info.prMode ?? "draft")
     notes.push(`[PR MODE — CRITICAL: ${prModeInstruction}]`)
-    notes.push(`[NOTE: When your work is complete: ${buildPrWorkflowNote(taskId, port)} Do not stop at just committing.]`)
+    notes.push(`[NOTE: When your work is complete: ${buildPrWorkflowNote(taskId, port, info.prMode ?? "draft")} Do not stop at just committing.]`)
   }
   return notes
 }
