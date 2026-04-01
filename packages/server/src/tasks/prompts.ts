@@ -8,18 +8,37 @@ const apiPort = () => Number(process.env["PORT"] ?? DEFAULT_API_PORT)
 export interface SystemNotesInfo {
   setupCommand?: string
   taskType?: string
+  prMode?: "ready" | "draft" | "none"
 }
 
 /**
  * Build the PR workflow instruction: rename branch, push, create PR.
  * Used in initial prompts, reconnect nudges, and PR nudges.
  */
-export function buildPrWorkflowNote(taskId: string, port = apiPort()): string {
+export function buildPrWorkflowNote(taskId: string, port = apiPort(), prMode: "ready" | "draft" | "none" = "draft"): string {
+  const prCommand =
+    prMode === "none"
+      ? "nothing — prMode is none, do NOT push or create a PR."
+      : prMode === "ready"
+        ? "`git push -u origin HEAD` then `gh pr create`."
+        : "`git push -u origin HEAD` then `gh pr create --draft`."
   return (
     `1) Rename your branch via: curl -X POST http://localhost:${port}/api/tasks/${taskId}/rename-branch ` +
     `-H "Content-Type: application/json" -d '{"branch":"fix/<descriptive-slug>"}'. ` +
-    `2) Push and create a PR with \`git push -u origin HEAD\` then \`gh pr create\`.`
+    `2) Push and create a PR with ${prCommand}`
   )
+}
+
+/** Build a mandatory prMode instruction injected into the system prompt. */
+export function buildPrModeInstruction(prMode: "ready" | "draft" | "none"): string {
+  if (prMode === "ready") {
+    return `This project's prMode is "ready". You MUST create a ready-to-review PR: \`gh pr create\`. Never use --draft.`
+  }
+  if (prMode === "none") {
+    return `This project's prMode is "none". Do NOT push or create a PR. Just commit your work and stop.`
+  }
+  // draft is the default
+  return `This project's prMode is "draft". You MUST pass --draft when creating PRs: \`gh pr create --draft\`. Never create a ready PR.`
 }
 
 /** Build system notes prepended to the first prompt for a task. */
@@ -34,7 +53,9 @@ export function buildSystemNotes(taskId: string, info: SystemNotesInfo, port = a
   // Only workers rename their branch, push, and open a PR.
   // Reviewers review existing PRs on an existing branch; orchestrators run on the project default branch.
   if (info.taskType === "worker") {
-    notes.push(`[NOTE: When your work is complete: ${buildPrWorkflowNote(taskId, port)} Do not stop at just committing.]`)
+    const prModeInstruction = buildPrModeInstruction(info.prMode ?? "draft")
+    notes.push(`[PR MODE — CRITICAL: ${prModeInstruction}]`)
+    notes.push(`[NOTE: When your work is complete: ${buildPrWorkflowNote(taskId, port, info.prMode ?? "draft")} Do not stop at just committing.]`)
   }
   return notes
 }

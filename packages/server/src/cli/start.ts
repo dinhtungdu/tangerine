@@ -372,6 +372,7 @@ export async function start(): Promise<void> {
                 const notes = buildSystemNotes(taskId, {
                   setupCommand: projConfig?.setup,
                   taskType: task?.type ?? undefined,
+                  prMode: projConfig?.prMode,
                 })
                 getTaskState(taskId).firstPromptSent = true
 
@@ -728,6 +729,7 @@ export async function start(): Promise<void> {
               const notes = buildSystemNotes(taskId, {
                 setupCommand: projConfig?.setup,
                 taskType: task?.type ?? undefined,
+                prMode: projConfig?.prMode,
               })
 
               if (notes.length > 0) {

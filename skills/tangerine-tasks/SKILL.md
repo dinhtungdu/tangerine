@@ -30,6 +30,32 @@ API=http://localhost:3456
 echo "$TANGERINE_TASK_ID"
 ```
 
+## 🚨 PR Mode — CRITICAL (Worker Tasks)
+
+> **You MUST check `prMode` before creating any PR. Injected into your system prompt — follow it exactly.**
+
+```bash
+PROJECT_NAME=$(curl -s "$API/api/tasks/$TANGERINE_TASK_ID" | jq -r '.projectId')
+PR_MODE=$(curl -s "$API/api/projects/$PROJECT_NAME" | jq -r '.prMode // "draft"')
+```
+
+Act strictly according to `PR_MODE` — no exceptions:
+
+**`"ready"`** — normal ready-to-review PR:
+```bash
+gh pr create --title "..." --body "..."
+```
+
+**`"draft"` (default)** — MUST use `--draft`:
+```bash
+gh pr create --draft --title "..." --body "..."
+```
+
+**`"none"`** — do NOT push or create a PR, just commit and stop:
+```bash
+# nothing — commit your work and stop here
+```
+
 ## Common API Calls
 
 ### Tasks
@@ -216,19 +242,7 @@ test "$PARENT" != "null" && curl "$API/api/tasks/$PARENT/messages"
 
 ## PR Mode
 
-> 🚨 **CRITICAL**: You **MUST** check `prMode` before creating any PR. Do NOT default to `gh pr create` without checking.
-
-```bash
-PROJECT_NAME=$(curl -s "$API/api/tasks/$TANGERINE_TASK_ID" | jq -r '.projectId')
-PR_MODE=$(curl -s "$API/api/projects/$PROJECT_NAME" | jq -r '.prMode // "draft"')
-```
-
-Act according to `PR_MODE`:
-- `"ready"`: `gh pr create` (normal ready-to-review PR)
-- `"draft"` (default): `gh pr create --draft`
-- `"none"`: skip PR creation entirely — just `git push origin HEAD`
-
-Always push the branch regardless of `prMode`.
+> See **🚨 PR Mode — CRITICAL** section at the top of this document.
 
 ### Rename branch before PR
 
