@@ -218,7 +218,7 @@ export function QuickOpen() {
                   {/* Type badge (only for non-worker tasks) */}
                   <div className="flex shrink-0 items-center gap-1.5">
                     {task.type !== "worker" && (
-                      <span className="rounded bg-surface-dark px-1.5 py-0.5 text-2xs font-medium text-fg-muted">
+                      <span className="rounded bg-surface-secondary px-1.5 py-0.5 text-2xs font-medium text-fg-muted">
                         {task.type}
                       </span>
                     )}
