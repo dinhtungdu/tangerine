@@ -9,7 +9,11 @@ metadata:
 # Tangerine Agent Reference
 
 > 🚨 **CRITICAL — READ FIRST:**
-> **NEVER post comments or reviews on GitHub PRs.** No `gh pr review`, `gh pr comment`, or any GitHub API call that writes to a PR thread. Report all findings back to the parent task via Tangerine (`POST /api/tasks/$TANGERINE_TASK_ID/prompt`) — never on GitHub directly.
+> **NEVER run `gh pr review`, `gh pr comment`, or `gh pr merge`** unless ALL of the following are true:
+> 1. The repo belongs to `dinhtungdu` (personal repos only — never company/org repos)
+> 2. The user has **explicitly asked** you to do so in this task
+>
+> Otherwise, report all findings back to the parent task via Tangerine (`POST /api/tasks/$TANGERINE_TASK_ID/prompt`) — never on GitHub directly. This applies even to reviewer tasks — post your review summary in the task, not as a GitHub PR review.
 
 You are running inside a **Tangerine task**. Tangerine manages local agent processes, git worktrees, task lifecycle, and a web/API control plane.
 
