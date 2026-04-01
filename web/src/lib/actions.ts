@@ -92,6 +92,48 @@ export function matchesShortcut(e: KeyboardEvent, s: Shortcut): boolean {
   return metaMatch && shiftMatch && altMatch && e.key.toLowerCase() === s.key.toLowerCase()
 }
 
+/** Register combo actions from config. Each combo executes its sequence in order. */
+export function registerActionCombos(
+  combos: Array<{
+    id: string
+    label: string
+    shortcut?: Shortcut
+    sequence: string[]
+  }>,
+): () => void {
+  // Filter out combos that would collide with existing built-in actions
+  const safe = combos.filter((combo) => {
+    if (actions.has(combo.id)) {
+      console.warn(`Action combo: id '${combo.id}' collides with existing action, skipping`)
+      return false
+    }
+    return true
+  })
+
+  const comboActions: Action[] = safe.map((combo) => ({
+    id: combo.id,
+    label: combo.label,
+    shortcut: combo.shortcut,
+    section: "Combos",
+    handler: async () => {
+      for (const actionId of combo.sequence) {
+        // Skip self-references to prevent infinite recursion
+        if (actionId === combo.id) {
+          console.warn(`Action combo: skipping self-reference '${actionId}'`)
+          continue
+        }
+        const action = actions.get(actionId)
+        if (!action) {
+          console.warn(`Action combo: unknown action id '${actionId}', skipping`)
+          continue
+        }
+        await action.handler()
+      }
+    },
+  }))
+  return registerActions(comboActions)
+}
+
 /** Reset the registry (for testing). */
 export function _resetForTesting(): void {
   actions.clear()
