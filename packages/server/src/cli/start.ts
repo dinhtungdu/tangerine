@@ -34,7 +34,7 @@ import { createClaudeCodeProvider } from "../agent/claude-code-provider"
 import { createCodexProvider } from "../agent/codex-provider"
 import type { AgentHandle } from "../agent/provider"
 import { enqueue as enqueuePrompt, drainAll as drainQueuedPrompts } from "../agent/prompt-queue"
-import { buildSystemNotes, buildEscalationBlock } from "../tasks/prompts"
+import { buildSystemNotes, buildEscalationBlock, buildPrWorkflowNote } from "../tasks/prompts"
 import { getTaskState, clearTaskState } from "../tasks/task-state"
 
 const log = createLogger("cli")
@@ -310,7 +310,7 @@ export async function start(): Promise<void> {
                   `[TANGERINE: Server restarted. You are working on: ${originalTask}]`,
                 ]
                 if (taskRow?.type !== "reviewer") {
-                  nudgeParts.push(`[NOTE: When your work is complete: 1) Rename your branch via: curl -X POST http://localhost:3456/api/tasks/${taskId}/rename-branch -H "Content-Type: application/json" -d '{"branch":"tangerine/<descriptive-slug>"}'. 2) Push and create a PR with \`git push -u origin HEAD\` then \`gh pr create\`.]`)
+                  nudgeParts.push(`[NOTE: When your work is complete: ${buildPrWorkflowNote(taskId)}]`)
                 }
                 nudgeParts.push(
                   unansweredUserMsg
@@ -567,10 +567,9 @@ export async function start(): Promise<void> {
                         log.info("Nudging agent to create PR", { taskId })
                         Effect.runPromise(
                           handle.sendPrompt(
-                            "[TANGERINE: You have commits on your branch but no pull request has been created. " +
-                            `1) Rename your branch via: curl -X POST http://localhost:3456/api/tasks/${taskId}/rename-branch -H "Content-Type: application/json" -d '{"branch":"tangerine/<descriptive-slug>"}'. ` +
-                            "2) Push and create a PR with `git push -u origin HEAD` then `gh pr create`. " +
-                            "A PR is required for the task to be considered complete.]"
+                            `[TANGERINE: You have commits on your branch but no pull request has been created. ` +
+                            `${buildPrWorkflowNote(taskId)} ` +
+                            `A PR is required for the task to be considered complete.]`
                           ).pipe(Effect.catchAll(() => Effect.void))
                         )
                         Effect.runPromise(

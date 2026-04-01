@@ -7,7 +7,7 @@ import { getTask, listTasks, updateTask, deleteTask, markTaskSeen, getChildTasks
 import { TaskNotFoundError, TaskNotTerminalError, PrCapabilityError, BranchRenameError } from "../../errors"
 import { getRepoDir } from "../../config"
 import { ghSpawnEnv } from "../../gh"
-import { localExec } from "./../../tasks/worktree-pool"
+import { localExecStrict } from "./../../tasks/worktree-pool"
 
 export function taskRoutes(deps: AppDeps): Hono {
   const app = new Hono()
@@ -226,26 +226,13 @@ export function taskRoutes(deps: AppDeps): Hono {
 
         const cwd = task.worktree_path
 
-        // Helper: run localExec and fail on non-zero exit code
-        const execOrFail = (cmd: string, label: string) =>
-          localExec(cmd).pipe(
-            Effect.flatMap((r) =>
-              r.exitCode !== 0
-                ? Effect.fail(new BranchRenameError({
-                    message: `${label}: ${r.stderr || r.stdout}`.trim(),
-                    taskId,
-                  }))
-                : Effect.succeed(r)
-            ),
-            Effect.mapError((e) =>
-              e instanceof BranchRenameError ? e : new BranchRenameError({ message: `${label}: ${e.message}`, taskId, cause: e })
-            ),
-          )
-
         // Rename local branch (agent pushes separately via git push -u origin HEAD)
-        yield* execOrFail(
-          `cd ${cwd} && git branch -m ${oldBranch} ${newBranch}`,
-          "Failed to rename local branch",
+        yield* localExecStrict(`cd ${cwd} && git branch -m ${oldBranch} ${newBranch}`).pipe(
+          Effect.mapError((e) => new BranchRenameError({
+            message: `Failed to rename local branch: ${e.message}`,
+            taskId,
+            cause: e,
+          }))
         )
 
         // Update DB
