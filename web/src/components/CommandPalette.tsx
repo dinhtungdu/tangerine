@@ -124,8 +124,8 @@ export function CommandPalette() {
   const listRef = useRef<HTMLDivElement>(null)
   const navigate = useNavigate()
 
-  // Register palette.open action so external callers (pull-to-refresh) can open it.
-  // No shortcut here — Cmd+K is handled by the direct listener below to avoid double-fire.
+  // Register palette actions. palette.open is idempotent (used by pull-to-refresh etc.).
+  // palette.toggle handles the Cmd+K shortcut via useShortcuts.
   useEffect(() => {
     const unregister = registerActions([
       {
@@ -133,6 +133,13 @@ export function CommandPalette() {
         label: "Open command palette",
         hidden: true,
         handler: () => setIsOpen(true),
+      },
+      {
+        id: "palette.toggle",
+        label: "Toggle command palette",
+        hidden: true,
+        shortcut: { key: "k", meta: true },
+        handler: () => setIsOpen((prev) => !prev),
       },
     ])
     return unregister
@@ -142,17 +149,6 @@ export function CommandPalette() {
   useEffect(() => {
     const unsub = subscribe(() => setActions(getActions()))
     return unsub
-  }, [])
-
-  // Direct Cmd+K / Ctrl+K toggle — works without useShortcuts being mounted
-  useEffect(() => {
-    const onKey = (e: KeyboardEvent) => {
-      if (!((e.metaKey || e.ctrlKey) && e.key === "k")) return
-      e.preventDefault()
-      setIsOpen((prev) => !prev)
-    }
-    document.addEventListener("keydown", onKey)
-    return () => document.removeEventListener("keydown", onKey)
   }, [])
 
   // Fetch tasks and reset state when opened
