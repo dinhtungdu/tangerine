@@ -101,12 +101,12 @@ function ActionResult({ action, isSelected }: { action: Action; isSelected: bool
         )}
       </div>
       {action.section && (
-        <span className="shrink-0 rounded bg-surface-dark px-1.5 py-0.5 text-2xs font-medium text-fg-muted">
+        <span className="shrink-0 rounded bg-surface-secondary px-1.5 py-0.5 text-2xs font-medium text-fg-muted">
           {action.section}
         </span>
       )}
       {action.shortcut && (
-        <kbd className="shrink-0 rounded border border-edge bg-surface-dark px-1.5 py-0.5 font-mono text-2xs text-fg-muted">
+        <kbd className="shrink-0 rounded border border-edge bg-surface-secondary px-1.5 py-0.5 font-mono text-2xs text-fg-muted">
           {formatShortcut(action.shortcut)}
         </kbd>
       )}
