@@ -155,7 +155,7 @@ export const ChatMessage = memo(function ChatMessage({ message }: ChatMessagePro
           <span className="text-xs font-medium text-amber-500/70">Thinking</span>
           <span className="text-2xs text-fg-muted/50">{formatTimestamp(message.timestamp)}</span>
         </div>
-        <div className="rounded-lg border border-amber-500/10 bg-amber-500/5 px-3 py-2 text-xs italic leading-[1.6] text-fg-muted">
+        <div className="rounded-lg border border-amber-500/10 bg-amber-500/5 px-3 py-2 text-xs italic leading-[1.6] text-fg-muted break-words">
           {message.content}
         </div>
       </div>
@@ -175,7 +175,7 @@ export const ChatMessage = memo(function ChatMessage({ message }: ChatMessagePro
           <span className="text-xs font-medium text-blue-500/70">Narration</span>
           <span className="text-2xs text-fg-muted/50">{formatTimestamp(message.timestamp)}</span>
         </div>
-        <div className="rounded-lg border border-blue-500/10 bg-blue-500/5 px-3 py-2 text-xs leading-[1.6] text-fg-muted">
+        <div className="rounded-lg border border-blue-500/10 bg-blue-500/5 px-3 py-2 text-xs leading-[1.6] text-fg-muted break-words">
           {message.content}
         </div>
         {message.images && message.images.length > 0 && (
