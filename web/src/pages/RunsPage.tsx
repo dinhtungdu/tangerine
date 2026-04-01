@@ -14,14 +14,15 @@ export function RunsPage() {
   const refTaskId = searchParams.get("ref") ?? undefined
   const refTaskTitle = searchParams.get("refTitle") ?? undefined
   const formRef = useRef<HTMLDivElement>(null)
-  const hasScrolledRef = useRef(false)
+  const scrolledForRef = useRef<string | undefined>(undefined)
 
   // On mobile the sidebar stacks above the form. Wait for the sidebar's initial
   // task fetch to complete (sidebar has its full height) before scrolling, so
   // the form doesn't get pushed back below the viewport after we scroll.
+  // Track which refTaskId triggered the scroll so repeated continues work correctly.
   useEffect(() => {
-    if (refTaskId && !tasksLoading && !hasScrolledRef.current && formRef.current) {
-      hasScrolledRef.current = true
+    if (refTaskId && !tasksLoading && scrolledForRef.current !== refTaskId && formRef.current) {
+      scrolledForRef.current = refTaskId
       formRef.current.scrollIntoView({ behavior: "smooth", block: "start" })
     }
   }, [refTaskId, tasksLoading])
