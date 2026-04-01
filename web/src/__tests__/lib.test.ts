@@ -1,4 +1,4 @@
-import { describe, test, expect } from "bun:test"
+import { describe, test, expect, beforeEach } from "bun:test"
 import {
   formatModelName,
   formatDuration,
@@ -12,6 +12,16 @@ import { getActivityStyle, getActivityDetail } from "../lib/activity"
 import { searchModels } from "../lib/model-search"
 import { copyToClipboard } from "../lib/clipboard"
 import { buildSshEditorUri } from "../lib/ssh-editor"
+import {
+  registerActions,
+  executeAction,
+  getActions,
+  getAction,
+  subscribe,
+  matchesShortcut,
+  formatShortcut,
+  _resetForTesting,
+} from "../lib/actions"
 
 describe("format", () => {
   describe("formatModelName", () => {
@@ -275,5 +285,80 @@ describe("clipboard", () => {
       configurable: true,
       value: originalClipboard,
     })
+  })
+})
+
+describe("actions", () => {
+  beforeEach(() => {
+    _resetForTesting()
+  })
+
+  test("registerActions adds actions to registry", () => {
+    registerActions([
+      { id: "test.one", label: "Test One", handler: () => {} },
+      { id: "test.two", label: "Test Two", handler: () => {} },
+    ])
+    expect(getActions()).toHaveLength(2)
+    expect(getAction("test.one")?.label).toBe("Test One")
+  })
+
+  test("registerActions returns unregister function", () => {
+    const unregister = registerActions([
+      { id: "test.temp", label: "Temporary", handler: () => {} },
+    ])
+    expect(getActions()).toHaveLength(1)
+    unregister()
+    expect(getActions()).toHaveLength(0)
+  })
+
+  test("executeAction calls the handler", () => {
+    let called = false
+    registerActions([
+      { id: "test.exec", label: "Execute Me", handler: () => { called = true } },
+    ])
+    executeAction("test.exec")
+    expect(called).toBe(true)
+  })
+
+  test("executeAction with unknown id does nothing", () => {
+    executeAction("nonexistent")
+    // No error thrown
+  })
+
+  test("subscribe notifies on registration and unregistration", () => {
+    let count = 0
+    subscribe(() => { count++ })
+    const unreg = registerActions([
+      { id: "test.sub", label: "Sub", handler: () => {} },
+    ])
+    expect(count).toBe(1)
+    unreg()
+    expect(count).toBe(2)
+  })
+
+  test("matchesShortcut matches meta+key", () => {
+    const shortcut = { key: "k", meta: true }
+    const match = { key: "k", metaKey: true, ctrlKey: false, shiftKey: false, altKey: false } as KeyboardEvent
+    const noMatch = { key: "k", metaKey: false, ctrlKey: false, shiftKey: false, altKey: false } as KeyboardEvent
+    expect(matchesShortcut(match, shortcut)).toBe(true)
+    expect(matchesShortcut(noMatch, shortcut)).toBe(false)
+  })
+
+  test("matchesShortcut treats ctrlKey as meta", () => {
+    const shortcut = { key: "k", meta: true }
+    const ctrlMatch = { key: "k", metaKey: false, ctrlKey: true, shiftKey: false, altKey: false } as KeyboardEvent
+    expect(matchesShortcut(ctrlMatch, shortcut)).toBe(true)
+  })
+
+  test("matchesShortcut rejects extra modifiers", () => {
+    const shortcut = { key: "n", meta: true }
+    const withShift = { key: "n", metaKey: true, ctrlKey: false, shiftKey: true, altKey: false } as KeyboardEvent
+    expect(matchesShortcut(withShift, shortcut)).toBe(false)
+  })
+
+  test("formatShortcut formats correctly", () => {
+    const result = formatShortcut({ key: "k", meta: true })
+    // Result depends on navigator.userAgent but should contain the key
+    expect(result).toContain("K")
   })
 })
