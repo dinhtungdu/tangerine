@@ -559,10 +559,10 @@ export function TaskDetail() {
                 "@container/diff flex min-h-0 min-w-0 flex-col",
                 mobilePane === "diff" ? "flex-1" : "hidden",
                 visiblePanes.has("diff")
-                  ? `md:flex${desktopIsSolo || firstVisiblePane === "diff" ? " md:flex-1" : ""}`
+                  ? `md:flex${desktopIsSolo || firstVisiblePane === "diff" ? " md:flex-1" : " md:[width:var(--pane-w)] md:[flex-shrink:0] md:max-w-full"}`
                   : "md:hidden",
               ].join(" ")}
-              style={!visiblePanes.has("diff") || desktopIsSolo || firstVisiblePane === "diff" ? undefined : { width: diffWidth, flexShrink: 0, maxWidth: "100%" }}
+              style={visiblePanes.has("diff") && !desktopIsSolo && firstVisiblePane !== "diff" ? { "--pane-w": `${diffWidth}px` } as React.CSSProperties : undefined}
             >
               <div className="flex min-h-0 flex-1 flex-col @min-[700px]/diff:flex-row">
                 <div className="min-w-0 flex-1 overflow-y-auto">
@@ -597,10 +597,10 @@ export function TaskDetail() {
                 "flex min-h-0 min-w-0 flex-col",
                 mobilePane === "terminal" ? "flex-1" : "hidden",
                 visiblePanes.has("terminal")
-                  ? `md:flex${desktopIsSolo || firstVisiblePane === "terminal" ? " md:flex-1" : ""}`
+                  ? `md:flex${desktopIsSolo || firstVisiblePane === "terminal" ? " md:flex-1" : " md:[width:var(--pane-w)] md:[flex-shrink:0] md:max-w-full"}`
                   : "md:hidden",
               ].join(" ")}
-              style={!visiblePanes.has("terminal") || desktopIsSolo || firstVisiblePane === "terminal" ? undefined : { width: terminalWidth, flexShrink: 0, maxWidth: "100%" }}
+              style={visiblePanes.has("terminal") && !desktopIsSolo && firstVisiblePane !== "terminal" ? { "--pane-w": `${terminalWidth}px` } as React.CSSProperties : undefined}
             >
               <TerminalPane taskId={id!} />
             </div>
@@ -616,10 +616,10 @@ export function TaskDetail() {
                 "flex min-h-0 flex-col bg-surface-secondary",
                 mobilePane === "activity" ? "flex-1" : "hidden",
                 visiblePanes.has("activity")
-                  ? `md:flex${desktopIsSolo || firstVisiblePane === "activity" ? " md:flex-1" : ""}`
+                  ? `md:flex${desktopIsSolo || firstVisiblePane === "activity" ? " md:flex-1" : " md:[width:var(--pane-w)] md:[flex-shrink:0] md:max-w-full"}`
                   : "md:hidden",
               ].join(" ")}
-              style={!visiblePanes.has("activity") || desktopIsSolo || firstVisiblePane === "activity" ? undefined : { width: activityWidth, flexShrink: 0, maxWidth: "100%" }}
+              style={visiblePanes.has("activity") && !desktopIsSolo && firstVisiblePane !== "activity" ? { "--pane-w": `${activityWidth}px` } as React.CSSProperties : undefined}
             >
               <div className="min-h-0 flex-1 overflow-y-auto pt-3">
                 <ActivityList activities={session.activities} variant="compact" />
