@@ -251,7 +251,7 @@ export function TasksSidebar({ tasks, searchQuery, onSearchChange, onNewAgent, o
             />
           )}
         </div>
-        <span className="text-md font-medium text-fg">Orchestrator</span>
+        <span className="text-md font-medium text-fg">Middle Manager</span>
       </button>
 
       <div className="h-px bg-edge" />

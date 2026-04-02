@@ -4,7 +4,7 @@ import { useNavigate } from "react-router-dom"
 import type { Task } from "@tangerine/shared"
 import { fetchTasks } from "../lib/api"
 import { getStatusConfig } from "../lib/status"
-import { formatRelativeTime } from "../lib/format"
+import { formatRelativeTime, formatTaskTitle } from "../lib/format"
 import {
   getActions,
   executeAction,
@@ -59,7 +59,7 @@ function TaskResult({ task, isSelected }: { task: Task; isSelected: boolean }) {
         style={{ backgroundColor: statusConfig.color }}
       />
       <div className="min-w-0 flex-1">
-        <p className="truncate text-md font-medium text-fg">{task.title}</p>
+        <p className="truncate text-md font-medium text-fg">{formatTaskTitle(task.title, task.type)}</p>
         <p className="truncate text-xxs text-fg-muted">{task.projectId}</p>
       </div>
       <div className="flex shrink-0 items-center gap-1.5">
@@ -206,7 +206,7 @@ export function CommandPalette() {
       // With query: fuzzy match tasks
       for (const t of tasks) {
         const score = Math.max(
-          fuzzyScore(t.title, searchQuery) * 3,
+          fuzzyScore(formatTaskTitle(t.title, t.type), searchQuery) * 3,
           fuzzyScore(t.projectId, searchQuery) * 2,
           fuzzyScore(t.id, searchQuery),
         )

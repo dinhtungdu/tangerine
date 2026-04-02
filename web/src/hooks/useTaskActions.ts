@@ -14,6 +14,7 @@ import {
   abortTask,
   startTask,
 } from "../lib/api"
+import { formatTaskTitle } from "../lib/format"
 
 /**
  * Registers task-contextual actions in the action registry.
@@ -37,13 +38,14 @@ export function useTaskActions(
 
     const defs: Action[] = []
     const ctx = task.id
+    const title = formatTaskTitle(task.title, task.type)
 
     // Cancel — running tasks
     if (task.status === "running") {
       defs.push({
         id: "task.cancel",
         label: "Cancel task",
-        description: `Cancel "${task.title}"`,
+        description: `Cancel "${title}"`,
         section: "Task",
         context: ctx,
         handler: async () => {
@@ -58,7 +60,7 @@ export function useTaskActions(
       defs.push({
         id: "task.abort",
         label: "Abort task",
-        description: `Abort "${task.title}"`,
+        description: `Abort "${title}"`,
         section: "Task",
         context: ctx,
         handler: async () => {
@@ -73,7 +75,7 @@ export function useTaskActions(
       defs.push({
         id: "task.retry",
         label: "Retry task",
-        description: `Retry "${task.title}"`,
+        description: `Retry "${title}"`,
         section: "Task",
         context: ctx,
         handler: async () => {
@@ -88,7 +90,7 @@ export function useTaskActions(
       defs.push({
         id: "task.resolve",
         label: "Resolve task",
-        description: `Mark "${task.title}" as resolved`,
+        description: `Mark "${title}" as resolved`,
         section: "Task",
         context: ctx,
         handler: async () => {
@@ -103,7 +105,7 @@ export function useTaskActions(
       defs.push({
         id: "task.start",
         label: "Start task",
-        description: `Start "${task.title}"`,
+        description: `Start "${title}"`,
         section: "Task",
         context: ctx,
         handler: async () => {
@@ -119,7 +121,7 @@ export function useTaskActions(
       defs.push({
         id: "task.delete",
         label: "Delete task",
-        description: `Delete "${task.title}"`,
+        description: `Delete "${title}"`,
         section: "Task",
         context: ctx,
         handler: async () => {

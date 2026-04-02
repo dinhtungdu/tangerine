@@ -1,5 +1,6 @@
 import { useState, useCallback, useMemo, useRef } from "react"
 import type { Task } from "@tangerine/shared"
+import { formatTaskTitle } from "../lib/format"
 
 export interface MentionPickerState {
   isOpen: boolean
@@ -36,7 +37,7 @@ export function useMentionPicker(tasks: Task[]): UseMentionPickerResult {
     const q = state.query.toLowerCase()
     return tasks
       .filter((t) =>
-        t.title.toLowerCase().includes(q) ||
+        formatTaskTitle(t.title, t.type).toLowerCase().includes(q) ||
         t.id.startsWith(q)
       )
       .sort((a, b) => {

@@ -1,6 +1,7 @@
 import { useRef, useEffect } from "react"
 import type { Task } from "@tangerine/shared"
 import { getStatusConfig } from "../lib/status"
+import { formatTaskTitle } from "../lib/format"
 
 interface MentionPickerProps {
   tasks: Task[]
@@ -44,7 +45,7 @@ export function MentionPicker({ tasks, selectedIndex, onSelect, onHover }: Menti
                 style={{ backgroundColor: statusConfig.color }}
               />
               <span className="min-w-0 flex-1 truncate text-sm text-fg">
-                {task.title}
+                {formatTaskTitle(task.title, task.type)}
               </span>
               <span className="shrink-0 font-mono text-xxs text-fg-muted">
                 {task.id.slice(0, 8)}
