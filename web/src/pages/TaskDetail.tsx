@@ -20,6 +20,7 @@ import { formatPrNumber, formatTaskTitle } from "../lib/format"
 import { copyToClipboard } from "../lib/clipboard"
 import { TaskOverflowMenu } from "../components/TaskListItem"
 import { useTaskActions } from "../hooks/useTaskActions"
+import { usePanelActions } from "../hooks/usePanelActions"
 import { useToast } from "../context/ToastContext"
 
 type PaneId = "chat" | "diff" | "terminal" | "activity"
@@ -235,6 +236,8 @@ export function TaskDetail() {
 
   // Register task-contextual actions in the command palette
   useTaskActions(task, handleRefetch)
+  // Register panel toggle actions colocated with the pane state they control
+  usePanelActions(task, togglePane)
 
   // Start the task on first prompt if it's still in "created" status
   const handleSend = useCallback(
