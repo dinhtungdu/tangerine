@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from "react"
+import { useState, useEffect, useCallback, useRef } from "react"
 import type { Task, SystemLogEntry } from "@tangerine/shared"
 import { fetchSystemLogs, fetchOrphans, cleanupOrphans as apiCleanupOrphans, fetchUpdateStatus, updateProjectRepo, fetchHealth, type ProjectUpdateStatus } from "../lib/api"
 import { formatRelativeTime, formatTimestamp } from "../lib/format"
@@ -247,24 +247,47 @@ const formatLogTimestamp = formatTimestamp
 
 /* ── System Log ── */
 
+const MAX_LOG_ENTRIES = 200
+
 export function SystemLog({ project }: { project?: string }) {
   const [logs, setLogs] = useState<SystemLogEntry[]>([])
   const [activeFilter, setActiveFilter] = useState(0)
+  const latestTimestampRef = useRef<string | undefined>(undefined)
 
-  const loadLogs = useCallback(async () => {
+  const fetchLogs = useCallback(async (since?: string) => {
     const filter = LOG_FILTERS[activeFilter]!
-    const params: { level?: string[]; logger?: string[]; project?: string; limit?: number } = { limit: 500, project }
+    const params: { level?: string[]; logger?: string[]; project?: string; limit?: number; since?: string } = {
+      limit: since ? 50 : MAX_LOG_ENTRIES,
+      project,
+    }
     if (filter.level) params.level = [...filter.level]
     if (filter.value) params.logger = [...filter.value]
-    const data = await fetchSystemLogs(params).catch(() => [])
-    setLogs(data)
+    if (since) params.since = since
+
+    const data = await fetchSystemLogs(params).catch(() => [] as SystemLogEntry[])
+
+    if (!since) {
+      // Initial load: replace state and record newest timestamp
+      setLogs(data)
+      latestTimestampRef.current = data[0]?.timestamp
+    } else if (data.length > 0) {
+      // Incremental: prepend new entries (API returns DESC so data[0] is newest)
+      setLogs((prev) => {
+        const existingIds = new Set(prev.map((l) => l.id))
+        const fresh = data.filter((l) => !existingIds.has(l.id))
+        if (fresh.length === 0) return prev
+        return [...fresh, ...prev].slice(0, MAX_LOG_ENTRIES)
+      })
+      latestTimestampRef.current = data[0]?.timestamp
+    }
   }, [activeFilter, project])
 
   useEffect(() => {
-    loadLogs()
-    const interval = setInterval(loadLogs, 5000)
+    latestTimestampRef.current = undefined
+    fetchLogs()
+    const interval = setInterval(() => fetchLogs(latestTimestampRef.current), 5000)
     return () => clearInterval(interval)
-  }, [loadLogs])
+  }, [fetchLogs])
 
   return (
     <div className="flex flex-col gap-3">
