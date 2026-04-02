@@ -3,7 +3,7 @@ import type { ProviderType, PromptImage, Task } from "@tangerine/shared"
 import { useProject } from "../context/ProjectContext"
 import { ModelSelector } from "./ModelSelector"
 import { HarnessSelector } from "./HarnessSelector"
-import { ReasoningEffortSelector, getEfforts, type ReasoningEffort } from "./ReasoningEffortSelector"
+import { ReasoningEffortSelector, type ReasoningEffort } from "./ReasoningEffortSelector"
 import { MentionPicker } from "./MentionPicker"
 import { useMentionPicker } from "../hooks/useMentionPicker"
 import { useTasks } from "../hooks/useTasks"
@@ -205,7 +205,7 @@ export function NewAgentForm({ onSubmit, refTaskId, refTaskTitle, autoFocus }: N
             <h1 className="text-xl font-semibold text-fg md:text-center md:text-2xl md:font-bold">
               What should the agent work on?
             </h1>
-            <p className="hidden text-center text-sm leading-[1.6] text-fg-muted md:block">
+            <p className="text-center text-sm leading-[1.6] text-fg-muted">
               Describe a task, bug, or feature. The agent will read your codebase and get to work.
             </p>
           </div>
@@ -295,9 +295,9 @@ export function NewAgentForm({ onSubmit, refTaskId, refTaskTitle, autoFocus }: N
                 className="w-full resize-none border-0 bg-transparent px-4 pt-4 pb-2 text-base leading-[1.6] text-fg placeholder-fg-muted outline-none md:text-sm"
               />
             </div>
-            {/* Desktop: inline controls below textarea */}
-            <div className="hidden gap-2.5 overflow-visible border-t border-edge px-3 py-2.5 md:flex md:flex-col">
-              <div className="flex items-center gap-2 overflow-visible">
+            {/* Inline controls below textarea */}
+            <div className="flex flex-col gap-2.5 overflow-visible border-t border-edge px-3 py-2.5">
+              <div className="flex flex-wrap items-center gap-2 overflow-visible">
                 <HarnessSelector value={provider} onChange={handleProviderChange} />
                 <div className="flex min-w-0 items-center gap-1.5 rounded-md border border-edge px-2 py-1">
                   <svg className="h-3 w-3 shrink-0 text-fg-muted" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
@@ -323,77 +323,14 @@ export function NewAgentForm({ onSubmit, refTaskId, refTaskTitle, autoFocus }: N
               <button
                 onClick={handleSubmit}
                 disabled={!canSubmit}
-                className="flex w-full items-center justify-center gap-1.5 rounded-md bg-surface-dark px-4 py-2 text-white transition hover:opacity-80 disabled:opacity-30"
+                className="flex w-full items-center justify-center gap-1.5 rounded-md bg-surface-dark px-4 py-2.5 text-white transition hover:opacity-80 disabled:opacity-30"
               >
-                <svg className="h-3 w-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                <svg className="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                   <path strokeLinecap="round" strokeLinejoin="round" d="M5.25 5.653c0-.856.917-1.398 1.667-.986l11.54 6.347a1.125 1.125 0 0 1 0 1.972l-11.54 6.347a1.125 1.125 0 0 1-1.667-.986V5.653Z" />
                 </svg>
-                <span className="text-md font-medium">Start Agent</span>
+                <span className="text-sm font-semibold">Start Agent</span>
               </button>
             </div>
-          </div>
-
-          {/* Mobile: harness/branch/model chips + full-width start button */}
-          <div className="flex flex-col gap-6 md:hidden">
-            <div className="flex flex-col gap-2">
-              <div className="flex gap-2">
-                <div className="flex h-10 items-center gap-2 rounded-lg border border-edge bg-surface px-3">
-                  <svg className="h-4 w-4 shrink-0 text-fg-muted" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                    <path strokeLinecap="round" strokeLinejoin="round" d="M7.217 10.907a2.25 2.25 0 1 0 0 2.186m0-2.186c.18.324.283.696.283 1.093s-.103.77-.283 1.093m0-2.186 9.566-5.314m-9.566 7.5 9.566 5.314m0-12.814a2.25 2.25 0 1 0 0-2.186m0 2.186a2.25 2.25 0 1 0 0 2.186" />
-                  </svg>
-                  <input
-                    type="text"
-                    value={customBranch}
-                    onChange={(e) => setCustomBranch(e.target.value)}
-                    placeholder={branch}
-                    aria-label="Branch or PR"
-                    size={6}
-                    className="w-16 min-w-0 bg-transparent text-base text-fg placeholder-fg-muted outline-none md:text-md"
-                  />
-                </div>
-                <div className="flex h-10 min-w-0 flex-1 items-center rounded-lg border border-edge bg-surface px-3">
-                  <ModelSelector
-                    models={providerModels}
-                    model={activeModel}
-                    onModelChange={handleModelChange}
-                    menuPlacement="bottom"
-                    borderless
-                  />
-                </div>
-              </div>
-              <div className="flex gap-2">
-                <select
-                  value={provider}
-                  onChange={(e) => handleProviderChange(e.target.value as ProviderType)}
-                  aria-label="Harness"
-                  className="h-10 flex-1 rounded-lg border border-edge bg-surface px-3 text-base text-fg outline-none md:text-md"
-                >
-                  <option value="opencode">OpenCode</option>
-                  <option value="claude-code">Claude Code</option>
-                  <option value="codex">Codex</option>
-                </select>
-                <select
-                  value={reasoningEffort}
-                  onChange={(e) => { const v = e.target.value as ReasoningEffort; setReasoningEffort(v); savePrefs({ reasoningEffort: v }) }}
-                  aria-label="Reasoning effort"
-                  className="h-10 flex-1 rounded-lg border border-edge bg-surface px-3 text-base text-fg outline-none md:text-md"
-                >
-                  {getEfforts(provider).map((e) => (
-                    <option key={e.value} value={e.value}>Effort: {e.label}</option>
-                  ))}
-                </select>
-              </div>
-            </div>
-            <button
-              onClick={handleSubmit}
-              disabled={!canSubmit}
-              className="flex h-12 w-full items-center justify-center gap-2 rounded-[10px] bg-surface-dark text-white transition hover:opacity-80 disabled:opacity-30"
-            >
-              <svg className="h-[18px] w-[18px]" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                <path strokeLinecap="round" strokeLinejoin="round" d="M5.25 5.653c0-.856.917-1.398 1.667-.986l11.54 6.347a1.125 1.125 0 0 1 0 1.972l-11.54 6.347a1.125 1.125 0 0 1-1.667-.986V5.653Z" />
-              </svg>
-              <span className="text-base font-semibold">Start Agent</span>
-            </button>
           </div>
 
         </div>
