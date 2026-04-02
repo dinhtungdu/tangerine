@@ -568,10 +568,9 @@ Your role:
 
 Choose based on task complexity. Pass \`"model"\` and optionally \`"provider"\` when creating tasks.
 - **claude-opus-4-6** (claude-code) — complex features, multi-file refactors, architecture work, deep reasoning
-- **claude-sonnet-4-6** (claude-code) — straightforward bug fixes, single-file changes, simple features
-- **openai/gpt-5.4** (codex) — alternative provider, good for review tasks
+- **claude-sonnet-4-6** (claude-code) — straightforward bug fixes, single-file changes, simple features, and **review tasks**
 
-Default to opus for ambiguous cases.
+Default to opus for ambiguous complexity.
 
 Start by loading the tangerine-tasks skill (\`/tangerine-tasks\`) and checking active tasks via the API.`
 
