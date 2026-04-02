@@ -1,4 +1,4 @@
-import type { Task, ProjectConfig, SystemLogEntry, ActivityEntry, ActionCombo } from "@tangerine/shared"
+import type { Task, ProjectConfig, SystemLogEntry, ActivityEntry, ActionCombo, ShortcutConfig } from "@tangerine/shared"
 
 const BASE = ""
 
@@ -46,6 +46,7 @@ export async function fetchProjects(): Promise<{
   sshUser?: string
   editor?: "vscode" | "cursor" | "zed"
   actionCombos: ActionCombo[]
+  shortcuts?: Record<string, ShortcutConfig>
 }> {
   return request<{
     projects: ProjectConfig[]
@@ -56,6 +57,7 @@ export async function fetchProjects(): Promise<{
     sshUser?: string
     editor?: "vscode" | "cursor" | "zed"
     actionCombos: ActionCombo[]
+    shortcuts?: Record<string, ShortcutConfig>
   }>("/api/projects")
 }
 

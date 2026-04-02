@@ -156,6 +156,15 @@ export function registerActionCombos(
   return registerActions(comboActions)
 }
 
+/** Patch the shortcut of an existing action by id. Returns true if the action was found. */
+export function patchActionShortcut(id: string, shortcut: Shortcut): boolean {
+  const action = actions.get(id)
+  if (!action) return false
+  action.shortcut = shortcut
+  notify()
+  return true
+}
+
 /** Reset the registry (for testing). */
 export function _resetForTesting(): void {
   actions.clear()

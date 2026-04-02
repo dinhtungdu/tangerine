@@ -1,6 +1,6 @@
 import { useEffect } from "react"
 import { useNavigate } from "react-router-dom"
-import { registerActions, registerActionCombos, type Action } from "../lib/actions"
+import { registerActions, registerActionCombos, patchActionShortcut, type Action } from "../lib/actions"
 import { cancelTask, retryTask, deleteTask, resolveTask } from "../lib/api"
 import { useProjectNav } from "./useProjectNav"
 import { useProject } from "../context/ProjectContext"
@@ -14,7 +14,7 @@ import { useShortcuts } from "./useShortcuts"
 export function useAppActions() {
   const navigate = useNavigate()
   const { link } = useProjectNav()
-  const { actionCombos } = useProject()
+  const { actionCombos, shortcuts } = useProject()
   const { resolved, setTheme } = useTheme()
 
   // Activate the global shortcut listener
@@ -117,4 +117,12 @@ export function useAppActions() {
     if (actionCombos.length === 0) return
     return registerActionCombos(actionCombos)
   }, [actionCombos])
+
+  // Apply user-defined shortcut overrides from global config
+  useEffect(() => {
+    if (!shortcuts) return
+    for (const [actionId, shortcut] of Object.entries(shortcuts)) {
+      patchActionShortcut(actionId, shortcut)
+    }
+  }, [shortcuts])
 }

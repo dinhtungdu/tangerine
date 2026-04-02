@@ -16,6 +16,7 @@ import { buildSshEditorUri } from "../lib/ssh-editor"
 import {
   registerActions,
   registerActionCombos,
+  patchActionShortcut,
   executeAction,
   getActions,
   getAction,
@@ -566,6 +567,43 @@ describe("actions", () => {
     ])
     // getAction bypasses context filtering (for direct execution)
     expect(getAction("scoped")?.label).toBe("Scoped")
+  })
+
+  describe("patchActionShortcut", () => {
+    test("overrides shortcut of an existing action", () => {
+      registerActions([
+        { id: "task.create", label: "New task", shortcut: { key: "n", meta: true, shift: true }, handler: () => {} },
+      ])
+      const patched = patchActionShortcut("task.create", { key: "t", meta: true })
+      expect(patched).toBe(true)
+      expect(getAction("task.create")?.shortcut).toEqual({ key: "t", meta: true })
+    })
+
+    test("returns false for unknown action id", () => {
+      const patched = patchActionShortcut("nonexistent.action", { key: "x" })
+      expect(patched).toBe(false)
+    })
+
+    test("preserves handler when patching shortcut", async () => {
+      let called = false
+      registerActions([
+        { id: "task.test", label: "Test", shortcut: { key: "a" }, handler: () => { called = true } },
+      ])
+      patchActionShortcut("task.test", { key: "b", meta: true })
+      await executeAction("task.test")
+      expect(called).toBe(true)
+      expect(getAction("task.test")?.shortcut).toEqual({ key: "b", meta: true })
+    })
+
+    test("notifies subscribers when shortcut is patched", () => {
+      registerActions([
+        { id: "task.sub", label: "Sub", handler: () => {} },
+      ])
+      let count = 0
+      subscribe(() => { count++ })
+      patchActionShortcut("task.sub", { key: "s", meta: true })
+      expect(count).toBe(1)
+    })
   })
 })
 

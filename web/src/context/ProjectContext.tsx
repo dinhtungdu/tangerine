@@ -1,6 +1,6 @@
 import { createContext, useContext, useState, useEffect, useCallback, type ReactNode } from "react"
 import { useSearchParams, useNavigate, useLocation } from "react-router-dom"
-import type { ProjectConfig, ActionCombo } from "@tangerine/shared"
+import type { ProjectConfig, ActionCombo, ShortcutConfig } from "@tangerine/shared"
 import { fetchProjects, ensureOrchestrator } from "../lib/api"
 
 interface ProjectContextValue {
@@ -13,6 +13,7 @@ interface ProjectContextValue {
   sshUser: string | undefined
   editor: "vscode" | "cursor" | "zed" | undefined
   actionCombos: ActionCombo[]
+  shortcuts: Record<string, ShortcutConfig>
   setModel: (model: string) => void
   switchProject: (name: string, options?: { replace?: boolean }) => void
   refreshProjects: () => void
@@ -29,6 +30,7 @@ const ProjectContext = createContext<ProjectContextValue>({
   sshUser: undefined,
   editor: undefined,
   actionCombos: [],
+  shortcuts: {},
   setModel: () => {},
   switchProject: () => {},
   refreshProjects: () => {},
@@ -48,6 +50,7 @@ export function ProjectProvider({ children }: { children: ReactNode }) {
   const [sshUser, setSshUser] = useState<string | undefined>(undefined)
   const [editor, setEditor] = useState<"vscode" | "cursor" | "zed" | undefined>(undefined)
   const [actionCombos, setActionCombos] = useState<ActionCombo[]>([])
+  const [shortcuts, setShortcuts] = useState<Record<string, ShortcutConfig>>({})
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
@@ -61,6 +64,7 @@ export function ProjectProvider({ children }: { children: ReactNode }) {
         setSshUser(data.sshUser)
         setEditor(data.editor)
         setActionCombos(data.actionCombos ?? [])
+        setShortcuts(data.shortcuts ?? {})
       })
       .catch(() => {})
       .finally(() => setLoading(false))
@@ -81,6 +85,7 @@ export function ProjectProvider({ children }: { children: ReactNode }) {
         setSshUser(data.sshUser)
         setEditor(data.editor)
         setActionCombos(data.actionCombos ?? [])
+        setShortcuts(data.shortcuts ?? {})
       })
       .catch(() => {})
   }, [])
@@ -125,7 +130,7 @@ export function ProjectProvider({ children }: { children: ReactNode }) {
   }, [loading, projects, projectParam, setSearchParams])
 
   return (
-    <ProjectContext.Provider value={{ projects, current, model, models, modelsByProvider, sshHost, sshUser, editor, actionCombos, setModel: setSelectedModel, switchProject, refreshProjects, loading }}>
+    <ProjectContext.Provider value={{ projects, current, model, models, modelsByProvider, sshHost, sshUser, editor, actionCombos, shortcuts, setModel: setSelectedModel, switchProject, refreshProjects, loading }}>
       {children}
     </ProjectContext.Provider>
   )

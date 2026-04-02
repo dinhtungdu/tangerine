@@ -5,6 +5,13 @@ export const predefinedPromptSchema = z.object({
   text: z.string(),
 })
 
+const shortcutSchema = z.object({
+  key: z.string(),
+  meta: z.boolean().optional(),
+  shift: z.boolean().optional(),
+  alt: z.boolean().optional(),
+})
+
 export const projectConfigSchema = z.object({
   name: z.string(),
   repo: z.string(),
@@ -30,13 +37,6 @@ export const projectConfigSchema = z.object({
     { label: "Summarize findings", text: "Summarize findings" },
     { label: "Approve", text: "Approve" },
   ]),
-})
-
-const shortcutSchema = z.object({
-  key: z.string(),
-  meta: z.boolean().optional(),
-  shift: z.boolean().optional(),
-  alt: z.boolean().optional(),
 })
 
 export const actionComboSchema = z.object({
@@ -78,9 +78,11 @@ export const tangerineConfigSchema = z.object({
   sshUser: z.string().optional(),
   editor: z.enum(["vscode", "cursor", "zed"]).optional(),
   actionCombos: z.array(actionComboSchema).optional().default([]),
+  shortcuts: z.record(shortcutSchema).optional(),
 })
 
 export type PredefinedPrompt = z.infer<typeof predefinedPromptSchema>
+export type ShortcutConfig = z.infer<typeof shortcutSchema>
 export type ActionCombo = z.infer<typeof actionComboSchema>
 export type ProjectConfig = z.infer<typeof projectConfigSchema>
 export type TangerineConfig = z.infer<typeof tangerineConfigSchema>
