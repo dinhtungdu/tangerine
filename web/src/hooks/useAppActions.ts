@@ -1,6 +1,6 @@
 import { useEffect } from "react"
 import { useNavigate } from "react-router-dom"
-import { registerActions, registerActionCombos, patchActionShortcut, type Action } from "../lib/actions"
+import { registerActions, registerActionCombos, setShortcutOverrides, type Action } from "../lib/actions"
 import { cancelTask, retryTask, deleteTask, resolveTask } from "../lib/api"
 import { useProjectNav } from "./useProjectNav"
 import { useProject } from "../context/ProjectContext"
@@ -118,11 +118,10 @@ export function useAppActions() {
     return registerActionCombos(actionCombos)
   }, [actionCombos])
 
-  // Apply user-defined shortcut overrides from global config
+  // Apply user-defined shortcut overrides from global config.
+  // setShortcutOverrides stores the map in the registry so overrides
+  // are automatically reapplied when actions re-register or register late.
   useEffect(() => {
-    if (!shortcuts) return
-    for (const [actionId, shortcut] of Object.entries(shortcuts)) {
-      patchActionShortcut(actionId, shortcut)
-    }
+    setShortcutOverrides(shortcuts ?? {})
   }, [shortcuts])
 }

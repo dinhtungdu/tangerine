@@ -17,6 +17,7 @@ import {
   registerActions,
   registerActionCombos,
   patchActionShortcut,
+  setShortcutOverrides,
   executeAction,
   getActions,
   getAction,
@@ -603,6 +604,60 @@ describe("actions", () => {
       subscribe(() => { count++ })
       patchActionShortcut("task.sub", { key: "s", meta: true })
       expect(count).toBe(1)
+    })
+  })
+
+  describe("setShortcutOverrides", () => {
+    test("patches already-registered actions", () => {
+      registerActions([
+        { id: "task.create", label: "New task", shortcut: { key: "n", meta: true, shift: true }, handler: () => {} },
+      ])
+      setShortcutOverrides({ "task.create": { key: "t", meta: true } })
+      expect(getAction("task.create")?.shortcut).toEqual({ key: "t", meta: true })
+    })
+
+    test("overrides are applied to actions registered later", () => {
+      setShortcutOverrides({ "late.action": { key: "l", alt: true } })
+      // Action registered after overrides are set
+      registerActions([
+        { id: "late.action", label: "Late", shortcut: { key: "x" }, handler: () => {} },
+      ])
+      expect(getAction("late.action")?.shortcut).toEqual({ key: "l", alt: true })
+    })
+
+    test("overrides survive action re-registration", () => {
+      setShortcutOverrides({ "task.create": { key: "t", meta: true } })
+      const unreg = registerActions([
+        { id: "task.create", label: "New task", shortcut: { key: "n", meta: true, shift: true }, handler: () => {} },
+      ])
+      expect(getAction("task.create")?.shortcut).toEqual({ key: "t", meta: true })
+      // Simulate re-registration (like a React effect re-run)
+      unreg()
+      registerActions([
+        { id: "task.create", label: "New task", shortcut: { key: "n", meta: true, shift: true }, handler: () => {} },
+      ])
+      expect(getAction("task.create")?.shortcut).toEqual({ key: "t", meta: true })
+    })
+
+    test("preserves handler when applying overrides", async () => {
+      let called = false
+      setShortcutOverrides({ "task.test": { key: "b" } })
+      registerActions([
+        { id: "task.test", label: "Test", shortcut: { key: "a" }, handler: () => { called = true } },
+      ])
+      await executeAction("task.test")
+      expect(called).toBe(true)
+    })
+
+    test("clearing overrides does not revert existing shortcuts", () => {
+      registerActions([
+        { id: "task.create", label: "New task", shortcut: { key: "n" }, handler: () => {} },
+      ])
+      setShortcutOverrides({ "task.create": { key: "t" } })
+      expect(getAction("task.create")?.shortcut).toEqual({ key: "t" })
+      setShortcutOverrides({})
+      // Existing action keeps the last-applied shortcut
+      expect(getAction("task.create")?.shortcut).toEqual({ key: "t" })
     })
   })
 })
