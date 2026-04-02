@@ -388,7 +388,7 @@ function FileSection({ file, onAddComment }: { file: DiffFile; onAddComment?: (c
             </span>
           </button>
           <button
-            onClick={() => { navigator.clipboard.writeText(file.path); setCopied(true); setTimeout(() => setCopied(false), 2000) }}
+            onClick={() => { navigator.clipboard.writeText(file.path).then(() => { setCopied(true); setTimeout(() => setCopied(false), 2000) }).catch(() => {}) }}
             className="shrink-0 opacity-0 group-hover/path:opacity-100 transition-opacity text-fg-muted hover:text-fg"
             title="Copy path"
           >
