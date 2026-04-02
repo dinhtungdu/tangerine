@@ -244,6 +244,16 @@ test "$PARENT" != "null" && curl "$API/api/tasks/$PARENT/messages"
 
 > See **🚨 PR Mode — CRITICAL** section at the top of this document.
 
+### PR Template
+
+Before running `gh pr create`, check for a PR template:
+
+```bash
+cat .github/pull_request_template.md 2>/dev/null || cat .github/PULL_REQUEST_TEMPLATE.md 2>/dev/null
+```
+
+**If a PR template exists in the repo, you MUST use it as the structure for your PR body. Follow it strictly — do not skip sections, do not add sections not in the template.**
+
 ### Rename branch before PR
 
 Before creating a PR, rename your branch to something descriptive. Then push with `git push -u origin HEAD`.
