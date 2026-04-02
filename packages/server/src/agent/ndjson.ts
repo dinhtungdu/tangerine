@@ -99,6 +99,10 @@ export function createClaudeCodeMapper(): (raw: Record<string, unknown>) => Agen
   let pendingImagePaths: string[] = []
   // Fallback: buffer base64 images from assistant content blocks (rare but possible)
   let pendingFallbackImages: PromptImage[] = []
+  // Buffer narration text so the result event can pick the most substantive one
+  // when the result text is shorter (e.g. reviewer writes verdict mid-conversation,
+  // then does tool calls, and the final result is just a short summary).
+  let longestNarration = ""
 
   return function mapClaudeCodeEvent(raw: Record<string, unknown>): AgentEvent[] {
     const type = raw.type as string | undefined
@@ -152,6 +156,9 @@ export function createClaudeCodeMapper(): (raw: Record<string, unknown>) => Agen
         // Narration is persisted but collapsed in the UI alongside thinking.
         if (textParts.length > 0) {
           const narrationText = textParts.join("")
+          if (narrationText.length > longestNarration.length) {
+            longestNarration = narrationText
+          }
           events.push({
             kind: "message.complete",
             role: "narration",
@@ -208,14 +215,24 @@ export function createClaudeCodeMapper(): (raw: Record<string, unknown>) => Agen
 
       case "result": {
         const subtype = raw.subtype as string | undefined
-        const content = typeof raw.result === "string" ? raw.result : ""
+        const resultText = typeof raw.result === "string" ? raw.result : ""
 
         if (subtype === "error" || raw.is_error === true) {
           pendingImagePaths = []
           pendingFallbackImages = []
           toolUseFilePaths.clear()
-          return [{ kind: "error", message: content || "Agent error" }]
+          longestNarration = ""
+          return [{ kind: "error", message: resultText || "Agent error" }]
         }
+
+        // Use the longest narration as the assistant content when it's more
+        // substantive than the result text. This happens when the agent writes
+        // a detailed response (e.g. review verdict) in an intermediate turn
+        // with tool calls, then finishes with a short summary.
+        const content = longestNarration.length > resultText.length
+          ? longestNarration
+          : resultText
+        longestNarration = ""
 
         // Attach original image paths to the final assistant message.
         // Also include base64 fallback images (from inline assistant blocks

@@ -484,6 +484,100 @@ describe("createClaudeCodeMapper — result always emits assistant", () => {
     expect((resultEvents[0] as { imagePaths?: string[] }).imagePaths).toHaveLength(1)
   })
 
+  test("uses longest narration when result text is shorter", () => {
+    const mapper = createClaudeCodeMapper()
+
+    // Detailed narration (e.g. review verdict) in a turn with tool calls
+    mapper({
+      type: "assistant",
+      message: {
+        id: "msg_verdict",
+        content: [
+          { type: "text", text: "## PR Review\n\n**Verdict: LGTM**\n\nDetailed findings here..." },
+          { type: "tool_use", name: "Bash", input: { command: "curl ..." } },
+        ],
+      },
+    })
+
+    // Short summary in final turn
+    mapper({
+      type: "assistant",
+      message: { id: "msg_summary", content: [{ type: "text", text: "PR is good to merge." }] },
+    })
+
+    // Result captures only the final turn's short text
+    const resultEvents = mapper({
+      type: "result",
+      result: "PR is good to merge.",
+      session_id: "sess_1",
+    })
+
+    // Should use the longer narration as the assistant content
+    expect(resultEvents).toEqual([{
+      kind: "message.complete",
+      role: "assistant",
+      content: "## PR Review\n\n**Verdict: LGTM**\n\nDetailed findings here...",
+      messageId: "sess_1",
+    }])
+  })
+
+  test("uses result text when no narration is longer", () => {
+    const mapper = createClaudeCodeMapper()
+
+    // Short narration
+    mapper({
+      type: "assistant",
+      message: { id: "msg_1", content: [{ type: "text", text: "Working..." }] },
+    })
+
+    // Result is the substantive response
+    const resultEvents = mapper({
+      type: "result",
+      result: "Here is a detailed response with all the information you need about the changes.",
+      session_id: "sess_1",
+    })
+
+    expect(resultEvents).toEqual([{
+      kind: "message.complete",
+      role: "assistant",
+      content: "Here is a detailed response with all the information you need about the changes.",
+      messageId: "sess_1",
+    }])
+  })
+
+  test("resets narration buffer after result", () => {
+    const mapper = createClaudeCodeMapper()
+
+    // Long narration in first conversation turn
+    mapper({
+      type: "assistant",
+      message: { id: "msg_1", content: [{ type: "text", text: "Very long narration from first turn that should not carry over" }] },
+    })
+
+    // First result
+    mapper({ type: "result", result: "Short" })
+
+    // Second turn — new short narration
+    mapper({
+      type: "assistant",
+      message: { id: "msg_2", content: [{ type: "text", text: "Brief" }] },
+    })
+
+    // Second result should NOT use the first turn's long narration
+    const resultEvents = mapper({
+      type: "result",
+      result: "Second result here",
+      session_id: "sess_2",
+    })
+
+    expect(resultEvents).toEqual([{
+      kind: "message.complete",
+      role: "assistant",
+      content: "Second result here",
+      messageId: "sess_2",
+    }])
+  })
+
   test("skips result with no content and no images", () => {
     const mapper = createClaudeCodeMapper()
 
