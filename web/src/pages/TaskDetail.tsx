@@ -375,8 +375,8 @@ export function TaskDetail() {
       {/* Main column */}
       <div className="flex min-w-0 flex-1 flex-col">
         {/* Task header — two rows on mobile (flex-col), one row on desktop (md:flex-row) */}
-        <div className="flex flex-col border-b border-edge md:h-12 md:flex-row md:items-center md:justify-between md:px-5">
-          {/* Row 1 / Left: back + task name + branch + status */}
+        <div className="flex flex-col border-b border-edge md:h-12 md:flex-row md:items-center md:px-5">
+          {/* Row 1 / Left: back + task name + branch */}
           <div className="flex h-11 min-w-0 items-center gap-2 px-3 md:h-auto md:flex-1 md:gap-3 md:px-0">
             <button onClick={() => navigate("/")} aria-label="Back to runs" className="shrink-0 text-fg md:hidden">
               <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
@@ -394,21 +394,25 @@ export function TaskDetail() {
               <button
                 onClick={() => handleCopyBranch(task.branch!)}
                 title="Click to copy branch name"
-                className="hidden shrink-0 items-center gap-1 hover:text-fg md:flex"
+                className="flex shrink-0 items-center gap-1 hover:text-fg"
               >
                 <svg className="h-3.5 w-3.5 text-fg-muted" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                   <path strokeLinecap="round" strokeLinejoin="round" d="M6 3v12m0 0a3 3 0 1 0 3 3m-3-3a3 3 0 0 1 3 3m0 0h6a3 3 0 0 0 3-3V9m0 0a3 3 0 1 0 0-6 3 3 0 0 0 0 6Z" />
                 </svg>
-                <span className="font-mono text-xs text-fg-muted">{copiedBranch ? "Copied!" : task.branch}</span>
+                <span className="max-w-[120px] truncate font-mono text-xs text-fg-muted">{copiedBranch ? "Copied!" : task.branch}</span>
               </button>
             )}
+          </div>
+
+          {/* Row 2 / Right: editor + PR + status + pane toggles + overflow */}
+          <div className="flex h-9 shrink-0 items-center gap-2 px-3 pb-1 md:h-auto md:px-0 md:pb-0">
             {sshHost && editor && task.worktreePath && (editor !== "zed" || sshUser) && (() => {
               const uri = buildSshEditorUri(editor, sshHost, task.worktreePath, sshUser)
               return (
                 <a
                   href={uri}
                   title={`Open in ${EDITOR_NAMES[editor]}`}
-                  className="hidden shrink-0 items-center gap-1 text-fg-muted hover:text-fg md:flex"
+                  className="flex shrink-0 items-center gap-1 text-fg-muted hover:text-fg"
                 >
                   <svg className="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                     <path strokeLinecap="round" strokeLinejoin="round" d="M17.25 6.75 22.5 12l-5.25 5.25m-10.5 0L1.5 12l5.25-5.25m7.5-3-4.5 16.5" />
@@ -434,39 +438,36 @@ export function TaskDetail() {
               <span className="h-1.5 w-1.5 rounded-full" style={{ backgroundColor: statusColor }} />
               {statusLabel}
             </span>
-
-          </div>
-
-          {/* Row 2 / Right: pane toggles + divider + stop + more */}
-          <div className="flex h-9 shrink-0 items-center justify-end gap-2 px-3 pb-1 md:h-auto md:px-0 md:pb-0">
-            <div className="flex items-center gap-0.5 rounded-lg bg-surface-secondary p-[3px]">
-              <PaneToggle desktopActive={visiblePanes.has("chat")} mobileActive={mobilePane === "chat"} onClick={() => togglePane("chat")} label="Chat">
-                <svg className="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                  <path strokeLinecap="round" strokeLinejoin="round" d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" />
-                </svg>
-              </PaneToggle>
-              {hasDiff && (
-                <PaneToggle desktopActive={visiblePanes.has("diff")} mobileActive={mobilePane === "diff"} onClick={() => togglePane("diff")} label="Diff">
+            <div className="ml-auto flex items-center gap-2">
+              <div className="flex items-center gap-0.5 rounded-lg bg-surface-secondary p-[3px]">
+                <PaneToggle desktopActive={visiblePanes.has("chat")} mobileActive={mobilePane === "chat"} onClick={() => togglePane("chat")} label="Chat">
                   <svg className="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                    <circle cx="18" cy="18" r="3" /><circle cx="6" cy="6" r="3" />
-                    <path d="M13 6h3a2 2 0 0 1 2 2v7M11 18H8a2 2 0 0 1-2-2V9" />
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" />
                   </svg>
                 </PaneToggle>
-              )}
-              <PaneToggle desktopActive={visiblePanes.has("terminal")} mobileActive={mobilePane === "terminal"} onClick={() => togglePane("terminal")} label="Terminal">
-                <svg className="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                  <path strokeLinecap="round" strokeLinejoin="round" d="m6.75 7.5 3 2.25-3 2.25m4.5 0h3" />
-                  <rect x="2" y="3" width="20" height="18" rx="2" />
-                </svg>
-              </PaneToggle>
-              <PaneToggle desktopActive={visiblePanes.has("activity")} mobileActive={mobilePane === "activity"} onClick={() => togglePane("activity")} label="Activity">
-                <svg className="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                  <path d="M22 12h-4l-3 9L9 3l-3 9H2" />
-                </svg>
-              </PaneToggle>
+                {hasDiff && (
+                  <PaneToggle desktopActive={visiblePanes.has("diff")} mobileActive={mobilePane === "diff"} onClick={() => togglePane("diff")} label="Diff">
+                    <svg className="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                      <circle cx="18" cy="18" r="3" /><circle cx="6" cy="6" r="3" />
+                      <path d="M13 6h3a2 2 0 0 1 2 2v7M11 18H8a2 2 0 0 1-2-2V9" />
+                    </svg>
+                  </PaneToggle>
+                )}
+                <PaneToggle desktopActive={visiblePanes.has("terminal")} mobileActive={mobilePane === "terminal"} onClick={() => togglePane("terminal")} label="Terminal">
+                  <svg className="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                    <path strokeLinecap="round" strokeLinejoin="round" d="m6.75 7.5 3 2.25-3 2.25m4.5 0h3" />
+                    <rect x="2" y="3" width="20" height="18" rx="2" />
+                  </svg>
+                </PaneToggle>
+                <PaneToggle desktopActive={visiblePanes.has("activity")} mobileActive={mobilePane === "activity"} onClick={() => togglePane("activity")} label="Activity">
+                  <svg className="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                    <path d="M22 12h-4l-3 9L9 3l-3 9H2" />
+                  </svg>
+                </PaneToggle>
+              </div>
+              <div className="h-5 w-px bg-edge" />
+              <TaskOverflowMenu task={task} onRefetch={handleRefetch} size="md" />
             </div>
-            <div className="h-5 w-px bg-edge" />
-            <TaskOverflowMenu task={task} onRefetch={handleRefetch} size="md" />
           </div>
         </div>
 
