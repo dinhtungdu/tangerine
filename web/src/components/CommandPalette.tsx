@@ -206,7 +206,7 @@ export function CommandPalette() {
       // With query: fuzzy match tasks
       for (const t of tasks) {
         const score = Math.max(
-          fuzzyScore(t.title, searchQuery) * 3,
+          fuzzyScore(formatTaskTitle(t.title, t.type), searchQuery) * 3,
           fuzzyScore(t.projectId, searchQuery) * 2,
           fuzzyScore(t.id, searchQuery),
         )
