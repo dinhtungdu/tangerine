@@ -4,7 +4,7 @@ import { useNavigate } from "react-router-dom"
 import type { Task } from "@tangerine/shared"
 import { fetchTasks } from "../lib/api"
 import { getStatusConfig } from "../lib/status"
-import { formatRelativeTime } from "../lib/format"
+import { formatRelativeTime, formatTaskTitle } from "../lib/format"
 import {
   getActions,
   executeAction,
@@ -59,13 +59,13 @@ function TaskResult({ task, isSelected }: { task: Task; isSelected: boolean }) {
         style={{ backgroundColor: statusConfig.color }}
       />
       <div className="min-w-0 flex-1">
-        <p className="truncate text-md font-medium text-fg">{task.title}</p>
+        <p className="truncate text-md font-medium text-fg">{formatTaskTitle(task.title, task.type)}</p>
         <p className="truncate text-xxs text-fg-muted">{task.projectId}</p>
       </div>
       <div className="flex shrink-0 items-center gap-1.5">
         {task.type !== "worker" && (
           <span className="rounded bg-surface-secondary px-1.5 py-0.5 text-2xs font-medium text-fg-muted">
-            {task.type === "orchestrator" ? "middle manager" : task.type}
+            {task.type}
           </span>
         )}
         <span
