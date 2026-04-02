@@ -484,10 +484,10 @@ describe("createClaudeCodeMapper — result always emits assistant", () => {
     expect((resultEvents[0] as { imagePaths?: string[] }).imagePaths).toHaveLength(1)
   })
 
-  test("uses longest narration when result text is shorter", () => {
+  test("emits both last narration and result when they diverge", () => {
     const mapper = createClaudeCodeMapper()
 
-    // Detailed narration (e.g. review verdict) in a turn with tool calls
+    // Verdict narration in a turn with tool calls
     mapper({
       type: "assistant",
       message: {
@@ -499,81 +499,79 @@ describe("createClaudeCodeMapper — result always emits assistant", () => {
       },
     })
 
-    // Short summary in final turn
-    mapper({
-      type: "assistant",
-      message: { id: "msg_summary", content: [{ type: "text", text: "PR is good to merge." }] },
-    })
-
-    // Result captures only the final turn's short text
+    // Result text differs from last narration — both are emitted
     const resultEvents = mapper({
       type: "result",
       result: "PR is good to merge.",
       session_id: "sess_1",
     })
 
-    // Should use the longer narration as the assistant content
-    expect(resultEvents).toEqual([{
-      kind: "message.complete",
-      role: "assistant",
-      content: "## PR Review\n\n**Verdict: LGTM**\n\nDetailed findings here...",
-      messageId: "sess_1",
-    }])
+    expect(resultEvents).toEqual([
+      {
+        kind: "message.complete",
+        role: "assistant",
+        content: "## PR Review\n\n**Verdict: LGTM**\n\nDetailed findings here...",
+        messageId: "sess_1",
+      },
+      {
+        kind: "message.complete",
+        role: "assistant",
+        content: "PR is good to merge.",
+        messageId: "sess_1",
+      },
+    ])
   })
 
-  test("uses result text when no narration is longer", () => {
+  test("uses result text when last narration matches", () => {
     const mapper = createClaudeCodeMapper()
 
-    // Short narration
     mapper({
       type: "assistant",
-      message: { id: "msg_1", content: [{ type: "text", text: "Working..." }] },
+      message: { id: "msg_1", content: [{ type: "text", text: "Here is the answer" }] },
     })
 
-    // Result is the substantive response
     const resultEvents = mapper({
       type: "result",
-      result: "Here is a detailed response with all the information you need about the changes.",
+      result: "Here is the answer",
       session_id: "sess_1",
     })
 
     expect(resultEvents).toEqual([{
       kind: "message.complete",
       role: "assistant",
-      content: "Here is a detailed response with all the information you need about the changes.",
+      content: "Here is the answer",
       messageId: "sess_1",
     }])
   })
 
-  test("resets narration buffer after result", () => {
+  test("resets last narration after result", () => {
     const mapper = createClaudeCodeMapper()
 
-    // Long narration in first conversation turn
+    // First turn with narration
     mapper({
       type: "assistant",
-      message: { id: "msg_1", content: [{ type: "text", text: "Very long narration from first turn that should not carry over" }] },
+      message: { id: "msg_1", content: [{ type: "text", text: "First narration" }] },
     })
 
-    // First result
-    mapper({ type: "result", result: "Short" })
+    mapper({ type: "result", result: "Different result" })
 
-    // Second turn — new short narration
+    // Second turn — result matches narration (normal case)
     mapper({
       type: "assistant",
-      message: { id: "msg_2", content: [{ type: "text", text: "Brief" }] },
+      message: { id: "msg_2", content: [{ type: "text", text: "Second answer" }] },
     })
 
-    // Second result should NOT use the first turn's long narration
     const resultEvents = mapper({
       type: "result",
-      result: "Second result here",
+      result: "Second answer",
       session_id: "sess_2",
     })
 
+    // Should use result text since narration matches
     expect(resultEvents).toEqual([{
       kind: "message.complete",
       role: "assistant",
-      content: "Second result here",
+      content: "Second answer",
       messageId: "sess_2",
     }])
   })
