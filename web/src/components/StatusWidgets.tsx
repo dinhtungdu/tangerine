@@ -80,7 +80,7 @@ function LogContext({ context }: { context: Record<string, unknown> }) {
   const entries = Object.entries(context).filter(([k]) => !LOG_CONTEXT_SKIP_KEYS.has(k))
   if (entries.length === 0) return null
   return (
-    <span className="ml-1.5 font-mono text-xs text-fg-muted">
+    <span className="mt-0.5 block break-all font-mono text-xs text-fg-muted">
       {entries.map(([k, v], i) => (
         <span key={k}>
           {i > 0 && " "}
@@ -295,7 +295,7 @@ export function SystemLog({ project }: { project?: string }) {
       {logs.length === 0 ? (
         <div className="py-8 text-center text-md text-fg-faint">No system logs yet</div>
       ) : (
-        <div className="max-h-[400px] overflow-y-auto rounded-lg border border-edge">
+        <div className="max-h-[400px] overflow-x-hidden overflow-y-auto rounded-lg border border-edge">
           {/* Desktop: table with task context */}
           <div className="hidden md:block">
             <div className="grid grid-cols-[100px_50px_80px_80px_1fr] bg-surface-secondary px-3 py-2">
@@ -314,7 +314,7 @@ export function SystemLog({ project }: { project?: string }) {
                   <div><LogLevelBadge level={log.level} /></div>
                   <span className="truncate text-xs font-medium text-fg-muted">{log.logger}</span>
                   <span className="truncate font-mono text-xxs text-fg-faint">{taskId}</span>
-                  <span className="min-w-0 font-mono text-xs text-fg">
+                  <span className="min-w-0 overflow-hidden font-mono text-xs text-fg">
                     <span className="truncate">{log.message}</span>
                     {ctx && <LogContext context={ctx} />}
                   </span>
@@ -336,7 +336,7 @@ export function SystemLog({ project }: { project?: string }) {
                     <span className="text-xxs font-medium text-fg-muted">{log.logger}</span>
                     {taskId && <span className="font-mono text-2xs text-fg-faint">{taskId}</span>}
                   </div>
-                  <span className="font-mono text-xs text-fg">{log.message}</span>
+                  <span className="block break-words font-mono text-xs text-fg">{log.message}</span>
                   {ctx && <LogContext context={ctx} />}
                 </div>
               )
