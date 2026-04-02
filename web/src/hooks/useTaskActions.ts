@@ -2,19 +2,28 @@ import { useEffect } from "react"
 import type { Task } from "@tangerine/shared"
 import {
   registerActions,
-  executeAction,
   setContext,
   clearContext,
   type Action,
 } from "../lib/actions"
+import {
+  cancelTask,
+  retryTask,
+  deleteTask,
+  resolveTask,
+  abortTask,
+  startTask,
+} from "../lib/api"
 
 /**
  * Registers task-contextual actions in the action registry.
  * Actions are gated on task capabilities and status.
  * Sets the action context to the task id so they appear in the command palette.
  *
- * Handlers delegate to the global hidden actions (registered in useAppActions)
- * so API call logic lives in one place.
+ * Handlers call API functions directly (not via executeAction) because
+ * context-scoped actions share IDs with global hidden actions — delegating
+ * via executeAction would cause infinite recursion since registerActions
+ * overwrites the global handler in the shared Map.
  *
  * @param task - The focused task (null clears context)
  * @param onRefetch - Callback to refresh task data after an action
@@ -43,7 +52,7 @@ export function useTaskActions(
         section: "Task",
         context: ctx,
         handler: async () => {
-          await executeAction("task.cancel", { taskId: task.id })
+          await cancelTask(task.id)
           onRefetch?.()
         },
       })
@@ -58,7 +67,7 @@ export function useTaskActions(
         section: "Task",
         context: ctx,
         handler: async () => {
-          await executeAction("task.abort", { taskId: task.id })
+          await abortTask(task.id)
           onRefetch?.()
         },
       })
@@ -73,7 +82,7 @@ export function useTaskActions(
         section: "Task",
         context: ctx,
         handler: async () => {
-          await executeAction("task.retry", { taskId: task.id })
+          await retryTask(task.id)
           onRefetch?.()
         },
       })
@@ -88,7 +97,7 @@ export function useTaskActions(
         section: "Task",
         context: ctx,
         handler: async () => {
-          await executeAction("task.resolve", { taskId: task.id })
+          await resolveTask(task.id)
           onRefetch?.()
         },
       })
@@ -103,7 +112,7 @@ export function useTaskActions(
         section: "Task",
         context: ctx,
         handler: async () => {
-          await executeAction("task.start", { taskId: task.id })
+          await startTask(task.id)
           onRefetch?.()
         },
       })
@@ -119,7 +128,7 @@ export function useTaskActions(
         section: "Task",
         context: ctx,
         handler: async () => {
-          await executeAction("task.delete", { taskId: task.id })
+          await deleteTask(task.id)
           onRefetch?.()
         },
       })
