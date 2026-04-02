@@ -2,6 +2,8 @@ import { describe, test, expect, mock, beforeEach, afterEach } from "bun:test"
 import { renderHook, act, waitFor } from "@testing-library/react"
 import { useTasks } from "../hooks/useTasks"
 import { useMentionPicker } from "../hooks/useMentionPicker"
+import { usePanelActions } from "../hooks/usePanelActions"
+import { getActions, getAction, _resetForTesting } from "../lib/actions"
 import type { Task } from "@tangerine/shared"
 const mockTasks = [
   {
@@ -238,5 +240,106 @@ describe("useMentionPicker", () => {
     act(() => result.current.onTextChange("check @auth", 11))
     expect(result.current.state.isOpen).toBe(true)
     expect(result.current.state.query).toBe("auth")
+  })
+})
+
+const makeTask = (overrides: Partial<Task> = {}): Task => ({
+  id: "task-1", projectId: "proj", type: "worker", source: "manual", sourceId: null, sourceUrl: null,
+  title: "Test task", description: null, status: "running",
+  provider: "claude-code", model: null, reasoningEffort: null, branch: null, worktreePath: null, prUrl: null,
+  parentTaskId: null, userId: null, agentSessionId: null, agentPid: null, error: null,
+  createdAt: "2026-01-01T00:00:00Z", updatedAt: "2026-01-01T00:00:00Z",
+  startedAt: null, completedAt: null, lastSeenAt: null, lastResultAt: null,
+  capabilities: [],
+  ...overrides,
+})
+
+describe("usePanelActions", () => {
+  beforeEach(() => _resetForTesting())
+
+  test("registers chat, terminal, activity actions when task has no diff capability", () => {
+    const togglePane = mock(() => {})
+    const task = makeTask({ capabilities: [] })
+    renderHook(() => usePanelActions(task, togglePane))
+
+    const ids = getActions().map((a) => a.id)
+    expect(ids).toContain("panel.toggle-chat")
+    expect(ids).toContain("panel.toggle-terminal")
+    expect(ids).toContain("panel.toggle-activity")
+    expect(ids).not.toContain("panel.toggle-diff")
+  })
+
+  test("registers diff action when task has diff capability", () => {
+    const togglePane = mock(() => {})
+    const task = makeTask({ capabilities: ["diff"] })
+    renderHook(() => usePanelActions(task, togglePane))
+
+    expect(getActions().map((a) => a.id)).toContain("panel.toggle-diff")
+  })
+
+  test("does not register diff action when task lacks diff capability", () => {
+    const togglePane = mock(() => {})
+    const task = makeTask({ capabilities: ["resolve"] })
+    renderHook(() => usePanelActions(task, togglePane))
+
+    expect(getActions().map((a) => a.id)).not.toContain("panel.toggle-diff")
+  })
+
+  test("handlers call togglePane with correct pane id", () => {
+    const togglePane = mock(() => {})
+    const task = makeTask({ capabilities: ["diff"] })
+    renderHook(() => usePanelActions(task, togglePane))
+
+    getAction("panel.toggle-chat")!.handler()
+    getAction("panel.toggle-diff")!.handler()
+    getAction("panel.toggle-terminal")!.handler()
+    getAction("panel.toggle-activity")!.handler()
+
+    expect(togglePane).toHaveBeenCalledTimes(4)
+    const calls = (togglePane as ReturnType<typeof mock>).mock.calls as string[][]
+    expect(calls[0][0]).toBe("chat")
+    expect(calls[1][0]).toBe("diff")
+    expect(calls[2][0]).toBe("terminal")
+    expect(calls[3][0]).toBe("activity")
+  })
+
+  test("unregisters actions on unmount", () => {
+    const togglePane = mock(() => {})
+    const task = makeTask({ capabilities: [] })
+    const { unmount } = renderHook(() => usePanelActions(task, togglePane))
+
+    expect(getActions().length).toBeGreaterThan(0)
+    unmount()
+    expect(getActions().filter((a) => a.id.startsWith("panel.")).length).toBe(0)
+  })
+
+  test("all actions have section 'Panels'", () => {
+    const togglePane = mock(() => {})
+    const task = makeTask({ capabilities: ["diff"] })
+    renderHook(() => usePanelActions(task, togglePane))
+
+    const panelActions = getActions().filter((a) => a.id.startsWith("panel."))
+    expect(panelActions.length).toBeGreaterThan(0)
+    for (const action of panelActions) {
+      expect(action.section).toBe("Panels")
+    }
+  })
+
+  test("terminal action has a keyboard shortcut", () => {
+    const togglePane = mock(() => {})
+    const task = makeTask({ capabilities: [] })
+    renderHook(() => usePanelActions(task, togglePane))
+
+    const terminalAction = getAction("panel.toggle-terminal")
+    expect(terminalAction?.shortcut).toBeDefined()
+  })
+
+  test("handles null task gracefully", () => {
+    const togglePane = mock(() => {})
+    // Should not throw and should still register base actions
+    renderHook(() => usePanelActions(null, togglePane))
+    const ids = getActions().map((a) => a.id)
+    expect(ids).toContain("panel.toggle-chat")
+    expect(ids).not.toContain("panel.toggle-diff")
   })
 })
