@@ -146,12 +146,20 @@ export function ChatPanel({
   }, [clearSelectionMenu, selectionMenu])
 
   const thinkingCount = useMemo(
-    () => messages.filter((m) => m.role === "thinking" || m.role === "narration").length,
+    () => messages.filter((m) => m.role === "thinking").length,
     [messages],
   )
 
   const visibleMessages = useMemo(
-    () => (showThinking ? messages : messages.filter((m) => m.role !== "thinking" && m.role !== "narration")),
+    () => {
+      const filtered = showThinking ? messages : messages.filter((m) => m.role !== "thinking")
+      // Deduplicate narration immediately followed by assistant with same content
+      return filtered.filter((m, i) => {
+        if (m.role !== "narration") return true
+        const next = filtered[i + 1]
+        return !(next && next.role === "assistant" && next.content === m.content)
+      })
+    },
     [messages, showThinking],
   )
 

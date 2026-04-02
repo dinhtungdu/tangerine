@@ -211,7 +211,7 @@ export const ChatMessage = memo(function ChatMessage({ message, tasks }: ChatMes
     )
   }
 
-  // Narration — per-turn agent text (collapsed alongside thinking)
+  // Narration — per-turn agent text (always visible, deduplicated with result in ChatPanel)
   if (isNarration) {
     return (
       <div className="animate-fade-in flex flex-col gap-1">
