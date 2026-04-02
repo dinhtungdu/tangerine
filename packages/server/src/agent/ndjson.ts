@@ -99,6 +99,10 @@ export function createClaudeCodeMapper(): (raw: Record<string, unknown>) => Agen
   let pendingImagePaths: string[] = []
   // Fallback: buffer base64 images from assistant content blocks (rare but possible)
   let pendingFallbackImages: PromptImage[] = []
+  // Track last narration so the result event can detect mismatches.
+  // Normally last narration === result text. When they diverge (e.g. agent wrote
+  // verdict mid-conversation then did tool calls), use last narration as the result.
+  let lastNarration = ""
 
   return function mapClaudeCodeEvent(raw: Record<string, unknown>): AgentEvent[] {
     const type = raw.type as string | undefined
@@ -152,6 +156,7 @@ export function createClaudeCodeMapper(): (raw: Record<string, unknown>) => Agen
         // Narration is persisted but collapsed in the UI alongside thinking.
         if (textParts.length > 0) {
           const narrationText = textParts.join("")
+          lastNarration = narrationText
           events.push({
             kind: "message.complete",
             role: "narration",
@@ -208,14 +213,23 @@ export function createClaudeCodeMapper(): (raw: Record<string, unknown>) => Agen
 
       case "result": {
         const subtype = raw.subtype as string | undefined
-        const content = typeof raw.result === "string" ? raw.result : ""
+        const resultText = typeof raw.result === "string" ? raw.result : ""
 
         if (subtype === "error" || raw.is_error === true) {
           pendingImagePaths = []
           pendingFallbackImages = []
           toolUseFilePaths.clear()
-          return [{ kind: "error", message: content || "Agent error" }]
+          lastNarration = ""
+          return [{ kind: "error", message: resultText || "Agent error" }]
         }
+
+        // Normally the last narration matches the result text (same final turn).
+        // When they diverge, emit both — the last narration is the substantive
+        // answer (e.g. review verdict) and the result is a follow-up summary.
+        const promotedNarration = lastNarration && lastNarration !== resultText
+          ? lastNarration
+          : null
+        lastNarration = ""
 
         // Attach original image paths to the final assistant message.
         // Also include base64 fallback images (from inline assistant blocks
@@ -226,16 +240,30 @@ export function createClaudeCodeMapper(): (raw: Record<string, unknown>) => Agen
         pendingFallbackImages = []
         toolUseFilePaths.clear()
 
-        if (!content && !imagePaths && !images) return []
+        const events: AgentEvent[] = []
 
-        return [{
-          kind: "message.complete",
-          role: "assistant",
-          content,
-          messageId: optStr(raw.session_id),
-          imagePaths,
-          images,
-        }]
+        // Promote last narration to assistant when it diverged from result
+        if (promotedNarration) {
+          events.push({
+            kind: "message.complete",
+            role: "assistant",
+            content: promotedNarration,
+            messageId: optStr(raw.session_id),
+          })
+        }
+
+        if (resultText || imagePaths || images) {
+          events.push({
+            kind: "message.complete",
+            role: "assistant",
+            content: resultText,
+            messageId: optStr(raw.session_id),
+            imagePaths,
+            images,
+          })
+        }
+
+        return events
       }
 
     case "stream_event": {
@@ -254,6 +282,9 @@ export function createClaudeCodeMapper(): (raw: Record<string, unknown>) => Agen
     case "system": {
       const subtype = raw.subtype as string | undefined
       if (subtype === "init") {
+        // Clear stale narration from a previous turn that may have been
+        // aborted before emitting a result event.
+        lastNarration = ""
         return [{ kind: "status", status: "working" }]
       }
       return []

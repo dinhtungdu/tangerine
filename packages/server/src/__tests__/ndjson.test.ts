@@ -484,6 +484,131 @@ describe("createClaudeCodeMapper — result always emits assistant", () => {
     expect((resultEvents[0] as { imagePaths?: string[] }).imagePaths).toHaveLength(1)
   })
 
+  test("emits both last narration and result when they diverge", () => {
+    const mapper = createClaudeCodeMapper()
+
+    // Verdict narration in a turn with tool calls
+    mapper({
+      type: "assistant",
+      message: {
+        id: "msg_verdict",
+        content: [
+          { type: "text", text: "## PR Review\n\n**Verdict: LGTM**\n\nDetailed findings here..." },
+          { type: "tool_use", name: "Bash", input: { command: "curl ..." } },
+        ],
+      },
+    })
+
+    // Result text differs from last narration — both are emitted
+    const resultEvents = mapper({
+      type: "result",
+      result: "PR is good to merge.",
+      session_id: "sess_1",
+    })
+
+    expect(resultEvents).toEqual([
+      {
+        kind: "message.complete",
+        role: "assistant",
+        content: "## PR Review\n\n**Verdict: LGTM**\n\nDetailed findings here...",
+        messageId: "sess_1",
+      },
+      {
+        kind: "message.complete",
+        role: "assistant",
+        content: "PR is good to merge.",
+        messageId: "sess_1",
+      },
+    ])
+  })
+
+  test("uses result text when last narration matches", () => {
+    const mapper = createClaudeCodeMapper()
+
+    mapper({
+      type: "assistant",
+      message: { id: "msg_1", content: [{ type: "text", text: "Here is the answer" }] },
+    })
+
+    const resultEvents = mapper({
+      type: "result",
+      result: "Here is the answer",
+      session_id: "sess_1",
+    })
+
+    expect(resultEvents).toEqual([{
+      kind: "message.complete",
+      role: "assistant",
+      content: "Here is the answer",
+      messageId: "sess_1",
+    }])
+  })
+
+  test("resets last narration after result", () => {
+    const mapper = createClaudeCodeMapper()
+
+    // First turn with narration
+    mapper({
+      type: "assistant",
+      message: { id: "msg_1", content: [{ type: "text", text: "First narration" }] },
+    })
+
+    mapper({ type: "result", result: "Different result" })
+
+    // Second turn — result matches narration (normal case)
+    mapper({
+      type: "assistant",
+      message: { id: "msg_2", content: [{ type: "text", text: "Second answer" }] },
+    })
+
+    const resultEvents = mapper({
+      type: "result",
+      result: "Second answer",
+      session_id: "sess_2",
+    })
+
+    // Should use result text since narration matches
+    expect(resultEvents).toEqual([{
+      kind: "message.complete",
+      role: "assistant",
+      content: "Second answer",
+      messageId: "sess_2",
+    }])
+  })
+
+  test("clears stale narration on system init (abort recovery)", () => {
+    const mapper = createClaudeCodeMapper()
+
+    // Narration from a turn that gets aborted (no result event)
+    mapper({
+      type: "assistant",
+      message: { id: "msg_aborted", content: [{ type: "text", text: "Stale narration from aborted turn" }] },
+    })
+
+    // New turn starts — system init clears stale state
+    mapper({ type: "system", subtype: "init" })
+
+    // New narration in the fresh turn
+    mapper({
+      type: "assistant",
+      message: { id: "msg_new", content: [{ type: "text", text: "Fresh response" }] },
+    })
+
+    // Result matches fresh narration — no promotion needed
+    const resultEvents = mapper({
+      type: "result",
+      result: "Fresh response",
+      session_id: "sess_1",
+    })
+
+    expect(resultEvents).toEqual([{
+      kind: "message.complete",
+      role: "assistant",
+      content: "Fresh response",
+      messageId: "sess_1",
+    }])
+  })
+
   test("skips result with no content and no images", () => {
     const mapper = createClaudeCodeMapper()
 
