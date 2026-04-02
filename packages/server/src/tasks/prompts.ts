@@ -56,6 +56,7 @@ export function buildSystemNotes(taskId: string, info: SystemNotesInfo, port = a
     const prModeInstruction = buildPrModeInstruction(info.prMode ?? "draft")
     notes.push(`[PR MODE — CRITICAL: ${prModeInstruction}]`)
     notes.push(`[NOTE: When your work is complete: ${buildPrWorkflowNote(taskId, port, info.prMode ?? "draft")} Do not stop at just committing.]`)
+    notes.push(`[PR TEMPLATE: Before running \`gh pr create\`, check for a PR template: \`cat .github/pull_request_template.md 2>/dev/null || cat .github/PULL_REQUEST_TEMPLATE.md 2>/dev/null\`. If a PR template exists in the repo, you MUST use it as the structure for your PR body. Follow it strictly — do not skip sections, do not add sections not in the template.]`)
   }
   return notes
 }
