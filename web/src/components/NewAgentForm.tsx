@@ -1,9 +1,12 @@
-import { useState, useCallback, useEffect, useRef, type ClipboardEvent } from "react"
-import type { ProviderType, PromptImage } from "@tangerine/shared"
+import { useState, useCallback, useEffect, useRef, type ClipboardEvent, type KeyboardEvent } from "react"
+import type { ProviderType, PromptImage, Task } from "@tangerine/shared"
 import { useProject } from "../context/ProjectContext"
 import { ModelSelector } from "./ModelSelector"
 import { HarnessSelector } from "./HarnessSelector"
 import { ReasoningEffortSelector, getEfforts, type ReasoningEffort } from "./ReasoningEffortSelector"
+import { MentionPicker } from "./MentionPicker"
+import { useMentionPicker } from "../hooks/useMentionPicker"
+import { useTasks } from "../hooks/useTasks"
 
 interface NewAgentFormProps {
   onSubmit: (data: { projectId: string; title: string; description?: string; branch?: string; provider?: string; model?: string; reasoningEffort?: string; parentTaskId?: string; type?: string; images?: PromptImage[] }) => void
@@ -50,6 +53,14 @@ export function NewAgentForm({ onSubmit, refTaskId, refTaskTitle, autoFocus }: N
   const [submitting, setSubmitting] = useState(false)
   const branch = current?.defaultBranch ?? "main"
 
+  const textareaRef = useRef<HTMLTextAreaElement>(null)
+  const { tasks: allTasks } = useTasks()
+  const mention = useMentionPicker(allTasks)
+  const mentionRef = useRef(mention)
+  mentionRef.current = mention
+  const descriptionRef = useRef(description)
+  descriptionRef.current = description
+
   const providerModels = modelsByProvider[provider] ?? []
   const activeModel = modelByProvider[provider] && providerModels.includes(modelByProvider[provider]!)
     ? modelByProvider[provider]!
@@ -95,6 +106,17 @@ export function NewAgentForm({ onSubmit, refTaskId, refTaskTitle, autoFocus }: N
 
   const removeImage = useCallback((index: number) => {
     setPendingImages((prev) => prev.filter((_, i) => i !== index))
+  }, [])
+
+  const handleMentionSelect = useCallback((task: Task) => {
+    const { newText, cursorPos } = mentionRef.current.selectTask(task, descriptionRef.current)
+    setDescription(newText)
+    requestAnimationFrame(() => {
+      const textarea = textareaRef.current
+      if (!textarea) return
+      textarea.setSelectionRange(cursorPos, cursorPos)
+      textarea.focus()
+    })
   }, [])
 
   useEffect(() => {
@@ -233,21 +255,46 @@ export function NewAgentForm({ onSubmit, refTaskId, refTaskTitle, autoFocus }: N
                 ))}
               </div>
             )}
-            <textarea
-              autoFocus={autoFocus}
-              value={description}
-              onChange={(e) => setDescription(e.target.value)}
-              onKeyDown={(e) => {
-                if (e.key === "Enter" && (e.metaKey || e.ctrlKey)) {
-                  e.preventDefault()
-                  handleSubmit()
-                }
-              }}
-              onPaste={handlePaste}
-              placeholder="Describe the task, paste an issue URL, or continue work on a branch/PR..."
-              rows={4}
-              className="w-full resize-none border-0 bg-transparent px-4 pt-4 pb-2 text-base leading-[1.6] text-fg placeholder-fg-muted outline-none md:text-sm"
-            />
+            <div className="relative">
+              {mention.state.isOpen && (
+                <MentionPicker
+                  tasks={mention.filteredTasks}
+                  selectedIndex={mention.state.selectedIndex}
+                  onSelect={handleMentionSelect}
+                  onHover={(i) => mention.setSelectedIndex(i)}
+                />
+              )}
+              <textarea
+                ref={textareaRef}
+                autoFocus={autoFocus}
+                value={description}
+                onChange={(e) => {
+                  setDescription(e.target.value)
+                  mention.onTextChange(e.target.value, e.target.selectionStart ?? e.target.value.length)
+                }}
+                onKeyDown={(e: KeyboardEvent<HTMLTextAreaElement>) => {
+                  const m = mentionRef.current
+                  if (m.state.isOpen) {
+                    const selectedTask = m.filteredTasks[m.state.selectedIndex]
+                    if ((e.key === "Enter" || e.key === "Tab") && selectedTask) {
+                      e.preventDefault()
+                      handleMentionSelect(selectedTask)
+                      return
+                    }
+                    if (m.onKeyDown(e)) return
+                  }
+                  if (e.key === "Enter" && (e.metaKey || e.ctrlKey)) {
+                    e.preventDefault()
+                    handleSubmit()
+                  }
+                }}
+                onBlur={() => mention.close()}
+                onPaste={handlePaste}
+                placeholder="Describe the task, paste an issue URL, or continue work on a branch/PR..."
+                rows={4}
+                className="w-full resize-none border-0 bg-transparent px-4 pt-4 pb-2 text-base leading-[1.6] text-fg placeholder-fg-muted outline-none md:text-sm"
+              />
+            </div>
             {/* Desktop: inline controls below textarea */}
             <div className="hidden gap-2.5 overflow-visible border-t border-edge px-3 py-2.5 md:flex md:flex-col">
               <div className="flex items-center gap-2 overflow-visible">
