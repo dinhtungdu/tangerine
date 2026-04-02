@@ -1,7 +1,7 @@
 import { useEffect } from "react"
 import { useNavigate } from "react-router-dom"
 import { registerActions, registerActionCombos, type Action } from "../lib/actions"
-import { cancelTask, retryTask, deleteTask, resolveTask } from "../lib/api"
+import { cancelTask, retryTask, deleteTask, resolveTask, abortTask, startTask } from "../lib/api"
 import { useProjectNav } from "./useProjectNav"
 import { useProject } from "../context/ProjectContext"
 import { useTheme } from "./useTheme"
@@ -75,6 +75,17 @@ export function useAppActions() {
         },
       },
       {
+        id: "task.abort",
+        label: "Abort task",
+        section: "Tasks",
+        hidden: true,
+        handler: async (args) => {
+          const taskId = args?.taskId as string | undefined
+          if (!taskId) return
+          await abortTask(taskId)
+        },
+      },
+      {
         id: "task.retry",
         label: "Retry task",
         section: "Tasks",
@@ -83,6 +94,17 @@ export function useAppActions() {
           const taskId = args?.taskId as string | undefined
           if (!taskId) return
           await retryTask(taskId)
+        },
+      },
+      {
+        id: "task.start",
+        label: "Start task",
+        section: "Tasks",
+        hidden: true,
+        handler: async (args) => {
+          const taskId = args?.taskId as string | undefined
+          if (!taskId) return
+          await startTask(taskId)
         },
       },
       {
