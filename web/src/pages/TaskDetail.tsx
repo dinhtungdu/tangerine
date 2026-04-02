@@ -16,7 +16,7 @@ import { ActivityList } from "../components/ActivityList"
 import { ChangesPanel as DiffSidebar, type DiffComment } from "../components/ChangesPanel"
 import { ResizeHandle, PaneToggle } from "../components/PaneControls"
 import { TerminalPane } from "../components/TerminalPane"
-import { formatPrNumber } from "../lib/format"
+import { formatPrNumber, formatTaskTitle } from "../lib/format"
 import { copyToClipboard } from "../lib/clipboard"
 import { TaskOverflowMenu } from "../components/TaskListItem"
 import { useTaskActions } from "../hooks/useTaskActions"
@@ -388,7 +388,7 @@ export function TaskDetail() {
               title="Click to copy task ID"
               className="min-w-0 truncate text-sm font-semibold text-fg hover:text-fg-muted"
             >
-              {copiedId ? "Copied ID!" : task.title}
+              {copiedId ? "Copied ID!" : formatTaskTitle(task.title, task.type)}
             </button>
             {task.branch && (
               <button

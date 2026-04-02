@@ -1,3 +1,9 @@
+/** Display-friendly task title. Replaces internal names like "_orchestrator" with human labels. */
+export function formatTaskTitle(title: string, type?: string): string {
+  if (type === "orchestrator") return "Middle Manager"
+  return title
+}
+
 /** Strip date suffix (e.g. "anthropic/claude-sonnet-4-20250514" -> "anthropic/claude-sonnet-4") */
 export function formatModelName(model: string): string {
   return model.replace(/-\d{8}$/, "")
