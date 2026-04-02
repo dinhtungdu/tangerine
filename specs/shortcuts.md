@@ -82,10 +82,29 @@ The registry is a plain module singleton (not React context), so it can be impor
 
 Note: `g then r` style sequences are deferred to a future iteration. Initial shortcuts use single-key combos only.
 
+## User-Defined Shortcut Overrides
+
+Users can rebind action shortcuts globally via `config.json`:
+
+```json
+{
+  "shortcuts": {
+    "task.create": { "key": "t", "meta": true },
+    "navigate.runs": { "key": "r", "meta": true, "shift": true }
+  }
+}
+```
+
+- `shortcuts` is a top-level field on `TangerineConfig` (global, not per-project).
+- Keys are action IDs, values are `Shortcut` objects (`{ key, meta?, shift?, alt? }`).
+- Overrides are applied via `patchActionShortcut(id, shortcut)` after built-in actions are registered.
+- Only the shortcut binding is replaced — the handler and all other action properties are preserved.
+- The server returns `shortcuts` from `GET /api/projects`; the web app reads it from `ProjectContext` and applies overrides in `useAppActions`.
+
 ## File Structure
 
 ```
-web/src/lib/actions.ts       # Registry singleton
+web/src/lib/actions.ts       # Registry singleton (includes patchActionShortcut)
 web/src/hooks/useShortcuts.ts # Global keydown listener hook
 web/src/components/CommandPalette.tsx  # Replaces QuickOpen
 ```

@@ -27,14 +27,17 @@ type Listener = () => void
 const actions = new Map<string, Action>()
 const listeners = new Set<Listener>()
 let activeContext: string | null = null
+let shortcutOverrides: Record<string, Shortcut> = {}
 
 function notify() {
   for (const fn of listeners) fn()
 }
 
-/** Register actions. Returns an unregister function. */
+/** Register actions. Applies any active shortcut overrides. Returns an unregister function. */
 export function registerActions(defs: Action[]): () => void {
   for (const a of defs) {
+    const override = shortcutOverrides[a.id]
+    if (override) a.shortcut = override
     actions.set(a.id, a)
   }
   notify()
@@ -156,9 +159,33 @@ export function registerActionCombos(
   return registerActions(comboActions)
 }
 
+/** Patch the shortcut of an existing action by id. Returns true if the action was found. */
+export function patchActionShortcut(id: string, shortcut: Shortcut): boolean {
+  const action = actions.get(id)
+  if (!action) return false
+  action.shortcut = shortcut
+  notify()
+  return true
+}
+
+/**
+ * Set shortcut overrides map. Overrides are applied automatically to all
+ * currently registered actions and to any actions registered in the future.
+ */
+export function setShortcutOverrides(overrides: Record<string, Shortcut>): void {
+  shortcutOverrides = overrides
+  // Patch already-registered actions
+  for (const [id, shortcut] of Object.entries(overrides)) {
+    const action = actions.get(id)
+    if (action) action.shortcut = shortcut
+  }
+  notify()
+}
+
 /** Reset the registry (for testing). */
 export function _resetForTesting(): void {
   actions.clear()
   listeners.clear()
   activeContext = null
+  shortcutOverrides = {}
 }

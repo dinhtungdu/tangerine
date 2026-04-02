@@ -25,6 +25,7 @@ export type {
   ActionCombo,
   PredefinedPrompt,
   ProjectConfig,
+  ShortcutConfig,
   TangerineConfig,
 } from "./config"
 

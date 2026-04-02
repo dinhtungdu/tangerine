@@ -41,6 +41,7 @@ export function projectRoutes(deps: AppDeps): Hono {
       sshUser: deps.config.config.sshUser,
       editor: deps.config.config.editor,
       actionCombos: deps.config.config.actionCombos,
+      shortcuts: deps.config.config.shortcuts,
     })
   })
 

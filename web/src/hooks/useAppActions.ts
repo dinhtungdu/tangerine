@@ -1,6 +1,6 @@
 import { useEffect } from "react"
 import { useNavigate } from "react-router-dom"
-import { registerActions, registerActionCombos, type Action } from "../lib/actions"
+import { registerActions, registerActionCombos, setShortcutOverrides, type Action } from "../lib/actions"
 import { cancelTask, retryTask, deleteTask, resolveTask } from "../lib/api"
 import { useProjectNav } from "./useProjectNav"
 import { useProject } from "../context/ProjectContext"
@@ -14,7 +14,7 @@ import { useShortcuts } from "./useShortcuts"
 export function useAppActions() {
   const navigate = useNavigate()
   const { link } = useProjectNav()
-  const { actionCombos } = useProject()
+  const { actionCombos, shortcuts } = useProject()
   const { resolved, setTheme } = useTheme()
 
   // Activate the global shortcut listener
@@ -117,4 +117,11 @@ export function useAppActions() {
     if (actionCombos.length === 0) return
     return registerActionCombos(actionCombos)
   }, [actionCombos])
+
+  // Apply user-defined shortcut overrides from global config.
+  // setShortcutOverrides stores the map in the registry so overrides
+  // are automatically reapplied when actions re-register or register late.
+  useEffect(() => {
+    setShortcutOverrides(shortcuts ?? {})
+  }, [shortcuts])
 }
