@@ -121,6 +121,7 @@ Provider values:
 - `opencode`
 - `claude-code`
 - `codex`
+- `pi`
 
 Task types — **always pass the correct type**:
 

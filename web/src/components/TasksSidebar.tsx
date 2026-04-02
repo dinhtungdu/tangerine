@@ -108,7 +108,7 @@ function TaskItem({
           {formatRelativeTime(task.createdAt)} · {task.status}
           {" · "}
           <span className="rounded bg-surface-secondary px-1 py-px text-2xs">
-            {task.provider === "claude-code" ? "CC" : task.provider === "codex" ? "CX" : "OC"}
+            {task.provider === "claude-code" ? "CC" : task.provider === "codex" ? "CX" : task.provider === "pi" ? "Pi" : "OC"}
           </span>
           {task.type !== "worker" && (
             <>

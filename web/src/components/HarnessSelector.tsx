@@ -10,6 +10,7 @@ const harnesses: { value: ProviderType; label: string }[] = [
   { value: "claude-code", label: "Claude Code" },
   { value: "opencode", label: "OpenCode" },
   { value: "codex", label: "Codex" },
+  { value: "pi", label: "Pi" },
 ]
 
 export function HarnessSelector({ value, onChange }: HarnessSelectorProps) {

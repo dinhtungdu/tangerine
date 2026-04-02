@@ -7,7 +7,7 @@ import type { PromptImage } from "@tangerine/shared"
 
 export type { PromptImage }
 
-export type ProviderType = "opencode" | "claude-code" | "codex"
+export type ProviderType = "opencode" | "claude-code" | "codex" | "pi"
 
 /** A model available through a provider, used for model discovery and selection */
 export interface ModelInfo {

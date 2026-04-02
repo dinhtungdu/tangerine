@@ -30,6 +30,7 @@ export function projectRoutes(deps: AppDeps): Hono {
       opencode: byProvider.opencode.map((m) => m.id),
       "claude-code": byProvider["claude-code"].map((m) => m.id),
       codex: byProvider.codex.map((m) => m.id),
+      pi: byProvider.pi.map((m) => m.id),
     }
 
     return c.json({
