@@ -54,7 +54,7 @@ export function NewAgentForm({ onSubmit, refTaskId, refTaskTitle, autoFocus }: N
   const branch = current?.defaultBranch ?? "main"
 
   const textareaRef = useRef<HTMLTextAreaElement>(null)
-  const { tasks: allTasks } = useTasks()
+  const { tasks: allTasks } = useTasks({ project: current?.name })
   const mention = useMentionPicker(allTasks)
   const mentionRef = useRef(mention)
   mentionRef.current = mention
