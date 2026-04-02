@@ -576,6 +576,39 @@ describe("createClaudeCodeMapper — result always emits assistant", () => {
     }])
   })
 
+  test("clears stale narration on system init (abort recovery)", () => {
+    const mapper = createClaudeCodeMapper()
+
+    // Narration from a turn that gets aborted (no result event)
+    mapper({
+      type: "assistant",
+      message: { id: "msg_aborted", content: [{ type: "text", text: "Stale narration from aborted turn" }] },
+    })
+
+    // New turn starts — system init clears stale state
+    mapper({ type: "system", subtype: "init" })
+
+    // New narration in the fresh turn
+    mapper({
+      type: "assistant",
+      message: { id: "msg_new", content: [{ type: "text", text: "Fresh response" }] },
+    })
+
+    // Result matches fresh narration — no promotion needed
+    const resultEvents = mapper({
+      type: "result",
+      result: "Fresh response",
+      session_id: "sess_1",
+    })
+
+    expect(resultEvents).toEqual([{
+      kind: "message.complete",
+      role: "assistant",
+      content: "Fresh response",
+      messageId: "sess_1",
+    }])
+  })
+
   test("skips result with no content and no images", () => {
     const mapper = createClaudeCodeMapper()
 

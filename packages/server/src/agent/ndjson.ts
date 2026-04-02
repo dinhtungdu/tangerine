@@ -282,6 +282,9 @@ export function createClaudeCodeMapper(): (raw: Record<string, unknown>) => Agen
     case "system": {
       const subtype = raw.subtype as string | undefined
       if (subtype === "init") {
+        // Clear stale narration from a previous turn that may have been
+        // aborted before emitting a result event.
+        lastNarration = ""
         return [{ kind: "status", status: "working" }]
       }
       return []
