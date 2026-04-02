@@ -41,6 +41,12 @@ export function useAppActions() {
         section: "Navigation",
         handler: () => navigate(link("/status")),
       },
+      {
+        id: "navigate.settings",
+        label: "Go to Settings",
+        section: "Navigation",
+        handler: () => navigate(link("/settings")),
+      },
       // Preferences
       {
         id: "theme.toggle",
