@@ -60,7 +60,7 @@ export function useAppActions() {
         label: "New task",
         description: "Create a new agent task",
         section: "Tasks",
-        handler: () => navigate(link("/")),
+        handler: () => navigate(link("/?focus=1")),
         shortcut: { key: "n", meta: true, shift: true },
       },
       {
