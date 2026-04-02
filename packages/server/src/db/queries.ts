@@ -63,8 +63,10 @@ export function listTasks(db: Database, filter?: { status?: string; projectId?: 
       params.$project_id = filter.projectId
     }
     if (filter?.search) {
-      conditions.push("(title LIKE $search OR description LIKE $search)")
-      params.$search = `%${filter.search}%`
+      // Strip leading "#" so that "#123" matches pr_url paths like "/pull/123"
+      const searchNormalized = filter.search.startsWith("#") ? filter.search.slice(1) : filter.search
+      conditions.push("(title LIKE $search OR description LIKE $search OR branch LIKE $search OR pr_url LIKE $search)")
+      params.$search = `%${searchNormalized}%`
     }
     const where = conditions.length > 0 ? ` WHERE ${conditions.join(" AND ")}` : ""
     // OFFSET requires LIMIT in SQLite — only apply offset when limit is also set

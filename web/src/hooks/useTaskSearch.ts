@@ -2,6 +2,12 @@ import { useState, useMemo, useDeferredValue } from "react"
 import type { Task } from "@tangerine/shared"
 import { useTasks } from "./useTasks"
 
+/** Extract raw PR number string from a PR URL for searching, e.g. "#123" or "123" */
+function extractPrNumber(prUrl: string): string {
+  const match = prUrl.match(/\/pull\/(\d+)/)
+  return match ? `#${match[1]}` : ""
+}
+
 interface UseTaskSearchResult {
   query: string
   setQuery: (q: string) => void
@@ -27,7 +33,9 @@ export function useTaskSearch(project?: string): UseTaskSearchResult {
     return allTasks.filter(
       (t) =>
         t.title.toLowerCase().includes(lower) ||
-        (t.description?.toLowerCase().includes(lower) ?? false)
+        (t.description?.toLowerCase().includes(lower) ?? false) ||
+        (t.branch?.toLowerCase().includes(lower) ?? false) ||
+        (t.prUrl !== null && extractPrNumber(t.prUrl).includes(lower))
     )
   }, [allTasks, deferredQuery])
 

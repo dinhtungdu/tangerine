@@ -36,10 +36,15 @@ export function useMentionPicker(tasks: Task[]): UseMentionPickerResult {
     if (!state.isOpen) return []
     const q = state.query.toLowerCase()
     return tasks
-      .filter((t) =>
-        formatTaskTitle(t.title, t.type).toLowerCase().includes(q) ||
-        t.id.startsWith(q)
-      )
+      .filter((t) => {
+        const prNumber = t.prUrl?.match(/\/pull\/(\d+)/)?.[1] ?? ""
+        return (
+          formatTaskTitle(t.title, t.type).toLowerCase().includes(q) ||
+          t.id.startsWith(q) ||
+          (t.branch?.toLowerCase().includes(q) ?? false) ||
+          (prNumber !== "" && (`#${prNumber}`.includes(q) || prNumber.includes(q)))
+        )
+      })
       .sort((a, b) => {
         // Active tasks first
         const aActive = a.status === "running" || a.status === "provisioning" || a.status === "created"
