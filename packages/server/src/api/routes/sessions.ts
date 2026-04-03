@@ -57,12 +57,12 @@ export function sessionRoutes(deps: AppDeps): Hono {
   })
 
   app.post("/:id/prompt", async (c) => {
-    const body = await c.req.json<{ text?: string; fromTaskId?: string }>()
+    const body = await c.req.json<{ text?: string; from?: string }>()
     if (!body.text) {
       return c.json({ error: "text is required" }, 400)
     }
     return runEffectVoid(c,
-      deps.taskManager.sendPrompt(c.req.param("id"), body.text!, undefined, body.fromTaskId)
+      deps.taskManager.sendPrompt(c.req.param("id"), body.text!, undefined, body.from)
     )
   })
 
@@ -70,7 +70,7 @@ export function sessionRoutes(deps: AppDeps): Hono {
   // Async — returns immediately. Use GET /messages or WebSocket for agent response.
   app.post("/:id/chat", async (c) => {
     const taskId = c.req.param("id")
-    const body = await c.req.json<{ text?: string; fromTaskId?: string }>()
+    const body = await c.req.json<{ text?: string; from?: string }>()
     if (!body.text) {
       return c.json({ error: "text is required" }, 400)
     }
@@ -80,7 +80,7 @@ export function sessionRoutes(deps: AppDeps): Hono {
         if (!task) return yield* Effect.fail(new TaskNotFoundError({ taskId }))
 
         // Send to agent (sendPrompt persists the user message to session_logs)
-        yield* deps.taskManager.sendPrompt(taskId, body.text!, undefined, body.fromTaskId)
+        yield* deps.taskManager.sendPrompt(taskId, body.text!, undefined, body.from)
 
         return { ok: true, taskId, status: task.status }
       }),
