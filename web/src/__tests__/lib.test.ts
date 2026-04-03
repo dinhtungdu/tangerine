@@ -711,6 +711,13 @@ describe("linkifyTaskIds", () => {
     expect(result).not.toContain("<a")
   })
 
+  test("does not linkify UUIDs followed by a path segment", () => {
+    const text = "abc12345-0000-0000-0000-000000000001/logs"
+    const result = linkifyTaskIds(text, tasks)
+    expect(result).toBe(text)
+    expect(result).not.toContain("<a")
+  })
+
   test("is case-insensitive and uses canonical task ID in href", () => {
     const result = linkifyTaskIds("ABC12345-0000-0000-0000-000000000001", tasks)
     // Link is produced and href uses canonical lowercase ID, not the matched text
