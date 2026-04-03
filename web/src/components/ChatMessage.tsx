@@ -26,10 +26,8 @@ interface ChatMessageProps {
 
 function MessageActionsBar({ actions, align = "start" }: { actions: MessageAction[], align?: "start" | "end" }) {
   if (actions.length === 0) return null
-  // Zero-height + invisible by default so it takes no space and is not tabbable.
-  // On hover/focus/touch: full height, visible, interactive.
   return (
-    <div className={`flex gap-0.5 h-0 overflow-hidden opacity-0 pointer-events-none transition-all group-hover:h-auto group-hover:overflow-visible group-hover:opacity-100 group-hover:pointer-events-auto group-focus-within:h-auto group-focus-within:overflow-visible group-focus-within:opacity-100 group-focus-within:pointer-events-auto [@media(hover:none)]:h-auto [@media(hover:none)]:overflow-visible [@media(hover:none)]:opacity-100 [@media(hover:none)]:pointer-events-auto ${align === "end" ? "justify-end" : "justify-start"}`}>
+    <div className={`absolute bottom-0 translate-y-full ${align === "end" ? "right-0" : "left-0"} flex gap-0.5 opacity-0 pointer-events-none transition-opacity group-hover:opacity-100 group-hover:pointer-events-auto group-focus-within:opacity-100 group-focus-within:pointer-events-auto [@media(hover:none)]:opacity-100 [@media(hover:none)]:pointer-events-auto`}>
       {actions.map((action) => (
         <button
           key={action.key}
@@ -225,7 +223,7 @@ export const ChatMessage = memo(function ChatMessage({ message, tasks, onReply }
 
   if (isUser) {
     return (
-      <div className="animate-fade-in group flex flex-col items-end gap-0.5">
+      <div className="animate-fade-in group relative flex flex-col items-end gap-0.5">
         <div className="max-w-[280px] md:max-w-[480px] rounded-xl bg-surface-dark px-3.5 py-2.5">
           {message.images && message.images.length > 0 && (
             <>
@@ -332,7 +330,7 @@ export const ChatMessage = memo(function ChatMessage({ message, tasks, onReply }
 
   // Agent message
   return (
-    <div className="animate-fade-in group flex flex-col gap-1.5">
+    <div className="animate-fade-in group relative flex flex-col gap-1.5">
       <div className="flex items-center gap-2">
         <div className="flex h-5 w-5 items-center justify-center rounded-[10px] bg-surface-dark">
           <svg className="h-2.5 w-2.5 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
