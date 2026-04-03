@@ -133,17 +133,14 @@ function truncate(s: string, maxLen: number): string {
 // Model discovery — runs `pi --list-models` and parses the table output
 // ---------------------------------------------------------------------------
 
-const MODEL_CACHE_TTL = 5 * 60_000 // 5 min for success
-const MODEL_CACHE_FAIL_TTL = 30_000 // 30s for failure
-let cachedModels: ModelInfo[] = []
-let cacheExpiresAt = 0
+let cachedModels: ModelInfo[] | null = null
 
 /**
  * Discover available Pi models by running `pi --list-models`.
- * Success cached 5 min, failure cached 30s.
+ * Cached forever after first successful result; retries on failure.
  */
 export function discoverModels(): ModelInfo[] {
-  if (Date.now() < cacheExpiresAt) return cachedModels
+  if (cachedModels) return cachedModels
   try {
     const result = spawnSync("pi", ["--list-models"], {
       timeout: 5_000,
@@ -152,14 +149,10 @@ export function discoverModels(): ModelInfo[] {
     })
     // Pi writes model list to stderr; prefer it over stdout
     const output = (result.stderr || result.stdout || "").trim()
-    if (result.status !== 0 || !output) {
-      cacheExpiresAt = Date.now() + MODEL_CACHE_FAIL_TTL
-      cachedModels = []
-      return cachedModels
-    }
+    if (result.status !== 0 || !output) return []
     const lines = output.split("\n")
     // Skip the header line
-    cachedModels = lines.slice(1)
+    const models = lines.slice(1)
       .map((line) => {
         const cols = line.trim().split(/\s{2,}/)
         const provider = cols[0]
@@ -174,12 +167,10 @@ export function discoverModels(): ModelInfo[] {
         }
       })
       .filter((m): m is ModelInfo => m !== null)
-    cacheExpiresAt = Date.now() + MODEL_CACHE_TTL
-    return cachedModels
+    if (models.length > 0) cachedModels = models
+    return models
   } catch {
-    cacheExpiresAt = Date.now() + MODEL_CACHE_FAIL_TTL
-    cachedModels = []
-    return cachedModels
+    return []
   }
 }
 
