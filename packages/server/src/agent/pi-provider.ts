@@ -34,94 +34,118 @@ const log = createLogger("pi-provider")
 //   queue_update             → (ignored)
 // ---------------------------------------------------------------------------
 
-function mapPiEvent(data: Record<string, unknown>): AgentEvent[] {
-  const type = data.type as string | undefined
-  if (!type) return []
+/** Creates a per-session event mapper with its own thinking buffer. */
+function createPiEventMapper(): (data: Record<string, unknown>) => AgentEvent[] {
+  // Accumulates thinking deltas across thinking_start/thinking_end boundaries.
+  // Pi streams thinking as individual token deltas — without buffering, each
+  // delta would be persisted as a separate session_log row and chat message.
+  let thinkingBuffer = ""
 
-  switch (type) {
-    case "agent_start":
-      return [{ kind: "status", status: "working" }]
+  return (data: Record<string, unknown>): AgentEvent[] => {
+    const type = data.type as string | undefined
+    if (!type) return []
 
-    case "agent_end":
-      return [{ kind: "status", status: "idle" }]
+    switch (type) {
+      case "agent_start":
+        return [{ kind: "status", status: "working" }]
 
-    case "message_update": {
-      // data.assistantMessageEvent contains the streaming delta
-      // AME types: text_start, text_delta, text_end, thinking_start, thinking_delta, thinking_end,
-      //            toolcall_start, toolcall_delta, toolcall_end, start, done, error
-      const ame = data.assistantMessageEvent as Record<string, unknown> | undefined
-      if (!ame) return []
+      case "agent_end":
+        return [{ kind: "status", status: "idle" }]
 
-      const ameType = ame.type as string | undefined
+      case "message_update": {
+        // data.assistantMessageEvent contains the streaming delta
+        // AME types: text_start, text_delta, text_end, thinking_start, thinking_delta, thinking_end,
+        //            toolcall_start, toolcall_delta, toolcall_end, start, done, error
+        const ame = data.assistantMessageEvent as Record<string, unknown> | undefined
+        if (!ame) return []
 
-      // Thinking/reasoning delta
-      if (ameType === "thinking_delta") {
-        const delta = typeof ame.delta === "string" ? ame.delta : ""
-        if (delta) return [{ kind: "thinking", content: delta }]
-        return []
-      }
+        const ameType = ame.type as string | undefined
 
-      // Text content delta
-      if (ameType === "text_delta") {
-        const delta = typeof ame.delta === "string" ? ame.delta : ""
-        if (delta) return [{ kind: "message.streaming", content: delta }]
-        return []
-      }
-
-      return []
-    }
-
-    case "message_end": {
-      const msg = data.message as Record<string, unknown> | undefined
-      if (!msg) return []
-      // Extract text from the message content
-      const content = msg.content as Array<Record<string, unknown>> | undefined
-      if (!Array.isArray(content)) return []
-      const textParts = content
-        .filter((c) => c.type === "text" && typeof c.text === "string")
-        .map((c) => c.text as string)
-      const text = textParts.join("")
-      if (!text) return []
-      const role = msg.role === "user" ? "user" as const : "assistant" as const
-      return [{ kind: "message.complete", role, content: text }]
-    }
-
-    case "tool_execution_start": {
-      const toolName = typeof data.toolName === "string" ? data.toolName : "unknown"
-      const args = data.args
-      return [{
-        kind: "tool.start",
-        toolName,
-        toolInput: args ? truncate(JSON.stringify(args), 500) : undefined,
-      }]
-    }
-
-    case "tool_execution_end": {
-      const toolName = typeof data.toolName === "string" ? data.toolName : "unknown"
-      const result = data.result as Record<string, unknown> | undefined
-      const isError = data.isError === true
-      let toolResult: string | undefined
-      if (result) {
-        const content = result.content as Array<Record<string, unknown>> | undefined
-        if (Array.isArray(content)) {
-          const texts = content
-            .filter((c) => c.type === "text" && typeof c.text === "string")
-            .map((c) => c.text as string)
-          toolResult = texts.join("")
+        // Thinking/reasoning — buffer deltas, emit on end
+        if (ameType === "thinking_start") {
+          thinkingBuffer = ""
+          return []
         }
-      }
-      if (isError && toolResult) {
-        toolResult = `[error] ${toolResult}`
-      }
-      return [{
-        kind: "tool.end",
-        toolName,
-        toolResult: toolResult ? truncate(toolResult, 500) : undefined,
-      }]
-    }
+        if (ameType === "thinking_delta") {
+          const delta = typeof ame.delta === "string" ? ame.delta : ""
+          thinkingBuffer += delta
+          return []
+        }
+        if (ameType === "thinking_end") {
+          const content = thinkingBuffer
+          thinkingBuffer = ""
+          if (content) return [{ kind: "thinking", content: truncate(content, 300) }]
+          return []
+        }
 
-    default:
-      return []
+        // Text content delta
+        if (ameType === "text_delta") {
+          const delta = typeof ame.delta === "string" ? ame.delta : ""
+          if (delta) return [{ kind: "message.streaming", content: delta }]
+          return []
+        }
+
+        return []
+      }
+
+      case "message_end": {
+        const msg = data.message as Record<string, unknown> | undefined
+        if (!msg) return []
+        // Extract text from the message content
+        const content = msg.content as Array<Record<string, unknown>> | undefined
+        if (!Array.isArray(content)) return []
+        const textParts = content
+          .filter((c) => c.type === "text" && typeof c.text === "string")
+          .map((c) => c.text as string)
+        const text = textParts.join("")
+        if (!text) return []
+        if (msg.role === "user") {
+          return [{ kind: "message.complete", role: "user" as const, content: text }]
+        }
+        // Assistant messages with tool calls are intermediate turns — classify
+        // as narration so the UI collapses them alongside thinking.
+        const hasToolCalls = content.some((c) => c.type === "toolCall")
+        const role = hasToolCalls ? "narration" as const : "assistant" as const
+        return [{ kind: "message.complete", role, content: text }]
+      }
+
+      case "tool_execution_start": {
+        const toolName = typeof data.toolName === "string" ? data.toolName : "unknown"
+        const args = data.args
+        return [{
+          kind: "tool.start",
+          toolName,
+          toolInput: args ? truncate(JSON.stringify(args), 500) : undefined,
+        }]
+      }
+
+      case "tool_execution_end": {
+        const toolName = typeof data.toolName === "string" ? data.toolName : "unknown"
+        const result = data.result as Record<string, unknown> | undefined
+        const isError = data.isError === true
+        let toolResult: string | undefined
+        if (result) {
+          const content = result.content as Array<Record<string, unknown>> | undefined
+          if (Array.isArray(content)) {
+            const texts = content
+              .filter((c) => c.type === "text" && typeof c.text === "string")
+              .map((c) => c.text as string)
+            toolResult = texts.join("")
+          }
+        }
+        if (isError && toolResult) {
+          toolResult = `[error] ${toolResult}`
+        }
+        return [{
+          kind: "tool.end",
+          toolName,
+          toolResult: toolResult ? truncate(toolResult, 500) : undefined,
+        }]
+      }
+
+      default:
+        return []
+    }
   }
 }
 
@@ -252,6 +276,9 @@ export function createPiProvider(): AgentFactory {
           let resolveReady: (() => void) | null = null
           const readyPromise = new Promise<void>((resolve) => { resolveReady = resolve })
 
+          // Per-session event mapper (owns its own thinking buffer)
+          const mapPiEvent = createPiEventMapper()
+
           // Parse NDJSON from stdout
           const parser = parseNdjsonStream(
             proc.stdout as ReadableStream<Uint8Array>,
@@ -351,7 +378,8 @@ export function createPiProvider(): AgentFactory {
                   if (images && images.length > 0) {
                     cmd.images = images.map((img) => ({
                       type: "image",
-                      source: { type: "base64", mediaType: img.mediaType, data: img.data },
+                      mimeType: img.mediaType,
+                      data: img.data,
                     }))
                   }
                   sendCommand(cmd)
