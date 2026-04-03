@@ -5,7 +5,6 @@ import { ChatMessage } from "./ChatMessage"
 import { ChatInput } from "./ChatInput"
 import { useProjectNav } from "../hooks/useProjectNav"
 import { getStatusConfig } from "../lib/status"
-import { copyToClipboard } from "../lib/clipboard"
 
 const TERMINATED_STATUSES: TaskStatus[] = ["done", "failed", "cancelled"]
 
@@ -63,87 +62,39 @@ export function ChatPanel({
   useEffect(() => {
     try { localStorage.setItem("showThinking", String(showThinking)) } catch { /* storage unavailable */ }
   }, [showThinking])
-  const [draftInsert, setDraftInsert] = useState<{ id: number, text: string } | null>(null)
-  const [selectionMenu, setSelectionMenu] = useState<{ text: string, top: number, left: number } | null>(null)
+  // pendingQuote is persisted per task so it survives page reloads
+  const quoteKey = taskId ? `tangerine:chat-quote:${taskId}` : null
+  const [pendingQuote, setPendingQuote] = useState<string | null>(null)
 
-  // Synchronously suppress stale quotes when switching tasks.
-  // useEffect runs *after* render, so the remounted ChatInput would see the old
-  // draftInsert on its first render and apply the quote to the wrong task.
-  const prevTaskIdRef = useRef(taskId)
-  const effectiveDraftInsert = taskId === prevTaskIdRef.current ? draftInsert : null
-  if (taskId !== prevTaskIdRef.current) {
-    prevTaskIdRef.current = taskId
-    // Also clear state so the stale value doesn't persist across future renders
-    if (draftInsert) setDraftInsert(null)
-  }
+  // Load/clear quote whenever the active task changes
+  useEffect(() => {
+    try { setPendingQuote(quoteKey ? (localStorage.getItem(quoteKey) ?? null) : null) } catch { /* ignore */ }
+  }, [quoteKey])
 
-  // Clean up orphaned draft when a task terminates (ChatInput unmounts, draft would linger forever)
+  // Persist quote changes to storage
+  useEffect(() => {
+    if (!quoteKey) return
+    try {
+      if (pendingQuote) localStorage.setItem(quoteKey, pendingQuote)
+      else localStorage.removeItem(quoteKey)
+    } catch { /* ignore */ }
+  }, [quoteKey, pendingQuote])
+
+  // Clean up orphaned drafts when a task terminates
   useEffect(() => {
     if (isTerminated && taskId) {
-      try { localStorage.removeItem(`tangerine:chat-draft:${taskId}`) } catch { /* ignore */ }
+      try {
+        localStorage.removeItem(`tangerine:chat-draft:${taskId}`)
+        localStorage.removeItem(`tangerine:chat-quote:${taskId}`)
+      } catch { /* ignore */ }
     }
   }, [isTerminated, taskId])
 
-  const clearSelectionMenu = useCallback(() => {
-    setSelectionMenu(null)
-    window.getSelection()?.removeAllRanges()
+  const effectivePendingQuote = pendingQuote
+
+  const handleReply = useCallback((content: string) => {
+    setPendingQuote(content)
   }, [])
-
-  const updateSelectionMenu = useCallback(() => {
-    const container = scrollRef.current
-    const selection = window.getSelection()
-    if (!container || !selection || selection.rangeCount === 0 || selection.isCollapsed) {
-      setSelectionMenu(null)
-      return
-    }
-
-    const range = selection.getRangeAt(0)
-    const text = selection.toString().trim()
-    const anchorNode = selection.anchorNode
-    const focusNode = selection.focusNode
-    const anchorElement = anchorNode instanceof Element ? anchorNode : anchorNode?.parentElement
-    const focusElement = focusNode instanceof Element ? focusNode : focusNode?.parentElement
-
-    if (!text || !anchorElement || !focusElement || !container.contains(anchorElement) || !container.contains(focusElement)) {
-      setSelectionMenu(null)
-      return
-    }
-
-    if (anchorElement.closest("textarea, input, button, a") || focusElement.closest("textarea, input, button, a")) {
-      setSelectionMenu(null)
-      return
-    }
-
-    const rect = range.getBoundingClientRect()
-    if (rect.width === 0 && rect.height === 0) {
-      setSelectionMenu(null)
-      return
-    }
-
-    setSelectionMenu({
-      text,
-      top: Math.max(rect.top - 52, 8),
-      left: rect.left + rect.width / 2,
-    })
-  }, [])
-
-  const handleCopySelection = useCallback(async () => {
-    if (!selectionMenu) return
-    await copyToClipboard(selectionMenu.text)
-    clearSelectionMenu()
-  }, [clearSelectionMenu, selectionMenu])
-
-  const handleQuoteSelection = useCallback(() => {
-    if (!selectionMenu) return
-
-    const quotedText = selectionMenu.text
-      .split("\n")
-      .map((line) => `> ${line}`)
-      .join("\n")
-
-    setDraftInsert({ id: Date.now(), text: quotedText })
-    clearSelectionMenu()
-  }, [clearSelectionMenu, selectionMenu])
 
   const thinkingCount = useMemo(
     () => messages.filter((m) => m.role === "thinking" || m.role === "narration").length,
@@ -161,54 +112,13 @@ export function ChatPanel({
     el.scrollTop = el.scrollHeight
   }, [visibleMessages.length])
 
-  useEffect(() => {
-    if (isTerminated) {
-      setSelectionMenu(null)
-      return
-    }
-    document.addEventListener("selectionchange", updateSelectionMenu)
-    window.addEventListener("scroll", updateSelectionMenu, true)
-    window.addEventListener("resize", updateSelectionMenu)
-    return () => {
-      document.removeEventListener("selectionchange", updateSelectionMenu)
-      window.removeEventListener("scroll", updateSelectionMenu, true)
-      window.removeEventListener("resize", updateSelectionMenu)
-    }
-  }, [updateSelectionMenu, isTerminated])
 
   return (
     <div className="flex h-full flex-col bg-surface">
-      {selectionMenu && (
-        <div
-          className="fixed z-20 flex -translate-x-1/2 items-center gap-1 rounded-full border border-edge bg-surface-dark p-1 shadow-lg"
-          style={{ top: selectionMenu.top, left: selectionMenu.left }}
-        >
-          <button
-            onMouseDown={(event) => event.preventDefault()}
-            onClick={() => void handleCopySelection()}
-            className="min-h-[32px] rounded-full px-4 py-1.5 text-md font-medium text-white transition hover:bg-white/10"
-          >
-            Copy
-          </button>
-          <button
-            onMouseDown={(event) => event.preventDefault()}
-            onClick={handleQuoteSelection}
-            className="min-h-[32px] rounded-full bg-white px-4 py-1.5 text-md font-medium text-surface-dark transition hover:opacity-90"
-          >
-            Quote
-          </button>
-        </div>
-      )}
-
       {/* Messages */}
       <div
         ref={scrollRef}
         className="flex-1 overflow-y-auto"
-        style={{ WebkitTouchCallout: "none" }}
-        onContextMenu={(e) => {
-          // Suppress native context menu on touch devices so our custom selection menu shows instead
-          if ("ontouchstart" in window) e.preventDefault()
-        }}
       >
         <div className="flex flex-col gap-3 p-4">
           {visibleMessages.length === 0 && thinkingCount === 0 ? (
@@ -216,7 +126,7 @@ export function ChatPanel({
               No messages yet. Send a prompt to start.
             </div>
           ) : (
-            visibleMessages.map((msg) => <ChatMessage key={msg.id} message={msg} tasks={tasks} />)
+            visibleMessages.map((msg) => <ChatMessage key={msg.id} message={msg} tasks={tasks} onReply={handleReply} />)
           )}
 
           {/* Thinking indicator */}
@@ -288,7 +198,8 @@ export function ChatPanel({
           onModelChange={onModelChange}
           onReasoningEffortChange={onReasoningEffortChange}
           predefinedPrompts={predefinedPrompts}
-          draftInsert={effectiveDraftInsert}
+          quotedMessage={effectivePendingQuote}
+          onQuoteDismiss={() => setPendingQuote(null)}
           autoFocusKey={autoFocusKey}
         />
         </>

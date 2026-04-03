@@ -2,6 +2,7 @@ import { describe, test, expect, afterEach, beforeEach } from "bun:test"
 import { render, screen, cleanup, fireEvent, act } from "@testing-library/react"
 import { MemoryRouter, Route, Routes } from "react-router-dom"
 import { ActivityList } from "../components/ActivityList"
+import { ChatMessage } from "../components/ChatMessage"
 import { NewAgentForm } from "../components/NewAgentForm"
 import { ChatInput, appendQuotedText } from "../components/ChatInput"
 import { ChatPanel } from "../components/ChatPanel"
@@ -365,23 +366,18 @@ describe("ChatInput", () => {
   // Duplicate ChatInput instances no longer occur — TaskDetail renders a single
   // ChatPanel for both mobile and desktop via responsive CSS classes.
 
-  test("applies quoted text and focuses the composer", async () => {
-    await act(async () => {
-      render(
-        <ChatInput
-          onSend={() => {}}
-          disabled={false}
-          queueLength={0}
-          draftInsert={{ id: 1, text: "> quoted line" }}
-        />
-      )
-
-      await new Promise((resolve) => setTimeout(resolve, 0))
-    })
-
-    const textarea = screen.getByPlaceholderText("Message agent...") as HTMLTextAreaElement
-    expect(textarea.value).toBe("> quoted line\n\n")
-    expect(document.activeElement).toBe(textarea)
+  test("shows quote chip when quotedMessage is provided", () => {
+    render(
+      <ChatInput
+        onSend={() => {}}
+        disabled={false}
+        queueLength={0}
+        quotedMessage="> quoted line"
+        onQuoteDismiss={() => {}}
+      />
+    )
+    expect(screen.getByText("> quoted line")).toBeTruthy()
+    expect(screen.getByLabelText("Dismiss quote")).toBeTruthy()
   })
 })
 
@@ -476,11 +472,11 @@ describe("ChatPanel", () => {
     expect(screen.queryByText("some error")).toBeNull()
   })
 
-  test("quotes selected message text into the composer", async () => {
+  test("clicking Reply on a message shows the quote chip above the input", async () => {
     render(
       <MemoryRouter>
         <ChatPanel
-          messages={[{ id: "m1", role: "assistant", content: "Quoted text", timestamp: "2026-03-17T10:00:00Z" }]}
+          messages={[{ id: "m1", role: "agent", content: "Quoted text", timestamp: "2026-03-17T10:00:00Z" }]}
           agentStatus="idle"
           queueLength={0}
           onSend={() => {}}
@@ -489,42 +485,10 @@ describe("ChatPanel", () => {
       </MemoryRouter>
     )
 
-    const message = screen.getByText("Quoted text")
-    const textNode = message.firstChild
-    let cleared = false
+    fireEvent.click(screen.getByLabelText("Reply"))
 
-    const selection = {
-      rangeCount: 1,
-      isCollapsed: false,
-      anchorNode: textNode,
-      focusNode: textNode,
-      toString: () => "Quoted text",
-      getRangeAt: () => ({
-        getBoundingClientRect: () => ({ top: 80, left: 120, width: 100, height: 20 }),
-      }),
-      removeAllRanges: () => {
-        cleared = true
-      },
-    }
-
-    Object.defineProperty(window, "getSelection", {
-      configurable: true,
-      value: () => selection,
-    })
-
-    await act(async () => {
-      document.dispatchEvent(new Event("selectionchange"))
-    })
-
-    fireEvent.click(await screen.findByText("Quote"))
-    await act(async () => {
-      await new Promise((resolve) => setTimeout(resolve, 0))
-    })
-
-    const textarea = screen.getByPlaceholderText("Message agent...") as HTMLTextAreaElement
-    expect(textarea.value).toBe("> Quoted text\n\n")
-    expect(document.activeElement).toBe(textarea)
-    expect(cleared).toBe(true)
+    // Quote chip appears above the input
+    expect(screen.getByLabelText("Dismiss quote")).toBeTruthy()
   })
 })
 
@@ -880,5 +844,157 @@ describe("TaskOverflowMenu error toasts", () => {
     })
 
     expect(screen.getByText("Failed to delete task")).toBeTruthy()
+  })
+})
+
+describe("ChatMessage inline actions", () => {
+  function makeMsg(overrides?: Partial<{ id: string; role: string; content: string; timestamp: string }>) {
+    return {
+      id: "msg1",
+      role: "agent",
+      content: "Hello world",
+      timestamp: new Date().toISOString(),
+      ...overrides,
+    }
+  }
+
+  function renderMsg(props: Parameters<typeof ChatMessage>[0]) {
+    return render(<MemoryRouter><ChatMessage {...props} /></MemoryRouter>)
+  }
+
+  test("renders Reply button for agent message when onReply provided", () => {
+    renderMsg({ message: makeMsg(), onReply: () => {} })
+    expect(screen.getByLabelText("Reply")).toBeTruthy()
+  })
+
+  test("renders Reply button for user message when onReply provided", () => {
+    renderMsg({ message: makeMsg({ role: "user" }), onReply: () => {} })
+    expect(screen.getByLabelText("Reply")).toBeTruthy()
+  })
+
+  test("Reply button calls onReply with message content", () => {
+    let replied = ""
+    renderMsg({ message: makeMsg({ content: "test content" }), onReply: (c) => { replied = c } })
+    fireEvent.click(screen.getByLabelText("Reply"))
+    expect(replied).toBe("test content")
+  })
+
+  test("omits Reply button when onReply not provided", () => {
+    renderMsg({ message: makeMsg() })
+    expect(screen.queryByLabelText("Reply")).toBeNull()
+  })
+
+  test("does not render actions for system messages", () => {
+    renderMsg({ message: makeMsg({ role: "system", content: "Task started" }), onReply: () => {} })
+    expect(screen.queryByLabelText("Reply")).toBeNull()
+  })
+
+  test("does not render actions for tool call messages", () => {
+    renderMsg({ message: makeMsg({ role: "agent", content: JSON.stringify({ tool: "bash", input: {} }) }), onReply: () => {} })
+    expect(screen.queryByLabelText("Reply")).toBeNull()
+  })
+
+  test("no actions when message has no content", () => {
+    renderMsg({ message: makeMsg({ content: "" }), onReply: () => {} })
+    expect(screen.queryByLabelText("Reply")).toBeNull()
+  })
+
+  test("action buttons are data-driven — Reply button is a BUTTON element", () => {
+    renderMsg({ message: makeMsg(), onReply: () => {} })
+    expect(screen.getByLabelText("Reply").tagName).toBe("BUTTON")
+  })
+})
+
+describe("ChatInput quote chip", () => {
+  test("shows quote chip when quotedMessage is set", () => {
+    render(
+      <ChatInput
+        onSend={() => {}}
+        disabled={false}
+        queueLength={0}
+        quotedMessage="Hello from agent"
+        onQuoteDismiss={() => {}}
+      />
+    )
+    expect(screen.getByText("Hello from agent")).toBeTruthy()
+    expect(screen.getByLabelText("Dismiss quote")).toBeTruthy()
+  })
+
+  test("truncates long quoted message in chip preview", () => {
+    const long = "A".repeat(80)
+    render(
+      <ChatInput
+        onSend={() => {}}
+        disabled={false}
+        queueLength={0}
+        quotedMessage={long}
+        onQuoteDismiss={() => {}}
+      />
+    )
+    // Chip shows truncated text (60 chars + ellipsis)
+    expect(screen.getByText(`${"A".repeat(60)}…`)).toBeTruthy()
+  })
+
+  test("dismiss button calls onQuoteDismiss", () => {
+    let dismissed = false
+    render(
+      <ChatInput
+        onSend={() => {}}
+        disabled={false}
+        queueLength={0}
+        quotedMessage="Some reply"
+        onQuoteDismiss={() => { dismissed = true }}
+      />
+    )
+    fireEvent.click(screen.getByLabelText("Dismiss quote"))
+    expect(dismissed).toBe(true)
+  })
+
+  test("does not show chip when quotedMessage is null", () => {
+    render(
+      <ChatInput
+        onSend={() => {}}
+        disabled={false}
+        queueLength={0}
+        quotedMessage={null}
+        onQuoteDismiss={() => {}}
+      />
+    )
+    expect(screen.queryByLabelText("Dismiss quote")).toBeNull()
+  })
+
+  test("send with quotedMessage prepends quote and clears it", () => {
+    let sent = ""
+    let dismissed = false
+    render(
+      <ChatInput
+        onSend={(t) => { sent = t }}
+        disabled={false}
+        queueLength={0}
+        quotedMessage="agent reply"
+        onQuoteDismiss={() => { dismissed = true }}
+      />
+    )
+    const textarea = screen.getByRole("textbox")
+    fireEvent.change(textarea, { target: { value: "my response" } })
+    fireEvent.keyDown(textarea, { key: "Enter", metaKey: true })
+    expect(sent).toBe("> agent reply\n\nmy response")
+    expect(dismissed).toBe(true)
+  })
+
+  test("send with only quotedMessage and empty textarea sends the quote alone", () => {
+    let sent = ""
+    render(
+      <ChatInput
+        onSend={(t) => { sent = t }}
+        disabled={false}
+        queueLength={0}
+        quotedMessage="just quote"
+        onQuoteDismiss={() => {}}
+      />
+    )
+    const textarea = screen.getByRole("textbox")
+    fireEvent.keyDown(textarea, { key: "Enter", metaKey: true })
+    expect(sent).toBe("> just quote")
   })
 })
