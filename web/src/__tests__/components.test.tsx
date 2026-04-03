@@ -796,6 +796,57 @@ describe("ChatMessage", async () => {
     })
     expect(document.querySelector("del")!.textContent).toBe("deleted")
   })
+
+  test("linkifies task UUID inside inline code (backticks)", () => {
+    const taskId = "abc12345-0000-0000-0000-000000000001"
+    renderChat({
+      message: { role: "assistant", content: `See \`${taskId}\` for details`, timestamp: "2026-03-17T10:00:00Z" },
+      tasks: [{ id: taskId }] as Parameters<typeof ChatMessage>[0]["tasks"],
+    })
+    const link = document.querySelector(`a[href="/tasks/${taskId}"]`)
+    expect(link).toBeTruthy()
+    expect(link!.textContent).toBe("abc12345")
+  })
+
+  test("linkifies task UUID mixed with other text in inline code", () => {
+    const taskId = "abc12345-0000-0000-0000-000000000001"
+    renderChat({
+      message: { role: "assistant", content: `Run \`task ${taskId}\` now`, timestamp: "2026-03-17T10:00:00Z" },
+      tasks: [{ id: taskId }] as Parameters<typeof ChatMessage>[0]["tasks"],
+    })
+    const link = document.querySelector(`a[href="/tasks/${taskId}"]`)
+    expect(link).toBeTruthy()
+    expect(link!.textContent).toBe("abc12345")
+    // The "task " prefix should remain as inline code
+    const codes = document.querySelectorAll("code")
+    expect(Array.from(codes).some((c) => c.textContent === "task ")).toBe(true)
+  })
+
+  test("does not linkify task UUID followed by path segment in inline code", () => {
+    const taskId = "abc12345-0000-0000-0000-000000000001"
+    renderChat({
+      message: { role: "assistant", content: `Check \`${taskId}/logs\``, timestamp: "2026-03-17T10:00:00Z" },
+      tasks: [{ id: taskId }] as Parameters<typeof ChatMessage>[0]["tasks"],
+    })
+    const link = document.querySelector(`a[href="/tasks/${taskId}"]`)
+    expect(link).toBeNull()
+    const code = document.querySelector("code")
+    expect(code!.textContent).toContain(`${taskId}/logs`)
+  })
+
+  test("does not linkify task UUID in API path inside inline code", () => {
+    const taskId = "abc12345-0000-0000-0000-000000000001"
+    renderChat({
+      message: { role: "assistant", content: `Call \`/api/tasks/${taskId}\``, timestamp: "2026-03-17T10:00:00Z" },
+      tasks: [{ id: taskId }] as Parameters<typeof ChatMessage>[0]["tasks"],
+    })
+    const link = document.querySelector(`a[href="/tasks/${taskId}"]`)
+    expect(link).toBeNull()
+    // Should remain as plain inline code
+    const code = document.querySelector("code")
+    expect(code).toBeTruthy()
+    expect(code!.textContent).toContain(`/api/tasks/${taskId}`)
+  })
 })
 
 describe("ToastProvider", () => {
