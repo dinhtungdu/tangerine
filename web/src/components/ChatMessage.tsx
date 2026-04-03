@@ -27,7 +27,11 @@ interface ChatMessageProps {
 function MessageActionsBar({ actions, align = "start" }: { actions: MessageAction[], align?: "start" | "end" }) {
   if (actions.length === 0) return null
   return (
-    <div className={`absolute bottom-0 translate-y-full ${align === "end" ? "right-0" : "left-0"} flex gap-0.5 opacity-0 pointer-events-none transition-opacity group-hover:opacity-100 group-hover:pointer-events-auto group-focus-within:opacity-100 group-focus-within:pointer-events-auto [@media(hover:none)]:opacity-100 [@media(hover:none)]:pointer-events-auto`}>
+    // stopPropagation prevents action button clicks from bubbling to the group toggle handler
+    <div
+      onClick={e => e.stopPropagation()}
+      className={`absolute bottom-0 translate-y-full ${align === "end" ? "right-0" : "left-0"} flex gap-0.5 opacity-0 pointer-events-none transition-opacity group-hover:opacity-100 group-hover:pointer-events-auto group-focus-within:opacity-100 group-focus-within:pointer-events-auto [.actions-open_&]:opacity-100 [.actions-open_&]:pointer-events-auto`}
+    >
       {actions.map((action) => (
         <button
           key={action.key}
@@ -177,6 +181,12 @@ export const ChatMessage = memo(function ChatMessage({ message, tasks, onReply }
   const isNarration = message.role === "narration"
   const isTool = !isUser && !isSystem && !isThinking && !isNarration && isToolCall(message.content)
 
+  const messageRef = useRef<HTMLDivElement>(null)
+
+  const handleGroupClick = useCallback(() => {
+    messageRef.current?.classList.toggle("actions-open")
+  }, [])
+
   const [copied, setCopied] = useState(false)
   const copiedTimer = useRef<ReturnType<typeof setTimeout>>(undefined)
   const handleCopy = useCallback(() => {
@@ -224,7 +234,7 @@ export const ChatMessage = memo(function ChatMessage({ message, tasks, onReply }
 
   if (isUser) {
     return (
-      <div className="animate-fade-in group relative flex flex-col items-end gap-0.5">
+      <div ref={messageRef} onClick={handleGroupClick} className="animate-fade-in group relative flex flex-col items-end gap-0.5">
         <div className="max-w-[280px] md:max-w-[480px] rounded-xl bg-surface-dark px-3.5 py-2.5">
           {message.images && message.images.length > 0 && (
             <>
@@ -333,7 +343,7 @@ export const ChatMessage = memo(function ChatMessage({ message, tasks, onReply }
 
   // Agent message
   return (
-    <div className="animate-fade-in group relative flex flex-col gap-1.5">
+    <div ref={messageRef} onClick={handleGroupClick} className="animate-fade-in group relative flex flex-col gap-1.5">
       <div className="flex items-center gap-2">
         <div className="flex h-5 w-5 items-center justify-center rounded-[10px] bg-surface-dark">
           <svg className="h-2.5 w-2.5 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
