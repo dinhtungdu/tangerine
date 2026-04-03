@@ -692,6 +692,25 @@ describe("linkifyTaskIds", () => {
     expect(result).toContain(" for details")
   })
 
+  test("linkifies UUID adjacent to punctuation", () => {
+    const result = linkifyTaskIds("(abc12345-0000-0000-0000-000000000001)", tasks)
+    expect(result).toContain('<a href="/tasks/abc12345-0000-0000-0000-000000000001"')
+  })
+
+  test("does not linkify UUIDs inside URL paths", () => {
+    const url = "/api/tasks/abc12345-0000-0000-0000-000000000001/messages"
+    const result = linkifyTaskIds(url, tasks)
+    expect(result).toBe(url)
+    expect(result).not.toContain("<a")
+  })
+
+  test("does not linkify UUIDs in full URLs", () => {
+    const url = "http://localhost:3456/api/tasks/abc12345-0000-0000-0000-000000000001"
+    const result = linkifyTaskIds(url, tasks)
+    expect(result).toBe(url)
+    expect(result).not.toContain("<a")
+  })
+
   test("is case-insensitive and uses canonical task ID in href", () => {
     const result = linkifyTaskIds("ABC12345-0000-0000-0000-000000000001", tasks)
     // Link is produced and href uses canonical lowercase ID, not the matched text

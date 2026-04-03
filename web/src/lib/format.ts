@@ -48,7 +48,9 @@ export function formatTimestamp(iso: string): string {
   return `${date} · ${time}`
 }
 
-const UUID_RE = /\b([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})\b/gi
+// Match UUIDs at word boundaries but skip those preceded by "/" to avoid
+// linkifying IDs inside URL paths like /api/tasks/<uuid>
+const UUID_RE = /(?<!\/)\b([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})\b/gi
 
 /** Replace full UUIDs matching known task IDs with short HTML anchor tags.
  *  Input must already be HTML-escaped. Only UUIDs present in tasks are linked;
