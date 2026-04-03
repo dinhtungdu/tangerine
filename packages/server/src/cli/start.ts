@@ -713,7 +713,7 @@ export async function start(): Promise<void> {
         resolveTask: (taskId) => taskManager.resolveTask(tmDeps, taskId).pipe(
           Effect.mapError((e) => ({ _tag: e._tag, message: e.message }))
         ),
-        sendPrompt: (taskId, text, images) =>
+        sendPrompt: (taskId, text, images, fromTaskId) =>
           Effect.gen(function* () {
             // Save images to disk and store filenames in session_logs
             let imageFilenames: string[] | undefined
@@ -744,6 +744,7 @@ export async function start(): Promise<void> {
               role: "user",
               content: text,
               images: imageFilenames ? JSON.stringify(imageFilenames) : null,
+              from_task_id: fromTaskId ?? null,
             }).pipe(
               Effect.catchAll(() => Effect.void)
             )

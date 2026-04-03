@@ -223,7 +223,7 @@ curl "$API/api/config"
 ```bash
 curl -X POST "$API/api/tasks/<target-task-id>/prompt" \
   -H "Content-Type: application/json" \
-  -d '{"text":"Discovered a failing edge case. Please investigate."}'
+  -d '{"text":"Discovered a failing edge case. Please investigate.","fromTaskId":"'"$TANGERINE_TASK_ID"'"}'
 ```
 
 > ⚠️ **Orchestrators: do NOT use `/prompt` to add new requirements to a running worker.** `/prompt` is only for unblocking or clarifying the worker's existing scope. New requirements = create a new task.
