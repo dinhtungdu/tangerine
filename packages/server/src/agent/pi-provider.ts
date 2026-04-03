@@ -34,6 +34,11 @@ const log = createLogger("pi-provider")
 //   queue_update             → (ignored)
 // ---------------------------------------------------------------------------
 
+// Accumulates thinking deltas across thinking_start/thinking_end boundaries.
+// Pi streams thinking as individual token deltas — without buffering, each
+// delta would be persisted as a separate session_log row and chat message.
+let thinkingBuffer = ""
+
 function mapPiEvent(data: Record<string, unknown>): AgentEvent[] {
   const type = data.type as string | undefined
   if (!type) return []
@@ -54,10 +59,20 @@ function mapPiEvent(data: Record<string, unknown>): AgentEvent[] {
 
       const ameType = ame.type as string | undefined
 
-      // Thinking/reasoning delta
+      // Thinking/reasoning — buffer deltas, emit on end
+      if (ameType === "thinking_start") {
+        thinkingBuffer = ""
+        return []
+      }
       if (ameType === "thinking_delta") {
         const delta = typeof ame.delta === "string" ? ame.delta : ""
-        if (delta) return [{ kind: "thinking", content: delta }]
+        thinkingBuffer += delta
+        return []
+      }
+      if (ameType === "thinking_end") {
+        const content = thinkingBuffer
+        thinkingBuffer = ""
+        if (content) return [{ kind: "thinking", content: truncate(content, 300) }]
         return []
       }
 
@@ -351,7 +366,7 @@ export function createPiProvider(): AgentFactory {
                   if (images && images.length > 0) {
                     cmd.images = images.map((img) => ({
                       type: "image",
-                      source: { type: "base64", mediaType: img.mediaType, data: img.data },
+                      source: { type: "base64", media_type: img.mediaType, data: img.data },
                     }))
                   }
                   sendCommand(cmd)
