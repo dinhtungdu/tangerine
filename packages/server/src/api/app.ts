@@ -35,7 +35,7 @@ export interface AppDeps {
     cancelTask(taskId: string): Effect.Effect<void, TaggedError>
     completeTask(taskId: string): Effect.Effect<void, TaggedError>
     resolveTask(taskId: string): Effect.Effect<void, TaggedError>
-    sendPrompt(taskId: string, text: string, images?: import("../agent/provider").PromptImage[]): Effect.Effect<void, TaggedError>
+    sendPrompt(taskId: string, text: string, images?: import("../agent/provider").PromptImage[], fromTaskId?: string): Effect.Effect<void, TaggedError>
     abortTask(taskId: string): Effect.Effect<void, TaggedError>
     changeConfig(taskId: string, config: { model?: string; reasoningEffort?: string }): Effect.Effect<void, TaggedError>
     cleanupTask(taskId: string): Effect.Effect<void, TaggedError>
