@@ -269,17 +269,7 @@ Choose a short slug that describes the change (e.g. `fix/worktree-cleanup`, `fea
 
 ## Required: Codex Review
 
-All worker and reviewer tasks must run `codex review` — but only if codex is installed.
-
-**Check first:**
-
-```bash
-if ! command -v codex >/dev/null 2>&1; then
-  echo "codex not installed — skipping codex review"
-fi
-```
-
-If codex is not installed, skip the review step entirely and proceed with the rest of the workflow.
+All worker and reviewer tasks must run `codex review` if codex is installed. If not, skip and continue.
 
 ### Worker tasks — self-review before PR
 
