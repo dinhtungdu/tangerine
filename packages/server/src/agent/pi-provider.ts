@@ -214,6 +214,8 @@ export function createPiProvider(): AgentFactory {
           let sessionId: string | null = null
           // Track the current model's provider for set_model commands
           let currentModelProvider: string | null = null
+          // Skills discovered from get_state response
+          let discoveredSkills: string[] = []
 
           const emit = (event: AgentEvent) => {
             for (const cb of subscribers) cb(event)
@@ -224,7 +226,6 @@ export function createPiProvider(): AgentFactory {
             "pi",
             "--mode", "rpc",
             "--no-extensions",
-            "--no-skills",
             "--no-prompt-templates",
             "--no-themes",
             ...(ctx.model ? ["--model", ctx.model] : []),
@@ -299,6 +300,10 @@ export function createPiProvider(): AgentFactory {
                     const model = stateData.model as Record<string, unknown> | undefined
                     if (model && typeof model.provider === "string") {
                       currentModelProvider = model.provider
+                    }
+                    // Capture available skills from state
+                    if (Array.isArray(stateData.skills)) {
+                      discoveredSkills = stateData.skills.filter((s): s is string => typeof s === "string")
                     }
                   }
                   emit({ kind: "status", status: "idle" })
@@ -460,6 +465,10 @@ export function createPiProvider(): AgentFactory {
               } catch {
                 return false
               }
+            },
+
+            getSkills() {
+              return discoveredSkills
             },
           }
 

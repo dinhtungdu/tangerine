@@ -76,6 +76,8 @@ export function createClaudeCodeProvider(): AgentFactory {
           let shutdownCalled = false
           // Capture the real session ID from Claude's init event (may differ from what we passed)
           let resolvedSessionId = sessionId
+          // Skills discovered from system/init event
+          let discoveredSkills: string[] = []
           // Stateful mapper — buffers images from tool results for next narration
           const mapClaudeCodeEvent = createClaudeCodeMapper()
 
@@ -86,10 +88,13 @@ export function createClaudeCodeProvider(): AgentFactory {
               onLine: (data) => {
                 const raw = data as Record<string, unknown>
 
-                // Capture session_id from system init event and signal ready
+                // Capture session_id and skills from system init event and signal ready
                 if (raw.type === "system" && raw.subtype === "init" && typeof raw.session_id === "string") {
                   resolvedSessionId = raw.session_id
-                  taskLog.info("Claude Code session resolved", { sessionId: resolvedSessionId })
+                  if (Array.isArray(raw.skills)) {
+                    discoveredSkills = raw.skills.filter((s): s is string => typeof s === "string")
+                  }
+                  taskLog.info("Claude Code session resolved", { sessionId: resolvedSessionId, skillCount: discoveredSkills.length })
                   const idle: AgentEvent = { kind: "status", status: "idle" }
                   for (const cb of subscribers) cb(idle)
                 }
@@ -209,6 +214,10 @@ export function createClaudeCodeProvider(): AgentFactory {
               } catch {
                 return false
               }
+            },
+
+            getSkills() {
+              return discoveredSkills
             },
           }
 
