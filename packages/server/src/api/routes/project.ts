@@ -4,11 +4,14 @@ import type { AppDeps } from "../app"
 import { mapTaskRow } from "../helpers"
 import { runEffect, runEffectVoid } from "../effect-helpers"
 import { discoverModels, discoverModelsByProvider } from "../../models"
-import { projectConfigSchema, tangerineConfigSchema } from "@tangerine/shared"
+import { projectConfigSchema, tangerineConfigSchema, TERMINAL_STATUSES } from "@tangerine/shared"
 import { ProjectNotFoundError, ProjectExistsError, ConfigValidationError } from "../../errors"
 import { checkForUpdate, clearUpdateStatus } from "../../self-update"
 import { getRepoDir } from "../../config"
 import { createLogger } from "../../logger"
+import { listTasks } from "../../db/queries"
+import { deletePoolForProject, localExec } from "../../tasks/worktree-pool"
+import type { WorktreeSlotRow } from "../../db/types"
 
 const log = createLogger("project-routes")
 
@@ -265,6 +268,95 @@ export function projectRoutes(deps: AppDeps): Hono {
         }
 
         return { updated, from, to, postUpdateOutput, restart }
+      })
+    )
+  })
+
+  // Archive a project: set archived flag, cancel running tasks, remove worktrees
+  app.post("/:name/archive", (c) => {
+    const name = c.req.param("name")
+    return runEffectVoid(c,
+      Effect.gen(function* () {
+        const index = deps.config.config.projects.findIndex((p) => p.name === name)
+        if (index === -1) {
+          return yield* Effect.fail(new ProjectNotFoundError({ name }))
+        }
+
+        const project = deps.config.config.projects[index]!
+        if (project.archived) {
+          return // already archived
+        }
+
+        // 1. Update config
+        const raw = deps.configStore.read()
+        const rawIndex = (raw.projects ?? []).findIndex((p) => p.name === name)
+        if (rawIndex !== -1) {
+          raw.projects![rawIndex]!.archived = true
+        }
+        const fullParsed = tangerineConfigSchema.safeParse(raw)
+        if (!fullParsed.success) {
+          return yield* Effect.fail(new ConfigValidationError({ message: fullParsed.error.message }))
+        }
+        deps.configStore.write(raw)
+        deps.config.config = fullParsed.data
+
+        // 2. Cancel running tasks for this project
+        const tasks = yield* listTasks(deps.db, { projectId: name })
+        for (const task of tasks) {
+          if (!TERMINAL_STATUSES.has(task.status)) {
+            yield* deps.taskManager.cancelTask(task.id).pipe(Effect.catchAll(() => Effect.void))
+          }
+        }
+
+        // 3. Remove worktrees (physical directories + DB slots)
+        const repoDir = getRepoDir(deps.config.config, name)
+        const slots = deps.db.prepare(
+          "SELECT * FROM worktree_slots WHERE project_id = ? AND id NOT LIKE '%slot-0'"
+        ).all(name) as WorktreeSlotRow[]
+
+        for (const slot of slots) {
+          yield* localExec(`cd "${repoDir}" && git worktree remove --force "${slot.path}" 2>/dev/null; true`).pipe(
+            Effect.catchAll(() => Effect.void)
+          )
+        }
+        yield* localExec(`cd "${repoDir}" && git worktree prune 2>/dev/null; true`).pipe(
+          Effect.catchAll(() => Effect.void)
+        )
+        yield* deletePoolForProject(deps.db, name).pipe(Effect.ignoreLogged)
+
+        log.info("Project archived", { name })
+      })
+    )
+  })
+
+  // Unarchive a project
+  app.post("/:name/unarchive", (c) => {
+    const name = c.req.param("name")
+    return runEffectVoid(c,
+      Effect.gen(function* () {
+        const index = deps.config.config.projects.findIndex((p) => p.name === name)
+        if (index === -1) {
+          return yield* Effect.fail(new ProjectNotFoundError({ name }))
+        }
+
+        const project = deps.config.config.projects[index]!
+        if (!project.archived) {
+          return // already unarchived
+        }
+
+        const raw = deps.configStore.read()
+        const rawIndex = (raw.projects ?? []).findIndex((p) => p.name === name)
+        if (rawIndex !== -1) {
+          raw.projects![rawIndex]!.archived = false
+        }
+        const fullParsed = tangerineConfigSchema.safeParse(raw)
+        if (!fullParsed.success) {
+          return yield* Effect.fail(new ConfigValidationError({ message: fullParsed.error.message }))
+        }
+        deps.configStore.write(raw)
+        deps.config.config = fullParsed.data
+
+        log.info("Project unarchived", { name })
       })
     )
   })

@@ -50,6 +50,9 @@ export function taskRoutes(deps: AppDeps): Hono {
     if (!project) {
       return c.json({ error: `Unknown project: ${projectId}` }, 400)
     }
+    if (project.archived) {
+      return c.json({ error: `Project "${projectId}" is archived — unarchive it before creating tasks` }, 400)
+    }
     const validProviders = new Set(["opencode", "claude-code", "codex", "pi"])
     if (body.provider !== undefined && !validProviders.has(body.provider)) {
       return c.json({ error: `Invalid provider: ${body.provider}. Must be opencode, claude-code, codex, or pi` }, 400)

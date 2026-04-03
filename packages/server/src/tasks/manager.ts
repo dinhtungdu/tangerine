@@ -69,6 +69,10 @@ export function createTask(
       return yield* Effect.fail(new Error(`Unknown project: ${params.projectId}`))
     }
 
+    if (projectConfig.archived) {
+      return yield* Effect.fail(new Error(`Project "${params.projectId}" is archived — unarchive it before creating tasks`))
+    }
+
     // Enforce one orchestrator per project
     const taskType: TaskType = params.type ?? "worker"
     if (taskType === "orchestrator") {

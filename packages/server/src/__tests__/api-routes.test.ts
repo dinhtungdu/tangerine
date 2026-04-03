@@ -764,6 +764,83 @@ describe("API routes", () => {
     })
   })
 
+  describe("POST /api/projects/:name/archive", () => {
+    test("archives a project", async () => {
+      const res = await app.fetch(new Request("http://localhost/api/projects/test-project/archive", { method: "POST" }))
+      expect(res.status).toBe(200)
+      expect(deps.config.config.projects[0]!.archived).toBe(true)
+    })
+
+    test("is idempotent when already archived", async () => {
+      await app.fetch(new Request("http://localhost/api/projects/test-project/archive", { method: "POST" }))
+      const res = await app.fetch(new Request("http://localhost/api/projects/test-project/archive", { method: "POST" }))
+      expect(res.status).toBe(200)
+    })
+
+    test("returns 404 for unknown project", async () => {
+      const res = await app.fetch(new Request("http://localhost/api/projects/nonexistent/archive", { method: "POST" }))
+      expect(res.status).toBe(404)
+    })
+
+    test("cancels running tasks on archive", async () => {
+      const row = seedTask(db, { title: "Running task" })
+      db.prepare("UPDATE tasks SET status = 'running' WHERE id = ?").run(row.id)
+
+      await app.fetch(new Request("http://localhost/api/projects/test-project/archive", { method: "POST" }))
+
+      const updated = db.prepare("SELECT status FROM tasks WHERE id = ?").get(row.id) as { status: string }
+      expect(updated.status).toBe("cancelled")
+    })
+  })
+
+  describe("POST /api/projects/:name/unarchive", () => {
+    test("unarchives a project", async () => {
+      await app.fetch(new Request("http://localhost/api/projects/test-project/archive", { method: "POST" }))
+      expect(deps.config.config.projects[0]!.archived).toBe(true)
+
+      const res = await app.fetch(new Request("http://localhost/api/projects/test-project/unarchive", { method: "POST" }))
+      expect(res.status).toBe(200)
+      expect(deps.config.config.projects[0]!.archived).toBe(false)
+    })
+
+    test("is idempotent when not archived", async () => {
+      const res = await app.fetch(new Request("http://localhost/api/projects/test-project/unarchive", { method: "POST" }))
+      expect(res.status).toBe(200)
+    })
+
+    test("returns 404 for unknown project", async () => {
+      const res = await app.fetch(new Request("http://localhost/api/projects/nonexistent/unarchive", { method: "POST" }))
+      expect(res.status).toBe(404)
+    })
+  })
+
+  describe("POST /api/tasks (archived project)", () => {
+    test("returns 400 when creating task for archived project", async () => {
+      await app.fetch(new Request("http://localhost/api/projects/test-project/archive", { method: "POST" }))
+
+      const res = await app.fetch(new Request("http://localhost/api/tasks", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ projectId: "test-project", title: "New task" }),
+      }))
+      expect(res.status).toBe(400)
+      const body = await res.json() as { error: string }
+      expect(body.error).toContain("archived")
+    })
+
+    test("allows task creation after unarchive", async () => {
+      await app.fetch(new Request("http://localhost/api/projects/test-project/archive", { method: "POST" }))
+      await app.fetch(new Request("http://localhost/api/projects/test-project/unarchive", { method: "POST" }))
+
+      const res = await app.fetch(new Request("http://localhost/api/tasks", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ projectId: "test-project", title: "New task after unarchive" }),
+      }))
+      expect(res.status).toBe(201)
+    })
+  })
+
   describe("tmuxSessionName", () => {
     test("uses first 8 chars of task ID with tng- prefix", () => {
       expect(tmuxSessionName("b1c01db0-3c2a-4735-9534-b12d33ec34f8")).toBe("tng-b1c01db0")
