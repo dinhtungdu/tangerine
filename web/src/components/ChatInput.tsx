@@ -27,6 +27,9 @@ interface ChatInputProps {
   /** Raw message content to quote; shown as a chip above the input. Prepended as blockquote on send. */
   quotedMessage?: string | null
   onQuoteDismiss?: () => void
+  /** Text currently selected in the message area; drives the Quote button visibility */
+  selectedText?: string | null
+  onQuoteSelection?: () => void
   /** When this value changes, the input is focused. Pass the task ID to focus on navigation. */
   autoFocusKey?: string
 }
@@ -44,7 +47,7 @@ export function appendQuotedText(existingText: string, quotedText: string): stri
   return `${prefix}${quotedText}\n\n`
 }
 
-export function ChatInput({ onSend, disabled, queueLength, taskId, isWorking, onAbort, model, provider, providerModels, reasoningEffort, onModelChange, onReasoningEffortChange, predefinedPrompts, quotedMessage, onQuoteDismiss, autoFocusKey }: ChatInputProps) {
+export function ChatInput({ onSend, disabled, queueLength, taskId, isWorking, onAbort, model, provider, providerModels, reasoningEffort, onModelChange, onReasoningEffortChange, predefinedPrompts, quotedMessage, onQuoteDismiss, selectedText, onQuoteSelection, autoFocusKey }: ChatInputProps) {
   const draftKey = taskId ? `tangerine:chat-draft:${taskId}` : null
 
   const [text, setText] = useState(() => draftKey ? (loadChatDraft(draftKey).text ?? "") : "")
@@ -224,11 +227,22 @@ export function ChatInput({ onSend, disabled, queueLength, taskId, isWorking, on
 
   return (
     <div className="relative border-t border-edge bg-surface px-3 py-2 md:bg-surface md:p-3 md:px-4">
-      {/* Predefined prompt chips — absolutely positioned to avoid layout shift */}
-      {showPrompts && predefinedPrompts && (
+      {/* Predefined prompt chips + Quote button — absolutely positioned to avoid layout shift */}
+      {(showPrompts || selectedText) && (
         <div className="pointer-events-none absolute bottom-full left-0 right-0 px-3 pb-2 md:px-4">
           <div className="pointer-events-auto flex gap-1.5 overflow-x-auto pb-0.5 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
-            {predefinedPrompts.map((prompt, i) => (
+            {selectedText && onQuoteSelection && (
+              <button
+                onMouseDown={(e) => { e.preventDefault(); onQuoteSelection() }}
+                className="pointer-events-auto shrink-0 flex items-center gap-1.5 rounded-md border border-tangerine/30 bg-tangerine/10 px-3 py-1 text-xs font-medium text-tangerine shadow-sm transition hover:bg-tangerine/20"
+              >
+                <svg className="h-3 w-3" fill="currentColor" viewBox="0 0 24 24">
+                  <path d="M14.017 21v-7.391c0-5.704 3.731-9.57 8.983-10.609l.995 2.151c-2.432.917-3.995 3.293-3.995 5.848h4v10h-9.983zm-14.017 0v-7.391c0-5.704 3.748-9.57 9-10.609l.996 2.151c-2.433.917-3.996 3.293-3.996 5.848h3.983v10h-9.983z" />
+                </svg>
+                Quote
+              </button>
+            )}
+            {showPrompts && predefinedPrompts && predefinedPrompts.map((prompt, i) => (
               <button
                 key={i}
                 onMouseDown={(e) => handlePromptClick(e, prompt.text)}

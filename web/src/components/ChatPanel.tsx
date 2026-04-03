@@ -96,6 +96,33 @@ export function ChatPanel({
     setPendingQuote(content)
   }, [])
 
+  // Track text selection inside the messages area for the Quote button
+  const [selectedText, setSelectedText] = useState<string | null>(null)
+  // Clear stale selection when switching tasks
+  useEffect(() => { setSelectedText(null) }, [taskId])
+  useEffect(() => {
+    const el = scrollRef.current
+    if (!el) return
+    const handleSelection = () => {
+      const sel = window.getSelection()
+      if (!sel || sel.isCollapsed) { setSelectedText(null); return }
+      // Only track selections inside the messages scroll area
+      const anchor = sel.anchorNode
+      if (!anchor || !el.contains(anchor)) { setSelectedText(null); return }
+      const text = sel.toString().trim()
+      setSelectedText(text || null)
+    }
+    document.addEventListener("selectionchange", handleSelection)
+    return () => document.removeEventListener("selectionchange", handleSelection)
+  }, [])
+
+  const handleQuoteSelection = useCallback(() => {
+    if (!selectedText) return
+    setPendingQuote(selectedText)
+    window.getSelection()?.removeAllRanges()
+    setSelectedText(null)
+  }, [selectedText])
+
   const thinkingCount = useMemo(
     () => messages.filter((m) => m.role === "thinking" || m.role === "narration").length,
     [messages],
@@ -200,6 +227,8 @@ export function ChatPanel({
           predefinedPrompts={predefinedPrompts}
           quotedMessage={effectivePendingQuote}
           onQuoteDismiss={() => setPendingQuote(null)}
+          selectedText={selectedText}
+          onQuoteSelection={handleQuoteSelection}
           autoFocusKey={autoFocusKey}
         />
         </>

@@ -490,6 +490,34 @@ describe("ChatPanel", () => {
     // Quote chip appears above the input
     expect(screen.getByLabelText("Dismiss quote")).toBeTruthy()
   })
+
+  test("Quote button appears when selectedText is passed to ChatInput", () => {
+    render(
+      <ChatInput
+        onSend={() => {}}
+        disabled={false}
+        queueLength={0}
+        selectedText="some selected text"
+        onQuoteSelection={() => {}}
+      />
+    )
+
+    expect(screen.getByText("Quote")).toBeTruthy()
+  })
+
+  test("Quote button hidden when no selectedText", () => {
+    render(
+      <ChatInput
+        onSend={() => {}}
+        disabled={false}
+        queueLength={0}
+        selectedText={null}
+        onQuoteSelection={() => {}}
+      />
+    )
+
+    expect(screen.queryByText("Quote")).toBeNull()
+  })
 })
 
 describe("CommandPalette", () => {
