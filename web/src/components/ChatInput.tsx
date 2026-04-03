@@ -3,6 +3,7 @@ import type { PromptImage, PredefinedPrompt, ProviderType, Task } from "@tangeri
 import { ModelSelector } from "./ModelSelector"
 import { ReasoningEffortSelector, type ReasoningEffort } from "./ReasoningEffortSelector"
 import { MentionPicker } from "./MentionPicker"
+import { SlashCommandPicker } from "./SlashCommandPicker"
 import { useMentionPicker } from "../hooks/useMentionPicker"
 import { useTasks } from "../hooks/useTasks"
 
@@ -61,6 +62,26 @@ export function ChatInput({ onSend, disabled, queueLength, taskId, isWorking, on
   const textRef = useRef(text)
   textRef.current = text
 
+  // Slash command (skill) picker state
+  const [skills, setSkills] = useState<string[]>([])
+  const [slashState, setSlashState] = useState<{ isOpen: boolean; query: string; selectedIndex: number; triggerStart: number }>({
+    isOpen: false, query: "", selectedIndex: 0, triggerStart: -1,
+  })
+  const slashStateRef = useRef(slashState)
+  slashStateRef.current = slashState
+  const skillsRef = useRef(skills)
+  skillsRef.current = skills
+
+  // Fetch skills on mount and whenever the agent finishes a turn (isWorking → false),
+  // because Claude/Pi populate skills asynchronously from the init/state event.
+  useEffect(() => {
+    if (!taskId || isWorking) return
+    fetch(`/api/tasks/${taskId}/skills`)
+      .then((r) => r.ok ? r.json() as Promise<{ skills: string[] }> : Promise.resolve({ skills: [] }))
+      .then((data) => { if (data.skills.length > 0) setSkills(data.skills) })
+      .catch(() => {})
+  }, [taskId, isWorking])
+
   // Ref to latest draft state — used in the unmount cleanup to avoid stale closures
   const draftStateRef = useRef({ text, pendingImages })
   useEffect(() => { draftStateRef.current = { text, pendingImages } }, [text, pendingImages])
@@ -79,6 +100,31 @@ export function ChatInput({ onSend, disabled, queueLength, taskId, isWorking, on
       } catch { /* ignore */ }
     }
   }, [draftKey])
+
+  const filteredSkills = slashState.isOpen
+    ? skills.filter((s) => s.toLowerCase().includes(slashState.query.toLowerCase())).slice(0, 8)
+    : []
+
+  const closeSlash = useCallback(() => {
+    setSlashState({ isOpen: false, query: "", selectedIndex: 0, triggerStart: -1 })
+  }, [])
+
+  const selectSkill = useCallback((skill: string) => {
+    const { triggerStart, query } = slashStateRef.current
+    const currentText = textRef.current
+    const before = currentText.slice(0, triggerStart)
+    const after = currentText.slice(triggerStart + 1 + query.length)
+    const newText = `${before}/${skill} ${after}`
+    setText(newText)
+    setSlashState({ isOpen: false, query: "", selectedIndex: 0, triggerStart: -1 })
+    requestAnimationFrame(() => {
+      const textarea = textareaRef.current
+      if (!textarea) return
+      const pos = before.length + skill.length + 2 // "/<skill> "
+      textarea.setSelectionRange(pos, pos)
+      textarea.focus()
+    })
+  }, [])
 
   const handleSend = useCallback(() => {
     const trimmed = text.trim()
@@ -127,12 +173,40 @@ export function ChatInput({ onSend, disabled, queueLength, taskId, isWorking, on
         }
         if (m.onKeyDown(e)) return
       }
+      // Slash command picker keys
+      const slash = slashStateRef.current
+      if (slash.isOpen) {
+        if (e.key === "Escape") {
+          e.preventDefault()
+          closeSlash()
+          return
+        }
+        if (e.key === "ArrowDown") {
+          e.preventDefault()
+          setSlashState((s) => ({ ...s, selectedIndex: Math.min(s.selectedIndex + 1, skillsRef.current.filter((sk) => sk.toLowerCase().includes(s.query.toLowerCase())).slice(0, 8).length - 1) }))
+          return
+        }
+        if (e.key === "ArrowUp") {
+          e.preventDefault()
+          setSlashState((s) => ({ ...s, selectedIndex: Math.max(s.selectedIndex - 1, 0) }))
+          return
+        }
+        if (e.key === "Enter" || e.key === "Tab") {
+          const filtered = skillsRef.current.filter((sk) => sk.toLowerCase().includes(slash.query.toLowerCase())).slice(0, 8)
+          const skill = filtered[slash.selectedIndex]
+          if (skill) {
+            e.preventDefault()
+            selectSkill(skill)
+            return
+          }
+        }
+      }
       if (e.key === "Enter" && !e.shiftKey && !e.metaKey && !e.ctrlKey) {
         e.preventDefault()
         handleSend()
       }
     },
-    [handleSend, handleMentionSelect],
+    [handleSend, handleMentionSelect, closeSlash, selectSkill],
   )
 
   const handleInput = useCallback(() => {
@@ -308,13 +382,43 @@ export function ChatInput({ onSend, disabled, queueLength, taskId, isWorking, on
               onHover={(i) => mention.setSelectedIndex(i)}
             />
           )}
+          {slashState.isOpen && filteredSkills.length > 0 && (
+            <SlashCommandPicker
+              skills={filteredSkills}
+              selectedIndex={slashState.selectedIndex}
+              onSelect={selectSkill}
+              onHover={(i) => setSlashState((s) => ({ ...s, selectedIndex: i }))}
+            />
+          )}
           <textarea
             ref={textareaRef}
             value={text}
             onChange={(e) => {
-              setText(e.target.value)
+              const val = e.target.value
+              const cursor = e.target.selectionStart ?? val.length
+              setText(val)
               handleInput()
-              mention.onTextChange(e.target.value, e.target.selectionStart ?? e.target.value.length)
+              mention.onTextChange(val, cursor)
+              // Detect slash trigger: `/` at start of text or after whitespace
+              let si = cursor - 1
+              while (si >= 0) {
+                const ch = val[si]
+                if (ch === "/") {
+                  if (si === 0 || val[si - 1] === " " || val[si - 1] === "\n") {
+                    const query = val.slice(si + 1, cursor)
+                    if (!query.includes(" ") && !query.includes("\n") && skillsRef.current.length > 0) {
+                      setSlashState({ isOpen: true, query, selectedIndex: 0, triggerStart: si })
+                    } else {
+                      closeSlash()
+                    }
+                    break
+                  }
+                  break
+                }
+                if (ch === " " || ch === "\n") { closeSlash(); break }
+                si--
+              }
+              if (si < 0) closeSlash()
             }}
             onKeyDown={handleKeyDown}
             onPaste={handlePaste}
@@ -325,6 +429,7 @@ export function ChatInput({ onSend, disabled, queueLength, taskId, isWorking, on
             onBlur={() => {
               setIsFocused(false)
               mention.close()
+              closeSlash()
               if (textareaRef.current) {
                 textareaRef.current.style.height = "auto"
               }

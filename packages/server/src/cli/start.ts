@@ -859,6 +859,7 @@ export async function start(): Promise<void> {
         write: writeRawConfig,
       },
       config,
+      getAgentHandle: (taskId) => agentHandles.get(taskId) ?? null,
     }
 
     const { app, websocket } = createApp(deps)

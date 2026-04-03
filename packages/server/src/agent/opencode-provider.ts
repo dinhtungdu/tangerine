@@ -12,6 +12,7 @@ import { parseNdjsonStream } from "./ndjson"
 import { existsSync, readFileSync, unlinkSync } from "node:fs"
 import { homedir } from "node:os"
 import { join } from "node:path"
+import { scanClaudeSkills } from "./skill-scanner"
 
 const log = createLogger("opencode-provider")
 
@@ -594,6 +595,10 @@ export function createOpenCodeProvider(): AgentFactory {
                 }
               }
               return true
+            },
+
+            getSkills() {
+              return scanClaudeSkills()
             },
           }
 

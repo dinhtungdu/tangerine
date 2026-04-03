@@ -10,6 +10,7 @@ import type { AgentFactory, AgentHandle, AgentEvent, AgentStartContext, PromptIm
 import { parseNdjsonStream } from "./ndjson"
 import { existsSync, readFileSync } from "node:fs"
 import { homedir } from "node:os"
+import { scanCodexSkills } from "./skill-scanner"
 import { join } from "node:path"
 
 const log = createLogger("codex-provider")
@@ -603,6 +604,10 @@ export function createCodexProvider(): AgentFactory {
               } catch {
                 return false
               }
+            },
+
+            getSkills() {
+              return scanCodexSkills()
             },
           }
 

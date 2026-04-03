@@ -117,6 +117,7 @@ function createMockDeps(db: Database, configOverrides?: Partial<AppDeps["config"
         externalHost: "localhost",
       },
     } satisfies AppDeps["config"],
+    getAgentHandle: () => null,
   }
 }
 

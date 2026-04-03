@@ -139,5 +139,10 @@ export function sessionRoutes(deps: AppDeps): Hono {
     )
   })
 
+  app.get("/:id/skills", (c) => {
+    const handle = deps.getAgentHandle(c.req.param("id"))
+    return c.json({ skills: handle?.getSkills?.() ?? [] })
+  })
+
   return app
 }

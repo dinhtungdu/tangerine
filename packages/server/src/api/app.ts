@@ -53,6 +53,7 @@ export interface AppDeps {
     write(config: import("../config").RawConfig): void
   }
   config: AppConfig
+  getAgentHandle(taskId: string): import("../agent/provider").AgentHandle | null
 }
 
 export function createApp(deps: AppDeps): { app: Hono; websocket: ReturnType<typeof createBunWebSocket>["websocket"] } {
