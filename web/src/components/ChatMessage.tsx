@@ -1,4 +1,4 @@
-import { memo, useState, useMemo, useCallback, useRef, useEffect } from "react"
+import { memo, useState, useMemo, useCallback, useRef } from "react"
 import type { Components } from "react-markdown"
 import ReactMarkdown from "react-markdown"
 import remarkGfm from "remark-gfm"
@@ -24,13 +24,13 @@ interface ChatMessageProps {
   onReply?: (content: string) => void
 }
 
-function MessageActionsBar({ actions, align = "start", showActions = false }: { actions: MessageAction[], align?: "start" | "end", showActions?: boolean }) {
+function MessageActionsBar({ actions, align = "start" }: { actions: MessageAction[], align?: "start" | "end" }) {
   if (actions.length === 0) return null
   return (
     // stopPropagation prevents action button clicks from bubbling to the group toggle handler
     <div
       onClick={e => e.stopPropagation()}
-      className={`absolute bottom-0 translate-y-full ${align === "end" ? "right-0" : "left-0"} flex gap-0.5 pointer-events-none transition-opacity group-hover:opacity-100 group-hover:pointer-events-auto group-focus-within:opacity-100 group-focus-within:pointer-events-auto ${showActions ? "opacity-100 pointer-events-auto" : "opacity-0"}`}
+      className={`absolute bottom-0 translate-y-full ${align === "end" ? "right-0" : "left-0"} flex gap-0.5 opacity-0 pointer-events-none transition-opacity group-hover:opacity-100 group-hover:pointer-events-auto group-focus-within:opacity-100 group-focus-within:pointer-events-auto [.actions-open_&]:opacity-100 [.actions-open_&]:pointer-events-auto`}
     >
       {actions.map((action) => (
         <button
@@ -181,25 +181,11 @@ export const ChatMessage = memo(function ChatMessage({ message, tasks, onReply }
   const isNarration = message.role === "narration"
   const isTool = !isUser && !isSystem && !isThinking && !isNarration && isToolCall(message.content)
 
-  const [showActions, setShowActions] = useState(false)
   const messageRef = useRef<HTMLDivElement>(null)
 
-  // On touch devices, hide actions when tapping outside the message
-  useEffect(() => {
-    if (!showActions) return
-    const handleOutsideClick = (e: MouseEvent) => {
-      if (messageRef.current && !messageRef.current.contains(e.target as Node)) {
-        setShowActions(false)
-      }
-    }
-    document.addEventListener("click", handleOutsideClick)
-    return () => document.removeEventListener("click", handleOutsideClick)
-  }, [showActions])
-
   const handleGroupClick = useCallback(() => {
-    // Only toggle on touch/pointer-coarse devices where hover isn't available
     if (window.matchMedia("(hover: none)").matches) {
-      setShowActions(prev => !prev)
+      messageRef.current?.classList.toggle("actions-open")
     }
   }, [])
 
@@ -285,7 +271,7 @@ export const ChatMessage = memo(function ChatMessage({ message, tasks, onReply }
             {formatTimestamp(message.timestamp)}
           </span>
         </div>
-        <MessageActionsBar actions={messageActions} align="end" showActions={showActions} />
+        <MessageActionsBar actions={messageActions} align="end" />
       </div>
     )
   }
@@ -388,7 +374,7 @@ export const ChatMessage = memo(function ChatMessage({ message, tasks, onReply }
           )}
         </>
       )}
-      <MessageActionsBar actions={messageActions} align="start" showActions={showActions} />
+      <MessageActionsBar actions={messageActions} align="start" />
     </div>
   )
 })
