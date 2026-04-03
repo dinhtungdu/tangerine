@@ -3,13 +3,13 @@ import { useOutletContext, useSearchParams } from "react-router-dom"
 import { useProject } from "../context/ProjectContext"
 import { useProjectNav } from "../hooks/useProjectNav"
 import { NewAgentForm } from "../components/NewAgentForm"
-import { createTask, archiveProject, unarchiveProject } from "../lib/api"
+import { createTask } from "../lib/api"
 import type { SidebarContext } from "../components/Layout"
 import { useToast } from "../context/ToastContext"
 
 export function RunsPage() {
   const { navigate } = useProjectNav()
-  const { current, refreshProjects } = useProject()
+  const { current } = useProject()
   const { showToast } = useToast()
   const { tasksLoading } = useOutletContext<SidebarContext>()
   const [searchParams] = useSearchParams()
@@ -40,46 +40,16 @@ export function RunsPage() {
     }
   }, [current, navigate, showToast])
 
-  const handleArchive = useCallback(async () => {
-    if (!current) return
-    try {
-      await archiveProject(current.name)
-      refreshProjects()
-      showToast(`Project "${current.name}" archived`)
-    } catch {
-      showToast("Failed to archive project")
-    }
-  }, [current, refreshProjects, showToast])
-
-  const handleUnarchive = useCallback(async () => {
-    if (!current) return
-    try {
-      await unarchiveProject(current.name)
-      refreshProjects()
-      showToast(`Project "${current.name}" unarchived`)
-    } catch {
-      showToast("Failed to unarchive project")
-    }
-  }, [current, refreshProjects, showToast])
-
   if (current?.archived) {
     return (
       <div className="flex flex-col items-center justify-center gap-4 p-8 md:h-full">
-        <div className="flex items-center gap-2">
-          <span className="rounded bg-amber-500/10 px-2 py-1 text-sm font-medium text-amber-600 dark:text-amber-400">
-            Archived
-          </span>
-          <h2 className="text-lg font-semibold text-fg">{current.name}</h2>
-        </div>
+        <span className="rounded bg-amber-500/10 px-2 py-1 text-sm font-medium text-amber-600 dark:text-amber-400">
+          Archived
+        </span>
         <p className="text-center text-sm text-fg-muted">
           This project is archived. Task history is still accessible from the sidebar.
+          Visit the <strong>Status</strong> tab to unarchive it.
         </p>
-        <button
-          onClick={handleUnarchive}
-          className="rounded-md bg-accent px-4 py-2 text-sm font-medium text-white transition hover:bg-accent/90"
-        >
-          Unarchive Project
-        </button>
       </div>
     )
   }
@@ -87,7 +57,7 @@ export function RunsPage() {
   return (
     <div className="flex flex-col md:h-full">
       <div ref={formRef} id="new-agent-form" className="min-h-0 flex-1">
-        <NewAgentForm onSubmit={handleSubmit} refTaskId={refTaskId} refTaskTitle={refTaskTitle} autoFocus={shouldFocus} onArchive={handleArchive} />
+        <NewAgentForm onSubmit={handleSubmit} refTaskId={refTaskId} refTaskTitle={refTaskTitle} autoFocus={shouldFocus} />
       </div>
     </div>
   )

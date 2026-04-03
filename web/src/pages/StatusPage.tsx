@@ -1,13 +1,39 @@
+import { useCallback } from "react"
 import { useOutletContext } from "react-router-dom"
 import { useProject } from "../context/ProjectContext"
+import { useToast } from "../context/ToastContext"
 import type { SidebarContext } from "../components/Layout"
 import { ActiveRunsCard, SystemLog, ProjectUpdateCard } from "../components/StatusWidgets"
 import { PredefinedPromptsEditor } from "../components/PredefinedPromptsEditor"
+import { archiveProject, unarchiveProject } from "../lib/api"
 
 export function StatusPage() {
-  const { current } = useProject()
+  const { current, refreshProjects } = useProject()
+  const { showToast } = useToast()
   const outletCtx = useOutletContext<SidebarContext | null>()
   const tasks = outletCtx?.tasks ?? []
+
+  const handleArchive = useCallback(async () => {
+    if (!current) return
+    try {
+      await archiveProject(current.name)
+      refreshProjects()
+      showToast(`Project "${current.name}" archived`)
+    } catch {
+      showToast("Failed to archive project")
+    }
+  }, [current, refreshProjects, showToast])
+
+  const handleUnarchive = useCallback(async () => {
+    if (!current) return
+    try {
+      await unarchiveProject(current.name)
+      refreshProjects()
+      showToast(`Project "${current.name}" unarchived`)
+    } catch {
+      showToast("Failed to unarchive project")
+    }
+  }, [current, refreshProjects, showToast])
 
   return (
     <div className="flex h-full w-full flex-col">
@@ -55,6 +81,27 @@ export function StatusPage() {
 
           {/* System log */}
           <SystemLog project={current?.name} />
+
+          {/* Archive / Unarchive */}
+          {current && (
+            <div className="flex justify-end">
+              {current.archived ? (
+                <button
+                  onClick={handleUnarchive}
+                  className="rounded-md bg-accent px-4 py-2 text-sm font-medium text-white transition hover:bg-accent/90"
+                >
+                  Unarchive Project
+                </button>
+              ) : (
+                <button
+                  onClick={handleArchive}
+                  className="text-sm text-fg-muted transition hover:text-fg"
+                >
+                  Archive project
+                </button>
+              )}
+            </div>
+          )}
         </div>
       </div>
     </div>
