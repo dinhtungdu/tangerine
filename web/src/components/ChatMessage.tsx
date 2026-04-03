@@ -134,7 +134,7 @@ function makeRemarkLinkifyTaskIds(tasks: ReadonlyArray<{ id: string }>) {
   const known = new Map(tasks.map((t) => [t.id.toLowerCase(), t.id]))
 
   function linkifyTextNode(node: Text, index: number | undefined, parent: Parent | undefined) {
-    if (!parent || index === undefined) return
+    if (!parent || index === undefined || parent.type === "link") return
     const parts: Array<Text | Link> = []
     let last = 0
     UUID_RE.lastIndex = 0
@@ -155,7 +155,7 @@ function makeRemarkLinkifyTaskIds(tasks: ReadonlyArray<{ id: string }>) {
     visit(tree, "text", linkifyTextNode)
     // Also linkify UUIDs inside inline code (backticks)
     visit(tree, "inlineCode", (node: { type: "inlineCode"; value: string }, index: number | undefined, parent: Parent | undefined) => {
-      if (!parent || index === undefined) return
+      if (!parent || index === undefined || parent.type === "link") return
       const parts: Parent["children"][] = []
       let last = 0
       UUID_RE.lastIndex = 0
