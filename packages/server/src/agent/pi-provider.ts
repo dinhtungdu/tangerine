@@ -49,22 +49,24 @@ function mapPiEvent(data: Record<string, unknown>): AgentEvent[] {
 
     case "message_update": {
       // data.assistantMessageEvent contains the streaming delta
+      // AME types: text_start, text_delta, text_end, thinking_start, thinking_delta, thinking_end,
+      //            toolcall_start, toolcall_delta, toolcall_end, start, done, error
       const ame = data.assistantMessageEvent as Record<string, unknown> | undefined
       if (!ame) return []
 
       const ameType = ame.type as string | undefined
 
-      // Thinking/reasoning content
-      if (ameType === "thinking" || ameType === "reasoning") {
-        const text = typeof ame.text === "string" ? ame.text : ""
-        if (text) return [{ kind: "thinking", content: text }]
+      // Thinking/reasoning delta
+      if (ameType === "thinking_delta") {
+        const delta = typeof ame.delta === "string" ? ame.delta : ""
+        if (delta) return [{ kind: "thinking", content: delta }]
         return []
       }
 
       // Text content delta
-      if (ameType === "content" || ameType === "text") {
-        const text = typeof ame.text === "string" ? ame.text : ""
-        if (text) return [{ kind: "message.streaming", content: text }]
+      if (ameType === "text_delta") {
+        const delta = typeof ame.delta === "string" ? ame.delta : ""
+        if (delta) return [{ kind: "message.streaming", content: delta }]
         return []
       }
 
