@@ -126,6 +126,7 @@ export const ChatMessage = memo(function ChatMessage({ message, tasks }: ChatMes
   const [lightboxIndex, setLightboxIndex] = useState<number | null>(null)
   const handleLinkClick = useCallback(
     (e: React.MouseEvent<HTMLElement>) => {
+      if (e.metaKey || e.ctrlKey || e.shiftKey || e.altKey || e.button !== 0) return
       const anchor = (e.target as HTMLElement).closest("a")
       if (!anchor) return
       const href = anchor.getAttribute("href")
