@@ -1,5 +1,5 @@
 export type TaskStatus = "created" | "provisioning" | "running" | "done" | "failed" | "cancelled"
-export type ProviderType = "opencode" | "claude-code" | "codex"
+export type ProviderType = "opencode" | "claude-code" | "codex" | "pi"
 export type TaskSource = "github" | "linear" | "manual" | "cross-project" | "cron"
 export type TaskType = "worker" | "orchestrator" | "reviewer"
 export type TaskCapability = "resolve" | "predefined-prompts" | "diff" | "continue" | "pr-track" | "pr-create"

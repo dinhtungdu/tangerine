@@ -7,7 +7,7 @@ import { runEffect, runEffectVoid } from "../effect-helpers"
 import { createCron, getCron, listCrons, updateCron, deleteCron } from "../../db/queries"
 import { CronNotFoundError, CronValidationError } from "../../errors"
 
-const VALID_PROVIDERS = new Set(["opencode", "claude-code", "codex"])
+const VALID_PROVIDERS = new Set(["opencode", "claude-code", "codex", "pi"])
 
 /** Validate a cron expression is exactly 5 fields (no seconds field). */
 function validateCron(expr: string): Effect.Effect<void, CronValidationError> {

@@ -113,8 +113,9 @@ Notable task fields in the active schema:
 - `opencode-provider.ts`
 - `claude-code-provider.ts`
 - `codex-provider.ts`
+- `pi-provider.ts`
 
-All providers implement the shared contract in `agent/provider.ts`, emit normalized events, and support prompt delivery plus shutdown. OpenCode exposes a richer live update path; Claude Code and Codex use subprocess streams.
+All providers implement the shared contract in `agent/provider.ts`, emit normalized events, and support prompt delivery plus shutdown. OpenCode exposes a richer live update path; Claude Code, Codex, and Pi use subprocess streams. Pi uses its own RPC protocol over stdin/stdout NDJSON.
 
 ### Task Management
 

@@ -32,6 +32,7 @@ import { initSystemLog, cleanupSystemLogs } from "../system-log"
 import { createOpenCodeProvider } from "../agent/opencode-provider"
 import { createClaudeCodeProvider } from "../agent/claude-code-provider"
 import { createCodexProvider } from "../agent/codex-provider"
+import { createPiProvider } from "../agent/pi-provider"
 import type { AgentHandle } from "../agent/provider"
 import { enqueue as enqueuePrompt, drainAll as drainQueuedPrompts } from "../agent/prompt-queue"
 import { buildSystemNotes, buildEscalationBlock, buildPrWorkflowNote } from "../tasks/prompts"
@@ -193,7 +194,7 @@ export async function start(): Promise<void> {
 
       // Agent provider CLIs — any provider can be selected at task creation time,
       // so check all supported providers, not just the configured defaults.
-      const providerCli: Record<string, string> = { "claude-code": "claude", "opencode": "opencode", "codex": "codex" }
+      const providerCli: Record<string, string> = { "claude-code": "claude", "opencode": "opencode", "codex": "codex", "pi": "pi" }
       for (const [provider, cli] of Object.entries(providerCli)) {
         if (!(await cmdExists(cli))) {
           warnings.push(`${cli} CLI is not installed — provider "${provider}" will not be available.`)
@@ -218,11 +219,13 @@ export async function start(): Promise<void> {
     const openCodeFactory = createOpenCodeProvider()
     const claudeCodeFactory = createClaudeCodeProvider()
     const codexFactory = createCodexProvider()
+    const piFactory = createPiProvider()
 
     // Select factory based on provider type
     const getAgentFactory = (provider: string) =>
       provider === "claude-code" ? claudeCodeFactory
         : provider === "codex" ? codexFactory
+        : provider === "pi" ? piFactory
         : openCodeFactory
 
     // Wire task manager — extract cleanupDeps so retryDeps can reference it

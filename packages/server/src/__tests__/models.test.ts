@@ -1,7 +1,8 @@
 import { describe, test, expect } from "bun:test"
-import { discoverModels, discoverClaudeCodeModels, discoverModelsByProvider, discoverCodexModels } from "../models"
+import { discoverModels, discoverClaudeCodeModels, discoverModelsByProvider, discoverCodexModels, discoverPiModels } from "../models"
 import { discoverModels as discoverOpenCodeModels } from "../agent/opencode-provider"
 import { discoverModels as discoverCodexProviderModels } from "../agent/codex-provider"
+import { discoverModels as discoverPiProviderModels } from "../agent/pi-provider"
 
 describe("discoverModels (opencode)", () => {
   test("returns array (empty if no opencode cache)", () => {
@@ -64,15 +65,28 @@ describe("discoverCodexModels", () => {
   })
 })
 
+describe("discoverPiModels", () => {
+  test("returns array (empty if no pi config)", () => {
+    const models = discoverPiModels()
+    expect(Array.isArray(models)).toBe(true)
+  })
+
+  test("delegates to pi-provider discoverModels", () => {
+    expect(discoverPiModels()).toEqual(discoverPiProviderModels())
+  })
+})
+
 describe("discoverModelsByProvider", () => {
   test("returns models grouped by provider type", () => {
     const result = discoverModelsByProvider()
     expect(result).toHaveProperty("opencode")
     expect(result).toHaveProperty("claude-code")
     expect(result).toHaveProperty("codex")
+    expect(result).toHaveProperty("pi")
     expect(Array.isArray(result.opencode)).toBe(true)
     expect(Array.isArray(result["claude-code"])).toBe(true)
     expect(Array.isArray(result.codex)).toBe(true)
+    expect(Array.isArray(result.pi)).toBe(true)
   })
 
   test("claude-code models match discoverClaudeCodeModels", () => {
@@ -89,6 +103,11 @@ describe("discoverModelsByProvider", () => {
   test("codex models match codex-provider discoverModels", () => {
     const byProvider = discoverModelsByProvider()
     expect(byProvider.codex).toEqual(discoverCodexProviderModels())
+  })
+
+  test("pi models match pi-provider discoverModels", () => {
+    const byProvider = discoverModelsByProvider()
+    expect(byProvider.pi).toEqual(discoverPiProviderModels())
   })
 })
 
@@ -117,6 +136,21 @@ describe("codex-provider discoverModels", () => {
       expect(model.id).toBeTruthy()
       expect(model.provider).toBe("openai")
       expect(model.providerName).toBe("OpenAI")
+      expect(model.name).toBeTruthy()
+    }
+  })
+})
+
+describe("pi-provider discoverModels", () => {
+  test("returns array", () => {
+    expect(Array.isArray(discoverPiProviderModels())).toBe(true)
+  })
+
+  test("each model has required fields", () => {
+    for (const model of discoverPiProviderModels()) {
+      expect(model.id).toBeTruthy()
+      expect(model.provider).toBeTruthy()
+      expect(model.providerName).toBeTruthy()
       expect(model.name).toBeTruthy()
     }
   })

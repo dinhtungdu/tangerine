@@ -177,7 +177,7 @@ function attemptRestart(
 }
 
 // Providers that persist sessions to disk and support resume after process kill.
-const SUSPENDABLE_PROVIDERS = new Set(["claude-code", "codex", "opencode"])
+const SUSPENDABLE_PROVIDERS = new Set(["claude-code", "codex", "opencode", "pi"])
 
 /**
  * Suspend a running task's agent if it has been idle (no user messages) for
