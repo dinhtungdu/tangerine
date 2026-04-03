@@ -48,7 +48,7 @@ export interface SessionLogRow {
   role: string
   content: string
   images: string | null
-  from: string | null
+  from_task_id: string | null
   timestamp: string
 }
 

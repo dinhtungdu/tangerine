@@ -123,19 +123,19 @@ export function getChildTasks(db: Database, parentTaskId: string): Effect.Effect
 
 export function insertSessionLog(
   db: Database,
-  log: Pick<SessionLogRow, "task_id" | "role" | "content"> & { images?: string | null; from?: string | null }
+  log: Pick<SessionLogRow, "task_id" | "role" | "content"> & { images?: string | null; from_task_id?: string | null }
 ): Effect.Effect<SessionLogRow, DbError> {
   return dbTry(() => {
     const stmt = db.prepare(`
-      INSERT INTO session_logs (task_id, role, content, images, "from")
-      VALUES ($task_id, $role, $content, $images, $from)
+      INSERT INTO session_logs (task_id, role, content, images, from_task_id)
+      VALUES ($task_id, $role, $content, $images, $from_task_id)
     `)
     const result = stmt.run({
       $task_id: log.task_id,
       $role: log.role,
       $content: log.content,
       $images: log.images ?? null,
-      $from: log.from ?? null,
+      $from_task_id: log.from_task_id ?? null,
     })
     return db.prepare("SELECT * FROM session_logs WHERE id = ?").get(result.lastInsertRowid) as SessionLogRow
   })
