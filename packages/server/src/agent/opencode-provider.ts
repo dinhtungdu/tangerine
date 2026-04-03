@@ -384,8 +384,15 @@ export function createOpenCodeProvider(): AgentFactory {
           // Track last spawned PID so cleanup can kill orphaned processes after server restart
           let lastPid: number | null = null
 
+          // Buffer events emitted before any subscriber attaches (e.g. init)
+          const earlyEvents: AgentEvent[] = []
+
           const emit = (event: AgentEvent) => {
-            for (const cb of subscribers) cb(event)
+            if (subscribers.size === 0) {
+              earlyEvents.push(event)
+            } else {
+              for (const cb of subscribers) cb(event)
+            }
           }
 
           const eventProcessor = createOpenCodeEventProcessor(sessionId, {
@@ -564,6 +571,11 @@ export function createOpenCodeProvider(): AgentFactory {
 
             subscribe(onEvent: (e: AgentEvent) => void) {
               subscribers.add(onEvent)
+              // Replay events that were emitted before any subscriber attached
+              if (earlyEvents.length > 0) {
+                const buffered = earlyEvents.splice(0)
+                for (const event of buffered) onEvent(event)
+              }
               return {
                 unsubscribe() {
                   subscribers.delete(onEvent)
