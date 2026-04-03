@@ -9,10 +9,39 @@ import { formatTimestamp } from "../lib/format"
 import { useNavigate } from "react-router-dom"
 import { ToolCallDisplay } from "./ToolCallDisplay"
 import { ImageLightbox } from "./ImageLightbox"
+export interface MessageAction {
+  key: string
+  label: string
+  icon: React.ReactNode
+  onClick: () => void
+}
 
 interface ChatMessageProps {
   message: ChatMessageType
   tasks?: ReadonlyArray<{ id: string }>
+  onReply?: (content: string) => void
+}
+
+function MessageActionsBar({ actions, align = "start" }: { actions: MessageAction[], align?: "start" | "end" }) {
+  if (actions.length === 0) return null
+  // hidden by default (takes no space); flex on group-hover for pointer devices;
+  // always flex on touch devices ([@media(hover:none)])
+  return (
+    <div className={`hidden gap-0.5 group-hover:flex group-focus-within:flex [@media(hover:none)]:flex ${align === "end" ? "justify-end" : "justify-start"}`}>
+      {actions.map((action) => (
+        <button
+          key={action.key}
+          onClick={action.onClick}
+          title={action.label}
+          aria-label={action.label}
+          className="flex items-center gap-1 rounded px-1.5 py-0.5 text-xxs text-fg-muted transition hover:bg-surface-secondary hover:text-fg"
+        >
+          {action.icon}
+          <span>{action.label}</span>
+        </button>
+      ))}
+    </div>
+  )
 }
 
 function isToolCall(content: string): boolean {
@@ -121,7 +150,7 @@ function makeRemarkLinkifyTaskIds(tasks: ReadonlyArray<{ id: string }>) {
 
 const BASE_REMARK_PLUGINS = [remarkGfm]
 
-export const ChatMessage = memo(function ChatMessage({ message, tasks }: ChatMessageProps) {
+export const ChatMessage = memo(function ChatMessage({ message, tasks, onReply }: ChatMessageProps) {
   const navigate = useNavigate()
   const [lightboxIndex, setLightboxIndex] = useState<number | null>(null)
   const handleLinkClick = useCallback(
@@ -147,6 +176,19 @@ export const ChatMessage = memo(function ChatMessage({ message, tasks }: ChatMes
   const isNarration = message.role === "narration"
   const isTool = !isUser && !isSystem && !isThinking && !isNarration && isToolCall(message.content)
 
+  const messageActions: MessageAction[] = message.content ? [
+    ...(onReply ? [{
+      key: "reply",
+      label: "Reply",
+      icon: (
+        <svg className="h-3 w-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+          <path strokeLinecap="round" strokeLinejoin="round" d="m15 15-6 6m0 0-6-6m6 6V9a6 6 0 0 1 12 0v3" />
+        </svg>
+      ),
+      onClick: () => onReply(message.content),
+    }] : []),
+  ] : []
+
   if (isTool) {
     return (
       <div className="animate-fade-in">
@@ -157,7 +199,7 @@ export const ChatMessage = memo(function ChatMessage({ message, tasks }: ChatMes
 
   if (isUser) {
     return (
-      <div className="animate-fade-in flex justify-end">
+      <div className="animate-fade-in group flex flex-col items-end gap-0.5">
         <div className="max-w-[280px] md:max-w-[480px] rounded-xl bg-surface-dark px-3.5 py-2.5">
           {message.images && message.images.length > 0 && (
             <>
@@ -192,6 +234,7 @@ export const ChatMessage = memo(function ChatMessage({ message, tasks }: ChatMes
             {formatTimestamp(message.timestamp)}
           </span>
         </div>
+        <MessageActionsBar actions={messageActions} align="end" />
       </div>
     )
   }
@@ -263,7 +306,7 @@ export const ChatMessage = memo(function ChatMessage({ message, tasks }: ChatMes
 
   // Agent message
   return (
-    <div className="animate-fade-in flex flex-col gap-1.5">
+    <div className="animate-fade-in group flex flex-col gap-1.5">
       <div className="flex items-center gap-2">
         <div className="flex h-5 w-5 items-center justify-center rounded-[10px] bg-surface-dark">
           <svg className="h-2.5 w-2.5 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
@@ -292,6 +335,7 @@ export const ChatMessage = memo(function ChatMessage({ message, tasks }: ChatMes
           )}
         </>
       )}
+      <MessageActionsBar actions={messageActions} align="start" />
     </div>
   )
 })

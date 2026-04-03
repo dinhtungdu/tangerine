@@ -24,10 +24,9 @@ interface ChatInputProps {
   onModelChange?: (model: string) => void
   onReasoningEffortChange?: (effort: string) => void
   predefinedPrompts?: PredefinedPrompt[]
-  draftInsert?: {
-    id: number
-    text: string
-  } | null
+  /** Raw message content to quote; shown as a chip above the input. Prepended as blockquote on send. */
+  quotedMessage?: string | null
+  onQuoteDismiss?: () => void
   /** When this value changes, the input is focused. Pass the task ID to focus on navigation. */
   autoFocusKey?: string
 }
@@ -45,13 +44,12 @@ export function appendQuotedText(existingText: string, quotedText: string): stri
   return `${prefix}${quotedText}\n\n`
 }
 
-export function ChatInput({ onSend, disabled, queueLength, taskId, isWorking, onAbort, model, provider, providerModels, reasoningEffort, onModelChange, onReasoningEffortChange, predefinedPrompts, draftInsert, autoFocusKey }: ChatInputProps) {
+export function ChatInput({ onSend, disabled, queueLength, taskId, isWorking, onAbort, model, provider, providerModels, reasoningEffort, onModelChange, onReasoningEffortChange, predefinedPrompts, quotedMessage, onQuoteDismiss, autoFocusKey }: ChatInputProps) {
   const draftKey = taskId ? `tangerine:chat-draft:${taskId}` : null
 
   const [text, setText] = useState(() => draftKey ? (loadChatDraft(draftKey).text ?? "") : "")
   const [pendingImages, setPendingImages] = useState<PendingImage[]>(() => draftKey ? (loadChatDraft(draftKey).pendingImages ?? []) : [])
   const textareaRef = useRef<HTMLTextAreaElement>(null)
-  const appliedDraftInsertIdRef = useRef<number | null>(null)
 
   const { tasks: allTasks } = useTasks()
   const mention = useMentionPicker(allTasks)
@@ -81,20 +79,26 @@ export function ChatInput({ onSend, disabled, queueLength, taskId, isWorking, on
 
   const handleSend = useCallback(() => {
     const trimmed = text.trim()
-    if ((!trimmed && pendingImages.length === 0) || disabled) return
+    if ((!trimmed && pendingImages.length === 0 && !quotedMessage) || disabled) return
     const images = pendingImages.length > 0
       ? pendingImages.map(({ dataUrl: _dataUrl, ...img }) => img)
       : undefined
-    onSend(trimmed, images)
+    let finalText = trimmed
+    if (quotedMessage) {
+      const quotedLines = quotedMessage.split("\n").map((line) => `> ${line}`).join("\n")
+      finalText = trimmed ? `${quotedLines}\n\n${trimmed}` : quotedLines
+    }
+    onSend(finalText, images)
     setText("")
     setPendingImages([])
+    onQuoteDismiss?.()
     if (draftKey) {
       try { localStorage.removeItem(draftKey) } catch { /* ignore */ }
     }
     if (textareaRef.current) {
       textareaRef.current.style.height = "auto"
     }
-  }, [text, pendingImages, disabled, onSend, draftKey])
+  }, [text, pendingImages, disabled, onSend, draftKey, quotedMessage, onQuoteDismiss])
 
   const handleMentionSelect = useCallback((task: Task) => {
     const { newText, cursorPos } = mentionRef.current.selectTask(task, textRef.current)
@@ -180,20 +184,14 @@ export function ChatInput({ onSend, disabled, queueLength, taskId, isWorking, on
     })
   }, [autoFocusKey])
 
+  // Focus textarea when a quote is set so user can type reply immediately
   useEffect(() => {
-    if (!draftInsert || appliedDraftInsertIdRef.current === draftInsert.id) return
-
-    appliedDraftInsertIdRef.current = draftInsert.id
-    setText((prev) => appendQuotedText(prev, draftInsert.text))
-
+    if (!quotedMessage) return
     requestAnimationFrame(() => {
-      const textarea = textareaRef.current
-      if (!textarea) return
-      textarea.focus()
-      const end = textarea.value.length
-      textarea.setSelectionRange(end, end)
+      textareaRef.current?.focus()
     })
-  }, [draftInsert])
+  }, [quotedMessage])
+
 
   // Continuously save draft while editing
   useEffect(() => {
@@ -221,7 +219,7 @@ export function ChatInput({ onSend, disabled, queueLength, taskId, isWorking, on
   // Chips are visible whenever the input is focused and empty — same on all breakpoints
   const showPrompts = isFocused && !text.trim() && !!predefinedPrompts?.length
 
-  const canSend = (text.trim().length > 0 || pendingImages.length > 0) && !disabled
+  const canSend = (text.trim().length > 0 || pendingImages.length > 0 || !!quotedMessage) && !disabled
   const canChangeModel = providerModels && providerModels.length > 1 && onModelChange
 
   return (
@@ -240,6 +238,27 @@ export function ChatInput({ onSend, disabled, queueLength, taskId, isWorking, on
               </button>
             ))}
           </div>
+        </div>
+      )}
+
+      {/* Quote chip — shown when replying to a message */}
+      {quotedMessage && (
+        <div className="mb-2 flex items-center gap-2 self-start rounded-full border border-tangerine/25 bg-tangerine/10 pl-2.5 pr-1.5 py-1 text-xs max-w-xs">
+          <svg className="h-3 w-3 shrink-0 text-tangerine/70" fill="currentColor" viewBox="0 0 24 24">
+            <path d="M14.017 21v-7.391c0-5.704 3.731-9.57 8.983-10.609l.995 2.151c-2.432.917-3.995 3.293-3.995 5.848h4v10h-9.983zm-14.017 0v-7.391c0-5.704 3.748-9.57 9-10.609l.996 2.151c-2.433.917-3.996 3.293-3.996 5.848h3.983v10h-9.983z" />
+          </svg>
+          <span className="truncate text-fg-muted">
+            {quotedMessage.length > 60 ? `${quotedMessage.slice(0, 60)}…` : quotedMessage}
+          </span>
+          <button
+            onClick={onQuoteDismiss}
+            aria-label="Dismiss quote"
+            className="shrink-0 rounded-full p-0.5 text-fg-muted transition hover:bg-tangerine/10 hover:text-fg"
+          >
+            <svg className="h-3 w-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+              <path strokeLinecap="round" strokeLinejoin="round" d="M6 18 18 6M6 6l12 12" />
+            </svg>
+          </button>
         </div>
       )}
 
