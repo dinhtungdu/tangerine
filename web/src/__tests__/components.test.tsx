@@ -1005,7 +1005,7 @@ describe("ChatInput quote chip", () => {
     )
     const textarea = screen.getByRole("textbox")
     fireEvent.change(textarea, { target: { value: "my response" } })
-    fireEvent.keyDown(textarea, { key: "Enter", metaKey: true })
+    fireEvent.keyDown(textarea, { key: "Enter" })
     expect(sent).toBe("> agent reply\n\nmy response")
     expect(dismissed).toBe(true)
   })
@@ -1022,7 +1022,7 @@ describe("ChatInput quote chip", () => {
       />
     )
     const textarea = screen.getByRole("textbox")
-    fireEvent.keyDown(textarea, { key: "Enter", metaKey: true })
+    fireEvent.keyDown(textarea, { key: "Enter" })
     expect(sent).toBe("> just quote")
   })
 })
