@@ -2,6 +2,7 @@
 // v1: Tangerine runs inside the VM. No SSH, no tunnels, no VM management.
 
 import { Effect, Duration } from "effect"
+import { resolve } from "node:path"
 import type { Database } from "bun:sqlite"
 import { createLogger } from "../logger"
 import { SessionStartError } from "../errors"
@@ -139,7 +140,7 @@ export function startSession(
       }))
     )
     yield* activity("worktree.acquired", `Acquired worktree slot`, { slot: slot.id })
-    const worktreePath = slot.path
+    const worktreePath = resolve(slot.path)
 
     if (isOrchestrator) {
       // Orchestrator uses slot 0 (main repo) — fetch, reset to clean default branch state.
