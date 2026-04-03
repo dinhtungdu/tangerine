@@ -146,12 +146,12 @@ export function discoverModels(): ModelInfo[] {
   if (Date.now() < cacheExpiresAt) return cachedModels
   try {
     const result = spawnSync("pi", ["--list-models"], {
-      timeout: 10_000,
+      timeout: 5_000,
       encoding: "utf-8",
       env: { ...process.env, PI_OFFLINE: "1" },
     })
-    // Pi writes model list to stderr
-    const output = (result.stdout || result.stderr || "").trim()
+    // Pi writes model list to stderr; prefer it over stdout
+    const output = (result.stderr || result.stdout || "").trim()
     if (result.status !== 0 || !output) {
       cacheExpiresAt = Date.now() + MODEL_CACHE_FAIL_TTL
       cachedModels = []
