@@ -308,8 +308,10 @@ export const ChatMessage = memo(function ChatMessage({ message, tasks, onReply }
           <span className="text-xs font-medium text-blue-500/70">Narration</span>
           <span className="text-2xs text-fg-muted/50">{formatTimestamp(message.timestamp)}</span>
         </div>
-        <div className="rounded-lg border border-blue-500/10 bg-blue-500/5 px-3 py-2 text-xs leading-[1.6] text-fg-muted break-words">
-          {message.content}
+        <div className="rounded-lg border border-blue-500/10 bg-blue-500/5 px-3 py-2 text-xs leading-[1.6] text-fg-muted break-words" onClick={handleLinkClick}>
+          <ReactMarkdown remarkPlugins={remarkPlugins} components={markdownComponents}>
+            {message.content}
+          </ReactMarkdown>
         </div>
         {message.images && message.images.length > 0 && (
           <>
