@@ -822,6 +822,18 @@ describe("ChatMessage", async () => {
     expect(Array.from(codes).some((c) => c.textContent === "task ")).toBe(true)
   })
 
+  test("does not linkify task UUID followed by path segment in inline code", () => {
+    const taskId = "abc12345-0000-0000-0000-000000000001"
+    renderChat({
+      message: { role: "assistant", content: `Check \`${taskId}/logs\``, timestamp: "2026-03-17T10:00:00Z" },
+      tasks: [{ id: taskId }] as Parameters<typeof ChatMessage>[0]["tasks"],
+    })
+    const link = document.querySelector(`a[href="/tasks/${taskId}"]`)
+    expect(link).toBeNull()
+    const code = document.querySelector("code")
+    expect(code!.textContent).toContain(`${taskId}/logs`)
+  })
+
   test("does not linkify task UUID in API path inside inline code", () => {
     const taskId = "abc12345-0000-0000-0000-000000000001"
     renderChat({

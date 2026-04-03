@@ -70,7 +70,7 @@ function linkifyUrls(text: string, tasks?: ReadonlyArray<{ id: string }>): strin
   // Single combined pass so UUIDs that are part of a URL are consumed by the
   // URL branch and never double-processed into broken nested anchors.
   return escaped.replace(
-    /(https?:\/\/[^\s<]+)|(?<!\/)([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})\b/gi,
+    /(https?:\/\/[^\s<]+)|(?<!\/)([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})\b(?!\/)/gi,
     (match, url: string | undefined, uuid: string | undefined) => {
       if (url) return `<a href="${url}" target="_blank" rel="noopener noreferrer">${url}</a>`
       if (uuid && taskMap) {
@@ -124,8 +124,8 @@ const markdownComponents: Components = {
   tr: ({ children }) => <tr className="border-t border-edge">{children}</tr>,
 }
 
-// Negative lookbehind for `/` prevents linkifying UUIDs inside URL paths
-const UUID_RE = /(?<!\/)([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})\b/gi
+// Negative lookbehind/lookahead for `/` prevents linkifying UUIDs inside URL paths
+const UUID_RE = /(?<!\/)([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})\b(?!\/)/gi
 
 /** Remark plugin that replaces task UUID text nodes with MDAST link nodes.
  *  Because it operates on the AST, `text` nodes are already outside code
