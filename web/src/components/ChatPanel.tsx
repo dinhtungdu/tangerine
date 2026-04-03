@@ -120,7 +120,7 @@ export function ChatPanel({
         ref={scrollRef}
         className="flex-1 overflow-y-auto"
       >
-        <div className="flex flex-col gap-3 p-4">
+        <div className="flex flex-col gap-6 p-4">
           {visibleMessages.length === 0 && thinkingCount === 0 ? (
             <div className="flex h-full items-center justify-center py-20 text-md text-fg-muted">
               No messages yet. Send a prompt to start.
