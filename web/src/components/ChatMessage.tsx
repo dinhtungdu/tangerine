@@ -1,4 +1,4 @@
-import { memo, useState, useMemo } from "react"
+import { memo, useState, useMemo, useCallback } from "react"
 import type { Components } from "react-markdown"
 import ReactMarkdown from "react-markdown"
 import remarkGfm from "remark-gfm"
@@ -6,6 +6,7 @@ import { visit } from "unist-util-visit"
 import type { Root, Text, Parent, Link } from "mdast"
 import type { ChatMessage as ChatMessageType } from "../hooks/useSession"
 import { formatTimestamp } from "../lib/format"
+import { useNavigate } from "react-router-dom"
 import { ToolCallDisplay } from "./ToolCallDisplay"
 import { ImageLightbox } from "./ImageLightbox"
 
@@ -121,7 +122,21 @@ function makeRemarkLinkifyTaskIds(tasks: ReadonlyArray<{ id: string }>) {
 const BASE_REMARK_PLUGINS = [remarkGfm]
 
 export const ChatMessage = memo(function ChatMessage({ message, tasks }: ChatMessageProps) {
+  const navigate = useNavigate()
   const [lightboxIndex, setLightboxIndex] = useState<number | null>(null)
+  const handleLinkClick = useCallback(
+    (e: React.MouseEvent<HTMLElement>) => {
+      if (e.metaKey || e.ctrlKey || e.shiftKey || e.altKey || e.button !== 0) return
+      const anchor = (e.target as HTMLElement).closest("a")
+      if (!anchor) return
+      const href = anchor.getAttribute("href")
+      if (href && href.startsWith("/")) {
+        e.preventDefault()
+        navigate(href)
+      }
+    },
+    [navigate],
+  )
   const remarkPlugins = useMemo(
     () => tasks && tasks.length > 0 ? [...BASE_REMARK_PLUGINS, makeRemarkLinkifyTaskIds(tasks)] : BASE_REMARK_PLUGINS,
     [tasks],
@@ -169,6 +184,7 @@ export const ChatMessage = memo(function ChatMessage({ message, tasks }: ChatMes
           {message.content && (
             <p
               className="whitespace-pre-wrap text-md leading-[1.5] text-white [&_a]:underline [&_a]:text-link hover:[&_a]:text-link-hover [&_a]:break-all"
+              onClick={handleLinkClick}
               dangerouslySetInnerHTML={{ __html: linkifyUrls(message.content, tasks) }}
             />
           )}
@@ -257,7 +273,7 @@ export const ChatMessage = memo(function ChatMessage({ message, tasks }: ChatMes
         <span className="text-xs font-semibold text-fg">Agent</span>
         <span className="text-2xs text-fg-muted/50">{formatTimestamp(message.timestamp)}</span>
       </div>
-      <div className="text-md leading-[1.6] text-fg break-words">
+      <div className="text-md leading-[1.6] text-fg break-words" onClick={handleLinkClick}>
         <ReactMarkdown remarkPlugins={remarkPlugins} components={markdownComponents}>
           {message.content}
         </ReactMarkdown>
