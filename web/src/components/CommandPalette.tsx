@@ -138,7 +138,6 @@ export function CommandPalette() {
         id: "palette.toggle",
         label: "Toggle command palette",
         hidden: true,
-        shortcut: { key: "k", meta: true },
         handler: () => setIsOpen((prev) => !prev),
       },
     ])
