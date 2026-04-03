@@ -52,6 +52,12 @@ export interface AgentHandle {
    * If not implemented, the health monitor falls back to PID-based checks.
    */
   isAlive?(): boolean
+  /**
+   * Return the list of skill names available in this agent session.
+   * Claude Code: parsed from system/init event. Pi: parsed from get_state response.
+   * OpenCode/Codex: scanned from ~/.claude/skills or ~/.codex/skills.
+   */
+  getSkills?(): string[]
 }
 
 /** Context passed to AgentFactory.start() to bootstrap an agent session */
