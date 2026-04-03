@@ -274,7 +274,7 @@ All worker and reviewer tasks must run `codex review` — but only if codex is i
 **Check first:**
 
 ```bash
-if ! command -v codex &>/dev/null; then
+if ! command -v codex >/dev/null 2>&1; then
   echo "codex not installed — skipping codex review"
 fi
 ```
@@ -286,7 +286,7 @@ If codex is not installed, skip the review step entirely and proceed with the re
 Run before pushing or creating a PR:
 
 ```bash
-command -v codex &>/dev/null && codex review --base main -c model="gpt-5.4" -c reasoning.effort="xhigh" || true
+command -v codex >/dev/null 2>&1 && codex review --base main -c model="gpt-5.4" -c reasoning.effort="xhigh" || true
 ```
 
 1. Read the findings
@@ -299,7 +299,7 @@ command -v codex &>/dev/null && codex review --base main -c model="gpt-5.4" -c r
 Run as part of the review:
 
 ```bash
-command -v codex &>/dev/null && codex review --base main -c model="gpt-5.4" -c reasoning.effort="xhigh" || true
+command -v codex >/dev/null 2>&1 && codex review --base main -c model="gpt-5.4" -c reasoning.effort="xhigh" || true
 ```
 
 1. Read the findings
