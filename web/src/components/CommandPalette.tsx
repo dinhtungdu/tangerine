@@ -205,10 +205,14 @@ export function CommandPalette() {
       }
       // With query: fuzzy match tasks
       for (const t of tasks) {
+        const prNumber = t.prUrl?.match(/\/pull\/(\d+)/)?.[1] ?? ""
         const score = Math.max(
           fuzzyScore(formatTaskTitle(t.title, t.type), searchQuery) * 3,
           fuzzyScore(t.projectId, searchQuery) * 2,
           fuzzyScore(t.id, searchQuery),
+          fuzzyScore(t.branch ?? "", searchQuery) * 2,
+          fuzzyScore(prNumber ? `#${prNumber}` : "", searchQuery) * 2,
+          fuzzyScore(prNumber, searchQuery) * 2,
         )
         if (score > 0) {
           const activeBonus = ACTIVE_STATUSES.has(t.status) ? 1000 : 0
