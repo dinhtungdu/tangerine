@@ -97,7 +97,13 @@ function mapPiEvent(data: Record<string, unknown>): AgentEvent[] {
         .map((c) => c.text as string)
       const text = textParts.join("")
       if (!text) return []
-      const role = msg.role === "user" ? "user" as const : "assistant" as const
+      if (msg.role === "user") {
+        return [{ kind: "message.complete", role: "user" as const, content: text }]
+      }
+      // Assistant messages with tool calls are intermediate turns — classify
+      // as narration so the UI collapses them alongside thinking.
+      const hasToolCalls = content.some((c) => c.type === "toolCall")
+      const role = hasToolCalls ? "narration" as const : "assistant" as const
       return [{ kind: "message.complete", role, content: text }]
     }
 
@@ -366,7 +372,8 @@ export function createPiProvider(): AgentFactory {
                   if (images && images.length > 0) {
                     cmd.images = images.map((img) => ({
                       type: "image",
-                      source: { type: "base64", media_type: img.mediaType, data: img.data },
+                      mimeType: img.mediaType,
+                      data: img.data,
                     }))
                   }
                   sendCommand(cmd)
