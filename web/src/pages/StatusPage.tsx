@@ -1,7 +1,6 @@
 import { useCallback } from "react"
 import { useOutletContext } from "react-router-dom"
 import { useProject } from "../context/ProjectContext"
-import { useToast } from "../context/ToastContext"
 import type { SidebarContext } from "../components/Layout"
 import { ActiveRunsCard, SystemLog, ProjectUpdateCard } from "../components/StatusWidgets"
 import { PredefinedPromptsEditor } from "../components/PredefinedPromptsEditor"
@@ -9,7 +8,6 @@ import { archiveProject, unarchiveProject } from "../lib/api"
 
 export function StatusPage() {
   const { current, refreshProjects } = useProject()
-  const { showToast } = useToast()
   const outletCtx = useOutletContext<SidebarContext | null>()
   const tasks = outletCtx?.tasks ?? []
 
@@ -18,22 +16,20 @@ export function StatusPage() {
     try {
       await archiveProject(current.name)
       refreshProjects()
-      showToast(`Project "${current.name}" archived`)
     } catch {
-      showToast("Failed to archive project")
+      // UI reflects state via refreshProjects; silent failure is acceptable
     }
-  }, [current, refreshProjects, showToast])
+  }, [current, refreshProjects])
 
   const handleUnarchive = useCallback(async () => {
     if (!current) return
     try {
       await unarchiveProject(current.name)
       refreshProjects()
-      showToast(`Project "${current.name}" unarchived`)
     } catch {
-      showToast("Failed to unarchive project")
+      // UI reflects state via refreshProjects; silent failure is acceptable
     }
-  }, [current, refreshProjects, showToast])
+  }, [current, refreshProjects])
 
   return (
     <div className="flex h-full w-full flex-col">
