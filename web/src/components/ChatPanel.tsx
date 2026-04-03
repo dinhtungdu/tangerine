@@ -98,6 +98,8 @@ export function ChatPanel({
 
   // Track text selection inside the messages area for the Quote button
   const [selectedText, setSelectedText] = useState<string | null>(null)
+  // Clear stale selection when switching tasks
+  useEffect(() => { setSelectedText(null) }, [taskId])
   useEffect(() => {
     const el = scrollRef.current
     if (!el) return
