@@ -26,10 +26,10 @@ interface ChatMessageProps {
 
 function MessageActionsBar({ actions, align = "start" }: { actions: MessageAction[], align?: "start" | "end" }) {
   if (actions.length === 0) return null
-  // Overlay: absolute so it never shifts content. Invisible until hover/focus;
-  // always visible on touch devices (hover:none).
+  // Zero-height + invisible by default so it takes no space and is not tabbable.
+  // On hover/focus/touch: full height, visible, interactive.
   return (
-    <div className={`flex gap-0.5 opacity-0 transition-opacity group-hover:opacity-100 group-focus-within:opacity-100 [@media(hover:none)]:opacity-100 ${align === "end" ? "justify-end" : "justify-start"}`}>
+    <div className={`flex gap-0.5 h-0 overflow-hidden opacity-0 pointer-events-none transition-all group-hover:h-auto group-hover:overflow-visible group-hover:opacity-100 group-hover:pointer-events-auto group-focus-within:h-auto group-focus-within:overflow-visible group-focus-within:opacity-100 group-focus-within:pointer-events-auto [@media(hover:none)]:h-auto [@media(hover:none)]:overflow-visible [@media(hover:none)]:opacity-100 [@media(hover:none)]:pointer-events-auto ${align === "end" ? "justify-end" : "justify-start"}`}>
       {actions.map((action) => (
         <button
           key={action.key}
