@@ -472,23 +472,32 @@ describe("ChatPanel", () => {
     expect(screen.queryByText("some error")).toBeNull()
   })
 
-  test("clicking Reply on a message shows the quote chip above the input", async () => {
+  test("Quote button appears when selectedText is passed to ChatInput", () => {
     render(
-      <MemoryRouter>
-        <ChatPanel
-          messages={[{ id: "m1", role: "agent", content: "Quoted text", timestamp: "2026-03-17T10:00:00Z" }]}
-          agentStatus="idle"
-          queueLength={0}
-          onSend={() => {}}
-          onAbort={() => {}}
-        />
-      </MemoryRouter>
+      <ChatInput
+        onSend={() => {}}
+        disabled={false}
+        queueLength={0}
+        selectedText="some selected text"
+        onQuoteSelection={() => {}}
+      />
     )
 
-    fireEvent.click(screen.getByLabelText("Reply"))
+    expect(screen.getByText("Quote")).toBeTruthy()
+  })
 
-    // Quote chip appears above the input
-    expect(screen.getByLabelText("Dismiss quote")).toBeTruthy()
+  test("Quote button hidden when no selectedText", () => {
+    render(
+      <ChatInput
+        onSend={() => {}}
+        disabled={false}
+        queueLength={0}
+        selectedText={null}
+        onQuoteSelection={() => {}}
+      />
+    )
+
+    expect(screen.queryByText("Quote")).toBeNull()
   })
 })
 
@@ -847,7 +856,7 @@ describe("TaskOverflowMenu error toasts", () => {
   })
 })
 
-describe("ChatMessage inline actions", () => {
+describe("ChatMessage renders without action bar", () => {
   function makeMsg(overrides?: Partial<{ id: string; role: string; content: string; timestamp: string }>) {
     return {
       id: "msg1",
@@ -862,46 +871,17 @@ describe("ChatMessage inline actions", () => {
     return render(<MemoryRouter><ChatMessage {...props} /></MemoryRouter>)
   }
 
-  test("renders Reply button for agent message when onReply provided", () => {
-    renderMsg({ message: makeMsg(), onReply: () => {} })
-    expect(screen.getByLabelText("Reply")).toBeTruthy()
-  })
-
-  test("renders Reply button for user message when onReply provided", () => {
-    renderMsg({ message: makeMsg({ role: "user" }), onReply: () => {} })
-    expect(screen.getByLabelText("Reply")).toBeTruthy()
-  })
-
-  test("Reply button calls onReply with message content", () => {
-    let replied = ""
-    renderMsg({ message: makeMsg({ content: "test content" }), onReply: (c) => { replied = c } })
-    fireEvent.click(screen.getByLabelText("Reply"))
-    expect(replied).toBe("test content")
-  })
-
-  test("omits Reply button when onReply not provided", () => {
+  test("renders agent message content without action buttons", () => {
     renderMsg({ message: makeMsg() })
+    expect(screen.getByText("Hello world")).toBeTruthy()
     expect(screen.queryByLabelText("Reply")).toBeNull()
+    expect(screen.queryByLabelText("Copy")).toBeNull()
   })
 
-  test("does not render actions for system messages", () => {
-    renderMsg({ message: makeMsg({ role: "system", content: "Task started" }), onReply: () => {} })
+  test("renders user message content without action buttons", () => {
+    renderMsg({ message: makeMsg({ role: "user" }) })
     expect(screen.queryByLabelText("Reply")).toBeNull()
-  })
-
-  test("does not render actions for tool call messages", () => {
-    renderMsg({ message: makeMsg({ role: "agent", content: JSON.stringify({ tool: "bash", input: {} }) }), onReply: () => {} })
-    expect(screen.queryByLabelText("Reply")).toBeNull()
-  })
-
-  test("no actions when message has no content", () => {
-    renderMsg({ message: makeMsg({ content: "" }), onReply: () => {} })
-    expect(screen.queryByLabelText("Reply")).toBeNull()
-  })
-
-  test("action buttons are data-driven — Reply button is a BUTTON element", () => {
-    renderMsg({ message: makeMsg(), onReply: () => {} })
-    expect(screen.getByLabelText("Reply").tagName).toBe("BUTTON")
+    expect(screen.queryByLabelText("Copy")).toBeNull()
   })
 })
 

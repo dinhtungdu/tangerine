@@ -1,4 +1,4 @@
-import { memo, useState, useMemo, useCallback, useRef } from "react"
+import { memo, useState, useMemo, useCallback } from "react"
 import type { Components } from "react-markdown"
 import ReactMarkdown from "react-markdown"
 import remarkGfm from "remark-gfm"
@@ -9,39 +9,10 @@ import { formatTimestamp } from "../lib/format"
 import { useNavigate } from "react-router-dom"
 import { ToolCallDisplay } from "./ToolCallDisplay"
 import { ImageLightbox } from "./ImageLightbox"
-import { copyToClipboard } from "../lib/clipboard"
-
-export interface MessageAction {
-  key: string
-  label: string
-  icon: React.ReactNode
-  onClick: () => void
-}
 
 interface ChatMessageProps {
   message: ChatMessageType
   tasks?: ReadonlyArray<{ id: string }>
-  onReply?: (content: string) => void
-}
-
-function MessageActionsBar({ actions, align = "start" }: { actions: MessageAction[], align?: "start" | "end" }) {
-  if (actions.length === 0) return null
-  return (
-    <div className={`absolute bottom-0 translate-y-full ${align === "end" ? "right-0" : "left-0"} flex gap-0.5 opacity-0 pointer-events-none transition-opacity group-hover:opacity-100 group-hover:pointer-events-auto group-focus-within:opacity-100 group-focus-within:pointer-events-auto [@media(hover:none)]:opacity-100 [@media(hover:none)]:pointer-events-auto`}>
-      {actions.map((action) => (
-        <button
-          key={action.key}
-          onClick={action.onClick}
-          title={action.label}
-          aria-label={action.label}
-          className="flex items-center gap-1 rounded px-1.5 py-0.5 text-xxs text-fg-muted transition hover:bg-surface-secondary hover:text-fg"
-        >
-          {action.icon}
-          <span>{action.label}</span>
-        </button>
-      ))}
-    </div>
-  )
 }
 
 function isToolCall(content: string): boolean {
@@ -150,7 +121,7 @@ function makeRemarkLinkifyTaskIds(tasks: ReadonlyArray<{ id: string }>) {
 
 const BASE_REMARK_PLUGINS = [remarkGfm]
 
-export const ChatMessage = memo(function ChatMessage({ message, tasks, onReply }: ChatMessageProps) {
+export const ChatMessage = memo(function ChatMessage({ message, tasks }: ChatMessageProps) {
   const navigate = useNavigate()
   const [lightboxIndex, setLightboxIndex] = useState<number | null>(null)
   const handleLinkClick = useCallback(
@@ -176,43 +147,6 @@ export const ChatMessage = memo(function ChatMessage({ message, tasks, onReply }
   const isNarration = message.role === "narration"
   const isTool = !isUser && !isSystem && !isThinking && !isNarration && isToolCall(message.content)
 
-  const [copied, setCopied] = useState(false)
-  const copiedTimer = useRef<ReturnType<typeof setTimeout>>(undefined)
-  const handleCopy = useCallback(() => {
-    void copyToClipboard(message.content).then(() => {
-      setCopied(true)
-      clearTimeout(copiedTimer.current)
-      copiedTimer.current = setTimeout(() => setCopied(false), 1500)
-    })
-  }, [message.content])
-
-  const messageActions: MessageAction[] = message.content ? [
-    {
-      key: "copy",
-      label: copied ? "Copied" : "Copy",
-      icon: copied ? (
-        <svg className="h-3 w-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-          <path strokeLinecap="round" strokeLinejoin="round" d="m4.5 12.75 6 6 9-13.5" />
-        </svg>
-      ) : (
-        <svg className="h-3 w-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-          <path strokeLinecap="round" strokeLinejoin="round" d="M15.666 3.888A2.25 2.25 0 0 0 13.5 2.25h-3c-1.03 0-1.9.693-2.166 1.638m7.332 0c.055.194.084.4.084.612v0a.75.75 0 0 1-.75.75H9.75a.75.75 0 0 1-.75-.75v0c0-.212.03-.418.084-.612m7.332 0c.646.049 1.288.11 1.927.184 1.1.128 1.907 1.077 1.907 2.185V19.5a2.25 2.25 0 0 1-2.25 2.25H6.75A2.25 2.25 0 0 1 4.5 19.5V6.257c0-1.108.806-2.057 1.907-2.185a48.208 48.208 0 0 1 1.927-.184" />
-        </svg>
-      ),
-      onClick: handleCopy,
-    },
-    ...(onReply ? [{
-      key: "reply",
-      label: "Reply",
-      icon: (
-        <svg className="h-3 w-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-          <path strokeLinecap="round" strokeLinejoin="round" d="m15 15-6 6m0 0-6-6m6 6V9a6 6 0 0 1 12 0v3" />
-        </svg>
-      ),
-      onClick: () => onReply(message.content),
-    }] : []),
-  ] : []
-
   if (isTool) {
     return (
       <div className="animate-fade-in">
@@ -223,7 +157,7 @@ export const ChatMessage = memo(function ChatMessage({ message, tasks, onReply }
 
   if (isUser) {
     return (
-      <div className="animate-fade-in group relative flex flex-col items-end gap-0.5">
+      <div className="animate-fade-in flex flex-col items-end">
         <div className="max-w-[280px] md:max-w-[480px] rounded-xl bg-surface-dark px-3.5 py-2.5">
           {message.images && message.images.length > 0 && (
             <>
@@ -258,7 +192,6 @@ export const ChatMessage = memo(function ChatMessage({ message, tasks, onReply }
             {formatTimestamp(message.timestamp)}
           </span>
         </div>
-        <MessageActionsBar actions={messageActions} align="end" />
       </div>
     )
   }
@@ -330,7 +263,7 @@ export const ChatMessage = memo(function ChatMessage({ message, tasks, onReply }
 
   // Agent message
   return (
-    <div className="animate-fade-in group relative flex flex-col gap-1.5">
+    <div className="animate-fade-in flex flex-col gap-1.5">
       <div className="flex items-center gap-2">
         <div className="flex h-5 w-5 items-center justify-center rounded-[10px] bg-surface-dark">
           <svg className="h-2.5 w-2.5 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
@@ -359,7 +292,6 @@ export const ChatMessage = memo(function ChatMessage({ message, tasks, onReply }
           )}
         </>
       )}
-      <MessageActionsBar actions={messageActions} align="start" />
     </div>
   )
 })
