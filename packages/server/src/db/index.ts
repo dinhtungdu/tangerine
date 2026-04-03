@@ -104,6 +104,23 @@ function migrateWorktreeSlots(db: Database): void {
 }
 
 /**
+ * Rename from_task_id → "from" in session_logs.
+ * from_task_id was briefly used before the column was renamed to the shorter "from".
+ * "from" is a reserved word so autoMigrate (regex \w+) can't handle it — done here instead.
+ */
+function migrateSessionLogsFrom(db: Database): void {
+  const cols = db.prepare("PRAGMA table_info(session_logs)").all() as { name: string }[]
+  const names = cols.map((c) => c.name)
+  if (names.includes("from_task_id")) {
+    db.exec(`ALTER TABLE session_logs RENAME COLUMN from_task_id TO "from"`)
+    console.error('[db] Migrated session_logs: renamed from_task_id → "from"')
+  } else if (!names.includes("from")) {
+    db.exec(`ALTER TABLE session_logs ADD COLUMN "from" TEXT`)
+    console.error('[db] Migrated session_logs: added "from" column')
+  }
+}
+
+/**
  * Backfill type='orchestrator' for legacy _orchestrator rows.
  * Before the type column existed, orchestrators were identified by title.
  * The autoMigrate DEFAULT 'worker' leaves them misclassified.
@@ -133,6 +150,7 @@ export function getDb(path?: string): Database {
   // The old schema has vm_id TEXT NOT NULL which silently blocks v1 INSERTs.
   // Since slots are transient (rebuilt by initPool), we can safely recreate the table.
   migrateWorktreeSlots(db)
+  migrateSessionLogsFrom(db)
 
   // autoMigrate first — adds missing columns to existing tables so that
   // CREATE INDEX statements in SCHEMA don't fail on new columns

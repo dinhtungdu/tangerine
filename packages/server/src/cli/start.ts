@@ -744,7 +744,7 @@ export async function start(): Promise<void> {
               role: "user",
               content: text,
               images: imageFilenames ? JSON.stringify(imageFilenames) : null,
-              from_task_id: fromTaskId ?? null,
+              from: fromTaskId ?? null,
             }).pipe(
               Effect.catchAll(() => Effect.void)
             )
