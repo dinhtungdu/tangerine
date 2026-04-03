@@ -92,6 +92,10 @@ export function ChatPanel({
 
   const effectivePendingQuote = pendingQuote
 
+  const handleReply = useCallback((content: string) => {
+    setPendingQuote(content)
+  }, [])
+
   // Track text selection inside the messages area for the Quote button
   const [selectedText, setSelectedText] = useState<string | null>(null)
   useEffect(() => {
@@ -147,7 +151,7 @@ export function ChatPanel({
               No messages yet. Send a prompt to start.
             </div>
           ) : (
-            visibleMessages.map((msg) => <ChatMessage key={msg.id} message={msg} tasks={tasks} />)
+            visibleMessages.map((msg) => <ChatMessage key={msg.id} message={msg} tasks={tasks} onReply={handleReply} />)
           )}
 
           {/* Thinking indicator */}
