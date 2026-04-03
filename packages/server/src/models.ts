@@ -1,6 +1,7 @@
 import type { ProviderType, ModelInfo } from "./agent/provider"
 import { discoverModels as discoverOpenCodeModels } from "./agent/opencode-provider"
 import { discoverModels as discoverCodexProviderModels } from "./agent/codex-provider"
+import { discoverModels as discoverPiProviderModels } from "./agent/pi-provider"
 
 export type { ModelInfo }
 
@@ -39,11 +40,17 @@ export function discoverCodexModels(): ModelInfo[] {
   return discoverCodexProviderModels()
 }
 
+/** Discover available Pi models from the local config */
+export function discoverPiModels(): ModelInfo[] {
+  return discoverPiProviderModels()
+}
+
 /** Discover models grouped by harness (provider type) */
 export function discoverModelsByProvider(): Record<ProviderType, ModelInfo[]> {
   return {
     opencode: discoverOpenCodeModels(),
     "claude-code": discoverClaudeCodeModels(),
     codex: discoverCodexProviderModels(),
+    pi: discoverPiProviderModels(),
   }
 }

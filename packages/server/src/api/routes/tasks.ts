@@ -50,9 +50,9 @@ export function taskRoutes(deps: AppDeps): Hono {
     if (!project) {
       return c.json({ error: `Unknown project: ${projectId}` }, 400)
     }
-    const validProviders = new Set(["opencode", "claude-code", "codex"])
+    const validProviders = new Set(["opencode", "claude-code", "codex", "pi"])
     if (body.provider !== undefined && !validProviders.has(body.provider)) {
-      return c.json({ error: `Invalid provider: ${body.provider}. Must be opencode, claude-code, or codex` }, 400)
+      return c.json({ error: `Invalid provider: ${body.provider}. Must be opencode, claude-code, codex, or pi` }, 400)
     }
     const validTypes = new Set(["worker", "orchestrator", "reviewer"])
     if (body.type && !validTypes.has(body.type)) {
