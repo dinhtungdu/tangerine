@@ -802,6 +802,10 @@ export async function start(): Promise<void> {
             })
           ),
         abortTask: (taskId) => {
+          // Mark as suspended so health check won't auto-restart.
+          // The agent will wake again when the user sends a new message.
+          getTaskState(taskId).suspended = true
+
           // Try handle-based abort first (works for Claude Code too)
           const handle = agentHandles.get(taskId)
           if (handle) {

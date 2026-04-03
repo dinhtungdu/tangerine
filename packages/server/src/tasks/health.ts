@@ -137,6 +137,9 @@ export function checkTask(
     }
 
     state.consecutiveRestarts = 0
+    // Clear suspended flag if agent is alive — abort may have only interrupted
+    // the current turn without killing the process (codex, pi).
+    if (state.suspended) state.suspended = false
     taskLog.debug("Task healthy")
     return "healthy"
   })
