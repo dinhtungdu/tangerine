@@ -184,9 +184,7 @@ export const ChatMessage = memo(function ChatMessage({ message, tasks, onReply }
   const messageRef = useRef<HTMLDivElement>(null)
 
   const handleGroupClick = useCallback(() => {
-    if (window.matchMedia("(hover: none)").matches) {
-      messageRef.current?.classList.toggle("actions-open")
-    }
+    messageRef.current?.classList.toggle("actions-open")
   }, [])
 
   const [copied, setCopied] = useState(false)
