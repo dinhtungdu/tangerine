@@ -13,34 +13,6 @@ import { spawnSync } from "node:child_process"
 const log = createLogger("pi-provider")
 
 // ---------------------------------------------------------------------------
-// Resolve the `pi` binary — the server process may not have the same PATH
-// as a login shell, so use `bash -lc` to find the real path.
-// ---------------------------------------------------------------------------
-
-let resolvedPiBin: string | null = null
-
-function resolvePiBin(): string {
-  if (resolvedPiBin) return resolvedPiBin
-
-  // Try current PATH first
-  const direct = spawnSync("which", ["pi"], { encoding: "utf-8", timeout: 2_000 })
-  if (direct.status === 0 && direct.stdout.trim()) {
-    resolvedPiBin = direct.stdout.trim()
-    return resolvedPiBin
-  }
-
-  // Fall back to a login shell which has the full user PATH
-  const login = spawnSync("bash", ["-lc", "which pi"], { encoding: "utf-8", timeout: 3_000 })
-  if (login.status === 0 && login.stdout.trim()) {
-    resolvedPiBin = login.stdout.trim()
-    return resolvedPiBin
-  }
-
-  resolvedPiBin = "pi"
-  return resolvedPiBin
-}
-
-// ---------------------------------------------------------------------------
 // Pi RPC event → AgentEvent mapping
 //
 // Pi's RPC mode emits AgentSessionEvent objects (from @mariozechner/pi-agent-core)
@@ -170,8 +142,7 @@ let cachedModels: ModelInfo[] | null = null
 export function discoverModels(): ModelInfo[] {
   if (cachedModels) return cachedModels
   try {
-    const piBin = resolvePiBin()
-    const result = spawnSync(piBin, ["--list-models"], {
+    const result = spawnSync("pi", ["--list-models"], {
       timeout: 5_000,
       encoding: "utf-8",
       env: { ...process.env, PI_OFFLINE: "1" },
@@ -226,7 +197,7 @@ export function createPiProvider(): AgentFactory {
 
           // Build CLI args for RPC mode
           const args = [
-            resolvePiBin(),
+            "pi",
             "--mode", "rpc",
             "--no-extensions",
             "--no-skills",

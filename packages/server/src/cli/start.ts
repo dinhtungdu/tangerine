@@ -155,6 +155,32 @@ export async function start(): Promise<void> {
     const projectNames = config.config.projects.map((p) => p.name)
     log.info("Config loaded", { projects: projectNames, home: TANGERINE_HOME, testMode: isTestMode() })
 
+    // Ensure process.env.PATH includes everything a login shell would have.
+    // The server may be started from a context with a limited PATH (e.g. a
+    // version-manager shim that only exposes node/npm). A login shell sources
+    // the user's profile and picks up globally-installed tools.
+    if (!isTestMode()) {
+      try {
+        const { spawnSync } = await import("node:child_process")
+        const shell = process.env["SHELL"] || "/bin/bash"
+        // Use the last line — any shell startup noise prints before our echo
+        const result = spawnSync(shell, ["-lc", 'echo "$PATH"'], { encoding: "utf-8", timeout: 3_000 })
+        const loginPath = result.stdout?.trim().split("\n").pop()
+        if (result.status === 0 && loginPath) {
+          const currentPath = process.env["PATH"] || ""
+          // Merge: keep current entries, append any new ones from the login shell
+          const currentDirs = new Set(currentPath.split(":").filter(Boolean))
+          const newDirs = loginPath.split(":").filter((d) => d && !currentDirs.has(d))
+          if (newDirs.length > 0) {
+            process.env["PATH"] = [currentPath, ...newDirs].filter(Boolean).join(":")
+            log.info("Enriched PATH from login shell", { added: newDirs.length })
+          }
+        }
+      } catch {
+        // Non-fatal — proceed with existing PATH
+      }
+    }
+
     // Verify required external tools before proceeding. Each feature gates on
     // the tools it needs — fail early with an actionable message rather than
     // letting features silently malfunction at runtime.
