@@ -28,14 +28,38 @@ This means Tangerine must handle memory sharing independently.
 
 ## Prior art & SOTA
 
+### Academic foundations
+
+The survey ["Memory in the Age of AI Agents"](https://arxiv.org/abs/2512.13564) (Dec 2025, updated Jan 2026) provides the canonical taxonomy:
+
+**Memory forms** (what carries it):
+- **Token-level**: Explicit, editable text units (e.g., CLAUDE.md, conversation logs). Transparent, auditable. This is what we use.
+- **Parametric**: Embedded in model weights (fine-tuning). Not applicable for our multi-provider setup.
+- **Latent**: Continuous vectors / KV-cache states. High density but opaque.
+
+**Memory functions** (why agents need it):
+- **Factual**: Knowledge-based — "the DB uses SQLite", "API returns `{ data, error }`"
+- **Experiential**: How to solve problems — divided into case-based (raw trajectories), strategy-based (abstracted workflows), and skill-based (executable code/tools)
+- **Working**: Active context for the current task
+
+**Memory dynamics** (how it evolves):
+- Formation → consolidation → retrieval → decay
+- Episodic → semantic conversion (specific incidents → general knowledge)
+
+Our system maps cleanly: `architecture`/`decision`/`pattern` = factual, `learning` = experiential (case-based), `context` = working memory.
+
 ### Production memory systems
 
-| System | Architecture | Key insight |
-|--------|-------------|-------------|
-| **[Mem0](https://mem0.ai/)** | Vector + graph + KV multi-store, async writes, scoped (user/session/agent) | Universal memory layer — 48k GH stars, +26% accuracy over OpenAI Memory on LOCOMO benchmark. Async-by-default prevents memory writes from blocking responses. |
-| **[ODEI](https://github.com/odei-ai)** | Constitutional knowledge graph, 7 policy layers before every write | "World Model as a Service" — governance-first: typed/auditable graph with policy-gated writes for production safety. |
-| **[Mastra Observational Memory](https://mastra.ai/docs/memory/observational-memory)** | Observer + Reflector background agents compress conversation history into dated observations | 3-6x text compression, 5-40x for tool-heavy workloads. Two-block context: observations (compressed past) + raw messages (current session). SOTA on LongMemEval. |
-| **[A-Mem](https://arxiv.org/abs/2502.12110)** (NeurIPS 2025) | Zettelkasten-inspired interconnected notes with auto-linking, structured attributes (context, keywords, tags) | Agent-driven memory organization — memories evolve via new experiences, developing higher-order attributes. 2x improvement on multi-hop reasoning. |
+| System | Architecture | Key insight | Benchmark |
+|--------|-------------|-------------|-----------|
+| **[Mem0](https://mem0.ai/)** | Vector + graph + KV multi-store, async writes, scoped (user/session/agent) | Universal memory layer — 48k GH stars. Async-by-default prevents memory writes from blocking responses. | +26% over OpenAI Memory on LOCOMO |
+| **[Zep / Graphiti](https://www.getzep.com/)** | Temporal knowledge graph with validity windows per fact (when facts became true, when superseded) | Time-aware memory — facts have temporal ranges, enabling "what did we believe at time T?" queries. Built on Neo4j. | +18.5% accuracy, 90% lower latency on LongMemEval |
+| **[Letta (MemGPT)](https://docs.letta.com/)** | OS-inspired tiered memory: core (RAM) ↔ recall/archival (disk). Agent self-manages paging. | LLM-as-OS paradigm — agent decides what to keep in context vs. store to disk, like virtual memory paging. | Pioneered the DMR benchmark |
+| **[Supermemory](https://supermemory.ai/)** | Agentic retrieval (3 parallel observer agents) replacing vector search. 6 extraction vectors. | Ditching embeddings for active search agents was the single biggest unlock — eliminates "semantic similarity trap." | ~99% on LongMemEval_s |
+| **[Mastra Observational Memory](https://mastra.ai/docs/memory/observational-memory)** | Observer + Reflector background agents compress conversation into dated observations | 3-6x text compression, 5-40x for tool-heavy workloads. Two-block context window. | SOTA on LongMemEval |
+| **[A-Mem](https://arxiv.org/abs/2502.12110)** (NeurIPS 2025) | Zettelkasten-inspired interconnected notes with auto-linking and structured attributes | Agent-driven memory organization — memories evolve via new experiences. | 2x on multi-hop reasoning |
+| **[LangMem](https://langchain-ai.github.io/langmem/)** | SDK for memory extraction, prompt optimization, namespaced storage | Three memory types mapped to human cognition: semantic (facts), episodic (experiences), procedural (rules → prompt updates) | — |
+| **[ODEI](https://github.com/odei-ai)** | Constitutional knowledge graph, 7 policy layers before every write | Governance-first: typed/auditable graph with policy-gated writes for production safety. | — |
 
 ### Parallel agent platforms
 
@@ -50,10 +74,13 @@ This means Tangerine must handle memory sharing independently.
 ### Design implications from research
 
 1. **Async memory writes** (Mem0): Memory saves should never block the agent's response pipeline. Our API-based approach (Layer 2) naturally satisfies this — agents fire-and-forget POST calls.
-2. **Observational compression** (Mastra): For auto-capture (Phase 5), use an Observer pattern — a lightweight post-task pass that compresses session logs into structured memories, not just raw extraction.
-3. **Interconnected notes** (A-Mem): Memories should link to related memories via tags and `supersedes` field. The Zettelkasten principle of building connections between notes produces better retrieval than flat lists.
-4. **Governance layers** (ODEI): For multi-agent setups, memory writes need conflict resolution — two agents shouldn't create contradictory memories. The `supersedes` field and deduplication check handle this.
-5. **Scoped memory** (Mem0): Our type-based system (architecture/decision/pattern/learning/context) maps to Mem0's scoping concept — different memory types have different lifetimes and injection strategies.
+2. **Temporal validity** (Zep/Graphiti): Memories should track when they became true and when they were superseded. Our `supersedes` field + `created_at`/`updated_at` timestamps provide this. The `context` type with `expires_at` adds temporal decay.
+3. **Observational compression** (Mastra/Supermemory): For auto-capture (Phase 5), use an Observer pattern — a lightweight post-task pass that compresses session logs into structured memories. Supermemory's finding that agentic retrieval beats vector search validates our approach of structured type-based filtering over embedding similarity.
+4. **Tiered memory** (Letta/MemGPT): Our design naturally tiers: Layer 1 (symlinks) = core/working memory (always available), Layer 2 (DB) = recall memory (queried on demand), Layer 3 (injection) = the paging mechanism that loads recall into working memory.
+5. **Interconnected notes** (A-Mem): Memories should link to related memories via tags and `supersedes` field. The Zettelkasten principle of building connections between notes produces better retrieval than flat lists.
+6. **Episodic → semantic consolidation** (survey taxonomy): Individual task learnings (episodic: "bun:test failed because of X") should consolidate into general patterns (semantic: "always use module-level mocking with bun:test"). Phase 5 auto-capture should drive this consolidation.
+7. **Procedural memory as prompt updates** (LangMem): Learnings about _how_ to work (coding conventions, review patterns) should update the agent's system prompt, not just be stored as facts. Our prompt injection (Layer 3) enables this — procedural memories can be formatted as instructions.
+8. **Governance layers** (ODEI): For multi-agent setups, memory writes need conflict resolution — two agents shouldn't create contradictory memories. The `supersedes` field and deduplication check handle this.
 
 ## Design
 
@@ -310,12 +337,31 @@ The API approach (Layer 2) achieves the same result more simply via HTTP. MCP co
 
 ## References
 
-- [Mem0: Building Production-Ready AI Agents with Scalable Long-Term Memory](https://arxiv.org/abs/2504.19413)
+### Surveys & taxonomy
+- [Memory in the Age of AI Agents: A Survey (Dec 2025)](https://arxiv.org/abs/2512.13564) — canonical taxonomy of forms, functions, and dynamics
+- [State of AI Agent Memory 2026 (Mem0)](https://mem0.ai/blog/state-of-ai-agent-memory-2026) — industry landscape overview
+- [ODEI vs Mem0 vs Zep: Choosing Agent Memory Architecture in 2026](https://dev.to/zer0h1ro/odei-vs-mem0-vs-zep-choosing-agent-memory-architecture-in-2026-15c0)
+
+### Research papers
 - [A-MEM: Agentic Memory for LLM Agents (NeurIPS 2025)](https://arxiv.org/abs/2502.12110)
+- [Zep: A Temporal Knowledge Graph Architecture for Agent Memory](https://arxiv.org/abs/2501.13956)
+- [MemGPT: Towards LLMs as Operating Systems](https://arxiv.org/abs/2310.08560)
+- [Mem0: Building Production-Ready AI Agents with Scalable Long-Term Memory](https://arxiv.org/abs/2504.19413)
+
+### Production systems
+- [Mem0 — Universal memory layer](https://mem0.ai/)
+- [Zep / Graphiti — Temporal knowledge graphs](https://www.getzep.com/)
+- [Letta (MemGPT) — OS-inspired tiered memory](https://docs.letta.com/)
+- [Supermemory — Agentic retrieval, ~99% LongMemEval_s](https://supermemory.ai/research/)
 - [Mastra Observational Memory](https://mastra.ai/docs/memory/observational-memory)
-- [State of AI Agent Memory 2026 (Mem0)](https://mem0.ai/blog/state-of-ai-agent-memory-2026)
-- [Claude Code Memory Docs](https://code.claude.com/docs/en/memory)
+- [LangMem SDK](https://langchain-ai.github.io/langmem/)
+
+### Claude Code worktree issues
 - [anthropics/claude-code#34437 — Worktrees should share project directory](https://github.com/anthropics/claude-code/issues/34437)
 - [anthropics/claude-code#24382 — Auto memory should be shared across worktrees](https://github.com/anthropics/claude-code/issues/24382)
-- [ODEI vs Mem0 vs Zep: Choosing Agent Memory Architecture in 2026](https://dev.to/zer0h1ro/odei-vs-mem0-vs-zep-choosing-agent-memory-architecture-in-2026-15c0)
+- [Claude Code Memory Docs](https://code.claude.com/docs/en/memory)
+
+### Parallel agent tools
 - [Parallel Coding Agents (2026): 8 Tools Compared](https://www.morphllm.com/parallel-coding-agents)
+- [Conductor — Parallel agent Mac app](https://docs.conductor.build/)
+- [Superset — Terminal for parallel coding agents](https://superset.sh/)
