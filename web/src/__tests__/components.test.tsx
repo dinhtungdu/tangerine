@@ -796,6 +796,17 @@ describe("ChatMessage", async () => {
     })
     expect(document.querySelector("del")!.textContent).toBe("deleted")
   })
+
+  test("linkifies task UUID inside inline code (backticks)", () => {
+    const taskId = "abc12345-0000-0000-0000-000000000001"
+    renderChat({
+      message: { role: "assistant", content: `See \`${taskId}\` for details`, timestamp: "2026-03-17T10:00:00Z" },
+      tasks: [{ id: taskId }] as Parameters<typeof ChatMessage>[0]["tasks"],
+    })
+    const link = document.querySelector(`a[href="/tasks/${taskId}"]`)
+    expect(link).toBeTruthy()
+    expect(link!.textContent).toBe("abc12345")
+  })
 })
 
 describe("ToastProvider", () => {
