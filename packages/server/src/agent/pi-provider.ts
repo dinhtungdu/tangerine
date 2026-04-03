@@ -9,38 +9,8 @@ import { AgentError, PromptError, SessionStartError } from "../errors"
 import type { AgentFactory, AgentHandle, AgentEvent, AgentStartContext, AgentConfig, PromptImage, ModelInfo } from "./provider"
 import { parseNdjsonStream } from "./ndjson"
 import { spawnSync } from "node:child_process"
-import { existsSync } from "node:fs"
-import { join } from "node:path"
-import { homedir } from "node:os"
 
 const log = createLogger("pi-provider")
-
-// ---------------------------------------------------------------------------
-// Resolve the `pi` binary — the server process may lack fnm's bin in PATH
-// ---------------------------------------------------------------------------
-
-let resolvedPiBin: string | null = null
-
-function resolvePiBinary(): string {
-  if (resolvedPiBin) return resolvedPiBin
-
-  // Try current PATH first
-  const inPath = Bun.which("pi")
-  if (inPath) {
-    resolvedPiBin = inPath
-    return inPath
-  }
-
-  // Fallback: fnm default alias bin
-  const fnmDefault = join(homedir(), ".local", "share", "fnm", "aliases", "default", "bin", "pi")
-  if (existsSync(fnmDefault)) {
-    resolvedPiBin = fnmDefault
-    return fnmDefault
-  }
-
-  // Last resort — hope PATH resolves it at spawn time
-  return "pi"
-}
 
 // ---------------------------------------------------------------------------
 // Pi RPC event → AgentEvent mapping
@@ -172,7 +142,7 @@ let cachedModels: ModelInfo[] | null = null
 export function discoverModels(): ModelInfo[] {
   if (cachedModels) return cachedModels
   try {
-    const result = spawnSync(resolvePiBinary(), ["--list-models"], {
+    const result = spawnSync("pi", ["--list-models"], {
       timeout: 5_000,
       encoding: "utf-8",
       env: { ...process.env, PI_OFFLINE: "1" },
@@ -227,7 +197,7 @@ export function createPiProvider(): AgentFactory {
 
           // Build CLI args for RPC mode
           const args = [
-            resolvePiBinary(),
+            "pi",
             "--mode", "rpc",
             "--no-extensions",
             "--no-skills",
