@@ -1,4 +1,4 @@
-import { memo, useState, useMemo, useCallback } from "react"
+import { memo, useState, useMemo, useCallback, useRef } from "react"
 import type { Components } from "react-markdown"
 import ReactMarkdown from "react-markdown"
 import remarkGfm from "remark-gfm"
@@ -9,6 +9,8 @@ import { formatTimestamp } from "../lib/format"
 import { useNavigate } from "react-router-dom"
 import { ToolCallDisplay } from "./ToolCallDisplay"
 import { ImageLightbox } from "./ImageLightbox"
+import { copyToClipboard } from "../lib/clipboard"
+
 export interface MessageAction {
   key: string
   label: string
@@ -24,10 +26,10 @@ interface ChatMessageProps {
 
 function MessageActionsBar({ actions, align = "start" }: { actions: MessageAction[], align?: "start" | "end" }) {
   if (actions.length === 0) return null
-  // hidden by default (takes no space); flex on group-hover for pointer devices;
-  // always flex on touch devices ([@media(hover:none)])
+  // Overlay: absolute so it never shifts content. Invisible until hover/focus;
+  // always visible on touch devices (hover:none).
   return (
-    <div className={`hidden gap-0.5 group-hover:flex group-focus-within:flex [@media(hover:none)]:flex ${align === "end" ? "justify-end" : "justify-start"}`}>
+    <div className={`flex gap-0.5 opacity-0 transition-opacity group-hover:opacity-100 group-focus-within:opacity-100 [@media(hover:none)]:opacity-100 ${align === "end" ? "justify-end" : "justify-start"}`}>
       {actions.map((action) => (
         <button
           key={action.key}
@@ -176,7 +178,31 @@ export const ChatMessage = memo(function ChatMessage({ message, tasks, onReply }
   const isNarration = message.role === "narration"
   const isTool = !isUser && !isSystem && !isThinking && !isNarration && isToolCall(message.content)
 
+  const [copied, setCopied] = useState(false)
+  const copiedTimer = useRef<ReturnType<typeof setTimeout>>(undefined)
+  const handleCopy = useCallback(() => {
+    void copyToClipboard(message.content).then(() => {
+      setCopied(true)
+      clearTimeout(copiedTimer.current)
+      copiedTimer.current = setTimeout(() => setCopied(false), 1500)
+    })
+  }, [message.content])
+
   const messageActions: MessageAction[] = message.content ? [
+    {
+      key: "copy",
+      label: copied ? "Copied" : "Copy",
+      icon: copied ? (
+        <svg className="h-3 w-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+          <path strokeLinecap="round" strokeLinejoin="round" d="m4.5 12.75 6 6 9-13.5" />
+        </svg>
+      ) : (
+        <svg className="h-3 w-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+          <path strokeLinecap="round" strokeLinejoin="round" d="M15.666 3.888A2.25 2.25 0 0 0 13.5 2.25h-3c-1.03 0-1.9.693-2.166 1.638m7.332 0c.055.194.084.4.084.612v0a.75.75 0 0 1-.75.75H9.75a.75.75 0 0 1-.75-.75v0c0-.212.03-.418.084-.612m7.332 0c.646.049 1.288.11 1.927.184 1.1.128 1.907 1.077 1.907 2.185V19.5a2.25 2.25 0 0 1-2.25 2.25H6.75A2.25 2.25 0 0 1 4.5 19.5V6.257c0-1.108.806-2.057 1.907-2.185a48.208 48.208 0 0 1 1.927-.184" />
+        </svg>
+      ),
+      onClick: handleCopy,
+    },
     ...(onReply ? [{
       key: "reply",
       label: "Reply",
