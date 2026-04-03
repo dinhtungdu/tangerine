@@ -62,6 +62,7 @@ Current task types:
 | POST | `/api/tasks/:id/model` | Change model and/or reasoning effort |
 | GET | `/api/tasks/:id/diff` | Return parsed git diff files |
 | GET | `/api/tasks/:id/activities` | List activity log entries |
+| GET | `/api/tasks/:id/skills` | Return agent-discovered skills, tools, and slash commands |
 
 ### Projects
 
@@ -118,6 +119,7 @@ type WsServerMessage =
   | { type: "activity"; entry: ActivityEntry }
   | { type: "status"; status: TaskStatus }
   | { type: "agent_status"; agentStatus: "idle" | "working" }
+  | { type: "agent_skills"; skills: AgentSkills }
   | { type: "error"; message: string }
 ```
 

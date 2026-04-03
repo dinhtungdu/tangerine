@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback, useRef } from "react"
-import type { WsServerMessage, TaskStatus, ActivityEntry, PromptImage } from "@tangerine/shared"
+import type { WsServerMessage, TaskStatus, ActivityEntry, PromptImage, AgentSkills } from "@tangerine/shared"
 import { fetchMessages, fetchActivities, type SessionLog } from "../lib/api"
 import { useWebSocket } from "./useWebSocket"
 
@@ -19,6 +19,7 @@ interface UseSessionResult {
   messages: ChatMessage[]
   activities: ActivityEntry[]
   agentStatus: "idle" | "working"
+  agentSkills: AgentSkills | null
   queueLength: number
   connected: boolean
   taskStatus: TaskStatus | null
@@ -30,6 +31,7 @@ export function useSession(taskId: string): UseSessionResult {
   const [messages, setMessages] = useState<ChatMessage[]>([])
   const [activities, setActivities] = useState<ActivityEntry[]>([])
   const [agentStatus, setAgentStatus] = useState<"idle" | "working">("idle")
+  const [agentSkills, setAgentSkills] = useState<AgentSkills | null>(null)
   const [queueLength, setQueueLength] = useState(0)
   const [taskStatus, setTaskStatus] = useState<TaskStatus | null>(null)
   const { connected, messages: wsMessages, send } = useWebSocket(taskId)
@@ -42,6 +44,7 @@ export function useSession(taskId: string): UseSessionResult {
     setMessages([])
     setActivities([])
     setAgentStatus("idle")
+    setAgentSkills(null)
     setQueueLength(0)
     setTaskStatus(null)
     processedCountRef.current = 0
@@ -153,6 +156,9 @@ export function useSession(taskId: string): UseSessionResult {
       case "agent_status":
         setAgentStatus(msg.agentStatus)
         break
+      case "agent_skills":
+        setAgentSkills(msg.skills)
+        break
       case "error":
         setMessages((prev) => [
           ...prev,
@@ -199,5 +205,5 @@ export function useSession(taskId: string): UseSessionResult {
     setQueueLength(0)
   }, [send])
 
-  return { messages, activities, agentStatus, queueLength, connected, taskStatus, sendPrompt, abort }
+  return { messages, activities, agentStatus, agentSkills, queueLength, connected, taskStatus, sendPrompt, abort }
 }

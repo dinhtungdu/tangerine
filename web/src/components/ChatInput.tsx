@@ -1,8 +1,9 @@
-import { useState, useRef, useCallback, useEffect, type KeyboardEvent, type ClipboardEvent, type MouseEvent } from "react"
-import type { PromptImage, PredefinedPrompt, ProviderType, Task } from "@tangerine/shared"
+import { useState, useRef, useCallback, useEffect, useMemo, type KeyboardEvent, type ClipboardEvent, type MouseEvent } from "react"
+import type { PromptImage, PredefinedPrompt, ProviderType, Task, AgentSkills } from "@tangerine/shared"
 import { ModelSelector } from "./ModelSelector"
 import { ReasoningEffortSelector, type ReasoningEffort } from "./ReasoningEffortSelector"
 import { MentionPicker } from "./MentionPicker"
+import { SlashCommandPicker } from "./SlashCommandPicker"
 import { useMentionPicker } from "../hooks/useMentionPicker"
 import { useTasks } from "../hooks/useTasks"
 
@@ -30,6 +31,8 @@ interface ChatInputProps {
   /** Text currently selected in the message area; drives the Quote button visibility */
   selectedText?: string | null
   onQuoteSelection?: () => void
+  /** Agent skills/slash commands for / autocomplete */
+  agentSkills?: AgentSkills | null
   /** When this value changes, the input is focused. Pass the task ID to focus on navigation. */
   autoFocusKey?: string
 }
@@ -47,7 +50,7 @@ export function appendQuotedText(existingText: string, quotedText: string): stri
   return `${prefix}${quotedText}\n\n`
 }
 
-export function ChatInput({ onSend, disabled, queueLength, taskId, isWorking, onAbort, model, provider, providerModels, reasoningEffort, onModelChange, onReasoningEffortChange, predefinedPrompts, quotedMessage, onQuoteDismiss, selectedText, onQuoteSelection, autoFocusKey }: ChatInputProps) {
+export function ChatInput({ onSend, disabled, queueLength, taskId, isWorking, onAbort, model, provider, providerModels, reasoningEffort, onModelChange, onReasoningEffortChange, predefinedPrompts, quotedMessage, onQuoteDismiss, selectedText, onQuoteSelection, agentSkills, autoFocusKey }: ChatInputProps) {
   const draftKey = taskId ? `tangerine:chat-draft:${taskId}` : null
 
   const [text, setText] = useState(() => draftKey ? (loadChatDraft(draftKey).text ?? "") : "")
@@ -60,6 +63,28 @@ export function ChatInput({ onSend, disabled, queueLength, taskId, isWorking, on
   mentionRef.current = mention
   const textRef = useRef(text)
   textRef.current = text
+
+  // Slash command autocomplete state
+  const [slashOpen, setSlashOpen] = useState(false)
+  const [slashIndex, setSlashIndex] = useState(0)
+
+  // Merge skills + slashCommands into a single sorted list for the picker
+  const allSlashCommands = useMemo(() => {
+    if (!agentSkills) return []
+    const set = new Set<string>()
+    for (const s of agentSkills.skills) set.add(s)
+    for (const s of agentSkills.slashCommands) set.add(s)
+    return Array.from(set).sort()
+  }, [agentSkills])
+
+  // Filter slash commands by what the user has typed after /
+  const filteredSlashCommands = useMemo(() => {
+    if (!slashOpen || allSlashCommands.length === 0) return []
+    const match = text.match(/^\/(\S*)$/)
+    if (!match) return []
+    const query = match[1]!.toLowerCase()
+    return allSlashCommands.filter((cmd) => cmd.toLowerCase().includes(query))
+  }, [slashOpen, text, allSlashCommands])
 
   // Ref to latest draft state — used in the unmount cleanup to avoid stale closures
   const draftStateRef = useRef({ text, pendingImages })
@@ -94,6 +119,7 @@ export function ChatInput({ onSend, disabled, queueLength, taskId, isWorking, on
     onSend(finalText, images)
     setText("")
     setPendingImages([])
+    setSlashOpen(false)
     onQuoteDismiss?.()
     if (draftKey) {
       try { localStorage.removeItem(draftKey) } catch { /* ignore */ }
@@ -114,6 +140,19 @@ export function ChatInput({ onSend, disabled, queueLength, taskId, isWorking, on
     })
   }, [])
 
+  const handleSlashSelect = useCallback((cmd: string) => {
+    setText(`/${cmd} `)
+    setSlashOpen(false)
+    setSlashIndex(0)
+    requestAnimationFrame(() => {
+      const textarea = textareaRef.current
+      if (!textarea) return
+      const pos = cmd.length + 2 // "/" + cmd + " "
+      textarea.setSelectionRange(pos, pos)
+      textarea.focus()
+    })
+  }, [])
+
   const handleKeyDown = useCallback(
     (e: KeyboardEvent<HTMLTextAreaElement>) => {
       const m = mentionRef.current
@@ -127,12 +166,35 @@ export function ChatInput({ onSend, disabled, queueLength, taskId, isWorking, on
         }
         if (m.onKeyDown(e)) return
       }
+      // Let slash command picker consume keys
+      if (slashOpen && filteredSlashCommands.length > 0) {
+        if (e.key === "ArrowDown") {
+          e.preventDefault()
+          setSlashIndex((i) => (i + 1) % filteredSlashCommands.length)
+          return
+        }
+        if (e.key === "ArrowUp") {
+          e.preventDefault()
+          setSlashIndex((i) => (i - 1 + filteredSlashCommands.length) % filteredSlashCommands.length)
+          return
+        }
+        if ((e.key === "Enter" || e.key === "Tab") && filteredSlashCommands[slashIndex]) {
+          e.preventDefault()
+          handleSlashSelect(filteredSlashCommands[slashIndex]!)
+          return
+        }
+        if (e.key === "Escape") {
+          e.preventDefault()
+          setSlashOpen(false)
+          return
+        }
+      }
       if (e.key === "Enter" && !e.shiftKey && !e.metaKey && !e.ctrlKey) {
         e.preventDefault()
         handleSend()
       }
     },
-    [handleSend, handleMentionSelect],
+    [handleSend, handleMentionSelect, slashOpen, filteredSlashCommands, slashIndex, handleSlashSelect],
   )
 
   const handleInput = useCallback(() => {
@@ -308,13 +370,29 @@ export function ChatInput({ onSend, disabled, queueLength, taskId, isWorking, on
               onHover={(i) => mention.setSelectedIndex(i)}
             />
           )}
+          {slashOpen && filteredSlashCommands.length > 0 && !mention.state.isOpen && (
+            <SlashCommandPicker
+              items={filteredSlashCommands}
+              selectedIndex={slashIndex}
+              onSelect={handleSlashSelect}
+              onHover={setSlashIndex}
+            />
+          )}
           <textarea
             ref={textareaRef}
             value={text}
             onChange={(e) => {
-              setText(e.target.value)
+              const val = e.target.value
+              setText(val)
               handleInput()
-              mention.onTextChange(e.target.value, e.target.selectionStart ?? e.target.value.length)
+              mention.onTextChange(val, e.target.selectionStart ?? val.length)
+              // Open slash picker when typing /command at start of input
+              if (val.match(/^\/\S*$/) && allSlashCommands.length > 0) {
+                setSlashOpen(true)
+                setSlashIndex(0)
+              } else {
+                setSlashOpen(false)
+              }
             }}
             onKeyDown={handleKeyDown}
             onPaste={handlePaste}
@@ -325,6 +403,7 @@ export function ChatInput({ onSend, disabled, queueLength, taskId, isWorking, on
             onBlur={() => {
               setIsFocused(false)
               mention.close()
+              setSlashOpen(false)
               if (textareaRef.current) {
                 textareaRef.current.style.height = "auto"
               }

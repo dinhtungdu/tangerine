@@ -3,7 +3,7 @@ import { Hono } from "hono"
 import type { UpgradeWebSocket } from "hono/ws"
 import type { AppDeps } from "../app"
 import { getTask } from "../../db/queries"
-import { getAgentWorkingState } from "../../tasks/events"
+import { getAgentWorkingState, getAgentSkills } from "../../tasks/events"
 import type { WsClientMessage, WsServerMessage, TaskStatus } from "@tangerine/shared"
 
 /**
@@ -42,15 +42,24 @@ export function wsRoutes(deps: AppDeps, upgradeWebSocket: UpgradeWebSocket): Hon
                 if (task.status === "running") {
                   const agentMsg: WsServerMessage = { type: "agent_status", agentStatus: getAgentWorkingState(taskId) }
                   ws.send(JSON.stringify(agentMsg))
+
+                  // Send cached agent skills so the client can show / autocomplete immediately
+                  const skills = getAgentSkills(taskId)
+                  if (skills) {
+                    const skillsMsg: WsServerMessage = { type: "agent_skills", skills }
+                    ws.send(JSON.stringify(skillsMsg))
+                  }
                 }
               }
 
               // Relay agent events to this client
               unsubEvent = deps.taskManager.onTaskEvent(taskId, (data: unknown) => {
-                // Activity events get their own WS message type
+                // Activity and agent_skills events get their own WS message type
                 const d = data as Record<string, unknown>
                 const msg: WsServerMessage = d.type === "activity"
                   ? { type: "activity", entry: d.entry as import("@tangerine/shared").ActivityEntry }
+                  : d.type === "agent_skills"
+                  ? { type: "agent_skills", skills: d.skills as import("@tangerine/shared").AgentSkills }
                   : { type: "event", data }
                 try {
                   ws.send(JSON.stringify(msg))

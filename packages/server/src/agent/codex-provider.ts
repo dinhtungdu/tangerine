@@ -11,6 +11,7 @@ import { parseNdjsonStream } from "./ndjson"
 import { existsSync, readFileSync } from "node:fs"
 import { homedir } from "node:os"
 import { join } from "node:path"
+import { scanSkillsDir } from "./skill-scanner"
 
 const log = createLogger("codex-provider")
 export const CODEX_APPROVAL_POLICY = "never" as const
@@ -519,6 +520,10 @@ export function createCodexProvider(): AgentFactory {
           if (!threadId) {
             throw new Error("Failed to obtain Codex thread ID")
           }
+
+          // Emit discovered skills from filesystem
+          const discoveredSkills = scanSkillsDir(join(homedir(), ".codex", "skills"))
+          emit({ kind: "init", skills: discoveredSkills })
 
           // Ready for prompts
           emit({ kind: "status", status: "idle" })

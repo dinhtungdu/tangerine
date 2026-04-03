@@ -58,6 +58,13 @@ export interface ActivityEntry {
   timestamp: string
 }
 
+/** Skills and tools discovered from the agent provider on session init */
+export interface AgentSkills {
+  skills: string[]
+  tools: string[]
+  slashCommands: string[]
+}
+
 // WebSocket message types
 export type WsServerMessage =
   | { type: "connected" }
@@ -65,6 +72,7 @@ export type WsServerMessage =
   | { type: "activity"; entry: ActivityEntry }
   | { type: "status"; status: TaskStatus }
   | { type: "agent_status"; agentStatus: "idle" | "working" }
+  | { type: "agent_skills"; skills: AgentSkills }
   | { type: "error"; message: string }
 
 export interface PromptImage {

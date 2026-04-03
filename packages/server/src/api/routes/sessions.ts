@@ -7,6 +7,7 @@ import { runEffect, runEffectVoid } from "../effect-helpers"
 import { normalizeTimestamps } from "../helpers"
 import { TaskNotFoundError } from "../../errors"
 import { getProjectConfig, getRepoDir, TANGERINE_HOME } from "../../config"
+import { getAgentSkills } from "../../tasks/events"
 
 function gitDiff(cmd: string, cwd: string): Effect.Effect<string, never> {
   return Effect.tryPromise({
@@ -129,6 +130,11 @@ export function sessionRoutes(deps: AppDeps): Hono {
         return { files: parseDiffChunks(raw) }
       })
     )
+  })
+
+  app.get("/:id/skills", (c) => {
+    const skills = getAgentSkills(c.req.param("id"))
+    return c.json(skills ?? { skills: [], tools: [], slashCommands: [] })
   })
 
   app.get("/:id/activities", (c) => {

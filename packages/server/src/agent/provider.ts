@@ -26,6 +26,7 @@ export type AgentEvent =
   | { kind: "tool.start"; toolName: string; toolInput?: string }
   | { kind: "tool.end"; toolName: string; toolResult?: string }
   | { kind: "thinking"; content: string }
+  | { kind: "init"; skills?: string[]; tools?: string[]; slashCommands?: string[] }
 
 /** Runtime config that can be changed mid-session */
 export interface AgentConfig {

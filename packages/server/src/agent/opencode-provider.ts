@@ -12,6 +12,7 @@ import { parseNdjsonStream } from "./ndjson"
 import { existsSync, readFileSync, unlinkSync } from "node:fs"
 import { homedir } from "node:os"
 import { join } from "node:path"
+import { scanSkillsDir } from "./skill-scanner"
 
 const log = createLogger("opencode-provider")
 
@@ -392,8 +393,12 @@ export function createOpenCodeProvider(): AgentFactory {
             // Permissions are handled by ensureOpenCodeConfig — no runtime approval needed
           })
 
-          // Emit initial idle so the task system knows we're ready
-          queueMicrotask(() => emit({ kind: "status", status: "idle" }))
+          // Emit discovered skills from filesystem (OpenCode uses Claude's skills dir)
+          const discoveredSkills = scanSkillsDir(join(homedir(), ".claude", "skills"))
+          queueMicrotask(() => {
+            emit({ kind: "init", skills: discoveredSkills })
+            emit({ kind: "status", status: "idle" })
+          })
 
           /** Build CLI args for `opencode run` */
           function buildArgs(): string[] {

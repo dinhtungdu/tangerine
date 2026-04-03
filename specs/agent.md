@@ -1,10 +1,11 @@
 # Agent Integration
 
-Tangerine currently supports three providers through a shared abstraction:
+Tangerine currently supports four providers through a shared abstraction:
 
 - `opencode`
 - `claude-code`
 - `codex`
+- `pi`
 
 All providers run as local subprocesses and are wrapped behind the interfaces in `packages/server/src/agent/provider.ts`.
 
@@ -21,7 +22,7 @@ The provider layer exposes:
 Current provider selection type:
 
 ```typescript
-type ProviderType = "opencode" | "claude-code" | "codex"
+type ProviderType = "opencode" | "claude-code" | "codex" | "pi"
 ```
 
 The runtime stores `agent_session_id` and `agent_pid` on tasks so sessions can be resumed or inspected after restart.
@@ -97,3 +98,18 @@ Tool calls are classified into activity log events:
 - everything else: `tool.other`
 
 This powers the task detail UI and persisted audit trail.
+
+## Skill Discovery
+
+Providers emit an `init` event on session start with discovered skills, tools, and slash commands. The server caches these per-task and pushes them to the UI via WebSocket (`agent_skills` message) and REST (`GET /api/tasks/:id/skills`).
+
+Discovery mechanism per provider:
+
+| Provider | Mechanism |
+|----------|-----------|
+| `claude-code` | `system/init` event includes `skills[]`, `tools[]`, `slash_commands[]` |
+| `pi` | `get_state` response includes `skills[]`, `tools[]`, `slashCommands[]` |
+| `opencode` | Filesystem scan of `~/.claude/skills/` (no native API) |
+| `codex` | Filesystem scan of `~/.codex/skills/` (no native API) |
+
+The ChatInput UI shows a `/` autocomplete picker sourced from the combined skills + slash commands list.

@@ -200,7 +200,6 @@ export function createPiProvider(): AgentFactory {
             "pi",
             "--mode", "rpc",
             "--no-extensions",
-            "--no-skills",
             "--no-prompt-templates",
             "--no-themes",
             ...(ctx.model ? ["--model", ctx.model] : []),
@@ -273,6 +272,11 @@ export function createPiProvider(): AgentFactory {
                     if (model && typeof model.provider === "string") {
                       currentModelProvider = model.provider
                     }
+                    // Emit discovered skills/tools
+                    const skills = Array.isArray(stateData.skills) ? (stateData.skills as string[]) : undefined
+                    const tools = Array.isArray(stateData.tools) ? (stateData.tools as string[]) : undefined
+                    const slashCommands = Array.isArray(stateData.slashCommands) ? (stateData.slashCommands as string[]) : undefined
+                    emit({ kind: "init", skills, tools, slashCommands })
                   }
                   emit({ kind: "status", status: "idle" })
                   if (resolveReady) {

@@ -1,6 +1,8 @@
 // Singleton event emitter for task events.
 // WebSocket routes subscribe per-task; the task manager emits on status transitions.
 
+import type { AgentSkills } from "@tangerine/shared"
+
 type TaskEventHandler = (data: unknown) => void
 type StatusChangeHandler = (status: string) => void
 
@@ -10,6 +12,9 @@ const statusChangeListeners = new Map<string, Set<StatusChangeHandler>>()
 // Track whether each task's agent is currently working or idle.
 // This is separate from task status ("running" = task is open, agent may be idle).
 const agentWorkingState = new Map<string, "idle" | "working">()
+
+// Track skills/tools discovered from the agent provider on session init
+const agentSkillsMap = new Map<string, AgentSkills>()
 
 export function emitTaskEvent(taskId: string, data: unknown): void {
   const handlers = taskEventListeners.get(taskId)
@@ -57,6 +62,17 @@ export function setAgentWorkingState(taskId: string, state: "idle" | "working"):
 /** Clean up agent working state when a task is terminal. */
 export function clearAgentWorkingState(taskId: string): void {
   agentWorkingState.delete(taskId)
+  agentSkillsMap.delete(taskId)
+}
+
+/** Store the skills/tools discovered from the agent provider. */
+export function setAgentSkills(taskId: string, skills: AgentSkills): void {
+  agentSkillsMap.set(taskId, skills)
+}
+
+/** Get the cached agent skills for a task. */
+export function getAgentSkills(taskId: string): AgentSkills | null {
+  return agentSkillsMap.get(taskId) ?? null
 }
 
 /** Subscribe to status changes. Returns an unsubscribe function. */

@@ -14,7 +14,7 @@ import type { AppDeps } from "../api/app"
 import { DEFAULT_API_PORT } from "@tangerine/shared"
 import * as taskManager from "../tasks/manager"
 import type { TaskManagerDeps } from "../tasks/manager"
-import { onTaskEvent, onStatusChange, emitTaskEvent, setAgentWorkingState, getAgentWorkingState } from "../tasks/events"
+import { onTaskEvent, onStatusChange, emitTaskEvent, setAgentWorkingState, getAgentWorkingState, setAgentSkills } from "../tasks/events"
 import { cleanupSession } from "../tasks/cleanup"
 import type { CleanupDeps } from "../tasks/cleanup"
 import { startOrphanCleanup, findOrphans, cleanupOrphans } from "../tasks/orphan-cleanup"
@@ -654,6 +654,22 @@ export async function start(): Promise<void> {
                     Effect.catchAll(() => Effect.void)
                   )
                 )
+                break
+              }
+              case "init": {
+                const skills = {
+                  skills: event.skills ?? [],
+                  tools: event.tools ?? [],
+                  slashCommands: event.slashCommands ?? [],
+                }
+                setAgentSkills(taskId, skills)
+                emitTaskEvent(taskId, { type: "agent_skills", skills })
+                log.info("Agent skills discovered", {
+                  taskId,
+                  skillCount: skills.skills.length,
+                  toolCount: skills.tools.length,
+                  slashCommandCount: skills.slashCommands.length,
+                })
                 break
               }
               case "error": {

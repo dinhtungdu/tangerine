@@ -10,6 +10,7 @@ export type {
   ActivityEntry,
   WsServerMessage,
   WsClientMessage,
+  AgentSkills,
   PromptImage,
   LogLevel,
   SystemLogEntry,

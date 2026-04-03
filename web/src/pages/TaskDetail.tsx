@@ -532,6 +532,7 @@ export function TaskDetail() {
                 messages={session.messages}
                 tasks={tasks}
                 agentStatus={session.agentStatus}
+                agentSkills={session.agentSkills}
                 queueLength={session.queueLength}
                 model={chatTask.model}
                 provider={chatTask.provider}
