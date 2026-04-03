@@ -9,8 +9,41 @@ import { AgentError, PromptError, SessionStartError } from "../errors"
 import type { AgentFactory, AgentHandle, AgentEvent, AgentStartContext, AgentConfig, PromptImage, ModelInfo } from "./provider"
 import { parseNdjsonStream } from "./ndjson"
 import { spawnSync } from "node:child_process"
+import { existsSync } from "node:fs"
+import { homedir } from "node:os"
+import { join } from "node:path"
 
 const log = createLogger("pi-provider")
+
+// ---------------------------------------------------------------------------
+// Resolve the `pi` binary — fnm per-shell dirs may not include globally
+// installed packages, so fall back to the fnm default alias bin.
+// ---------------------------------------------------------------------------
+
+let resolvedPiBin: string | null = null
+
+function resolvePiBin(): string {
+  if (resolvedPiBin) return resolvedPiBin
+
+  // 1. Try the bare command (works if PATH already has it)
+  const which = spawnSync("which", ["pi"], { encoding: "utf-8", timeout: 2_000 })
+  if (which.status === 0 && which.stdout.trim()) {
+    resolvedPiBin = which.stdout.trim()
+    return resolvedPiBin
+  }
+
+  // 2. Fall back to fnm default alias bin
+  const fnmDir = process.env.FNM_DIR || join(homedir(), ".local", "share", "fnm")
+  const fnmDefault = join(fnmDir, "aliases", "default", "bin", "pi")
+  if (existsSync(fnmDefault)) {
+    resolvedPiBin = fnmDefault
+    return resolvedPiBin
+  }
+
+  // 3. Last resort — hope it's on PATH at runtime
+  resolvedPiBin = "pi"
+  return resolvedPiBin
+}
 
 // ---------------------------------------------------------------------------
 // Pi RPC event → AgentEvent mapping
@@ -142,7 +175,8 @@ let cachedModels: ModelInfo[] | null = null
 export function discoverModels(): ModelInfo[] {
   if (cachedModels) return cachedModels
   try {
-    const result = spawnSync("pi", ["--list-models"], {
+    const piBin = resolvePiBin()
+    const result = spawnSync(piBin, ["--list-models"], {
       timeout: 5_000,
       encoding: "utf-8",
       env: { ...process.env, PI_OFFLINE: "1" },
@@ -197,7 +231,7 @@ export function createPiProvider(): AgentFactory {
 
           // Build CLI args for RPC mode
           const args = [
-            "pi",
+            resolvePiBin(),
             "--mode", "rpc",
             "--no-extensions",
             "--no-skills",
