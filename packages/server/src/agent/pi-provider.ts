@@ -8,9 +8,7 @@ import { createLogger } from "../logger"
 import { AgentError, PromptError, SessionStartError } from "../errors"
 import type { AgentFactory, AgentHandle, AgentEvent, AgentStartContext, AgentConfig, PromptImage, ModelInfo } from "./provider"
 import { parseNdjsonStream } from "./ndjson"
-import { existsSync, readFileSync } from "node:fs"
-import { homedir } from "node:os"
-import { join } from "node:path"
+import { spawnSync } from "node:child_process"
 
 const log = createLogger("pi-provider")
 
@@ -132,33 +130,45 @@ function truncate(s: string, maxLen: number): string {
 }
 
 // ---------------------------------------------------------------------------
-// Model discovery — reads Pi's local models config
+// Model discovery — runs `pi --list-models` and parses the table output
 // ---------------------------------------------------------------------------
 
-const PI_MODELS_FILE = join(homedir(), ".pi", "agent", "models.json")
+let cachedModels: ModelInfo[] | null = null
 
 /**
- * Discover available Pi models by reading ~/.pi/agent/models.json.
- * Returns models configured for the Pi CLI.
+ * Discover available Pi models by running `pi --list-models`.
+ * Only non-empty results are cached; failures retry on next call.
  */
 export function discoverModels(): ModelInfo[] {
-  if (!existsSync(PI_MODELS_FILE)) return []
+  if (cachedModels) return cachedModels
   try {
-    const raw = JSON.parse(readFileSync(PI_MODELS_FILE, "utf-8"))
-    // models.json can be an array of model objects or { models: [...] }
-    const models = Array.isArray(raw) ? raw : Array.isArray(raw.models) ? raw.models : []
-    return models
-      .filter((m: Record<string, unknown>) => typeof m.id === "string" || typeof m.modelId === "string")
-      .map((m: Record<string, unknown>) => {
-        const id = (m.id ?? m.modelId) as string
-        const provider = (m.provider ?? id.split("/")[0] ?? "unknown") as string
+    const result = spawnSync("pi", ["--list-models"], {
+      timeout: 10_000,
+      encoding: "utf-8",
+      env: { ...process.env, PI_OFFLINE: "1" },
+    })
+    // Pi writes model list to stderr
+    const output = (result.stdout || result.stderr || "").trim()
+    if (result.status !== 0 || !output) return []
+    const lines = output.split("\n")
+    // Skip the header line
+    const models = lines.slice(1)
+      .map((line) => {
+        const cols = line.trim().split(/\s{2,}/)
+        const provider = cols[0]
+        const modelId = cols[1]
+        if (!provider || !modelId) return null
+        const id = `${provider}/${modelId}`
         return {
           id,
-          name: (m.name ?? m.displayName ?? id) as string,
+          name: modelId,
           provider,
-          providerName: provider.charAt(0).toUpperCase() + provider.slice(1),
+          providerName: provider.split("-").map((w) => w.charAt(0).toUpperCase() + w.slice(1)).join(" "),
         }
       })
+      .filter((m): m is ModelInfo => m !== null)
+    if (models.length > 0) cachedModels = models
+    return models
   } catch {
     return []
   }
