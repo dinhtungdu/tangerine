@@ -298,6 +298,10 @@ codex review --base main -c model="gpt-5.4" -c reasoning.effort="xhigh"
 
 > 🚨 **CRITICAL**: The review summary MUST be posted in **this task's own conversation** — do NOT skip this.
 
+## Reporting
+
+When reporting task IDs to the user, always print the full UUID (e.g. d3371cea-afd4-4172-90aa-e6e2b9de9bfc) — no backticks, no quotes, no truncation.
+
 ## Task Shape
 
 Typical task fields exposed by the API:
