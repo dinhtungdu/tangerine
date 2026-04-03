@@ -40,6 +40,20 @@ export function RunsPage() {
     }
   }, [current, navigate, showToast])
 
+  if (current?.archived) {
+    return (
+      <div className="flex flex-col items-center justify-center gap-4 p-8 md:h-full">
+        <span className="rounded bg-amber-500/10 px-2 py-1 text-sm font-medium text-amber-600 dark:text-amber-400">
+          Archived
+        </span>
+        <p className="text-center text-sm text-fg-muted">
+          This project is archived. Task history is still accessible from the sidebar.
+          Visit the <strong>Status</strong> tab to unarchive it.
+        </p>
+      </div>
+    )
+  }
+
   return (
     <div className="flex flex-col md:h-full">
       <div ref={formRef} id="new-agent-form" className="min-h-0 flex-1">
