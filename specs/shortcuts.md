@@ -82,6 +82,25 @@ The registry is a plain module singleton (not React context), so it can be impor
 
 Note: `g then r` style sequences are deferred to a future iteration. Initial shortcuts use single-key combos only.
 
+## Default Shortcuts
+
+All default shortcuts are defined in `web/src/lib/default-shortcuts.ts` using the same
+`Record<string, Shortcut>` format as user overrides. No shortcuts are hardcoded inline
+in action registrations — `useAppActions` merges defaults with user overrides via
+`setShortcutOverrides({ ...defaultShortcuts, ...userOverrides })`.
+
+```ts
+// web/src/lib/default-shortcuts.ts
+export const defaultShortcuts: Record<string, Shortcut> = {
+  "palette.toggle": { key: "k", meta: true },
+  "task.create":    { key: "n", meta: true, shift: true },
+  "panel.toggle-chat":     { key: "1", meta: true, shift: true },
+  "panel.toggle-terminal": { key: "`", meta: true },
+  "panel.toggle-activity": { key: "3", meta: true, shift: true },
+  "panel.toggle-diff":     { key: "2", meta: true, shift: true },
+}
+```
+
 ## User-Defined Shortcut Overrides
 
 Users can rebind action shortcuts globally via `config.json`:
@@ -97,15 +116,16 @@ Users can rebind action shortcuts globally via `config.json`:
 
 - `shortcuts` is a top-level field on `TangerineConfig` (global, not per-project).
 - Keys are action IDs, values are `Shortcut` objects (`{ key, meta?, shift?, alt? }`).
-- Overrides are applied via `patchActionShortcut(id, shortcut)` after built-in actions are registered.
+- User overrides are merged on top of defaults: `{ ...defaultShortcuts, ...userOverrides }`.
 - Only the shortcut binding is replaced — the handler and all other action properties are preserved.
 - The server returns `shortcuts` from `GET /api/projects`; the web app reads it from `ProjectContext` and applies overrides in `useAppActions`.
 
 ## File Structure
 
 ```
-web/src/lib/actions.ts       # Registry singleton (includes patchActionShortcut)
-web/src/hooks/useShortcuts.ts # Global keydown listener hook
+web/src/lib/actions.ts            # Registry singleton (includes patchActionShortcut)
+web/src/lib/default-shortcuts.ts  # Default shortcut bindings (same format as user overrides)
+web/src/hooks/useShortcuts.ts     # Global keydown listener hook
 web/src/components/CommandPalette.tsx  # Replaces QuickOpen
 ```
 

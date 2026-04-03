@@ -3,7 +3,8 @@ import { renderHook, act, waitFor } from "@testing-library/react"
 import { useTasks } from "../hooks/useTasks"
 import { useMentionPicker } from "../hooks/useMentionPicker"
 import { usePanelActions } from "../hooks/usePanelActions"
-import { getActions, getAction, _resetForTesting } from "../lib/actions"
+import { getActions, getAction, setShortcutOverrides, _resetForTesting } from "../lib/actions"
+import { defaultShortcuts } from "../lib/default-shortcuts"
 import type { Task } from "@tangerine/shared"
 const mockTasks = [
   {
@@ -325,7 +326,8 @@ describe("usePanelActions", () => {
     }
   })
 
-  test("terminal action has a keyboard shortcut", () => {
+  test("terminal action has a keyboard shortcut when defaults applied", () => {
+    setShortcutOverrides(defaultShortcuts)
     const togglePane = mock(() => {})
     const task = makeTask({ capabilities: [] })
     renderHook(() => usePanelActions(task, togglePane))

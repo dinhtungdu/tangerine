@@ -1,6 +1,7 @@
 import { useEffect } from "react"
 import { useNavigate } from "react-router-dom"
 import { registerActions, registerActionCombos, setShortcutOverrides, type Action } from "../lib/actions"
+import { defaultShortcuts } from "../lib/default-shortcuts"
 import { cancelTask, retryTask, deleteTask, resolveTask } from "../lib/api"
 import { useProjectNav } from "./useProjectNav"
 import { useProject } from "../context/ProjectContext"
@@ -61,7 +62,6 @@ export function useAppActions() {
         description: "Create a new agent task",
         section: "Tasks",
         handler: () => navigate(link("/?focus=1")),
-        shortcut: { key: "n", meta: true, shift: true },
       },
       {
         id: "task.cancel",
@@ -122,6 +122,6 @@ export function useAppActions() {
   // setShortcutOverrides stores the map in the registry so overrides
   // are automatically reapplied when actions re-register or register late.
   useEffect(() => {
-    setShortcutOverrides(shortcuts ?? {})
+    setShortcutOverrides({ ...defaultShortcuts, ...shortcuts })
   }, [shortcuts])
 }
