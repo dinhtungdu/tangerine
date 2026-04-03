@@ -72,14 +72,15 @@ export function ChatInput({ onSend, disabled, queueLength, taskId, isWorking, on
   const skillsRef = useRef(skills)
   skillsRef.current = skills
 
-  // Fetch skills when the task is known
+  // Fetch skills on mount and whenever the agent finishes a turn (isWorking → false),
+  // because Claude/Pi populate skills asynchronously from the init/state event.
   useEffect(() => {
-    if (!taskId) return
+    if (!taskId || isWorking) return
     fetch(`/api/tasks/${taskId}/skills`)
       .then((r) => r.ok ? r.json() as Promise<{ skills: string[] }> : Promise.resolve({ skills: [] }))
-      .then((data) => setSkills(data.skills))
+      .then((data) => { if (data.skills.length > 0) setSkills(data.skills) })
       .catch(() => {})
-  }, [taskId])
+  }, [taskId, isWorking])
 
   // Ref to latest draft state — used in the unmount cleanup to avoid stale closures
   const draftStateRef = useRef({ text, pendingImages })
