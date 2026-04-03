@@ -39,7 +39,7 @@ function linkifyUrls(text: string, tasks?: ReadonlyArray<{ id: string }>): strin
   return escaped.replace(
     /(https?:\/\/[^\s<]+)|\b([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})\b/gi,
     (match, url: string | undefined, uuid: string | undefined) => {
-      if (url) return `<a href="${url}">${url}</a>`
+      if (url) return `<a href="${url}" target="_blank" rel="noopener noreferrer">${url}</a>`
       if (uuid && taskMap) {
         const canonicalId = taskMap.get(uuid.toLowerCase())
         if (!canonicalId) return uuid
@@ -75,7 +75,7 @@ const markdownComponents: Components = {
   ),
   hr: () => <hr className="my-2 border-edge" />,
   a: ({ href, children }) => (
-    <a href={href} className="underline text-link hover:text-link-hover break-all">
+    <a href={href} target="_blank" rel="noopener noreferrer" className="underline text-link hover:text-link-hover break-all">
       {children}
     </a>
   ),
