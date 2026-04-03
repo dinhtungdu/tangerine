@@ -9,15 +9,12 @@ import { AgentError, PromptError, SessionStartError } from "../errors"
 import type { AgentFactory, AgentHandle, AgentEvent, AgentStartContext, AgentConfig, PromptImage, ModelInfo } from "./provider"
 import { parseNdjsonStream } from "./ndjson"
 import { spawnSync } from "node:child_process"
-import { existsSync } from "node:fs"
-import { homedir } from "node:os"
-import { join } from "node:path"
 
 const log = createLogger("pi-provider")
 
 // ---------------------------------------------------------------------------
-// Resolve the `pi` binary — fnm per-shell dirs may not include globally
-// installed packages, so fall back to the fnm default alias bin.
+// Resolve the `pi` binary — the server process may not have the same PATH
+// as a login shell, so use `bash -lc` to find the real path.
 // ---------------------------------------------------------------------------
 
 let resolvedPiBin: string | null = null
@@ -25,22 +22,20 @@ let resolvedPiBin: string | null = null
 function resolvePiBin(): string {
   if (resolvedPiBin) return resolvedPiBin
 
-  // 1. Try the bare command (works if PATH already has it)
-  const which = spawnSync("which", ["pi"], { encoding: "utf-8", timeout: 2_000 })
-  if (which.status === 0 && which.stdout.trim()) {
-    resolvedPiBin = which.stdout.trim()
+  // Try current PATH first
+  const direct = spawnSync("which", ["pi"], { encoding: "utf-8", timeout: 2_000 })
+  if (direct.status === 0 && direct.stdout.trim()) {
+    resolvedPiBin = direct.stdout.trim()
     return resolvedPiBin
   }
 
-  // 2. Fall back to fnm default alias bin
-  const fnmDir = process.env.FNM_DIR || join(homedir(), ".local", "share", "fnm")
-  const fnmDefault = join(fnmDir, "aliases", "default", "bin", "pi")
-  if (existsSync(fnmDefault)) {
-    resolvedPiBin = fnmDefault
+  // Fall back to a login shell which has the full user PATH
+  const login = spawnSync("bash", ["-lc", "which pi"], { encoding: "utf-8", timeout: 3_000 })
+  if (login.status === 0 && login.stdout.trim()) {
+    resolvedPiBin = login.stdout.trim()
     return resolvedPiBin
   }
 
-  // 3. Last resort — hope it's on PATH at runtime
   resolvedPiBin = "pi"
   return resolvedPiBin
 }
