@@ -3,6 +3,7 @@
 // needed — single-process server with Effect fibers.
 
 import { Effect } from "effect"
+import path from "node:path"
 import type { Database } from "bun:sqlite"
 import type { WorktreeSlotRow } from "../db/types"
 import { TERMINAL_STATUSES } from "@tangerine/shared"
@@ -85,7 +86,7 @@ export function initPool(
 
     // Create missing slots as siblings of 0 (the repo clone).
     // Layout: {workspace}/{project}/0 (repo), 1, 2, ...
-    const projectDir = `${repoPath}/..`
+    const projectDir = path.dirname(repoPath)
 
     const slots: WorktreeSlotRow[] = [...existing]
     const existingIds = new Set(existing.map((s) => s.id))
@@ -94,21 +95,21 @@ export function initPool(
       const slotId = `${projectId}-slot-${i}`
       if (existingIds.has(slotId)) continue
 
-      const path = `${projectDir}/${i}`
+      const slotPath = `${projectDir}/${i}`
 
       yield* exec(
-        `cd ${repoPath} && git worktree add --detach ${path} 2>/dev/null || true`,
+        `cd ${repoPath} && git worktree add --detach ${slotPath} 2>/dev/null || true`,
       )
 
       const row = yield* dbTry(() => {
         db.prepare(
           "INSERT OR IGNORE INTO worktree_slots (id, project_id, path, status) VALUES ($id, $project_id, $path, 'available')",
-        ).run({ $id: slotId, $project_id: projectId, $path: path })
+        ).run({ $id: slotId, $project_id: projectId, $path: slotPath })
         return db.prepare("SELECT * FROM worktree_slots WHERE id = ?").get(slotId) as WorktreeSlotRow
       })
 
       slots.push(row)
-      log.info("Worktree slot created", { projectId, slotId, path })
+      log.info("Worktree slot created", { projectId, slotId, path: slotPath })
     }
 
     return slots
@@ -153,6 +154,28 @@ export function acquireSlot(
       db.prepare(
         "UPDATE worktree_slots SET status = 'bound', task_id = ? WHERE id = ?",
       ).run(taskId, slot.id)
+    )
+
+    // Ensure the worktree directory exists — initPool may have failed silently or
+    // the directory may have been removed externally.
+    const repoPath = yield* dbTry(() => {
+      const slot0 = db.prepare(
+        "SELECT path FROM worktree_slots WHERE id = ?",
+      ).get(`${projectId}-slot-0`) as { path: string } | null
+      if (!slot0) throw new Error(`Slot 0 not found for project ${projectId}`)
+      return slot0.path
+    })
+
+    yield* exec(
+      `if [ ! -d "${slot.path}" ]; then cd ${repoPath} && git worktree add --detach ${slot.path}; fi`,
+    ).pipe(
+      Effect.catchAll((e) =>
+        dbTry(() =>
+          db.prepare(
+            "UPDATE worktree_slots SET status = 'available', task_id = NULL WHERE id = ?",
+          ).run(slot.id)
+        ).pipe(Effect.flatMap(() => Effect.fail(e)))
+      )
     )
 
     // Fetch from origin and reset to remote HEAD so every task starts from the latest remote state.
