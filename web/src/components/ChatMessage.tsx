@@ -133,43 +133,39 @@ const UUID_RE = /(?<!\/)([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f
 function makeRemarkLinkifyTaskIds(tasks: ReadonlyArray<{ id: string }>) {
   const known = new Map(tasks.map((t) => [t.id.toLowerCase(), t.id]))
 
-  function linkifyTextNode(node: Text, index: number | undefined, parent: Parent | undefined) {
-    if (!parent || index === undefined || parent.type === "link") return
-    const parts: Array<Text | Link> = []
+  function makeTaskLink(canonicalId: string): Link {
+    return { type: "link", url: `/tasks/${canonicalId}`, children: [{ type: "text", value: canonicalId.slice(0, 8) }], title: null }
+  }
+
+  /** Scan `value` for task UUIDs, splitting into alternating plain/link segments.
+   *  `wrapPlain` controls how non-UUID text is represented (text vs inlineCode). */
+  function splitOnTaskIds<T>(value: string, wrapPlain: (s: string) => T): Array<T | Link> | null {
+    const parts: Array<T | Link> = []
     let last = 0
     UUID_RE.lastIndex = 0
     let m: RegExpExecArray | null
-    while ((m = UUID_RE.exec(node.value)) !== null) {
+    while ((m = UUID_RE.exec(value)) !== null) {
       const canonicalId = known.get(m[0].toLowerCase())
       if (!canonicalId) continue
-      if (m.index > last) parts.push({ type: "text", value: node.value.slice(last, m.index) })
-      parts.push({ type: "link", url: `/tasks/${canonicalId}`, children: [{ type: "text", value: canonicalId.slice(0, 8) }], title: null })
+      if (m.index > last) parts.push(wrapPlain(value.slice(last, m.index)))
+      parts.push(makeTaskLink(canonicalId))
       last = m.index + m[0].length
     }
-    if (parts.length === 0) return
-    if (last < node.value.length) parts.push({ type: "text", value: node.value.slice(last) })
-    parent.children.splice(index, 1, ...(parts as Parent["children"]))
+    if (parts.length === 0) return null
+    if (last < value.length) parts.push(wrapPlain(value.slice(last)))
+    return parts
   }
 
   return () => (tree: Root) => {
-    visit(tree, "text", linkifyTextNode)
-    // Also linkify UUIDs inside inline code (backticks)
+    visit(tree, "text", (node: Text, index: number | undefined, parent: Parent | undefined) => {
+      if (!parent || index === undefined || parent.type === "link") return
+      const parts = splitOnTaskIds(node.value, (s): Text => ({ type: "text", value: s }))
+      if (parts) parent.children.splice(index, 1, ...(parts as Parent["children"]))
+    })
     visit(tree, "inlineCode", (node: { type: "inlineCode"; value: string }, index: number | undefined, parent: Parent | undefined) => {
       if (!parent || index === undefined || parent.type === "link") return
-      const parts: Parent["children"][] = []
-      let last = 0
-      UUID_RE.lastIndex = 0
-      let m: RegExpExecArray | null
-      while ((m = UUID_RE.exec(node.value)) !== null) {
-        const canonicalId = known.get(m[0].toLowerCase())
-        if (!canonicalId) continue
-        if (m.index > last) parts.push([{ type: "inlineCode", value: node.value.slice(last, m.index) } as Parent["children"][number]])
-        parts.push([{ type: "link", url: `/tasks/${canonicalId}`, children: [{ type: "text", value: canonicalId.slice(0, 8) }], title: null } as unknown as Parent["children"][number]])
-        last = m.index + m[0].length
-      }
-      if (parts.length === 0) return
-      if (last < node.value.length) parts.push([{ type: "inlineCode", value: node.value.slice(last) } as Parent["children"][number]])
-      parent.children.splice(index, 1, ...parts.flat())
+      const parts = splitOnTaskIds(node.value, (s) => ({ type: "inlineCode" as const, value: s }))
+      if (parts) parent.children.splice(index, 1, ...(parts as Parent["children"]))
     })
   }
 }
