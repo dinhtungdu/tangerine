@@ -15,6 +15,46 @@ Since Tangerine uses worktree slots (`{workspace}/{project}/0`, `/1`, `/2`, ...)
 
 **Current state**: Only worktree 0 (orchestrator) has accumulated memories. Worker worktrees (1-N) have none.
 
+### Claude Code's native worktree fix doesn't apply
+
+Claude Code v2.1.50 (Feb 2026) added native worktree sharing — "project configs & auto memory are now shared across git worktrees of the same repository" ([anthropics/claude-code#34437](https://github.com/anthropics/claude-code/issues/34437), [anthropics/claude-code#24382](https://github.com/anthropics/claude-code/issues/24382)). However, this fix **does not work for Tangerine's worktrees** because:
+
+1. Claude Code detects worktrees using `git rev-parse --git-common-dir` at CLI startup
+2. Tangerine spawns Claude Code with `--dangerously-skip-permissions` and `--output-format stream-json` — the process lifecycle is managed by Tangerine, not the user
+3. Even on Claude Code v2.1.91, `~/.claude/projects/` still shows separate directories per worktree slot (`-tangerine-0/`, `-tangerine-1/`, `-tangerine-2/`, etc.)
+4. The fix may only apply to worktrees Claude Code creates itself (via `--worktree` / `EnterWorktree`)
+
+This means Tangerine must handle memory sharing independently.
+
+## Prior art & SOTA
+
+### Production memory systems
+
+| System | Architecture | Key insight |
+|--------|-------------|-------------|
+| **[Mem0](https://mem0.ai/)** | Vector + graph + KV multi-store, async writes, scoped (user/session/agent) | Universal memory layer — 48k GH stars, +26% accuracy over OpenAI Memory on LOCOMO benchmark. Async-by-default prevents memory writes from blocking responses. |
+| **[ODEI](https://github.com/odei-ai)** | Constitutional knowledge graph, 7 policy layers before every write | "World Model as a Service" — governance-first: typed/auditable graph with policy-gated writes for production safety. |
+| **[Mastra Observational Memory](https://mastra.ai/docs/memory/observational-memory)** | Observer + Reflector background agents compress conversation history into dated observations | 3-6x text compression, 5-40x for tool-heavy workloads. Two-block context: observations (compressed past) + raw messages (current session). SOTA on LongMemEval. |
+| **[A-Mem](https://arxiv.org/abs/2502.12110)** (NeurIPS 2025) | Zettelkasten-inspired interconnected notes with auto-linking, structured attributes (context, keywords, tags) | Agent-driven memory organization — memories evolve via new experiences, developing higher-order attributes. 2x improvement on multi-hop reasoning. |
+
+### Parallel agent platforms
+
+| Tool | Memory approach |
+|------|----------------|
+| **[Conductor](https://docs.conductor.build/)** | No shared memory — agents coordinate via spawn prompt + CLAUDE.md/AGENTS.md |
+| **[Superset](https://superset.sh/)** | No shared memory — each agent gets own worktree, conflicts surface at merge time |
+| **Claude Code Agent Teams** | Shared task list, but warns "two teammates editing same file leads to overwrites" |
+
+**Key gap**: No existing parallel agent tool has a proper shared memory layer. They all rely on static context files (CLAUDE.md) or expect agents to figure it out at merge time. This is an opportunity for Tangerine.
+
+### Design implications from research
+
+1. **Async memory writes** (Mem0): Memory saves should never block the agent's response pipeline. Our API-based approach (Layer 2) naturally satisfies this — agents fire-and-forget POST calls.
+2. **Observational compression** (Mastra): For auto-capture (Phase 5), use an Observer pattern — a lightweight post-task pass that compresses session logs into structured memories, not just raw extraction.
+3. **Interconnected notes** (A-Mem): Memories should link to related memories via tags and `supersedes` field. The Zettelkasten principle of building connections between notes produces better retrieval than flat lists.
+4. **Governance layers** (ODEI): For multi-agent setups, memory writes need conflict resolution — two agents shouldn't create contradictory memories. The `supersedes` field and deduplication check handle this.
+5. **Scoped memory** (Mem0): Our type-based system (architecture/decision/pattern/learning/context) maps to Mem0's scoping concept — different memory types have different lifetimes and injection strategies.
+
 ## Design
 
 Three-layer approach: filesystem unification for native provider memory, a Tangerine-managed memory store for structured cross-provider memory, and prompt injection for providers that lack native memory.
@@ -250,3 +290,32 @@ Partially adopted: `CLAUDE.md` is already committed and shared. But runtime lear
 ### D. Embedding-based semantic search
 
 Over-engineered for v0. The memory set per project is small enough (tens to low hundreds) that a simple type-based filter + full-text is sufficient. Embeddings could be added later if memory volume grows.
+
+### E. Mem0 / external memory framework
+
+Mem0 offers a production-grade universal memory layer with vector + graph + KV stores. However, integrating it adds external dependencies (Python, vector DB), infrastructure complexity, and a semantic mismatch — Mem0 is designed for conversational memory (user preferences, facts about users), not coding agent project memory (architecture decisions, code patterns, build gotchas). Our SQLite-based approach is simpler, self-contained (Bun + SQLite, no external services), and purpose-built for the coding agent use case. If memory volume scales beyond hundreds of entries per project, we can add vector search later.
+
+### F. Observational memory (Mastra-style)
+
+The Observer/Reflector pattern achieves impressive compression (5-40x for tool-heavy workloads) but is designed for single-agent long conversations, not multi-agent cross-session memory. Our problem is different — we need to share learnings _between_ agents, not compress one agent's history. However, the observation pattern is valuable for Phase 5 auto-capture: use a lightweight post-task extraction pass to compress session logs into structured memories.
+
+### G. MCP memory server
+
+An MCP server could expose memory read/write as tools available to all providers. This has the advantage of being provider-native (agents call it like any other tool). However:
+- Requires MCP configuration per worktree per provider
+- Adds process overhead (separate server per project)
+- Not all providers support MCP equally
+
+The API approach (Layer 2) achieves the same result more simply via HTTP. MCP could be added as an optional frontend to the same backing store if provider MCP support matures.
+
+## References
+
+- [Mem0: Building Production-Ready AI Agents with Scalable Long-Term Memory](https://arxiv.org/abs/2504.19413)
+- [A-MEM: Agentic Memory for LLM Agents (NeurIPS 2025)](https://arxiv.org/abs/2502.12110)
+- [Mastra Observational Memory](https://mastra.ai/docs/memory/observational-memory)
+- [State of AI Agent Memory 2026 (Mem0)](https://mem0.ai/blog/state-of-ai-agent-memory-2026)
+- [Claude Code Memory Docs](https://code.claude.com/docs/en/memory)
+- [anthropics/claude-code#34437 — Worktrees should share project directory](https://github.com/anthropics/claude-code/issues/34437)
+- [anthropics/claude-code#24382 — Auto memory should be shared across worktrees](https://github.com/anthropics/claude-code/issues/24382)
+- [ODEI vs Mem0 vs Zep: Choosing Agent Memory Architecture in 2026](https://dev.to/zer0h1ro/odei-vs-mem0-vs-zep-choosing-agent-memory-architecture-in-2026-15c0)
+- [Parallel Coding Agents (2026): 8 Tools Compared](https://www.morphllm.com/parallel-coding-agents)
