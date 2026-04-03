@@ -156,14 +156,20 @@ function makeRemarkLinkifyTaskIds(tasks: ReadonlyArray<{ id: string }>) {
     // Also linkify UUIDs inside inline code (backticks)
     visit(tree, "inlineCode", (node: { type: "inlineCode"; value: string }, index: number | undefined, parent: Parent | undefined) => {
       if (!parent || index === undefined) return
-      const canonicalId = known.get(node.value.trim().toLowerCase())
-      if (!canonicalId) return
-      parent.children.splice(index, 1, {
-        type: "link",
-        url: `/tasks/${canonicalId}`,
-        children: [{ type: "text", value: canonicalId.slice(0, 8) }],
-        title: null,
-      } as unknown as Parent["children"][number])
+      const parts: Parent["children"][] = []
+      let last = 0
+      UUID_RE.lastIndex = 0
+      let m: RegExpExecArray | null
+      while ((m = UUID_RE.exec(node.value)) !== null) {
+        const canonicalId = known.get(m[0].toLowerCase())
+        if (!canonicalId) continue
+        if (m.index > last) parts.push([{ type: "inlineCode", value: node.value.slice(last, m.index) } as Parent["children"][number]])
+        parts.push([{ type: "link", url: `/tasks/${canonicalId}`, children: [{ type: "text", value: canonicalId.slice(0, 8) }], title: null } as unknown as Parent["children"][number]])
+        last = m.index + m[0].length
+      }
+      if (parts.length === 0) return
+      if (last < node.value.length) parts.push([{ type: "inlineCode", value: node.value.slice(last) } as Parent["children"][number]])
+      parent.children.splice(index, 1, ...parts.flat())
     })
   }
 }
