@@ -178,6 +178,8 @@ export function createPiProvider(): AgentFactory {
           const subscribers = new Set<(e: AgentEvent) => void>()
           let shutdownCalled = false
           let sessionId: string | null = null
+          // Track the current model's provider for set_model commands
+          let currentModelProvider: string | null = null
 
           const emit = (event: AgentEvent) => {
             for (const cb of subscribers) cb(event)
@@ -236,6 +238,10 @@ export function createPiProvider(): AgentFactory {
             write(JSON.stringify(cmd) + "\n")
           }
 
+          // Promise that resolves once the initial get_state response arrives
+          let resolveReady: (() => void) | null = null
+          const readyPromise = new Promise<void>((resolve) => { resolveReady = resolve })
+
           // Parse NDJSON from stdout
           const parser = parseNdjsonStream(
             proc.stdout as ReadableStream<Uint8Array>,
@@ -244,19 +250,38 @@ export function createPiProvider(): AgentFactory {
                 const msg = data as Record<string, unknown>
                 const msgType = msg.type as string | undefined
 
-                // Capture session state from get_state response or state events
+                // Capture session state from get_state response
                 if (msgType === "response" && msg.command === "get_state" && msg.success === true) {
                   const stateData = msg.data as Record<string, unknown> | undefined
-                  if (stateData && typeof stateData.sessionId === "string") {
-                    sessionId = stateData.sessionId
-                    taskLog.info("Pi session resolved", { sessionId })
+                  if (stateData) {
+                    if (typeof stateData.sessionId === "string") {
+                      sessionId = stateData.sessionId
+                      taskLog.info("Pi session resolved", { sessionId })
+                    }
+                    // Track model provider for set_model commands
+                    const model = stateData.model as Record<string, unknown> | undefined
+                    if (model && typeof model.provider === "string") {
+                      currentModelProvider = model.provider
+                    }
                   }
-                  // Initial get_state response signals ready
                   emit({ kind: "status", status: "idle" })
+                  if (resolveReady) {
+                    resolveReady()
+                    resolveReady = null
+                  }
                   return
                 }
 
-                // Skip response messages (they're acknowledgements)
+                // Track provider changes from set_model responses
+                if (msgType === "response" && msg.command === "set_model" && msg.success === true) {
+                  const modelData = msg.data as Record<string, unknown> | undefined
+                  if (modelData && typeof modelData.provider === "string") {
+                    currentModelProvider = modelData.provider
+                  }
+                  return
+                }
+
+                // Skip other response messages (they're acknowledgements)
                 if (msgType === "response") return
 
                 // Skip extension UI requests
@@ -298,8 +323,14 @@ export function createPiProvider(): AgentFactory {
             }
           })()
 
-          // Request initial state to get session ID and signal readiness
+          // Request initial state and wait for session ID before returning handle
           sendCommand({ type: "get_state" })
+          await Promise.race([
+            readyPromise,
+            new Promise<void>((_, reject) =>
+              setTimeout(() => reject(new Error("Pi get_state timed out after 15s")), 15_000),
+            ),
+          ])
 
           const handle: AgentHandle = {
             sendPrompt(text: string, images?: PromptImage[]) {
@@ -363,12 +394,15 @@ export function createPiProvider(): AgentFactory {
                 try: () => {
                   if (shutdownCalled) return false
                   if (config.model) {
-                    // Pi set_model expects provider and modelId
-                    const parts = config.model.split("/")
-                    if (parts.length >= 2) {
-                      sendCommand({ type: "set_model", provider: parts[0], modelId: parts.slice(1).join("/") })
+                    // Pi set_model expects provider and modelId separately.
+                    // Model IDs may come as "provider/modelId" or bare "modelId".
+                    const slashIdx = config.model.indexOf("/")
+                    if (slashIdx >= 1) {
+                      sendCommand({ type: "set_model", provider: config.model.slice(0, slashIdx), modelId: config.model.slice(slashIdx + 1) })
                     } else {
-                      sendCommand({ type: "set_model", provider: "unknown", modelId: config.model })
+                      // Bare model ID — use the current session's provider
+                      const provider = currentModelProvider ?? "unknown"
+                      sendCommand({ type: "set_model", provider, modelId: config.model })
                     }
                   }
                   if (config.reasoningEffort) {
