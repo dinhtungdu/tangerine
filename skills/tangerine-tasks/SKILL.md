@@ -269,14 +269,14 @@ Choose a short slug that describes the change (e.g. `fix/worktree-cleanup`, `fea
 
 ## Required: Codex Review
 
-All worker and reviewer tasks must run `codex review` — but for different purposes.
+All worker and reviewer tasks must run `codex review` if codex is installed. If not, skip and continue.
 
 ### Worker tasks — self-review before PR
 
 Run before pushing or creating a PR:
 
 ```bash
-codex review --base main -c model="gpt-5.4" -c reasoning.effort="xhigh"
+command -v codex >/dev/null 2>&1 && codex review --base main -c model="gpt-5.4" -c reasoning.effort="xhigh" || true
 ```
 
 1. Read the findings
@@ -289,7 +289,7 @@ codex review --base main -c model="gpt-5.4" -c reasoning.effort="xhigh"
 Run as part of the review:
 
 ```bash
-codex review --base main -c model="gpt-5.4" -c reasoning.effort="xhigh"
+command -v codex >/dev/null 2>&1 && codex review --base main -c model="gpt-5.4" -c reasoning.effort="xhigh" || true
 ```
 
 1. Read the findings
