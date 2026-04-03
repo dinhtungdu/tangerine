@@ -13,6 +13,7 @@ interface NewAgentFormProps {
   refTaskId?: string
   refTaskTitle?: string
   autoFocus?: boolean
+  onArchive?: () => void
 }
 
 interface PendingImage extends PromptImage {
@@ -29,7 +30,7 @@ function loadDraftFromKey(key: string): { description?: string; customBranch?: s
 
 /* -- Main form -- */
 
-export function NewAgentForm({ onSubmit, refTaskId, refTaskTitle, autoFocus }: NewAgentFormProps) {
+export function NewAgentForm({ onSubmit, refTaskId, refTaskTitle, autoFocus, onArchive }: NewAgentFormProps) {
   const { current, modelsByProvider } = useProject()
   const PREFS_KEY = "tangerine:agent-prefs"
   const draftKey = `tangerine:new-agent-draft:${current?.name ?? "unknown"}:${refTaskId ?? "new"}`
@@ -332,6 +333,18 @@ export function NewAgentForm({ onSubmit, refTaskId, refTaskTitle, autoFocus }: N
               </button>
             </div>
           </div>
+
+          {/* Archive action */}
+          {onArchive && (
+            <div className="flex justify-center">
+              <button
+                onClick={onArchive}
+                className="text-xs text-fg-muted transition hover:text-fg"
+              >
+                Archive project
+              </button>
+            </div>
+          )}
 
         </div>
       </div>

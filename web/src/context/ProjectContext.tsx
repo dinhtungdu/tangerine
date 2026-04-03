@@ -71,7 +71,8 @@ export function ProjectProvider({ children }: { children: ReactNode }) {
   }, [])
 
   const projectParam = searchParams.get("project")
-  const current = projects.find((p) => p.name === projectParam) ?? projects[0] ?? null
+  const defaultProject = projects.find((p) => !p.archived) ?? projects[0] ?? null
+  const current = projects.find((p) => p.name === projectParam) ?? defaultProject
   const model = selectedModel ?? current?.model ?? globalModel
 
   const refreshProjects = useCallback(() => {
@@ -121,9 +122,10 @@ export function ProjectProvider({ children }: { children: ReactNode }) {
   // away from the current page (e.g. a bookmarked /tasks/:id URL).
   useEffect(() => {
     if (!loading && projects.length > 0 && !projectParam) {
+      const preferred = projects.find((p) => !p.archived) ?? projects[0]!
       setSearchParams((prev) => {
         const next = new URLSearchParams(prev)
-        next.set("project", projects[0]!.name)
+        next.set("project", preferred.name)
         return next
       }, { replace: true })
     }

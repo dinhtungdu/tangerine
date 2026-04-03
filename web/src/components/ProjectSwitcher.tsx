@@ -18,6 +18,7 @@ interface ProjectSwitcherProps {
 export function ProjectSwitcher({ variant = "desktop" }: ProjectSwitcherProps) {
   const { projects, current, switchProject } = useProject()
   const [open, setOpen] = useState(false)
+  const [archivedOpen, setArchivedOpen] = useState(false)
   const ref = useRef<HTMLDivElement>(null)
   const currentIndex = current ? projects.indexOf(current) : 0
 
@@ -33,6 +34,9 @@ export function ProjectSwitcher({ variant = "desktop" }: ProjectSwitcherProps) {
   }, [open])
 
   const isMobile = variant === "mobile"
+
+  const activeProjects = projects.filter((p) => !p.archived)
+  const archivedProjects = projects.filter((p) => p.archived)
 
   return (
     <div className="relative" ref={ref}>
@@ -56,6 +60,11 @@ export function ProjectSwitcher({ variant = "desktop" }: ProjectSwitcherProps) {
               <span className={`truncate font-medium text-fg ${isMobile ? "text-sm" : "max-w-[180px] text-md"}`}>
                 {current.name}
               </span>
+              {current.archived && (
+                <span className="rounded bg-surface-secondary px-1.5 py-0.5 text-xxs font-medium text-fg-muted">
+                  Archived
+                </span>
+              )}
             </>
           ) : (
             <span className="text-md text-fg-muted">No projects</span>
@@ -80,7 +89,8 @@ export function ProjectSwitcher({ variant = "desktop" }: ProjectSwitcherProps) {
             </div>
           )}
           <div className="max-h-[300px] overflow-y-auto">
-            {projects.map((project, i) => {
+            {activeProjects.map((project) => {
+              const i = projects.indexOf(project)
               const isActive = project.name === current?.name
               return (
                 <button
@@ -110,6 +120,57 @@ export function ProjectSwitcher({ variant = "desktop" }: ProjectSwitcherProps) {
                 </button>
               )
             })}
+
+            {/* Archived section */}
+            {archivedProjects.length > 0 && (
+              <>
+                <button
+                  onClick={() => setArchivedOpen((o) => !o)}
+                  className="flex w-full items-center gap-2 px-3 py-2 text-left transition hover:bg-surface"
+                >
+                  <svg
+                    className={`h-3 w-3 text-fg-muted transition-transform ${archivedOpen ? "rotate-90" : ""}`}
+                    fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}
+                  >
+                    <path strokeLinecap="round" strokeLinejoin="round" d="m8.25 4.5 7.5 7.5-7.5 7.5" />
+                  </svg>
+                  <span className="text-xxs font-medium tracking-wider text-fg-muted">
+                    ARCHIVED ({archivedProjects.length})
+                  </span>
+                </button>
+                {archivedOpen && archivedProjects.map((project) => {
+                  const i = projects.indexOf(project)
+                  const isActive = project.name === current?.name
+                  return (
+                    <button
+                      key={project.name}
+                      onClick={() => {
+                        switchProject(project.name)
+                        setOpen(false)
+                      }}
+                      className={`flex w-full items-center gap-2.5 px-3 py-2.5 text-left opacity-60 transition ${
+                        isActive ? "bg-surface-secondary" : isMobile ? "active:bg-surface" : "hover:bg-surface"
+                      }`}
+                    >
+                      <div className={`flex shrink-0 items-center justify-center rounded ${getProjectColor(i)} ${isMobile ? "h-5 w-5" : "h-[22px] w-[22px]"}`}>
+                        <span className="font-bold text-white text-2xs">
+                          {project.name.charAt(0).toUpperCase()}
+                        </span>
+                      </div>
+                      <div className="flex min-w-0 flex-col">
+                        <span className="truncate text-md font-medium text-fg">{project.name}</span>
+                        <span className="truncate text-xxs text-fg-muted">{project.repo}</span>
+                      </div>
+                      {isActive && (
+                        <svg className="ml-auto h-3.5 w-3.5 shrink-0 text-fg" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+                          <path strokeLinecap="round" strokeLinejoin="round" d="m4.5 12.75 6 6 9-13.5" />
+                        </svg>
+                      )}
+                    </button>
+                  )
+                })}
+              </>
+            )}
           </div>
         </div>
       )}
