@@ -31,7 +31,7 @@ Tangerine is a local background coding agent platform. The current implementatio
 - Single-machine architecture: no VM provisioning, SSH tunneling, or preview port forwarding in the active design
 - Multi-provider agents behind a shared abstraction
 - Git worktree isolation per task
-- Project-agnostic setup through per-project config
+- Project-agnostic setup through per-project config (with archive/unarchive support)
 - Typed task model: source, type, capabilities, provider, model, reasoning effort
 - Recoverable sessions: restart, reconnect, retry, and orphan cleanup are first-class paths
 
@@ -150,7 +150,8 @@ The dashboard currently exposes:
 
 Notable UI features:
 
-- project switching
+- project switching (archived projects sorted to collapsible section)
+- project archive/unarchive
 - orchestrator entry point
 - diff viewer
 - terminal pane

@@ -41,6 +41,7 @@ export interface ProjectConfig {
   poolSize?: number
   defaultProvider?: string
   orchestratorPrompt?: string
+  archived?: boolean
 }
 
 /** Run a local command via Bun.spawn, return stdout/stderr/exitCode */

@@ -261,6 +261,14 @@ export async function updateProject(name: string, updates: Partial<ProjectConfig
   })
 }
 
+export async function archiveProject(projectName: string): Promise<void> {
+  return request<void>(`/api/projects/${encodeURIComponent(projectName)}/archive`, { method: "POST" })
+}
+
+export async function unarchiveProject(projectName: string): Promise<void> {
+  return request<void>(`/api/projects/${encodeURIComponent(projectName)}/unarchive`, { method: "POST" })
+}
+
 export async function updateProjectRepo(projectName: string): Promise<ProjectUpdateResult> {
   return request<ProjectUpdateResult>(`/api/projects/${encodeURIComponent(projectName)}/update`, {
     method: "POST",
