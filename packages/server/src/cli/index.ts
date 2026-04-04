@@ -11,8 +11,29 @@ async function main(): Promise<void> {
 
   switch (command) {
     case "start": {
-      const { start } = await import("./start.ts")
-      await start()
+      const foreground = args.includes("--foreground")
+      if (foreground) {
+        const { start } = await import("./start.ts")
+        await start()
+      } else {
+        const { daemonStart } = await import("./daemon.ts")
+        await daemonStart()
+      }
+      break
+    }
+    case "stop": {
+      const { daemonStop } = await import("./daemon.ts")
+      await daemonStop()
+      break
+    }
+    case "status": {
+      const { daemonStatus } = await import("./daemon.ts")
+      await daemonStatus()
+      break
+    }
+    case "_daemon-loop": {
+      const { daemonLoop } = await import("./daemon.ts")
+      await daemonLoop()
       break
     }
     case "task": {

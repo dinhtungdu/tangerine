@@ -136,7 +136,10 @@ Usage: tangerine <command> [options]
 
 Commands:
   install            One-time setup (deps check, skill install)
-  start              Start the Tangerine server
+  start              Start the Tangerine server (daemon mode)
+  start --foreground Start the server in the foreground
+  stop               Stop the running daemon
+  status             Show whether the daemon is running
   project add        Register a project
   project list       List registered projects
   project show       Show project config details
