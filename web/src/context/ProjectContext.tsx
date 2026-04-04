@@ -1,7 +1,8 @@
 import { createContext, useContext, useState, useEffect, useCallback, type ReactNode } from "react"
 import { useSearchParams, useNavigate, useLocation } from "react-router-dom"
 import type { ProjectConfig, ActionCombo, ShortcutConfig } from "@tangerine/shared"
-import { fetchProjects, ensureOrchestrator } from "../lib/api"
+import { fetchProjects, fetchTasks, ensureOrchestrator } from "../lib/api"
+import { getMostRecentTask } from "../lib/task-recency"
 
 interface ProjectContextValue {
   projects: ProjectConfig[]
@@ -95,12 +96,17 @@ export function ProjectProvider({ children }: { children: ReactNode }) {
     (name: string, { replace = false }: { replace?: boolean } = {}) => {
       setSelectedModel(null)
       if (location.pathname.startsWith("/tasks/")) {
-        // Navigate to the new project's orchestrator chat
         const projectParam = `?project=${encodeURIComponent(name)}`
-        ensureOrchestrator(name).then((task) => {
-          navigate(`/tasks/${task.id}${projectParam}`, { replace })
+        fetchTasks({ project: name }).then((tasks) => {
+          const task = getMostRecentTask(tasks)
+          if (task) {
+            navigate(`/tasks/${task.id}${projectParam}`, { replace })
+            return
+          }
+          return ensureOrchestrator(name).then((orchestrator) => {
+            navigate(`/tasks/${orchestrator.id}${projectParam}`, { replace })
+          })
         }).catch(() => {
-          // Fallback to runs page if orchestrator can't be found
           navigate(`/${projectParam}`, { replace })
         })
       } else {

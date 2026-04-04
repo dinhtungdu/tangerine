@@ -5,6 +5,7 @@ import type { Task } from "@tangerine/shared"
 import { fetchTasks } from "../lib/api"
 import { getStatusConfig } from "../lib/status"
 import { formatRelativeTime, formatTaskTitle } from "../lib/format"
+import { getRecentTasks, RECENT_TASK_STATUSES } from "../lib/task-recency"
 import {
   getActions,
   executeAction,
@@ -34,8 +35,6 @@ function fuzzyScore(str: string, query: string): number {
   }
   return qi === q.length ? score : 0
 }
-
-const ACTIVE_STATUSES = new Set(["running", "provisioning", "created"])
 
 type PaletteMode = "mixed" | "actions"
 
@@ -190,9 +189,7 @@ export function CommandPalette() {
     if (mode === "mixed") {
       if (!searchQuery) {
         // No query: show active tasks sorted by recency, then all actions
-        const activeTasks = tasks
-          .filter((t) => ACTIVE_STATUSES.has(t.status))
-          .sort((a, b) => new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime())
+        const activeTasks = getRecentTasks(tasks)
         for (const t of activeTasks) {
           result.push({ type: "task", task: t, score: 0 })
         }
@@ -214,7 +211,7 @@ export function CommandPalette() {
           fuzzyScore(prNumber, searchQuery) * 2,
         )
         if (score > 0) {
-          const activeBonus = ACTIVE_STATUSES.has(t.status) ? 1000 : 0
+          const activeBonus = RECENT_TASK_STATUSES.has(t.status) ? 1000 : 0
           result.push({ type: "task", task: t, score: score + activeBonus })
         }
       }

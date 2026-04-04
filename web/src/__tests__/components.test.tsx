@@ -1,6 +1,6 @@
 import { describe, test, expect, afterEach, beforeEach } from "bun:test"
 import { render, screen, cleanup, fireEvent, act } from "@testing-library/react"
-import { MemoryRouter, Route, Routes } from "react-router-dom"
+import { MemoryRouter, Route, Routes, useLocation } from "react-router-dom"
 import { ActivityList } from "../components/ActivityList"
 import { ChatMessage } from "../components/ChatMessage"
 import { NewAgentForm } from "../components/NewAgentForm"
@@ -10,7 +10,7 @@ import { ModelSelector } from "../components/ModelSelector"
 import { CommandPalette } from "../components/CommandPalette"
 import { StatusPage } from "../pages/StatusPage"
 import { TaskOverflowMenu } from "../components/TaskListItem"
-import { ProjectProvider } from "../context/ProjectContext"
+import { ProjectProvider, useProject } from "../context/ProjectContext"
 import { ToastProvider } from "../context/ToastContext"
 import { _resetForTesting as resetActions, registerActions } from "../lib/actions"
 import { cancelTask, retryTask, deleteTask } from "../lib/api"
@@ -20,6 +20,16 @@ import type { Task, ActivityEntry } from "@tangerine/shared"
 function WithShortcuts({ children }: { children: import("react").ReactNode }) {
   useShortcuts()
   return <>{children}</>
+}
+
+function SwitchProjectButton({ name }: { name: string }) {
+  const { switchProject } = useProject()
+  return <button onClick={() => switchProject(name)}>Switch project</button>
+}
+
+function LocationDisplay() {
+  const location = useLocation()
+  return <div data-testid="location">{location.pathname}{location.search}</div>
 }
 
 const originalFetch = global.fetch
@@ -710,6 +720,56 @@ describe("CommandPalette", () => {
     })
 
     expect(screen.getByText("orchestrator")).toBeTruthy()
+  })
+})
+
+describe("ProjectProvider", () => {
+  test("switches task pages to the most recent active task in the target project", async () => {
+    global.fetch = async (input) => {
+      const url = typeof input === "string" ? input : input.url
+
+      if (url === "/api/projects") {
+        return new Response(JSON.stringify({
+          projects: [
+            { name: "proj-a", repo: "org/a", defaultBranch: "main", setup: "echo ok", defaultProvider: "claude-code" },
+            { name: "proj-b", repo: "org/b", defaultBranch: "main", setup: "echo ok", defaultProvider: "claude-code" },
+          ],
+          model: "anthropic/claude-sonnet-4-6",
+          models: ["anthropic/claude-sonnet-4-6"],
+          modelsByProvider: { "claude-code": ["anthropic/claude-sonnet-4-6"] },
+        }), { status: 200, headers: { "Content-Type": "application/json" } })
+      }
+
+      if (url === "/api/tasks?project=proj-b") {
+        return new Response(JSON.stringify([
+          makeTask({ id: "done-1", projectId: "proj-b", status: "done", updatedAt: "2026-03-17T12:00:00Z" }),
+          makeTask({ id: "active-old", projectId: "proj-b", status: "running", updatedAt: "2026-03-17T11:00:00Z" }),
+          makeTask({ id: "active-new", projectId: "proj-b", status: "provisioning", updatedAt: "2026-03-17T13:00:00Z" }),
+        ]), { status: 200, headers: { "Content-Type": "application/json" } })
+      }
+
+      return new Response("Not found", { status: 404 })
+    }
+
+    render(
+      <MemoryRouter initialEntries={["/tasks/current?project=proj-a"]}>
+        <ProjectProvider>
+          <Routes>
+            <Route path="/tasks/:id" element={<><SwitchProjectButton name="proj-b" /><LocationDisplay /></>} />
+          </Routes>
+        </ProjectProvider>
+      </MemoryRouter>
+    )
+
+    await screen.findByText("Switch project")
+
+    await act(async () => {
+      fireEvent.click(screen.getByText("Switch project"))
+      await new Promise((r) => setTimeout(r, 0))
+    })
+
+    expect(screen.queryByText("Switch project")).toBeTruthy()
+    expect(screen.getByTestId("location").textContent).toBe("/tasks/active-new?project=proj-b")
   })
 })
 

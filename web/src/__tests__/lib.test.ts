@@ -13,6 +13,7 @@ import { getActivityStyle, getActivityDetail } from "../lib/activity"
 import { searchModels } from "../lib/model-search"
 import { copyToClipboard } from "../lib/clipboard"
 import { buildSshEditorUri } from "../lib/ssh-editor"
+import { getMostRecentTask, getRecentTasks } from "../lib/task-recency"
 import {
   registerActions,
   registerActionCombos,
@@ -29,6 +30,40 @@ import {
   getContext,
   _resetForTesting,
 } from "../lib/actions"
+import type { Task } from "@tangerine/shared"
+
+function makeTask(overrides: Partial<Task> = {}): Task {
+  return {
+    id: "task-1",
+    projectId: "proj",
+    type: "worker",
+    source: "manual",
+    sourceId: null,
+    sourceUrl: null,
+    title: "Test task",
+    description: null,
+    status: "running",
+    provider: "claude-code",
+    model: null,
+    reasoningEffort: null,
+    branch: null,
+    worktreePath: null,
+    prUrl: null,
+    parentTaskId: null,
+    userId: null,
+    agentSessionId: null,
+    agentPid: null,
+    error: null,
+    createdAt: "2026-01-01T00:00:00Z",
+    updatedAt: "2026-01-01T00:00:00Z",
+    startedAt: null,
+    completedAt: null,
+    lastSeenAt: null,
+    lastResultAt: null,
+    capabilities: [],
+    ...overrides,
+  }
+}
 
 describe("format", () => {
   describe("formatModelName", () => {
@@ -221,6 +256,26 @@ describe("model search", () => {
     expect(searchModels(["openai/gpt-5-mini", "openai/gpt-5.4", "openrouter/gemma-3"], "gpt5m")).toEqual([
       "openai/gpt-5-mini",
     ])
+  })
+})
+
+describe("task recency", () => {
+  test("sorts active tasks by updatedAt descending", () => {
+    const tasks = getRecentTasks([
+      makeTask({ id: "done", status: "done", updatedAt: "2026-01-03T00:00:00Z" }),
+      makeTask({ id: "older", status: "running", updatedAt: "2026-01-01T00:00:00Z" }),
+      makeTask({ id: "newer", status: "provisioning", updatedAt: "2026-01-02T00:00:00Z" }),
+    ])
+
+    expect(tasks.map((task) => task.id)).toEqual(["newer", "older"])
+  })
+
+  test("returns most recent active task or null", () => {
+    expect(getMostRecentTask([
+      makeTask({ id: "done", status: "done", updatedAt: "2026-01-03T00:00:00Z" }),
+      makeTask({ id: "running", status: "running", updatedAt: "2026-01-02T00:00:00Z" }),
+    ])?.id).toBe("running")
+    expect(getMostRecentTask([makeTask({ id: "done", status: "done" })])).toBeNull()
   })
 })
 
@@ -725,4 +780,3 @@ describe("linkifyTaskIds", () => {
     expect(result).toContain("abc12345</a>")
   })
 })
-
