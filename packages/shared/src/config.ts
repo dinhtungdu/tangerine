@@ -21,7 +21,7 @@ export const projectConfigSchema = z.object({
   env: z.record(z.string()).optional(),
   model: z.string().optional(),
   defaultProvider: z.enum(["opencode", "claude-code", "codex", "pi"]).default("claude-code"),
-  prMode: z.enum(["ready", "draft", "none"]).default("draft"),
+  prMode: z.enum(["ready", "draft", "none"]).default("none"),
   archived: z.boolean().optional().default(false),
   postUpdateCommand: z.string().optional(),
   predefinedPrompts: z.array(predefinedPromptSchema).optional().default([

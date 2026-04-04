@@ -329,17 +329,18 @@ export async function start(): Promise<void> {
                 await new Promise((r) => setTimeout(r, 1500))
 
                 const taskRow = db.prepare(
-                  "SELECT title, description, type FROM tasks WHERE id = ?"
-                ).get(taskId) as { title: string; description: string | null; type: string | null } | null
+                  "SELECT title, description, type, project_id FROM tasks WHERE id = ?"
+                ).get(taskId) as { title: string; description: string | null; type: string | null; project_id: string | null } | null
 
                 const originalTask = taskRow?.description || taskRow?.title || ""
                 const unansweredUserMsg = lastLog?.role === "user" ? lastLog.content : null
+                const reconnectProjConfig = taskRow?.project_id ? getProjectConfig(config.config, taskRow.project_id) : undefined
 
                 const nudgeParts = [
                   `[TANGERINE: Server restarted. You are working on: ${originalTask}]`,
                 ]
-                if (taskRow?.type !== "reviewer") {
-                  nudgeParts.push(`[NOTE: When your work is complete: ${buildPrWorkflowNote(taskId)}]`)
+                if (taskRow?.type !== "reviewer" && reconnectProjConfig?.prMode !== "none") {
+                  nudgeParts.push(`[NOTE: When your work is complete: ${buildPrWorkflowNote(taskId, undefined, reconnectProjConfig?.prMode)}]`)
                 }
                 nudgeParts.push(
                   unansweredUserMsg
@@ -588,6 +589,9 @@ export async function start(): Promise<void> {
                       }
                       const projConfig = task?.project_id ? getProjectConfig(config.config, task.project_id) : undefined
 
+                      // Don't nudge if prMode is "none"
+                      if (projConfig?.prMode === "none") return
+
                       const hasCommits = await branchHasCommits(db, taskId, projConfig)
                       if (!hasCommits || st.prUrlSaved) return
 
@@ -598,7 +602,7 @@ export async function start(): Promise<void> {
                         Effect.runPromise(
                           handle.sendPrompt(
                             `[TANGERINE: You have commits on your branch but no pull request has been created. ` +
-                            `${buildPrWorkflowNote(taskId)} ` +
+                            `${buildPrWorkflowNote(taskId, undefined, projConfig?.prMode)} ` +
                             `A PR is required for the task to be considered complete.]`
                           ).pipe(Effect.catchAll(() => Effect.void))
                         )
