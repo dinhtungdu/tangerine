@@ -29,6 +29,7 @@ interface ChatPanelProps {
   predefinedPrompts?: PredefinedPrompt[]
   onResolve?: () => Promise<void>
   canContinue?: boolean
+  taskBranch?: string
   autoFocusKey?: string
 }
 
@@ -52,6 +53,7 @@ export function ChatPanel({
   predefinedPrompts,
   onResolve,
   canContinue,
+  taskBranch,
   autoFocusKey,
 }: ChatPanelProps) {
   const scrollRef = useRef<HTMLDivElement>(null)
@@ -238,6 +240,7 @@ export function ChatPanel({
             const params = new URLSearchParams()
             if (refTaskId) params.set("ref", refTaskId)
             if (refTitle) params.set("refTitle", refTitle)
+            if (taskBranch) params.set("branch", taskBranch)
             params.set("focus", "1")
             navigate(`/?${params}`)
           } : undefined}
