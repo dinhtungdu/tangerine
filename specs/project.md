@@ -33,7 +33,7 @@ Stored in `tangerine.json` at the project root (or `~/.config/tangerine/config.j
 | `defaultBranch` | string | no | Default: `main` |
 | `image` | string | yes | Golden image name (built from image assets dir) |
 | `setup` | string | yes | Shell commands to run after clone (install deps, start dev server) |
-| `defaultProvider` | `"opencode" \| "claude-code"` | no | Default agent provider. Default: `"opencode"` |
+| `defaultProvider` | `"opencode" \| "claude-code" \| "codex" \| "pi"` | no | Default agent provider. Default: `"claude-code"` |
 | `previewCommand` | string | no | Command to run on first preview access (e.g. setup vhost, start server). Port available via `$TANGERINE_PREVIEW_PORT` |
 | `test` | string | no | Command to run tests |
 | `extraPorts` | number[] | no | Additional ports to forward |

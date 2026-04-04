@@ -43,6 +43,7 @@ Current provider values:
 - `opencode`
 - `claude-code`
 - `codex`
+- `pi`
 
 Current task types:
 
