@@ -363,6 +363,11 @@ export function adaptRunJsonEvent(raw: Record<string, unknown>): Record<string, 
 
 export function createOpenCodeProvider(): AgentFactory {
   return {
+    metadata: {
+      skills: {
+        directory: join(homedir(), ".claude", "skills"),
+      },
+    },
     start(ctx: AgentStartContext): Effect.Effect<AgentHandle, SessionStartError> {
       const taskLog = log.child({ taskId: ctx.taskId })
 

@@ -29,11 +29,8 @@ import { extractPrUrl, verifyPrBranch, startPrMonitor } from "../tasks/pr-monito
 import { ghSpawnEnv, isGithubRepo } from "../gh"
 import type { PrMonitorDeps } from "../tasks/pr-monitor"
 import { initSystemLog, cleanupSystemLogs } from "../system-log"
-import { createOpenCodeProvider } from "../agent/opencode-provider"
-import { createClaudeCodeProvider } from "../agent/claude-code-provider"
-import { createCodexProvider } from "../agent/codex-provider"
-import { createPiProvider } from "../agent/pi-provider"
 import type { AgentHandle } from "../agent/provider"
+import { createAgentFactories } from "../agent/factories"
 import { enqueue as enqueuePrompt, drainAll as drainQueuedPrompts } from "../agent/prompt-queue"
 import { buildSystemNotes, buildEscalationBlock, buildPrWorkflowNote } from "../tasks/prompts"
 import { getTaskState, clearTaskState } from "../tasks/task-state"
@@ -242,17 +239,14 @@ export async function start(): Promise<void> {
     log.info("Database initialized")
 
     // Agent provider factories (local — no SSH deps)
-    const openCodeFactory = createOpenCodeProvider()
-    const claudeCodeFactory = createClaudeCodeProvider()
-    const codexFactory = createCodexProvider()
-    const piFactory = createPiProvider()
+    const factories = createAgentFactories()
 
     // Select factory based on provider type
     const getAgentFactory = (provider: string) =>
-      provider === "claude-code" ? claudeCodeFactory
-        : provider === "codex" ? codexFactory
-        : provider === "pi" ? piFactory
-        : openCodeFactory
+      provider === "claude-code" ? factories["claude-code"]
+        : provider === "codex" ? factories.codex
+        : provider === "pi" ? factories.pi
+        : factories.opencode
 
     // Wire task manager — extract cleanupDeps so retryDeps can reference it
     const cleanupDeps: CleanupDeps = {
@@ -276,7 +270,7 @@ export async function start(): Promise<void> {
       lifecycleDeps: {
         db,
         tangerineConfig: config.config,
-        agentFactory: openCodeFactory,
+        agentFactory: factories.opencode,
         getTask: (taskId) => getTask(db, taskId),
         updateTask: (taskId, updates) => updateTask(db, taskId, updates).pipe(Effect.asVoid),
         logActivity: (taskId, type, event, content, metadata) => logActivity(db, taskId, type, event, content, metadata),

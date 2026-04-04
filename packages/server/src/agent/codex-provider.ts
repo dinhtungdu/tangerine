@@ -14,6 +14,7 @@ import { scanCodexSkills } from "./skill-scanner"
 import { join } from "node:path"
 
 const log = createLogger("codex-provider")
+const CODEX_SKILLS_DIR = join(homedir(), ".codex", "skills")
 export const CODEX_APPROVAL_POLICY = "never" as const
 export const CODEX_SANDBOX_MODE = "danger-full-access" as const
 export const CODEX_SANDBOX_POLICY = { type: "dangerFullAccess" } as const
@@ -329,6 +330,11 @@ export function discoverModels(): ModelInfo[] {
 
 export function createCodexProvider(): AgentFactory {
   return {
+    metadata: {
+      skills: {
+        directory: CODEX_SKILLS_DIR,
+      },
+    },
     start(ctx: AgentStartContext): Effect.Effect<AgentHandle, SessionStartError> {
       const taskLog = log.child({ taskId: ctx.taskId })
 

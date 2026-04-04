@@ -219,19 +219,19 @@ The `deploy/base-setup.sh` installs these globally:
 
 ## Agent Skills
 
-Skills are installed by running `bin/tangerine install` inside the VM. This symlinks skill directories into both `~/.claude/skills/` (Claude Code) and `~/.codex/skills/` (Codex), and installs them into Pi via `pi install`.
+Skills are installed by running `bin/tangerine install` inside the VM. This symlinks skill directories into each provider's configured skill directory, including Claude Code, Codex, OpenCode, and Pi.
 
 ```bash
 # Inside the VM:
 bin/tangerine install
 ```
 
-This installs the built-in skills (`tangerine-tasks`, `platform-setup`, `browser-test`) for Claude Code, Codex, and Pi agents. For project-specific skills, install them manually:
+This installs the built-in skills (`tangerine-tasks`, `platform-setup`, `browser-test`) for Claude Code, Codex, OpenCode, and Pi agents. For project-specific skills, install them manually:
 
 ```bash
 ln -s /path/to/skill ~/.claude/skills/my-skill
 ln -s /path/to/skill ~/.codex/skills/my-skill
-pi install /path/to/skill
+ln -s /path/to/skill ~/.pi/agent/skills/my-skill
 ```
 
 ## Credentials

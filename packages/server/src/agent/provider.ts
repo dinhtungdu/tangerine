@@ -33,6 +33,12 @@ export interface AgentConfig {
   reasoningEffort?: string
 }
 
+export interface ProviderMetadata {
+  skills: {
+    directory: string
+  }
+}
+
 /** Handle to a running agent session — owns the process, tunnel, and event subscription */
 export interface AgentHandle {
   sendPrompt(text: string, images?: PromptImage[]): Effect.Effect<void, PromptError>
@@ -77,5 +83,6 @@ export interface AgentStartContext {
 
 /** Factory that creates agent sessions — one implementation per provider */
 export interface AgentFactory {
+  metadata: ProviderMetadata
   start(ctx: AgentStartContext): Effect.Effect<AgentHandle, SessionStartError>
 }

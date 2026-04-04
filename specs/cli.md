@@ -7,7 +7,7 @@ The `tangerine` CLI is implemented under `packages/server/src/cli/`.
 | Command | Description |
 |---------|-------------|
 | `tangerine start` | Start the Tangerine server |
-| `tangerine install` | Create local directories and install skills for Claude, Codex, and Pi |
+| `tangerine install` | Create local directories and install skills for all providers |
 | `tangerine project ...` | Manage registered projects |
 | `tangerine task ...` | Create manual tasks |
 | `tangerine config ...` | Manage stored credentials |
@@ -28,9 +28,7 @@ The server verifies required external tools at startup, including `git`, `gh` fo
 Current behavior:
 
 - ensures `~/tangerine` exists
-- symlinks repo skills into `~/.claude/skills`
-- symlinks repo skills into `~/.codex/skills`
-- installs repo skills into Pi via `pi install <local-path>`
+- symlinks repo skills into each provider's configured skill directory
 - checks whether usable LLM credentials are present
 
 Installed skills:

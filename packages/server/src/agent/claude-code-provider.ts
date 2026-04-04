@@ -6,11 +6,19 @@ import { createLogger } from "../logger"
 import { AgentError, PromptError, SessionStartError } from "../errors"
 import type { AgentFactory, AgentHandle, AgentEvent, AgentStartContext, PromptImage } from "./provider"
 import { parseNdjsonStream, createClaudeCodeMapper } from "./ndjson"
+import { homedir } from "node:os"
+import { join } from "node:path"
 
 const log = createLogger("claude-code-provider")
+const CLAUDE_SKILLS_DIR = join(homedir(), ".claude", "skills")
 
 export function createClaudeCodeProvider(): AgentFactory {
   return {
+    metadata: {
+      skills: {
+        directory: CLAUDE_SKILLS_DIR,
+      },
+    },
     start(ctx: AgentStartContext): Effect.Effect<AgentHandle, SessionStartError> {
       const taskLog = log.child({ taskId: ctx.taskId })
 

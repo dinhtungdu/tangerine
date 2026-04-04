@@ -1,15 +1,11 @@
 // CLI entrypoint: one-time setup for Tangerine.
-// Checks system deps, creates directories, and installs agent skills.
+// Checks system deps, creates directories, and symlinks agent skills.
 
-import { existsSync, lstatSync, mkdirSync, rmSync, symlinkSync, readlinkSync, readFileSync } from "fs"
-import { dirname, join, resolve } from "path"
-import { homedir } from "os"
-import { spawnSync } from "child_process"
+import { existsSync, lstatSync, mkdirSync, rmSync, symlinkSync, readlinkSync } from "fs"
+import { join, resolve } from "path"
 import { TANGERINE_HOME, OPENCODE_AUTH_PATH, readCredentialsFile, readClaudeCliToken } from "../config"
-
-const CLAUDE_SKILLS_DIR = join(homedir(), ".claude", "skills")
-const CODEX_SKILLS_DIR = join(homedir(), ".codex", "skills")
-const PI_SETTINGS_PATH = join(homedir(), ".pi", "agent", "settings.json")
+import { createAgentFactories } from "../agent/factories"
+import type { ProviderType } from "../agent/provider"
 
 // Resolve project root relative to this file:
 // packages/server/src/cli/install.ts → 4 levels up
@@ -25,6 +21,13 @@ const SKILLS_TO_INSTALL: Array<{ name: string; source: string }> = [
   { name: "tangerine-tasks", source: join(PROJECT_ROOT, "skills", "tangerine-tasks") },
   { name: "browser-test", source: join(PROJECT_ROOT, ".agents", "skills", "browser-test") },
 ]
+
+const PROVIDER_LABELS: Record<ProviderType, string> = {
+  opencode: "OpenCode skills",
+  "claude-code": "Claude Code skills",
+  codex: "Codex skills",
+  pi: "Pi skills",
+}
 
 function check(label: string, ok: boolean, hint?: string): void {
   if (ok) {
@@ -74,50 +77,6 @@ function symlinkSkill(
   return { created: true, skipped: null }
 }
 
-export function readPiInstalledPackages(settingsPath = PI_SETTINGS_PATH): string[] {
-  if (!existsSync(settingsPath)) return []
-  try {
-    const raw = JSON.parse(readFileSync(settingsPath, "utf-8")) as { packages?: unknown }
-    return Array.isArray(raw.packages)
-      ? raw.packages.filter((value): value is string => typeof value === "string")
-      : []
-  } catch {
-    return []
-  }
-}
-
-export function isPiSkillInstalled(skillSource: string, settingsPath = PI_SETTINGS_PATH): boolean {
-  const settingsDir = dirname(settingsPath)
-  const resolvedSkillSource = resolve(skillSource)
-  return readPiInstalledPackages(settingsPath).some((pkg) => resolve(settingsDir, pkg) === resolvedSkillSource)
-}
-
-function installPiSkill(skillSource: string): { created: boolean; skipped: string | null; error?: string } {
-  if (isPiSkillInstalled(skillSource)) {
-    return { created: false, skipped: "already installed" }
-  }
-
-  const result = spawnSync("pi", ["install", skillSource], {
-    encoding: "utf-8",
-    env: process.env,
-  })
-
-  if (result.error) {
-    return { created: false, skipped: null, error: result.error.message }
-  }
-
-  if (result.status !== 0) {
-    const output = `${result.stderr ?? ""}\n${result.stdout ?? ""}`.trim()
-    return {
-      created: false,
-      skipped: null,
-      error: output || `pi install exited with code ${result.status ?? "unknown"}`,
-    }
-  }
-
-  return { created: true, skipped: null }
-}
-
 export async function install(): Promise<void> {
   console.log("\nTangerine install\n")
 
@@ -126,54 +85,26 @@ export async function install(): Promise<void> {
   ensureDir(TANGERINE_HOME)
   check(`${TANGERINE_HOME}`, true)
 
-  // 2. Claude Code skills
-  console.log("\nClaude Code skills:")
-  for (const skill of SKILLS_TO_INSTALL) {
-    if (!existsSync(skill.source)) {
-      check(`${skill.name} skill`, false, `skill source not found at ${skill.source}`)
-    } else {
-      const result = symlinkSkill(skill.source, CLAUDE_SKILLS_DIR)
+  const factories = createAgentFactories()
+  const providers: ProviderType[] = ["opencode", "claude-code", "codex", "pi"]
+  for (const provider of providers) {
+    const targetDir = factories[provider].metadata.skills.directory
+    console.log(`\n${PROVIDER_LABELS[provider]}:`)
+    for (const skill of SKILLS_TO_INSTALL) {
+      if (!existsSync(skill.source)) {
+        check(`${skill.name} skill`, false, `skill source not found at ${skill.source}`)
+        continue
+      }
+      const result = symlinkSkill(skill.source, targetDir)
       if (result.created) {
-        check(`${skill.name} skill → ${CLAUDE_SKILLS_DIR}/${skill.name}`, true)
+        check(`${skill.name} skill → ${targetDir}/${skill.name}`, true)
       } else {
         check(`${skill.name} skill (${result.skipped})`, true)
       }
     }
   }
 
-  // 3. Codex skills (same set, different target directory)
-  console.log("\nCodex skills:")
-  for (const skill of SKILLS_TO_INSTALL) {
-    if (!existsSync(skill.source)) {
-      check(`${skill.name} skill`, false, `skill source not found at ${skill.source}`)
-    } else {
-      const result = symlinkSkill(skill.source, CODEX_SKILLS_DIR)
-      if (result.created) {
-        check(`${skill.name} skill → ${CODEX_SKILLS_DIR}/${skill.name}`, true)
-      } else {
-        check(`${skill.name} skill (${result.skipped})`, true)
-      }
-    }
-  }
-
-  // 4. Credentials (env vars override dotfile)
-  console.log("\nPi skills:")
-  for (const skill of SKILLS_TO_INSTALL) {
-    if (!existsSync(skill.source)) {
-      check(`${skill.name} skill`, false, `skill source not found at ${skill.source}`)
-    } else {
-      const result = installPiSkill(skill.source)
-      if (result.created) {
-        check(`${skill.name} skill → Pi`, true)
-      } else if (result.skipped) {
-        check(`${skill.name} skill (${result.skipped})`, true)
-      } else {
-        check(`${skill.name} skill`, false, result.error)
-      }
-    }
-  }
-
-  // 5. Credentials (env vars override dotfile)
+  // 3. Credentials (env vars override dotfile)
   console.log("\nCredentials:")
   const dotfile = readCredentialsFile()
   const hasOpencode = existsSync(OPENCODE_AUTH_PATH)
