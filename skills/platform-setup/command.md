@@ -32,7 +32,7 @@ Then follow the Project Setup Workflow in SKILL.md:
 4. Scan the cloned repo for stack
 5. Present plan, get confirmation
 6. Write project config to `~/tangerine/config.json`
-7. Ask about agent skills to install (run `bin/tangerine install` — symlinks into both `~/.claude/skills/` and `~/.codex/skills/`)
+7. Ask about agent skills to install (run `bin/tangerine install` — symlinks into `~/.claude/skills/` and `~/.codex/skills/`, and installs into Pi)
 8. Guide through `bin/tangerine start`
 
 $ARGUMENTS

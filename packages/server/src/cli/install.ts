@@ -1,13 +1,15 @@
 // CLI entrypoint: one-time setup for Tangerine.
-// Checks system deps, creates directories, symlinks agent skills.
+// Checks system deps, creates directories, and installs agent skills.
 
-import { existsSync, lstatSync, mkdirSync, rmSync, symlinkSync, readlinkSync } from "fs"
-import { join, resolve } from "path"
+import { existsSync, lstatSync, mkdirSync, rmSync, symlinkSync, readlinkSync, readFileSync } from "fs"
+import { dirname, join, resolve } from "path"
 import { homedir } from "os"
+import { spawnSync } from "child_process"
 import { TANGERINE_HOME, OPENCODE_AUTH_PATH, readCredentialsFile, readClaudeCliToken } from "../config"
 
 const CLAUDE_SKILLS_DIR = join(homedir(), ".claude", "skills")
 const CODEX_SKILLS_DIR = join(homedir(), ".codex", "skills")
+const PI_SETTINGS_PATH = join(homedir(), ".pi", "agent", "settings.json")
 
 // Resolve project root relative to this file:
 // packages/server/src/cli/install.ts → 4 levels up
@@ -72,6 +74,50 @@ function symlinkSkill(
   return { created: true, skipped: null }
 }
 
+export function readPiInstalledPackages(settingsPath = PI_SETTINGS_PATH): string[] {
+  if (!existsSync(settingsPath)) return []
+  try {
+    const raw = JSON.parse(readFileSync(settingsPath, "utf-8")) as { packages?: unknown }
+    return Array.isArray(raw.packages)
+      ? raw.packages.filter((value): value is string => typeof value === "string")
+      : []
+  } catch {
+    return []
+  }
+}
+
+export function isPiSkillInstalled(skillSource: string, settingsPath = PI_SETTINGS_PATH): boolean {
+  const settingsDir = dirname(settingsPath)
+  const resolvedSkillSource = resolve(skillSource)
+  return readPiInstalledPackages(settingsPath).some((pkg) => resolve(settingsDir, pkg) === resolvedSkillSource)
+}
+
+function installPiSkill(skillSource: string): { created: boolean; skipped: string | null; error?: string } {
+  if (isPiSkillInstalled(skillSource)) {
+    return { created: false, skipped: "already installed" }
+  }
+
+  const result = spawnSync("pi", ["install", skillSource], {
+    encoding: "utf-8",
+    env: process.env,
+  })
+
+  if (result.error) {
+    return { created: false, skipped: null, error: result.error.message }
+  }
+
+  if (result.status !== 0) {
+    const output = `${result.stderr ?? ""}\n${result.stdout ?? ""}`.trim()
+    return {
+      created: false,
+      skipped: null,
+      error: output || `pi install exited with code ${result.status ?? "unknown"}`,
+    }
+  }
+
+  return { created: true, skipped: null }
+}
+
 export async function install(): Promise<void> {
   console.log("\nTangerine install\n")
 
@@ -111,6 +157,23 @@ export async function install(): Promise<void> {
   }
 
   // 4. Credentials (env vars override dotfile)
+  console.log("\nPi skills:")
+  for (const skill of SKILLS_TO_INSTALL) {
+    if (!existsSync(skill.source)) {
+      check(`${skill.name} skill`, false, `skill source not found at ${skill.source}`)
+    } else {
+      const result = installPiSkill(skill.source)
+      if (result.created) {
+        check(`${skill.name} skill → Pi`, true)
+      } else if (result.skipped) {
+        check(`${skill.name} skill (${result.skipped})`, true)
+      } else {
+        check(`${skill.name} skill`, false, result.error)
+      }
+    }
+  }
+
+  // 5. Credentials (env vars override dotfile)
   console.log("\nCredentials:")
   const dotfile = readCredentialsFile()
   const hasOpencode = existsSync(OPENCODE_AUTH_PATH)
