@@ -540,7 +540,9 @@ export function createCodexProvider(): AgentFactory {
                       })
                     }
                   }
-                  input.push({ type: "text", text, text_elements: [] })
+                  if (text) {
+                    input.push({ type: "text", text, text_elements: [] })
+                  }
 
                   // Send turn/start — response is immediate, events stream as notifications
                   write(rpcRequest("turn/start", buildCodexTurnStartParams({

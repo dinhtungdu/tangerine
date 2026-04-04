@@ -719,6 +719,9 @@ export async function start(): Promise<void> {
         ),
         sendPrompt: (taskId, text, images, fromTaskId) =>
           Effect.gen(function* () {
+            // Skip empty messages (no text and no images)
+            if (!text && (!images || images.length === 0)) return
+
             // Save images to disk and store filenames in session_logs
             let imageFilenames: string[] | undefined
             if (images && images.length > 0) {

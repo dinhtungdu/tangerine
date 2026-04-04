@@ -153,7 +153,8 @@ export function createClaudeCodeProvider(): AgentFactory {
                           type: "image",
                           source: { type: "base64", media_type: img.mediaType, data: img.data },
                         })),
-                        { type: "text", text },
+                        // Only include text block if non-empty — empty text blocks cause Claude API 400 errors
+                        ...(text ? [{ type: "text", text }] : []),
                       ]
                     : text
                   const msg = JSON.stringify({
