@@ -4,6 +4,7 @@
 // `prompt` commands on the same session.
 
 import { Effect } from "effect"
+import { PROVIDER_DISPLAY_NAMES } from "@tangerine/shared"
 import { createLogger } from "../logger"
 import { AgentError, PromptError, SessionStartError } from "../errors"
 import type { AgentFactory, AgentHandle, AgentEvent, AgentStartContext, AgentConfig, PromptImage, ModelInfo } from "./provider"
@@ -208,6 +209,7 @@ export function discoverModels(): ModelInfo[] {
 export function createPiProvider(): AgentFactory {
   return {
     metadata: {
+      displayName: PROVIDER_DISPLAY_NAMES.pi,
       skills: {
         directory: PI_SKILLS_DIR,
       },

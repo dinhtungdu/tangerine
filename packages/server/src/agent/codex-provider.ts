@@ -4,6 +4,7 @@
 // as `turn/start` requests on the same threadId.
 
 import { Effect } from "effect"
+import { PROVIDER_DISPLAY_NAMES } from "@tangerine/shared"
 import { createLogger } from "../logger"
 import { AgentError, PromptError, SessionStartError } from "../errors"
 import type { AgentFactory, AgentHandle, AgentEvent, AgentStartContext, PromptImage, ModelInfo } from "./provider"
@@ -331,6 +332,7 @@ export function discoverModels(): ModelInfo[] {
 export function createCodexProvider(): AgentFactory {
   return {
     metadata: {
+      displayName: PROVIDER_DISPLAY_NAMES.codex,
       skills: {
         directory: CODEX_SKILLS_DIR,
       },

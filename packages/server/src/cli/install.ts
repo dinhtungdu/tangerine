@@ -5,7 +5,7 @@ import { existsSync, lstatSync, mkdirSync, rmSync, symlinkSync, readlinkSync } f
 import { join, resolve } from "path"
 import { TANGERINE_HOME, OPENCODE_AUTH_PATH, readCredentialsFile, readClaudeCliToken } from "../config"
 import { createAgentFactories } from "../agent/factories"
-import type { ProviderType } from "../agent/provider"
+import { SUPPORTED_PROVIDERS } from "@tangerine/shared"
 
 // Resolve project root relative to this file:
 // packages/server/src/cli/install.ts → 4 levels up
@@ -21,13 +21,6 @@ const SKILLS_TO_INSTALL: Array<{ name: string; source: string }> = [
   { name: "tangerine-tasks", source: join(PROJECT_ROOT, "skills", "tangerine-tasks") },
   { name: "browser-test", source: join(PROJECT_ROOT, ".agents", "skills", "browser-test") },
 ]
-
-const PROVIDER_LABELS: Record<ProviderType, string> = {
-  opencode: "OpenCode skills",
-  "claude-code": "Claude Code skills",
-  codex: "Codex skills",
-  pi: "Pi skills",
-}
 
 function check(label: string, ok: boolean, hint?: string): void {
   if (ok) {
@@ -86,10 +79,10 @@ export async function install(): Promise<void> {
   check(`${TANGERINE_HOME}`, true)
 
   const factories = createAgentFactories()
-  const providers: ProviderType[] = ["opencode", "claude-code", "codex", "pi"]
-  for (const provider of providers) {
-    const targetDir = factories[provider].metadata.skills.directory
-    console.log(`\n${PROVIDER_LABELS[provider]}:`)
+  for (const provider of SUPPORTED_PROVIDERS) {
+    const metadata = factories[provider].metadata
+    const targetDir = metadata.skills.directory
+    console.log(`\n${metadata.displayName} skills:`)
     for (const skill of SKILLS_TO_INSTALL) {
       if (!existsSync(skill.source)) {
         check(`${skill.name} skill`, false, `skill source not found at ${skill.source}`)

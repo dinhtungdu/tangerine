@@ -7,6 +7,13 @@ export const DEFAULT_MAX_POOL_SIZE = 2
 export const VM_SSH_TIMEOUT_MS = 180_000
 export const HEALTH_CHECK_INTERVAL_MS = 30_000
 export const MAX_RETRY_ATTEMPTS = 3
+export const SUPPORTED_PROVIDERS = ["opencode", "claude-code", "codex", "pi"] as const
+export const PROVIDER_DISPLAY_NAMES = {
+  opencode: "OpenCode",
+  "claude-code": "Claude Code",
+  codex: "Codex",
+  pi: "Pi",
+} as const
 
 /** Reserved task name for the per-project orchestrator (always pinned to slot 0). */
 export const ORCHESTRATOR_TASK_NAME = "_orchestrator"

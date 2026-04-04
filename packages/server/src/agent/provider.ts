@@ -3,11 +3,9 @@
 
 import type { Effect } from "effect"
 import type { AgentError, PromptError, SessionStartError } from "../errors"
-import type { PromptImage } from "@tangerine/shared"
+import type { PromptImage, ProviderType } from "@tangerine/shared"
 
-export type { PromptImage }
-
-export type ProviderType = "opencode" | "claude-code" | "codex" | "pi"
+export type { PromptImage, ProviderType }
 
 /** A model available through a provider, used for model discovery and selection */
 export interface ModelInfo {
@@ -34,6 +32,7 @@ export interface AgentConfig {
 }
 
 export interface ProviderMetadata {
+  displayName: string
   skills: {
     directory: string
   }

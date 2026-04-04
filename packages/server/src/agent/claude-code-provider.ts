@@ -6,6 +6,7 @@ import { createLogger } from "../logger"
 import { AgentError, PromptError, SessionStartError } from "../errors"
 import type { AgentFactory, AgentHandle, AgentEvent, AgentStartContext, PromptImage } from "./provider"
 import { parseNdjsonStream, createClaudeCodeMapper } from "./ndjson"
+import { PROVIDER_DISPLAY_NAMES } from "@tangerine/shared"
 import { homedir } from "node:os"
 import { join } from "node:path"
 
@@ -15,6 +16,7 @@ const CLAUDE_SKILLS_DIR = join(homedir(), ".claude", "skills")
 export function createClaudeCodeProvider(): AgentFactory {
   return {
     metadata: {
+      displayName: PROVIDER_DISPLAY_NAMES["claude-code"],
       skills: {
         directory: CLAUDE_SKILLS_DIR,
       },

@@ -5,6 +5,7 @@
 // completing the turn; the next prompt re-invokes with the same session ID.
 
 import { Effect } from "effect"
+import { PROVIDER_DISPLAY_NAMES } from "@tangerine/shared"
 import { createLogger, truncate } from "../logger"
 import { AgentError, PromptError, SessionStartError } from "../errors"
 import type { AgentFactory, AgentHandle, AgentEvent, AgentStartContext, PromptImage, ModelInfo } from "./provider"
@@ -364,6 +365,7 @@ export function adaptRunJsonEvent(raw: Record<string, unknown>): Record<string, 
 export function createOpenCodeProvider(): AgentFactory {
   return {
     metadata: {
+      displayName: PROVIDER_DISPLAY_NAMES.opencode,
       skills: {
         directory: join(homedir(), ".claude", "skills"),
       },
