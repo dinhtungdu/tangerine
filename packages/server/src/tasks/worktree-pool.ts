@@ -125,6 +125,7 @@ export function acquireSlot(
   taskId: string,
   getTask: GetTask,
   exec: LocalExec,
+  defaultBranch = "main",
 ): Effect.Effect<WorktreeSlotRow, DbError | Error> {
   return Effect.gen(function* () {
     // Reconcile stale slots before acquiring
@@ -181,7 +182,7 @@ export function acquireSlot(
     // Fetch from origin and reset to remote HEAD so every task starts from the latest remote state.
     // On failure, release the slot to avoid permanently orphaned bound slots.
     yield* exec(
-      `cd ${slot.path} && git fetch origin && git reset --hard $(git rev-parse --verify origin/HEAD 2>/dev/null || echo origin/main) && git clean -fd`,
+      `cd ${slot.path} && git fetch origin && git reset --hard origin/${defaultBranch} && git clean -fd`,
     ).pipe(
       Effect.catchAll((e) =>
         dbTry(() =>
