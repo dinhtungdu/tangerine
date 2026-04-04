@@ -130,7 +130,7 @@ export function startSession(
     yield* activity("worktree.acquiring", isOrchestrator ? "Acquiring orchestrator slot" : "Acquiring worktree slot")
     const slot = yield* (isOrchestrator
       ? acquireOrchestratorSlot(deps.db, task.project_id, task.id, deps.getTask)
-      : acquireSlot(deps.db, task.project_id, task.id, deps.getTask, exec)
+      : acquireSlot(deps.db, task.project_id, task.id, deps.getTask, exec, defaultBranch)
     ).pipe(
       Effect.mapError((e) => new SessionStartError({
         message: `Slot acquisition failed: ${e.message}`,
