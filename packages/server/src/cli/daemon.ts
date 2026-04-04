@@ -2,7 +2,7 @@
 // The daemon is a launcher process that holds a restart loop — on crash it
 // respawns the server child, on clean exit (code 0) it stops.
 
-import { spawn } from "child_process"
+import { spawn, execSync } from "child_process"
 import { existsSync, readFileSync, writeFileSync, writeSync, unlinkSync, mkdirSync, openSync, constants as fsConstants } from "fs"
 import { join } from "path"
 import { homedir } from "os"
@@ -17,6 +17,18 @@ function isProcessAlive(pid: number): boolean {
     process.kill(pid, 0)
     return true
   } catch {
+    return false
+  }
+}
+
+/** Verify that a PID belongs to a Tangerine process (not a reused PID). */
+function isTangerineProcess(pid: number): boolean {
+  if (!isProcessAlive(pid)) return false
+  try {
+    const cmdline = execSync(`ps -p ${pid} -o args=`, { encoding: "utf-8" }).trim()
+    return cmdline.includes("tangerine")
+  } catch {
+    // ps failed — can't verify, treat as not ours
     return false
   }
 }
@@ -41,7 +53,7 @@ function getBinPath(): string {
 
 export async function daemonStart(): Promise<void> {
   const existingPid = readPid()
-  if (existingPid !== null && isProcessAlive(existingPid)) {
+  if (existingPid !== null && isTangerineProcess(existingPid)) {
     console.log(`Tangerine is already running (PID ${existingPid}).`)
     process.exit(0)
   }
@@ -76,7 +88,7 @@ export async function daemonStart(): Promise<void> {
 
 export async function daemonStop(): Promise<void> {
   const pid = readPid()
-  if (pid === null || !isProcessAlive(pid)) {
+  if (pid === null || !isTangerineProcess(pid)) {
     console.log("Tangerine is not running.")
     // Clean up stale PID file if present
     if (existsSync(PID_FILE)) unlinkSync(PID_FILE)
@@ -121,7 +133,7 @@ export async function daemonStatus(): Promise<void> {
     process.exit(1)
   }
 
-  if (isProcessAlive(pid)) {
+  if (isTangerineProcess(pid)) {
     console.log(`Tangerine is running (PID ${pid}).`)
   } else {
     console.log("Tangerine is not running (stale PID file).")
@@ -169,6 +181,11 @@ export async function daemonLoop(): Promise<void> {
       }
       process.on("SIGTERM", killChild)
       process.on("SIGINT", killChild)
+      // Clean up per-child listeners when child exits to avoid accumulation
+      child.on("exit", () => {
+        process.removeListener("SIGTERM", killChild)
+        process.removeListener("SIGINT", killChild)
+      })
     })
 
     if (stopping) break
