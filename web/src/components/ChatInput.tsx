@@ -406,7 +406,7 @@ export function ChatInput({ onSend, disabled, queueLength, taskId, isWorking, on
                 if (ch === "/") {
                   if (si === 0 || val[si - 1] === " " || val[si - 1] === "\n") {
                     const query = val.slice(si + 1, cursor)
-                    if (!query.includes(" ") && !query.includes("\n") && skillsRef.current.length > 0) {
+                    if (!query.includes(" ") && !query.includes("\n")) {
                       setSlashState({ isOpen: true, query, selectedIndex: 0, triggerStart: si })
                     } else {
                       closeSlash()
