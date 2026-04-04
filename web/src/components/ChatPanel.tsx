@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState, useMemo, useCallback } from "react"
+import { useVirtualizer } from "@tanstack/react-virtual"
 import type { PromptImage, PredefinedPrompt, TaskStatus, ProviderType } from "@tangerine/shared"
 import type { ChatMessage as ChatMessageType } from "../hooks/useSession"
 import { ChatMessage } from "./ChatMessage"
@@ -133,11 +134,34 @@ export function ChatPanel({
     [messages, showThinking],
   )
 
+  // Extra "rows" after messages: thinking indicator + thinking toggle
+  const hasThinkingIndicator = agentStatus === "working" && messages.length > 0
+  const hasThinkingToggle = thinkingCount > 0
+  const extraRows = (hasThinkingIndicator ? 1 : 0) + (hasThinkingToggle ? 1 : 0)
+  const rowCount = visibleMessages.length + extraRows
+
+  const virtualizer = useVirtualizer({
+    count: rowCount,
+    getScrollElement: () => scrollRef.current,
+    estimateSize: () => 80,
+    overscan: 5,
+    paddingStart: 16,
+    paddingEnd: 16,
+    getItemKey: (index) => {
+      if (index < visibleMessages.length) return visibleMessages[index]!.id
+      if (index === visibleMessages.length && hasThinkingIndicator) return "__thinking__"
+      return "__toggle__"
+    },
+  })
+
+  // Auto-scroll to bottom when new messages arrive
+  const prevCountRef = useRef(0)
   useEffect(() => {
-    const el = scrollRef.current
-    if (!el) return
-    el.scrollTop = el.scrollHeight
-  }, [visibleMessages.length])
+    if (rowCount > prevCountRef.current) {
+      virtualizer.scrollToIndex(rowCount - 1, { align: "end" })
+    }
+    prevCountRef.current = rowCount
+  }, [rowCount, virtualizer])
 
 
   return (
@@ -147,49 +171,60 @@ export function ChatPanel({
         ref={scrollRef}
         className="flex-1 overflow-y-auto"
       >
-        <div className="flex flex-col gap-6 p-4">
-          {visibleMessages.length === 0 && thinkingCount === 0 ? (
-            <div className="flex h-full items-center justify-center py-20 text-md text-fg-muted">
-              No messages yet. Send a prompt to start.
-            </div>
-          ) : (
-            visibleMessages.map((msg) => <ChatMessage key={msg.id} message={msg} tasks={tasks} onReply={handleReply} />)
-          )}
+        {visibleMessages.length === 0 && thinkingCount === 0 ? (
+          <div className="flex h-full items-center justify-center py-20 text-md text-fg-muted">
+            No messages yet. Send a prompt to start.
+          </div>
+        ) : (
+          <div
+            style={{ height: virtualizer.getTotalSize(), width: "100%", position: "relative" }}
+          >
+            {virtualizer.getVirtualItems().map((virtualRow) => {
+              const msgIndex = virtualRow.index
+              const isThinkingIndicator = msgIndex === visibleMessages.length && hasThinkingIndicator
+              const isThinkingToggle = msgIndex === visibleMessages.length + (hasThinkingIndicator ? 1 : 0) && hasThinkingToggle
 
-          {/* Thinking indicator */}
-          {agentStatus === "working" && messages.length > 0 && (
-            <div className="flex flex-col gap-1.5">
-              <div className="flex items-center gap-2">
-                <div className="flex h-5 w-5 items-center justify-center rounded-[10px] bg-surface-dark">
-                  <svg className="h-2.5 w-2.5 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                    <path strokeLinecap="round" strokeLinejoin="round" d="M9.75 3.104v5.714a2.25 2.25 0 0 1-.659 1.591L5 14.5M9.75 3.104c-.251.023-.501.05-.75.082m.75-.082a24.301 24.301 0 0 1 4.5 0m0 0v5.714c0 .597.237 1.17.659 1.591L19.8 15.3M14.25 3.104c.251.023.501.05.75.082M19.8 15.3l-1.57.393A9.065 9.065 0 0 1 12 15a9.065 9.065 0 0 0-6.23.693L5 14.5m14.8.8 1.402 1.402c1.232 1.232.65 3.318-1.067 3.611l-.772.13a18.142 18.142 0 0 1-6.126 0l-.772-.13c-1.717-.293-2.3-2.379-1.067-3.61L13 15" />
-                  </svg>
+              return (
+                <div
+                  key={virtualRow.key}
+                  data-index={virtualRow.index}
+                  ref={virtualizer.measureElement}
+                  style={{
+                    position: "absolute",
+                    top: 0,
+                    left: 0,
+                    width: "100%",
+                    transform: `translateY(${virtualRow.start}px)`,
+                  }}
+                >
+                  <div className="px-4 pb-6">
+                    {isThinkingIndicator ? (
+                      <ThinkingIndicator />
+                    ) : isThinkingToggle ? (
+                      <div className="flex justify-end">
+                        <button
+                          onClick={() => setShowThinking((v) => !v)}
+                          className="flex items-center gap-1.5 rounded-md px-2 py-1 text-xxs text-fg-muted transition hover:bg-surface-secondary"
+                        >
+                          <svg className="h-3 w-3 text-amber-500/70" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                            <path strokeLinecap="round" strokeLinejoin="round" d="M12 18v-5.25m0 0a6.01 6.01 0 0 0 1.5-.189m-1.5.189a6.01 6.01 0 0 1-1.5-.189m3.75 7.478a12.06 12.06 0 0 1-4.5 0m3.75 2.383a14.406 14.406 0 0 1-3 0M14.25 18v-.192c0-.983.658-1.823 1.508-2.316a7.5 7.5 0 1 0-7.517 0c.85.493 1.509 1.333 1.509 2.316V18" />
+                          </svg>
+                          {showThinking ? "Hide" : "Show"} reasoning ({thinkingCount})
+                        </button>
+                      </div>
+                    ) : (
+                      <ChatMessage
+                        message={visibleMessages[msgIndex]!}
+                        tasks={tasks}
+                        onReply={handleReply}
+                      />
+                    )}
+                  </div>
                 </div>
-                <span className="text-xs font-semibold text-fg">Agent</span>
-              </div>
-              <div className="flex w-fit items-center gap-1 rounded-lg bg-surface-secondary px-3 py-2">
-                <div className="h-1.5 w-1.5 rounded-full bg-fg-muted animate-thinking-dot" />
-                <div className="h-1.5 w-1.5 rounded-full bg-fg-muted animate-thinking-dot" />
-                <div className="h-1.5 w-1.5 rounded-full bg-fg-muted animate-thinking-dot" />
-              </div>
-            </div>
-          )}
-
-          {/* Thinking toggle */}
-          {thinkingCount > 0 && (
-            <div className="flex justify-end">
-              <button
-                onClick={() => setShowThinking((v) => !v)}
-                className="flex items-center gap-1.5 rounded-md px-2 py-1 text-xxs text-fg-muted transition hover:bg-surface-secondary"
-              >
-                <svg className="h-3 w-3 text-amber-500/70" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                  <path strokeLinecap="round" strokeLinejoin="round" d="M12 18v-5.25m0 0a6.01 6.01 0 0 0 1.5-.189m-1.5.189a6.01 6.01 0 0 1-1.5-.189m3.75 7.478a12.06 12.06 0 0 1-4.5 0m3.75 2.383a14.406 14.406 0 0 1-3 0M14.25 18v-.192c0-.983.658-1.823 1.508-2.316a7.5 7.5 0 1 0-7.517 0c.85.493 1.509 1.333 1.509 2.316V18" />
-                </svg>
-                {showThinking ? "Hide" : "Show"} reasoning ({thinkingCount})
-              </button>
-            </div>
-          )}
-        </div>
+              )
+            })}
+          </div>
+        )}
       </div>
 
       {/* Input or terminal-state banner */}
@@ -233,6 +268,28 @@ export function ChatPanel({
         />
         </>
       )}
+    </div>
+  )
+}
+
+/* -- Thinking indicator (extracted to avoid inline definition) -- */
+
+function ThinkingIndicator() {
+  return (
+    <div className="flex flex-col gap-1.5">
+      <div className="flex items-center gap-2">
+        <div className="flex h-5 w-5 items-center justify-center rounded-[10px] bg-surface-dark">
+          <svg className="h-2.5 w-2.5 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+            <path strokeLinecap="round" strokeLinejoin="round" d="M9.75 3.104v5.714a2.25 2.25 0 0 1-.659 1.591L5 14.5M9.75 3.104c-.251.023-.501.05-.75.082m.75-.082a24.301 24.301 0 0 1 4.5 0m0 0v5.714c0 .597.237 1.17.659 1.591L19.8 15.3M14.25 3.104c.251.023.501.05.75.082M19.8 15.3l-1.57.393A9.065 9.065 0 0 1 12 15a9.065 9.065 0 0 0-6.23.693L5 14.5m14.8.8 1.402 1.402c1.232 1.232.65 3.318-1.067 3.611l-.772.13a18.142 18.142 0 0 1-6.126 0l-.772-.13c-1.717-.293-2.3-2.379-1.067-3.61L13 15" />
+          </svg>
+        </div>
+        <span className="text-xs font-semibold text-fg">Agent</span>
+      </div>
+      <div className="flex w-fit items-center gap-1 rounded-lg bg-surface-secondary px-3 py-2">
+        <div className="h-1.5 w-1.5 rounded-full bg-fg-muted animate-thinking-dot" />
+        <div className="h-1.5 w-1.5 rounded-full bg-fg-muted animate-thinking-dot" />
+        <div className="h-1.5 w-1.5 rounded-full bg-fg-muted animate-thinking-dot" />
+      </div>
     </div>
   )
 }

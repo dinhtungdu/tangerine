@@ -485,7 +485,9 @@ describe("ChatPanel", () => {
       </MemoryRouter>
     )
 
-    fireEvent.click(screen.getByLabelText("Reply"))
+    // Wait for virtualized message to render
+    const replyBtn = await screen.findByLabelText("Reply")
+    fireEvent.click(replyBtn)
 
     // Quote chip appears above the input
     expect(screen.getByLabelText("Dismiss quote")).toBeTruthy()
