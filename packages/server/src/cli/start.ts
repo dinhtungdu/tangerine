@@ -588,6 +588,9 @@ export async function start(): Promise<void> {
                       }
                       const projConfig = task?.project_id ? getProjectConfig(config.config, task.project_id) : undefined
 
+                      // Don't nudge if prMode is "none"
+                      if (projConfig?.prMode === "none") return
+
                       const hasCommits = await branchHasCommits(db, taskId, projConfig)
                       if (!hasCommits || st.prUrlSaved) return
 

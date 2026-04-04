@@ -15,7 +15,7 @@ export interface SystemNotesInfo {
  * Build the PR workflow instruction: rename branch, push, create PR.
  * Used in initial prompts, reconnect nudges, and PR nudges.
  */
-export function buildPrWorkflowNote(taskId: string, port = apiPort(), prMode: "ready" | "draft" | "none" = "draft"): string {
+export function buildPrWorkflowNote(taskId: string, port = apiPort(), prMode: "ready" | "draft" | "none" = "none"): string {
   const prCommand =
     prMode === "none"
       ? "nothing — prMode is none, do NOT push or create a PR."
@@ -37,7 +37,6 @@ export function buildPrModeInstruction(prMode: "ready" | "draft" | "none"): stri
   if (prMode === "none") {
     return `This project's prMode is "none". Do NOT push or create a PR. Just commit your work and stop.`
   }
-  // draft is the default
   return `This project's prMode is "draft". You MUST pass --draft when creating PRs: \`gh pr create --draft\`. Never create a ready PR.`
 }
 
@@ -53,9 +52,9 @@ export function buildSystemNotes(taskId: string, info: SystemNotesInfo, port = a
   // Only workers rename their branch, push, and open a PR.
   // Reviewers review existing PRs on an existing branch; orchestrators run on the project default branch.
   if (info.taskType === "worker") {
-    const prModeInstruction = buildPrModeInstruction(info.prMode ?? "draft")
+    const prModeInstruction = buildPrModeInstruction(info.prMode ?? "none")
     notes.push(`[PR MODE — CRITICAL: ${prModeInstruction}]`)
-    notes.push(`[NOTE: When your work is complete: ${buildPrWorkflowNote(taskId, port, info.prMode ?? "draft")} Do not stop at just committing.]`)
+    notes.push(`[NOTE: When your work is complete: ${buildPrWorkflowNote(taskId, port, info.prMode ?? "none")} Do not stop at just committing.]`)
     notes.push(`[PR TEMPLATE: Before running \`gh pr create\`, check for a PR template: \`cat .github/pull_request_template.md 2>/dev/null || cat .github/PULL_REQUEST_TEMPLATE.md 2>/dev/null\`. If a PR template exists in the repo, you MUST use it as the structure for your PR body. Follow it strictly — do not skip sections, do not add sections not in the template.]`)
   }
   return notes

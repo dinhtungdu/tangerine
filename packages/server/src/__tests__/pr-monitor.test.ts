@@ -367,8 +367,8 @@ describe("pollPrStatuses", () => {
 // ---------------------------------------------------------------------------
 
 describe("buildSystemNotes", () => {
-  test("includes PR creation note for worker tasks", () => {
-    const notes = buildSystemNotes("test-id", { taskType: "worker" })
+  test("includes PR workflow note for worker tasks", () => {
+    const notes = buildSystemNotes("test-id", { taskType: "worker", prMode: "draft" })
     expect(notes.some((n) => n.includes("rename-branch") && n.includes("gh pr create"))).toBe(true)
   })
 
@@ -405,9 +405,10 @@ describe("buildSystemNotes", () => {
     expect(notes.some((n) => n.includes("Do NOT push or create a PR"))).toBe(true)
   })
 
-  test("defaults to draft prMode when prMode not provided for worker tasks", () => {
+  test("defaults to none prMode when prMode not provided for worker tasks", () => {
     const notes = buildSystemNotes("test-id", { taskType: "worker" })
-    expect(notes.some((n) => n.includes("PR MODE") && n.includes("--draft"))).toBe(true)
+    expect(notes.some((n) => n.includes("PR MODE") && n.includes('"none"'))).toBe(true)
+    expect(notes.some((n) => n.includes("Do NOT push or create a PR"))).toBe(true)
   })
 
   test("does not inject prMode instruction for non-worker tasks", () => {
