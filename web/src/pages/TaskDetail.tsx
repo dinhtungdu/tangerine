@@ -548,7 +548,7 @@ export function TaskDetail() {
                 predefinedPrompts={resolvedPrompts}
                 onResolve={canResolve ? handleResolve : undefined}
                 canContinue={canContinue}
-                taskBranch={chatTask.branch ?? undefined}
+                taskBranch={chatTask.prUrl ? (chatTask.branch ?? undefined) : undefined}
                 autoFocusKey={chatTaskId}
               />
             </div>
