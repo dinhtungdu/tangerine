@@ -52,10 +52,13 @@ export function buildSystemNotes(taskId: string, info: SystemNotesInfo, port = a
   // Only workers rename their branch, push, and open a PR.
   // Reviewers review existing PRs on an existing branch; orchestrators run on the project default branch.
   if (info.taskType === "worker") {
-    const prModeInstruction = buildPrModeInstruction(info.prMode ?? "none")
+    const prMode = info.prMode ?? "none"
+    const prModeInstruction = buildPrModeInstruction(prMode)
     notes.push(`[PR MODE — CRITICAL: ${prModeInstruction}]`)
-    notes.push(`[NOTE: When your work is complete: ${buildPrWorkflowNote(taskId, port, info.prMode ?? "none")} Do not stop at just committing.]`)
-    notes.push(`[PR TEMPLATE: Before running \`gh pr create\`, check for a PR template: \`cat .github/pull_request_template.md 2>/dev/null || cat .github/PULL_REQUEST_TEMPLATE.md 2>/dev/null\`. If a PR template exists in the repo, you MUST use it as the structure for your PR body. Follow it strictly — do not skip sections, do not add sections not in the template.]`)
+    if (prMode !== "none") {
+      notes.push(`[NOTE: When your work is complete: ${buildPrWorkflowNote(taskId, port, prMode)} Do not stop at just committing.]`)
+      notes.push(`[PR TEMPLATE: Before running \`gh pr create\`, check for a PR template: \`cat .github/pull_request_template.md 2>/dev/null || cat .github/PULL_REQUEST_TEMPLATE.md 2>/dev/null\`. If a PR template exists in the repo, you MUST use it as the structure for your PR body. Follow it strictly — do not skip sections, do not add sections not in the template.]`)
+    }
   }
   return notes
 }

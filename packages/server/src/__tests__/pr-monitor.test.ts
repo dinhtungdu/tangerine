@@ -403,6 +403,9 @@ describe("buildSystemNotes", () => {
     const notes = buildSystemNotes("test-id", { taskType: "worker", prMode: "none" })
     expect(notes.some((n) => n.includes("PR MODE") && n.includes('"none"'))).toBe(true)
     expect(notes.some((n) => n.includes("Do NOT push or create a PR"))).toBe(true)
+    // none mode should NOT include workflow note or PR template note
+    expect(notes.some((n) => n.includes("rename-branch"))).toBe(false)
+    expect(notes.some((n) => n.includes("PR TEMPLATE"))).toBe(false)
   })
 
   test("defaults to none prMode when prMode not provided for worker tasks", () => {
