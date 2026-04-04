@@ -42,11 +42,11 @@ function readPid(): number | null {
   return pid
 }
 
-/** Resolve the path to the `tangerine` bin entry point. */
+/** Resolve the path to the `tangerine` bin entry point.
+ *  Uses process.argv[1] which is the script that was invoked (e.g. bin/tangerine),
+ *  so it works whether running from source or via npm global install. */
 function getBinPath(): string {
-  // __filename is packages/server/src/cli/daemon.ts (or compiled equivalent)
-  // bin/tangerine is at repo root
-  return join(__dirname, "../../../../bin/tangerine")
+  return process.argv[1]!
 }
 
 // ── Commands ────────────────────────────────────────────────────────
