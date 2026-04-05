@@ -21,10 +21,6 @@ describe("opencode provider listModels", () => {
     expect(createOpenCodeProvider().listModels()).toEqual(discoverOpenCodeModels())
   })
 
-  test("exposes cache invalidation hook", () => {
-    expect(typeof createOpenCodeProvider().invalidateModelCache).toBe("function")
-  })
-
   test("each model has required fields", () => {
     for (const model of createOpenCodeProvider().listModels()) {
       expect(model.id).toBeTruthy()
@@ -45,19 +41,11 @@ describe("claude-code provider listModels", () => {
       "claude-haiku-4-5",
     ])
   })
-
-  test("exposes cache invalidation hook", () => {
-    expect(typeof createClaudeCodeProvider().invalidateModelCache).toBe("function")
-  })
 })
 
 describe("codex provider listModels", () => {
   test("delegates to provider discovery", () => {
     expect(createCodexProvider().listModels()).toEqual(discoverCodexProviderModels())
-  })
-
-  test("exposes cache invalidation hook", () => {
-    expect(typeof createCodexProvider().invalidateModelCache).toBe("function")
   })
 
   test("each model has required fields", () => {
@@ -75,8 +63,8 @@ describe("pi provider listModels", () => {
     expect(createPiProvider().listModels()).toEqual(discoverPiProviderModels())
   })
 
-  test("exposes cache invalidation hook", () => {
-    expect(typeof createPiProvider().invalidateModelCache).toBe("function")
+  test("supports forceRefresh", () => {
+    expect(Array.isArray(createPiProvider().listModels({ forceRefresh: true }))).toBe(true)
   })
 
   test("each model has required fields", () => {

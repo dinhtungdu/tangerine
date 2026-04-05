@@ -51,7 +51,7 @@ export function projectRoutes(deps: AppDeps): Hono {
     if (!(provider in deps.agentFactories)) {
       return c.json({ error: "Invalid provider" }, 400)
     }
-    deps.agentFactories[provider].invalidateModelCache?.()
+    deps.agentFactories[provider].listModels({ forceRefresh: true })
     return c.json(buildProjectsResponse(deps))
   })
 

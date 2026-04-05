@@ -85,6 +85,8 @@ Current task types:
 - `modelsByProvider`: the authoritative discovered models keyed by provider
 - `models`: a legacy provider-agnostic union of all discovered models, falling back to config when discovery is empty
 
+Provider model discovery is owned by the provider contract via `listModels({ forceRefresh?: boolean })`. `POST /api/projects/models/:provider/refresh` triggers a forced refresh for the requested provider before building the response.
+
 ### System
 
 | Method | Path | Description |

@@ -697,19 +697,23 @@ describe("API routes", () => {
 
   describe("POST /api/projects/models/:provider/refresh", () => {
     test("invalidates the requested provider cache and returns refreshed models", async () => {
-      let opencodeInvalidated = false
-      let piInvalidated = false
+      let opencodeForceRefresh = false
+      let piForceRefresh = false
       deps.agentFactories = {
         ...deps.agentFactories,
         opencode: {
           ...deps.agentFactories.opencode,
-          listModels: () => [{ id: "openai/gpt-5.4", name: "GPT-5.4", provider: "openai", providerName: "OpenAI" }],
-          invalidateModelCache: () => { opencodeInvalidated = true },
+          listModels: (options) => {
+            if (options?.forceRefresh) opencodeForceRefresh = true
+            return [{ id: "openai/gpt-5.4", name: "GPT-5.4", provider: "openai", providerName: "OpenAI" }]
+          },
         },
         pi: {
           ...deps.agentFactories.pi,
-          listModels: () => [{ id: "pi/foo", name: "foo", provider: "pi", providerName: "Pi" }],
-          invalidateModelCache: () => { piInvalidated = true },
+          listModels: (options) => {
+            if (options?.forceRefresh) piForceRefresh = true
+            return [{ id: "pi/foo", name: "foo", provider: "pi", providerName: "Pi" }]
+          },
         },
       } satisfies AgentFactories
       app = createApp(deps).app
@@ -717,8 +721,8 @@ describe("API routes", () => {
       const res = await app.fetch(new Request("http://localhost/api/projects/models/pi/refresh", { method: "POST" }))
       expect(res.status).toBe(200)
       const body = await res.json() as { models: string[]; modelsByProvider: Record<string, string[]> }
-      expect(opencodeInvalidated).toBe(false)
-      expect(piInvalidated).toBe(true)
+      expect(opencodeForceRefresh).toBe(false)
+      expect(piForceRefresh).toBe(true)
       expect(body.models).toContain("openai/gpt-5.4")
       expect(body.models).toContain("claude-opus-4-6")
       expect(body.models).toContain("claude-sonnet-4-6")

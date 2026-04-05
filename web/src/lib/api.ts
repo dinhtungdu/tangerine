@@ -40,7 +40,6 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
 export async function fetchProjects(): Promise<{
   projects: ProjectConfig[]
   model: string
-  models: string[]
   modelsByProvider: Record<string, string[]>
   sshHost?: string
   sshUser?: string
@@ -51,7 +50,6 @@ export async function fetchProjects(): Promise<{
   return request<{
     projects: ProjectConfig[]
     model: string
-    models: string[]
     modelsByProvider: Record<string, string[]>
     sshHost?: string
     sshUser?: string
@@ -274,4 +272,3 @@ export async function updateProjectRepo(projectName: string): Promise<ProjectUpd
     method: "POST",
   })
 }
-

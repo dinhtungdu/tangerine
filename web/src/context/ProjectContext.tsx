@@ -8,7 +8,6 @@ interface ProjectContextValue {
   projects: ProjectConfig[]
   current: ProjectConfig | null
   model: string
-  models: string[]
   modelsByProvider: Record<string, string[]>
   sshHost: string | undefined
   sshUser: string | undefined
@@ -25,7 +24,6 @@ const ProjectContext = createContext<ProjectContextValue>({
   projects: [],
   current: null,
   model: "",
-  models: [],
   modelsByProvider: {},
   sshHost: undefined,
   sshUser: undefined,
@@ -44,7 +42,6 @@ export function ProjectProvider({ children }: { children: ReactNode }) {
   const location = useLocation()
   const [projects, setProjects] = useState<ProjectConfig[]>([])
   const [globalModel, setGlobalModel] = useState("")
-  const [models, setModels] = useState<string[]>([])
   const [modelsByProvider, setModelsByProvider] = useState<Record<string, string[]>>({})
   const [selectedModel, setSelectedModel] = useState<string | null>(null)
   const [sshHost, setSshHost] = useState<string | undefined>(undefined)
@@ -59,7 +56,6 @@ export function ProjectProvider({ children }: { children: ReactNode }) {
       .then((data) => {
         setProjects(data.projects)
         setGlobalModel(data.model)
-        setModels(data.models ?? [])
         setModelsByProvider(data.modelsByProvider ?? {})
         setSshHost(data.sshHost)
         setSshUser(data.sshUser)
@@ -81,7 +77,6 @@ export function ProjectProvider({ children }: { children: ReactNode }) {
       .then((data) => {
         setProjects(data.projects)
         setGlobalModel(data.model)
-        setModels(data.models ?? [])
         setModelsByProvider(data.modelsByProvider ?? {})
         setSshHost(data.sshHost)
         setSshUser(data.sshUser)
@@ -138,7 +133,7 @@ export function ProjectProvider({ children }: { children: ReactNode }) {
   }, [loading, projects, projectParam, setSearchParams])
 
   return (
-    <ProjectContext.Provider value={{ projects, current, model, models, modelsByProvider, sshHost, sshUser, editor, actionCombos, shortcuts, setModel: setSelectedModel, switchProject, refreshProjects, loading }}>
+    <ProjectContext.Provider value={{ projects, current, model, modelsByProvider, sshHost, sshUser, editor, actionCombos, shortcuts, setModel: setSelectedModel, switchProject, refreshProjects, loading }}>
       {children}
     </ProjectContext.Provider>
   )

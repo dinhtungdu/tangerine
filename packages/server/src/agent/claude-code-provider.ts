@@ -30,9 +30,6 @@ export function createClaudeCodeProvider(): AgentFactory {
     listModels() {
       return [...CLAUDE_CODE_MODELS]
     },
-    invalidateModelCache() {
-      // Claude Code models are static in-process metadata.
-    },
     start(ctx: AgentStartContext): Effect.Effect<AgentHandle, SessionStartError> {
       const taskLog = log.child({ taskId: ctx.taskId })
 

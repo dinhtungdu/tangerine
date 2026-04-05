@@ -18,8 +18,9 @@ interface ModelSelectorProps {
 
 export function ModelSelector({ models: propModels, model: propModel, onModelChange, menuPlacement = "top", borderless = false }: ModelSelectorProps = {}) {
   const ctx = useProject()
-  const models = propModels ?? ctx.models
   const model = propModel ?? ctx.model
+  const fallbackProvider = ctx.current?.defaultProvider ?? "claude-code"
+  const models = propModels ?? ctx.modelsByProvider[fallbackProvider] ?? []
   const setModel = onModelChange ?? ctx.setModel
   const [open, setOpen] = useState(false)
   const [search, setSearch] = useState("")

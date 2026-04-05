@@ -420,9 +420,6 @@ export function createOpenCodeProvider(): AgentFactory {
     listModels() {
       return discoverModels()
     },
-    invalidateModelCache() {
-      // OpenCode model discovery reads cache/config files fresh on each call.
-    },
     start(ctx: AgentStartContext): Effect.Effect<AgentHandle, SessionStartError> {
       const taskLog = log.child({ taskId: ctx.taskId })
 

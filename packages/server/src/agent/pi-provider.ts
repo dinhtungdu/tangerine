@@ -223,10 +223,6 @@ export function discoverModels(): ModelInfo[] {
   }
 }
 
-export function invalidateModelCache(): void {
-  cachedModels = null
-}
-
 // ---------------------------------------------------------------------------
 // Provider factory
 // ---------------------------------------------------------------------------
@@ -234,10 +230,10 @@ export function invalidateModelCache(): void {
 export function createPiProvider(): AgentFactory {
   return {
     metadata: PI_PROVIDER_METADATA,
-    listModels() {
+    listModels(options) {
+      if (options?.forceRefresh) cachedModels = null
       return discoverModels()
     },
-    invalidateModelCache,
     start(ctx: AgentStartContext): Effect.Effect<AgentHandle, SessionStartError> {
       const taskLog = log.child({ taskId: ctx.taskId })
 
