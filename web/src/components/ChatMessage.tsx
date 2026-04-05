@@ -58,30 +58,6 @@ function isToolCall(content: string): boolean {
   }
 }
 
-function escapeHtml(text: string): string {
-  return text.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;")
-}
-
-function linkifyUrls(text: string, tasks?: ReadonlyArray<{ id: string }>): string {
-  const escaped = escapeHtml(text)
-  const taskMap = tasks && tasks.length > 0
-    ? new Map(tasks.map((t) => [t.id.toLowerCase(), t.id]))
-    : null
-  // Single combined pass so UUIDs that are part of a URL are consumed by the
-  // URL branch and never double-processed into broken nested anchors.
-  return escaped.replace(
-    /(https?:\/\/[^\s<]+)|(?<!\/)([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})\b(?!\/)/gi,
-    (match, url: string | undefined, uuid: string | undefined) => {
-      if (url) return `<a href="${url}" target="_blank" rel="noopener noreferrer">${url}</a>`
-      if (uuid && taskMap) {
-        const canonicalId = taskMap.get(uuid.toLowerCase())
-        if (!canonicalId) return uuid
-        return `<a href="/tasks/${canonicalId}" class="underline text-link hover:text-link-hover">${canonicalId.slice(0, 8)}</a>`
-      }
-      return match
-    },
-  )
-}
 
 const markdownComponents: Components = {
   h1: ({ children }) => <h1 className="mt-4 mb-1 text-base font-bold">{children}</h1>,
@@ -276,11 +252,14 @@ export const ChatMessage = memo(function ChatMessage({ message, tasks, onReply }
             </>
           )}
           {message.content && (
-            <p
-              className="whitespace-pre-wrap text-md leading-[1.5] text-white [&_a]:underline [&_a]:text-link hover:[&_a]:text-link-hover [&_a]:break-all"
+            <div
+              className="text-md leading-[1.5] text-white [&_a]:underline [&_a]:text-link hover:[&_a]:text-link-hover [&_a]:break-all"
               onClick={handleLinkClick}
-              dangerouslySetInnerHTML={{ __html: linkifyUrls(message.content, tasks) }}
-            />
+            >
+              <ReactMarkdown remarkPlugins={remarkPlugins} components={markdownComponents}>
+                {message.content}
+              </ReactMarkdown>
+            </div>
           )}
           <span className="mt-1 block text-right text-2xs text-fg-muted/50">
             {formatTimestamp(message.timestamp)}
