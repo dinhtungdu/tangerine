@@ -532,6 +532,8 @@ export function createCodexProvider(): AgentFactory {
             throw new Error("Failed to obtain Codex thread ID")
           }
 
+          await ensureThread()
+
           // Ready for prompts
           emit({ kind: "status", status: "idle" })
 

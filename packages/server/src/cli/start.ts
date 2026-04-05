@@ -52,7 +52,8 @@ function classifyTool(toolName: string): { activityType: "file" | "system"; acti
   }
 }
 
-async function applySystemPromptIfSupported(handle: AgentHandle, notes: string[]): Promise<boolean> {
+export async function applySystemPromptIfSupported(handle: AgentHandle, notes: string[], alreadyApplied = false): Promise<boolean> {
+  if (alreadyApplied) return true
   if (!handle.setSystemPrompt || notes.length === 0) return false
   try {
     return await Effect.runPromise(handle.setSystemPrompt(notes.join("\n")))
@@ -429,7 +430,9 @@ export async function start(): Promise<void> {
                   }
                 }
 
-                const usedSystemPrompt = await applySystemPromptIfSupported(session.agentHandle, notes)
+                const taskState = getTaskState(taskId)
+                const usedSystemPrompt = await applySystemPromptIfSupported(session.agentHandle, notes, taskState.systemPromptApplied)
+                taskState.systemPromptApplied = usedSystemPrompt
                 const fullPrompt = usedSystemPrompt || notes.length === 0
                   ? initialPrompt + escalationBlock
                   : notes.join("\n") + "\n\n" + initialPrompt + escalationBlock
@@ -784,7 +787,9 @@ export async function start(): Promise<void> {
 
               const taskState = getTaskState(taskId)
               const handle = agentHandles.get(taskId)
-              const usedSystemPrompt = taskState.systemPromptApplied || (handle ? yield* Effect.promise(() => applySystemPromptIfSupported(handle, notes)) : false)
+              const usedSystemPrompt = handle
+                ? yield* Effect.promise(() => applySystemPromptIfSupported(handle, notes, taskState.systemPromptApplied))
+                : taskState.systemPromptApplied
               taskState.systemPromptApplied = usedSystemPrompt
 
               if (notes.length > 0 && !taskState.systemPromptApplied) {
