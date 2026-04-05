@@ -2,6 +2,7 @@ import { memo, useState, useMemo, useCallback, useRef } from "react"
 import type { Components } from "react-markdown"
 import ReactMarkdown from "react-markdown"
 import remarkGfm from "remark-gfm"
+import remarkBreaks from "remark-breaks"
 import { visit } from "unist-util-visit"
 import type { Root, Text, Parent, Link } from "mdast"
 import type { ChatMessage as ChatMessageType } from "../hooks/useSession"
@@ -147,6 +148,8 @@ function makeRemarkLinkifyTaskIds(tasks: ReadonlyArray<{ id: string }>) {
 }
 
 const BASE_REMARK_PLUGINS = [remarkGfm]
+// User messages preserve single newlines (matching whitespace-pre-wrap semantics)
+const BASE_USER_REMARK_PLUGINS = [remarkGfm, remarkBreaks]
 
 export const ChatMessage = memo(function ChatMessage({ message, tasks, onReply }: ChatMessageProps) {
   const navigate = useNavigate()
@@ -166,6 +169,10 @@ export const ChatMessage = memo(function ChatMessage({ message, tasks, onReply }
   )
   const remarkPlugins = useMemo(
     () => tasks && tasks.length > 0 ? [...BASE_REMARK_PLUGINS, makeRemarkLinkifyTaskIds(tasks)] : BASE_REMARK_PLUGINS,
+    [tasks],
+  )
+  const userRemarkPlugins = useMemo(
+    () => tasks && tasks.length > 0 ? [...BASE_USER_REMARK_PLUGINS, makeRemarkLinkifyTaskIds(tasks)] : BASE_USER_REMARK_PLUGINS,
     [tasks],
   )
   const isUser = message.role === "user"
@@ -256,7 +263,7 @@ export const ChatMessage = memo(function ChatMessage({ message, tasks, onReply }
               className="text-md leading-[1.5] text-white [&_a]:underline [&_a]:text-link hover:[&_a]:text-link-hover [&_a]:break-all"
               onClick={handleLinkClick}
             >
-              <ReactMarkdown remarkPlugins={remarkPlugins} components={markdownComponents}>
+              <ReactMarkdown remarkPlugins={userRemarkPlugins} components={markdownComponents}>
                 {message.content}
               </ReactMarkdown>
             </div>
