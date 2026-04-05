@@ -417,6 +417,9 @@ export function adaptRunJsonEvent(raw: Record<string, unknown>): Record<string, 
 export function createOpenCodeProvider(): AgentFactory {
   return {
     metadata: OPENCODE_PROVIDER_METADATA,
+    listModels() {
+      return discoverModels()
+    },
     start(ctx: AgentStartContext): Effect.Effect<AgentHandle, SessionStartError> {
       const taskLog = log.child({ taskId: ctx.taskId })
 

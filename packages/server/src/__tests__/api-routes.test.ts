@@ -8,6 +8,8 @@ import { createTask as dbCreateTask, updateTaskStatus, insertSessionLog, getTask
 import { TaskNotFoundError } from "../errors"
 import type { TaskRow } from "../db/types"
 import type { RawConfig } from "../config"
+import { createAgentFactories } from "../agent/factories"
+import type { AgentFactories } from "../agent/factories"
 
 function createMockDeps(db: Database, configOverrides?: Partial<AppDeps["config"]["config"]>): AppDeps {
   const configData = {
@@ -118,6 +120,7 @@ function createMockDeps(db: Database, configOverrides?: Partial<AppDeps["config"
       },
     } satisfies AppDeps["config"],
     getAgentHandle: () => null,
+    agentFactories: createAgentFactories(),
   }
 }
 
@@ -637,6 +640,25 @@ describe("API routes", () => {
       expect(body.model).toBe("openai/gpt-4o")
       // Ensure no credential fields leak
       expect("credentials" in body).toBe(false)
+    })
+  })
+
+  describe("GET /api/projects", () => {
+    test("falls back to config models when provider returns none", async () => {
+      deps.agentFactories = {
+        ...deps.agentFactories,
+        opencode: {
+          ...deps.agentFactories.opencode,
+          listModels: () => [],
+        },
+      } satisfies AgentFactories
+      app = createApp(deps).app
+
+      const res = await app.fetch(new Request("http://localhost/api/projects"))
+      expect(res.status).toBe(200)
+      const body = await res.json() as { models: string[]; modelsByProvider: Record<string, string[]> }
+      expect(body.models).toEqual(["openai/gpt-4o"])
+      expect(body.modelsByProvider["claude-code"]).toContain("claude-sonnet-4-6")
     })
   })
 

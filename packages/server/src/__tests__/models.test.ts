@@ -1,123 +1,28 @@
 import { describe, test, expect } from "bun:test"
-import { discoverModels, discoverClaudeCodeModels, discoverModelsByProvider, discoverCodexModels, discoverPiModels } from "../models"
-import { discoverModels as discoverOpenCodeModels } from "../agent/opencode-provider"
-import { discoverModels as discoverCodexProviderModels } from "../agent/codex-provider"
-import { buildPiPromptCommand, buildPiSystemPromptCommand, discoverModels as discoverPiProviderModels } from "../agent/pi-provider"
+import { createAgentFactories } from "../agent/factories"
+import { createClaudeCodeProvider } from "../agent/claude-code-provider"
+import { createCodexProvider, discoverModels as discoverCodexProviderModels } from "../agent/codex-provider"
+import { createOpenCodeProvider, discoverModels as discoverOpenCodeModels } from "../agent/opencode-provider"
+import { buildPiPromptCommand, buildPiSystemPromptCommand, createPiProvider, discoverModels as discoverPiProviderModels } from "../agent/pi-provider"
 
-describe("discoverModels (opencode)", () => {
-  test("returns array (empty if no opencode cache)", () => {
-    const models = discoverModels()
-    expect(Array.isArray(models)).toBe(true)
+const factories = createAgentFactories()
+
+describe("agent factories", () => {
+  test("return models grouped by provider", () => {
+    expect(Array.isArray(factories.opencode.listModels())).toBe(true)
+    expect(Array.isArray(factories["claude-code"].listModels())).toBe(true)
+    expect(Array.isArray(factories.codex.listModels())).toBe(true)
+    expect(Array.isArray(factories.pi.listModels())).toBe(true)
+  })
+})
+
+describe("opencode provider listModels", () => {
+  test("delegates to provider discovery", () => {
+    expect(createOpenCodeProvider().listModels()).toEqual(discoverOpenCodeModels())
   })
 
   test("each model has required fields", () => {
-    const models = discoverModels()
-    for (const model of models) {
-      expect(model.id).toBeTruthy()
-      expect(model.id).toContain("/")
-      expect(model.provider).toBeTruthy()
-      expect(model.name).toBeTruthy()
-    }
-  })
-
-  test("model id format is provider/model", () => {
-    const models = discoverModels()
-    for (const model of models) {
-      const parts = model.id.split("/")
-      expect(parts.length).toBeGreaterThanOrEqual(2)
-      expect(parts[0]).toBe(model.provider)
-    }
-  })
-
-  test("delegates to opencode-provider discoverModels", () => {
-    expect(discoverModels()).toEqual(discoverOpenCodeModels())
-  })
-})
-
-describe("discoverClaudeCodeModels", () => {
-  test("always returns known claude models", () => {
-    const models = discoverClaudeCodeModels()
-    expect(models.length).toBeGreaterThan(0)
-    for (const model of models) {
-      expect(model.id).toMatch(/^claude-/)
-      expect(model.provider).toBe("anthropic")
-      expect(model.name).toBeTruthy()
-    }
-  })
-
-  test("includes known claude models", () => {
-    const models = discoverClaudeCodeModels()
-    const ids = models.map((m) => m.id)
-    expect(ids).toContain("claude-opus-4-6")
-    expect(ids).toContain("claude-sonnet-4-6")
-    expect(ids).toContain("claude-haiku-4-5")
-  })
-})
-
-describe("discoverCodexModels", () => {
-  test("returns array (empty if no codex cache)", () => {
-    const models = discoverCodexModels()
-    expect(Array.isArray(models)).toBe(true)
-  })
-
-  test("delegates to codex-provider discoverModels", () => {
-    expect(discoverCodexModels()).toEqual(discoverCodexProviderModels())
-  })
-})
-
-describe("discoverPiModels", () => {
-  test("returns array (empty if no pi config)", () => {
-    const models = discoverPiModels()
-    expect(Array.isArray(models)).toBe(true)
-  })
-
-  test("delegates to pi-provider discoverModels", () => {
-    expect(discoverPiModels()).toEqual(discoverPiProviderModels())
-  })
-})
-
-describe("discoverModelsByProvider", () => {
-  test("returns models grouped by provider type", () => {
-    const result = discoverModelsByProvider()
-    expect(result).toHaveProperty("opencode")
-    expect(result).toHaveProperty("claude-code")
-    expect(result).toHaveProperty("codex")
-    expect(result).toHaveProperty("pi")
-    expect(Array.isArray(result.opencode)).toBe(true)
-    expect(Array.isArray(result["claude-code"])).toBe(true)
-    expect(Array.isArray(result.codex)).toBe(true)
-    expect(Array.isArray(result.pi)).toBe(true)
-  })
-
-  test("claude-code models match discoverClaudeCodeModels", () => {
-    const byProvider = discoverModelsByProvider()
-    const direct = discoverClaudeCodeModels()
-    expect(byProvider["claude-code"]).toEqual(direct)
-  })
-
-  test("opencode models match opencode-provider discoverModels", () => {
-    const byProvider = discoverModelsByProvider()
-    expect(byProvider.opencode).toEqual(discoverOpenCodeModels())
-  })
-
-  test("codex models match codex-provider discoverModels", () => {
-    const byProvider = discoverModelsByProvider()
-    expect(byProvider.codex).toEqual(discoverCodexProviderModels())
-  })
-
-  test("pi models match pi-provider discoverModels", () => {
-    const byProvider = discoverModelsByProvider()
-    expect(byProvider.pi).toEqual(discoverPiProviderModels())
-  })
-})
-
-describe("opencode-provider discoverModels", () => {
-  test("returns array", () => {
-    expect(Array.isArray(discoverOpenCodeModels())).toBe(true)
-  })
-
-  test("each model has required fields", () => {
-    for (const model of discoverOpenCodeModels()) {
+    for (const model of createOpenCodeProvider().listModels()) {
       expect(model.id).toBeTruthy()
       expect(model.provider).toBeTruthy()
       expect(model.name).toBeTruthy()
@@ -126,13 +31,25 @@ describe("opencode-provider discoverModels", () => {
   })
 })
 
-describe("codex-provider discoverModels", () => {
-  test("returns array", () => {
-    expect(Array.isArray(discoverCodexProviderModels())).toBe(true)
+describe("claude-code provider listModels", () => {
+  test("returns known Claude models", () => {
+    const models = createClaudeCodeProvider().listModels()
+    expect(models.length).toBeGreaterThan(0)
+    expect(models.map((m) => m.id)).toEqual([
+      "claude-opus-4-6",
+      "claude-sonnet-4-6",
+      "claude-haiku-4-5",
+    ])
+  })
+})
+
+describe("codex provider listModels", () => {
+  test("delegates to provider discovery", () => {
+    expect(createCodexProvider().listModels()).toEqual(discoverCodexProviderModels())
   })
 
   test("each model has required fields", () => {
-    for (const model of discoverCodexProviderModels()) {
+    for (const model of createCodexProvider().listModels()) {
       expect(model.id).toBeTruthy()
       expect(model.provider).toBe("openai")
       expect(model.providerName).toBe("OpenAI")
@@ -141,13 +58,13 @@ describe("codex-provider discoverModels", () => {
   })
 })
 
-describe("pi-provider discoverModels", () => {
-  test("returns array", () => {
-    expect(Array.isArray(discoverPiProviderModels())).toBe(true)
+describe("pi provider listModels", () => {
+  test("delegates to provider discovery", () => {
+    expect(createPiProvider().listModels()).toEqual(discoverPiProviderModels())
   })
 
   test("each model has required fields", () => {
-    for (const model of discoverPiProviderModels()) {
+    for (const model of createPiProvider().listModels()) {
       expect(model.id).toBeTruthy()
       expect(model.provider).toBeTruthy()
       expect(model.providerName).toBeTruthy()

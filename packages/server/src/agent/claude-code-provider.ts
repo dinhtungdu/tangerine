@@ -11,6 +11,12 @@ import { homedir } from "node:os"
 import { join } from "node:path"
 
 const log = createLogger("claude-code-provider")
+const CLAUDE_CODE_MODELS = [
+  { id: "claude-opus-4-6", name: "Claude Opus 4.6", provider: "anthropic", providerName: "Anthropic" },
+  { id: "claude-sonnet-4-6", name: "Claude Sonnet 4.6", provider: "anthropic", providerName: "Anthropic" },
+  { id: "claude-haiku-4-5", name: "Claude Haiku 4.5", provider: "anthropic", providerName: "Anthropic" },
+] as const
+
 export const CLAUDE_CODE_PROVIDER_METADATA: ProviderMetadata = {
   displayName: PROVIDER_DISPLAY_NAMES["claude-code"],
   skills: {
@@ -21,6 +27,9 @@ export const CLAUDE_CODE_PROVIDER_METADATA: ProviderMetadata = {
 export function createClaudeCodeProvider(): AgentFactory {
   return {
     metadata: CLAUDE_CODE_PROVIDER_METADATA,
+    listModels() {
+      return [...CLAUDE_CODE_MODELS]
+    },
     start(ctx: AgentStartContext): Effect.Effect<AgentHandle, SessionStartError> {
       const taskLog = log.child({ taskId: ctx.taskId })
 

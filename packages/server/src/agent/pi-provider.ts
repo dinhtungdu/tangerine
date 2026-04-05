@@ -230,6 +230,9 @@ export function discoverModels(): ModelInfo[] {
 export function createPiProvider(): AgentFactory {
   return {
     metadata: PI_PROVIDER_METADATA,
+    listModels() {
+      return discoverModels()
+    },
     start(ctx: AgentStartContext): Effect.Effect<AgentHandle, SessionStartError> {
       const taskLog = log.child({ taskId: ctx.taskId })
 

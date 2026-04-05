@@ -890,6 +890,7 @@ export async function start(): Promise<void> {
       },
       config,
       getAgentHandle: (taskId) => agentHandles.get(taskId) ?? null,
+      agentFactories: factories,
     }
 
     const { app, websocket } = createApp(deps)

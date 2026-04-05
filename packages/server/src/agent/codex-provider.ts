@@ -339,6 +339,9 @@ export function discoverModels(): ModelInfo[] {
 export function createCodexProvider(): AgentFactory {
   return {
     metadata: CODEX_PROVIDER_METADATA,
+    listModels() {
+      return discoverModels()
+    },
     start(ctx: AgentStartContext): Effect.Effect<AgentHandle, SessionStartError> {
       const taskLog = log.child({ taskId: ctx.taskId })
 

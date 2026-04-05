@@ -5,6 +5,7 @@ import { createTestDb } from "./helpers"
 import { createApp, type AppDeps } from "../api/app"
 import { createTask as dbCreateTask, updateTaskStatus, insertSessionLog } from "../db/queries"
 import type { RawConfig } from "../config"
+import { createAgentFactories } from "../agent/factories"
 
 function createMockDeps(db: Database, configOverrides?: Partial<AppDeps["config"]["config"]>): AppDeps {
   const configData = {
@@ -83,6 +84,7 @@ function createMockDeps(db: Database, configOverrides?: Partial<AppDeps["config"
       },
     } satisfies AppDeps["config"],
     getAgentHandle: () => null,
+    agentFactories: createAgentFactories(),
   }
 }
 
