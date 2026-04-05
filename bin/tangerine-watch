@@ -1,6 +1,8 @@
 #!/bin/bash
 # Restart loop for self-updating Tangerine server.
 # Run this instead of `bin/tangerine start` when developing Tangerine itself.
+# This script manages restarts itself, so it runs the server in foreground mode
+# instead of using the CLI daemon.
 # After "Pull Latest" the server exits 0, which causes this loop to restart it.
 # Also watches ~/tangerine/config.json (or $TANGERINE_CONFIG) for changes and
 # restarts on modification.
@@ -36,7 +38,7 @@ while true; do
   # Resolve stable symlink so restarts pick up a refreshed SSH agent
   [ -S "$HOME/.ssh/agent.sock" ] && export SSH_AUTH_SOCK="$HOME/.ssh/agent.sock"
 
-  bun "$SCRIPT_DIR/tangerine" start &
+  bun "$SCRIPT_DIR/tangerine" start --foreground &
   SERVER_PID=$!
 
   watch_config &
