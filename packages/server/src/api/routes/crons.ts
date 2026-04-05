@@ -1,13 +1,14 @@
 import { Effect } from "effect"
 import { Hono } from "hono"
 import { CronExpressionParser } from "cron-parser"
+import { SUPPORTED_PROVIDERS } from "@tangerine/shared"
 import type { AppDeps } from "../app"
 import { mapCronRow } from "../helpers"
 import { runEffect, runEffectVoid } from "../effect-helpers"
 import { createCron, getCron, listCrons, updateCron, deleteCron } from "../../db/queries"
 import { CronNotFoundError, CronValidationError } from "../../errors"
 
-const VALID_PROVIDERS = new Set(["opencode", "claude-code", "codex", "pi"])
+const VALID_PROVIDERS = new Set<string>(SUPPORTED_PROVIDERS)
 
 /** Validate a cron expression is exactly 5 fields (no seconds field). */
 function validateCron(expr: string): Effect.Effect<void, CronValidationError> {

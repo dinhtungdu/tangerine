@@ -1,5 +1,6 @@
 import { Effect } from "effect"
 import { Hono } from "hono"
+import { SUPPORTED_PROVIDERS } from "@tangerine/shared"
 import type { AppDeps } from "../app"
 import { mapTaskRow } from "../helpers"
 import { runEffect, runEffectVoid } from "../effect-helpers"
@@ -8,6 +9,9 @@ import { TaskNotFoundError, TaskNotTerminalError, PrCapabilityError, BranchRenam
 import { getRepoDir } from "../../config"
 import { ghSpawnEnv } from "../../gh"
 import { localExecStrict } from "./../../tasks/worktree-pool"
+
+const VALID_PROVIDERS = new Set<string>(SUPPORTED_PROVIDERS)
+const PROVIDER_LIST = SUPPORTED_PROVIDERS.join(", ")
 
 export function taskRoutes(deps: AppDeps): Hono {
   const app = new Hono()
@@ -53,9 +57,8 @@ export function taskRoutes(deps: AppDeps): Hono {
     if (project.archived) {
       return c.json({ error: `Project "${projectId}" is archived — unarchive it before creating tasks` }, 400)
     }
-    const validProviders = new Set(["opencode", "claude-code", "codex", "pi"])
-    if (body.provider !== undefined && !validProviders.has(body.provider)) {
-      return c.json({ error: `Invalid provider: ${body.provider}. Must be opencode, claude-code, codex, or pi` }, 400)
+    if (body.provider !== undefined && !VALID_PROVIDERS.has(body.provider)) {
+      return c.json({ error: `Invalid provider: ${body.provider}. Must be ${PROVIDER_LIST}` }, 400)
     }
     const validTypes = new Set(["worker", "orchestrator", "reviewer"])
     if (body.type && !validTypes.has(body.type)) {
