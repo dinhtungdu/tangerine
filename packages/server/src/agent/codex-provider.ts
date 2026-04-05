@@ -342,6 +342,9 @@ export function createCodexProvider(): AgentFactory {
     listModels() {
       return discoverModels()
     },
+    invalidateModelCache() {
+      // Codex model discovery reads the cache file fresh on each call.
+    },
     start(ctx: AgentStartContext): Effect.Effect<AgentHandle, SessionStartError> {
       const taskLog = log.child({ taskId: ctx.taskId })
 

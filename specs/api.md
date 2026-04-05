@@ -69,7 +69,7 @@ Current task types:
 | Method | Path | Description |
 |--------|------|-------------|
 | GET | `/api/projects` | List configured projects, available models, and SSH editor config |
-| POST | `/api/projects/models/refresh` | Invalidate provider model caches and return refreshed model lists |
+| POST | `/api/projects/models/:provider/refresh` | Invalidate one provider model cache and return refreshed model lists |
 | GET | `/api/projects/:name` | Get one project |
 | POST | `/api/projects` | Register a project |
 | PUT | `/api/projects/:name` | Update a project |
@@ -79,6 +79,11 @@ Current task types:
 | POST | `/api/projects/:name/update` | Pull latest and optionally run `postUpdateCommand` |
 
 `GET /api/projects` response includes `sshHost`, `sshUser`, and `editor` (`"vscode"|"cursor"|"zed"`) from the top-level config (all optional). Used by the web UI to render SSH deep-links for opening worktrees in the user's editor on the host machine.
+
+`GET /api/projects` returns:
+
+- `modelsByProvider`: the authoritative discovered models keyed by provider
+- `models`: a legacy provider-agnostic union of all discovered models, falling back to config when discovery is empty
 
 ### System
 
