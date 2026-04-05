@@ -1,3 +1,5 @@
+import { DEFAULT_PROVIDER } from "@tangerine/shared"
+
 export const SCHEMA = `
   CREATE TABLE IF NOT EXISTS tasks (
     id TEXT PRIMARY KEY,
@@ -10,7 +12,7 @@ export const SCHEMA = `
     type TEXT NOT NULL DEFAULT 'worker',
     description TEXT,
     status TEXT NOT NULL DEFAULT 'created',
-    provider TEXT NOT NULL DEFAULT 'opencode',
+    provider TEXT NOT NULL DEFAULT '${DEFAULT_PROVIDER}',
     model TEXT,
     reasoning_effort TEXT,
     branch TEXT,

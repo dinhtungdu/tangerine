@@ -1,6 +1,7 @@
 import { describe, test, expect, beforeEach } from "bun:test"
 import { Database } from "bun:sqlite"
 import { Effect, Exit, Cause, Option } from "effect"
+import { DEFAULT_PROVIDER } from "@tangerine/shared"
 import { SCHEMA } from "../schema"
 import { resetDb, autoMigrate } from "../index"
 import {
@@ -40,10 +41,12 @@ describe("tasks", () => {
     expect(task.source).toBe("manual")
     expect(task.status).toBe("created")
     expect(task.title).toBe("Test task")
+    expect(task.provider).toBe(DEFAULT_PROVIDER)
 
     const retrieved = Effect.runSync(getTask(db, "task-1"))
     expect(retrieved).not.toBeNull()
     expect(retrieved!.id).toBe("task-1")
+    expect(retrieved!.provider).toBe(DEFAULT_PROVIDER)
   })
 
   test("returns null for non-existent task", () => {
@@ -240,6 +243,20 @@ describe("auto-migration", () => {
     const cols = (db.prepare("PRAGMA table_info(tasks)").all() as { name: string }[]).map((c) => c.name)
     expect(cols).toContain("model")
     expect(cols).toContain("reasoning_effort")
+    db.close()
+  })
+
+  test("schema uses shared default provider", () => {
+    const db = new Database(":memory:")
+    db.run("PRAGMA foreign_keys = ON")
+    db.exec(SCHEMA)
+
+    db.prepare("INSERT INTO tasks (id, project_id, source, repo_url, title) VALUES (?, ?, ?, ?, ?)")
+      .run("default-provider-task", "proj", "manual", "repo", "title")
+
+    const row = db.prepare("SELECT provider FROM tasks WHERE id = ?").get("default-provider-task") as { provider: string }
+    expect(row.provider).toBe(DEFAULT_PROVIDER)
+
     db.close()
   })
 })

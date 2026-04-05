@@ -1,5 +1,6 @@
 import { Effect } from "effect"
 import type { Database } from "bun:sqlite"
+import { DEFAULT_PROVIDER } from "@tangerine/shared"
 import type { TaskRow, CronRow, SessionLogRow } from "./types"
 import { DbError } from "../errors"
 
@@ -34,7 +35,7 @@ export function createTask(
       $description: task.description ?? null,
       $user_id: task.user_id ?? null,
       $branch: task.branch ?? null,
-      $provider: task.provider ?? "opencode",
+      $provider: task.provider ?? DEFAULT_PROVIDER,
       $model: task.model ?? null,
       $reasoning_effort: task.reasoning_effort ?? null,
       $parent_task_id: task.parent_task_id ?? null,
