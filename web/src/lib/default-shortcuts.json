@@ -1,0 +1,8 @@
+{
+  "palette.toggle": { "key": "k", "meta": true },
+  "task.create": { "key": "n", "meta": true, "shift": true },
+  "panel.toggle-chat": { "key": "1", "meta": true, "shift": true },
+  "panel.toggle-terminal": { "key": "`", "meta": true },
+  "panel.toggle-activity": { "key": "3", "meta": true, "shift": true },
+  "panel.toggle-diff": { "key": "2", "meta": true, "shift": true }
+}

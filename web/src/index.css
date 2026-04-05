@@ -1,0 +1,164 @@
+@import "tailwindcss";
+
+@theme {
+  --color-tangerine: #f97316;
+  --color-tangerine-light: #fb923c;
+  --color-tangerine-dark: #ea580c;
+
+  --font-mono: "JetBrains Mono", "IBM Plex Mono", ui-monospace, monospace;
+
+  /* Semantic spacing scale — named to avoid colliding with Tailwind's container sizes (sm/md/lg/xl) */
+  /* Use these instead of arbitrary Tailwind spacing for consistent layout rhythm */
+  --spacing-tight: 0.5rem;    /* stacked items, minor padding (~8px) */
+  --spacing-snug: 0.75rem;    /* icon-label gap, row gap (~12px) */
+  --spacing-normal: 1rem;     /* panel padding, container gaps (~16px) */
+  --spacing-relaxed: 1.5rem;  /* section gaps, card padding (~24px) */
+  --spacing-loose: 2rem;      /* empty states, page sections (~32px) */
+
+  /* Semantic font size scale — extends Tailwind defaults (xs=0.75rem, sm=0.875rem, base=1rem, lg=1.125rem, xl=1.25rem, 2xl=1.5rem) */
+  /* rem units respect user browser font size preferences (WCAG 1.4.4) */
+  /* Minimum sizes follow WCAG accessibility guidance: 11px absolute floor, 12px for captions/labels */
+  --text-2xs: 0.6875rem; /* badge/pill/tag labels (~11px) */
+  --text-xxs: 0.75rem;   /* secondary metadata: timestamps, IDs, hints (~12px) — same as text-xs */
+  --text-md: 0.8125rem;  /* primary compact UI body text (~13px) */
+  --text-sub: 0.9375rem; /* minor headings: section titles, app name (~15px) */
+  --text-3xl: 1.75rem;   /* large stat/display numbers (~28px) */
+
+  /* Semantic surface colors */
+  --color-surface: #fafafa;
+  --color-surface-secondary: #f5f5f5;
+  --color-surface-dark: #171717;
+  --color-surface-card: #ffffff;
+
+  /* Text colors */
+  --color-fg: #0a0a0a;
+  --color-fg-muted: #737373;
+  --color-fg-faint: #a3a3a3;
+
+  /* Border */
+  --color-edge: #e5e5e5;
+
+  /* Status semantic colors */
+  --color-status-success: #22c55e;
+  --color-status-success-text: #16a34a;
+  --color-status-success-bg: #dcfce7;
+  --color-status-info: #3b82f6;
+  --color-status-info-text: #1d4ed8;
+  --color-status-info-bg: #dbeafe;
+  --color-status-warning: #f59e0b;
+  --color-status-warning-text: #a16207;
+  --color-status-warning-bg: #fef9c3;
+  --color-status-error: #ef4444;
+  --color-status-error-text: #dc2626;
+  --color-status-error-bg: #fecaca;
+
+  /* Diff colors */
+  --color-diff-add: #15803d;
+  --color-diff-add-bg: rgba(34, 197, 94, 0.1);
+  --color-diff-remove: #dc2626;
+  --color-diff-remove-bg: rgba(239, 68, 68, 0.1);
+  --color-diff-hunk: #2563eb;
+
+  /* Link colors */
+  --color-link: #2563eb;
+  --color-link-hover: #1e40af;
+
+  /* Accent (blue badges, info highlights) */
+  --color-accent: #3b82f6;
+  --color-accent-muted: #93c5fd;
+  --color-accent-bg: #eff6ff;
+  --color-accent-border: #bfdbfe;
+  --color-accent-text: #1d4ed8;
+
+  /* Modified badge */
+  --color-modified: #d97706;
+  --color-modified-bg: rgba(251, 191, 36, 0.2);
+}
+
+/* Dark mode overrides */
+.dark {
+  --color-surface: #0a0a0a;
+  --color-surface-secondary: #171717;
+  --color-surface-dark: #262626;
+  --color-surface-card: #141414;
+
+  --color-fg: #f5f5f5;
+  --color-fg-muted: #a3a3a3;
+  --color-fg-faint: #737373;
+
+  --color-edge: #262626;
+
+  --color-status-success-text: #4ade80;
+  --color-status-success-bg: #052e16;
+  --color-status-info-text: #60a5fa;
+  --color-status-info-bg: #172554;
+  --color-status-warning-text: #fbbf24;
+  --color-status-warning-bg: #422006;
+  --color-status-error-text: #f87171;
+  --color-status-error-bg: #450a0a;
+
+  --color-diff-add: #4ade80;
+  --color-diff-add-bg: rgba(34, 197, 94, 0.1);
+  --color-diff-remove: #f87171;
+  --color-diff-remove-bg: rgba(239, 68, 68, 0.1);
+  --color-diff-hunk: #60a5fa;
+
+  --color-link: #60a5fa;
+  --color-link-hover: #93c5fd;
+
+  --color-accent: #60a5fa;
+  --color-accent-muted: #3b82f6;
+  --color-accent-bg: rgba(59, 130, 246, 0.1);
+  --color-accent-border: #1e3a5f;
+  --color-accent-text: #93c5fd;
+
+  --color-modified: #fbbf24;
+  --color-modified-bg: rgba(251, 191, 36, 0.15);
+}
+
+html, body {
+  overscroll-behavior: contain;
+}
+
+body {
+  font-family: "Inter", system-ui, -apple-system, sans-serif;
+  -webkit-font-smoothing: antialiased;
+}
+
+/* Hide scrollbars globally — keep scroll functionality, just hide the visual bar */
+* {
+  scrollbar-width: none; /* Firefox */
+}
+*::-webkit-scrollbar {
+  display: none; /* Chrome/Safari */
+}
+
+/* Pulse animation for running status */
+@keyframes status-pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.5; }
+}
+
+.animate-status-pulse {
+  animation: status-pulse 2s ease-in-out infinite;
+}
+
+/* Fade-in for new messages */
+@keyframes fade-in {
+  from { opacity: 0; transform: translateY(4px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+.animate-fade-in {
+  animation: fade-in 0.2s ease-out;
+}
+
+/* Thinking dots animation */
+@keyframes thinking-bounce {
+  0%, 80%, 100% { opacity: 0.3; }
+  40% { opacity: 1; }
+}
+
+.animate-thinking-dot:nth-child(1) { animation: thinking-bounce 1.4s ease-in-out infinite 0s; }
+.animate-thinking-dot:nth-child(2) { animation: thinking-bounce 1.4s ease-in-out infinite 0.2s; }
+.animate-thinking-dot:nth-child(3) { animation: thinking-bounce 1.4s ease-in-out infinite 0.4s; }

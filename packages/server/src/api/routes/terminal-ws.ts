@@ -1,0 +1,157 @@
+// WebSocket route for interactive terminal access to a task's VM worktree.
+// Uses bun-pty to attach to a persistent tmux session per task.
+// The tmux session survives WebSocket disconnects — navigating away and back
+// re-attaches to the same session with full scrollback preserved.
+
+import { Effect } from "effect"
+import { Hono } from "hono"
+import type { UpgradeWebSocket } from "hono/ws"
+import { spawn } from "bun-pty"
+import type { IPty } from "bun-pty"
+import type { AppDeps } from "../app"
+import { getTask } from "../../db/queries"
+import { createLogger } from "../../logger"
+
+const log = createLogger("terminal-ws")
+
+/** tmux session name for a given task */
+export function tmuxSessionName(taskId: string): string {
+  return `tng-${taskId.slice(0, 8)}`
+}
+
+const TMUX_TIMEOUT_MS = 5000
+
+/** Ensure a tmux session exists for the task, creating one if needed. */
+async function ensureTmuxSession(sessionName: string, cwd: string): Promise<void> {
+  let timer: ReturnType<typeof setTimeout>
+  const timeout = new Promise<never>((_, reject) => {
+    timer = setTimeout(() => reject(new Error("tmux session setup timed out")), TMUX_TIMEOUT_MS)
+  })
+  try {
+    await Promise.race([_ensureTmuxSession(sessionName, cwd), timeout])
+  } finally {
+    clearTimeout(timer!)
+  }
+}
+
+async function _ensureTmuxSession(sessionName: string, cwd: string): Promise<void> {
+  const check = Bun.spawn(["tmux", "has-session", "-t", sessionName], { stderr: "pipe" })
+  if ((await check.exited) === 0) return
+
+  const stderrBuf: Uint8Array[] = []
+  const create = Bun.spawn(["tmux", "new-session", "-d", "-s", sessionName, "-c", cwd], {
+    stderr: "pipe",
+  })
+  for await (const chunk of create.stderr) stderrBuf.push(chunk)
+  const exitCode = await create.exited
+  if (exitCode !== 0) {
+    const stderr = Buffer.concat(stderrBuf).toString()
+    throw new Error(`Failed to create tmux session: ${stderr}`)
+  }
+}
+
+export function terminalWsRoutes(deps: AppDeps, upgradeWebSocket: UpgradeWebSocket): Hono {
+  const app = new Hono()
+
+  app.get(
+    "/:id/terminal",
+    upgradeWebSocket((c) => {
+      const taskId = c.req.param("id")!
+      let pty: IPty | null = null
+      let alive = true
+
+      return {
+        onOpen(_event, ws) {
+          Effect.runPromise(
+            Effect.gen(function* () {
+              const task = yield* getTask(deps.db, taskId)
+              if (!task?.worktree_path) throw new Error("Task has no worktree")
+
+              const worktree = task.worktree_path
+              const sessionName = tmuxSessionName(taskId)
+
+              log.info("Terminal session starting", { taskId, worktree, sessionName })
+
+              const t0 = Date.now()
+              yield* Effect.tryPromise(() => ensureTmuxSession(sessionName, worktree))
+              log.info("tmux session ready", { taskId, sessionName, ms: Date.now() - t0 })
+
+              // Attach to the tmux session via PTY — this gives the browser
+              // a live view into the persistent session.
+              pty = spawn("tmux", [
+                "attach-session", "-t", sessionName,
+              ], {
+                cols: 80,
+                rows: 24,
+                name: "xterm-256color",
+              })
+
+              pty.onData((data) => {
+                if (!alive) return
+                try {
+                  ws.send(JSON.stringify({ type: "output", data }))
+                } catch {
+                  // Client disconnected
+                }
+              })
+
+              pty.onExit(({ exitCode }) => {
+                if (!alive) return
+                try {
+                  ws.send(JSON.stringify({ type: "exit", code: exitCode }))
+                } catch {
+                  // Client gone
+                }
+              })
+
+              ws.send(JSON.stringify({ type: "connected" }))
+            })
+          ).catch((err) => {
+            log.error("Terminal session failed", { taskId, error: String(err) })
+            try {
+              ws.send(JSON.stringify({ type: "error", message: String(err) }))
+              ws.close(1011, "Terminal setup failed")
+            } catch {
+              // Client already gone
+            }
+          })
+        },
+
+        onMessage(event) {
+          if (!pty) return
+
+          let parsed: { type: string; data?: string; cols?: number; rows?: number }
+          try {
+            const raw = typeof event.data === "string" ? event.data : event.data.toString()
+            parsed = JSON.parse(raw)
+          } catch {
+            return
+          }
+
+          if (parsed.type === "input" && parsed.data) {
+            pty.write(parsed.data)
+          } else if (parsed.type === "resize" && parsed.cols && parsed.rows) {
+            pty.resize(parsed.cols, parsed.rows)
+          }
+        },
+
+        onClose() {
+          alive = false
+          // Only kill the PTY attachment — the tmux session stays alive
+          // so the next connection can re-attach with history preserved.
+          if (pty) {
+            try {
+              pty.kill()
+            } catch {
+              // Already dead
+            }
+            pty = null
+          }
+          log.debug("Terminal detached (tmux session preserved)", { taskId })
+        },
+      }
+    })
+  )
+
+  return app
+}

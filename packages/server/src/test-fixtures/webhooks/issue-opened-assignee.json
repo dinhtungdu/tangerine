@@ -1,0 +1,18 @@
+{
+  "action": "opened",
+  "issue": {
+    "number": 102,
+    "title": "Fix task status transition from provisioning to running",
+    "body": "When an agent connects and starts working, the task status should transition from `provisioning` to `running`. Currently this transition sometimes gets stuck.\n\nSteps to reproduce:\n1. Create a task\n2. Watch the status — it stays on `provisioning` even after the agent is active",
+    "html_url": "https://github.com/dinhtungdu/tangerine/issues/102",
+    "labels": [
+      { "name": "bug" }
+    ],
+    "assignee": {
+      "login": "tangerine-bot"
+    }
+  },
+  "repository": {
+    "full_name": "dinhtungdu/tangerine"
+  }
+}
