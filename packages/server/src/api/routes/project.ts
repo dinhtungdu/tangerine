@@ -12,6 +12,7 @@ import { createLogger } from "../../logger"
 import { listTasks } from "../../db/queries"
 import { deletePoolForProject, localExec } from "../../tasks/worktree-pool"
 import type { WorktreeSlotRow } from "../../db/types"
+import { DAEMON_RESTART_EXIT_CODE } from "../../daemon-exit"
 
 const log = createLogger("project-routes")
 
@@ -263,7 +264,7 @@ export function projectRoutes(deps: AppDeps): Hono {
           if (serverChanged) {
             restart = true
             log.info("Server code changed, scheduling restart", { name })
-            setTimeout(() => process.exit(0), 1000)
+            setTimeout(() => process.exit(DAEMON_RESTART_EXIT_CODE), 1000)
           }
         }
 

@@ -6,6 +6,7 @@ import { spawn, execSync } from "child_process"
 import { existsSync, readFileSync, writeFileSync, writeSync, unlinkSync, mkdirSync, openSync, constants as fsConstants } from "fs"
 import { join } from "path"
 import { homedir } from "os"
+import { DAEMON_RESTART_EXIT_CODE, shouldRestartDaemon } from "../daemon-exit"
 
 const TANGERINE_DIR = join(homedir(), "tangerine")
 const PID_FILE = join(TANGERINE_DIR, "tangerine.pid")
@@ -190,14 +191,16 @@ export async function daemonLoop(): Promise<void> {
 
     if (stopping) break
 
-    // Clean exit (code 0) — do not restart
-    if (exitCode === 0) {
+    // Clean exit (code 0) — do not restart.
+    // Explicit restart exits use a non-zero code so the launcher respawns the server.
+    if (!shouldRestartDaemon(exitCode)) {
       break
     }
 
     // Crash — respawn immediately
     const timestamp = new Date().toISOString()
-    const msg = `[${timestamp}] Server exited with code ${exitCode}, restarting...\n`
+    const reason = exitCode === DAEMON_RESTART_EXIT_CODE ? "requested restart" : `code ${exitCode}`
+    const msg = `[${timestamp}] Server exited with ${reason}, restarting...\n`
     writeSync(logFd, msg)
   }
 
