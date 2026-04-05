@@ -2,17 +2,25 @@
 // No tunnel, no HTTP, no port allocation — just subprocess I/O.
 
 import { Effect } from "effect"
+import { PROVIDER_DISPLAY_NAMES } from "@tangerine/shared"
 import { createLogger } from "../logger"
 import { AgentError, PromptError, SessionStartError } from "../errors"
-import type { AgentFactory, AgentHandle, AgentEvent, AgentStartContext, PromptImage } from "./provider"
+import type { AgentFactory, AgentHandle, AgentEvent, AgentStartContext, PromptImage, ProviderMetadata } from "./provider"
 import { parseNdjsonStream, createClaudeCodeMapper } from "./ndjson"
-import { AGENT_PROVIDER_METADATA } from "./metadata"
+import { homedir } from "node:os"
+import { join } from "node:path"
 
 const log = createLogger("claude-code-provider")
+export const CLAUDE_CODE_PROVIDER_METADATA: ProviderMetadata = {
+  displayName: PROVIDER_DISPLAY_NAMES["claude-code"],
+  skills: {
+    directory: join(homedir(), ".claude", "skills"),
+  },
+}
 
 export function createClaudeCodeProvider(): AgentFactory {
   return {
-    metadata: AGENT_PROVIDER_METADATA["claude-code"],
+    metadata: CLAUDE_CODE_PROVIDER_METADATA,
     start(ctx: AgentStartContext): Effect.Effect<AgentHandle, SessionStartError> {
       const taskLog = log.child({ taskId: ctx.taskId })
 

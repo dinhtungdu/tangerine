@@ -4,20 +4,26 @@
 // as `turn/start` requests on the same threadId.
 
 import { Effect } from "effect"
+import { PROVIDER_DISPLAY_NAMES } from "@tangerine/shared"
 import { createLogger } from "../logger"
 import { AgentError, PromptError, SessionStartError } from "../errors"
-import type { AgentFactory, AgentHandle, AgentEvent, AgentStartContext, PromptImage, ModelInfo } from "./provider"
+import type { AgentFactory, AgentHandle, AgentEvent, AgentStartContext, PromptImage, ModelInfo, ProviderMetadata } from "./provider"
 import { parseNdjsonStream } from "./ndjson"
 import { existsSync, readFileSync } from "node:fs"
 import { homedir } from "node:os"
 import { scanCodexSkills } from "./skill-scanner"
 import { join } from "node:path"
-import { AGENT_PROVIDER_METADATA } from "./metadata"
 
 const log = createLogger("codex-provider")
 export const CODEX_APPROVAL_POLICY = "never" as const
 export const CODEX_SANDBOX_MODE = "danger-full-access" as const
 export const CODEX_SANDBOX_POLICY = { type: "dangerFullAccess" } as const
+export const CODEX_PROVIDER_METADATA: ProviderMetadata = {
+  displayName: PROVIDER_DISPLAY_NAMES.codex,
+  skills: {
+    directory: join(homedir(), ".codex", "skills"),
+  },
+}
 
 // ---------------------------------------------------------------------------
 // JSON-RPC 2.0 helpers
@@ -330,7 +336,7 @@ export function discoverModels(): ModelInfo[] {
 
 export function createCodexProvider(): AgentFactory {
   return {
-    metadata: AGENT_PROVIDER_METADATA.codex,
+    metadata: CODEX_PROVIDER_METADATA,
     start(ctx: AgentStartContext): Effect.Effect<AgentHandle, SessionStartError> {
       const taskLog = log.child({ taskId: ctx.taskId })
 
