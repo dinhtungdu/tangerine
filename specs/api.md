@@ -69,7 +69,6 @@ Current task types:
 | Method | Path | Description |
 |--------|------|-------------|
 | GET | `/api/projects` | List configured projects, available models, and SSH editor config |
-| POST | `/api/projects/models/:provider/refresh` | Invalidate one provider model cache and return refreshed model lists |
 | GET | `/api/projects/:name` | Get one project |
 | POST | `/api/projects` | Register a project |
 | PUT | `/api/projects/:name` | Update a project |
@@ -83,9 +82,8 @@ Current task types:
 `GET /api/projects` returns:
 
 - `modelsByProvider`: the authoritative discovered models keyed by provider
-- `models`: a legacy provider-agnostic union of all discovered models, falling back to config when discovery is empty
 
-Provider model discovery is owned by the provider contract via `listModels({ forceRefresh?: boolean })`. `POST /api/projects/models/:provider/refresh` triggers a forced refresh for the requested provider before building the response.
+Provider model discovery is owned by the provider contract via `listModels()`. `GET /api/projects` re-reads provider model availability when the response is built.
 
 ### System
 

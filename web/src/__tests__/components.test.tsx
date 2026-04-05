@@ -98,7 +98,6 @@ function mockProjectsFetch() {
       },
     ],
     model: "anthropic/claude-sonnet-4-6",
-    models: ["anthropic/claude-sonnet-4-6", "openai/gpt-5.4"],
     modelsByProvider: {
       "claude-code": ["anthropic/claude-sonnet-4-6", "anthropic/claude-haiku-4-20250414"],
       opencode: ["openai/gpt-5.4", "openai/gpt-5-mini"],
@@ -125,7 +124,6 @@ function mockStatusPageFetch() {
           },
         ],
         model: "anthropic/claude-sonnet-4-6",
-        models: ["anthropic/claude-sonnet-4-6"],
         modelsByProvider: {
           "claude-code": ["anthropic/claude-sonnet-4-6"],
         },
@@ -735,7 +733,6 @@ describe("ProjectProvider", () => {
             { name: "proj-b", repo: "org/b", defaultBranch: "main", setup: "echo ok", defaultProvider: "claude-code" },
           ],
           model: "anthropic/claude-sonnet-4-6",
-          models: ["anthropic/claude-sonnet-4-6"],
           modelsByProvider: { "claude-code": ["anthropic/claude-sonnet-4-6"] },
         }), { status: 200, headers: { "Content-Type": "application/json" } })
       }

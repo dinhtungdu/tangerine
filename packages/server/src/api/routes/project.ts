@@ -11,7 +11,6 @@ import { createLogger } from "../../logger"
 import { listTasks } from "../../db/queries"
 import { deletePoolForProject, localExec } from "../../tasks/worktree-pool"
 import type { WorktreeSlotRow } from "../../db/types"
-import type { ProviderType } from "../../agent/provider"
 
 const log = createLogger("project-routes")
 
@@ -22,13 +21,10 @@ function buildProjectsResponse(deps: AppDeps) {
     codex: deps.agentFactories.codex.listModels().map((m) => m.id),
     pi: deps.agentFactories.pi.listModels().map((m) => m.id),
   }
-  const models = Array.from(new Set(Object.values(modelsByProvider).flat()))
-  const fallbackModels = deps.config.config.models
 
   return {
     projects: deps.config.config.projects,
     model: deps.config.config.model,
-    models: models.length > 0 ? models : fallbackModels,
     modelsByProvider,
     sshHost: deps.config.config.sshHost,
     sshUser: deps.config.config.sshUser,
@@ -43,15 +39,6 @@ export function projectRoutes(deps: AppDeps): Hono {
 
   // List all configured projects + available models from providers
   app.get("/", (c) => {
-    return c.json(buildProjectsResponse(deps))
-  })
-
-  app.post("/models/:provider/refresh", (c) => {
-    const provider = c.req.param("provider") as ProviderType
-    if (!(provider in deps.agentFactories)) {
-      return c.json({ error: "Invalid provider" }, 400)
-    }
-    deps.agentFactories[provider].listModels({ forceRefresh: true })
     return c.json(buildProjectsResponse(deps))
   })
 

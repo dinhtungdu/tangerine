@@ -644,7 +644,7 @@ describe("API routes", () => {
   })
 
   describe("GET /api/projects", () => {
-    test("falls back to config models when provider returns none", async () => {
+    test("returns provider-keyed models even when discovery is empty", async () => {
       deps.agentFactories = {
         ...deps.agentFactories,
         opencode: {
@@ -668,12 +668,11 @@ describe("API routes", () => {
 
       const res = await app.fetch(new Request("http://localhost/api/projects"))
       expect(res.status).toBe(200)
-      const body = await res.json() as { models: string[]; modelsByProvider: Record<string, string[]> }
-      expect(body.models).toEqual(["openai/gpt-4o"])
+      const body = await res.json() as { modelsByProvider: Record<string, string[]> }
       expect(body.modelsByProvider["claude-code"]).toEqual([])
     })
 
-    test("returns a provider-agnostic union of discovered models", async () => {
+    test("returns discovered models grouped by provider", async () => {
       deps.agentFactories = {
         ...deps.agentFactories,
         opencode: {
@@ -689,51 +688,9 @@ describe("API routes", () => {
 
       const res = await app.fetch(new Request("http://localhost/api/projects"))
       expect(res.status).toBe(200)
-      const body = await res.json() as { models: string[] }
-      expect(body.models).toContain("openai/gpt-5.4")
-      expect(body.models).toContain("claude-sonnet-4-6")
-    })
-  })
-
-  describe("POST /api/projects/models/:provider/refresh", () => {
-    test("invalidates the requested provider cache and returns refreshed models", async () => {
-      let opencodeForceRefresh = false
-      let piForceRefresh = false
-      deps.agentFactories = {
-        ...deps.agentFactories,
-        opencode: {
-          ...deps.agentFactories.opencode,
-          listModels: (options) => {
-            if (options?.forceRefresh) opencodeForceRefresh = true
-            return [{ id: "openai/gpt-5.4", name: "GPT-5.4", provider: "openai", providerName: "OpenAI" }]
-          },
-        },
-        pi: {
-          ...deps.agentFactories.pi,
-          listModels: (options) => {
-            if (options?.forceRefresh) piForceRefresh = true
-            return [{ id: "pi/foo", name: "foo", provider: "pi", providerName: "Pi" }]
-          },
-        },
-      } satisfies AgentFactories
-      app = createApp(deps).app
-
-      const res = await app.fetch(new Request("http://localhost/api/projects/models/pi/refresh", { method: "POST" }))
-      expect(res.status).toBe(200)
-      const body = await res.json() as { models: string[]; modelsByProvider: Record<string, string[]> }
-      expect(opencodeForceRefresh).toBe(false)
-      expect(piForceRefresh).toBe(true)
-      expect(body.models).toContain("openai/gpt-5.4")
-      expect(body.models).toContain("claude-opus-4-6")
-      expect(body.models).toContain("claude-sonnet-4-6")
-      expect(body.models).toContain("claude-haiku-4-5")
-      expect(body.models).toContain("pi/foo")
-      expect(body.modelsByProvider.pi).toEqual(["pi/foo"])
-    })
-
-    test("returns 400 for invalid provider", async () => {
-      const res = await app.fetch(new Request("http://localhost/api/projects/models/nope/refresh", { method: "POST" }))
-      expect(res.status).toBe(400)
+      const body = await res.json() as { modelsByProvider: Record<string, string[]> }
+      expect(body.modelsByProvider.opencode).toEqual(["openai/gpt-5.4"])
+      expect(body.modelsByProvider["claude-code"]).toEqual(["claude-sonnet-4-6"])
     })
   })
 

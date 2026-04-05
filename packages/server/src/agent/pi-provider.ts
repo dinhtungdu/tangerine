@@ -182,14 +182,10 @@ export function buildPiSystemPromptCommand(text: string): Record<string, unknown
 // Model discovery — runs `pi --list-models` and parses the table output
 // ---------------------------------------------------------------------------
 
-let cachedModels: ModelInfo[] | null = null
-
 /**
  * Discover available Pi models by running `pi --list-models`.
- * Cached forever after first successful result; retries on failure.
  */
 export function discoverModels(): ModelInfo[] {
-  if (cachedModels) return cachedModels
   try {
     const result = spawnSync("pi", ["--list-models"], {
       timeout: 5_000,
@@ -216,7 +212,6 @@ export function discoverModels(): ModelInfo[] {
         }
       })
       .filter((m): m is ModelInfo => m !== null)
-    if (models.length > 0) cachedModels = models
     return models
   } catch {
     return []
@@ -230,8 +225,7 @@ export function discoverModels(): ModelInfo[] {
 export function createPiProvider(): AgentFactory {
   return {
     metadata: PI_PROVIDER_METADATA,
-    listModels(options) {
-      if (options?.forceRefresh) cachedModels = null
+    listModels() {
       return discoverModels()
     },
     start(ctx: AgentStartContext): Effect.Effect<AgentHandle, SessionStartError> {

@@ -63,10 +63,6 @@ describe("pi provider listModels", () => {
     expect(createPiProvider().listModels()).toEqual(discoverPiProviderModels())
   })
 
-  test("supports forceRefresh", () => {
-    expect(Array.isArray(createPiProvider().listModels({ forceRefresh: true }))).toBe(true)
-  })
-
   test("each model has required fields", () => {
     for (const model of createPiProvider().listModels()) {
       expect(model.id).toBeTruthy()

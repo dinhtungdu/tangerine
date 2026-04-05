@@ -90,6 +90,6 @@ export interface AgentStartContext {
 /** Factory that creates agent sessions — one implementation per provider */
 export interface AgentFactory {
   metadata: ProviderMetadata
-  listModels(options?: { forceRefresh?: boolean }): ModelInfo[]
+  listModels(): ModelInfo[]
   start(ctx: AgentStartContext): Effect.Effect<AgentHandle, SessionStartError>
 }
