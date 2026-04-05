@@ -44,7 +44,7 @@ export const PI_PROVIDER_METADATA: ProviderMetadata = {
 // ---------------------------------------------------------------------------
 
 /** Creates a per-session event mapper with its own thinking buffer. */
-function createPiEventMapper(): (data: Record<string, unknown>) => AgentEvent[] {
+export function createPiEventMapper(): (data: Record<string, unknown>) => AgentEvent[] {
   // Accumulates thinking deltas across thinking_start/thinking_end boundaries.
   // Pi streams thinking as individual token deltas — without buffering, each
   // delta would be persisted as a separate session_log row and chat message.
@@ -100,6 +100,8 @@ function createPiEventMapper(): (data: Record<string, unknown>) => AgentEvent[] 
       case "message_end": {
         const msg = data.message as Record<string, unknown> | undefined
         if (!msg) return []
+        const role = msg.role
+        if (role !== "assistant" && role !== "user") return []
         // Extract text from the message content
         const content = msg.content as Array<Record<string, unknown>> | undefined
         if (!Array.isArray(content)) return []
@@ -108,14 +110,13 @@ function createPiEventMapper(): (data: Record<string, unknown>) => AgentEvent[] 
           .map((c) => c.text as string)
         const text = textParts.join("")
         if (!text) return []
-        if (msg.role === "user") {
+        if (role === "user") {
           return [{ kind: "message.complete", role: "user" as const, content: text }]
         }
         // Assistant messages with tool calls are intermediate turns — classify
         // as narration so the UI collapses them alongside thinking.
         const hasToolCalls = content.some((c) => c.type === "toolCall")
-        const role = hasToolCalls ? "narration" as const : "assistant" as const
-        return [{ kind: "message.complete", role, content: text }]
+        return [{ kind: "message.complete", role: hasToolCalls ? "narration" as const : "assistant" as const, content: text }]
       }
 
       case "tool_execution_start": {
