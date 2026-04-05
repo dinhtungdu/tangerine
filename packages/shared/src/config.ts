@@ -1,5 +1,5 @@
 import { z } from "zod"
-import { SUPPORTED_PROVIDERS } from "./constants"
+import { DEFAULT_PROVIDER, SUPPORTED_PROVIDERS } from "./constants"
 
 export const predefinedPromptSchema = z.object({
   label: z.string(),
@@ -21,7 +21,7 @@ export const projectConfigSchema = z.object({
   test: z.string().optional(),
   env: z.record(z.string()).optional(),
   model: z.string().optional(),
-  defaultProvider: z.enum(SUPPORTED_PROVIDERS).default("claude-code"),
+  defaultProvider: z.enum(SUPPORTED_PROVIDERS).default(DEFAULT_PROVIDER),
   prMode: z.enum(["ready", "draft", "none"]).default("none"),
   archived: z.boolean().optional().default(false),
   postUpdateCommand: z.string().optional(),

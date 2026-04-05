@@ -4,7 +4,6 @@
 // as `turn/start` requests on the same threadId.
 
 import { Effect } from "effect"
-import { PROVIDER_DISPLAY_NAMES } from "@tangerine/shared"
 import { createLogger } from "../logger"
 import { AgentError, PromptError, SessionStartError } from "../errors"
 import type { AgentFactory, AgentHandle, AgentEvent, AgentStartContext, PromptImage, ModelInfo } from "./provider"
@@ -13,9 +12,9 @@ import { existsSync, readFileSync } from "node:fs"
 import { homedir } from "node:os"
 import { scanCodexSkills } from "./skill-scanner"
 import { join } from "node:path"
+import { AGENT_PROVIDER_METADATA } from "./metadata"
 
 const log = createLogger("codex-provider")
-const CODEX_SKILLS_DIR = join(homedir(), ".codex", "skills")
 export const CODEX_APPROVAL_POLICY = "never" as const
 export const CODEX_SANDBOX_MODE = "danger-full-access" as const
 export const CODEX_SANDBOX_POLICY = { type: "dangerFullAccess" } as const
@@ -331,12 +330,7 @@ export function discoverModels(): ModelInfo[] {
 
 export function createCodexProvider(): AgentFactory {
   return {
-    metadata: {
-      displayName: PROVIDER_DISPLAY_NAMES.codex,
-      skills: {
-        directory: CODEX_SKILLS_DIR,
-      },
-    },
+    metadata: AGENT_PROVIDER_METADATA.codex,
     start(ctx: AgentStartContext): Effect.Effect<AgentHandle, SessionStartError> {
       const taskLog = log.child({ taskId: ctx.taskId })
 

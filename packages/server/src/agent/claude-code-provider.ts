@@ -6,21 +6,13 @@ import { createLogger } from "../logger"
 import { AgentError, PromptError, SessionStartError } from "../errors"
 import type { AgentFactory, AgentHandle, AgentEvent, AgentStartContext, PromptImage } from "./provider"
 import { parseNdjsonStream, createClaudeCodeMapper } from "./ndjson"
-import { PROVIDER_DISPLAY_NAMES } from "@tangerine/shared"
-import { homedir } from "node:os"
-import { join } from "node:path"
+import { AGENT_PROVIDER_METADATA } from "./metadata"
 
 const log = createLogger("claude-code-provider")
-const CLAUDE_SKILLS_DIR = join(homedir(), ".claude", "skills")
 
 export function createClaudeCodeProvider(): AgentFactory {
   return {
-    metadata: {
-      displayName: PROVIDER_DISPLAY_NAMES["claude-code"],
-      skills: {
-        directory: CLAUDE_SKILLS_DIR,
-      },
-    },
+    metadata: AGENT_PROVIDER_METADATA["claude-code"],
     start(ctx: AgentStartContext): Effect.Effect<AgentHandle, SessionStartError> {
       const taskLog = log.child({ taskId: ctx.taskId })
 

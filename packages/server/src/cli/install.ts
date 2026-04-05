@@ -4,8 +4,7 @@
 import { existsSync, lstatSync, mkdirSync, rmSync, symlinkSync, readlinkSync } from "fs"
 import { join, resolve } from "path"
 import { TANGERINE_HOME, OPENCODE_AUTH_PATH, readCredentialsFile, readClaudeCliToken } from "../config"
-import { createAgentFactories } from "../agent/factories"
-import { SUPPORTED_PROVIDERS } from "@tangerine/shared"
+import { AGENT_PROVIDER_METADATA } from "../agent/metadata"
 
 // Resolve project root relative to this file:
 // packages/server/src/cli/install.ts → 4 levels up
@@ -35,7 +34,7 @@ function ensureDir(dir: string): void {
   mkdirSync(dir, { recursive: true })
 }
 
-function symlinkSkill(
+export function symlinkSkill(
   skillSource: string,
   targetDir: string,
 ): { created: boolean; skipped: string | null } {
@@ -78,9 +77,7 @@ export async function install(): Promise<void> {
   ensureDir(TANGERINE_HOME)
   check(`${TANGERINE_HOME}`, true)
 
-  const factories = createAgentFactories()
-  for (const provider of SUPPORTED_PROVIDERS) {
-    const metadata = factories[provider].metadata
+  for (const metadata of Object.values(AGENT_PROVIDER_METADATA)) {
     const targetDir = metadata.skills.directory
     console.log(`\n${metadata.displayName} skills:`)
     for (const skill of SKILLS_TO_INSTALL) {

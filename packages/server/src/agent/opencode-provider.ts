@@ -5,7 +5,6 @@
 // completing the turn; the next prompt re-invokes with the same session ID.
 
 import { Effect } from "effect"
-import { PROVIDER_DISPLAY_NAMES } from "@tangerine/shared"
 import { createLogger, truncate } from "../logger"
 import { AgentError, PromptError, SessionStartError } from "../errors"
 import type { AgentFactory, AgentHandle, AgentEvent, AgentStartContext, PromptImage, ModelInfo } from "./provider"
@@ -14,6 +13,7 @@ import { existsSync, readFileSync, unlinkSync } from "node:fs"
 import { homedir } from "node:os"
 import { join } from "node:path"
 import { scanClaudeSkills } from "./skill-scanner"
+import { AGENT_PROVIDER_METADATA } from "./metadata"
 
 const log = createLogger("opencode-provider")
 
@@ -364,12 +364,7 @@ export function adaptRunJsonEvent(raw: Record<string, unknown>): Record<string, 
 
 export function createOpenCodeProvider(): AgentFactory {
   return {
-    metadata: {
-      displayName: PROVIDER_DISPLAY_NAMES.opencode,
-      skills: {
-        directory: join(homedir(), ".claude", "skills"),
-      },
-    },
+    metadata: AGENT_PROVIDER_METADATA.opencode,
     start(ctx: AgentStartContext): Effect.Effect<AgentHandle, SessionStartError> {
       const taskLog = log.child({ taskId: ctx.taskId })
 

@@ -4,17 +4,14 @@
 // `prompt` commands on the same session.
 
 import { Effect } from "effect"
-import { PROVIDER_DISPLAY_NAMES } from "@tangerine/shared"
 import { createLogger } from "../logger"
 import { AgentError, PromptError, SessionStartError } from "../errors"
 import type { AgentFactory, AgentHandle, AgentEvent, AgentStartContext, AgentConfig, PromptImage, ModelInfo } from "./provider"
 import { parseNdjsonStream } from "./ndjson"
 import { spawnSync } from "node:child_process"
-import { homedir } from "node:os"
-import { join } from "node:path"
+import { AGENT_PROVIDER_METADATA } from "./metadata"
 
 const log = createLogger("pi-provider")
-const PI_SKILLS_DIR = join(homedir(), ".pi", "agent", "skills")
 
 // ---------------------------------------------------------------------------
 // Pi RPC event → AgentEvent mapping
@@ -208,12 +205,7 @@ export function discoverModels(): ModelInfo[] {
 
 export function createPiProvider(): AgentFactory {
   return {
-    metadata: {
-      displayName: PROVIDER_DISPLAY_NAMES.pi,
-      skills: {
-        directory: PI_SKILLS_DIR,
-      },
-    },
+    metadata: AGENT_PROVIDER_METADATA.pi,
     start(ctx: AgentStartContext): Effect.Effect<AgentHandle, SessionStartError> {
       const taskLog = log.child({ taskId: ctx.taskId })
 

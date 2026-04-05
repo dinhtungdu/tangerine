@@ -3,7 +3,7 @@
 
 import { Effect } from "effect"
 import { createLogger } from "../logger"
-import { type ActivityType, type TaskType, type TaskCapability, ORCHESTRATOR_TASK_NAME, TERMINAL_STATUSES } from "@tangerine/shared"
+import { type ActivityType, type TaskType, type TaskCapability, DEFAULT_PROVIDER, ORCHESTRATOR_TASK_NAME, TERMINAL_STATUSES } from "@tangerine/shared"
 import {
   TaskNotFoundError,
   TaskNotTerminalError,
@@ -88,7 +88,7 @@ export function createTask(
     }
 
     const id = crypto.randomUUID()
-    const resolvedProvider = params.provider ?? projectConfig.defaultProvider ?? "claude-code"
+    const resolvedProvider = params.provider ?? projectConfig.defaultProvider ?? DEFAULT_PROVIDER
 
     const description = params.description ?? null
 
@@ -557,7 +557,7 @@ export function ensureOrchestrator(
 
     // Default to claude-sonnet-4-6 medium for claude-code orchestrators
     const projectConfig = deps.getProjectConfig(projectId)
-    const resolvedProvider = provider ?? projectConfig?.defaultProvider ?? "claude-code"
+    const resolvedProvider = provider ?? projectConfig?.defaultProvider ?? DEFAULT_PROVIDER
     const isClaude = resolvedProvider === "claude-code"
 
     const defaultPrompt = `You are the orchestrator for the "${projectId}" project. You are running on the default branch (main repo, not a worktree).
