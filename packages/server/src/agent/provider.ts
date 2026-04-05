@@ -41,6 +41,11 @@ export interface ProviderMetadata {
 /** Handle to a running agent session — owns the process, tunnel, and event subscription */
 export interface AgentHandle {
   sendPrompt(text: string, images?: PromptImage[]): Effect.Effect<void, PromptError>
+  /**
+   * Apply a system prompt to the current session before future user prompts.
+   * Returns true if the provider applied it; false means caller should fallback.
+   */
+  setSystemPrompt?(text: string): Effect.Effect<boolean, AgentError>
   abort(): Effect.Effect<void, AgentError>
   subscribe(onEvent: (e: AgentEvent) => void): { unsubscribe(): void }
   shutdown(): Effect.Effect<void, never>

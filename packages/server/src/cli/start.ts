@@ -52,6 +52,15 @@ function classifyTool(toolName: string): { activityType: "file" | "system"; acti
   }
 }
 
+async function applySystemPromptIfSupported(handle: AgentHandle, notes: string[]): Promise<boolean> {
+  if (!handle.setSystemPrompt || notes.length === 0) return false
+  try {
+    return await Effect.runPromise(handle.setSystemPrompt(notes.join("\n")))
+  } catch {
+    return false
+  }
+}
+
 /**
  * Try to save a detected PR URL for a task — checks "pr-create" capability,
  * verifies branch match, then persists to DB and emits activity. No-op if the
@@ -413,7 +422,10 @@ export async function start(): Promise<void> {
                   }
                 }
 
-                const fullPrompt = notes.join("\n") + "\n\n" + initialPrompt + escalationBlock
+                const usedSystemPrompt = await applySystemPromptIfSupported(session.agentHandle, notes)
+                const fullPrompt = usedSystemPrompt || notes.length === 0
+                  ? initialPrompt + escalationBlock
+                  : notes.join("\n") + "\n\n" + initialPrompt + escalationBlock
 
                 await Effect.runPromise(
                   session.agentHandle.sendPrompt(fullPrompt, images).pipe(Effect.catchAll(() => Effect.void))
@@ -763,7 +775,10 @@ export async function start(): Promise<void> {
                 prMode: projConfig?.prMode,
               })
 
-              if (notes.length > 0) {
+              const handle = agentHandles.get(taskId)
+              const usedSystemPrompt = handle ? yield* Effect.promise(() => applySystemPromptIfSupported(handle, notes)) : false
+
+              if (notes.length > 0 && !usedSystemPrompt) {
                 promptText = notes.join("\n") + "\n\n" + text
               }
             }

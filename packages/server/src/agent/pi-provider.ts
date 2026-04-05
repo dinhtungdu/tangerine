@@ -162,6 +162,22 @@ function truncate(s: string, maxLen: number): string {
   return s.length <= maxLen ? s : s.slice(0, maxLen) + "\u2026"
 }
 
+export function buildPiPromptCommand(text: string, images?: PromptImage[]): Record<string, unknown> {
+  const cmd: Record<string, unknown> = { type: "prompt", message: text }
+  if (images && images.length > 0) {
+    cmd.images = images.map((img) => ({
+      type: "image",
+      mimeType: img.mediaType,
+      data: img.data,
+    }))
+  }
+  return cmd
+}
+
+export function buildPiSystemPromptCommand(text: string): Record<string, unknown> {
+  return { type: "set_system_prompt", prompt: text }
+}
+
 // ---------------------------------------------------------------------------
 // Model discovery — runs `pi --list-models` and parses the table output
 // ---------------------------------------------------------------------------
@@ -389,18 +405,22 @@ export function createPiProvider(): AgentFactory {
               return Effect.try({
                 try: () => {
                   if (shutdownCalled) return
-                  const cmd: Record<string, unknown> = { type: "prompt", message: text }
-                  if (images && images.length > 0) {
-                    cmd.images = images.map((img) => ({
-                      type: "image",
-                      mimeType: img.mediaType,
-                      data: img.data,
-                    }))
-                  }
-                  sendCommand(cmd)
+                  sendCommand(buildPiPromptCommand(text, images))
                 },
                 catch: (e) =>
                   new PromptError({ message: `Failed to send prompt: ${e}`, taskId: ctx.taskId }),
+              })
+            },
+
+            setSystemPrompt(text: string) {
+              return Effect.try({
+                try: () => {
+                  if (shutdownCalled) return false
+                  sendCommand(buildPiSystemPromptCommand(text))
+                  return true
+                },
+                catch: (e) =>
+                  new AgentError({ message: `Failed to set system prompt: ${e}`, taskId: ctx.taskId }),
               })
             },
 

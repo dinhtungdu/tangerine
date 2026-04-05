@@ -2,7 +2,7 @@ import { describe, test, expect } from "bun:test"
 import { discoverModels, discoverClaudeCodeModels, discoverModelsByProvider, discoverCodexModels, discoverPiModels } from "../models"
 import { discoverModels as discoverOpenCodeModels } from "../agent/opencode-provider"
 import { discoverModels as discoverCodexProviderModels } from "../agent/codex-provider"
-import { discoverModels as discoverPiProviderModels } from "../agent/pi-provider"
+import { buildPiPromptCommand, buildPiSystemPromptCommand, discoverModels as discoverPiProviderModels } from "../agent/pi-provider"
 
 describe("discoverModels (opencode)", () => {
   test("returns array (empty if no opencode cache)", () => {
@@ -153,5 +153,27 @@ describe("pi-provider discoverModels", () => {
       expect(model.providerName).toBeTruthy()
       expect(model.name).toBeTruthy()
     }
+  })
+
+  test("builds set_system_prompt rpc command", () => {
+    expect(buildPiSystemPromptCommand("be terse")).toEqual({
+      type: "set_system_prompt",
+      prompt: "be terse",
+    })
+  })
+
+  test("builds prompt command with images", () => {
+    expect(buildPiPromptCommand("hello", [{
+      mediaType: "image/png",
+      data: "abc123",
+    }])).toEqual({
+      type: "prompt",
+      message: "hello",
+      images: [{
+        type: "image",
+        mimeType: "image/png",
+        data: "abc123",
+      }],
+    })
   })
 })
