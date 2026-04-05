@@ -258,11 +258,12 @@ function logThreadConfig(
 }
 
 export function buildCodexThreadStartParams(
-  ctx: Pick<AgentStartContext, "workdir" | "model">,
+  ctx: Pick<AgentStartContext, "workdir" | "model" | "systemPrompt">,
 ): Record<string, unknown> {
   return {
     cwd: ctx.workdir,
     ...(ctx.model ? { model: ctx.model } : {}),
+    ...(ctx.systemPrompt ? { developerInstructions: ctx.systemPrompt } : {}),
     approvalPolicy: CODEX_APPROVAL_POLICY,
     sandbox: CODEX_SANDBOX_MODE,
     ephemeral: false,
@@ -270,12 +271,13 @@ export function buildCodexThreadStartParams(
 }
 
 export function buildCodexThreadResumeParams(
-  ctx: Pick<AgentStartContext, "workdir" | "model"> & { threadId: string },
+  ctx: Pick<AgentStartContext, "workdir" | "model" | "systemPrompt"> & { threadId: string },
 ): Record<string, unknown> {
   return {
     threadId: ctx.threadId,
     cwd: ctx.workdir,
     ...(ctx.model ? { model: ctx.model } : {}),
+    ...(ctx.systemPrompt ? { developerInstructions: ctx.systemPrompt } : {}),
     approvalPolicy: CODEX_APPROVAL_POLICY,
     sandbox: CODEX_SANDBOX_MODE,
     persistExtendedHistory: false,
@@ -347,6 +349,7 @@ export function createCodexProvider(): AgentFactory {
           let threadId: string | null = null
           let activeTurnId: string | null = null
           const activeEffort: string | undefined = ctx.reasoningEffort
+          let activeSystemPrompt = ctx.systemPrompt
 
           const emit = (event: AgentEvent) => {
             for (const cb of subscribers) cb(event)
@@ -496,36 +499,36 @@ export function createCodexProvider(): AgentFactory {
           // Step 2: initialized notification
           write(rpcNotification("initialized"))
 
-          // Step 3: start or resume thread
-          if (ctx.resumeSessionId) {
-            try {
-              const resumeResult = await rpcCall("thread/resume", buildCodexThreadResumeParams({
-                threadId: ctx.resumeSessionId,
-                workdir: ctx.workdir,
-                model: ctx.model,
-              }))
-              const thread = resumeResult.thread as Record<string, unknown> | undefined
-              threadId = typeof thread?.id === "string" ? thread.id : ctx.resumeSessionId
-              logThreadConfig(taskLog, "resumed", threadId, resumeResult)
-            } catch (err) {
-              taskLog.warn("Thread resume failed, starting fresh", { error: String(err) })
-              // Fall through to fresh start below
+          const ensureThread = async () => {
+            if (threadId) return threadId
+            if (ctx.resumeSessionId) {
+              try {
+                const resumeResult = await rpcCall("thread/resume", buildCodexThreadResumeParams({
+                  threadId: ctx.resumeSessionId,
+                  workdir: ctx.workdir,
+                  model: ctx.model,
+                  systemPrompt: activeSystemPrompt,
+                }))
+                const thread = resumeResult.thread as Record<string, unknown> | undefined
+                threadId = typeof thread?.id === "string" ? thread.id : ctx.resumeSessionId
+                logThreadConfig(taskLog, "resumed", threadId, resumeResult)
+                return threadId
+              } catch (err) {
+                taskLog.warn("Thread resume failed, starting fresh", { error: String(err) })
+              }
             }
-          }
 
-          if (!threadId) {
             const threadResult = await rpcCall("thread/start", buildCodexThreadStartParams({
               workdir: ctx.workdir,
               model: ctx.model,
+              systemPrompt: activeSystemPrompt,
             }))
             const thread = threadResult.thread as Record<string, unknown> | undefined
             threadId = typeof thread?.id === "string" ? thread.id : null
             if (threadId) {
               logThreadConfig(taskLog, "started", threadId, threadResult)
+              return threadId
             }
-          }
-
-          if (!threadId) {
             throw new Error("Failed to obtain Codex thread ID")
           }
 
@@ -534,9 +537,10 @@ export function createCodexProvider(): AgentFactory {
 
           const handle: AgentHandle = {
             sendPrompt(text: string, images?: PromptImage[]) {
-              return Effect.try({
-                try: () => {
-                  if (shutdownCalled || !threadId) return
+              return Effect.tryPromise({
+                try: async () => {
+                  if (shutdownCalled) return
+                  const ensuredThreadId = await ensureThread()
 
                   // Build input content array (Codex uses OpenAI Responses API format)
                   const input: Array<Record<string, unknown>> = []
@@ -554,7 +558,7 @@ export function createCodexProvider(): AgentFactory {
 
                   // Send turn/start — response is immediate, events stream as notifications
                   write(rpcRequest("turn/start", buildCodexTurnStartParams({
-                    threadId,
+                    threadId: ensuredThreadId,
                     workdir: ctx.workdir,
                     model: ctx.model,
                     input,
@@ -563,6 +567,14 @@ export function createCodexProvider(): AgentFactory {
                 },
                 catch: (e) =>
                   new PromptError({ message: `Failed to send turn: ${e}`, taskId: ctx.taskId }),
+              })
+            },
+
+            setSystemPrompt(text: string) {
+              return Effect.sync(() => {
+                if (threadId) return false
+                activeSystemPrompt = text
+                return true
               })
             },
 

@@ -305,8 +305,15 @@ export async function start(): Promise<void> {
 
           // Hydrate in-memory tracking from DB (lost on restart)
           const taskMeta = db.prepare("SELECT pr_url FROM tasks WHERE id = ?").get(taskId) as { pr_url: string | null } | null
+          const s = getTaskState(taskId)
+          const taskRow = db.prepare("SELECT project_id, type FROM tasks WHERE id = ?").get(taskId) as { project_id: string | null; type: string | null } | null
+          const projConfig = taskRow?.project_id ? getProjectConfig(config.config, taskRow.project_id) : undefined
+          s.systemPromptApplied = buildSystemNotes(taskId, {
+            setupCommand: projConfig?.setup,
+            taskType: taskRow?.type ?? undefined,
+            prMode: projConfig?.prMode,
+          }).length > 0
           if (taskMeta?.pr_url) {
-            const s = getTaskState(taskId)
             s.prUrlSaved = true
             s.prNudgeSent = true
           }
@@ -775,10 +782,12 @@ export async function start(): Promise<void> {
                 prMode: projConfig?.prMode,
               })
 
+              const taskState = getTaskState(taskId)
               const handle = agentHandles.get(taskId)
-              const usedSystemPrompt = handle ? yield* Effect.promise(() => applySystemPromptIfSupported(handle, notes)) : false
+              const usedSystemPrompt = taskState.systemPromptApplied || (handle ? yield* Effect.promise(() => applySystemPromptIfSupported(handle, notes)) : false)
+              taskState.systemPromptApplied = usedSystemPrompt
 
-              if (notes.length > 0 && !usedSystemPrompt) {
+              if (notes.length > 0 && !taskState.systemPromptApplied) {
                 promptText = notes.join("\n") + "\n\n" + text
               }
             }

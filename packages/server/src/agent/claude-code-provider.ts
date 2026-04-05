@@ -34,6 +34,7 @@ export function createClaudeCodeProvider(): AgentFactory {
               "--verbose",
               ...sessionFlag.split(" "),
               ...(ctx.model ? ["--model", ctx.model] : []),
+              ...(ctx.systemPrompt ? ["--append-system-prompt", ctx.systemPrompt] : []),
               ...(ctx.reasoningEffort ? ["--effort", ctx.reasoningEffort] : []),
               "--dangerously-skip-permissions",
               // Block interactive tools that expect user input — Tangerine can't
@@ -177,6 +178,10 @@ export function createClaudeCodeProvider(): AgentFactory {
                 catch: (e) =>
                   new PromptError({ message: `Failed to write to stdin: ${e}`, taskId: ctx.taskId }),
               })
+            },
+
+            setSystemPrompt() {
+              return Effect.succeed(false)
             },
 
             abort() {

@@ -1,10 +1,11 @@
 # Agent Integration
 
-Tangerine currently supports three providers through a shared abstraction:
+Tangerine currently supports four providers through a shared abstraction:
 
 - `opencode`
 - `claude-code`
 - `codex`
+- `pi`
 
 All providers run as local subprocesses and are wrapped behind the interfaces in `packages/server/src/agent/provider.ts`.
 
@@ -21,7 +22,7 @@ The provider layer exposes:
 Current provider selection type:
 
 ```typescript
-type ProviderType = "opencode" | "claude-code" | "codex"
+type ProviderType = "opencode" | "claude-code" | "codex" | "pi"
 ```
 
 The runtime stores `agent_session_id` and `agent_pid` on tasks so sessions can be resumed or inspected after restart.
@@ -35,6 +36,7 @@ interface AgentStartContext {
   taskId: string
   workdir: string
   title: string
+  systemPrompt?: string
   model?: string
   reasoningEffort?: string
   resumeSessionId?: string
@@ -42,12 +44,14 @@ interface AgentStartContext {
 }
 ```
 
+`AgentHandle` may also expose `setSystemPrompt()` when the provider can apply provider-native system or developer instructions after startup. Tangerine prefers provider-native system prompt channels over prepending internal notes into the first user message.
+
 ## OpenCode
 
 Implementation: `agent/opencode-provider.ts`
 
 - uses the OpenCode SDK / server flow
-- supports prompt sending, abort, event subscription, and config updates
+- supports prompt sending, abort, event subscription, config updates, and provider-native system prompts via a generated OpenCode agent config
 - can hot-apply model config changes when supported
 
 ## Claude Code
@@ -56,6 +60,7 @@ Implementation: `agent/claude-code-provider.ts`
 
 - communicates over stdin/stdout NDJSON
 - event parsing lives in `agent/ndjson.ts`
+- uses Claude Code system prompt flags at startup / resume
 - uses resume sessions when Tangerine restarts or reconfigures a task
 
 ## Codex
@@ -64,8 +69,17 @@ Implementation: `agent/codex-provider.ts`
 
 - starts `codex app-server`
 - communicates over JSON-RPC
+- applies Tangerine system instructions through Codex `developerInstructions` on thread start / resume
 - preserves the underlying Codex thread through `agent_session_id`
 - reapplies `approvalPolicy: "never"` and danger-full-access sandboxing on resume and each turn
+
+## Pi
+
+Implementation: `agent/pi-provider.ts`
+
+- starts `pi` in RPC mode
+- applies system prompts through Pi CLI startup flags and the provider RPC hook when available
+- preserves the underlying Pi session file through `agent_session_id`
 
 ## Event Flow
 

@@ -255,6 +255,7 @@ export function createPiProvider(): AgentFactory {
             "--no-prompt-templates",
             "--no-themes",
             ...(ctx.model ? ["--model", ctx.model] : []),
+            ...(ctx.systemPrompt ? ["--append-system-prompt", ctx.systemPrompt] : []),
             ...(ctx.reasoningEffort ? ["--thinking", ctx.reasoningEffort] : []),
           ]
 

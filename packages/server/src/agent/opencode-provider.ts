@@ -10,8 +10,8 @@ import { createLogger, truncate } from "../logger"
 import { AgentError, PromptError, SessionStartError } from "../errors"
 import type { AgentFactory, AgentHandle, AgentEvent, AgentStartContext, PromptImage, ModelInfo, ProviderMetadata } from "./provider"
 import { parseNdjsonStream } from "./ndjson"
-import { existsSync, readFileSync, unlinkSync } from "node:fs"
-import { homedir } from "node:os"
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, unlinkSync } from "node:fs"
+import { homedir, tmpdir } from "node:os"
 import { join } from "node:path"
 import { scanClaudeSkills } from "./skill-scanner"
 
@@ -39,15 +39,22 @@ const OPENCODE_CONFIG: Record<string, unknown> = {
   },
 }
 
-let configEnsured = false
+const OPENCODE_SYSTEM_AGENT = "tangerine-system"
 
-async function ensureOpenCodeConfig(): Promise<void> {
-  if (configEnsured) return
-  const configDir = join(homedir(), ".config", "opencode")
-  const configPath = join(configDir, "opencode.json")
+export function buildOpenCodeSystemAgent(prompt: string): Record<string, unknown> {
+  return {
+    description: "Tangerine system prompt agent",
+    mode: "primary",
+    prompt,
+  }
+}
+
+async function ensureOpenCodeConfig(configDir = join(homedir(), ".config")): Promise<string> {
+  const providerConfigDir = join(configDir, "opencode")
+  const providerConfigPath = join(providerConfigDir, "opencode.json")
 
   try {
-    const file = Bun.file(configPath)
+    const file = Bun.file(providerConfigPath)
     if (await file.exists()) {
       // Merge our permission config with existing config
       const existing = JSON.parse(await file.text()) as Record<string, unknown>
@@ -68,14 +75,53 @@ async function ensureOpenCodeConfig(): Promise<void> {
           },
         },
       }
-      await Bun.write(configPath, JSON.stringify(merged, null, 2) + "\n")
+      await Bun.write(providerConfigPath, JSON.stringify(merged, null, 2) + "\n")
     } else {
-      await Bun.write(configPath, JSON.stringify(OPENCODE_CONFIG, null, 2) + "\n")
+      await Bun.write(providerConfigPath, JSON.stringify(OPENCODE_CONFIG, null, 2) + "\n")
     }
-    configEnsured = true
-    log.info("OpenCode config ensured", { path: configPath })
+    log.info("OpenCode config ensured", { path: providerConfigPath })
   } catch (err) {
     log.warn("Failed to write OpenCode config, permissions may prompt", { error: String(err) })
+  }
+  return providerConfigPath
+}
+
+async function prepareOpenCodeSessionConfig(systemPrompt?: string): Promise<{
+  env?: Record<string, string>
+  agentName?: string
+  cleanup(): void
+}> {
+  if (!systemPrompt) {
+    await ensureOpenCodeConfig()
+    return { cleanup() {} }
+  }
+
+  const configRoot = mkdtempSync(join(tmpdir(), "tangerine-opencode-"))
+  const providerConfigDir = join(configRoot, "opencode")
+  mkdirSync(providerConfigDir, { recursive: true })
+  await ensureOpenCodeConfig(configRoot)
+
+  const configFile = Bun.file(join(providerConfigDir, "opencode.json"))
+  const existing = await configFile.exists()
+    ? JSON.parse(await configFile.text()) as Record<string, unknown>
+    : {}
+  const agents = (existing.agent ?? {}) as Record<string, unknown>
+  const merged = {
+    ...existing,
+    $schema: "https://opencode.ai/config.json",
+    agent: {
+      ...agents,
+      [OPENCODE_SYSTEM_AGENT]: buildOpenCodeSystemAgent(systemPrompt),
+    },
+  }
+  await Bun.write(join(providerConfigDir, "opencode.json"), JSON.stringify(merged, null, 2) + "\n")
+
+  return {
+    env: { XDG_CONFIG_HOME: configRoot },
+    agentName: OPENCODE_SYSTEM_AGENT,
+    cleanup() {
+      rmSync(configRoot, { recursive: true, force: true })
+    },
   }
 }
 
@@ -376,7 +422,7 @@ export function createOpenCodeProvider(): AgentFactory {
 
       return Effect.tryPromise({
         try: async () => {
-          await ensureOpenCodeConfig()
+          let sessionConfig = await prepareOpenCodeSessionConfig(ctx.systemPrompt)
 
           const sessionId = ctx.resumeSessionId ?? crypto.randomUUID()
           taskLog.info("OpenCode session initialized", { sessionId, isResume: !!ctx.resumeSessionId })
@@ -389,6 +435,7 @@ export function createOpenCodeProvider(): AgentFactory {
           // Track active model for CLI flags
           // Note: opencode run does not support --reasoning-effort; it's a per-provider config
           let activeModel = ctx.model ?? ""
+          let activeAgent = sessionConfig.agentName
           // Track last spawned PID so cleanup can kill orphaned processes after server restart
           let lastPid: number | null = null
 
@@ -409,6 +456,9 @@ export function createOpenCodeProvider(): AgentFactory {
             const args = ["opencode", "run", "--format", "json", "-s", sessionId]
             if (activeModel) {
               args.push("-m", activeModel)
+            }
+            if (activeAgent) {
+              args.push("--agent", activeAgent)
             }
             return args
           }
@@ -461,7 +511,7 @@ export function createOpenCodeProvider(): AgentFactory {
                     stdin: "pipe",
                     stdout: "pipe",
                     stderr: "pipe",
-                    env: { ...process.env, ...ctx.env },
+                    env: { ...process.env, ...ctx.env, ...sessionConfig.env },
                   })
                   currentProc = proc
                   lastPid = proc.pid
@@ -554,6 +604,19 @@ export function createOpenCodeProvider(): AgentFactory {
               })
             },
 
+            setSystemPrompt(text: string) {
+              return Effect.tryPromise({
+                try: async () => {
+                  sessionConfig.cleanup()
+                  sessionConfig = await prepareOpenCodeSessionConfig(text)
+                  activeAgent = sessionConfig.agentName
+                  return !!activeAgent
+                },
+                catch: (e) =>
+                  new AgentError({ message: `Failed to set system prompt: ${e}`, taskId: ctx.taskId }),
+              })
+            },
+
             updateConfig(config: import("./provider").AgentConfig) {
               // Model is passed per-prompt via -m flag — just update the tracked value.
               // Reasoning effort is not supported by `opencode run` CLI — silently accepted.
@@ -585,6 +648,7 @@ export function createOpenCodeProvider(): AgentFactory {
                   currentProc = null
                 }
                 currentParser = null
+                sessionConfig.cleanup()
                 taskLog.info("Agent shutdown")
               })
             },

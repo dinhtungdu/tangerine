@@ -75,6 +75,8 @@ export interface AgentStartContext {
   taskId: string
   workdir: string
   title: string
+  /** Provider-native system/developer instructions applied at session startup when supported */
+  systemPrompt?: string
   /** Model ID to use (e.g. "claude-sonnet-4-6" for Claude Code, "anthropic/claude-sonnet-4-6" for OpenCode) */
   model?: string
   /** Reasoning effort level: "low", "medium", "high" */

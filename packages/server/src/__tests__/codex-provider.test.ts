@@ -13,9 +13,11 @@ describe("Codex provider config helpers", () => {
     expect(buildCodexThreadStartParams({
       workdir: "/workspace/task",
       model: "gpt-5.4",
+      systemPrompt: "Be terse.",
     })).toEqual({
       cwd: "/workspace/task",
       model: "gpt-5.4",
+      developerInstructions: "Be terse.",
       approvalPolicy: CODEX_APPROVAL_POLICY,
       sandbox: CODEX_SANDBOX_MODE,
       ephemeral: false,
@@ -27,10 +29,12 @@ describe("Codex provider config helpers", () => {
       threadId: "thread-123",
       workdir: "/workspace/task",
       model: "gpt-5.4",
+      systemPrompt: "Be terse.",
     })).toEqual({
       threadId: "thread-123",
       cwd: "/workspace/task",
       model: "gpt-5.4",
+      developerInstructions: "Be terse.",
       approvalPolicy: CODEX_APPROVAL_POLICY,
       sandbox: CODEX_SANDBOX_MODE,
       persistExtendedHistory: false,

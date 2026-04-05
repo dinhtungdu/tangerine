@@ -8,6 +8,7 @@ export interface TaskState {
   idleWake: boolean
   lastError?: string
   firstPromptSent: boolean
+  systemPromptApplied: boolean
   prUrlSaved: boolean
   prNudgeSent: boolean
   prNudgeTimer?: Timer
@@ -22,6 +23,7 @@ function defaultState(): TaskState {
     suspended: false,
     idleWake: false,
     firstPromptSent: false,
+    systemPromptApplied: false,
     prUrlSaved: false,
     prNudgeSent: false,
     consecutiveRestarts: 0,

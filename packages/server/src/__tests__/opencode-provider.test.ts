@@ -1,6 +1,6 @@
 import { describe, expect, it } from "bun:test"
 import { Effect } from "effect"
-import { getHandleMeta, mapOpenCodeEvent, createOpenCodeEventProcessor, adaptRunJsonEvent } from "../agent/opencode-provider"
+import { getHandleMeta, mapOpenCodeEvent, createOpenCodeEventProcessor, adaptRunJsonEvent, buildOpenCodeSystemAgent } from "../agent/opencode-provider"
 import type { AgentHandle, AgentEvent } from "../agent/provider"
 import { getAgentRuntimeMeta } from "../tasks/lifecycle"
 
@@ -164,6 +164,14 @@ describe("OpenCode provider helpers", () => {
     const handle = createHandle()
     handle.isAlive = () => false
     expect(handle.isAlive()).toBe(false)
+  })
+
+  it("builds a custom OpenCode agent with the provided prompt", () => {
+    expect(buildOpenCodeSystemAgent("Be terse.")).toEqual({
+      description: "Tangerine system prompt agent",
+      mode: "primary",
+      prompt: "Be terse.",
+    })
   })
 })
 

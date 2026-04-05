@@ -11,6 +11,7 @@ import { getRepoDir, resolveWorkspace } from "../config"
 import type { TangerineConfig } from "@tangerine/shared"
 import type { TaskRow } from "../db/types"
 import { initPool, acquireSlot, acquireOrchestratorSlot } from "./worktree-pool"
+import { buildSystemNotes } from "./prompts"
 
 const log = createLogger("lifecycle")
 
@@ -43,6 +44,7 @@ export interface ProjectConfig {
   defaultProvider?: string
   orchestratorPrompt?: string
   archived?: boolean
+  prMode?: "ready" | "draft" | "none"
 }
 
 /** Run a local command via Bun.spawn, return stdout/stderr/exitCode */
@@ -242,10 +244,16 @@ export function startSession(
 
     // 5. Start agent locally (with timeout to prevent indefinite hangs)
     yield* activity("agent.starting", "Starting agent")
+    const systemNotes = buildSystemNotes(task.id, {
+      setupCommand: config.setup,
+      taskType: task.type ?? undefined,
+      prMode: config.prMode,
+    })
     const agentHandle = yield* deps.agentFactory.start({
       taskId: task.id,
       workdir: worktreePath,
       title: task.title,
+      systemPrompt: systemNotes.length > 0 ? systemNotes.join("\n") : undefined,
       model: task.model ?? undefined,
       reasoningEffort: task.reasoning_effort ?? undefined,
       env: { TANGERINE_TASK_ID: task.id },
@@ -336,10 +344,17 @@ export function reconnectSession(
 
     // 3. Start agent — resume session if we have a session ID (with timeout)
     yield* activity("agent.reconnecting", "Restarting agent process")
+    const project = deps.tangerineConfig.projects.find((p) => p.name === task.project_id)
+    const systemNotes = buildSystemNotes(task.id, {
+      setupCommand: project?.setup,
+      taskType: task.type ?? undefined,
+      prMode: project?.prMode,
+    })
     const agentHandle = yield* deps.agentFactory.start({
       taskId: task.id,
       workdir: worktreePath,
       title: task.title,
+      systemPrompt: systemNotes.length > 0 ? systemNotes.join("\n") : undefined,
       model: task.model ?? undefined,
       reasoningEffort: task.reasoning_effort ?? undefined,
       resumeSessionId: task.agent_session_id ?? undefined,
