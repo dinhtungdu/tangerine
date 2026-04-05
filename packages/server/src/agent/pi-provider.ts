@@ -223,6 +223,10 @@ export function discoverModels(): ModelInfo[] {
   }
 }
 
+export function invalidateModelCache(): void {
+  cachedModels = null
+}
+
 // ---------------------------------------------------------------------------
 // Provider factory
 // ---------------------------------------------------------------------------
@@ -233,6 +237,7 @@ export function createPiProvider(): AgentFactory {
     listModels() {
       return discoverModels()
     },
+    invalidateModelCache,
     start(ctx: AgentStartContext): Effect.Effect<AgentHandle, SessionStartError> {
       const taskLog = log.child({ taskId: ctx.taskId })
 

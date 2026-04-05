@@ -14,36 +14,46 @@ import type { WorktreeSlotRow } from "../../db/types"
 
 const log = createLogger("project-routes")
 
+function buildProjectsResponse(deps: AppDeps) {
+  const discovered = deps.agentFactories.opencode.listModels()
+  const configModels = deps.config.config.models
+  const models = discovered.length > 0
+    ? discovered.map((m) => m.id)
+    : configModels
+
+  const modelsByProvider: Record<string, string[]> = {
+    opencode: deps.agentFactories.opencode.listModels().map((m) => m.id),
+    "claude-code": deps.agentFactories["claude-code"].listModels().map((m) => m.id),
+    codex: deps.agentFactories.codex.listModels().map((m) => m.id),
+    pi: deps.agentFactories.pi.listModels().map((m) => m.id),
+  }
+
+  return {
+    projects: deps.config.config.projects,
+    model: deps.config.config.model,
+    models,
+    modelsByProvider,
+    sshHost: deps.config.config.sshHost,
+    sshUser: deps.config.config.sshUser,
+    editor: deps.config.config.editor,
+    actionCombos: deps.config.config.actionCombos,
+    shortcuts: deps.config.config.shortcuts,
+  }
+}
+
 export function projectRoutes(deps: AppDeps): Hono {
   const app = new Hono()
 
   // List all configured projects + available models from providers
   app.get("/", (c) => {
-    const discovered = deps.agentFactories.opencode.listModels()
-    const configModels = deps.config.config.models
-    // Use discovered models if available, fall back to config
-    const models = discovered.length > 0
-      ? discovered.map((m) => m.id)
-      : configModels
+    return c.json(buildProjectsResponse(deps))
+  })
 
-    const modelsByProvider: Record<string, string[]> = {
-      opencode: deps.agentFactories.opencode.listModels().map((m) => m.id),
-      "claude-code": deps.agentFactories["claude-code"].listModels().map((m) => m.id),
-      codex: deps.agentFactories.codex.listModels().map((m) => m.id),
-      pi: deps.agentFactories.pi.listModels().map((m) => m.id),
+  app.post("/models/refresh", (c) => {
+    for (const factory of Object.values(deps.agentFactories)) {
+      factory.invalidateModelCache?.()
     }
-
-    return c.json({
-      projects: deps.config.config.projects,
-      model: deps.config.config.model,
-      models,
-      modelsByProvider,
-      sshHost: deps.config.config.sshHost,
-      sshUser: deps.config.config.sshUser,
-      editor: deps.config.config.editor,
-      actionCombos: deps.config.config.actionCombos,
-      shortcuts: deps.config.config.shortcuts,
-    })
+    return c.json(buildProjectsResponse(deps))
   })
 
   // Get a single project by name

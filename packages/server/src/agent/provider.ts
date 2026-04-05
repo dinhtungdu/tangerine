@@ -91,5 +91,6 @@ export interface AgentStartContext {
 export interface AgentFactory {
   metadata: ProviderMetadata
   listModels(): ModelInfo[]
+  invalidateModelCache?(): void
   start(ctx: AgentStartContext): Effect.Effect<AgentHandle, SessionStartError>
 }

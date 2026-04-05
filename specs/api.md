@@ -69,6 +69,7 @@ Current task types:
 | Method | Path | Description |
 |--------|------|-------------|
 | GET | `/api/projects` | List configured projects, available models, and SSH editor config |
+| POST | `/api/projects/models/refresh` | Invalidate provider model caches and return refreshed model lists |
 | GET | `/api/projects/:name` | Get one project |
 | POST | `/api/projects` | Register a project |
 | PUT | `/api/projects/:name` | Update a project |

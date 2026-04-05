@@ -63,6 +63,10 @@ describe("pi provider listModels", () => {
     expect(createPiProvider().listModels()).toEqual(discoverPiProviderModels())
   })
 
+  test("exposes cache invalidation hook", () => {
+    expect(typeof createPiProvider().invalidateModelCache).toBe("function")
+  })
+
   test("each model has required fields", () => {
     for (const model of createPiProvider().listModels()) {
       expect(model.id).toBeTruthy()

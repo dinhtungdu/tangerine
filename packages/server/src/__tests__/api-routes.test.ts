@@ -662,6 +662,35 @@ describe("API routes", () => {
     })
   })
 
+  describe("POST /api/projects/models/refresh", () => {
+    test("invalidates provider caches and returns refreshed models", async () => {
+      let opencodeInvalidated = false
+      let piInvalidated = false
+      deps.agentFactories = {
+        ...deps.agentFactories,
+        opencode: {
+          ...deps.agentFactories.opencode,
+          listModels: () => [{ id: "openai/gpt-5.4", name: "GPT-5.4", provider: "openai", providerName: "OpenAI" }],
+          invalidateModelCache: () => { opencodeInvalidated = true },
+        },
+        pi: {
+          ...deps.agentFactories.pi,
+          listModels: () => [{ id: "pi/foo", name: "foo", provider: "pi", providerName: "Pi" }],
+          invalidateModelCache: () => { piInvalidated = true },
+        },
+      } satisfies AgentFactories
+      app = createApp(deps).app
+
+      const res = await app.fetch(new Request("http://localhost/api/projects/models/refresh", { method: "POST" }))
+      expect(res.status).toBe(200)
+      const body = await res.json() as { models: string[]; modelsByProvider: Record<string, string[]> }
+      expect(opencodeInvalidated).toBe(true)
+      expect(piInvalidated).toBe(true)
+      expect(body.models).toEqual(["openai/gpt-5.4"])
+      expect(body.modelsByProvider.pi).toEqual(["pi/foo"])
+    })
+  })
+
   describe("DELETE /api/logs", () => {
     test("clears system logs", async () => {
       // Seed a log entry
