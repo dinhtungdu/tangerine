@@ -2,6 +2,7 @@ import { memo, useState, useMemo, useCallback, useRef } from "react"
 import type { Components } from "react-markdown"
 import ReactMarkdown from "react-markdown"
 import remarkGfm from "remark-gfm"
+import remarkBreaks from "remark-breaks"
 import { visit } from "unist-util-visit"
 import type { Root, Text, Parent, Link } from "mdast"
 import type { ChatMessage as ChatMessageType } from "../hooks/useSession"
@@ -58,30 +59,6 @@ function isToolCall(content: string): boolean {
   }
 }
 
-function escapeHtml(text: string): string {
-  return text.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;")
-}
-
-function linkifyUrls(text: string, tasks?: ReadonlyArray<{ id: string }>): string {
-  const escaped = escapeHtml(text)
-  const taskMap = tasks && tasks.length > 0
-    ? new Map(tasks.map((t) => [t.id.toLowerCase(), t.id]))
-    : null
-  // Single combined pass so UUIDs that are part of a URL are consumed by the
-  // URL branch and never double-processed into broken nested anchors.
-  return escaped.replace(
-    /(https?:\/\/[^\s<]+)|(?<!\/)([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})\b(?!\/)/gi,
-    (match, url: string | undefined, uuid: string | undefined) => {
-      if (url) return `<a href="${url}" target="_blank" rel="noopener noreferrer">${url}</a>`
-      if (uuid && taskMap) {
-        const canonicalId = taskMap.get(uuid.toLowerCase())
-        if (!canonicalId) return uuid
-        return `<a href="/tasks/${canonicalId}" class="underline text-link hover:text-link-hover">${canonicalId.slice(0, 8)}</a>`
-      }
-      return match
-    },
-  )
-}
 
 const markdownComponents: Components = {
   h1: ({ children }) => <h1 className="mt-4 mb-1 text-base font-bold">{children}</h1>,
@@ -171,6 +148,8 @@ function makeRemarkLinkifyTaskIds(tasks: ReadonlyArray<{ id: string }>) {
 }
 
 const BASE_REMARK_PLUGINS = [remarkGfm]
+// User messages preserve single newlines (matching whitespace-pre-wrap semantics)
+const BASE_USER_REMARK_PLUGINS = [remarkGfm, remarkBreaks]
 
 export const ChatMessage = memo(function ChatMessage({ message, tasks, onReply }: ChatMessageProps) {
   const navigate = useNavigate()
@@ -190,6 +169,10 @@ export const ChatMessage = memo(function ChatMessage({ message, tasks, onReply }
   )
   const remarkPlugins = useMemo(
     () => tasks && tasks.length > 0 ? [...BASE_REMARK_PLUGINS, makeRemarkLinkifyTaskIds(tasks)] : BASE_REMARK_PLUGINS,
+    [tasks],
+  )
+  const userRemarkPlugins = useMemo(
+    () => tasks && tasks.length > 0 ? [...BASE_USER_REMARK_PLUGINS, makeRemarkLinkifyTaskIds(tasks)] : BASE_USER_REMARK_PLUGINS,
     [tasks],
   )
   const isUser = message.role === "user"
@@ -276,11 +259,14 @@ export const ChatMessage = memo(function ChatMessage({ message, tasks, onReply }
             </>
           )}
           {message.content && (
-            <p
-              className="whitespace-pre-wrap text-md leading-[1.5] text-white [&_a]:underline [&_a]:text-link hover:[&_a]:text-link-hover [&_a]:break-all"
+            <div
+              className="text-md leading-[1.5] text-white [&_a]:underline [&_a]:text-link hover:[&_a]:text-link-hover [&_a]:break-all"
               onClick={handleLinkClick}
-              dangerouslySetInnerHTML={{ __html: linkifyUrls(message.content, tasks) }}
-            />
+            >
+              <ReactMarkdown remarkPlugins={userRemarkPlugins} components={markdownComponents}>
+                {message.content}
+              </ReactMarkdown>
+            </div>
           )}
           <span className="mt-1 block text-right text-2xs text-fg-muted/50">
             {formatTimestamp(message.timestamp)}
