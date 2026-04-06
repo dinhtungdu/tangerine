@@ -717,6 +717,8 @@ export function createOpenCodeProvider(): AgentFactory {
             get: () => lastPid,
           })
 
+          ;(handle as { __taskId?: string }).__taskId = ctx.taskId
+
           return handle
         },
         catch: (e) =>

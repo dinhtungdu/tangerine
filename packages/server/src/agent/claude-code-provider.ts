@@ -255,6 +255,8 @@ export function createClaudeCodeProvider(): AgentFactory {
           })
           // Attach PID so getAgentPid() can save it to the task record
           ;(handle as { __pid?: number }).__pid = proc.pid
+          // Attach taskId for cross-talk detection in subscriber callbacks
+          ;(handle as { __taskId?: string }).__taskId = ctx.taskId
 
           return handle
         },

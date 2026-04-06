@@ -646,6 +646,7 @@ export function createCodexProvider(): AgentFactory {
             }),
           })
           ;(handle as { __pid?: number }).__pid = proc.pid
+          ;(handle as { __taskId?: string }).__taskId = ctx.taskId
 
           return handle
         },
