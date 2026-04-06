@@ -1,6 +1,7 @@
-/** Display-friendly task title. Replaces internal names like "_orchestrator" with human labels. */
-export function formatTaskTitle(title: string, type?: string): string {
-  if (type === "orchestrator") return "Middle Manager"
+/** Display-friendly task title. Replaces internal names like "_orchestrator" with human labels.
+ *  Pass projectId to disambiguate orchestrators across projects, e.g. "Middle Manager (tangerine)". */
+export function formatTaskTitle(title: string, type?: string, projectId?: string): string {
+  if (type === "orchestrator") return projectId ? `Middle Manager (${projectId})` : "Middle Manager"
   return title
 }
 

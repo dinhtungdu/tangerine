@@ -391,7 +391,7 @@ export function TaskDetail() {
               title="Click to copy task ID"
               className="min-w-0 truncate text-sm font-semibold text-fg hover:text-fg-muted"
             >
-              {copiedId ? "Copied ID!" : formatTaskTitle(task.title, task.type)}
+              {copiedId ? "Copied ID!" : formatTaskTitle(task.title, task.type, task.projectId)}
             </button>
             {task.branch && (
               <button

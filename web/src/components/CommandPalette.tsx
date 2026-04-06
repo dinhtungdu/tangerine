@@ -58,7 +58,7 @@ function TaskResult({ task, isSelected }: { task: Task; isSelected: boolean }) {
         style={{ backgroundColor: statusConfig.color }}
       />
       <div className="min-w-0 flex-1">
-        <p className="truncate text-md font-medium text-fg">{formatTaskTitle(task.title, task.type)}</p>
+        <p className="truncate text-md font-medium text-fg">{formatTaskTitle(task.title, task.type, task.projectId)}</p>
         <p className="truncate text-xxs text-fg-muted">{task.projectId}</p>
       </div>
       <div className="flex shrink-0 items-center gap-1.5">
@@ -203,7 +203,7 @@ export function CommandPalette() {
       for (const t of tasks) {
         const prNumber = t.prUrl?.match(/\/pull\/(\d+)/)?.[1] ?? ""
         const score = Math.max(
-          fuzzyScore(formatTaskTitle(t.title, t.type), searchQuery) * 3,
+          fuzzyScore(formatTaskTitle(t.title, t.type, t.projectId), searchQuery) * 3,
           fuzzyScore(t.projectId, searchQuery) * 2,
           fuzzyScore(t.id, searchQuery),
           fuzzyScore(t.branch ?? "", searchQuery) * 2,
