@@ -427,7 +427,11 @@ export function createOpenCodeProvider(): AgentFactory {
         try: async () => {
           let sessionConfig = await prepareOpenCodeSessionConfig(ctx.systemPrompt)
 
-          const sessionId = ctx.resumeSessionId ?? crypto.randomUUID()
+          // Session ID: use the real session ID from a previous run if resuming,
+          // otherwise null until we capture it from the first NDJSON event.
+          // opencode run -s <id> requires a real session ID (ses_...) — passing
+          // a random UUID causes it to exit silently with code 0 and no output.
+          let sessionId = ctx.resumeSessionId ?? null
           taskLog.info("OpenCode session initialized", { sessionId, isResume: !!ctx.resumeSessionId })
 
           const subscribers = new Set<(e: AgentEvent) => void>()
@@ -446,17 +450,27 @@ export function createOpenCodeProvider(): AgentFactory {
             for (const cb of subscribers) cb(event)
           }
 
-          const eventProcessor = createOpenCodeEventProcessor(sessionId, {
-            emit,
-            // Permissions are handled by ensureOpenCodeConfig — no runtime approval needed
-          })
+          // Event processor is created lazily once we have a real session ID
+          let eventProcessor: ReturnType<typeof createOpenCodeEventProcessor> | null = null
+          function getOrCreateProcessor(sid: string) {
+            if (!eventProcessor) {
+              eventProcessor = createOpenCodeEventProcessor(sid, {
+                emit,
+              })
+            }
+            return eventProcessor
+          }
 
           // Emit initial idle so the task system knows we're ready
           queueMicrotask(() => emit({ kind: "status", status: "idle" }))
 
           /** Build CLI args for `opencode run` */
           function buildArgs(): string[] {
-            const args = ["opencode", "run", "--format", "json", "-s", sessionId]
+            const args = ["opencode", "run", "--format", "json"]
+            // Only pass -s when we have a real session ID from a previous run
+            if (sessionId) {
+              args.push("-s", sessionId)
+            }
             if (activeModel) {
               args.push("-m", activeModel)
             }
@@ -540,9 +554,17 @@ export function createOpenCodeProvider(): AgentFactory {
                     {
                       onLine: (data) => {
                         const raw = data as Record<string, unknown>
+
+                        // Capture the real session ID from the first event
+                        if (!sessionId && typeof raw.sessionID === "string") {
+                          sessionId = raw.sessionID
+                          taskLog.info("Captured OpenCode session ID", { sessionId })
+                        }
+
+                        const processor = getOrCreateProcessor(sessionId ?? ctx.taskId)
                         const adapted = adaptRunJsonEvent(raw)
                         for (const event of adapted) {
-                          eventProcessor.process(event)
+                          processor.process(event)
                         }
                       },
                       onError: (err) => {
@@ -560,7 +582,8 @@ export function createOpenCodeProvider(): AgentFactory {
                           taskLog.debug("opencode run stdout ended")
                           // Feed synthetic idle to processor so it promotes
                           // narration → assistant message before emitting idle
-                          eventProcessor.process({
+                          const processor = getOrCreateProcessor(sessionId ?? ctx.taskId)
+                          processor.process({
                             type: "session.status",
                             properties: { status: { type: "idle" } },
                           })
@@ -590,8 +613,10 @@ export function createOpenCodeProvider(): AgentFactory {
                   proc.stdin.write(text)
                   proc.stdin.end()
                 },
-                catch: (e) =>
-                  new PromptError({ message: `Failed to send prompt: ${e}`, taskId: ctx.taskId }),
+                catch: (e) => {
+                  taskLog.error("Failed to spawn opencode run", { error: String(e) })
+                  return new PromptError({ message: `Failed to send prompt: ${e}`, taskId: ctx.taskId })
+                },
               })
             },
 
