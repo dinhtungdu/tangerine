@@ -8,7 +8,7 @@ import { createLogger } from "../logger"
 import { SessionStartError } from "../errors"
 import { getHandleMeta as getOpenCodeHandleMeta } from "../agent/opencode-provider"
 import { getRepoDir, resolveWorkspace } from "../config"
-import type { TangerineConfig } from "@tangerine/shared"
+import { resolveTaskTypeConfig, type TangerineConfig } from "@tangerine/shared"
 import type { TaskRow } from "../db/types"
 import { initPool, acquireSlot, acquireOrchestratorSlot } from "./worktree-pool"
 import { buildSystemNotes } from "./prompts"
@@ -42,11 +42,26 @@ export interface ProjectConfig {
   setup: string
   poolSize?: number
   defaultProvider?: string
+  archived?: boolean
+  prMode?: "ready" | "draft" | "none"
+  taskTypes?: import("@tangerine/shared").ProjectConfig["taskTypes"]
+  // Legacy flat fields — kept for backwards compat, taskTypes takes precedence
   orchestratorPrompt?: string
   workerSystemPrompt?: string
   reviewerSystemPrompt?: string
-  archived?: boolean
-  prMode?: "ready" | "draft" | "none"
+}
+
+/** Resolve custom system prompt for a task type, preferring taskTypes over legacy flat fields. */
+function resolveCustomSystemPrompt(config: ProjectConfig, taskType: string | null | undefined): string | undefined {
+  const tt = taskType as "worker" | "orchestrator" | "reviewer" | undefined
+  if (!tt) return undefined
+  const override = config.taskTypes?.[tt]
+  if (override?.systemPrompt) return override.systemPrompt
+  // Legacy fallbacks
+  if (tt === "worker") return config.workerSystemPrompt
+  if (tt === "reviewer") return config.reviewerSystemPrompt
+  if (tt === "orchestrator") return config.orchestratorPrompt
+  return undefined
 }
 
 /** Run a local command via Bun.spawn, return stdout/stderr/exitCode */
@@ -250,8 +265,7 @@ export function startSession(
       setupCommand: config.setup,
       taskType: task.type ?? undefined,
       prMode: config.prMode,
-      workerSystemPrompt: config.workerSystemPrompt,
-      reviewerSystemPrompt: config.reviewerSystemPrompt,
+      customSystemPrompt: resolveCustomSystemPrompt(config, task.type),
     })
     const agentHandle = yield* deps.agentFactory.start({
       taskId: task.id,
@@ -349,12 +363,13 @@ export function reconnectSession(
     // 3. Start agent — resume session if we have a session ID (with timeout)
     yield* activity("agent.reconnecting", "Restarting agent process")
     const project = deps.tangerineConfig.projects.find((p) => p.name === task.project_id)
+    const taskType = task.type as "worker" | "orchestrator" | "reviewer" | undefined
+    const resolved = project && taskType ? resolveTaskTypeConfig(project, taskType) : undefined
     const systemNotes = buildSystemNotes(task.id, {
       setupCommand: project?.setup,
-      taskType: task.type ?? undefined,
+      taskType: taskType,
       prMode: project?.prMode,
-      workerSystemPrompt: project?.workerSystemPrompt,
-      reviewerSystemPrompt: project?.reviewerSystemPrompt,
+      customSystemPrompt: resolved?.systemPrompt,
     })
     const agentHandle = yield* deps.agentFactory.start({
       taskId: task.id,

@@ -5,7 +5,7 @@
 // - System layer: operational scaffolding (identity, PR workflow, escalation, delegation).
 //   Always injected, not configurable per project.
 // - User layer: behavioral guidance (style, setup notes, custom instructions).
-//   Configurable per project via workerSystemPrompt / reviewerSystemPrompt in config.
+//   Configurable per project via taskTypes config.
 
 import { DEFAULT_API_PORT } from "@tangerine/shared"
 
@@ -15,8 +15,8 @@ export interface SystemNotesInfo {
   setupCommand?: string
   taskType?: string
   prMode?: "ready" | "draft" | "none"
-  workerSystemPrompt?: string
-  reviewerSystemPrompt?: string
+  /** Custom system prompt from taskTypes config (already resolved by caller). */
+  customSystemPrompt?: string
 }
 
 const DEFAULT_STYLE = `[STYLE: Be extremely short and concise in all responses — sacrifice grammar for brevity. Key info only, no walls of text. Applies to all conversations and reviews.]`
@@ -78,15 +78,11 @@ export function buildSystemLayer(taskId: string, info: SystemNotesInfo, port = a
 
 /**
  * User layer: behavioral notes configurable per project.
- * When a custom prompt is provided via config, it replaces the defaults.
+ * When a custom system prompt is provided via taskTypes config, it replaces the defaults.
  */
 export function buildUserLayer(taskId: string, info: SystemNotesInfo): string[] {
-  const customPrompt = info.taskType === "worker" ? info.workerSystemPrompt
-    : info.taskType === "reviewer" ? info.reviewerSystemPrompt
-    : undefined
-
-  if (customPrompt) {
-    return [customPrompt]
+  if (info.customSystemPrompt) {
+    return [info.customSystemPrompt]
   }
 
   // Defaults when no custom prompt is configured

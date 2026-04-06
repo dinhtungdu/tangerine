@@ -11,7 +11,7 @@ import type { TaskRow, CronRow } from "../db/types"
 import { taskHasCapability } from "../api/helpers"
 import { createApp } from "../api/app"
 import type { AppDeps } from "../api/app"
-import { DEFAULT_API_PORT } from "@tangerine/shared"
+import { DEFAULT_API_PORT, resolveTaskTypeConfig } from "@tangerine/shared"
 import * as taskManager from "../tasks/manager"
 import type { TaskManagerDeps } from "../tasks/manager"
 import { onTaskEvent, onStatusChange, emitTaskEvent, setAgentWorkingState, getAgentWorkingState } from "../tasks/events"
@@ -36,6 +36,13 @@ import { enqueue as enqueuePrompt, drainAll as drainQueuedPrompts } from "../age
 import { buildSystemNotes, buildEscalationBlock, buildPrWorkflowNote } from "../tasks/prompts"
 import { getTaskState, clearTaskState } from "../tasks/task-state"
 const log = createLogger("cli")
+
+/** Resolve custom system prompt for a task type from project config. */
+function resolveCustomSystemPrompt(projConfig: ReturnType<typeof getProjectConfig>, taskType: string | null | undefined): string | undefined {
+  if (!projConfig || !taskType) return undefined
+  const tt = taskType as "worker" | "orchestrator" | "reviewer"
+  return resolveTaskTypeConfig(projConfig, tt).systemPrompt
+}
 
 /** Classify agent tool name -> activity type + event name.
  * Case-insensitive so both Claude Code (PascalCase) and OpenCode (lowercase) work. */
@@ -313,8 +320,7 @@ export async function start(): Promise<void> {
             setupCommand: projConfig?.setup,
             taskType: taskRow?.type ?? undefined,
             prMode: projConfig?.prMode,
-            workerSystemPrompt: projConfig?.workerSystemPrompt,
-            reviewerSystemPrompt: projConfig?.reviewerSystemPrompt,
+            customSystemPrompt: resolveCustomSystemPrompt(projConfig, taskRow?.type),
           }).length > 0
           if (taskMeta?.pr_url) {
             s.prUrlSaved = true
@@ -416,8 +422,7 @@ export async function start(): Promise<void> {
                   setupCommand: projConfig?.setup,
                   taskType: task?.type ?? undefined,
                   prMode: projConfig?.prMode,
-                  workerSystemPrompt: projConfig?.workerSystemPrompt,
-                  reviewerSystemPrompt: projConfig?.reviewerSystemPrompt,
+                  customSystemPrompt: resolveCustomSystemPrompt(projConfig, task?.type),
                 })
                 getTaskState(taskId).firstPromptSent = true
 
@@ -804,8 +809,7 @@ export async function start(): Promise<void> {
                 setupCommand: projConfig?.setup,
                 taskType: task?.type ?? undefined,
                 prMode: projConfig?.prMode,
-                workerSystemPrompt: projConfig?.workerSystemPrompt,
-                reviewerSystemPrompt: projConfig?.reviewerSystemPrompt,
+                customSystemPrompt: resolveCustomSystemPrompt(projConfig, task?.type),
               })
 
               const taskState = getTaskState(taskId)

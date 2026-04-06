@@ -19,11 +19,13 @@ export {
   projectConfigSchema,
   actionComboSchema,
   tangerineConfigSchema,
+  resolveTaskTypeConfig,
 } from "./config"
 
 export type {
   ActionCombo,
   PredefinedPrompt,
+  TaskTypeConfig,
   ProjectConfig,
   ShortcutConfig,
   TangerineConfig,

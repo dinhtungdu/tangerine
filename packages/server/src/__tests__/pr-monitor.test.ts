@@ -6,6 +6,7 @@ import { extractPrUrl, extractGithubSlug, getPrLookupTargets, pollPrStatuses } f
 import type { PrMonitorDeps, PrState } from "../tasks/pr-monitor"
 import type { TaskRow } from "../db/types"
 import { buildSystemNotes, buildSystemLayer, buildUserLayer } from "../tasks/prompts"
+import { resolveTaskTypeConfig, type ProjectConfig } from "@tangerine/shared"
 
 // ---------------------------------------------------------------------------
 // extractPrUrl
@@ -475,41 +476,87 @@ describe("buildUserLayer", () => {
     expect(notes.some((n) => n.includes("bun install"))).toBe(true)
   })
 
-  test("replaces defaults with custom workerSystemPrompt", () => {
+  test("replaces defaults with custom system prompt", () => {
     const notes = buildUserLayer("test-id", {
       taskType: "worker",
-      workerSystemPrompt: "You are a security-focused engineer.",
+      customSystemPrompt: "You are a security-focused engineer.",
       setupCommand: "bun install",
     })
     expect(notes).toEqual(["You are a security-focused engineer."])
     expect(notes.some((n) => n.includes("STYLE"))).toBe(false)
   })
 
-  test("replaces defaults with custom reviewerSystemPrompt", () => {
+  test("replaces defaults for reviewer with custom system prompt", () => {
     const notes = buildUserLayer("test-id", {
       taskType: "reviewer",
-      reviewerSystemPrompt: "Focus on performance issues.",
+      customSystemPrompt: "Focus on performance issues.",
     })
     expect(notes).toEqual(["Focus on performance issues."])
   })
 
-  test("ignores workerSystemPrompt for reviewer tasks", () => {
-    const notes = buildUserLayer("test-id", {
-      taskType: "reviewer",
-      workerSystemPrompt: "Worker prompt",
-    })
-    expect(notes.some((n) => n.includes("Worker prompt"))).toBe(false)
+  test("uses defaults when no custom prompt provided", () => {
+    const notes = buildUserLayer("test-id", { taskType: "reviewer" })
     expect(notes.some((n) => n.includes("STYLE"))).toBe(true)
   })
 
-  test("ignores custom prompts for orchestrator tasks", () => {
-    const notes = buildUserLayer("test-id", {
-      taskType: "orchestrator",
-      workerSystemPrompt: "Worker prompt",
-      reviewerSystemPrompt: "Reviewer prompt",
-    })
-    expect(notes.some((n) => n.includes("Worker prompt"))).toBe(false)
-    expect(notes.some((n) => n.includes("Reviewer prompt"))).toBe(false)
+  test("uses defaults for orchestrator when no custom prompt", () => {
+    const notes = buildUserLayer("test-id", { taskType: "orchestrator" })
     expect(notes.some((n) => n.includes("STYLE"))).toBe(true)
+  })
+})
+
+// ---------------------------------------------------------------------------
+// resolveTaskTypeConfig — taskTypes override with legacy fallbacks
+// ---------------------------------------------------------------------------
+
+describe("resolveTaskTypeConfig", () => {
+  const baseProject = { name: "test", repo: "test", setup: "bun install" } as ProjectConfig
+
+  test("returns defaults when no overrides", () => {
+    const result = resolveTaskTypeConfig(baseProject, "worker")
+    expect(result.predefinedPrompts.length).toBeGreaterThan(0)
+    expect(result.systemPrompt).toBeUndefined()
+  })
+
+  test("taskTypes.worker overrides legacy predefinedPrompts", () => {
+    const project = {
+      ...baseProject,
+      predefinedPrompts: [{ label: "legacy", text: "legacy" }],
+      taskTypes: { worker: { predefinedPrompts: [{ label: "new", text: "new" }] } },
+    } as ProjectConfig
+    const result = resolveTaskTypeConfig(project, "worker")
+    expect(result.predefinedPrompts).toEqual([{ label: "new", text: "new" }])
+  })
+
+  test("falls back to legacy orchestratorPrompt when no taskTypes", () => {
+    const project = { ...baseProject, orchestratorPrompt: "custom orch" } as ProjectConfig
+    const result = resolveTaskTypeConfig(project, "orchestrator")
+    expect(result.systemPrompt).toBe("custom orch")
+  })
+
+  test("taskTypes.orchestrator.systemPrompt takes precedence over legacy", () => {
+    const project = {
+      ...baseProject,
+      orchestratorPrompt: "legacy",
+      taskTypes: { orchestrator: { systemPrompt: "new orch" } },
+    } as ProjectConfig
+    const result = resolveTaskTypeConfig(project, "orchestrator")
+    expect(result.systemPrompt).toBe("new orch")
+  })
+
+  test("taskTypes.reviewer overrides legacy reviewerPrompts", () => {
+    const project = {
+      ...baseProject,
+      reviewerPrompts: [{ label: "old", text: "old" }],
+      taskTypes: { reviewer: { predefinedPrompts: [{ label: "new-rev", text: "new-rev" }] } },
+    } as ProjectConfig
+    const result = resolveTaskTypeConfig(project, "reviewer")
+    expect(result.predefinedPrompts).toEqual([{ label: "new-rev", text: "new-rev" }])
+  })
+
+  test("falls back to legacy workerSystemPrompt", () => {
+    const project = { ...baseProject, workerSystemPrompt: "worker custom" } as ProjectConfig
+    const result = resolveTaskTypeConfig(project, "worker")
+    expect(result.systemPrompt).toBe("worker custom")
   })
 })

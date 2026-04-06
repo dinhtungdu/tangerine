@@ -7,14 +7,14 @@ interface PredefinedPromptsEditorProps {
   project: string
   prompts: PredefinedPrompt[]
   title?: string
-  configKey?: "predefinedPrompts" | "orchestratorPrompts" | "reviewerPrompts"
+  taskType: "worker" | "orchestrator" | "reviewer"
 }
 
 export function PredefinedPromptsEditor({
   project,
   prompts: initial,
   title = "Predefined Prompts",
-  configKey = "predefinedPrompts",
+  taskType,
 }: PredefinedPromptsEditorProps) {
   const { refreshProjects } = useProject()
   const [prompts, setPrompts] = useState<PredefinedPrompt[]>(initial)
@@ -40,7 +40,9 @@ export function PredefinedPromptsEditor({
     setStatus("idle")
     try {
       const valid = prompts.filter((p) => p.label.trim() && p.text.trim())
-      await updateProject(project, { [configKey]: valid })
+      await updateProject(project, {
+        taskTypes: { [taskType]: { predefinedPrompts: valid } },
+      })
       setPrompts(valid)
       refreshProjects()
       setStatus("saved")
@@ -50,7 +52,7 @@ export function PredefinedPromptsEditor({
     } finally {
       setSaving(false)
     }
-  }, [project, prompts, configKey, refreshProjects])
+  }, [project, prompts, taskType, refreshProjects])
 
   return (
     <div className="flex flex-1 flex-col rounded-xl border border-edge bg-surface p-4 md:p-5">

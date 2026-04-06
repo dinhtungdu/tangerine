@@ -2,6 +2,7 @@ import { useCallback } from "react"
 import { useOutletContext } from "react-router-dom"
 import { useProject } from "../context/ProjectContext"
 import { useToast } from "../context/ToastContext"
+import { resolveTaskTypeConfig } from "@tangerine/shared"
 import type { SidebarContext } from "../components/Layout"
 import { ActiveRunsCard, SystemLog, ProjectUpdateCard } from "../components/StatusWidgets"
 import { PredefinedPromptsEditor } from "../components/PredefinedPromptsEditor"
@@ -59,22 +60,22 @@ export function StatusPage() {
                 key={`${current.name}-worker`}
                 project={current.name}
                 title="Worker Quick Replies"
-                configKey="predefinedPrompts"
-                prompts={current.predefinedPrompts ?? []}
+                taskType="worker"
+                prompts={resolveTaskTypeConfig(current, "worker").predefinedPrompts}
               />
               <PredefinedPromptsEditor
                 key={`${current.name}-orchestrator`}
                 project={current.name}
                 title="Orchestrator Quick Replies"
-                configKey="orchestratorPrompts"
-                prompts={current.orchestratorPrompts ?? []}
+                taskType="orchestrator"
+                prompts={resolveTaskTypeConfig(current, "orchestrator").predefinedPrompts}
               />
               <PredefinedPromptsEditor
                 key={`${current.name}-reviewer`}
                 project={current.name}
                 title="Reviewer Quick Replies"
-                configKey="reviewerPrompts"
-                prompts={current.reviewerPrompts ?? []}
+                taskType="reviewer"
+                prompts={resolveTaskTypeConfig(current, "reviewer").predefinedPrompts}
               />
             </>
           )}

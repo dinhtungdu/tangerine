@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback, useRef, useMemo } from "react"
 import { useParams, Link, useOutletContext } from "react-router-dom"
 import type { SidebarContext } from "../components/Layout"
-import type { Task } from "@tangerine/shared"
+import { resolveTaskTypeConfig, type Task } from "@tangerine/shared"
 import { fetchTask, fetchChildTasks, changeTaskConfig, markTaskSeen, resolveTask, startTask } from "../lib/api"
 import { getStatusConfig } from "../lib/status"
 import { useSession } from "../hooks/useSession"
@@ -189,11 +189,10 @@ export function TaskDetail() {
   const canContinue = chatTask?.capabilities.includes("continue") ?? false
 
   const resolvedPrompts = useMemo(() => {
-    if (!hasPredefinedPrompts || !chatTask) return undefined
-    if (chatTask.type === "orchestrator") return current?.orchestratorPrompts
-    if (chatTask.type === "reviewer") return current?.reviewerPrompts
-    return current?.predefinedPrompts
-  }, [hasPredefinedPrompts, chatTask, current?.orchestratorPrompts, current?.reviewerPrompts, current?.predefinedPrompts])
+    if (!hasPredefinedPrompts || !chatTask || !current) return undefined
+    const tt = chatTask.type as "worker" | "orchestrator" | "reviewer"
+    return resolveTaskTypeConfig(current, tt).predefinedPrompts
+  }, [hasPredefinedPrompts, chatTask, current])
 
   const handleResolve = useCallback(async () => {
     if (!chatTask) return
