@@ -30,6 +30,7 @@ import { ghSpawnEnv, isGithubRepo } from "../gh"
 import type { PrMonitorDeps } from "../tasks/pr-monitor"
 import { initSystemLog, cleanupSystemLogs } from "../system-log"
 import type { AgentHandle } from "../agent/provider"
+import { getHandleMeta } from "../agent/opencode-provider"
 import { createAgentFactories } from "../agent/factories"
 import { enqueue as enqueuePrompt, drainAll as drainQueuedPrompts } from "../agent/prompt-queue"
 import { buildSystemNotes, buildEscalationBlock, buildPrWorkflowNote } from "../tasks/prompts"
@@ -588,6 +589,19 @@ export async function start(): Promise<void> {
                 } else if (event.status === "idle") {
                   setAgentWorkingState(taskId, "idle")
                   emitTaskEvent(taskId, { event: "agent.idle" })
+
+                  // Persist dynamically captured session ID (e.g. OpenCode's ses_... ID
+                  // is only known after the first prompt produces NDJSON output)
+                  const handle = agentHandles.get(taskId)
+                  const meta = handle ? getHandleMeta(handle) : null
+                  if (meta?.sessionId) {
+                    const row = db.prepare("SELECT agent_session_id FROM tasks WHERE id = ?").get(taskId) as { agent_session_id: string | null } | null
+                    if (row && row.agent_session_id !== meta.sessionId) {
+                      Effect.runPromise(
+                        updateTask(db, taskId, { agent_session_id: meta.sessionId }).pipe(Effect.catchAll(() => Effect.void))
+                      )
+                    }
+                  }
 
                   // Schedule PR nudge if agent has commits but no PR (skip orchestrators)
                   if (!st.prUrlSaved && !st.prNudgeSent) {
