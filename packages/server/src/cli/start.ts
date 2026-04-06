@@ -19,7 +19,7 @@ import { cleanupSession } from "../tasks/cleanup"
 import type { CleanupDeps } from "../tasks/cleanup"
 import { startOrphanCleanup, findOrphans, cleanupOrphans } from "../tasks/orphan-cleanup"
 import type { OrphanCleanupDeps } from "../tasks/orphan-cleanup"
-import { startHealthMonitor, isTaskSuspended, clearSuspended } from "../tasks/health"
+import { startHealthMonitor, isTaskSuspended, clearSuspended, resetRestartCount } from "../tasks/health"
 import { startScheduler } from "../tasks/scheduler"
 import type { SchedulerDeps } from "../tasks/scheduler"
 import type { HealthCheckDeps } from "../tasks/health"
@@ -589,6 +589,10 @@ export async function start(): Promise<void> {
                 } else if (event.status === "idle") {
                   setAgentWorkingState(taskId, "idle")
                   emitTaskEvent(taskId, { event: "agent.idle" })
+                  // Agent completed a turn — it's alive and productive, so reset
+                  // the restart counter to prevent false positives from the
+                  // stability window in the health checker.
+                  resetRestartCount(taskId)
 
                   // Persist dynamically captured session ID (e.g. OpenCode's ses_... ID
                   // is only known after the first prompt produces NDJSON output)

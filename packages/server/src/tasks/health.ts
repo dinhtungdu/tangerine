@@ -136,7 +136,10 @@ export function checkTask(
       return "failed"
     }
 
-    state.consecutiveRestarts = 0
+    // Don't reset consecutiveRestarts here — a process that spawns and dies
+    // quickly would reset the counter every health check where it's briefly
+    // alive, causing infinite restarts. The counter is only reset when the
+    // agent completes real work (goes idle → resetRestartCount in start.ts).
     // Clear suspended flag if agent is alive — abort may have only interrupted
     // the current turn without killing the process (codex, pi).
     if (state.suspended) state.suspended = false
@@ -154,7 +157,7 @@ function attemptRestart(
   return deps.restartAgent(task).pipe(
     // restartAgent succeeds → agent process spawned (lifecycle has a 60s startup timeout).
     // Don't reset consecutiveRestarts here — the agent may die again immediately.
-    // The counter is only reset in checkTask when the agent is confirmed alive.
+    // The counter is only reset in checkTask when the agent is confirmed alive AND stable.
     Effect.map(() => {
       taskLog.info("Restart succeeded, awaiting next health check to confirm", { action: "agent-restart", reason })
       return "recovered" as const

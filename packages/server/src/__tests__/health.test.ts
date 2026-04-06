@@ -1,9 +1,10 @@
 import { describe, test, expect, mock } from "bun:test"
 import { Effect } from "effect"
-import { checkTask, checkAllTasks, startHealthMonitor, isTaskSuspended, clearSuspended, parseTaskTimestampMs } from "../tasks/health"
+import { checkTask, checkAllTasks, startHealthMonitor, isTaskSuspended, clearSuspended, parseTaskTimestampMs, resetRestartCount } from "../tasks/health"
 import type { HealthCheckDeps } from "../tasks/health"
 import type { TaskRow } from "../db/types"
 import { ORCHESTRATOR_TASK_NAME } from "@tangerine/shared"
+import { getTaskState, clearTaskState } from "../tasks/task-state"
 
 function makeTask(overrides?: Partial<TaskRow>): TaskRow {
   return {
@@ -207,6 +208,55 @@ describe("health check", () => {
     const result = await Effect.runPromise(checkTask(task, deps))
     expect(result).toBe("healthy")
     expect(failFn).toHaveBeenCalledTimes(0)
+  })
+
+  test("alive agent does not reset restart counter (only real activity does)", async () => {
+    const taskId = "stability-test-1"
+    const task = makeTask({ id: taskId })
+    try {
+      const state = getTaskState(taskId)
+      state.consecutiveRestarts = 2
+
+      const deps = makeDeps({ checkAgentAlive: () => Effect.succeed(true) })
+      const result = await Effect.runPromise(checkTask(task, deps))
+      expect(result).toBe("healthy")
+      // Counter preserved — only resetRestartCount (called on agent idle) clears it
+      expect(getTaskState(taskId).consecutiveRestarts).toBe(2)
+    } finally {
+      clearTaskState(taskId)
+    }
+  })
+
+  test("agent that keeps dying after restart eventually fails", async () => {
+    const taskId = "stability-test-2"
+    const task = makeTask({ id: taskId })
+    try {
+      const failFn = mock(() => Effect.void)
+      const restartFn = mock(() => Effect.void)
+      const deps = makeDeps({
+        checkAgentAlive: () => Effect.succeed(false),
+        restartAgent: restartFn,
+        failTask: failFn,
+      })
+      for (let i = 0; i < 4; i++) {
+        await Effect.runPromise(checkTask(task, deps))
+      }
+      expect(restartFn).toHaveBeenCalledTimes(3)
+      expect(failFn).toHaveBeenCalledTimes(1)
+    } finally {
+      clearTaskState(taskId)
+    }
+  })
+
+  test("resetRestartCount clears the counter", () => {
+    const taskId = "stability-test-3"
+    try {
+      getTaskState(taskId).consecutiveRestarts = 3
+      resetRestartCount(taskId)
+      expect(getTaskState(taskId).consecutiveRestarts).toBe(0)
+    } finally {
+      clearTaskState(taskId)
+    }
   })
 })
 
