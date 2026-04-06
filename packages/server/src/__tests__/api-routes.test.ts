@@ -19,6 +19,7 @@ function createMockDeps(db: Database, configOverrides?: Partial<AppDeps["config"
     integrations: {},
     model: "openai/gpt-4o",
     models: ["openai/gpt-4o"],
+    workspace: "/tmp/tangerine-test-workspace",
     pool: {
       maxPoolSize: 2,
       minReady: 1,
