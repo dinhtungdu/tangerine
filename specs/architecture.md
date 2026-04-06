@@ -119,6 +119,19 @@ All providers implement the shared contract in `agent/provider.ts`, emit normali
 
 Provider identity is centralized in `@tangerine/shared` via `SUPPORTED_PROVIDERS`, with `DEFAULT_PROVIDER` as the shared fallback. Each provider module owns its metadata, and the server aggregates that metadata for both provider factories and CLI flows such as skill installation.
 
+### Skill Loading
+
+Skills are stored as directories under a provider's skills directory (e.g. `~/.claude/skills/<name>/SKILL.md`). Tangerine installs shared skills (e.g. `tangerine-tasks`) in `~/.claude/skills/` — the canonical shared location.
+
+**Claude Code** handles `/skill-name` invocations natively via its CLI: the agent reads and injects `SKILL.md` content at runtime.
+
+**All other providers** (OpenCode, Codex, Pi) lack native skill support. Tangerine resolves `/skill-name` server-side in `sendPrompt` (`cli/start.ts`): when a user prompt starts with `/skill-name`, the server reads the matching `SKILL.md` from the provider's skills directory (falling back to `~/.claude/skills/`) and replaces the slash command with the skill content before delivery to the agent.
+
+Skill discovery for the UI slash-command picker uses `handle.getSkills()` per provider:
+- Claude Code: skill names from the `system/init` event
+- Pi: skill names from the `get_state` response
+- OpenCode/Codex: filesystem scan (both provider-native and `~/.claude/skills/`)
+
 ### Task Management
 
 - `tasks/manager.ts` handles task creation, type-based capabilities, retries, completion, cancellation, config changes, orchestrator creation, and restart recovery.

@@ -34,6 +34,10 @@ import { createAgentFactories } from "../agent/factories"
 import { enqueue as enqueuePrompt, drainAll as drainQueuedPrompts } from "../agent/prompt-queue"
 import { buildSystemNotes, buildEscalationBlock, buildPrWorkflowNote } from "../tasks/prompts"
 import { getTaskState, clearTaskState } from "../tasks/task-state"
+import { resolveSkillInvocation } from "../agent/skill-scanner"
+import { AGENT_PROVIDER_METADATA } from "../agent/metadata"
+import { homedir } from "node:os"
+import { join } from "node:path"
 
 const log = createLogger("cli")
 
@@ -60,6 +64,27 @@ export async function applySystemPromptIfSupported(handle: AgentHandle, notes: s
   } catch {
     return false
   }
+}
+
+// Canonical skills directory: shared location where Tangerine installs provider-agnostic skills.
+const CLAUDE_SKILLS_DIR = join(homedir(), ".claude", "skills")
+
+/**
+ * Resolve a /skill-name invocation for providers without native skill support.
+ * Claude Code handles /skill-name natively via its CLI — skip resolution for it.
+ * For all other providers, look up SKILL.md from the provider's skills directory
+ * and fall back to ~/.claude/skills/ (where Tangerine installs shared skills).
+ */
+export function resolveSkillForProvider(text: string, provider?: string | null): string {
+  if (!provider || provider === "claude-code") return text
+  if (!text.trim().startsWith("/")) return text
+  const meta = AGENT_PROVIDER_METADATA[provider as keyof typeof AGENT_PROVIDER_METADATA]
+  if (!meta) return text
+  // If the provider's own skills dir is the same as CLAUDE_SKILLS_DIR, don't duplicate.
+  const dirs = meta.skills.directory === CLAUDE_SKILLS_DIR
+    ? [CLAUDE_SKILLS_DIR]
+    : [meta.skills.directory, CLAUDE_SKILLS_DIR]
+  return resolveSkillInvocation(text.trim(), ...dirs)
 }
 
 /**
@@ -792,9 +817,19 @@ export async function start(): Promise<void> {
                 : taskState.systemPromptApplied
               taskState.systemPromptApplied = usedSystemPrompt
 
+              // For providers without native skill support, resolve /skill-name invocations
+              // by injecting SKILL.md content. Claude Code handles this natively via its CLI.
+              const resolvedText = resolveSkillForProvider(text, task?.provider)
+              promptText = resolvedText
+
               if (notes.length > 0 && !taskState.systemPromptApplied) {
-                promptText = notes.join("\n") + "\n\n" + text
+                promptText = notes.join("\n") + "\n\n" + resolvedText
               }
+            } else if (text.trim().startsWith("/")) {
+              // Subsequent prompts: resolve skill invocations on demand.
+              // Only load task row when a slash command is present to avoid per-prompt DB hits.
+              const task = yield* getTask(db, taskId).pipe(Effect.catchAll(() => Effect.succeed(null)))
+              promptText = resolveSkillForProvider(text, task?.provider)
             }
 
             // Try agent handle first (works for both providers)
