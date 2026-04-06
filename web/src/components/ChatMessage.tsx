@@ -328,10 +328,10 @@ export const ChatMessage = memo(function ChatMessage({ message, tasks, onReply }
         </div>
         {message.images && message.images.length > 0 && (
           <>
-            <div className="flex flex-col gap-2">
+            <div className="mt-1 flex flex-wrap gap-1">
               {message.images.map((img, i) => (
                 <button key={i} onClick={() => setLightboxIndex(i)} className="cursor-zoom-in">
-                  <img src={img.src} alt="Agent image" className="w-full rounded-md" />
+                  <img src={img.src} alt="Agent image" className="h-16 w-16 rounded-md object-cover" />
                 </button>
               ))}
             </div>
@@ -363,10 +363,10 @@ export const ChatMessage = memo(function ChatMessage({ message, tasks, onReply }
       </div>
       {message.images && message.images.length > 0 && (
         <>
-          <div className="flex flex-col gap-2">
+          <div className="flex flex-wrap gap-1">
             {message.images.map((img, i) => (
               <button key={i} onClick={() => setLightboxIndex(i)} className="cursor-zoom-in">
-                <img src={img.src} alt="Agent image" className="w-full rounded-md" />
+                <img src={img.src} alt="Agent image" className="h-16 w-16 rounded-md object-cover" />
               </button>
             ))}
           </div>
