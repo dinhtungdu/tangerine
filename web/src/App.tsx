@@ -1,4 +1,3 @@
-import { Agentation } from "agentation"
 import { Routes, Route } from "react-router-dom"
 import { Layout } from "./components/Layout"
 import { RunsPage } from "./pages/RunsPage"
@@ -18,9 +17,7 @@ export function App() {
           <Route path="tasks/:id" element={<TaskDetail />} />
         </Route>
       </Routes>
-      {import.meta.env.DEV && import.meta.env.VITE_AGENTATION && (
-        <Agentation endpoint="http://localhost:4747" />
-      )}
+
     </ProjectProvider>
   )
 }
