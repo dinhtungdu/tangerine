@@ -1,4 +1,5 @@
 import { describe, test, expect, beforeEach } from "bun:test"
+import { isCommentLine, COMMENT_PREFIXES } from "../components/DiffView"
 import {
   formatModelName,
   formatDuration,
@@ -778,5 +779,104 @@ describe("linkifyTaskIds", () => {
     // Link is produced and href uses canonical lowercase ID, not the matched text
     expect(result).toContain('<a href="/tasks/abc12345-0000-0000-0000-000000000001"')
     expect(result).toContain("abc12345</a>")
+  })
+})
+
+describe("isCommentLine", () => {
+  describe("// languages (TypeScript, JS, Go, etc.)", () => {
+    test("detects // comment in .ts file", () => {
+      expect(isCommentLine("// this is a comment", "src/foo.ts")).toBe(true)
+    })
+    test("detects indented // comment in .tsx file", () => {
+      expect(isCommentLine("  // indented", "src/Component.tsx")).toBe(true)
+    })
+    test("does not flag regular code in .ts", () => {
+      expect(isCommentLine("const x = 1", "src/foo.ts")).toBe(false)
+    })
+    test("detects // in .go", () => {
+      expect(isCommentLine("// Package main", "main.go")).toBe(true)
+    })
+    test("detects // in .rs", () => {
+      expect(isCommentLine("// Rust comment", "lib.rs")).toBe(true)
+    })
+  })
+
+  describe("# languages (Python, Ruby, shell, YAML)", () => {
+    test("detects # comment in .py", () => {
+      expect(isCommentLine("# python comment", "script.py")).toBe(true)
+    })
+    test("detects indented # in .rb", () => {
+      expect(isCommentLine("  # ruby comment", "Gemfile.rb")).toBe(true)
+    })
+    test("detects # in .sh", () => {
+      expect(isCommentLine("# shell comment", "deploy.sh")).toBe(true)
+    })
+    test("detects # in .yaml", () => {
+      expect(isCommentLine("# yaml comment", "config.yaml")).toBe(true)
+    })
+    test("detects # in .yml", () => {
+      expect(isCommentLine("# yml comment", "ci.yml")).toBe(true)
+    })
+    test("detects # in .toml", () => {
+      expect(isCommentLine("# toml comment", "Cargo.toml")).toBe(true)
+    })
+  })
+
+  describe("false positives that must NOT be flagged", () => {
+    test("Markdown heading # is not a comment", () => {
+      expect(isCommentLine("# Heading", "README.md")).toBe(false)
+    })
+    test("C preprocessor #include is not a comment", () => {
+      expect(isCommentLine("#include <stdio.h>", "main.c")).toBe(false)
+    })
+    test("C preprocessor #define is not a comment", () => {
+      expect(isCommentLine("#define MAX 100", "util.h")).toBe(false)
+    })
+    test("unknown extension gets no border", () => {
+      expect(isCommentLine("// looks like comment", "file.xyz")).toBe(false)
+    })
+    test("no extension gets no border for #", () => {
+      expect(isCommentLine("# not flagged", "binary")).toBe(false)
+    })
+  })
+
+  describe("exact filenames", () => {
+    test("Makefile # is a comment", () => {
+      expect(isCommentLine("# build target", "Makefile")).toBe(true)
+    })
+    test("Dockerfile # is a comment", () => {
+      expect(isCommentLine("# syntax=docker/dockerfile:1", "Dockerfile")).toBe(true)
+    })
+    test(".gitignore # is a comment", () => {
+      expect(isCommentLine("# ignore node_modules", ".gitignore")).toBe(true)
+    })
+  })
+
+  describe("CSS family", () => {
+    test("/* comment in .css", () => {
+      expect(isCommentLine("/* reset */", "styles.css")).toBe(true)
+    })
+    test("// comment in .scss (valid)", () => {
+      expect(isCommentLine("// scss comment", "styles.scss")).toBe(true)
+    })
+    test("// is NOT a comment in plain .css", () => {
+      expect(isCommentLine("// not valid css", "styles.css")).toBe(false)
+    })
+    test("// comment in .less (valid)", () => {
+      expect(isCommentLine("// less comment", "styles.less")).toBe(true)
+    })
+  })
+
+  describe("COMMENT_PREFIXES map integrity", () => {
+    test("all values are non-empty arrays", () => {
+      for (const [, prefixes] of Object.entries(COMMENT_PREFIXES)) {
+        expect(Array.isArray(prefixes)).toBe(true)
+        expect(prefixes.length).toBeGreaterThan(0)
+        for (const p of prefixes) {
+          expect(typeof p).toBe("string")
+          expect(p.length).toBeGreaterThan(0)
+        }
+      }
+    })
   })
 })

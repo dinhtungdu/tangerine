@@ -85,19 +85,33 @@ function parseSplitLines(diff: string): SplitLine[] {
   return result
 }
 
-// File extensions where '#' is a line comment prefix (not Markdown headings or C preprocessor)
-const HASH_COMMENT_EXTS = new Set(["py", "rb", "sh", "bash", "zsh", "fish", "r", "pl", "pm", "coffee", "yaml", "yml", "toml", "ini", "cfg", "env"])
-const HASH_COMMENT_FILES = new Set(["Makefile", "Dockerfile", "Pipfile", "Gemfile", "Brewfile", ".gitignore", ".gitattributes", ".editorconfig"])
+// Maps file extension (or exact filename) to known line-comment prefixes.
+// Unknown extensions produce no border — false negatives are safer than false positives.
+export const COMMENT_PREFIXES: Record<string, readonly string[]> = {
+  // Slash-slash languages
+  ts: ["//"], tsx: ["//"], js: ["//"], jsx: ["//"],
+  go: ["//"], rs: ["//"], java: ["//"], kt: ["//"], swift: ["//"],
+  c: ["//"], cpp: ["//"], cc: ["//"], h: ["//"], hpp: ["//"],
+  cs: ["//"], php: ["//"], dart: ["//"], scala: ["//"], groovy: ["//"],
+  // CSS family — // is valid in SCSS/Less but not plain CSS
+  scss: ["//", "/*"], less: ["//", "/*"], css: ["/*"],
+  // Hash languages
+  py: ["#"], rb: ["#"], sh: ["#"], bash: ["#"], zsh: ["#"], fish: ["#"],
+  r: ["#"], pl: ["#"], pm: ["#"], coffee: ["#"],
+  yaml: ["#"], yml: ["#"], toml: ["#"], ini: ["#"], cfg: ["#"], env: ["#"],
+  // Exact filenames (no extension)
+  Makefile: ["#"], Dockerfile: ["#"], Pipfile: ["#"],
+  Gemfile: ["#"], Brewfile: ["#"],
+  ".gitignore": ["#"], ".gitattributes": ["#"], ".editorconfig": ["#"],
+}
 
-function isCommentLine(content: string, filePath: string): boolean {
+export function isCommentLine(content: string, filePath: string): boolean {
+  const filename = filePath.split("/").pop() ?? ""
+  const ext = filename.includes(".") ? filename.split(".").pop()!.toLowerCase() : filename
+  const prefixes = COMMENT_PREFIXES[ext] ?? COMMENT_PREFIXES[filename]
+  if (!prefixes) return false
   const trimmed = content.trimStart()
-  if (trimmed.startsWith("//")) return true
-  if (trimmed.startsWith("#")) {
-    const filename = filePath.split("/").pop() ?? ""
-    const ext = filename.includes(".") ? filename.split(".").pop()!.toLowerCase() : filename
-    return HASH_COMMENT_EXTS.has(ext) || HASH_COMMENT_FILES.has(filename)
-  }
-  return false
+  return prefixes.some(p => trimmed.startsWith(p))
 }
 
 // Inline comment form that appears between diff lines
