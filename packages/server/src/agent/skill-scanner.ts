@@ -30,3 +30,4 @@ export function scanCodexSkills(): string[] {
     ...scanSkillsDir(join(base, ".system")),
   ]
 }
+

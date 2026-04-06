@@ -34,7 +34,6 @@ import { createAgentFactories } from "../agent/factories"
 import { enqueue as enqueuePrompt, drainAll as drainQueuedPrompts } from "../agent/prompt-queue"
 import { buildSystemNotes, buildEscalationBlock, buildPrWorkflowNote } from "../tasks/prompts"
 import { getTaskState, clearTaskState } from "../tasks/task-state"
-
 const log = createLogger("cli")
 
 /** Classify agent tool name -> activity type + event name.
