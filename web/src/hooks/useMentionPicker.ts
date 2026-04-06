@@ -39,7 +39,7 @@ export function useMentionPicker(tasks: Task[]): UseMentionPickerResult {
       .filter((t) => {
         const prNumber = t.prUrl?.match(/\/pull\/(\d+)/)?.[1] ?? ""
         return (
-          formatTaskTitle(t.title, t.type, t.projectId).toLowerCase().includes(q) ||
+          formatTaskTitle(t).toLowerCase().includes(q) ||
           t.id.startsWith(q) ||
           (t.branch?.toLowerCase().includes(q) ?? false) ||
           (prNumber !== "" && (`#${prNumber}`.includes(q) || prNumber.includes(q)))

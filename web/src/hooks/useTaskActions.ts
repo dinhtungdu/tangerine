@@ -38,7 +38,7 @@ export function useTaskActions(
 
     const defs: Action[] = []
     const ctx = task.id
-    const title = formatTaskTitle(task.title, task.type, task.projectId)
+    const title = formatTaskTitle(task)
 
     // Cancel — running tasks
     if (task.status === "running") {

@@ -45,7 +45,7 @@ export function MentionPicker({ tasks, selectedIndex, onSelect, onHover }: Menti
                 style={{ backgroundColor: statusConfig.color }}
               />
               <span className="min-w-0 flex-1 truncate text-sm text-fg">
-                {formatTaskTitle(task.title, task.type, task.projectId)}
+                {formatTaskTitle(task)}
               </span>
               <span className="shrink-0 font-mono text-xxs text-fg-muted">
                 {task.id.slice(0, 8)}

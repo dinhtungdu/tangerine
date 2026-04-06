@@ -1,8 +1,10 @@
+import type { Task } from "@tangerine/shared"
+
 /** Display-friendly task title. Replaces internal names like "_orchestrator" with human labels.
- *  Pass projectId to disambiguate orchestrators across projects, e.g. "Middle Manager (tangerine)". */
-export function formatTaskTitle(title: string, type?: string, projectId?: string): string {
-  if (type === "orchestrator") return projectId ? `Middle Manager (${projectId})` : "Middle Manager"
-  return title
+ *  Orchestrators include their project name to disambiguate across projects, e.g. "Middle Manager (tangerine)". */
+export function formatTaskTitle(task: Pick<Task, "title" | "type" | "projectId">): string {
+  if (task.type === "orchestrator") return `Middle Manager (${task.projectId})`
+  return task.title
 }
 
 /** Strip date suffix (e.g. "anthropic/claude-sonnet-4-20250514" -> "anthropic/claude-sonnet-4") */
