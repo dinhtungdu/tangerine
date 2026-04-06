@@ -33,8 +33,7 @@ export function fileDir(path: string): string {
 function measureTextWidth(text: string, font: string): number {
   if (!text) return 0
   const prepared = prepareWithSegments(text, font)
-  const result = layoutWithLines(prepared, 99999, 20)
-  return result.lines[0]?.width ?? 0
+  return layoutWithLines(prepared, 99999, 20).lines[0]?.width ?? 0
 }
 
 function MiddleTruncatedPath({ path, className }: { path: string; className?: string }) {
@@ -49,29 +48,30 @@ function MiddleTruncatedPath({ path, className }: { path: string; className?: st
 
     const style = getComputedStyle(el)
     const font = `${style.fontWeight} ${style.fontSize} ${style.fontFamily}`
+    const measure = (text: string) => measureTextWidth(text, font)
 
-    const fullWidth = measureTextWidth(path, font)
+    const fullWidth = measure(path)
     if (fullWidth <= containerWidth) { setDisplay(path); return }
 
     const ellipsis = "\u2026"
-    const ellipsisWidth = measureTextWidth(ellipsis, font)
+    const ellipsisWidth = measure(ellipsis)
     const available = containerWidth - ellipsisWidth
     if (available <= 0) { setDisplay(ellipsis); return }
 
     // Keep filename, truncate directory prefix
     const name = fileName(path)
     const dir = path.slice(0, path.length - name.length)
-    const nameWidth = measureTextWidth(name, font)
+    const nameWidth = measure(name)
 
     if (nameWidth >= available) {
       // Filename alone doesn't fit — show as much of the end as possible
-      let lo = 1, hi = name.length
+      let lo = 0, hi = name.length
       while (lo < hi) {
         const mid = Math.ceil((lo + hi) / 2)
-        if (measureTextWidth(name.slice(-mid), font) <= available) lo = mid
+        if (measure(name.slice(-mid)) <= available) lo = mid
         else hi = mid - 1
       }
-      setDisplay(ellipsis + name.slice(-lo))
+      setDisplay(lo === 0 ? ellipsis : ellipsis + name.slice(-lo))
       return
     }
 
@@ -80,7 +80,7 @@ function MiddleTruncatedPath({ path, className }: { path: string; className?: st
     let lo = 0, hi = dir.length
     while (lo < hi) {
       const mid = Math.ceil((lo + hi) / 2)
-      if (measureTextWidth(dir.slice(0, mid), font) <= dirAvailable) lo = mid
+      if (measure(dir.slice(0, mid)) <= dirAvailable) lo = mid
       else hi = mid - 1
     }
     setDisplay(dir.slice(0, lo) + ellipsis + name)
