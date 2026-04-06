@@ -13,6 +13,7 @@ import { parseNdjsonStream } from "./ndjson"
 import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, unlinkSync } from "node:fs"
 import { homedir, tmpdir } from "node:os"
 import { join } from "node:path"
+import { killProcessTree, killProcessTreeEscalated } from "./process-tree"
 import { scanClaudeSkills } from "./skill-scanner"
 
 const log = createLogger("opencode-provider")
@@ -624,7 +625,7 @@ export function createOpenCodeProvider(): AgentFactory {
               return Effect.try({
                 try: () => {
                   if (currentProc) {
-                    currentProc.kill("SIGINT")
+                    killProcessTree(currentProc.pid, "SIGTERM")
                   }
                 },
                 catch: (e) =>
@@ -672,7 +673,7 @@ export function createOpenCodeProvider(): AgentFactory {
                 currentParser?.stop()
                 subscribers.clear()
                 if (currentProc) {
-                  try { currentProc.kill() } catch { /* already dead */ }
+                  killProcessTreeEscalated(currentProc.pid)
                   currentProc = null
                 }
                 currentParser = null

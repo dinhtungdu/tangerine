@@ -13,6 +13,7 @@ import { existsSync, readFileSync } from "node:fs"
 import { homedir } from "node:os"
 import { scanCodexSkills } from "./skill-scanner"
 import { join } from "node:path"
+import { killProcessTree, killProcessTreeEscalated } from "./process-tree"
 
 const log = createLogger("codex-provider")
 export const CODEX_APPROVAL_POLICY = "never" as const
@@ -350,7 +351,6 @@ export function createCodexProvider(): AgentFactory {
           const subscribers = new Set<(e: AgentEvent) => void>()
           let shutdownCalled = false
           let threadId: string | null = null
-          let activeTurnId: string | null = null
           const activeEffort: string | undefined = ctx.reasoningEffort
           let activeSystemPrompt = ctx.systemPrompt
 
@@ -426,15 +426,6 @@ export function createCodexProvider(): AgentFactory {
                 // Server notification
                 if (!method) return
                 const params = (msg.params ?? {}) as Record<string, unknown>
-
-                // Track active turn ID for abort
-                if (method === "turn/started") {
-                  const turn = params.turn as Record<string, unknown> | undefined
-                  if (typeof turn?.id === "string") activeTurnId = turn.id
-                }
-                if (method === "turn/completed" || method === "turn/failed") {
-                  activeTurnId = null
-                }
 
                 const events = mapNotification(method, params)
                 for (const event of events) {
@@ -586,9 +577,9 @@ export function createCodexProvider(): AgentFactory {
             abort() {
               return Effect.try({
                 try: () => {
-                  if (threadId && activeTurnId) {
-                    write(rpcRequest("turn/interrupt", { threadId, turnId: activeTurnId }))
-                  }
+                  // Kill the entire process tree so spawned subprocesses
+                  // don't survive as orphans.
+                  killProcessTree(proc.pid, "SIGTERM")
                 },
                 catch: (e) =>
                   new AgentError({ message: `Abort failed: ${e}`, taskId: ctx.taskId }),
@@ -615,11 +606,7 @@ export function createCodexProvider(): AgentFactory {
                 } catch {
                   // stdin may already be closed
                 }
-                try {
-                  proc.kill()
-                } catch {
-                  // process may already be dead
-                }
+                killProcessTreeEscalated(proc.pid)
                 taskLog.info("Codex app-server shutdown")
               })
             },

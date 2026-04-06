@@ -12,6 +12,7 @@ import { resolveTaskTypeConfig, type TangerineConfig } from "@tangerine/shared"
 import type { TaskRow } from "../db/types"
 import { initPool, acquireSlot, acquireOrchestratorSlot } from "./worktree-pool"
 import { buildSystemNotes } from "./prompts"
+import { killProcessTree } from "../agent/process-tree"
 
 const log = createLogger("lifecycle")
 
@@ -328,10 +329,10 @@ export function reconnectSession(
     // Without this, the old process stays alive and fights the new one over the same worktree.
     const existingPid = (task as TaskRow & { agent_pid?: number | null }).agent_pid
     if (existingPid) {
-      yield* localExec(`kill ${existingPid} 2>/dev/null; true`).pipe(
-        Effect.tap(() => Effect.sync(() => taskLog.info("Killed existing agent PID", { pid: existingPid }))),
-        Effect.catchAll(() => Effect.void),
-      )
+      yield* Effect.sync(() => {
+        killProcessTree(existingPid, "SIGTERM")
+        taskLog.info("Killed existing agent process tree", { pid: existingPid })
+      }).pipe(Effect.catchAll(() => Effect.void))
     }
     yield* localExec(
       `pkill -f "claude.*${worktreePath}" 2>/dev/null; true`,

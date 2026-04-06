@@ -13,6 +13,7 @@ import { spawnSync } from "node:child_process"
 import { homedir } from "node:os"
 import { join } from "node:path"
 import { scanSkillsDir } from "./skill-scanner"
+import { killProcessTree, killProcessTreeEscalated } from "./process-tree"
 
 const log = createLogger("pi-provider")
 export const PI_PROVIDER_METADATA: ProviderMetadata = {
@@ -428,7 +429,9 @@ export function createPiProvider(): AgentFactory {
             abort() {
               return Effect.try({
                 try: () => {
-                  sendCommand({ type: "abort" })
+                  // Kill the entire process tree so spawned subprocesses
+                  // don't survive as orphans.
+                  killProcessTree(proc.pid, "SIGTERM")
                 },
                 catch: (e) =>
                   new AgentError({ message: `Abort failed: ${e}`, taskId: ctx.taskId }),
@@ -454,11 +457,7 @@ export function createPiProvider(): AgentFactory {
                 } catch {
                   // stdin may already be closed
                 }
-                try {
-                  proc.kill()
-                } catch {
-                  // process may already be dead
-                }
+                killProcessTreeEscalated(proc.pid)
                 taskLog.info("Pi shutdown")
               })
             },
