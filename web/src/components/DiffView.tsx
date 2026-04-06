@@ -85,6 +85,21 @@ function parseSplitLines(diff: string): SplitLine[] {
   return result
 }
 
+// File extensions where '#' is a line comment prefix (not Markdown headings or C preprocessor)
+const HASH_COMMENT_EXTS = new Set(["py", "rb", "sh", "bash", "zsh", "fish", "r", "pl", "pm", "coffee", "yaml", "yml", "toml", "ini", "cfg", "env"])
+const HASH_COMMENT_FILES = new Set(["Makefile", "Dockerfile", "Pipfile", "Gemfile", "Brewfile", ".gitignore", ".gitattributes", ".editorconfig"])
+
+function isCommentLine(content: string, filePath: string): boolean {
+  const trimmed = content.trimStart()
+  if (trimmed.startsWith("//")) return true
+  if (trimmed.startsWith("#")) {
+    const filename = filePath.split("/").pop() ?? ""
+    const ext = filename.includes(".") ? filename.split(".").pop()!.toLowerCase() : filename
+    return HASH_COMMENT_EXTS.has(ext) || HASH_COMMENT_FILES.has(filename)
+  }
+  return false
+}
+
 // Inline comment form that appears between diff lines
 function InlineCommentForm({ onSubmit, onCancel, rangeLabel }: { onSubmit: (text: string) => void; onCancel: () => void; rangeLabel?: string | null }) {
   const [text, setText] = useState("")
@@ -279,8 +294,8 @@ function SplitDiff({ diff, filePath, onAddComment }: { diff: string; filePath: s
           const rightBg = r?.type === "add" ? "bg-diff-add-bg" : ""
           const leftSelected = isInSelection(i, "left")
           const rightSelected = isInSelection(i, "right")
-          const leftIsComment = !!(l?.content && (l.content.trimStart().startsWith("#") || l.content.trimStart().startsWith("//")))
-          const rightIsComment = !!(r?.content && (r.content.trimStart().startsWith("#") || r.content.trimStart().startsWith("//")))
+          const leftIsComment = !!(l?.content && isCommentLine(l.content, filePath))
+          const rightIsComment = !!(r?.content && isCommentLine(r.content, filePath))
           return (
             <div key={i}>
               <div className="flex w-full">
@@ -345,7 +360,7 @@ function UnifiedDiff({ diff, filePath, onAddComment }: { diff: string; filePath:
           : line.startsWith("@@") ? "text-diff-hunk"
           : "text-fg-muted"
         const lineContent = line.startsWith("+") || line.startsWith("-") || line.startsWith(" ") ? line.slice(1) : line
-        const isComment = lineContent.trimStart().startsWith("#") || lineContent.trimStart().startsWith("//")
+        const isComment = isCommentLine(lineContent, filePath)
         const selected = isInSelection(i, "right")
         return (
           <span key={i} className="block">
