@@ -1,5 +1,6 @@
 import { useState, useMemo, useRef, useEffect, useCallback } from "react"
-import { prepareWithSegments, layoutWithLines } from "@chenglou/pretext"
+import { prepareWithSegments } from "@chenglou/pretext"
+import type { PreparedTextWithSegments } from "@chenglou/pretext"
 import { copyToClipboard } from "../lib/clipboard"
 import type { DiffFile } from "../lib/api"
 import type { DiffComment } from "./ChangesPanel"
@@ -30,72 +31,83 @@ export function fileDir(path: string): string {
   return parts.length > 1 ? parts.slice(0, -1).join("/") : ""
 }
 
-function measureTextWidth(text: string, font: string): number {
-  if (!text) return 0
-  const prepared = prepareWithSegments(text, font)
-  return layoutWithLines(prepared, 99999, 20).lines[0]?.width ?? 0
+// Access pretext's internal per-segment widths (branded type hides them)
+type PreparedInternals = PreparedTextWithSegments & { widths: number[] }
+
+// Prepare once, then walk segment widths to find the truncation point — no repeated measurement
+function middleTruncate(path: string, font: string, maxWidth: number): string {
+  const prepared = prepareWithSegments(path, font) as PreparedInternals
+  const { segments, widths } = prepared
+  const totalWidth = widths.reduce((a, b) => a + b, 0)
+  if (totalWidth <= maxWidth) return path
+
+  const ellipsis = "\u2026"
+  const ellipsisW = (prepareWithSegments(ellipsis, font) as PreparedInternals).widths[0] ?? 0
+  const available = maxWidth - ellipsisW
+  if (available <= 0) return ellipsis
+
+  // Find where the filename starts in the segment list
+  const name = fileName(path)
+  const dirLen = path.length - name.length
+  let charCount = 0
+  let nameStartSeg = segments.length
+  for (let i = 0; i < segments.length; i++) {
+    if (charCount >= dirLen) { nameStartSeg = i; break }
+    charCount += segments[i]!.length
+  }
+
+  const nameW = widths.slice(nameStartSeg).reduce((a, b) => a + b, 0)
+
+  if (nameW >= available) {
+    // Filename alone overflows — walk segments from the end
+    let w = 0
+    for (let i = segments.length - 1; i >= nameStartSeg; i--) {
+      w += widths[i]!
+      if (w > available) {
+        const kept = segments.slice(i + 1).join("")
+        return kept ? ellipsis + kept : ellipsis
+      }
+    }
+    return ellipsis + name
+  }
+
+  // Walk dir segments forward until we exceed budget
+  const dirBudget = available - nameW
+  let w = 0
+  for (let i = 0; i < nameStartSeg; i++) {
+    w += widths[i]!
+    if (w > dirBudget) {
+      const kept = segments.slice(0, i).join("")
+      return (kept || "") + ellipsis + name
+    }
+  }
+  return path
 }
 
 function MiddleTruncatedPath({ path, className }: { path: string; className?: string }) {
   const ref = useRef<HTMLSpanElement>(null)
   const [display, setDisplay] = useState(path)
 
-  const truncate = useCallback(() => {
+  const recompute = useCallback(() => {
     const el = ref.current
     if (!el) return
-    const containerWidth = el.clientWidth
-    if (containerWidth <= 0) { setDisplay(path); return }
-
+    const w = el.clientWidth
+    if (w <= 0) { setDisplay(path); return }
     const style = getComputedStyle(el)
     const font = `${style.fontWeight} ${style.fontSize} ${style.fontFamily}`
-    const measure = (text: string) => measureTextWidth(text, font)
-
-    const fullWidth = measure(path)
-    if (fullWidth <= containerWidth) { setDisplay(path); return }
-
-    const ellipsis = "\u2026"
-    const ellipsisWidth = measure(ellipsis)
-    const available = containerWidth - ellipsisWidth
-    if (available <= 0) { setDisplay(ellipsis); return }
-
-    // Keep filename, truncate directory prefix
-    const name = fileName(path)
-    const dir = path.slice(0, path.length - name.length)
-    const nameWidth = measure(name)
-
-    if (nameWidth >= available) {
-      // Filename alone doesn't fit — show as much of the end as possible
-      let lo = 0, hi = name.length
-      while (lo < hi) {
-        const mid = Math.ceil((lo + hi) / 2)
-        if (measure(name.slice(-mid)) <= available) lo = mid
-        else hi = mid - 1
-      }
-      setDisplay(lo === 0 ? ellipsis : ellipsis + name.slice(-lo))
-      return
-    }
-
-    // Binary search: how many chars of directory prefix fit
-    const dirAvailable = available - nameWidth
-    let lo = 0, hi = dir.length
-    while (lo < hi) {
-      const mid = Math.ceil((lo + hi) / 2)
-      if (measure(dir.slice(0, mid)) <= dirAvailable) lo = mid
-      else hi = mid - 1
-    }
-    setDisplay(dir.slice(0, lo) + ellipsis + name)
+    setDisplay(middleTruncate(path, font, w))
   }, [path])
 
   useEffect(() => {
     const el = ref.current
     if (!el) return
-    const observer = new ResizeObserver(truncate)
+    const observer = new ResizeObserver(recompute)
     observer.observe(el)
     return () => observer.disconnect()
-  }, [truncate])
+  }, [recompute])
 
   return (
-    <span ref={ref} className={className} title={path} style={{ display: "block", overflow: "hidden", whiteSpace: "nowrap" }}>
+    <span ref={ref} className={className} title={path} style={{ display: "block", overflow: "hidden", whiteSpace: "nowrap", textAlign: "left" }}>
       {display}
     </span>
   )
