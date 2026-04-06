@@ -3,9 +3,11 @@ import { renderHook, act, waitFor } from "@testing-library/react"
 import { useTasks } from "../hooks/useTasks"
 import { useMentionPicker } from "../hooks/useMentionPicker"
 import { usePanelActions } from "../hooks/usePanelActions"
+import { useResizable } from "../hooks/useResizable"
 import { getActions, getAction, setShortcutOverrides, _resetForTesting } from "../lib/actions"
 import { defaultShortcuts } from "../lib/default-shortcuts"
 import type { Task } from "@tangerine/shared"
+import type { PointerEvent as ReactPointerEvent } from "react"
 const mockTasks = [
   {
     id: "1", projectId: "proj", source: "manual" as const, sourceId: null, sourceUrl: null,
@@ -343,5 +345,70 @@ describe("usePanelActions", () => {
     const ids = getActions().map((a) => a.id)
     expect(ids).toContain("panel.toggle-chat")
     expect(ids).not.toContain("panel.toggle-diff")
+  })
+})
+
+describe("useResizable", () => {
+  test("tracks drag delta across pointer moves", () => {
+    const onResize = mock(() => {})
+    const { result } = renderHook(() => useResizable({ onResize }))
+    const setPointerCapture = mock(() => {})
+
+    act(() => {
+      result.current.onPointerDown({
+        preventDefault: () => {},
+        clientX: 120,
+        pointerId: 7,
+        currentTarget: { setPointerCapture },
+      } as unknown as ReactPointerEvent<HTMLElement>)
+    })
+
+    expect(document.body.style.cursor).toBe("col-resize")
+    expect(document.body.style.userSelect).toBe("none")
+
+    act(() => {
+      const firstMove = Object.assign(new Event("pointermove"), { clientX: 150, pointerId: 7 })
+      const secondMove = Object.assign(new Event("pointermove"), { clientX: 165, pointerId: 7 })
+      window.dispatchEvent(firstMove)
+      window.dispatchEvent(secondMove)
+    })
+
+    expect(setPointerCapture).toHaveBeenCalledWith(7)
+    expect(onResize).toHaveBeenCalledTimes(2)
+    const calls = (onResize as ReturnType<typeof mock>).mock.calls as number[][]
+    expect(calls[0][0]).toBe(30)
+    expect(calls[1][0]).toBe(15)
+
+    act(() => {
+      const pointerUp = Object.assign(new Event("pointerup"), { pointerId: 7 })
+      window.dispatchEvent(pointerUp)
+    })
+
+    expect(document.body.style.cursor).toBe("")
+    expect(document.body.style.userSelect).toBe("")
+  })
+
+  test("ignores unrelated pointers and resets styles on unmount", () => {
+    const onResize = mock(() => {})
+    const { result, unmount } = renderHook(() => useResizable({ onResize }))
+
+    act(() => {
+      result.current.onPointerDown({
+        preventDefault: () => {},
+        clientX: 80,
+        pointerId: 3,
+        currentTarget: { setPointerCapture: () => {} },
+      } as unknown as ReactPointerEvent<HTMLElement>)
+    })
+
+    act(() => {
+      const otherPointerMove = Object.assign(new Event("pointermove"), { clientX: 140, pointerId: 9 })
+      window.dispatchEvent(otherPointerMove)
+    })
+    expect(onResize).not.toHaveBeenCalled()
+
+    unmount()
+    expect(document.body.style.cursor).toBe("")
+    expect(document.body.style.userSelect).toBe("")
   })
 })

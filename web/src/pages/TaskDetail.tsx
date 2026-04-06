@@ -367,10 +367,10 @@ export function TaskDetail() {
   const PANE_ORDER: PaneId[] = ["chat", "diff", "terminal", "activity"]
   const orderedVisible = PANE_ORDER.filter((p) => visiblePanes.has(p) && (p !== "diff" || hasDiff))
   const firstVisiblePane = orderedVisible[0]
-  const resizeHandlers: Partial<Record<PaneId, (e: React.MouseEvent) => void>> = {
-    diff: diffResize.onMouseDown,
-    terminal: terminalResize.onMouseDown,
-    activity: activityResize.onMouseDown,
+  const resizeHandlers: Partial<Record<PaneId, (e: React.PointerEvent<HTMLDivElement>) => void>> = {
+    diff: diffResize.onPointerDown,
+    terminal: terminalResize.onPointerDown,
+    activity: activityResize.onPointerDown,
   }
 
   return (
@@ -556,7 +556,7 @@ export function TaskDetail() {
 
           {/* Diff pane */}
           {orderedVisible.indexOf("diff") > 0 && (
-            <ResizeHandle className="hidden md:flex" onMouseDown={resizeHandlers.diff!} />
+            <ResizeHandle className="hidden md:flex" onPointerDown={resizeHandlers.diff!} />
           )}
           {hasDiff && (mobilePane === "diff" || visiblePanes.has("diff")) && (
             <div
@@ -594,7 +594,7 @@ export function TaskDetail() {
 
           {/* Terminal pane */}
           {orderedVisible.indexOf("terminal") > 0 && (
-            <ResizeHandle className="hidden md:flex" onMouseDown={resizeHandlers.terminal!} />
+            <ResizeHandle className="hidden md:flex" onPointerDown={resizeHandlers.terminal!} />
           )}
           {(mobilePane === "terminal" || visiblePanes.has("terminal")) && (
             <div
@@ -613,7 +613,7 @@ export function TaskDetail() {
 
           {/* Activity pane */}
           {orderedVisible.indexOf("activity") > 0 && (
-            <ResizeHandle className="hidden md:flex" onMouseDown={resizeHandlers.activity!} />
+            <ResizeHandle className="hidden md:flex" onPointerDown={resizeHandlers.activity!} />
           )}
           {(mobilePane === "activity" || visiblePanes.has("activity")) && (
             <div

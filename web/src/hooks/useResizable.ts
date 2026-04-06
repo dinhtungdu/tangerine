@@ -1,4 +1,4 @@
-import { useCallback, useRef, useEffect } from "react"
+import { useCallback, useEffect, useRef } from "react"
 
 interface UseResizableOptions {
   onResize: (delta: number) => void
@@ -7,35 +7,50 @@ interface UseResizableOptions {
 export function useResizable({ onResize }: UseResizableOptions) {
   const dragging = useRef(false)
   const startX = useRef(0)
+  const pointerId = useRef<number | null>(null)
 
-  const onMouseDown = useCallback((e: React.MouseEvent) => {
+  const resetDragState = useCallback(() => {
+    dragging.current = false
+    pointerId.current = null
+    document.body.style.cursor = ""
+    document.body.style.userSelect = ""
+  }, [])
+
+  const onPointerDown = useCallback((e: React.PointerEvent<HTMLElement>) => {
     e.preventDefault()
     dragging.current = true
+    pointerId.current = e.pointerId
     startX.current = e.clientX
+    e.currentTarget.setPointerCapture?.(e.pointerId)
     document.body.style.cursor = "col-resize"
     document.body.style.userSelect = "none"
   }, [])
 
   useEffect(() => {
-    const onMouseMove = (e: MouseEvent) => {
+    const onPointerMove = (e: PointerEvent) => {
       if (!dragging.current) return
+      if (pointerId.current !== null && e.pointerId !== pointerId.current) return
       const delta = e.clientX - startX.current
       startX.current = e.clientX
       onResize(delta)
     }
-    const onMouseUp = () => {
+    const onPointerUp = (e: PointerEvent) => {
       if (!dragging.current) return
-      dragging.current = false
-      document.body.style.cursor = ""
-      document.body.style.userSelect = ""
+      if (pointerId.current !== null && e.pointerId !== pointerId.current) return
+      resetDragState()
     }
-    window.addEventListener("mousemove", onMouseMove)
-    window.addEventListener("mouseup", onMouseUp)
-    return () => {
-      window.removeEventListener("mousemove", onMouseMove)
-      window.removeEventListener("mouseup", onMouseUp)
-    }
-  }, [onResize])
 
-  return { onMouseDown }
+    window.addEventListener("pointermove", onPointerMove)
+    window.addEventListener("pointerup", onPointerUp)
+    window.addEventListener("pointercancel", onPointerUp)
+
+    return () => {
+      window.removeEventListener("pointermove", onPointerMove)
+      window.removeEventListener("pointerup", onPointerUp)
+      window.removeEventListener("pointercancel", onPointerUp)
+      resetDragState()
+    }
+  }, [onResize, resetDragState])
+
+  return { onPointerDown }
 }

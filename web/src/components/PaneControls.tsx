@@ -1,12 +1,14 @@
-import type { ReactNode, MouseEvent } from "react"
+import type { PointerEvent, ReactNode } from "react"
 
-export function ResizeHandle({ onMouseDown, className }: { onMouseDown: (e: MouseEvent) => void; className?: string }) {
+export function ResizeHandle({ onPointerDown, className }: { onPointerDown: (e: PointerEvent<HTMLDivElement>) => void; className?: string }) {
   return (
     <div
-      onMouseDown={onMouseDown}
-      className={`w-0.5 shrink-0 cursor-col-resize bg-edge transition-colors hover:bg-accent${className ? ` ${className}` : ""}`}
+      onPointerDown={onPointerDown}
+      role="separator"
+      aria-orientation="vertical"
+      className={`group relative flex w-3 shrink-0 touch-none cursor-col-resize items-stretch justify-center${className ? ` ${className}` : ""}`}
     >
-      <span />
+      <span className="pointer-events-none my-0.5 w-px rounded-full bg-edge transition-colors group-hover:bg-accent" />
     </div>
   )
 }
