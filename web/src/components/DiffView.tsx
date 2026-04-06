@@ -1,4 +1,5 @@
-import { useState, useMemo, useRef, useEffect } from "react"
+import { useState, useMemo, useRef, useEffect, useCallback } from "react"
+import { prepareWithSegments, layoutWithLines } from "@chenglou/pretext"
 import { copyToClipboard } from "../lib/clipboard"
 import type { DiffFile } from "../lib/api"
 import type { DiffComment } from "./ChangesPanel"
@@ -27,6 +28,77 @@ export function fileName(path: string): string {
 export function fileDir(path: string): string {
   const parts = path.split("/")
   return parts.length > 1 ? parts.slice(0, -1).join("/") : ""
+}
+
+function measureTextWidth(text: string, font: string): number {
+  if (!text) return 0
+  const prepared = prepareWithSegments(text, font)
+  const result = layoutWithLines(prepared, 99999, 20)
+  return result.lines[0]?.width ?? 0
+}
+
+function MiddleTruncatedPath({ path, className }: { path: string; className?: string }) {
+  const ref = useRef<HTMLSpanElement>(null)
+  const [display, setDisplay] = useState(path)
+
+  const truncate = useCallback(() => {
+    const el = ref.current
+    if (!el) return
+    const containerWidth = el.clientWidth
+    if (containerWidth <= 0) { setDisplay(path); return }
+
+    const style = getComputedStyle(el)
+    const font = `${style.fontWeight} ${style.fontSize} ${style.fontFamily}`
+
+    const fullWidth = measureTextWidth(path, font)
+    if (fullWidth <= containerWidth) { setDisplay(path); return }
+
+    const ellipsis = "\u2026"
+    const ellipsisWidth = measureTextWidth(ellipsis, font)
+    const available = containerWidth - ellipsisWidth
+    if (available <= 0) { setDisplay(ellipsis); return }
+
+    // Keep filename, truncate directory prefix
+    const name = fileName(path)
+    const dir = path.slice(0, path.length - name.length)
+    const nameWidth = measureTextWidth(name, font)
+
+    if (nameWidth >= available) {
+      // Filename alone doesn't fit — show as much of the end as possible
+      let lo = 1, hi = name.length
+      while (lo < hi) {
+        const mid = Math.ceil((lo + hi) / 2)
+        if (measureTextWidth(name.slice(-mid), font) <= available) lo = mid
+        else hi = mid - 1
+      }
+      setDisplay(ellipsis + name.slice(-lo))
+      return
+    }
+
+    // Binary search: how many chars of directory prefix fit
+    const dirAvailable = available - nameWidth
+    let lo = 0, hi = dir.length
+    while (lo < hi) {
+      const mid = Math.ceil((lo + hi) / 2)
+      if (measureTextWidth(dir.slice(0, mid), font) <= dirAvailable) lo = mid
+      else hi = mid - 1
+    }
+    setDisplay(dir.slice(0, lo) + ellipsis + name)
+  }, [path])
+
+  useEffect(() => {
+    const el = ref.current
+    if (!el) return
+    const observer = new ResizeObserver(truncate)
+    observer.observe(el)
+    return () => observer.disconnect()
+  }, [truncate])
+
+  return (
+    <span ref={ref} className={className} title={path} style={{ display: "block", overflow: "hidden", whiteSpace: "nowrap" }}>
+      {display}
+    </span>
+  )
 }
 
 function parseSplitLines(diff: string): SplitLine[] {
@@ -384,9 +456,7 @@ function FileSection({ file, onAddComment }: { file: DiffFile; onAddComment?: (c
             <svg className="h-3.5 w-3.5 shrink-0 text-fg-muted" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
               <path strokeLinecap="round" strokeLinejoin="round" d="M19.5 14.25v-2.625a3.375 3.375 0 0 0-3.375-3.375h-1.5A1.125 1.125 0 0 1 13.5 7.125v-1.5a3.375 3.375 0 0 0-3.375-3.375H8.25m2.25 0H5.625c-.621 0-1.125.504-1.125 1.125v17.25c0 .621.504 1.125 1.125 1.125h12.75c.621 0 1.125-.504 1.125-1.125V11.25a9 9 0 0 0-9-9Z" />
             </svg>
-            <span className="min-w-0 truncate font-mono text-md font-medium text-fg" style={{ direction: "rtl", unicodeBidi: "plaintext" }}>
-              {file.path}
-            </span>
+            <MiddleTruncatedPath path={file.path} className="min-w-0 flex-1 font-mono text-md font-medium text-fg" />
           </button>
           <button
             onClick={() => { copyToClipboard(file.path).then(() => { setCopied(true); setTimeout(() => setCopied(false), 2000) }).catch(() => {}) }}

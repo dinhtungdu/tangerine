@@ -10,6 +10,7 @@
     "check": "bun x tsc --noEmit"
   },
   "dependencies": {
+    "@chenglou/pretext": "^0.0.4",
     "@tangerine/shared": "workspace:*",
     "@tanstack/react-virtual": "^3.13.23",
     "@xterm/addon-fit": "^0.11.0",
