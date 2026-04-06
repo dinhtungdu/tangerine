@@ -58,6 +58,7 @@
   --color-diff-remove: #dc2626;
   --color-diff-remove-bg: rgba(239, 68, 68, 0.1);
   --color-diff-hunk: #2563eb;
+  --color-diff-comment: #64748b;
 
   /* Link colors */
   --color-link: #2563eb;
@@ -102,6 +103,7 @@
   --color-diff-remove: #f87171;
   --color-diff-remove-bg: rgba(239, 68, 68, 0.1);
   --color-diff-hunk: #60a5fa;
+  --color-diff-comment: #94a3b8;
 
   --color-link: #60a5fa;
   --color-link-hover: #93c5fd;

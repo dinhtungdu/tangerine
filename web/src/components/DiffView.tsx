@@ -279,11 +279,13 @@ function SplitDiff({ diff, filePath, onAddComment }: { diff: string; filePath: s
           const rightBg = r?.type === "add" ? "bg-diff-add-bg" : ""
           const leftSelected = isInSelection(i, "left")
           const rightSelected = isInSelection(i, "right")
+          const leftIsComment = !!(l?.content && (l.content.trimStart().startsWith("#") || l.content.trimStart().startsWith("//")))
+          const rightIsComment = !!(r?.content && (r.content.trimStart().startsWith("#") || r.content.trimStart().startsWith("//")))
           return (
             <div key={i}>
               <div className="flex w-full">
                 <div
-                  className={`flex min-h-[22px] min-w-0 flex-1 border-r border-edge font-mono text-xxs ${leftBg} ${leftSelected ? "border-l-2 border-l-status-info bg-status-info/5" : ""}`}
+                  className={`flex min-h-[22px] min-w-0 flex-1 border-r border-edge font-mono text-xxs ${leftBg} ${leftSelected ? "border-l-2 border-l-status-info bg-status-info/5" : leftIsComment ? "border-l-2 border-l-diff-comment" : ""}`}
                   onMouseEnter={() => handleLineMouseEnter(i, "left")}
                 >
                   <LineNum num={l?.num ?? ""} canComment={!!onAddComment} onMouseDown={() => handleGutterMouseDown(i, "left")} />
@@ -292,7 +294,7 @@ function SplitDiff({ diff, filePath, onAddComment }: { diff: string; filePath: s
                   </span>
                 </div>
                 <div
-                  className={`flex min-h-[22px] min-w-0 flex-1 font-mono text-xxs ${rightBg} ${rightSelected ? "border-l-2 border-l-status-info bg-status-info/5" : ""}`}
+                  className={`flex min-h-[22px] min-w-0 flex-1 font-mono text-xxs ${rightBg} ${rightSelected ? "border-l-2 border-l-status-info bg-status-info/5" : rightIsComment ? "border-l-2 border-l-diff-comment" : ""}`}
                   onMouseEnter={() => handleLineMouseEnter(i, "right")}
                 >
                   <LineNum num={r?.num ?? ""} canComment={!!onAddComment} onMouseDown={() => handleGutterMouseDown(i, "right")} />
@@ -342,12 +344,14 @@ function UnifiedDiff({ diff, filePath, onAddComment }: { diff: string; filePath:
           : line.startsWith("-") ? "text-diff-remove bg-diff-remove-bg"
           : line.startsWith("@@") ? "text-diff-hunk"
           : "text-fg-muted"
+        const lineContent = line.startsWith("+") || line.startsWith("-") || line.startsWith(" ") ? line.slice(1) : line
+        const isComment = lineContent.trimStart().startsWith("#") || lineContent.trimStart().startsWith("//")
         const selected = isInSelection(i, "right")
         return (
           <span key={i} className="block">
             <span className="flex items-start" onMouseEnter={() => handleLineMouseEnter(i, "right")}>
               <LineNum num={lineNums[i] ?? ""} canComment={!!onAddComment} onMouseDown={() => handleGutterMouseDown(i, "right")} />
-              <span className={`flex-1 px-2 ${selected ? "border-l-2 border-status-info bg-status-info/5" : ""} ${color}`}>
+              <span className={`flex-1 px-2 ${selected ? "border-l-2 border-status-info bg-status-info/5" : isComment ? "border-l-2 border-l-diff-comment" : ""} ${color}`}>
                 {line}
               </span>
             </span>
