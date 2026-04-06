@@ -415,20 +415,31 @@ function SplitDiff({ diff, filePath, comments = [], onAddComment }: { diff: stri
 function UnifiedDiff({ diff, filePath, comments = [], onAddComment }: { diff: string; filePath: string; comments?: DiffComment[]; onAddComment?: (comment: DiffComment) => void }) {
   const rawLines = diff.split("\n")
 
+  // Track left (before) and right (after) line numbers separately so comment
+  // refs on removed lines (L...) and added/context lines (R...) match correctly.
   const lineNums = useMemo(() => {
-    let num = 0
+    let left = 0
+    let right = 0
     return rawLines.map((line) => {
       if (line.startsWith("@@")) {
-        const match = line.match(/@@ -\d+(?:,\d+)? \+(\d+)/)
-        if (match) num = parseInt(match[1]!) - 1
+        const match = line.match(/@@ -(\d+)(?:,\d+)? \+(\d+)/)
+        if (match) { left = parseInt(match[1]!) - 1; right = parseInt(match[2]!) - 1 }
+        return { display: null as number | null, leftNum: null as number | null, rightNum: null as number | null }
       }
-      if (line.startsWith("+") && !line.startsWith("+++")) num++
-      else if (!line.startsWith("-") && !line.startsWith("@@")) num++
-      return num
+      if (line.startsWith("+") && !line.startsWith("+++")) {
+        right++
+        return { display: right, leftNum: null, rightNum: right }
+      }
+      if (line.startsWith("-") && !line.startsWith("---")) {
+        left++
+        return { display: left, leftNum: left, rightNum: null }
+      }
+      left++; right++
+      return { display: right, leftNum: null, rightNum: right }
     })
   }, [rawLines])
 
-  const getLineNum = (i: number) => lineNums[i] ?? i + 1
+  const getLineNum = (i: number) => lineNums[i]?.display ?? i + 1
 
   const { handleGutterMouseDown, handleLineMouseEnter, handleSubmit, handleCancel, isInSelection, showForm, selection, getRangeLabel } =
     useLineComment(filePath, getLineNum, onAddComment)
@@ -442,13 +453,16 @@ function UnifiedDiff({ diff, filePath, comments = [], onAddComment }: { diff: st
           : line.startsWith("-") ? "text-diff-remove bg-diff-remove-bg"
           : line.startsWith("@@") ? "text-diff-hunk"
           : "text-fg-muted"
-        const lineNum = lineNums[i]
-        const lineHasComment = !!(lineNum && hasCommentOnLine(comments, filePath, lineNum, "right"))
+        const nums = lineNums[i]
+        const lineHasComment = nums
+          ? (nums.leftNum ? hasCommentOnLine(comments, filePath, nums.leftNum, "left") : false)
+            || (nums.rightNum ? hasCommentOnLine(comments, filePath, nums.rightNum, "right") : false)
+          : false
         const selected = isInSelection(i, "right")
         return (
           <span key={i} className="block">
             <span className="flex items-start" onMouseEnter={() => handleLineMouseEnter(i, "right")}>
-              <LineNum num={lineNum ?? ""} canComment={!!onAddComment} onMouseDown={() => handleGutterMouseDown(i, "right")} />
+              <LineNum num={nums?.display ?? ""} canComment={!!onAddComment} onMouseDown={() => handleGutterMouseDown(i, "right")} />
               <span className={`flex-1 px-2 ${selected ? "border-l-2 border-status-info bg-status-info/5" : lineHasComment ? "border-l-2 border-l-diff-comment" : ""} ${color}`}>
                 {line}
               </span>
