@@ -313,6 +313,8 @@ export async function start(): Promise<void> {
             setupCommand: projConfig?.setup,
             taskType: taskRow?.type ?? undefined,
             prMode: projConfig?.prMode,
+            workerSystemPrompt: projConfig?.workerSystemPrompt,
+            reviewerSystemPrompt: projConfig?.reviewerSystemPrompt,
           }).length > 0
           if (taskMeta?.pr_url) {
             s.prUrlSaved = true
@@ -414,6 +416,8 @@ export async function start(): Promise<void> {
                   setupCommand: projConfig?.setup,
                   taskType: task?.type ?? undefined,
                   prMode: projConfig?.prMode,
+                  workerSystemPrompt: projConfig?.workerSystemPrompt,
+                  reviewerSystemPrompt: projConfig?.reviewerSystemPrompt,
                 })
                 getTaskState(taskId).firstPromptSent = true
 
@@ -800,6 +804,8 @@ export async function start(): Promise<void> {
                 setupCommand: projConfig?.setup,
                 taskType: task?.type ?? undefined,
                 prMode: projConfig?.prMode,
+                workerSystemPrompt: projConfig?.workerSystemPrompt,
+                reviewerSystemPrompt: projConfig?.reviewerSystemPrompt,
               })
 
               const taskState = getTaskState(taskId)

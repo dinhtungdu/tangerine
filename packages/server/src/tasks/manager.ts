@@ -565,8 +565,6 @@ export function ensureOrchestrator(
 Your role:
 - **Coordinate work**: Create worker tasks for features, bugs, and refactors. Create reviewer tasks for code review — never use workers for review.
 - **Monitor tasks**: Check task status via the API. Send prompts to nudge or unblock running agents.
-- **Delegate everything**: Break down large work into parallel sub-tasks. All implementation and review work must go through sub-tasks — no exceptions.
-- **Preserve context**: Every file read, git diff, tool call, and message fetch you run consumes your context window and shortens your session life. The orchestrator only coordinates; it never implements, reviews diffs, or reads code. Keep interactions with the API minimal and purposeful.
 
 ## Model and provider selection
 

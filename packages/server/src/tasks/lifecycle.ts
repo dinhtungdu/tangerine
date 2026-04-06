@@ -43,6 +43,8 @@ export interface ProjectConfig {
   poolSize?: number
   defaultProvider?: string
   orchestratorPrompt?: string
+  workerSystemPrompt?: string
+  reviewerSystemPrompt?: string
   archived?: boolean
   prMode?: "ready" | "draft" | "none"
 }
@@ -248,6 +250,8 @@ export function startSession(
       setupCommand: config.setup,
       taskType: task.type ?? undefined,
       prMode: config.prMode,
+      workerSystemPrompt: config.workerSystemPrompt,
+      reviewerSystemPrompt: config.reviewerSystemPrompt,
     })
     const agentHandle = yield* deps.agentFactory.start({
       taskId: task.id,
@@ -349,6 +353,8 @@ export function reconnectSession(
       setupCommand: project?.setup,
       taskType: task.type ?? undefined,
       prMode: project?.prMode,
+      workerSystemPrompt: project?.workerSystemPrompt,
+      reviewerSystemPrompt: project?.reviewerSystemPrompt,
     })
     const agentHandle = yield* deps.agentFactory.start({
       taskId: task.id,
