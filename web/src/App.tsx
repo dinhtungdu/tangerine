@@ -18,7 +18,9 @@ export function App() {
           <Route path="tasks/:id" element={<TaskDetail />} />
         </Route>
       </Routes>
-      {import.meta.env.DEV && <Agentation endpoint="http://localhost:4747" />}
+      {import.meta.env.DEV && import.meta.env.VITE_AGENTATION && (
+        <Agentation endpoint="http://localhost:4747" />
+      )}
     </ProjectProvider>
   )
 }
