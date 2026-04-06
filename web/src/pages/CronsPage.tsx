@@ -5,7 +5,7 @@ import { CronForm, CronRow } from "../components/CronList"
 import { listCrons, deleteCron, updateCron } from "../lib/api"
 
 export function CronsPage() {
-const { current, modelsByProvider } = useProject()
+  const { current, modelsByProvider } = useProject()
   const [crons, setCrons] = useState<Cron[]>([])
   const [loading, setLoading] = useState(true)
 
