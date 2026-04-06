@@ -100,18 +100,15 @@ export function projectRoutes(deps: AppDeps): Hono {
           return yield* Effect.fail(new ProjectNotFoundError({ name }))
         }
 
-        // Merge fields — name is immutable, taskTypes is deep-merged
+        // Merge fields — name is immutable, taskTypes is deep-merged per task type
         const existing = deps.config.config.projects[index]!
         const merged = { ...existing, ...body, name }
-        if (body.taskTypes && typeof body.taskTypes === "object" && existing.taskTypes) {
-          const existingTT = existing.taskTypes as Record<string, unknown>
-          const bodyTT = body.taskTypes as Record<string, unknown>
-          merged.taskTypes = { ...existingTT }
-          for (const [key, val] of Object.entries(bodyTT)) {
-            ;(merged.taskTypes as Record<string, unknown>)[key] = {
-              ...(typeof existingTT[key] === "object" ? existingTT[key] as Record<string, unknown> : {}),
-              ...(typeof val === "object" ? val as Record<string, unknown> : {}),
-            }
+        if (body.taskTypes && typeof body.taskTypes === "object") {
+          const prev = (existing.taskTypes ?? {}) as Record<string, Record<string, unknown>>
+          const next = body.taskTypes as Record<string, Record<string, unknown>>
+          merged.taskTypes = { ...prev }
+          for (const [tt, val] of Object.entries(next)) {
+            ;(merged.taskTypes as Record<string, unknown>)[tt] = { ...prev[tt], ...val }
           }
         }
 
