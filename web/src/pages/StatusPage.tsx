@@ -6,6 +6,7 @@ import { resolveTaskTypeConfig } from "@tangerine/shared"
 import type { SidebarContext } from "../components/Layout"
 import { ActiveRunsCard, SystemLog, ProjectUpdateCard } from "../components/StatusWidgets"
 import { PredefinedPromptsEditor } from "../components/PredefinedPromptsEditor"
+import { SystemPromptEditor } from "../components/SystemPromptEditor"
 import { archiveProject, unarchiveProject } from "../lib/api"
 
 export function StatusPage() {
@@ -53,9 +54,16 @@ export function StatusPage() {
             <ActiveRunsCard tasks={tasks} />
           </div>
 
-          {/* Predefined prompts */}
+          {/* Per-task-type config */}
           {current && (
             <>
+              <SystemPromptEditor
+                key={`${current.name}-worker-sp`}
+                project={current.name}
+                title="Worker System Prompt"
+                taskType="worker"
+                value={resolveTaskTypeConfig(current, "worker").systemPrompt}
+              />
               <PredefinedPromptsEditor
                 key={`${current.name}-worker`}
                 project={current.name}
@@ -63,12 +71,26 @@ export function StatusPage() {
                 taskType="worker"
                 prompts={resolveTaskTypeConfig(current, "worker").predefinedPrompts}
               />
+              <SystemPromptEditor
+                key={`${current.name}-orchestrator-sp`}
+                project={current.name}
+                title="Orchestrator System Prompt"
+                taskType="orchestrator"
+                value={resolveTaskTypeConfig(current, "orchestrator").systemPrompt}
+              />
               <PredefinedPromptsEditor
                 key={`${current.name}-orchestrator`}
                 project={current.name}
                 title="Orchestrator Quick Replies"
                 taskType="orchestrator"
                 prompts={resolveTaskTypeConfig(current, "orchestrator").predefinedPrompts}
+              />
+              <SystemPromptEditor
+                key={`${current.name}-reviewer-sp`}
+                project={current.name}
+                title="Reviewer System Prompt"
+                taskType="reviewer"
+                value={resolveTaskTypeConfig(current, "reviewer").systemPrompt}
               />
               <PredefinedPromptsEditor
                 key={`${current.name}-reviewer`}
