@@ -11,7 +11,7 @@ import type { AgentFactory, AgentHandle, AgentEvent, AgentStartContext, PromptIm
 import { parseNdjsonStream } from "./ndjson"
 import { existsSync, readFileSync } from "node:fs"
 import { homedir } from "node:os"
-import { scanCodexSkills, scanClaudeSkills } from "./skill-scanner"
+import { scanCodexSkills } from "./skill-scanner"
 import { join } from "node:path"
 
 const log = createLogger("codex-provider")
@@ -634,15 +634,7 @@ export function createCodexProvider(): AgentFactory {
             },
 
             getSkills() {
-              // Include Codex-native skills AND Claude skills (~/.claude/skills/)
-              // since Tangerine installs shared skills (e.g. tangerine-tasks) in the
-              // Claude directory, which is the canonical location for provider-agnostic skills.
-              const seen = new Set<string>()
-              const skills: string[] = []
-              for (const s of [...scanCodexSkills(), ...scanClaudeSkills()]) {
-                if (!seen.has(s)) { seen.add(s); skills.push(s) }
-              }
-              return skills
+              return scanCodexSkills()
             },
           }
 

@@ -55,8 +55,10 @@ export function readSkillContent(skillName: string, ...skillsDirs: string[]): st
  * Returns the original text unchanged if the skill is not found or text doesn't start
  * with a slash command.
  *
- * This is used for providers that lack native skill support (all providers except
- * claude-code, which handles /skill-name natively via its CLI).
+ * Used for providers without native skill support (OpenCode, Codex, Pi). Claude Code
+ * handles /skill-name natively via its CLI and does not need this.
+ * `tangerine install` symlinks skills into each provider's configured skills directory,
+ * so each provider's dir is the authoritative source for its skills.
  */
 export function resolveSkillInvocation(text: string, ...skillsDirs: string[]): string {
   const trimmed = text.trim()

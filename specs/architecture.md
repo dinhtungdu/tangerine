@@ -125,12 +125,12 @@ Skills are stored as directories under a provider's skills directory (e.g. `~/.c
 
 **Claude Code** handles `/skill-name` invocations natively via its CLI: the agent reads and injects `SKILL.md` content at runtime.
 
-**All other providers** (OpenCode, Codex, Pi) lack native skill support. Tangerine resolves `/skill-name` server-side in `sendPrompt` (`cli/start.ts`): when a user prompt starts with `/skill-name`, the server reads the matching `SKILL.md` from the provider's skills directory (falling back to `~/.claude/skills/`) and replaces the slash command with the skill content before delivery to the agent.
+**All other providers** (OpenCode, Codex, Pi) lack native skill support. Tangerine resolves `/skill-name` server-side in `sendPrompt` (`cli/start.ts`): when a user prompt starts with `/skill-name`, the server reads the matching `SKILL.md` from the provider's skills directory and replaces the slash command with the skill content before delivery to the agent. Each provider's skills directory is authoritative — `tangerine install` symlinks all built-in skills into every provider's configured directory.
 
 Skill discovery for the UI slash-command picker uses `handle.getSkills()` per provider:
 - Claude Code: skill names from the `system/init` event
 - Pi: skill names from the `get_state` response
-- OpenCode/Codex: filesystem scan (both provider-native and `~/.claude/skills/`)
+- OpenCode/Codex: filesystem scan of the provider's skills directory
 
 ### Task Management
 

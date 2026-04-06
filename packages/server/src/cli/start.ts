@@ -36,8 +36,6 @@ import { buildSystemNotes, buildEscalationBlock, buildPrWorkflowNote } from "../
 import { getTaskState, clearTaskState } from "../tasks/task-state"
 import { resolveSkillInvocation } from "../agent/skill-scanner"
 import { AGENT_PROVIDER_METADATA } from "../agent/metadata"
-import { homedir } from "node:os"
-import { join } from "node:path"
 
 const log = createLogger("cli")
 
@@ -66,25 +64,19 @@ export async function applySystemPromptIfSupported(handle: AgentHandle, notes: s
   }
 }
 
-// Canonical skills directory: shared location where Tangerine installs provider-agnostic skills.
-const CLAUDE_SKILLS_DIR = join(homedir(), ".claude", "skills")
-
 /**
  * Resolve a /skill-name invocation for providers without native skill support.
  * Claude Code handles /skill-name natively via its CLI — skip resolution for it.
- * For all other providers, look up SKILL.md from the provider's skills directory
- * and fall back to ~/.claude/skills/ (where Tangerine installs shared skills).
+ * For all other providers, look up SKILL.md from the provider's skills directory.
+ * Skills are installed per-provider by `tangerine install`, which symlinks each
+ * skill into every provider's configured skills directory.
  */
 export function resolveSkillForProvider(text: string, provider?: string | null): string {
   if (!provider || provider === "claude-code") return text
   if (!text.trim().startsWith("/")) return text
   const meta = AGENT_PROVIDER_METADATA[provider as keyof typeof AGENT_PROVIDER_METADATA]
   if (!meta) return text
-  // If the provider's own skills dir is the same as CLAUDE_SKILLS_DIR, don't duplicate.
-  const dirs = meta.skills.directory === CLAUDE_SKILLS_DIR
-    ? [CLAUDE_SKILLS_DIR]
-    : [meta.skills.directory, CLAUDE_SKILLS_DIR]
-  return resolveSkillInvocation(text.trim(), ...dirs)
+  return resolveSkillInvocation(text.trim(), meta.skills.directory)
 }
 
 /**
