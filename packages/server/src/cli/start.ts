@@ -34,9 +34,6 @@ import { createAgentFactories } from "../agent/factories"
 import { enqueue as enqueuePrompt, drainAll as drainQueuedPrompts } from "../agent/prompt-queue"
 import { buildSystemNotes, buildEscalationBlock, buildPrWorkflowNote } from "../tasks/prompts"
 import { getTaskState, clearTaskState } from "../tasks/task-state"
-import { resolveSkillInvocation } from "../agent/skill-scanner"
-import { AGENT_PROVIDER_METADATA } from "../agent/metadata"
-
 const log = createLogger("cli")
 
 /** Classify agent tool name -> activity type + event name.
@@ -62,21 +59,6 @@ export async function applySystemPromptIfSupported(handle: AgentHandle, notes: s
   } catch {
     return false
   }
-}
-
-/**
- * Resolve a /skill-name invocation for providers without native skill support.
- * Claude Code handles /skill-name natively via its CLI — skip resolution for it.
- * For all other providers, look up SKILL.md from the provider's skills directory.
- * Skills are installed per-provider by `tangerine install`, which symlinks each
- * skill into every provider's configured skills directory.
- */
-export function resolveSkillForProvider(text: string, provider?: string | null): string {
-  if (!provider || provider === "claude-code") return text
-  if (!text.trim().startsWith("/")) return text
-  const meta = AGENT_PROVIDER_METADATA[provider as keyof typeof AGENT_PROVIDER_METADATA]
-  if (!meta) return text
-  return resolveSkillInvocation(text.trim(), meta.skills.directory)
 }
 
 /**
@@ -809,19 +791,9 @@ export async function start(): Promise<void> {
                 : taskState.systemPromptApplied
               taskState.systemPromptApplied = usedSystemPrompt
 
-              // For providers without native skill support, resolve /skill-name invocations
-              // by injecting SKILL.md content. Claude Code handles this natively via its CLI.
-              const resolvedText = resolveSkillForProvider(text, task?.provider)
-              promptText = resolvedText
-
               if (notes.length > 0 && !taskState.systemPromptApplied) {
-                promptText = notes.join("\n") + "\n\n" + resolvedText
+                promptText = notes.join("\n") + "\n\n" + text
               }
-            } else if (text.trim().startsWith("/")) {
-              // Subsequent prompts: resolve skill invocations on demand.
-              // Only load task row when a slash command is present to avoid per-prompt DB hits.
-              const task = yield* getTask(db, taskId).pipe(Effect.catchAll(() => Effect.succeed(null)))
-              promptText = resolveSkillForProvider(text, task?.provider)
             }
 
             // Try agent handle first (works for both providers)

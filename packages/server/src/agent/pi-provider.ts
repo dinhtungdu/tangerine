@@ -12,6 +12,7 @@ import { parseNdjsonStream } from "./ndjson"
 import { spawnSync } from "node:child_process"
 import { homedir } from "node:os"
 import { join } from "node:path"
+import { scanSkillsDir } from "./skill-scanner"
 
 const log = createLogger("pi-provider")
 export const PI_PROVIDER_METADATA: ProviderMetadata = {
@@ -498,7 +499,10 @@ export function createPiProvider(): AgentFactory {
             },
 
             getSkills() {
-              return discoveredSkills
+              // Pi reports skills via get_state; fall back to filesystem scan if
+              // the response didn't include a skills field.
+              if (discoveredSkills.length > 0) return discoveredSkills
+              return scanSkillsDir(PI_PROVIDER_METADATA.skills.directory)
             },
           }
 
