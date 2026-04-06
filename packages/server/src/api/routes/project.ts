@@ -108,7 +108,12 @@ export function projectRoutes(deps: AppDeps): Hono {
           const next = body.taskTypes as Record<string, Record<string, unknown>>
           merged.taskTypes = { ...prev }
           for (const [tt, val] of Object.entries(next)) {
-            ;(merged.taskTypes as Record<string, unknown>)[tt] = { ...prev[tt], ...val }
+            const ttMerged = { ...prev[tt], ...val }
+            // Null values signal deletion — remove them so Zod sees undefined
+            for (const k of Object.keys(ttMerged)) {
+              if (ttMerged[k] === null) delete ttMerged[k]
+            }
+            ;(merged.taskTypes as Record<string, unknown>)[tt] = ttMerged
           }
         }
 

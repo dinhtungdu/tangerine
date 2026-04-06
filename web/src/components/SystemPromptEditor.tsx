@@ -30,7 +30,7 @@ export function SystemPromptEditor({
     try {
       const trimmed = value.trim()
       await updateProject(project, {
-        taskTypes: { [taskType]: { systemPrompt: trimmed || undefined } },
+        taskTypes: { [taskType]: { systemPrompt: trimmed || null } },
       })
       refreshProjects()
       setStatus("saved")
