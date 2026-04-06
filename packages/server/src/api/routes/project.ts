@@ -281,7 +281,10 @@ export function projectRoutes(deps: AppDeps): Hono {
           return // already archived
         }
 
-        // 1. Cancel running tasks for this project
+        // 1. Mark archived in memory immediately to block new task creation
+        project.archived = true
+
+        // 2. Cancel running tasks for this project
         const tasks = yield* listTasks(deps.db, { projectId: name })
         for (const task of tasks) {
           if (!TERMINAL_STATUSES.has(task.status)) {
@@ -289,7 +292,7 @@ export function projectRoutes(deps: AppDeps): Hono {
           }
         }
 
-        // 2. Remove worktrees (physical directories + DB slots)
+        // 3. Remove worktrees (physical directories + DB slots)
         const repoDir = getRepoDir(deps.config.config, name)
         const slots = deps.db.prepare(
           "SELECT * FROM worktree_slots WHERE project_id = ? AND id NOT LIKE '%slot-0'"
@@ -305,7 +308,7 @@ export function projectRoutes(deps: AppDeps): Hono {
         )
         yield* deletePoolForProject(deps.db, name).pipe(Effect.ignoreLogged)
 
-        // 3. Update config LAST — this triggers a watcher restart, so all
+        // 4. Write config to disk LAST — this triggers a watcher restart, so all
         //    side effects (task cancellation, worktree removal) must be done first.
         const raw = deps.configStore.read()
         const rawIndex = (raw.projects ?? []).findIndex((p) => p.name === name)
