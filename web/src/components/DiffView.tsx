@@ -85,6 +85,35 @@ function parseSplitLines(diff: string): SplitLine[] {
   return result
 }
 
+// Maps file extension (or exact filename) to known line-comment prefixes.
+// Unknown extensions produce no border — false negatives are safer than false positives.
+export const COMMENT_PREFIXES: Record<string, readonly string[]> = {
+  // Slash-slash languages
+  ts: ["//"], tsx: ["//"], js: ["//"], jsx: ["//"],
+  go: ["//"], rs: ["//"], java: ["//"], kt: ["//"], swift: ["//"],
+  c: ["//"], cpp: ["//"], cc: ["//"], h: ["//"], hpp: ["//"],
+  cs: ["//"], php: ["//"], dart: ["//"], scala: ["//"], groovy: ["//"],
+  // CSS family — // is valid in SCSS/Less but not plain CSS
+  scss: ["//", "/*"], less: ["//", "/*"], css: ["/*"],
+  // Hash languages
+  py: ["#"], rb: ["#"], sh: ["#"], bash: ["#"], zsh: ["#"], fish: ["#"],
+  r: ["#"], pl: ["#"], pm: ["#"], coffee: ["#"],
+  yaml: ["#"], yml: ["#"], toml: ["#"], ini: ["#"], cfg: ["#"], env: ["#"],
+  // Exact filenames (no extension)
+  Makefile: ["#"], Dockerfile: ["#"], Pipfile: ["#"],
+  Gemfile: ["#"], Brewfile: ["#"],
+  ".gitignore": ["#"], ".gitattributes": ["#"], ".editorconfig": ["#"],
+}
+
+export function isCommentLine(content: string, filePath: string): boolean {
+  const filename = filePath.split("/").pop() ?? ""
+  const ext = filename.includes(".") ? filename.split(".").pop()!.toLowerCase() : filename
+  const prefixes = COMMENT_PREFIXES[ext] ?? COMMENT_PREFIXES[filename]
+  if (!prefixes) return false
+  const trimmed = content.trimStart()
+  return prefixes.some(p => trimmed.startsWith(p))
+}
+
 // Inline comment form that appears between diff lines
 function InlineCommentForm({ onSubmit, onCancel, rangeLabel }: { onSubmit: (text: string) => void; onCancel: () => void; rangeLabel?: string | null }) {
   const [text, setText] = useState("")
@@ -279,11 +308,13 @@ function SplitDiff({ diff, filePath, onAddComment }: { diff: string; filePath: s
           const rightBg = r?.type === "add" ? "bg-diff-add-bg" : ""
           const leftSelected = isInSelection(i, "left")
           const rightSelected = isInSelection(i, "right")
+          const leftIsComment = !!(l?.content && isCommentLine(l.content, filePath))
+          const rightIsComment = !!(r?.content && isCommentLine(r.content, filePath))
           return (
             <div key={i}>
               <div className="flex w-full">
                 <div
-                  className={`flex min-h-[22px] min-w-0 flex-1 border-r border-edge font-mono text-xxs ${leftBg} ${leftSelected ? "border-l-2 border-l-status-info bg-status-info/5" : ""}`}
+                  className={`flex min-h-[22px] min-w-0 flex-1 border-r border-edge font-mono text-xxs ${leftBg} ${leftSelected ? "border-l-2 border-l-status-info bg-status-info/5" : leftIsComment ? "border-l-2 border-l-diff-comment" : ""}`}
                   onMouseEnter={() => handleLineMouseEnter(i, "left")}
                 >
                   <LineNum num={l?.num ?? ""} canComment={!!onAddComment} onMouseDown={() => handleGutterMouseDown(i, "left")} />
@@ -292,7 +323,7 @@ function SplitDiff({ diff, filePath, onAddComment }: { diff: string; filePath: s
                   </span>
                 </div>
                 <div
-                  className={`flex min-h-[22px] min-w-0 flex-1 font-mono text-xxs ${rightBg} ${rightSelected ? "border-l-2 border-l-status-info bg-status-info/5" : ""}`}
+                  className={`flex min-h-[22px] min-w-0 flex-1 font-mono text-xxs ${rightBg} ${rightSelected ? "border-l-2 border-l-status-info bg-status-info/5" : rightIsComment ? "border-l-2 border-l-diff-comment" : ""}`}
                   onMouseEnter={() => handleLineMouseEnter(i, "right")}
                 >
                   <LineNum num={r?.num ?? ""} canComment={!!onAddComment} onMouseDown={() => handleGutterMouseDown(i, "right")} />
@@ -342,12 +373,14 @@ function UnifiedDiff({ diff, filePath, onAddComment }: { diff: string; filePath:
           : line.startsWith("-") ? "text-diff-remove bg-diff-remove-bg"
           : line.startsWith("@@") ? "text-diff-hunk"
           : "text-fg-muted"
+        const lineContent = line.startsWith("+") || line.startsWith("-") || line.startsWith(" ") ? line.slice(1) : line
+        const isComment = isCommentLine(lineContent, filePath)
         const selected = isInSelection(i, "right")
         return (
           <span key={i} className="block">
             <span className="flex items-start" onMouseEnter={() => handleLineMouseEnter(i, "right")}>
               <LineNum num={lineNums[i] ?? ""} canComment={!!onAddComment} onMouseDown={() => handleGutterMouseDown(i, "right")} />
-              <span className={`flex-1 px-2 ${selected ? "border-l-2 border-status-info bg-status-info/5" : ""} ${color}`}>
+              <span className={`flex-1 px-2 ${selected ? "border-l-2 border-status-info bg-status-info/5" : isComment ? "border-l-2 border-l-diff-comment" : ""} ${color}`}>
                 {line}
               </span>
             </span>
