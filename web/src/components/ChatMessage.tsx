@@ -260,7 +260,7 @@ export const ChatMessage = memo(function ChatMessage({ message, tasks, onReply }
           )}
           {message.content && (
             <div
-              className="text-md leading-[1.5] text-white [&_a]:underline [&_a]:text-link hover:[&_a]:text-link-hover [&_a]:break-all"
+              className="text-md leading-[1.5] text-white [&_a]:underline [&_a]:text-link hover:[&_a]:text-link-hover [&_a]:break-all [&_code]:bg-white/15 [&_code]:border-white/20"
               onClick={handleLinkClick}
             >
               <ReactMarkdown remarkPlugins={userRemarkPlugins} components={markdownComponents}>
