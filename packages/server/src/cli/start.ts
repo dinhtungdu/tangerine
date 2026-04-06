@@ -292,6 +292,18 @@ export async function start(): Promise<void> {
         lockReconnect: (taskId) => { getTaskState(taskId).reconnecting = true },
         unlockReconnect: (taskId) => { getTaskState(taskId).reconnecting = false },
         onSessionReady: (taskId, session) => {
+          // Cross-talk guard: verify the handle was created for this task.
+          // If mismatch, log a critical error — this would cause messages
+          // from one task to appear in another task's chat.
+          const handleTaskId = (session.agentHandle as { __taskId?: string }).__taskId
+          if (handleTaskId && handleTaskId !== taskId) {
+            log.error("CROSS-TALK: handle taskId mismatch in onSessionReady", {
+              expectedTaskId: taskId,
+              handleTaskId,
+              agentPid: (session.agentHandle as { __pid?: number }).__pid,
+            })
+          }
+
           // Shut down any existing handle before storing the new one (e.g. model
           // change restarts the agent with a new handle for the same task).
           const existingHandle = agentHandles.get(taskId)
@@ -473,6 +485,10 @@ export async function start(): Promise<void> {
           }
 
           getTaskState(taskId).idleWake = false
+
+          const subscribedHandleTaskId = (session.agentHandle as { __taskId?: string }).__taskId
+          const subscribedHandlePid = (session.agentHandle as { __pid?: number }).__pid
+          log.info("Subscribing to agent handle", { taskId, handleTaskId: subscribedHandleTaskId, pid: subscribedHandlePid })
 
           session.agentHandle.subscribe((event) => {
             switch (event.kind) {
