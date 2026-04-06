@@ -572,7 +572,7 @@ export function TaskDetail() {
               <div className="flex min-h-0 flex-1 flex-col @min-[700px]/diff:flex-row">
                 <div className="min-w-0 flex-1 overflow-y-auto">
                   {diffFiles.length > 0 ? (
-                    <DiffView files={diffFiles} onAddComment={isTerminated ? undefined : handleAddComment} />
+                    <DiffView files={diffFiles} comments={diffComments} onAddComment={isTerminated ? undefined : handleAddComment} />
                   ) : (
                     <div className="flex h-full items-center justify-center text-md text-fg-muted">
                       No file changes yet

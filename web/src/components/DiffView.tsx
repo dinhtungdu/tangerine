@@ -169,33 +169,18 @@ function parseSplitLines(diff: string): SplitLine[] {
   return result
 }
 
-// Maps file extension (or exact filename) to known line-comment prefixes.
-// Unknown extensions produce no border — false negatives are safer than false positives.
-export const COMMENT_PREFIXES: Record<string, readonly string[]> = {
-  // Slash-slash languages
-  ts: ["//"], tsx: ["//"], js: ["//"], jsx: ["//"],
-  go: ["//"], rs: ["//"], java: ["//"], kt: ["//"], swift: ["//"],
-  c: ["//"], cpp: ["//"], cc: ["//"], h: ["//"], hpp: ["//"],
-  cs: ["//"], php: ["//"], dart: ["//"], scala: ["//"], groovy: ["//"],
-  // CSS family — // is valid in SCSS/Less but not plain CSS
-  scss: ["//", "/*"], less: ["//", "/*"], css: ["/*"],
-  // Hash languages
-  py: ["#"], rb: ["#"], sh: ["#"], bash: ["#"], zsh: ["#"], fish: ["#"],
-  r: ["#"], pl: ["#"], pm: ["#"], coffee: ["#"],
-  yaml: ["#"], yml: ["#"], toml: ["#"], ini: ["#"], cfg: ["#"], env: ["#"],
-  // Exact filenames (no extension)
-  Makefile: ["#"], Dockerfile: ["#"], Pipfile: ["#"],
-  Gemfile: ["#"], Brewfile: ["#"],
-  ".gitignore": ["#"], ".gitattributes": ["#"], ".editorconfig": ["#"],
-}
-
-export function isCommentLine(content: string, filePath: string): boolean {
-  const filename = filePath.split("/").pop() ?? ""
-  const ext = filename.includes(".") ? filename.split(".").pop()!.toLowerCase() : filename
-  const prefixes = COMMENT_PREFIXES[ext] ?? COMMENT_PREFIXES[filename]
-  if (!prefixes) return false
-  const trimmed = content.trimStart()
-  return prefixes.some(p => trimmed.startsWith(p))
+function hasCommentOnLine(comments: DiffComment[], filePath: string, lineNum: number, side: Side): boolean {
+  const prefix = side === "left" ? "L" : "R"
+  return comments.some(c => {
+    if (c.filePath !== filePath) return false
+    if (!c.lineRef.startsWith(prefix)) return false
+    const ref = c.lineRef.slice(1)
+    if (ref.includes("-")) {
+      const [start, end] = ref.split("-").map(Number)
+      return lineNum >= start! && lineNum <= end!
+    }
+    return Number(ref) === lineNum
+  })
 }
 
 // Inline comment form that appears between diff lines
@@ -359,7 +344,7 @@ function LineNum({ num, canComment, onMouseDown }: { num: number | string; canCo
   )
 }
 
-function SplitDiff({ diff, filePath, onAddComment }: { diff: string; filePath: string; onAddComment?: (comment: DiffComment) => void }) {
+function SplitDiff({ diff, filePath, comments = [], onAddComment }: { diff: string; filePath: string; comments?: DiffComment[]; onAddComment?: (comment: DiffComment) => void }) {
   const lines = useMemo(() => parseSplitLines(diff), [diff])
 
   const getLineNum = (i: number, side: Side) => {
@@ -392,13 +377,13 @@ function SplitDiff({ diff, filePath, onAddComment }: { diff: string; filePath: s
           const rightBg = r?.type === "add" ? "bg-diff-add-bg" : ""
           const leftSelected = isInSelection(i, "left")
           const rightSelected = isInSelection(i, "right")
-          const leftIsComment = !!(l?.content && isCommentLine(l.content, filePath))
-          const rightIsComment = !!(r?.content && isCommentLine(r.content, filePath))
+          const leftHasComment = !!(l?.num && hasCommentOnLine(comments, filePath, l.num, "left"))
+          const rightHasComment = !!(r?.num && hasCommentOnLine(comments, filePath, r.num, "right"))
           return (
             <div key={i}>
               <div className="flex w-full">
                 <div
-                  className={`flex min-h-[22px] min-w-0 flex-1 border-r border-edge font-mono text-xxs ${leftBg} ${leftSelected ? "border-l-2 border-l-status-info bg-status-info/5" : leftIsComment ? "border-l-2 border-l-diff-comment" : ""}`}
+                  className={`flex min-h-[22px] min-w-0 flex-1 border-r border-edge font-mono text-xxs ${leftBg} ${leftSelected ? "border-l-2 border-l-status-info bg-status-info/5" : leftHasComment ? "border-l-2 border-l-diff-comment" : ""}`}
                   onMouseEnter={() => handleLineMouseEnter(i, "left")}
                 >
                   <LineNum num={l?.num ?? ""} canComment={!!onAddComment} onMouseDown={() => handleGutterMouseDown(i, "left")} />
@@ -407,7 +392,7 @@ function SplitDiff({ diff, filePath, onAddComment }: { diff: string; filePath: s
                   </span>
                 </div>
                 <div
-                  className={`flex min-h-[22px] min-w-0 flex-1 font-mono text-xxs ${rightBg} ${rightSelected ? "border-l-2 border-l-status-info bg-status-info/5" : rightIsComment ? "border-l-2 border-l-diff-comment" : ""}`}
+                  className={`flex min-h-[22px] min-w-0 flex-1 font-mono text-xxs ${rightBg} ${rightSelected ? "border-l-2 border-l-status-info bg-status-info/5" : rightHasComment ? "border-l-2 border-l-diff-comment" : ""}`}
                   onMouseEnter={() => handleLineMouseEnter(i, "right")}
                 >
                   <LineNum num={r?.num ?? ""} canComment={!!onAddComment} onMouseDown={() => handleGutterMouseDown(i, "right")} />
@@ -427,7 +412,7 @@ function SplitDiff({ diff, filePath, onAddComment }: { diff: string; filePath: s
   )
 }
 
-function UnifiedDiff({ diff, filePath, onAddComment }: { diff: string; filePath: string; onAddComment?: (comment: DiffComment) => void }) {
+function UnifiedDiff({ diff, filePath, comments = [], onAddComment }: { diff: string; filePath: string; comments?: DiffComment[]; onAddComment?: (comment: DiffComment) => void }) {
   const rawLines = diff.split("\n")
 
   const lineNums = useMemo(() => {
@@ -457,14 +442,14 @@ function UnifiedDiff({ diff, filePath, onAddComment }: { diff: string; filePath:
           : line.startsWith("-") ? "text-diff-remove bg-diff-remove-bg"
           : line.startsWith("@@") ? "text-diff-hunk"
           : "text-fg-muted"
-        const lineContent = line.startsWith("+") || line.startsWith("-") || line.startsWith(" ") ? line.slice(1) : line
-        const isComment = isCommentLine(lineContent, filePath)
+        const lineNum = lineNums[i]
+        const lineHasComment = !!(lineNum && hasCommentOnLine(comments, filePath, lineNum, "right"))
         const selected = isInSelection(i, "right")
         return (
           <span key={i} className="block">
             <span className="flex items-start" onMouseEnter={() => handleLineMouseEnter(i, "right")}>
-              <LineNum num={lineNums[i] ?? ""} canComment={!!onAddComment} onMouseDown={() => handleGutterMouseDown(i, "right")} />
-              <span className={`flex-1 px-2 ${selected ? "border-l-2 border-status-info bg-status-info/5" : isComment ? "border-l-2 border-l-diff-comment" : ""} ${color}`}>
+              <LineNum num={lineNum ?? ""} canComment={!!onAddComment} onMouseDown={() => handleGutterMouseDown(i, "right")} />
+              <span className={`flex-1 px-2 ${selected ? "border-l-2 border-status-info bg-status-info/5" : lineHasComment ? "border-l-2 border-l-diff-comment" : ""} ${color}`}>
                 {line}
               </span>
             </span>
@@ -478,7 +463,7 @@ function UnifiedDiff({ diff, filePath, onAddComment }: { diff: string; filePath:
   )
 }
 
-function FileSection({ file, onAddComment }: { file: DiffFile; onAddComment?: (comment: DiffComment) => void }) {
+function FileSection({ file, comments = [], onAddComment }: { file: DiffFile; comments?: DiffComment[]; onAddComment?: (comment: DiffComment) => void }) {
   const [collapsed, setCollapsed] = useState(false)
   const [viewMode, setViewMode] = useState<ViewMode>("split")
   const [copied, setCopied] = useState(false)
@@ -542,13 +527,13 @@ function FileSection({ file, onAddComment }: { file: DiffFile; onAddComment?: (c
         <>
           {/* Narrow container: always unified */}
           <div className="@min-[900px]:hidden">
-            <UnifiedDiff diff={file.diff} filePath={file.path} onAddComment={onAddComment} />
+            <UnifiedDiff diff={file.diff} filePath={file.path} comments={comments} onAddComment={onAddComment} />
           </div>
           {/* Wide container: respect toggle */}
           <div className="hidden @min-[900px]:block">
             {viewMode === "split"
-              ? <SplitDiff diff={file.diff} filePath={file.path} onAddComment={onAddComment} />
-              : <UnifiedDiff diff={file.diff} filePath={file.path} onAddComment={onAddComment} />
+              ? <SplitDiff diff={file.diff} filePath={file.path} comments={comments} onAddComment={onAddComment} />
+              : <UnifiedDiff diff={file.diff} filePath={file.path} comments={comments} onAddComment={onAddComment} />
             }
           </div>
         </>
@@ -559,17 +544,18 @@ function FileSection({ file, onAddComment }: { file: DiffFile; onAddComment?: (c
 
 interface DiffViewProps {
   files: DiffFile[]
+  comments?: DiffComment[]
   onAddComment?: (comment: DiffComment) => void
 }
 
-export function DiffView({ files, onAddComment }: DiffViewProps) {
+export function DiffView({ files, comments = [], onAddComment }: DiffViewProps) {
   if (files.length === 0) return null
 
   return (
     <div className="@container h-full overflow-x-hidden overflow-y-auto bg-surface">
       {files.map((file) => (
         <div key={file.path} id={`diff-file-${file.path}`}>
-          <FileSection file={file} onAddComment={onAddComment} />
+          <FileSection file={file} comments={comments} onAddComment={onAddComment} />
         </div>
       ))}
     </div>
