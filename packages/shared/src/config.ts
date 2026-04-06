@@ -13,18 +13,18 @@ const shortcutSchema = z.object({
   alt: z.boolean().optional(),
 })
 
-const defaultWorkerPrompts = [
+const defaultWorkerPrompts: z.infer<typeof predefinedPromptSchema>[] = [
   { label: "Are you proud of your code?", text: "Are you proud of your code?" },
   { label: "Yes", text: "Yes" },
   { label: "Merge", text: "Merge" },
 ]
 
-const defaultOrchestratorPrompts = [
+const defaultOrchestratorPrompts: z.infer<typeof predefinedPromptSchema>[] = [
   { label: "Check active tasks", text: "Check active tasks" },
   { label: "Status update", text: "Status update" },
 ]
 
-const defaultReviewerPrompts = [
+const defaultReviewerPrompts: z.infer<typeof predefinedPromptSchema>[] = [
   { label: "Summarize findings", text: "Summarize findings" },
   { label: "Approve", text: "Approve" },
 ]
@@ -53,13 +53,6 @@ export const projectConfigSchema = z.object({
   archived: z.boolean().optional().default(false),
   postUpdateCommand: z.string().optional(),
   taskTypes: taskTypesSchema.optional(),
-  // Legacy flat fields — use taskTypes instead. These are read as fallbacks.
-  predefinedPrompts: z.array(predefinedPromptSchema).optional().default(defaultWorkerPrompts),
-  orchestratorPrompt: z.string().optional(),
-  workerSystemPrompt: z.string().optional(),
-  reviewerSystemPrompt: z.string().optional(),
-  orchestratorPrompts: z.array(predefinedPromptSchema).optional().default(defaultOrchestratorPrompts),
-  reviewerPrompts: z.array(predefinedPromptSchema).optional().default(defaultReviewerPrompts),
 })
 
 export const actionComboSchema = z.object({
@@ -111,26 +104,20 @@ export type TaskTypeConfig = z.infer<typeof taskTypeConfigSchema>
 export type ProjectConfig = z.infer<typeof projectConfigSchema>
 export type TangerineConfig = z.infer<typeof tangerineConfigSchema>
 
-/** Resolve task type config, preferring taskTypes over legacy flat fields. */
+const DEFAULTS: Record<string, { predefinedPrompts: PredefinedPrompt[] }> = {
+  worker: { predefinedPrompts: defaultWorkerPrompts },
+  orchestrator: { predefinedPrompts: defaultOrchestratorPrompts },
+  reviewer: { predefinedPrompts: defaultReviewerPrompts },
+}
+
+/** Resolve per-task-type config from the taskTypes section, with defaults. */
 export function resolveTaskTypeConfig(
   project: ProjectConfig,
   taskType: "worker" | "orchestrator" | "reviewer",
 ): { systemPrompt?: string; predefinedPrompts: PredefinedPrompt[] } {
   const override = project.taskTypes?.[taskType]
-  if (taskType === "worker") {
-    return {
-      systemPrompt: override?.systemPrompt ?? project.workerSystemPrompt,
-      predefinedPrompts: override?.predefinedPrompts ?? project.predefinedPrompts ?? defaultWorkerPrompts,
-    }
-  }
-  if (taskType === "orchestrator") {
-    return {
-      systemPrompt: override?.systemPrompt ?? project.orchestratorPrompt,
-      predefinedPrompts: override?.predefinedPrompts ?? project.orchestratorPrompts ?? defaultOrchestratorPrompts,
-    }
-  }
   return {
-    systemPrompt: override?.systemPrompt ?? project.reviewerSystemPrompt,
-    predefinedPrompts: override?.predefinedPrompts ?? project.reviewerPrompts ?? defaultReviewerPrompts,
+    systemPrompt: override?.systemPrompt,
+    predefinedPrompts: override?.predefinedPrompts ?? DEFAULTS[taskType]!.predefinedPrompts,
   }
 }

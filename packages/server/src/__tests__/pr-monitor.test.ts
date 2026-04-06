@@ -506,57 +506,48 @@ describe("buildUserLayer", () => {
 })
 
 // ---------------------------------------------------------------------------
-// resolveTaskTypeConfig — taskTypes override with legacy fallbacks
+// resolveTaskTypeConfig — per-task-type config resolution
 // ---------------------------------------------------------------------------
 
 describe("resolveTaskTypeConfig", () => {
   const baseProject = { name: "test", repo: "test", setup: "bun install" } as ProjectConfig
 
-  test("returns defaults when no overrides", () => {
+  test("returns defaults when no taskTypes configured", () => {
     const result = resolveTaskTypeConfig(baseProject, "worker")
     expect(result.predefinedPrompts.length).toBeGreaterThan(0)
     expect(result.systemPrompt).toBeUndefined()
   })
 
-  test("taskTypes.worker overrides legacy predefinedPrompts", () => {
+  test("returns worker predefinedPrompts from taskTypes", () => {
     const project = {
       ...baseProject,
-      predefinedPrompts: [{ label: "legacy", text: "legacy" }],
       taskTypes: { worker: { predefinedPrompts: [{ label: "new", text: "new" }] } },
     } as ProjectConfig
     const result = resolveTaskTypeConfig(project, "worker")
     expect(result.predefinedPrompts).toEqual([{ label: "new", text: "new" }])
   })
 
-  test("falls back to legacy orchestratorPrompt when no taskTypes", () => {
-    const project = { ...baseProject, orchestratorPrompt: "custom orch" } as ProjectConfig
+  test("returns orchestrator systemPrompt from taskTypes", () => {
+    const project = {
+      ...baseProject,
+      taskTypes: { orchestrator: { systemPrompt: "custom orch" } },
+    } as ProjectConfig
     const result = resolveTaskTypeConfig(project, "orchestrator")
     expect(result.systemPrompt).toBe("custom orch")
   })
 
-  test("taskTypes.orchestrator.systemPrompt takes precedence over legacy", () => {
+  test("returns reviewer config from taskTypes", () => {
     const project = {
       ...baseProject,
-      orchestratorPrompt: "legacy",
-      taskTypes: { orchestrator: { systemPrompt: "new orch" } },
-    } as ProjectConfig
-    const result = resolveTaskTypeConfig(project, "orchestrator")
-    expect(result.systemPrompt).toBe("new orch")
-  })
-
-  test("taskTypes.reviewer overrides legacy reviewerPrompts", () => {
-    const project = {
-      ...baseProject,
-      reviewerPrompts: [{ label: "old", text: "old" }],
-      taskTypes: { reviewer: { predefinedPrompts: [{ label: "new-rev", text: "new-rev" }] } },
+      taskTypes: { reviewer: { predefinedPrompts: [{ label: "rev", text: "rev" }] } },
     } as ProjectConfig
     const result = resolveTaskTypeConfig(project, "reviewer")
-    expect(result.predefinedPrompts).toEqual([{ label: "new-rev", text: "new-rev" }])
+    expect(result.predefinedPrompts).toEqual([{ label: "rev", text: "rev" }])
   })
 
-  test("falls back to legacy workerSystemPrompt", () => {
-    const project = { ...baseProject, workerSystemPrompt: "worker custom" } as ProjectConfig
-    const result = resolveTaskTypeConfig(project, "worker")
-    expect(result.systemPrompt).toBe("worker custom")
+  test("returns default prompts per task type", () => {
+    expect(resolveTaskTypeConfig(baseProject, "worker").predefinedPrompts[0]!.label).toBe("Are you proud of your code?")
+    expect(resolveTaskTypeConfig(baseProject, "orchestrator").predefinedPrompts[0]!.label).toBe("Check active tasks")
+    expect(resolveTaskTypeConfig(baseProject, "reviewer").predefinedPrompts[0]!.label).toBe("Summarize findings")
   })
 })

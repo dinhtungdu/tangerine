@@ -45,23 +45,13 @@ export interface ProjectConfig {
   archived?: boolean
   prMode?: "ready" | "draft" | "none"
   taskTypes?: import("@tangerine/shared").ProjectConfig["taskTypes"]
-  // Legacy flat fields — kept for backwards compat, taskTypes takes precedence
-  orchestratorPrompt?: string
-  workerSystemPrompt?: string
-  reviewerSystemPrompt?: string
 }
 
-/** Resolve custom system prompt for a task type, preferring taskTypes over legacy flat fields. */
+/** Resolve custom system prompt for a task type from taskTypes config. */
 function resolveCustomSystemPrompt(config: ProjectConfig, taskType: string | null | undefined): string | undefined {
   const tt = taskType as "worker" | "orchestrator" | "reviewer" | undefined
   if (!tt) return undefined
-  const override = config.taskTypes?.[tt]
-  if (override?.systemPrompt) return override.systemPrompt
-  // Legacy fallbacks
-  if (tt === "worker") return config.workerSystemPrompt
-  if (tt === "reviewer") return config.reviewerSystemPrompt
-  if (tt === "orchestrator") return config.orchestratorPrompt
-  return undefined
+  return config.taskTypes?.[tt]?.systemPrompt
 }
 
 /** Run a local command via Bun.spawn, return stdout/stderr/exitCode */

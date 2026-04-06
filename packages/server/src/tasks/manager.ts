@@ -581,7 +581,7 @@ Start by loading the tangerine-tasks skill (\`/tangerine-tasks\`) and checking a
       projectId,
       title: ORCHESTRATOR_TASK_NAME,
       type: "orchestrator",
-      description: projectConfig?.taskTypes?.orchestrator?.systemPrompt ?? projectConfig?.orchestratorPrompt ?? defaultPrompt,
+      description: projectConfig?.taskTypes?.orchestrator?.systemPrompt ?? defaultPrompt,
       provider,
       model: model ?? (isClaude ? "claude-sonnet-4-6" : undefined),
       reasoningEffort: reasoningEffort ?? (isClaude ? "medium" : undefined),
