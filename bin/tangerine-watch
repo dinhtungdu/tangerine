@@ -3,7 +3,8 @@
 # Run this instead of `bin/tangerine start` when developing Tangerine itself.
 # This script manages restarts itself, so it runs the server in foreground mode
 # instead of using the CLI daemon.
-# After "Pull Latest" the server exits 0, which causes this loop to restart it.
+# After "Pull Latest" the server exits 75 (DAEMON_RESTART_EXIT_CODE), which
+# causes this loop to restart it. Exit 0 is also treated as a clean restart.
 # Also watches ~/tangerine/config.json (or $TANGERINE_CONFIG) for changes and
 # restarts on modification.
 
@@ -50,8 +51,9 @@ while true; do
   kill "$WATCHER_PID" 2>/dev/null
   wait "$WATCHER_PID" 2>/dev/null
 
-  if [ "$EXIT_CODE" -eq 0 ]; then
-    echo "[tangerine-watch] Clean exit (self-update), restarting in 2s..."
+  # Exit 0 = clean shutdown/update (legacy), exit 75 = explicit restart request
+  if [ "$EXIT_CODE" -eq 0 ] || [ "$EXIT_CODE" -eq 75 ]; then
+    echo "[tangerine-watch] Clean exit (code $EXIT_CODE), restarting in 2s..."
     sleep 2
   else
     echo "[tangerine-watch] Server exited with code $EXIT_CODE, stopping."
