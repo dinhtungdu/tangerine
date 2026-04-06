@@ -281,20 +281,7 @@ export function projectRoutes(deps: AppDeps): Hono {
           return // already archived
         }
 
-        // 1. Update config
-        const raw = deps.configStore.read()
-        const rawIndex = (raw.projects ?? []).findIndex((p) => p.name === name)
-        if (rawIndex !== -1) {
-          raw.projects![rawIndex]!.archived = true
-        }
-        const fullParsed = tangerineConfigSchema.safeParse(raw)
-        if (!fullParsed.success) {
-          return yield* Effect.fail(new ConfigValidationError({ message: fullParsed.error.message }))
-        }
-        deps.configStore.write(raw)
-        deps.config.config = fullParsed.data
-
-        // 2. Cancel running tasks for this project
+        // 1. Cancel running tasks for this project
         const tasks = yield* listTasks(deps.db, { projectId: name })
         for (const task of tasks) {
           if (!TERMINAL_STATUSES.has(task.status)) {
@@ -302,7 +289,7 @@ export function projectRoutes(deps: AppDeps): Hono {
           }
         }
 
-        // 3. Remove worktrees (physical directories + DB slots)
+        // 2. Remove worktrees (physical directories + DB slots)
         const repoDir = getRepoDir(deps.config.config, name)
         const slots = deps.db.prepare(
           "SELECT * FROM worktree_slots WHERE project_id = ? AND id NOT LIKE '%slot-0'"
@@ -317,6 +304,20 @@ export function projectRoutes(deps: AppDeps): Hono {
           Effect.catchAll(() => Effect.void)
         )
         yield* deletePoolForProject(deps.db, name).pipe(Effect.ignoreLogged)
+
+        // 3. Update config LAST — this triggers a watcher restart, so all
+        //    side effects (task cancellation, worktree removal) must be done first.
+        const raw = deps.configStore.read()
+        const rawIndex = (raw.projects ?? []).findIndex((p) => p.name === name)
+        if (rawIndex !== -1) {
+          raw.projects![rawIndex]!.archived = true
+        }
+        const fullParsed = tangerineConfigSchema.safeParse(raw)
+        if (!fullParsed.success) {
+          return yield* Effect.fail(new ConfigValidationError({ message: fullParsed.error.message }))
+        }
+        deps.configStore.write(raw)
+        deps.config.config = fullParsed.data
 
         log.info("Project archived", { name })
       })
