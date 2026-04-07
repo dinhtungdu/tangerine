@@ -6,7 +6,7 @@ import { mapTaskRow } from "../helpers"
 import { runEffect, runEffectVoid } from "../effect-helpers"
 import { getTask, listTasks, updateTask, deleteTask, markTaskSeen, getChildTasks } from "../../db/queries"
 import { TaskNotFoundError, TaskNotTerminalError, PrCapabilityError, BranchRenameError } from "../../errors"
-import { getAgentWorkingState } from "../../tasks/events"
+import { getAgentWorkingState, hasAgentWorkingState } from "../../tasks/events"
 import { getRepoDir } from "../../config"
 import { ghSpawnEnv } from "../../gh"
 import { localExecStrict } from "./../../tasks/worktree-pool"
@@ -31,7 +31,7 @@ export function taskRoutes(deps: AppDeps): Hono {
       listTasks(deps.db, { status, projectId, search, limit, offset }).pipe(
         Effect.map(rows => rows.map(row => {
           const task = mapTaskRow(row)
-          if (task.status === "running") task.agentStatus = getAgentWorkingState(task.id)
+          if (task.status === "running" && hasAgentWorkingState(task.id)) task.agentStatus = getAgentWorkingState(task.id)
           return task
         }))
       )
@@ -44,7 +44,7 @@ export function taskRoutes(deps: AppDeps): Hono {
         Effect.flatMap((row) => {
           if (!row) return Effect.fail(new TaskNotFoundError({ taskId: c.req.param("id") }))
           const task = mapTaskRow(row)
-          if (task.status === "running") task.agentStatus = getAgentWorkingState(task.id)
+          if (task.status === "running" && hasAgentWorkingState(task.id)) task.agentStatus = getAgentWorkingState(task.id)
           return Effect.succeed(task)
         })
       )
