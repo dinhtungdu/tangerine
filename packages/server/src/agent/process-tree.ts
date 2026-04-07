@@ -41,6 +41,9 @@ export function killProcessTree(pid: number, signal: NodeJS.Signals = "SIGTERM")
 export function killProcessTreeEscalated(pid: number, graceMs = 2000): void {
   killProcessTree(pid, "SIGTERM")
   setTimeout(() => {
+    // Verify the root process is still alive before escalating — PIDs can be
+    // reused by the OS after the original process exits.
+    try { process.kill(pid, 0) } catch { return }
     killProcessTree(pid, "SIGKILL")
   }, graceMs).unref()
 }

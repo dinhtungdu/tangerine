@@ -9,7 +9,7 @@ import type { AgentFactory, AgentHandle, AgentEvent, AgentStartContext, PromptIm
 import { parseNdjsonStream, createClaudeCodeMapper } from "./ndjson"
 import { homedir } from "node:os"
 import { join } from "node:path"
-import { killProcessTree, killProcessTreeEscalated } from "./process-tree"
+import { killDescendants, killProcessTreeEscalated } from "./process-tree"
 
 const log = createLogger("claude-code-provider")
 const CLAUDE_CODE_MODELS = [
@@ -197,9 +197,10 @@ export function createClaudeCodeProvider(): AgentFactory {
             abort() {
               return Effect.try({
                 try: () => {
-                  // Kill the entire process tree so spawned subprocesses
-                  // (e.g. bash commands) don't survive as orphans.
-                  killProcessTree(proc.pid, "SIGTERM")
+                  // Kill child processes (e.g. bash commands) but keep Claude
+                  // Code alive — it handles SIGINT as "stop current tool".
+                  killDescendants(proc.pid, "SIGTERM")
+                  proc.kill("SIGINT")
                 },
                 catch: (e) =>
                   new AgentError({ message: `Abort failed: ${e}`, taskId: ctx.taskId }),
