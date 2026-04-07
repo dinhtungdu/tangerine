@@ -33,6 +33,7 @@ export interface Task {
   lastSeenAt: string | null
   lastResultAt: string | null
   capabilities: TaskCapability[]
+  agentStatus?: "idle" | "working"
 }
 
 export interface Cron {

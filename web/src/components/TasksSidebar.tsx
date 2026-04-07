@@ -79,7 +79,10 @@ function TaskItem({
   onRefetch?: () => void
 }) {
   const { link } = useProjectNav()
-  const { color } = getStatusConfig(task.status)
+  const statusConfig = getStatusConfig(task.status)
+  const color = task.status === "running" && task.agentStatus === "idle"
+    ? "var(--color-status-warning)"
+    : statusConfig.color
   const unseen = !isActive && hasUnseenUpdates(task)
 
   return (
@@ -105,7 +108,7 @@ function TaskItem({
           )}
         </div>
         <span className="font-mono text-xxs text-fg-muted">
-          {formatRelativeTime(task.createdAt)} · {task.status}
+          {formatRelativeTime(task.createdAt)} · {task.status === "running" && task.agentStatus === "idle" ? "idle" : task.status}
           {" · "}
           <span className="rounded bg-surface-secondary px-1 py-px text-2xs">
             {task.provider === "claude-code" ? "CC" : task.provider === "codex" ? "CX" : task.provider === "pi" ? "Pi" : "OC"}
@@ -247,7 +250,9 @@ export function TasksSidebar({ tasks, searchQuery, onSearchChange, onNewAgent, o
           ) : (
             <div
               className="h-2 w-2 rounded-full"
-              style={{ backgroundColor: orchestrator ? getStatusConfig(orchestrator.status).color : "var(--color-fg-muted)" }}
+              style={{ backgroundColor: orchestrator
+                ? (orchestrator.status === "running" && orchestrator.agentStatus === "idle" ? "var(--color-status-warning)" : getStatusConfig(orchestrator.status).color)
+                : "var(--color-fg-muted)" }}
             />
           )}
         </div>
