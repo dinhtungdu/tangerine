@@ -58,7 +58,22 @@ export function TaskDetail() {
   const chatTaskId = (isCrossProject && orchestratorTask) ? orchestratorTask.id : (id ?? "")
   const session = useSession(chatTaskId)
   const { files: diffFiles } = useDiffFiles(id ?? "")
+  const diffCommentsKey = `diff-comments:${id}`
   const [diffComments, setDiffComments] = useState<DiffComment[]>([])
+  // Reload persisted comments whenever the task ID changes (component may stay mounted across navigations)
+  useEffect(() => {
+    try {
+      const s = localStorage.getItem(`diff-comments:${id}`)
+      setDiffComments(s ? (JSON.parse(s) as DiffComment[]) : [])
+    } catch { setDiffComments([]) }
+  }, [id])
+  const setDiffCommentsAndPersist = useCallback((updater: DiffComment[] | ((prev: DiffComment[]) => DiffComment[])) => {
+    setDiffComments((prev) => {
+      const next = typeof updater === "function" ? updater(prev) : updater
+      try { localStorage.setItem(diffCommentsKey, JSON.stringify(next)) } catch { /* ignore */ }
+      return next
+    })
+  }, [diffCommentsKey])
   const [showAllChildren, setShowAllChildren] = useState(false)
   const [copiedId, setCopiedId] = useState(false)
   const handleCopyId = useCallback(() => {
@@ -141,12 +156,12 @@ export function TaskDetail() {
   }, [id])
 
   const handleAddComment = useCallback((comment: DiffComment) => {
-    setDiffComments((prev) => [...prev, comment])
-  }, [])
+    setDiffCommentsAndPersist((prev) => [...prev, comment])
+  }, [setDiffCommentsAndPersist])
 
   const handleRemoveComment = useCallback((commentId: string) => {
-    setDiffComments((prev) => prev.filter((c) => c.id !== commentId))
-  }, [])
+    setDiffCommentsAndPersist((prev) => prev.filter((c) => c.id !== commentId))
+  }, [setDiffCommentsAndPersist])
 
   const handleScrollToFile = useCallback((path: string) => {
     const el = document.getElementById(`diff-file-${path}`)
@@ -218,9 +233,10 @@ export function TaskDetail() {
       })
       .join("\n\n")
     sendPromptRef.current(text)
+    try { localStorage.removeItem(diffCommentsKey) } catch { /* ignore */ }
     setDiffComments([])
     setMobilePane("chat")
-  }, [])
+  }, [diffCommentsKey])
 
   const handleRefetch = useCallback(async () => {
     if (!id) return
