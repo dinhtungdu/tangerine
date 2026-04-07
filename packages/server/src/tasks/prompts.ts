@@ -56,7 +56,7 @@ export function buildPrModeInstruction(prMode: "ready" | "draft" | "none"): stri
  */
 export function buildSystemLayer(taskId: string, info: SystemNotesInfo, port = apiPort()): string[] {
   const notes: string[] = []
-  notes.push(`[TANGERINE: You are running inside a Tangerine task (task ID: ${taskId}). The Tangerine API is at http://localhost:${port}. Load the tangerine-tasks skill (\`/tangerine-tasks\`) for full API reference and common workflows.]`)
+  notes.push(`[TANGERINE: You are running inside a Tangerine task (task ID: ${taskId}). The Tangerine API is at http://localhost:${port}. Load the tangerine-tasks skill for full API reference and common workflows.]`)
 
   if (info.taskType === "worker") {
     const prMode = info.prMode ?? "none"

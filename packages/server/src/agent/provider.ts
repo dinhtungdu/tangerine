@@ -31,8 +31,24 @@ export interface AgentConfig {
   reasoningEffort?: string
 }
 
+export interface ReasoningEffortOption {
+  value: string
+  label: string
+  description: string
+}
+
 export interface ProviderMetadata {
   displayName: string
+  /** Short label for compact UI (e.g. "CC", "OC") */
+  abbreviation: string
+  /** CLI binary name used to invoke this provider (e.g. "claude", "codex") */
+  cliCommand: string
+  /** Default model ID when none is specified */
+  defaultModel?: string
+  /** Default reasoning effort level when none is specified */
+  defaultReasoningEffort?: string
+  /** Reasoning effort levels supported by this provider */
+  reasoningEfforts: ReasoningEffortOption[]
   skills: {
     directory: string
   }

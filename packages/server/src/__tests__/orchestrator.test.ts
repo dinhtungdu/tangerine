@@ -5,8 +5,10 @@ import { createTestDb } from "./helpers"
 import { ORCHESTRATOR_TASK_NAME } from "@tangerine/shared"
 import { ensureOrchestrator, startTask, createTask, type TaskManagerDeps } from "../tasks/manager"
 import * as dbQueries from "../db/queries"
+import { createAgentFactories } from "../agent/factories"
 
 const PROJECT_ID = "test-project"
+const factories = createAgentFactories()
 
 function makeDeps(db: Database): TaskManagerDeps {
   // Track whether startSessionWithRetry was called
@@ -24,6 +26,7 @@ function makeDeps(db: Database): TaskManagerDeps {
     getProjectConfig: (id) => id === PROJECT_ID
       ? { repo: "https://github.com/test/repo", setup: "echo ok", defaultBranch: "main", defaultProvider: "claude-code" as const }
       : undefined,
+    getAgentFactory: (provider) => factories[provider as keyof typeof factories],
     abortAgent: () => Effect.void,
     get _sessionStarted() { return sessionStarted },
     set _sessionStarted(v: boolean) { sessionStarted = v },
@@ -106,7 +109,7 @@ describe("ensureOrchestrator", () => {
     expect(task.provider).toBe("opencode")
   })
 
-  test("defaults to claude-sonnet-4-6 model with medium reasoning effort", async () => {
+  test("defaults to provider's default model and reasoning effort", async () => {
     const task = await Effect.runPromise(ensureOrchestrator(deps, PROJECT_ID))
     expect(task.model).toBe("claude-sonnet-4-6")
     expect(task.reasoning_effort).toBe("medium")
@@ -118,7 +121,7 @@ describe("ensureOrchestrator", () => {
     expect(task.reasoning_effort).toBe("medium")
   })
 
-  test("does not default claude model for non-claude providers", async () => {
+  test("providers without defaults get no model or effort", async () => {
     const task = await Effect.runPromise(ensureOrchestrator(deps, PROJECT_ID, "opencode"))
     expect(task.model).toBeNull()
     expect(task.reasoning_effort).toBeNull()

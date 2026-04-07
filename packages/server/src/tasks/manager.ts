@@ -555,10 +555,9 @@ export function ensureOrchestrator(
       .filter((t) => TERMINAL_STATUSES.has(t.status))
       .sort((a, b) => (b.created_at ?? "").localeCompare(a.created_at ?? ""))[0]
 
-    // Default to claude-sonnet-4-6 medium for claude-code orchestrators
     const projectConfig = deps.getProjectConfig(projectId)
     const resolvedProvider = provider ?? projectConfig?.defaultProvider ?? DEFAULT_PROVIDER
-    const isClaude = resolvedProvider === "claude-code"
+    const metadata = deps.getAgentFactory?.(resolvedProvider)?.metadata
 
     const defaultPrompt = `You are the orchestrator for the "${projectId}" project. You are running on the default branch (main repo, not a worktree).
 
@@ -569,12 +568,10 @@ Your role:
 ## Model and provider selection
 
 Choose based on task complexity. Pass \`"model"\` and optionally \`"provider"\` when creating tasks.
-- **claude-opus-4-6** (claude-code) — complex features, multi-file refactors, architecture work, deep reasoning
-- **claude-sonnet-4-6** (claude-code) — straightforward bug fixes, single-file changes, simple features, and **review tasks**
 
-Default to opus for ambiguous complexity.
+Default to the most capable model for ambiguous complexity.
 
-Start by loading the tangerine-tasks skill (\`/tangerine-tasks\`) and checking active tasks via the API.`
+Start by loading the tangerine-tasks skill and checking active tasks via the API.`
 
     return yield* createTask(deps, {
       source: "manual",
@@ -583,8 +580,8 @@ Start by loading the tangerine-tasks skill (\`/tangerine-tasks\`) and checking a
       type: "orchestrator",
       description: projectConfig?.taskTypes?.orchestrator?.systemPrompt ?? defaultPrompt,
       provider,
-      model: model ?? (isClaude ? "claude-sonnet-4-6" : undefined),
-      reasoningEffort: reasoningEffort ?? (isClaude ? "medium" : undefined),
+      model: model ?? metadata?.defaultModel,
+      reasoningEffort: reasoningEffort ?? metadata?.defaultReasoningEffort,
       parentTaskId: parent?.id,
     })
   })

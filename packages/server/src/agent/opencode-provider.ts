@@ -19,6 +19,13 @@ import { scanClaudeSkills } from "./skill-scanner"
 const log = createLogger("opencode-provider")
 export const OPENCODE_PROVIDER_METADATA: ProviderMetadata = {
   displayName: PROVIDER_DISPLAY_NAMES.opencode,
+  abbreviation: "OC",
+  cliCommand: "opencode",
+  reasoningEfforts: [
+    { value: "low", label: "Low", description: "Quick, minimal thinking" },
+    { value: "medium", label: "Medium", description: "Balanced (default)" },
+    { value: "high", label: "High", description: "Extended reasoning" },
+  ],
   skills: {
     directory: join(homedir(), ".claude", "skills"),
   },

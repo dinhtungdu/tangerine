@@ -20,6 +20,16 @@ const CLAUDE_CODE_MODELS = [
 
 export const CLAUDE_CODE_PROVIDER_METADATA: ProviderMetadata = {
   displayName: PROVIDER_DISPLAY_NAMES["claude-code"],
+  abbreviation: "CC",
+  cliCommand: "claude",
+  defaultModel: "claude-sonnet-4-6",
+  defaultReasoningEffort: "medium",
+  reasoningEfforts: [
+    { value: "low", label: "Low", description: "Quick, minimal thinking" },
+    { value: "medium", label: "Medium", description: "Balanced (default)" },
+    { value: "high", label: "High", description: "Extended reasoning" },
+    { value: "max", label: "Max", description: "Maximum reasoning depth" },
+  ],
   skills: {
     directory: join(homedir(), ".claude", "skills"),
   },

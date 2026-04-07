@@ -195,6 +195,9 @@ export async function start(): Promise<void> {
       }
     }
 
+    // Agent provider factories (local — no SSH deps)
+    const factories = createAgentFactories()
+
     // Verify required external tools before proceeding. Each feature gates on
     // the tools it needs — fail early with an actionable message rather than
     // letting features silently malfunction at runtime.
@@ -234,8 +237,8 @@ export async function start(): Promise<void> {
 
       // Agent provider CLIs — any provider can be selected at task creation time,
       // so check all supported providers, not just the configured defaults.
-      const providerCli: Record<string, string> = { "claude-code": "claude", "opencode": "opencode", "codex": "codex", "pi": "pi" }
-      for (const [provider, cli] of Object.entries(providerCli)) {
+      for (const [provider, factory] of Object.entries(factories)) {
+        const cli = factory.metadata.cliCommand
         if (!(await cmdExists(cli))) {
           warnings.push(`${cli} CLI is not installed — provider "${provider}" will not be available.`)
         }
@@ -255,15 +258,9 @@ export async function start(): Promise<void> {
     cleanupActivities(db)
     log.info("Database initialized")
 
-    // Agent provider factories (local — no SSH deps)
-    const factories = createAgentFactories()
-
     // Select factory based on provider type
     const getAgentFactory = (provider: string) =>
-      provider === "claude-code" ? factories["claude-code"]
-        : provider === "codex" ? factories.codex
-        : provider === "pi" ? factories.pi
-        : factories.opencode
+      factories[provider as keyof typeof factories] ?? factories.opencode
 
     // Wire task manager — extract cleanupDeps so retryDeps can reference it
     const cleanupDeps: CleanupDeps = {

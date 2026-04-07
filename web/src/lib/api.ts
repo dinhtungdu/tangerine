@@ -37,10 +37,17 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
   return res.json() as Promise<T>
 }
 
+export interface ProviderMeta {
+  displayName: string
+  abbreviation: string
+  reasoningEfforts: { value: string; label: string; description: string }[]
+}
+
 export async function fetchProjects(): Promise<{
   projects: ProjectConfig[]
   model: string
   modelsByProvider: Record<string, string[]>
+  providerMetadata?: Record<string, ProviderMeta>
   sshHost?: string
   sshUser?: string
   editor?: "vscode" | "cursor" | "zed"
@@ -51,6 +58,7 @@ export async function fetchProjects(): Promise<{
     projects: ProjectConfig[]
     model: string
     modelsByProvider: Record<string, string[]>
+    providerMetadata?: Record<string, ProviderMeta>
     sshHost?: string
     sshUser?: string
     editor?: "vscode" | "cursor" | "zed"

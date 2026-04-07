@@ -1,7 +1,7 @@
 import { createContext, useContext, useState, useEffect, useCallback, type ReactNode } from "react"
 import { useSearchParams, useNavigate, useLocation } from "react-router-dom"
 import type { ProjectConfig, ActionCombo, ShortcutConfig } from "@tangerine/shared"
-import { fetchProjects, fetchTasks, ensureOrchestrator } from "../lib/api"
+import { fetchProjects, fetchTasks, ensureOrchestrator, type ProviderMeta } from "../lib/api"
 import { getMostRecentTask } from "../lib/task-recency"
 
 interface ProjectContextValue {
@@ -9,6 +9,7 @@ interface ProjectContextValue {
   current: ProjectConfig | null
   model: string
   modelsByProvider: Record<string, string[]>
+  providerMetadata: Record<string, ProviderMeta>
   sshHost: string | undefined
   sshUser: string | undefined
   editor: "vscode" | "cursor" | "zed" | undefined
@@ -25,6 +26,7 @@ const ProjectContext = createContext<ProjectContextValue>({
   current: null,
   model: "",
   modelsByProvider: {},
+  providerMetadata: {},
   sshHost: undefined,
   sshUser: undefined,
   editor: undefined,
@@ -43,6 +45,7 @@ export function ProjectProvider({ children }: { children: ReactNode }) {
   const [projects, setProjects] = useState<ProjectConfig[]>([])
   const [globalModel, setGlobalModel] = useState("")
   const [modelsByProvider, setModelsByProvider] = useState<Record<string, string[]>>({})
+  const [providerMetadata, setProviderMetadata] = useState<Record<string, ProviderMeta>>({})
   const [selectedModel, setSelectedModel] = useState<string | null>(null)
   const [sshHost, setSshHost] = useState<string | undefined>(undefined)
   const [sshUser, setSshUser] = useState<string | undefined>(undefined)
@@ -57,6 +60,7 @@ export function ProjectProvider({ children }: { children: ReactNode }) {
         setProjects(data.projects)
         setGlobalModel(data.model)
         setModelsByProvider(data.modelsByProvider ?? {})
+        setProviderMetadata(data.providerMetadata ?? {})
         setSshHost(data.sshHost)
         setSshUser(data.sshUser)
         setEditor(data.editor)
@@ -78,6 +82,7 @@ export function ProjectProvider({ children }: { children: ReactNode }) {
         setProjects(data.projects)
         setGlobalModel(data.model)
         setModelsByProvider(data.modelsByProvider ?? {})
+        setProviderMetadata(data.providerMetadata ?? {})
         setSshHost(data.sshHost)
         setSshUser(data.sshUser)
         setEditor(data.editor)
@@ -133,7 +138,7 @@ export function ProjectProvider({ children }: { children: ReactNode }) {
   }, [loading, projects, projectParam, setSearchParams])
 
   return (
-    <ProjectContext.Provider value={{ projects, current, model, modelsByProvider, sshHost, sshUser, editor, actionCombos, shortcuts, setModel: setSelectedModel, switchProject, refreshProjects, loading }}>
+    <ProjectContext.Provider value={{ projects, current, model, modelsByProvider, providerMetadata, sshHost, sshUser, editor, actionCombos, shortcuts, setModel: setSelectedModel, switchProject, refreshProjects, loading }}>
       {children}
     </ProjectContext.Provider>
   )

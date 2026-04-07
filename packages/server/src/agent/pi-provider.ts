@@ -18,6 +18,16 @@ import { killDescendants, killProcessTreeEscalated } from "./process-tree"
 const log = createLogger("pi-provider")
 export const PI_PROVIDER_METADATA: ProviderMetadata = {
   displayName: PROVIDER_DISPLAY_NAMES.pi,
+  abbreviation: "Pi",
+  cliCommand: "pi",
+  reasoningEfforts: [
+    { value: "off", label: "Off", description: "No thinking" },
+    { value: "minimal", label: "Minimal", description: "Brief reasoning" },
+    { value: "low", label: "Low", description: "Quick, minimal thinking" },
+    { value: "medium", label: "Medium", description: "Balanced (default)" },
+    { value: "high", label: "High", description: "Extended reasoning" },
+    { value: "xhigh", label: "Extra High", description: "Maximum reasoning depth" },
+  ],
   skills: {
     directory: join(homedir(), ".pi", "agent", "skills"),
   },

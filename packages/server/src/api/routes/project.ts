@@ -16,17 +16,27 @@ import { DAEMON_RESTART_EXIT_CODE } from "../../daemon-exit"
 const log = createLogger("project-routes")
 
 function buildProjectsResponse(deps: AppDeps) {
-  const modelsByProvider: Record<string, string[]> = {
-    opencode: deps.agentFactories.opencode.listModels().map((m) => m.id),
-    "claude-code": deps.agentFactories["claude-code"].listModels().map((m) => m.id),
-    codex: deps.agentFactories.codex.listModels().map((m) => m.id),
-    pi: deps.agentFactories.pi.listModels().map((m) => m.id),
+  const modelsByProvider: Record<string, string[]> = {}
+  const providerMetadata: Record<string, {
+    displayName: string
+    abbreviation: string
+    reasoningEfforts: { value: string; label: string; description: string }[]
+  }> = {}
+
+  for (const [key, factory] of Object.entries(deps.agentFactories)) {
+    modelsByProvider[key] = factory.listModels().map((m) => m.id)
+    providerMetadata[key] = {
+      displayName: factory.metadata.displayName,
+      abbreviation: factory.metadata.abbreviation,
+      reasoningEfforts: factory.metadata.reasoningEfforts,
+    }
   }
 
   return {
     projects: deps.config.config.projects,
     model: deps.config.config.model,
     modelsByProvider,
+    providerMetadata,
     sshHost: deps.config.config.sshHost,
     sshUser: deps.config.config.sshUser,
     editor: deps.config.config.editor,

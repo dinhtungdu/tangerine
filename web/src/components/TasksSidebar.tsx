@@ -79,6 +79,7 @@ function TaskItem({
   onRefetch?: () => void
 }) {
   const { link } = useProjectNav()
+  const { providerMetadata } = useProject()
   const statusConfig = getStatusConfig(task.status)
   const color = task.status === "running" && task.agentStatus === "idle"
     ? "var(--color-status-warning)"
@@ -111,7 +112,7 @@ function TaskItem({
           {formatRelativeTime(task.createdAt)} · {task.status === "running" && task.agentStatus === "idle" ? "idle" : task.status}
           {" · "}
           <span className="rounded bg-surface-secondary px-1 py-px text-2xs">
-            {task.provider === "claude-code" ? "CC" : task.provider === "codex" ? "CX" : task.provider === "pi" ? "Pi" : "OC"}
+            {providerMetadata[task.provider]?.abbreviation ?? task.provider}
           </span>
           {task.type !== "worker" && (
             <>

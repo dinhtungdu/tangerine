@@ -21,6 +21,16 @@ export const CODEX_SANDBOX_MODE = "danger-full-access" as const
 export const CODEX_SANDBOX_POLICY = { type: "dangerFullAccess" } as const
 export const CODEX_PROVIDER_METADATA: ProviderMetadata = {
   displayName: PROVIDER_DISPLAY_NAMES.codex,
+  abbreviation: "CX",
+  cliCommand: "codex",
+  reasoningEfforts: [
+    { value: "none", label: "None", description: "No reasoning" },
+    { value: "minimal", label: "Minimal", description: "Brief reasoning" },
+    { value: "low", label: "Low", description: "Quick, minimal thinking" },
+    { value: "medium", label: "Medium", description: "Balanced (default)" },
+    { value: "high", label: "High", description: "Extended reasoning" },
+    { value: "xhigh", label: "Extra High", description: "Maximum reasoning depth" },
+  ],
   skills: {
     directory: join(homedir(), ".codex", "skills"),
   },

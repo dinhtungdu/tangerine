@@ -1,5 +1,6 @@
 import { useState, useRef, useEffect } from "react"
 import type { ProviderType } from "@tangerine/shared"
+import { useProject } from "../context/ProjectContext"
 
 interface EffortOption {
   value: string
@@ -7,44 +8,17 @@ interface EffortOption {
   description: string
 }
 
-const CLAUDE_CODE_EFFORTS: EffortOption[] = [
-  { value: "low", label: "Low", description: "Quick, minimal thinking" },
-  { value: "medium", label: "Medium", description: "Balanced (default)" },
-  { value: "high", label: "High", description: "Extended reasoning" },
-  { value: "max", label: "Max", description: "Maximum reasoning depth" },
-]
-
-const CODEX_EFFORTS: EffortOption[] = [
-  { value: "none", label: "None", description: "No reasoning" },
-  { value: "minimal", label: "Minimal", description: "Brief reasoning" },
-  { value: "low", label: "Low", description: "Quick, minimal thinking" },
-  { value: "medium", label: "Medium", description: "Balanced (default)" },
-  { value: "high", label: "High", description: "Extended reasoning" },
-  { value: "xhigh", label: "Extra High", description: "Maximum reasoning depth" },
-]
-
-const PI_EFFORTS: EffortOption[] = [
-  { value: "off", label: "Off", description: "No thinking" },
-  { value: "minimal", label: "Minimal", description: "Brief reasoning" },
-  { value: "low", label: "Low", description: "Quick, minimal thinking" },
-  { value: "medium", label: "Medium", description: "Balanced (default)" },
-  { value: "high", label: "High", description: "Extended reasoning" },
-  { value: "xhigh", label: "Extra High", description: "Maximum reasoning depth" },
-]
-
 const DEFAULT_EFFORTS: EffortOption[] = [
   { value: "low", label: "Low", description: "Quick, minimal thinking" },
   { value: "medium", label: "Medium", description: "Balanced (default)" },
   { value: "high", label: "High", description: "Extended reasoning" },
 ]
 
-export function getEfforts(provider?: ProviderType): EffortOption[] {
-  switch (provider) {
-    case "claude-code": return CLAUDE_CODE_EFFORTS
-    case "codex": return CODEX_EFFORTS
-    case "pi": return PI_EFFORTS
-    default: return DEFAULT_EFFORTS
+export function getEfforts(provider: ProviderType | undefined, providerMetadata: Record<string, EffortOption[]>): EffortOption[] {
+  if (provider && providerMetadata[provider]?.length) {
+    return providerMetadata[provider]
   }
+  return DEFAULT_EFFORTS
 }
 
 export type ReasoningEffort = string
@@ -58,6 +32,7 @@ interface ReasoningEffortSelectorProps {
 export function ReasoningEffortSelector({ value, onChange, provider }: ReasoningEffortSelectorProps) {
   const [open, setOpen] = useState(false)
   const ref = useRef<HTMLDivElement>(null)
+  const { providerMetadata } = useProject()
 
   useEffect(() => {
     if (!open) return
@@ -70,7 +45,11 @@ export function ReasoningEffortSelector({ value, onChange, provider }: Reasoning
     return () => document.removeEventListener("mousedown", handleClick)
   }, [open])
 
-  const efforts = getEfforts(provider)
+  const effortsByProvider: Record<string, EffortOption[]> = {}
+  for (const [key, meta] of Object.entries(providerMetadata)) {
+    effortsByProvider[key] = meta.reasoningEfforts
+  }
+  const efforts = getEfforts(provider, effortsByProvider)
   const current = efforts.find((e) => e.value === value) ?? efforts.find((e) => e.value === "medium") ?? efforts[0]!
 
   return (
