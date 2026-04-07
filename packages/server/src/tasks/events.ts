@@ -49,6 +49,11 @@ export function getAgentWorkingState(taskId: string): "idle" | "working" {
   return agentWorkingState.get(taskId) ?? "idle"
 }
 
+/** Check if an agent working state has been explicitly set for a task. */
+export function hasAgentWorkingState(taskId: string): boolean {
+  return agentWorkingState.has(taskId)
+}
+
 /** Update the agent working state for a task. */
 export function setAgentWorkingState(taskId: string, state: "idle" | "working"): void {
   agentWorkingState.set(taskId, state)

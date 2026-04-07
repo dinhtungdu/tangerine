@@ -6,6 +6,7 @@ import { mapTaskRow } from "../helpers"
 import { runEffect, runEffectVoid } from "../effect-helpers"
 import { getTask, listTasks, updateTask, deleteTask, markTaskSeen, getChildTasks } from "../../db/queries"
 import { TaskNotFoundError, TaskNotTerminalError, PrCapabilityError, BranchRenameError } from "../../errors"
+import { getAgentWorkingState, hasAgentWorkingState } from "../../tasks/events"
 import { getRepoDir } from "../../config"
 import { ghSpawnEnv } from "../../gh"
 import { localExecStrict } from "./../../tasks/worktree-pool"
@@ -28,7 +29,11 @@ export function taskRoutes(deps: AppDeps): Hono {
     const offset = !isNaN(offsetParsed) ? Math.max(0, offsetParsed) : undefined
     return runEffect(c,
       listTasks(deps.db, { status, projectId, search, limit, offset }).pipe(
-        Effect.map(rows => rows.map(mapTaskRow))
+        Effect.map(rows => rows.map(row => {
+          const task = mapTaskRow(row)
+          if (task.status === "running" && hasAgentWorkingState(task.id)) task.agentStatus = getAgentWorkingState(task.id)
+          return task
+        }))
       )
     )
   })
@@ -36,9 +41,12 @@ export function taskRoutes(deps: AppDeps): Hono {
   app.get("/:id", (c) => {
     return runEffect(c,
       getTask(deps.db, c.req.param("id")).pipe(
-        Effect.flatMap((task) =>
-          task ? Effect.succeed(mapTaskRow(task)) : Effect.fail(new TaskNotFoundError({ taskId: c.req.param("id") }))
-        )
+        Effect.flatMap((row) => {
+          if (!row) return Effect.fail(new TaskNotFoundError({ taskId: c.req.param("id") }))
+          const task = mapTaskRow(row)
+          if (task.status === "running" && hasAgentWorkingState(task.id)) task.agentStatus = getAgentWorkingState(task.id)
+          return Effect.succeed(task)
+        })
       )
     )
   })
