@@ -617,7 +617,7 @@ export function TaskDetail() {
           {(mobilePane === "activity" || visiblePanes.has("activity")) && (
             <div
               className={[
-                "flex min-h-0 flex-col bg-surface-secondary",
+                "flex min-h-0 min-w-0 flex-col bg-surface-secondary",
                 mobilePane === "activity" ? "flex-1" : "hidden",
                 visiblePanes.has("activity")
                   ? `md:flex${desktopIsSolo || firstVisiblePane === "activity" ? " md:flex-1" : " md:[width:var(--pane-w)] md:[flex-shrink:0] md:max-w-full"}`

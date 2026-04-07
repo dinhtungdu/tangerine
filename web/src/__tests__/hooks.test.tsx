@@ -352,14 +352,12 @@ describe("useResizable", () => {
   test("tracks drag delta across pointer moves", () => {
     const onResize = mock(() => {})
     const { result } = renderHook(() => useResizable({ onResize }))
-    const setPointerCapture = mock(() => {})
 
     act(() => {
       result.current.onPointerDown({
         preventDefault: () => {},
         clientX: 120,
         pointerId: 7,
-        currentTarget: { setPointerCapture },
       } as unknown as ReactPointerEvent<HTMLElement>)
     })
 
@@ -367,13 +365,12 @@ describe("useResizable", () => {
     expect(document.body.style.userSelect).toBe("none")
 
     act(() => {
-      const firstMove = Object.assign(new Event("pointermove"), { clientX: 150, pointerId: 7 })
-      const secondMove = Object.assign(new Event("pointermove"), { clientX: 165, pointerId: 7 })
+      const firstMove = Object.assign(new Event("pointermove"), { clientX: 150, pointerId: 7, pointerType: "mouse", buttons: 1 })
+      const secondMove = Object.assign(new Event("pointermove"), { clientX: 165, pointerId: 7, pointerType: "mouse", buttons: 1 })
       window.dispatchEvent(firstMove)
       window.dispatchEvent(secondMove)
     })
 
-    expect(setPointerCapture).toHaveBeenCalledWith(7)
     expect(onResize).toHaveBeenCalledTimes(2)
     const calls = (onResize as ReturnType<typeof mock>).mock.calls as number[][]
     expect(calls[0][0]).toBe(30)
@@ -388,6 +385,30 @@ describe("useResizable", () => {
     expect(document.body.style.userSelect).toBe("")
   })
 
+  test("resets drag when mouse buttons are released without pointerup", () => {
+    const onResize = mock(() => {})
+    const { result } = renderHook(() => useResizable({ onResize }))
+
+    act(() => {
+      result.current.onPointerDown({
+        preventDefault: () => {},
+        clientX: 100,
+        pointerId: 1,
+      } as unknown as ReactPointerEvent<HTMLElement>)
+    })
+
+    expect(document.body.style.cursor).toBe("col-resize")
+
+    // Simulate a pointermove with buttons=0 (mouse button released without pointerup)
+    act(() => {
+      const staleMove = Object.assign(new Event("pointermove"), { clientX: 200, pointerId: 1, pointerType: "mouse", buttons: 0 })
+      window.dispatchEvent(staleMove)
+    })
+
+    expect(onResize).not.toHaveBeenCalled()
+    expect(document.body.style.cursor).toBe("")
+  })
+
   test("ignores unrelated pointers and resets styles on unmount", () => {
     const onResize = mock(() => {})
     const { result, unmount } = renderHook(() => useResizable({ onResize }))
@@ -397,12 +418,11 @@ describe("useResizable", () => {
         preventDefault: () => {},
         clientX: 80,
         pointerId: 3,
-        currentTarget: { setPointerCapture: () => {} },
       } as unknown as ReactPointerEvent<HTMLElement>)
     })
 
     act(() => {
-      const otherPointerMove = Object.assign(new Event("pointermove"), { clientX: 140, pointerId: 9 })
+      const otherPointerMove = Object.assign(new Event("pointermove"), { clientX: 140, pointerId: 9, pointerType: "mouse", buttons: 1 })
       window.dispatchEvent(otherPointerMove)
     })
     expect(onResize).not.toHaveBeenCalled()
