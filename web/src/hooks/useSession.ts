@@ -26,10 +26,6 @@ interface UseSessionResult {
   abort: () => void
 }
 
-// Delay before flipping to idle — matches the suspension timeout so "idle" means
-// "dormant long enough to be suspended", not just "finished the current turn".
-const IDLE_GRACE_MS = 600_000
-
 export function useSession(taskId: string): UseSessionResult {
   const [messages, setMessages] = useState<ChatMessage[]>([])
   const [activities, setActivities] = useState<ActivityEntry[]>([])
@@ -38,32 +34,17 @@ export function useSession(taskId: string): UseSessionResult {
   const [taskStatus, setTaskStatus] = useState<TaskStatus | null>(null)
   const { connected, messages: wsMessages, send } = useWebSocket(taskId)
   const processedCountRef = useRef(0)
-  const idleTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
-
-  const scheduleIdle = () => {
-    if (idleTimerRef.current) clearTimeout(idleTimerRef.current)
-    idleTimerRef.current = setTimeout(() => {
-      idleTimerRef.current = null
-      setAgentStatus("idle")
-    }, IDLE_GRACE_MS)
-  }
-
-  const cancelIdle = () => {
-    if (idleTimerRef.current) { clearTimeout(idleTimerRef.current); idleTimerRef.current = null }
-  }
 
   // Clear all session state immediately when the task changes so the previous
   // task's messages/activities/status don't leak into the new one while the
   // REST fetch is in flight.
   useEffect(() => {
-    cancelIdle()
     setMessages([])
     setActivities([])
     setAgentStatus("idle")
     setQueueLength(0)
     setTaskStatus(null)
     processedCountRef.current = 0
-    return () => { cancelIdle() }
   }, [taskId])
 
   // Load initial messages + activities via REST
@@ -150,10 +131,9 @@ export function useSession(taskId: string): UseSessionResult {
         if (data && typeof data === "object" && "event" in data) {
           const eventType = String(data.event)
           if (eventType === "agent.start" || eventType === "tool.start") {
-            cancelIdle()
             setAgentStatus("working")
           } else if (eventType === "agent.end" || eventType === "agent.idle") {
-            scheduleIdle()
+            setAgentStatus("idle")
           }
         }
         break
@@ -164,7 +144,6 @@ export function useSession(taskId: string): UseSessionResult {
       case "status":
         setTaskStatus(msg.status)
         if (msg.status === "done" || msg.status === "failed" || msg.status === "cancelled") {
-          cancelIdle()
           setAgentStatus("idle")
         }
         // Don't set "working" from task status "running" — a running task may
@@ -172,10 +151,6 @@ export function useSession(taskId: string): UseSessionResult {
         // with the actual working state.
         break
       case "agent_status":
-        // This is the server's authoritative current state sent on (re)connect —
-        // apply immediately without grace period so stale "working" display
-        // doesn't persist across reconnects.
-        cancelIdle()
         setAgentStatus(msg.agentStatus)
         break
       case "error":
@@ -220,7 +195,6 @@ export function useSession(taskId: string): UseSessionResult {
 
   const abort = useCallback(() => {
     send({ type: "abort" })
-    cancelIdle()
     setAgentStatus("idle")
     setQueueLength(0)
   }, [send])

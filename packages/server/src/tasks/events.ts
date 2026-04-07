@@ -1,8 +1,6 @@
 // Singleton event emitter for task events.
 // WebSocket routes subscribe per-task; the task manager emits on status transitions.
 
-import { DEFAULT_IDLE_TIMEOUT_MS } from "@tangerine/shared"
-
 type TaskEventHandler = (data: unknown) => void
 type StatusChangeHandler = (status: string) => void
 
@@ -12,13 +10,6 @@ const statusChangeListeners = new Map<string, Set<StatusChangeHandler>>()
 // Track whether each task's agent is currently working or idle.
 // This is separate from task status ("running" = task is open, agent may be idle).
 const agentWorkingState = new Map<string, "idle" | "working">()
-
-// Timestamp when each task's agent last went idle. Used to compute display state:
-// the UI shows "working" for IDLE_GRACE_MS after going idle so it doesn't flash
-// idle immediately after a response. The raw working state stays accurate for
-// health checks (isAgentWorking / suspension logic).
-const agentIdleSince = new Map<string, number>()
-const IDLE_GRACE_MS = DEFAULT_IDLE_TIMEOUT_MS
 
 export function emitTaskEvent(taskId: string, data: unknown): void {
   const handlers = taskEventListeners.get(taskId)
@@ -53,24 +44,9 @@ export function onTaskEvent(taskId: string, handler: TaskEventHandler): () => vo
   }
 }
 
-/** Get the raw agent working state (accurate, used for health checks / suspension). */
+/** Get the current agent working state for a task. */
 export function getAgentWorkingState(taskId: string): "idle" | "working" {
   return agentWorkingState.get(taskId) ?? "idle"
-}
-
-/**
- * Get the display state for the UI. Returns "working" for IDLE_GRACE_MS after
- * the agent goes idle so the sidebar doesn't flash idle right after a response.
- */
-export function getAgentDisplayState(taskId: string): "idle" | "working" {
-  const state = agentWorkingState.get(taskId) ?? "idle"
-  if (state === "idle") {
-    const idleSince = agentIdleSince.get(taskId)
-    if (idleSince !== undefined && Date.now() - idleSince < IDLE_GRACE_MS) {
-      return "working"
-    }
-  }
-  return state
 }
 
 /** Check if an agent working state has been explicitly set for a task. */
@@ -80,18 +56,12 @@ export function hasAgentWorkingState(taskId: string): boolean {
 
 /** Update the agent working state for a task. */
 export function setAgentWorkingState(taskId: string, state: "idle" | "working"): void {
-  if (state === "idle") {
-    agentIdleSince.set(taskId, Date.now())
-  } else {
-    agentIdleSince.delete(taskId)
-  }
   agentWorkingState.set(taskId, state)
 }
 
 /** Clean up agent working state when a task is terminal. */
 export function clearAgentWorkingState(taskId: string): void {
   agentWorkingState.delete(taskId)
-  agentIdleSince.delete(taskId)
 }
 
 /** Subscribe to status changes. Returns an unsubscribe function. */
