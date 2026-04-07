@@ -59,13 +59,14 @@ export function TaskDetail() {
   const session = useSession(chatTaskId)
   const { files: diffFiles } = useDiffFiles(id ?? "")
   const diffCommentsKey = `diff-comments:${id}`
-  const [diffComments, setDiffComments] = useState<DiffComment[]>(() => {
+  const [diffComments, setDiffComments] = useState<DiffComment[]>([])
+  // Reload persisted comments whenever the task ID changes (component may stay mounted across navigations)
+  useEffect(() => {
     try {
       const s = localStorage.getItem(`diff-comments:${id}`)
-      if (s) return JSON.parse(s) as DiffComment[]
-    } catch { /* ignore */ }
-    return []
-  })
+      setDiffComments(s ? (JSON.parse(s) as DiffComment[]) : [])
+    } catch { setDiffComments([]) }
+  }, [id])
   const setDiffCommentsAndPersist = useCallback((updater: DiffComment[] | ((prev: DiffComment[]) => DiffComment[])) => {
     setDiffComments((prev) => {
       const next = typeof updater === "function" ? updater(prev) : updater
@@ -156,11 +157,11 @@ export function TaskDetail() {
 
   const handleAddComment = useCallback((comment: DiffComment) => {
     setDiffCommentsAndPersist((prev) => [...prev, comment])
-  }, [])
+  }, [setDiffCommentsAndPersist])
 
   const handleRemoveComment = useCallback((commentId: string) => {
     setDiffCommentsAndPersist((prev) => prev.filter((c) => c.id !== commentId))
-  }, [])
+  }, [setDiffCommentsAndPersist])
 
   const handleScrollToFile = useCallback((path: string) => {
     const el = document.getElementById(`diff-file-${path}`)
@@ -235,7 +236,7 @@ export function TaskDetail() {
     try { localStorage.removeItem(diffCommentsKey) } catch { /* ignore */ }
     setDiffComments([])
     setMobilePane("chat")
-  }, [])
+  }, [diffCommentsKey])
 
   const handleRefetch = useCallback(async () => {
     if (!id) return
