@@ -13,7 +13,7 @@ import { existsSync, readFileSync } from "node:fs"
 import { homedir } from "node:os"
 import { scanCodexSkills } from "./skill-scanner"
 import { join } from "node:path"
-import { killProcessTreeEscalated } from "./process-tree"
+import { killDescendants, killProcessTreeEscalated } from "./process-tree"
 
 const log = createLogger("codex-provider")
 export const CODEX_APPROVAL_POLICY = "never" as const
@@ -587,8 +587,9 @@ export function createCodexProvider(): AgentFactory {
             abort() {
               return Effect.try({
                 try: () => {
-                  // Codex is a persistent session — only interrupt the current
-                  // turn so the session stays alive for follow-up prompts.
+                  // Kill child processes (e.g. bash commands) but keep the
+                  // Codex app-server alive so the session can accept follow-ups.
+                  killDescendants(proc.pid, "SIGTERM")
                   if (threadId && activeTurnId) {
                     write(rpcRequest("turn/interrupt", { threadId, turnId: activeTurnId }))
                   }

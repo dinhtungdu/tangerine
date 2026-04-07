@@ -18,14 +18,19 @@ function getDescendantPids(pid: number): number[] {
   }
 }
 
-/** Send a signal to a process and all its descendants (children killed first). */
-export function killProcessTree(pid: number, signal: NodeJS.Signals = "SIGTERM"): void {
+/** Send a signal to all descendant processes (children killed first), but NOT the root. */
+export function killDescendants(pid: number, signal: NodeJS.Signals = "SIGTERM"): void {
   const descendants = getDescendantPids(pid)
   // Kill descendants bottom-up (deepest children first) so parents
   // don't respawn or re-adopt orphans before we reach them.
   for (const childPid of descendants.reverse()) {
     try { process.kill(childPid, signal) } catch { /* already dead */ }
   }
+}
+
+/** Send a signal to a process and all its descendants (children killed first). */
+export function killProcessTree(pid: number, signal: NodeJS.Signals = "SIGTERM"): void {
+  killDescendants(pid, signal)
   try { process.kill(pid, signal) } catch { /* already dead */ }
 }
 

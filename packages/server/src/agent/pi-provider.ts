@@ -13,7 +13,7 @@ import { spawnSync } from "node:child_process"
 import { homedir } from "node:os"
 import { join } from "node:path"
 import { scanSkillsDir } from "./skill-scanner"
-import { killProcessTreeEscalated } from "./process-tree"
+import { killDescendants, killProcessTreeEscalated } from "./process-tree"
 
 const log = createLogger("pi-provider")
 export const PI_PROVIDER_METADATA: ProviderMetadata = {
@@ -429,8 +429,9 @@ export function createPiProvider(): AgentFactory {
             abort() {
               return Effect.try({
                 try: () => {
-                  // Pi is a persistent session — send abort command to interrupt
-                  // the current turn without killing the session.
+                  // Kill child processes (e.g. bash commands) but keep the
+                  // Pi session alive so it can accept follow-up prompts.
+                  killDescendants(proc.pid, "SIGTERM")
                   sendCommand({ type: "abort" })
                 },
                 catch: (e) =>
