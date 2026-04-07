@@ -10,21 +10,30 @@ interface UseWebSocketResult {
   lastEvent: WsServerMessage | null
 }
 
+// Tag interface so we can associate a WebSocket with its task
+interface TaggedWebSocket extends WebSocket {
+  __taskId?: string
+}
+
 export function useWebSocket(taskId: string): UseWebSocketResult {
   const [connected, setConnected] = useState(false)
   const [messages, setMessages] = useState<WsServerMessage[]>([])
   const [lastEvent, setLastEvent] = useState<WsServerMessage | null>(null)
-  const wsRef = useRef<WebSocket | null>(null)
+  const wsRef = useRef<TaggedWebSocket | null>(null)
   const backoffRef = useRef(1000)
   const reconnectTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const unmountedRef = useRef(false)
+  // Updated synchronously during render so send() can guard against stale WS
+  const activeTaskIdRef = useRef(taskId)
+  activeTaskIdRef.current = taskId
 
   const connect = useCallback(() => {
     if (unmountedRef.current) return
 
     const protocol = window.location.protocol === "https:" ? "wss:" : "ws:"
     const url = `${protocol}//${window.location.host}/api/tasks/${taskId}/ws`
-    const ws = new WebSocket(url)
+    const ws: TaggedWebSocket = new WebSocket(url)
+    ws.__taskId = taskId
     wsRef.current = ws
 
     ws.onopen = () => {
@@ -66,11 +75,19 @@ export function useWebSocket(taskId: string): UseWebSocketResult {
     }
   }, [taskId])
 
-  // Clear accumulated messages when switching to a different task so stale
-  // WS history from the previous task doesn't bleed into the new one.
+  // Clear accumulated messages and close stale WebSocket when switching tasks
+  // so neither history nor the connection from the previous task bleeds through.
   useEffect(() => {
     setMessages([])
     setConnected(false)
+    // Eagerly close any WS opened for a different task. The connection effect
+    // will create a fresh one, but closing here shrinks the race window where
+    // send() could push through the old connection.
+    const ws = wsRef.current
+    if (ws && ws.__taskId !== taskId) {
+      ws.close()
+      wsRef.current = null
+    }
   }, [taskId])
 
   useEffect(() => {
@@ -103,9 +120,16 @@ export function useWebSocket(taskId: string): UseWebSocketResult {
   }, [connect])
 
   const send = useCallback((msg: WsClientMessage) => {
-    if (wsRef.current?.readyState === WebSocket.OPEN) {
-      wsRef.current.send(JSON.stringify(msg))
+    const ws = wsRef.current
+    if (!ws || ws.readyState !== WebSocket.OPEN) return
+    // Guard: don't send through a WebSocket opened for a different task
+    if (ws.__taskId !== activeTaskIdRef.current) {
+      console.warn(
+        `[useWebSocket] Blocked send to stale WS (ws=${ws.__taskId}, active=${activeTaskIdRef.current})`,
+      )
+      return
     }
+    ws.send(JSON.stringify(msg))
   }, [])
 
   return { connected, messages, send, lastEvent }
