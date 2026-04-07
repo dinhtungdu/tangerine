@@ -58,7 +58,21 @@ export function TaskDetail() {
   const chatTaskId = (isCrossProject && orchestratorTask) ? orchestratorTask.id : (id ?? "")
   const session = useSession(chatTaskId)
   const { files: diffFiles } = useDiffFiles(id ?? "")
-  const [diffComments, setDiffComments] = useState<DiffComment[]>([])
+  const diffCommentsKey = `diff-comments:${id}`
+  const [diffComments, setDiffComments] = useState<DiffComment[]>(() => {
+    try {
+      const s = localStorage.getItem(`diff-comments:${id}`)
+      if (s) return JSON.parse(s) as DiffComment[]
+    } catch { /* ignore */ }
+    return []
+  })
+  const setDiffCommentsAndPersist = useCallback((updater: DiffComment[] | ((prev: DiffComment[]) => DiffComment[])) => {
+    setDiffComments((prev) => {
+      const next = typeof updater === "function" ? updater(prev) : updater
+      try { localStorage.setItem(diffCommentsKey, JSON.stringify(next)) } catch { /* ignore */ }
+      return next
+    })
+  }, [diffCommentsKey])
   const [showAllChildren, setShowAllChildren] = useState(false)
   const [copiedId, setCopiedId] = useState(false)
   const handleCopyId = useCallback(() => {
@@ -141,11 +155,11 @@ export function TaskDetail() {
   }, [id])
 
   const handleAddComment = useCallback((comment: DiffComment) => {
-    setDiffComments((prev) => [...prev, comment])
+    setDiffCommentsAndPersist((prev) => [...prev, comment])
   }, [])
 
   const handleRemoveComment = useCallback((commentId: string) => {
-    setDiffComments((prev) => prev.filter((c) => c.id !== commentId))
+    setDiffCommentsAndPersist((prev) => prev.filter((c) => c.id !== commentId))
   }, [])
 
   const handleScrollToFile = useCallback((path: string) => {
@@ -218,6 +232,7 @@ export function TaskDetail() {
       })
       .join("\n\n")
     sendPromptRef.current(text)
+    try { localStorage.removeItem(diffCommentsKey) } catch { /* ignore */ }
     setDiffComments([])
     setMobilePane("chat")
   }, [])
