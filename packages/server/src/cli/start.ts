@@ -840,26 +840,35 @@ export async function start(): Promise<void> {
             // Try agent handle first (works for both providers)
             const handle = agentHandles.get(taskId)
             if (handle) {
-              yield* handle.sendPrompt(promptText, images)
-              return
+              // Verify agent process is alive before writing to stdin.
+              // Without this, prompts are silently lost when the process died
+              // but the stale handle remains in agentHandles.
+              if (!handle.isAlive || handle.isAlive()) {
+                yield* handle.sendPrompt(promptText, images)
+                return
+              }
+              // Agent is dead — remove stale handle and fall through to wake/queue
+              log.warn("Agent handle exists but process is dead, removing stale handle", { taskId })
+              agentHandles.delete(taskId)
             }
 
-            // Agent was suspended due to idle — restart it and queue the prompt
+            // Agent not reachable — either suspended (idle timeout) or crashed.
+            // Restart the agent and queue the prompt for delivery once ready.
             if (isTaskSuspended(taskId)) {
               clearSuspended(taskId)
-              const task = yield* getTask(db, taskId).pipe(Effect.catchAll(() => Effect.succeed(null)))
-              if (task && task.status === "running") {
-                const projectConfig = task.project_id ? getProjectConfig(config.config, task.project_id) : undefined
-                const wakeState = getTaskState(taskId)
-                if (projectConfig && !wakeState.reconnecting) {
-                  log.info("Waking suspended task", { taskId, title: task.title })
-                  wakeState.reconnecting = true
-                  wakeState.idleWake = true
-                  const taskLifecycleDeps = { ...tmDeps.lifecycleDeps, agentFactory: getAgentFactory(task.provider) }
-                  yield* Effect.forkDaemon(
-                    reconnectSessionWithRetry(task, projectConfig, taskLifecycleDeps, tmDeps.retryDeps)
-                  )
-                }
+            }
+            const task = yield* getTask(db, taskId).pipe(Effect.catchAll(() => Effect.succeed(null)))
+            if (task && task.status === "running") {
+              const projectConfig = task.project_id ? getProjectConfig(config.config, task.project_id) : undefined
+              const wakeState = getTaskState(taskId)
+              if (projectConfig && !wakeState.reconnecting) {
+                log.info("Waking dead/suspended agent on prompt", { taskId, title: task.title })
+                wakeState.reconnecting = true
+                wakeState.idleWake = true
+                const taskLifecycleDeps = { ...tmDeps.lifecycleDeps, agentFactory: getAgentFactory(task.provider) }
+                yield* Effect.forkDaemon(
+                  reconnectSessionWithRetry(task, projectConfig, taskLifecycleDeps, tmDeps.retryDeps)
+                )
               }
             }
 
