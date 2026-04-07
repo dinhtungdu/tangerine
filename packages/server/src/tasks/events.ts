@@ -1,6 +1,8 @@
 // Singleton event emitter for task events.
 // WebSocket routes subscribe per-task; the task manager emits on status transitions.
 
+import { DEFAULT_IDLE_TIMEOUT_MS } from "@tangerine/shared"
+
 type TaskEventHandler = (data: unknown) => void
 type StatusChangeHandler = (status: string) => void
 
@@ -11,9 +13,9 @@ const statusChangeListeners = new Map<string, Set<StatusChangeHandler>>()
 // This is separate from task status ("running" = task is open, agent may be idle).
 const agentWorkingState = new Map<string, "idle" | "working">()
 
-// Grace period before flipping to idle so the UI doesn't flash idle immediately
-// after the agent finishes a response — it likely has just finished meaningful work.
-const IDLE_GRACE_MS = 45_000
+// Delay before flipping to idle — matches the suspension timeout so "idle" means
+// "dormant long enough to be suspended", not just "finished the current turn".
+const IDLE_GRACE_MS = DEFAULT_IDLE_TIMEOUT_MS
 const idleGraceTimers = new Map<string, ReturnType<typeof setTimeout>>()
 
 export function emitTaskEvent(taskId: string, data: unknown): void {

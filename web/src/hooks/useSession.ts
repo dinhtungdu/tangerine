@@ -26,9 +26,9 @@ interface UseSessionResult {
   abort: () => void
 }
 
-// Grace period before flipping to idle in the UI — mirrors the server-side delay
-// so the thinking indicator doesn't vanish the moment the agent finishes a turn.
-const IDLE_GRACE_MS = 45_000
+// Delay before flipping to idle — matches the suspension timeout so "idle" means
+// "dormant long enough to be suspended", not just "finished the current turn".
+const IDLE_GRACE_MS = 600_000
 
 export function useSession(taskId: string): UseSessionResult {
   const [messages, setMessages] = useState<ChatMessage[]>([])
