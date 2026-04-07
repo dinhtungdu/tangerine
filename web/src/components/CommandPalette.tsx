@@ -47,6 +47,9 @@ interface PaletteItem {
 
 function TaskResult({ task, isSelected }: { task: Task; isSelected: boolean }) {
   const statusConfig = getStatusConfig(task.status)
+  const isIdleRunning = task.status === "running" && task.agentStatus === "idle"
+  const dotColor = isIdleRunning ? "var(--color-status-warning)" : statusConfig.color
+  const statusLabel = isIdleRunning ? "idle" : statusConfig.label
   return (
     <div
       className={`flex w-full items-center gap-snug px-normal py-2.5 text-left transition-colors ${
@@ -55,7 +58,7 @@ function TaskResult({ task, isSelected }: { task: Task; isSelected: boolean }) {
     >
       <div
         className="h-2 w-2 shrink-0 rounded-full"
-        style={{ backgroundColor: statusConfig.color }}
+        style={{ backgroundColor: dotColor }}
       />
       <div className="min-w-0 flex-1">
         <p className="truncate text-md font-medium text-fg">{formatTaskTitle(task)}</p>
@@ -70,7 +73,7 @@ function TaskResult({ task, isSelected }: { task: Task; isSelected: boolean }) {
         <span
           className={`rounded px-1.5 py-0.5 text-2xs font-medium ${statusConfig.bgClass} ${statusConfig.textClass}`}
         >
-          {statusConfig.label}
+          {statusLabel}
         </span>
       </div>
       <div className="flex shrink-0 flex-col items-end gap-0.5">

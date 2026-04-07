@@ -172,12 +172,11 @@ export function useSession(taskId: string): UseSessionResult {
         // with the actual working state.
         break
       case "agent_status":
-        if (msg.agentStatus === "working") {
-          cancelIdle()
-          setAgentStatus("working")
-        } else {
-          scheduleIdle()
-        }
+        // This is the server's authoritative current state sent on (re)connect —
+        // apply immediately without grace period so stale "working" display
+        // doesn't persist across reconnects.
+        cancelIdle()
+        setAgentStatus(msg.agentStatus)
         break
       case "error":
         setMessages((prev) => [

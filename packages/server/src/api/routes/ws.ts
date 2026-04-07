@@ -3,7 +3,7 @@ import { Hono } from "hono"
 import type { UpgradeWebSocket } from "hono/ws"
 import type { AppDeps } from "../app"
 import { getTask } from "../../db/queries"
-import { getAgentWorkingState } from "../../tasks/events"
+import { getAgentDisplayState } from "../../tasks/events"
 import type { WsClientMessage, WsServerMessage, TaskStatus } from "@tangerine/shared"
 
 /**
@@ -40,7 +40,7 @@ export function wsRoutes(deps: AppDeps, upgradeWebSocket: UpgradeWebSocket): Hon
                 // Send the agent's actual working state separately.
                 // A task can be "running" while the agent is "idle" (waiting for input).
                 if (task.status === "running") {
-                  const agentMsg: WsServerMessage = { type: "agent_status", agentStatus: getAgentWorkingState(taskId) }
+                  const agentMsg: WsServerMessage = { type: "agent_status", agentStatus: getAgentDisplayState(taskId) }
                   ws.send(JSON.stringify(agentMsg))
                 }
               }
