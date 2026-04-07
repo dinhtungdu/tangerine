@@ -13,7 +13,7 @@ import { spawnSync } from "node:child_process"
 import { homedir } from "node:os"
 import { join } from "node:path"
 import { scanSkillsDir } from "./skill-scanner"
-import { killProcessTree, killProcessTreeEscalated } from "./process-tree"
+import { killProcessTreeEscalated } from "./process-tree"
 
 const log = createLogger("pi-provider")
 export const PI_PROVIDER_METADATA: ProviderMetadata = {
@@ -429,9 +429,9 @@ export function createPiProvider(): AgentFactory {
             abort() {
               return Effect.try({
                 try: () => {
-                  // Kill the entire process tree so spawned subprocesses
-                  // don't survive as orphans.
-                  killProcessTree(proc.pid, "SIGTERM")
+                  // Pi is a persistent session — send abort command to interrupt
+                  // the current turn without killing the session.
+                  sendCommand({ type: "abort" })
                 },
                 catch: (e) =>
                   new AgentError({ message: `Abort failed: ${e}`, taskId: ctx.taskId }),
