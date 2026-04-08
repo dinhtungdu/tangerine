@@ -46,12 +46,16 @@ export function extractPrUrl(text: string): string | null {
 }
 
 /**
- * Extract `owner/repo` slug from a GitHub repo URL.
- * Handles both github.com and GHE hosts (e.g. github.example.com).
+ * Extract a repo slug suitable for the `gh` CLI from a GitHub repo URL.
+ * For github.com returns `owner/repo`; for GHE returns `host/owner/repo`
+ * so that `gh` targets the correct host.
  */
 export function extractGithubSlug(repoUrl: string): string | null {
-  const match = repoUrl.match(/github(?:\.[a-z0-9-]+)*\.[a-z]+[/:]([^/]+\/[^/.]+?)(?:\.git)?$/)
-  return match ? match[1]! : null
+  const match = repoUrl.match(/(github(?:\.[a-z0-9-]+)*\.[a-z]+)[/:]([^/]+\/[^/.]+?)(?:\.git)?$/)
+  if (!match) return null
+  const [, host, slug] = match
+  // gh CLI defaults to github.com for bare owner/repo slugs
+  return host === "github.com" ? slug! : `${host}/${slug}`
 }
 
 /**

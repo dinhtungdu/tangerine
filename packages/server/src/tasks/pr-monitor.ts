@@ -82,14 +82,28 @@ export interface PrLookupTarget {
   expectedHeadOwner?: string
 }
 
+/** Extract the repo owner from a slug. Handles both `owner/repo` and `host/owner/repo`. */
 function getRepoOwner(repoSlug: string): string | null {
-  return repoSlug.split("/")[0] ?? null
+  const parts = repoSlug.split("/")
+  // host/owner/repo → owner; owner/repo → owner
+  return parts.length >= 3 ? (parts[1] ?? null) : (parts[0] ?? null)
+}
+
+/** Extract `host` from a host-qualified slug, or null for bare `owner/repo`. */
+function getSlugHost(repoSlug: string): string | null {
+  const parts = repoSlug.split("/")
+  return parts.length >= 3 ? (parts[0] ?? null) : null
 }
 
 /** Build PR lookup order. For forks, search parent first but constrain head owner to the fork owner. */
 export function getPrLookupTargets(repoSlug: string, repoView?: RepoViewResult | null): PrLookupTarget[] {
   const repoOwner = getRepoOwner(repoSlug)
-  const parentSlug = repoView?.isFork ? (repoView.parent?.nameWithOwner ?? null) : null
+  const host = getSlugHost(repoSlug)
+  let parentSlug = repoView?.isFork ? (repoView.parent?.nameWithOwner ?? null) : null
+  // nameWithOwner from gh is bare owner/repo — qualify with host for GHE
+  if (parentSlug && host && !parentSlug.includes(host)) {
+    parentSlug = `${host}/${parentSlug}`
+  }
   return parentSlug && parentSlug !== repoSlug
     ? [{ repoSlug: parentSlug, expectedHeadOwner: repoOwner ?? undefined }, { repoSlug }]
     : [{ repoSlug }]

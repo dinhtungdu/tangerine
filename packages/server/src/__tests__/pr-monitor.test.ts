@@ -83,16 +83,16 @@ describe("extractGithubSlug", () => {
     expect(extractGithubSlug("https://gitlab.com/owner/repo")).toBeNull()
   })
 
-  test("extracts slug from GHE https URL", () => {
-    expect(extractGithubSlug("https://github.example.com/owner/repo")).toBe("owner/repo")
+  test("extracts host-qualified slug from GHE https URL", () => {
+    expect(extractGithubSlug("https://github.example.com/owner/repo")).toBe("github.example.com/owner/repo")
   })
 
-  test("extracts slug from GHE https URL with .git suffix", () => {
-    expect(extractGithubSlug("https://github.example.com/owner/repo.git")).toBe("owner/repo")
+  test("extracts host-qualified slug from GHE https URL with .git suffix", () => {
+    expect(extractGithubSlug("https://github.example.com/owner/repo.git")).toBe("github.example.com/owner/repo")
   })
 
-  test("handles GHE SSH remote URL", () => {
-    expect(extractGithubSlug("git@github.example.com:owner/repo.git")).toBe("owner/repo")
+  test("extracts host-qualified slug from GHE SSH remote URL", () => {
+    expect(extractGithubSlug("git@github.example.com:owner/repo.git")).toBe("github.example.com/owner/repo")
   })
 })
 
@@ -110,6 +110,15 @@ describe("getPrLookupTargets", () => {
 
   test("falls back to repo when fork parent missing", () => {
     expect(getPrLookupTargets("user/repo", { nameWithOwner: "user/repo", isFork: true, parent: null })).toEqual([{ repoSlug: "user/repo" }])
+  })
+
+  test("qualifies GHE fork parent with host", () => {
+    expect(getPrLookupTargets("github.example.com/user/repo", {
+      nameWithOwner: "user/repo", isFork: true, parent: { nameWithOwner: "upstream/repo" },
+    })).toEqual([
+      { repoSlug: "github.example.com/upstream/repo", expectedHeadOwner: "user" },
+      { repoSlug: "github.example.com/user/repo" },
+    ])
   })
 })
 
