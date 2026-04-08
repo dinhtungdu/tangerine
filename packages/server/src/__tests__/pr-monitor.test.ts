@@ -360,6 +360,57 @@ describe("pollPrStatuses", () => {
     expect(statusUpdate?.updates.status).toBe("done")
   })
 
+  test("discovers pr_url for provisioning tasks", async () => {
+    const prUrl = "https://github.com/test/repo/pull/30"
+    const task = makeTaskRow({ pr_url: null, branch: "tangerine/abc123", status: "provisioning" })
+    const deps = makeDeps([task], { [prUrl]: "open" }, { "tangerine/abc123": prUrl })
+
+    await Effect.runPromise(pollPrStatuses(deps))
+
+    const prUpdate = deps.updates.find((u) => u.updates.pr_url)
+    expect(prUpdate).toBeDefined()
+    expect(prUpdate!.updates.pr_url).toBe(prUrl)
+  })
+
+  test("discovers pr_url for failed tasks", async () => {
+    const prUrl = "https://github.com/test/repo/pull/31"
+    const task = makeTaskRow({ pr_url: null, branch: "tangerine/abc123", status: "failed" })
+    const deps = makeDeps([task], { [prUrl]: "open" }, { "tangerine/abc123": prUrl })
+
+    await Effect.runPromise(pollPrStatuses(deps))
+
+    const prUpdate = deps.updates.find((u) => u.updates.pr_url)
+    expect(prUpdate).toBeDefined()
+    expect(prUpdate!.updates.pr_url).toBe(prUrl)
+  })
+
+  test("skips done and cancelled tasks for PR discovery", async () => {
+    const tasks = [
+      makeTaskRow({ pr_url: null, branch: "tangerine/done1", status: "done" }),
+      makeTaskRow({ pr_url: null, branch: "tangerine/cancel1", status: "cancelled" }),
+    ]
+    const deps = makeDeps(tasks, {}, {
+      "tangerine/done1": "https://github.com/test/repo/pull/40",
+      "tangerine/cancel1": "https://github.com/test/repo/pull/41",
+    })
+
+    await Effect.runPromise(pollPrStatuses(deps))
+
+    expect(deps.updates).toHaveLength(0)
+    expect(deps.activities).toHaveLength(0)
+  })
+
+  test("completes failed task when discovered PR is merged", async () => {
+    const prUrl = "https://github.com/test/repo/pull/32"
+    const task = makeTaskRow({ pr_url: null, branch: "tangerine/abc123", status: "failed" })
+    const deps = makeDeps([task], { [prUrl]: "merged" }, { "tangerine/abc123": prUrl })
+
+    await Effect.runPromise(pollPrStatuses(deps))
+
+    const statusUpdate = deps.updates.find((u) => u.updates.status)
+    expect(statusUpdate?.updates.status).toBe("done")
+  })
+
   test("handles listTasks failure gracefully", async () => {
     const deps: PrMonitorDeps = {
       db,
