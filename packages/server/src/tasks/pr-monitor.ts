@@ -180,18 +180,18 @@ export interface PrMonitorDeps {
   lookupPrByBranch?: (repoUrl: string, branch: string) => Effect.Effect<string | null, never>
 }
 
-const TERMINAL_STATUSES = new Set(["done", "cancelled"])
+const TERMINATED_STATUSES = new Set(["done", "cancelled"])
 
 /** Poll active tasks with pr_url and act on merged/closed PRs. */
 export function pollPrStatuses(deps: PrMonitorDeps): Effect.Effect<void, never> {
   return Effect.gen(function* () {
     // Fetch all tasks and filter out terminal ones — PR discovery and tracking
-    // must cover all non-terminal statuses (created, provisioning, running, failed),
+    // must cover all non-terminated statuses (created, provisioning, running, failed),
     // not just "running", so we catch PRs for tasks that idle, fail, or haven't started yet.
     const allTasks = yield* deps.listTasks().pipe(
       Effect.catchAll(() => Effect.succeed([] as TaskRow[]))
     )
-    const active = allTasks.filter((t) => !TERMINAL_STATUSES.has(t.status))
+    const active = allTasks.filter((t) => !TERMINATED_STATUSES.has(t.status))
 
     // Phase 1: discover PR URLs for tasks that have the "pr-track" capability but no URL yet
     const withoutPr = active.filter((t) => !t.pr_url && t.branch && t.repo_url && taskHasCapability(t.type, t.capabilities, "pr-track"))
