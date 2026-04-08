@@ -171,19 +171,8 @@ export function useSession(taskId: string): UseSessionResult {
 
   const sendPrompt = useCallback(
     (text: string, images?: PromptImage[]) => {
-      // Add user message optimistically
-      if (text || images?.length) {
-        setMessages((prev) => [
-          ...prev,
-          {
-            id: `user-${Date.now()}`,
-            role: "user",
-            content: text,
-            timestamp: new Date().toISOString(),
-            images: images?.map((img) => ({ src: `data:${img.mediaType};base64,${img.data}` })),
-          },
-        ])
-      }
+      // Don't add user message optimistically — the server broadcasts a WS event
+      // to all connected clients (including this one), so all windows get it uniformly.
       setAgentStatus("working")
       setQueueLength((q) => q + 1)
       send({ type: "prompt", text, images })

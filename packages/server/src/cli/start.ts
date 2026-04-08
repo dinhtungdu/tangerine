@@ -811,6 +811,15 @@ export async function start(): Promise<void> {
               Effect.catchAll(() => Effect.void)
             )
 
+            // Broadcast user message to all WS clients subscribed to this task
+            // so that other browser windows see it in real time.
+            emitTaskEvent(taskId, {
+              role: "user",
+              content: text,
+              timestamp: new Date().toISOString(),
+              images: imageFilenames,
+            })
+
             // Prepend system notes to the first prompt for a task
             let promptText = text
             if (!getTaskState(taskId).firstPromptSent) {
