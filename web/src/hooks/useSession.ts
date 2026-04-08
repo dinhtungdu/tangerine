@@ -125,7 +125,20 @@ export function useSession(taskId: string): UseSessionResult {
           if (Array.isArray(imgData)) {
             newMsg.images = (imgData as string[]).map((f) => ({ src: `/api/tasks/${taskId}/images/${f}` }))
           }
-          setMessages((prev) => [...prev, newMsg])
+          setMessages((prev) => {
+            // Deduplicate user messages: the sender already added an optimistic
+            // copy, so skip the WS broadcast for the same content.
+            if (newMsg.role === "user") {
+              const isDup = prev.some(
+                (m) =>
+                  m.role === "user" &&
+                  m.content === newMsg.content &&
+                  Math.abs(new Date(m.timestamp).getTime() - new Date(newMsg.timestamp).getTime()) < 5000,
+              )
+              if (isDup) return prev
+            }
+            return [...prev, newMsg]
+          })
         }
         // Track agent working state from events
         if (data && typeof data === "object" && "event" in data) {
@@ -171,8 +184,21 @@ export function useSession(taskId: string): UseSessionResult {
 
   const sendPrompt = useCallback(
     (text: string, images?: PromptImage[]) => {
-      // Don't add user message optimistically — the server broadcasts a WS event
-      // to all connected clients (including this one), so all windows get it uniformly.
+      // Add user message optimistically so the sender sees it immediately.
+      // The server also broadcasts a WS event to all clients; the handleWsMessage
+      // handler deduplicates so this tab won't show the message twice.
+      if (text || images?.length) {
+        setMessages((prev) => [
+          ...prev,
+          {
+            id: `user-${Date.now()}`,
+            role: "user",
+            content: text,
+            timestamp: new Date().toISOString(),
+            images: images?.map((img) => ({ src: `data:${img.mediaType};base64,${img.data}` })),
+          },
+        ])
+      }
       setAgentStatus("working")
       setQueueLength((q) => q + 1)
       send({ type: "prompt", text, images })
