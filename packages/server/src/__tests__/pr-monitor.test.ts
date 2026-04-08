@@ -411,6 +411,28 @@ describe("pollPrStatuses", () => {
     expect(statusUpdate?.updates.status).toBe("done")
   })
 
+  test("discovers pr_url using getRepoUrl when task has no repo_url", async () => {
+    const prUrl = "https://github.com/test/repo/pull/50"
+    const task = makeTaskRow({ pr_url: null, branch: "tangerine/abc123", repo_url: null as unknown as string })
+    const deps = makeDeps([task], { [prUrl]: "open" }, { "tangerine/abc123": prUrl })
+    deps.getRepoUrl = (projectId) => projectId === "test" ? "https://github.com/test/repo" : null
+
+    await Effect.runPromise(pollPrStatuses(deps))
+
+    const prUpdate = deps.updates.find((u) => u.updates.pr_url)
+    expect(prUpdate).toBeDefined()
+    expect(prUpdate!.updates.pr_url).toBe(prUrl)
+  })
+
+  test("skips task when both repo_url and getRepoUrl are null", async () => {
+    const task = makeTaskRow({ pr_url: null, branch: "tangerine/abc123", repo_url: null as unknown as string })
+    const deps = makeDeps([task], {}, { "tangerine/abc123": "https://github.com/test/repo/pull/51" })
+
+    await Effect.runPromise(pollPrStatuses(deps))
+
+    expect(deps.updates).toHaveLength(0)
+  })
+
   test("handles listTasks failure gracefully", async () => {
     const deps: PrMonitorDeps = {
       db,
