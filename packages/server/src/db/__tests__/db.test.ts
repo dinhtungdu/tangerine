@@ -33,7 +33,6 @@ describe("tasks", () => {
       id: "task-1",
       source: "manual",
       project_id: "test",
-      repo_url: "https://github.com/test/repo",
       title: "Test task",
     }))
 
@@ -65,7 +64,6 @@ describe("tasks", () => {
       id: "task-2",
       source: "github",
       project_id: "test",
-      repo_url: "https://github.com/test/repo",
       title: "Status test",
     }))
 
@@ -79,7 +77,6 @@ describe("tasks", () => {
       id: "task-3",
       source: "manual",
       project_id: "test",
-      repo_url: "https://github.com/test/repo",
       title: "Update test",
     }))
 
@@ -94,8 +91,8 @@ describe("tasks", () => {
   })
 
   test("list tasks by status filter", () => {
-    Effect.runSync(createTask(db, { id: "t-a", source: "manual", project_id: "test", repo_url: "r", title: "A" }))
-    Effect.runSync(createTask(db, { id: "t-b", source: "manual", project_id: "test", repo_url: "r", title: "B" }))
+    Effect.runSync(createTask(db, { id: "t-a", source: "manual", project_id: "test", title: "A" }))
+    Effect.runSync(createTask(db, { id: "t-b", source: "manual", project_id: "test", title: "B" }))
     Effect.runSync(updateTaskStatus(db, "t-b", "running"))
 
     const all = Effect.runSync(listTasks(db))
@@ -119,7 +116,7 @@ describe("session logs", () => {
   })
 
   test("insert and retrieve session logs", () => {
-    Effect.runSync(createTask(db, { id: "task-log", source: "manual", project_id: "test", repo_url: "r", title: "Log test" }))
+    Effect.runSync(createTask(db, { id: "task-log", source: "manual", project_id: "test", title: "Log test" }))
 
     Effect.runSync(insertSessionLog(db, { task_id: "task-log", role: "user", content: "Hello" }))
     Effect.runSync(insertSessionLog(db, { task_id: "task-log", role: "assistant", content: "Hi there" }))
@@ -133,7 +130,7 @@ describe("session logs", () => {
   })
 
   test("returns empty array for task with no logs", () => {
-    Effect.runSync(createTask(db, { id: "task-empty", source: "manual", project_id: "test", repo_url: "r", title: "Empty" }))
+    Effect.runSync(createTask(db, { id: "task-empty", source: "manual", project_id: "test", title: "Empty" }))
     const logs = Effect.runSync(getSessionLogs(db, "task-empty"))
     expect(logs.length).toBe(0)
   })
@@ -147,7 +144,7 @@ describe("worktree slots use project_id", () => {
   })
 
   test("create and query worktree slots by project_id", () => {
-    Effect.runSync(createTask(db, { id: "task-wt", source: "manual", project_id: "proj-1", repo_url: "r", title: "WT test" }))
+    Effect.runSync(createTask(db, { id: "task-wt", source: "manual", project_id: "proj-1", title: "WT test" }))
 
     db.prepare(
       "INSERT INTO worktree_slots (id, project_id, path, status) VALUES (?, ?, ?, ?)",
@@ -173,7 +170,6 @@ describe("auto-migration", () => {
         id TEXT PRIMARY KEY,
         project_id TEXT NOT NULL,
         source TEXT NOT NULL,
-        repo_url TEXT NOT NULL,
         title TEXT NOT NULL,
         status TEXT NOT NULL DEFAULT 'created',
         provider TEXT NOT NULL DEFAULT 'opencode',
@@ -224,8 +220,8 @@ describe("auto-migration", () => {
     expect(colsAfter).toContain("agent_session_id")
 
     // Verify we can insert with the new columns
-    db.prepare("INSERT INTO tasks (id, project_id, source, repo_url, title, model, reasoning_effort) VALUES (?, ?, ?, ?, ?, ?, ?)")
-      .run("test-1", "proj", "manual", "repo", "title", "claude-opus-4-6", "high")
+    db.prepare("INSERT INTO tasks (id, project_id, source, title, model, reasoning_effort) VALUES (?, ?, ?, ?, ?, ?)")
+      .run("test-1", "proj", "manual", "title", "claude-opus-4-6", "high")
     const row = db.prepare("SELECT model, reasoning_effort FROM tasks WHERE id = ?").get("test-1") as { model: string; reasoning_effort: string }
     expect(row.model).toBe("claude-opus-4-6")
     expect(row.reasoning_effort).toBe("high")
@@ -251,8 +247,8 @@ describe("auto-migration", () => {
     db.run("PRAGMA foreign_keys = ON")
     db.exec(SCHEMA)
 
-    db.prepare("INSERT INTO tasks (id, project_id, source, repo_url, title) VALUES (?, ?, ?, ?, ?)")
-      .run("default-provider-task", "proj", "manual", "repo", "title")
+    db.prepare("INSERT INTO tasks (id, project_id, source, title) VALUES (?, ?, ?, ?)")
+      .run("default-provider-task", "proj", "manual", "title")
 
     const row = db.prepare("SELECT provider FROM tasks WHERE id = ?").get("default-provider-task") as { provider: string }
     expect(row.provider).toBe(DEFAULT_PROVIDER)

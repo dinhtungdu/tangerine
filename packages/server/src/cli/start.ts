@@ -984,8 +984,8 @@ export async function start(): Promise<void> {
       listTasks: (filter) => listTasks(db, filter),
       updateTask: (taskId, updates) => updateTask(db, taskId, updates).pipe(Effect.asVoid, Effect.mapError((e) => new Error(String(e)))),
       logActivity: (taskId, type, event, content, metadata) => logActivity(db, taskId, type, event, content, metadata),
-      getRepoUrl: (projectId) => getProjectConfig(config.config, projectId)?.repo ?? null,
       cleanupDeps,
+      getProjectRepoUrl: (projectId) => getProjectConfig(config.config, projectId)?.repo,
     }
     await Effect.runPromise(startPrMonitor(prMonitorDeps))
     log.info("PR status monitor started")

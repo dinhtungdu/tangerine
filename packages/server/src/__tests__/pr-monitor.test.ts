@@ -125,7 +125,6 @@ function makeTaskRow(overrides?: Partial<TaskRow>): TaskRow {
     source: "manual",
     source_id: null,
     source_url: null,
-    repo_url: "https://github.com/test/repo",
     title: "Test task",
     type: "worker",
     description: null,
@@ -181,6 +180,7 @@ describe("pollPrStatuses", () => {
         updateTask: () => Effect.succeed(null),
         getAgentHandle: () => null,
       },
+      getProjectRepoUrl: () => "https://github.com/test/repo",
       checkPrState: (url) => Effect.succeed(prStates[url] ?? null),
       lookupPrByBranch: (_repoUrl, branch) => Effect.succeed(branchPrs[branch] ?? null),
     }
@@ -411,11 +411,11 @@ describe("pollPrStatuses", () => {
     expect(statusUpdate?.updates.status).toBe("done")
   })
 
-  test("discovers pr_url using getRepoUrl when task has no repo_url", async () => {
+  test("discovers pr_url using getProjectRepoUrl", async () => {
     const prUrl = "https://github.com/test/repo/pull/50"
-    const task = makeTaskRow({ pr_url: null, branch: "tangerine/abc123", repo_url: null as unknown as string })
+    const task = makeTaskRow({ pr_url: null, branch: "tangerine/abc123" })
     const deps = makeDeps([task], { [prUrl]: "open" }, { "tangerine/abc123": prUrl })
-    deps.getRepoUrl = (projectId) => projectId === "test" ? "https://github.com/test/repo" : null
+    deps.getProjectRepoUrl = (projectId) => projectId === "test" ? "https://github.com/test/repo" : undefined
 
     await Effect.runPromise(pollPrStatuses(deps))
 
@@ -424,9 +424,10 @@ describe("pollPrStatuses", () => {
     expect(prUpdate!.updates.pr_url).toBe(prUrl)
   })
 
-  test("skips task when both repo_url and getRepoUrl are null", async () => {
-    const task = makeTaskRow({ pr_url: null, branch: "tangerine/abc123", repo_url: null as unknown as string })
+  test("skips task when getProjectRepoUrl returns undefined", async () => {
+    const task = makeTaskRow({ pr_url: null, branch: "tangerine/abc123" })
     const deps = makeDeps([task], {}, { "tangerine/abc123": "https://github.com/test/repo/pull/51" })
+    deps.getProjectRepoUrl = () => undefined
 
     await Effect.runPromise(pollPrStatuses(deps))
 

@@ -15,13 +15,13 @@ function dbTry<T>(op: () => T): Effect.Effect<T, DbError> {
 
 export function createTask(
   db: Database,
-  task: Pick<TaskRow, "id" | "project_id" | "source" | "repo_url" | "title"> &
+  task: Pick<TaskRow, "id" | "project_id" | "source" | "title"> &
     Partial<Pick<TaskRow, "source_id" | "source_url" | "type" | "description" | "user_id" | "branch" | "provider" | "model" | "reasoning_effort" | "parent_task_id" | "capabilities">>
 ): Effect.Effect<TaskRow, DbError> {
   return dbTry(() => {
     const stmt = db.prepare(`
-      INSERT INTO tasks (id, project_id, source, source_id, source_url, repo_url, title, type, description, user_id, branch, provider, model, reasoning_effort, parent_task_id, capabilities)
-      VALUES ($id, $project_id, $source, $source_id, $source_url, $repo_url, $title, $type, $description, $user_id, $branch, $provider, $model, $reasoning_effort, $parent_task_id, $capabilities)
+      INSERT INTO tasks (id, project_id, source, source_id, source_url, title, type, description, user_id, branch, provider, model, reasoning_effort, parent_task_id, capabilities)
+      VALUES ($id, $project_id, $source, $source_id, $source_url, $title, $type, $description, $user_id, $branch, $provider, $model, $reasoning_effort, $parent_task_id, $capabilities)
     `)
     stmt.run({
       $id: task.id,
@@ -29,7 +29,6 @@ export function createTask(
       $source: task.source,
       $source_id: task.source_id ?? null,
       $source_url: task.source_url ?? null,
-      $repo_url: task.repo_url,
       $title: task.title,
       $type: task.type ?? "worker",
       $description: task.description ?? null,

@@ -52,7 +52,6 @@ describe("tracer: config -> db -> api", () => {
         id,
         project_id: "test",
         source: "manual",
-        repo_url: "https://github.com/test/repo",
         title: body.title,
         description: body.description,
       }))
@@ -76,7 +75,6 @@ describe("tracer: config -> db -> api", () => {
       id: "task-abc",
       project_id: "test",
       source: "github",
-      repo_url: "https://github.com/test/repo",
       title: "Fix the bug",
       source_id: "test/repo#42",
       source_url: "https://github.com/test/repo/issues/42",
@@ -109,7 +107,6 @@ describe("tracer: config -> db -> api", () => {
       id: "task-single",
       project_id: "test",
       source: "manual",
-      repo_url: "https://github.com/test/repo",
       title: "Single task",
     }))
 
@@ -172,7 +169,6 @@ describe("tracer: config -> db -> api", () => {
       id: "task-cancel",
       project_id: "test",
       source: "manual",
-      repo_url: "https://github.com/test/repo",
       title: "Cancel me",
     }))
 
@@ -208,14 +204,12 @@ describe("tracer: config -> db -> api", () => {
       id: "t-created",
       project_id: "test",
       source: "manual",
-      repo_url: "r",
       title: "Created",
     }))
     Effect.runSync(createTask(db, {
       id: "t-running",
       project_id: "test",
       source: "manual",
-      repo_url: "r",
       title: "Running",
     }))
     Effect.runSync(updateTaskStatus(db, "t-running", "running"))
@@ -242,7 +236,6 @@ describe("tracer: config -> db -> api", () => {
       source: "github",
       source_id: "owner/repo#1",
       source_url: "https://github.com/owner/repo/issues/1",
-      repo_url: "https://github.com/owner/repo",
       title: "Test",
       type: "worker",
       description: "desc",

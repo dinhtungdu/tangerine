@@ -7,7 +7,6 @@ export const SCHEMA = `
     source TEXT NOT NULL,
     source_id TEXT,
     source_url TEXT,
-    repo_url TEXT NOT NULL,
     title TEXT NOT NULL,
     type TEXT NOT NULL DEFAULT 'worker',
     description TEXT,

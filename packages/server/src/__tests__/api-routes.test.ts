@@ -45,7 +45,6 @@ function createMockDeps(db: Database, configOverrides?: Partial<AppDeps["config"
           source: params.source,
           source_id: params.sourceId ?? null,
           source_url: params.sourceUrl ?? null,
-          repo_url: "https://github.com/test/repo",
           title: params.title,
           description: params.description ?? null,
         }))
@@ -91,7 +90,6 @@ function createMockDeps(db: Database, configOverrides?: Partial<AppDeps["config"
           source: "manual",
           source_id: null,
           source_url: null,
-          repo_url: "https://github.com/test/repo",
           title: "_orchestrator",
           type: "orchestrator",
           description: null,
@@ -132,7 +130,6 @@ function seedTask(db: Database, overrides?: Partial<Parameters<typeof dbCreateTa
     source: "manual",
     source_id: null,
     source_url: null,
-    repo_url: "https://github.com/test/repo",
     title: "Test task",
     description: null,
     ...overrides,

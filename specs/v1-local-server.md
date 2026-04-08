@@ -149,7 +149,6 @@ CREATE TABLE IF NOT EXISTS tasks (
   source TEXT NOT NULL,            -- manual, github, api
   source_id TEXT,
   source_url TEXT,
-  repo_url TEXT NOT NULL,
   title TEXT NOT NULL,
   description TEXT,
   status TEXT NOT NULL DEFAULT 'created',

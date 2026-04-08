@@ -65,7 +65,6 @@ async function createTask(argv: string[]): Promise<void> {
     id,
     project_id: projectId,
     source: "manual",
-    repo_url: project.repo,
     title,
     description,
     branch,

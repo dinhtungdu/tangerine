@@ -77,8 +77,8 @@ describe("worktree-pool", () => {
 
   function insertTask(id: string, status = "running") {
     db.prepare(
-      "INSERT INTO tasks (id, project_id, source, repo_url, title, status) VALUES (?, ?, ?, ?, ?, ?)",
-    ).run(id, PROJECT_ID, "manual", "https://github.com/t/r", "Test", status)
+      "INSERT INTO tasks (id, project_id, source, title, status) VALUES (?, ?, ?, ?, ?)",
+    ).run(id, PROJECT_ID, "manual", "Test", status)
   }
 
   describe("acquireSlot", () => {

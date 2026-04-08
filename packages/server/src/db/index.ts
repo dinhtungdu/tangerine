@@ -117,6 +117,18 @@ function migrateOrchestratorType(db: Database): void {
   }
 }
 
+/**
+ * Drop the redundant repo_url column from tasks.
+ * Tasks now derive repo URL from their project config via project_id.
+ */
+function dropRepoUrlColumn(db: Database): void {
+  const cols = db.prepare("PRAGMA table_info(tasks)").all() as { name: string }[]
+  if (!cols.some((c) => c.name === "repo_url")) return
+
+  db.exec("ALTER TABLE tasks DROP COLUMN repo_url")
+  console.error("[db] Migrated tasks: dropped redundant repo_url column")
+}
+
 /** Returns a singleton DB connection, creating it if needed. Pass ":memory:" for tests.
  *  Respects TANGERINE_DB env var for path override. */
 export function getDb(path?: string): Database {
@@ -141,6 +153,9 @@ export function getDb(path?: string): Database {
 
   // Backfill type for legacy orchestrator rows that got DEFAULT 'worker'
   migrateOrchestratorType(db)
+
+  // Drop redundant repo_url column — tasks use project_id to look up repo URL
+  dropRepoUrlColumn(db)
 
   instance = db
   return db

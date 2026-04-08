@@ -114,7 +114,7 @@ export function startSession(
     )
 
     // 1. Fetch repo
-    yield* activity("repo.fetching", `Fetching ${task.repo_url}`)
+    yield* activity("repo.fetching", `Fetching ${config.repo}`)
     yield* localExec(`cd ${repoDir} && git fetch origin`).pipe(
       Effect.tap(() => activity("repo.fetched", "Repository fetched")),
       Effect.tapError((e) => activity("repo.fetch_failed", `Fetch failed: ${e.message}`)),

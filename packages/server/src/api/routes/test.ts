@@ -22,7 +22,6 @@ export interface SeedPayload {
     source?: string
     source_id?: string
     source_url?: string
-    repo_url?: string
     description?: string
     provider?: string
     model?: string
@@ -81,7 +80,6 @@ export function testRoutes(deps: AppDeps): Hono {
           source: t.source ?? "manual",
           source_id: t.source_id ?? null,
           source_url: t.source_url ?? null,
-          repo_url: t.repo_url ?? "https://github.com/test/repo",
           title: t.title,
           description: t.description ?? null,
           provider: t.provider ?? "claude-code",

@@ -174,8 +174,8 @@ export interface PrMonitorDeps {
   updateTask(taskId: string, updates: Partial<Omit<TaskRow, "id">>): Effect.Effect<unknown, Error>
   logActivity(taskId: string, type: "lifecycle" | "file" | "system", event: string, content: string, metadata?: Record<string, unknown>): Effect.Effect<unknown, Error>
   cleanupDeps: CleanupDeps
-  /** Resolve repo URL from project config when task row has no repo_url. */
-  getRepoUrl?: (projectId: string) => string | null
+  /** Look up project config to get repo URL for PR discovery. */
+  getProjectRepoUrl?: (projectId: string) => string | undefined
   /** Override PR state checker for testing. Defaults to `checkPrState` (shells out to `gh`). */
   checkPrState?: (prUrl: string) => Effect.Effect<PrState | null, never>
   /** Override branch PR lookup for testing. Defaults to `lookupPrByBranch` (shells out to `gh`). */
@@ -201,7 +201,7 @@ export function pollPrStatuses(deps: PrMonitorDeps): Effect.Effect<void, never> 
       const lookup = deps.lookupPrByBranch ?? lookupPrByBranch
       log.debug("Discovering PRs for tasks without pr_url", { count: withoutPr.length })
       for (const task of withoutPr) {
-        const repoUrl = task.repo_url || deps.getRepoUrl?.(task.project_id) || null
+        const repoUrl = deps.getProjectRepoUrl?.(task.project_id)
         if (!repoUrl) continue
         const prUrl = yield* lookup(repoUrl, task.branch!)
         if (prUrl) {

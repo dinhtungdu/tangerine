@@ -13,7 +13,6 @@ function makeTask(overrides?: Partial<TaskRow>): TaskRow {
     source: "manual",
     source_id: null,
     source_url: null,
-    repo_url: "https://github.com/test/repo",
     title: "Test task",
     type: "worker",
     description: null,

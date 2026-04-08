@@ -22,7 +22,6 @@ describe("review task base branch resolution", () => {
       id: "parent-111",
       project_id: "test-project",
       source: "manual",
-      repo_url: "test/repo",
       title: "Parent task",
       branch: "tangerine/parent-br",
     }))
@@ -40,7 +39,6 @@ describe("review task base branch resolution", () => {
       id: "parent-222",
       project_id: "test-project",
       source: "manual",
-      repo_url: "test/repo",
       title: "Parent task",
     }))
 
@@ -63,7 +61,6 @@ describe("review task base branch resolution", () => {
       id: "parent-333",
       project_id: "test-project",
       source: "manual",
-      repo_url: "test/repo",
       title: "Parent task",
       branch: "tangerine/parent-br",
     }))
@@ -72,7 +69,6 @@ describe("review task base branch resolution", () => {
       id: "child-333",
       project_id: "test-project",
       source: "manual",
-      repo_url: "test/repo",
       title: "Continue parent",
       parent_task_id: "parent-333",
     }))

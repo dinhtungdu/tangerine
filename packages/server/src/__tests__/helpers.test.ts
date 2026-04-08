@@ -38,7 +38,6 @@ describe("mapTaskRow", () => {
     const row: TaskRow = {
       id: "test-id",
       project_id: "test",
-      repo_url: "https://github.com/test/test",
       source: "manual",
       source_id: null,
       source_url: null,
@@ -80,7 +79,7 @@ describe("updateTask skipUpdatedAt", () => {
     const db = createTestDb()
     const id = crypto.randomUUID()
     db.prepare(
-      "INSERT INTO tasks (id, project_id, repo_url, source, title, status, provider, created_at, updated_at) VALUES (?, ?, '', ?, ?, ?, ?, datetime('now', '-1 hour'), datetime('now', '-1 hour'))",
+      "INSERT INTO tasks (id, project_id, source, title, status, provider, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, datetime('now', '-1 hour'), datetime('now', '-1 hour'))",
     ).run(id, "test", "manual", "Test", "running", "claude-code")
 
     const before = db.prepare("SELECT updated_at FROM tasks WHERE id = ?").get(id) as { updated_at: string }
@@ -94,7 +93,7 @@ describe("updateTask skipUpdatedAt", () => {
     const db = createTestDb()
     const id = crypto.randomUUID()
     db.prepare(
-      "INSERT INTO tasks (id, project_id, repo_url, source, title, status, provider, created_at, updated_at) VALUES (?, ?, '', ?, ?, ?, ?, datetime('now', '-1 hour'), datetime('now', '-1 hour'))",
+      "INSERT INTO tasks (id, project_id, source, title, status, provider, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, datetime('now', '-1 hour'), datetime('now', '-1 hour'))",
     ).run(id, "test", "manual", "Test", "running", "claude-code")
 
     const before = db.prepare("SELECT updated_at FROM tasks WHERE id = ?").get(id) as { updated_at: string }
@@ -108,7 +107,7 @@ describe("updateTask skipUpdatedAt", () => {
     const db = createTestDb()
     const id = crypto.randomUUID()
     db.prepare(
-      "INSERT INTO tasks (id, project_id, repo_url, source, title, status, provider, created_at, updated_at) VALUES (?, ?, '', ?, ?, ?, ?, datetime('now'), datetime('now'))",
+      "INSERT INTO tasks (id, project_id, source, title, status, provider, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, datetime('now'), datetime('now'))",
     ).run(id, "test", "manual", "Test", "running", "claude-code")
 
     const before = db.prepare("SELECT updated_at FROM tasks WHERE id = ?").get(id) as { updated_at: string }
@@ -123,7 +122,7 @@ describe("updateTask skipUpdatedAt", () => {
     const db = createTestDb()
     const id = crypto.randomUUID()
     db.prepare(
-      "INSERT INTO tasks (id, project_id, repo_url, source, title, status, provider, created_at, updated_at) VALUES (?, ?, '', ?, ?, ?, ?, datetime('now'), datetime('now'))",
+      "INSERT INTO tasks (id, project_id, source, title, status, provider, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, datetime('now'), datetime('now'))",
     ).run(id, "test", "manual", "Test", "running", "claude-code")
 
     const before = db.prepare("SELECT updated_at FROM tasks WHERE id = ?").get(id) as { updated_at: string }

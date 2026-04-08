@@ -38,7 +38,6 @@ function createMockDeps(db: Database, configOverrides?: Partial<AppDeps["config"
           source: params.source,
           source_id: params.sourceId ?? null,
           source_url: params.sourceUrl ?? null,
-          repo_url: "https://github.com/test/repo",
           title: params.title,
           description: params.description ?? null,
         }))

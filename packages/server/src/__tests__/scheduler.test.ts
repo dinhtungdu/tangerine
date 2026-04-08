@@ -28,7 +28,6 @@ function makeTask(overrides?: Partial<TaskRow>): TaskRow {
     source: "cron",
     source_id: "cron:cron-1",
     source_url: null,
-    repo_url: "https://github.com/test/repo",
     title: "Nightly check",
     type: "worker",
     description: null,
