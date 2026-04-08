@@ -187,7 +187,7 @@ const TERMINATED_STATUSES = new Set(["done", "cancelled"])
 /** Poll active tasks with pr_url and act on merged/closed PRs. */
 export function pollPrStatuses(deps: PrMonitorDeps): Effect.Effect<void, never> {
   return Effect.gen(function* () {
-    // Fetch all tasks and filter out terminal ones — PR discovery and tracking
+    // Fetch all tasks and filter out terminated ones — PR discovery and tracking
     // must cover all non-terminated statuses (created, provisioning, running, failed),
     // not just "running", so we catch PRs for tasks that idle, fail, or haven't started yet.
     const allTasks = yield* deps.listTasks().pipe(
