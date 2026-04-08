@@ -100,8 +100,9 @@ export function getPrLookupTargets(repoSlug: string, repoView?: RepoViewResult |
   const repoOwner = getRepoOwner(repoSlug)
   const host = getSlugHost(repoSlug)
   let parentSlug = repoView?.isFork ? (repoView.parent?.nameWithOwner ?? null) : null
-  // nameWithOwner from gh is bare owner/repo — qualify with host for GHE
-  if (parentSlug && host && !parentSlug.includes(host)) {
+  // nameWithOwner from gh is bare owner/repo — qualify with host for GHE.
+  // Check structurally (2 parts = bare) rather than substring match.
+  if (parentSlug && host && parentSlug.split("/").length === 2) {
     parentSlug = `${host}/${parentSlug}`
   }
   return parentSlug && parentSlug !== repoSlug
