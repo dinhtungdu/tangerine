@@ -837,17 +837,24 @@ export async function start(): Promise<void> {
               }
             }
 
-            // Try agent handle first (works for both providers)
+            // Try agent handle first (works for both providers).
+            // Check isAlive before writing — without this, prompts are silently
+            // lost when the process died but the stale handle remains in agentHandles.
             const handle = agentHandles.get(taskId)
-            if (handle) {
-              // Verify agent process is alive before writing to stdin.
-              // Without this, prompts are silently lost when the process died
-              // but the stale handle remains in agentHandles.
-              if (!handle.isAlive || handle.isAlive()) {
-                yield* handle.sendPrompt(promptText, images)
-                return
-              }
-              // Agent is dead — remove stale handle and fall through to wake/queue
+            const handleAlive = handle && (!handle.isAlive || handle.isAlive())
+            if (handle && handleAlive) {
+              const sent = yield* handle.sendPrompt(promptText, images).pipe(
+                Effect.map(() => true),
+                Effect.catchAll((e) => {
+                  // stdin write failed (process died between isAlive check and write).
+                  // Fall through to wake/queue instead of losing the prompt.
+                  log.warn("sendPrompt to handle failed, will queue and restart", { taskId, error: String(e) })
+                  agentHandles.delete(taskId)
+                  return Effect.succeed(false)
+                }),
+              )
+              if (sent) return
+            } else if (handle && !handleAlive) {
               log.warn("Agent handle exists but process is dead, removing stale handle", { taskId })
               agentHandles.delete(taskId)
             }
@@ -862,8 +869,9 @@ export async function start(): Promise<void> {
               const projectConfig = task.project_id ? getProjectConfig(config.config, task.project_id) : undefined
               const wakeState = getTaskState(taskId)
               if (projectConfig && !wakeState.reconnecting) {
-                log.info("Waking dead/suspended agent on prompt", { taskId, title: task.title })
+                log.info("Restarting dead agent on prompt", { taskId, title: task.title })
                 wakeState.reconnecting = true
+                // Skip reconnect nudge — user's prompt is already queued via drainQueuedPrompts
                 wakeState.idleWake = true
                 const taskLifecycleDeps = { ...tmDeps.lifecycleDeps, agentFactory: getAgentFactory(task.provider) }
                 yield* Effect.forkDaemon(
@@ -877,7 +885,7 @@ export async function start(): Promise<void> {
           }).pipe(
             Effect.catchAll((e) => {
               log.error("sendPrompt failed", { taskId, error: String(e) })
-              emitTaskEvent(taskId, { event: "error", message: `Failed to send prompt: ${e instanceof Error ? e.message : String(e)}` })
+              emitTaskEvent(taskId, { event: "error", message: `Failed to send prompt: ${String(e)}` })
               return Effect.void
             })
           ),
