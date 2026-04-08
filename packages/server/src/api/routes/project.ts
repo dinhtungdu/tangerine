@@ -16,6 +16,26 @@ import { DAEMON_RESTART_EXIT_CODE } from "../../daemon-exit"
 
 const log = createLogger("project-routes")
 
+function shellExec(cmd: string, cwd: string) {
+  return Effect.tryPromise({
+    try: async () => {
+      const proc = Bun.spawn(["bash", "-c", cmd], {
+        cwd,
+        stdout: "pipe",
+        stderr: "pipe",
+      })
+      const [stdout, stderr, exitCode] = await Promise.all([
+        new Response(proc.stdout).text(),
+        new Response(proc.stderr).text(),
+        proc.exited,
+      ])
+      if (exitCode !== 0) throw new Error(stderr.trim() || stdout.trim() || `exit ${exitCode}`)
+      return stdout.trim()
+    },
+    catch: (e) => e instanceof Error ? e : new Error(String(e)),
+  })
+}
+
 function buildProjectsResponse(deps: AppDeps) {
   const modelsByProvider: Record<string, string[]> = {}
   const providerMetadata: Record<string, {
@@ -228,24 +248,7 @@ export function projectRoutes(deps: AppDeps): Hono {
 
         const repoDir = getRepoDir(deps.config.config, name)
         const defaultBranch = project.defaultBranch ?? "main"
-
-        const exec = (cmd: string) => Effect.tryPromise({
-          try: async () => {
-            const proc = Bun.spawn(["bash", "-c", cmd], {
-              cwd: repoDir,
-              stdout: "pipe",
-              stderr: "pipe",
-            })
-            const [stdout, stderr, exitCode] = await Promise.all([
-              new Response(proc.stdout).text(),
-              new Response(proc.stderr).text(),
-              proc.exited,
-            ])
-            if (exitCode !== 0) throw new Error(stderr.trim() || stdout.trim() || `exit ${exitCode}`)
-            return stdout.trim()
-          },
-          catch: (e) => e instanceof Error ? e : new Error(String(e)),
-        })
+        const exec = (cmd: string) => shellExec(cmd, repoDir)
 
         // Get current HEAD before pull
         const from = yield* exec("git rev-parse --short HEAD").pipe(
@@ -265,7 +268,10 @@ export function projectRoutes(deps: AppDeps): Hono {
             yield* Effect.tryPromise({
               try: () => syncForkRepo(slug),
               catch: (e) => e instanceof Error ? e : new Error(String(e)),
-            })
+            }).pipe(Effect.catchAll((e) => {
+              log.warn("Fork sync failed, continuing with normal pull", { name, error: e.message })
+              return Effect.void
+            }))
           }
         }
 
@@ -361,26 +367,9 @@ export function projectRoutes(deps: AppDeps): Hono {
         // Update local repo after sync
         const repoDir = getRepoDir(deps.config.config, name)
         const defaultBranch = project.defaultBranch ?? "main"
-        const exec = (cmd: string) => Effect.tryPromise({
-          try: async () => {
-            const proc = Bun.spawn(["bash", "-c", cmd], {
-              cwd: repoDir,
-              stdout: "pipe",
-              stderr: "pipe",
-            })
-            const [stdout, stderr, exitCode] = await Promise.all([
-              new Response(proc.stdout).text(),
-              new Response(proc.stderr).text(),
-              proc.exited,
-            ])
-            if (exitCode !== 0) throw new Error(stderr.trim() || stdout.trim() || `exit ${exitCode}`)
-            return stdout.trim()
-          },
-          catch: (e) => e instanceof Error ? e : new Error(String(e)),
-        })
 
-        yield* exec("git fetch origin")
-        yield* exec(`git reset --hard origin/${defaultBranch}`)
+        yield* shellExec("git fetch origin", repoDir)
+        yield* shellExec(`git reset --hard origin/${defaultBranch}`, repoDir)
 
         log.info("Fork synced successfully", { name, slug })
         return { synced: true, upstream: forkInfo.parentSlug }
