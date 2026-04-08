@@ -120,7 +120,7 @@ async function getRepoView(repoSlug: string): Promise<RepoViewResult | null> {
 
 async function listPrUrl(repoSlug: string, branch: string, expectedHeadOwner?: string): Promise<string | null> {
   const proc = Bun.spawn(
-    ["gh", "pr", "list", "--head", branch, "--repo", repoSlug, "--json", "url,headRefName,headRepositoryOwner"],
+    ["gh", "pr", "list", "--head", branch, "--repo", repoSlug, "--state", "all", "--json", "url,headRefName,headRepositoryOwner"],
     ghSpawnEnv(),
   )
   const [text, stderr] = await Promise.all([
