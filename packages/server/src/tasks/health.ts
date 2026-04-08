@@ -17,6 +17,11 @@ const HEALTH_CHECK_INTERVAL_MS = 30_000
 // After this many consecutive failed restarts, give up and mark the task failed.
 // Prevents infinite restart loops if a new bug causes every restart to fail immediately.
 const MAX_CONSECUTIVE_RESTARTS = 3
+// A tool that has been "running" in the DB for longer than this is considered hung.
+const HUNG_TOOL_TIMEOUT_MS = 5 * 60 * 1000
+// After aborting for a hung tool, don't re-abort for this long — the old
+// tool.start entry stays in the DB until the restarted agent logs new activity.
+const HUNG_TOOL_COOLDOWN_MS = HUNG_TOOL_TIMEOUT_MS * 2
 
 /**
  * Parse a SQLite/ISO timestamp into epoch milliseconds.
@@ -71,12 +76,25 @@ export interface HealthCheckDeps {
   isAgentWorking(taskId: string): boolean
   /** Log an activity entry when an agent is suspended due to idle timeout. */
   logSuspend(taskId: string, idleMs: number): Effect.Effect<void, never>
+  /**
+   * Returns the timestamp of the most recent activity for a task if that
+   * activity has metadata.status === "running" (i.e. a tool is in progress).
+   * Returns null if the last activity is not a running tool, or if there are
+   * no activities at all.
+   */
+  getLastRunningActivityTime(taskId: string): string | null
+  /** Log an activity entry when an agent is aborted due to a hung tool. */
+  logHungTool(taskId: string, hungMs: number): Effect.Effect<void, never>
+  /** Abort the agent process so the health monitor can restart it. */
+  abortHungTool(taskId: string): Effect.Effect<void, never>
   cleanupDeps: CleanupDeps
 }
 
-/** Reset the restart counter when the task has real agent activity. */
+/** Reset the restart counter and hung-tool cooldown when the task has real agent activity. */
 export function resetRestartCount(taskId: string): void {
-  getTaskState(taskId).consecutiveRestarts = 0
+  const state = getTaskState(taskId)
+  state.consecutiveRestarts = 0
+  state.hungToolAbortedAt = undefined
 }
 
 export function checkTask(
@@ -229,6 +247,45 @@ function checkIdleTimeout(
   }).pipe(Effect.catchAll(() => Effect.void))
 }
 
+/**
+ * Abort a running task's agent if a tool has been in "running" state in the
+ * activity log for longer than HUNG_TOOL_TIMEOUT_MS. This catches cases where
+ * a tool call (e.g. WebFetch, Bash without timeout) hangs indefinitely.
+ *
+ * After aborting, the health monitor's dead-process detection will restart the
+ * agent automatically on the next cycle, resuming from its existing context.
+ * A cooldown prevents re-aborting before the agent has a chance to restart and
+ * log fresh activity.
+ */
+function checkHungTool(
+  task: TaskRow,
+  deps: HealthCheckDeps,
+): Effect.Effect<void, never> {
+  return Effect.gen(function* () {
+    // Only relevant when the agent is actively running a tool
+    if (!deps.isAgentWorking(task.id)) return
+
+    const state = getTaskState(task.id)
+
+    // Apply cooldown: after a hung-tool abort the old tool.start entry stays in
+    // the DB, so we'd immediately re-trigger without this guard.
+    if (state.hungToolAbortedAt !== undefined) {
+      if (Date.now() - state.hungToolAbortedAt < HUNG_TOOL_COOLDOWN_MS) return
+    }
+
+    const lastRunningAt = deps.getLastRunningActivityTime(task.id)
+    if (!lastRunningAt) return
+
+    const hungMs = Date.now() - parseTaskTimestampMs(lastRunningAt)
+    if (hungMs < HUNG_TOOL_TIMEOUT_MS) return
+
+    log.warn("Tool hung, aborting agent for restart", { taskId: task.id, title: task.title, hungMs })
+    state.hungToolAbortedAt = Date.now()
+    yield* deps.logHungTool(task.id, hungMs)
+    yield* deps.abortHungTool(task.id)
+  }).pipe(Effect.catchAll(() => Effect.void))
+}
+
 export function checkAllTasks(
   deps: HealthCheckDeps,
 ): Effect.Effect<void, never> {
@@ -257,10 +314,11 @@ export function checkAllTasks(
         }),
       )
 
-      // Idle timeout: complete tasks with no user activity.
-      // Only check if the task is still healthy — skip if it was just restarted or failed.
+      // Idle timeout and hung-tool watchdog: only run when healthy (not
+      // restarting/failed) to avoid false positives during recovery.
       if (result === "healthy") {
         yield* checkIdleTimeout(task, deps)
+        yield* checkHungTool(task, deps)
       }
     }
   })
