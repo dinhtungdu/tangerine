@@ -183,6 +183,23 @@ export function lookupPrByBranch(repoUrl: string, branch: string): Effect.Effect
   }).pipe(Effect.catchAll(() => Effect.succeed(null)))
 }
 
+/** Read the current branch name from a git worktree. Returns null if the worktree is detached or unavailable. */
+export function readWorktreeBranch(worktreePath: string): Effect.Effect<string | null, never> {
+  return Effect.tryPromise({
+    try: async () => {
+      const proc = Bun.spawn(["git", "-C", worktreePath, "branch", "--show-current"], {
+        stdout: "pipe",
+        stderr: "pipe",
+      })
+      const [text, exitCode] = await Promise.all([new Response(proc.stdout).text(), proc.exited])
+      if (exitCode !== 0) return null
+      const branch = text.trim()
+      return branch.length > 0 ? branch : null
+    },
+    catch: () => null,
+  }).pipe(Effect.catchAll(() => Effect.succeed(null)))
+}
+
 export interface PrMonitorDeps {
   db: Database
   listTasks(filter?: { status?: string }): Effect.Effect<TaskRow[], Error>
@@ -195,6 +212,8 @@ export interface PrMonitorDeps {
   checkPrState?: (prUrl: string) => Effect.Effect<PrState | null, never>
   /** Override branch PR lookup for testing. Defaults to `lookupPrByBranch` (shells out to `gh`). */
   lookupPrByBranch?: (repoUrl: string, branch: string) => Effect.Effect<string | null, never>
+  /** Override worktree branch reader for testing. Defaults to `readWorktreeBranch` (shells out to `git`). */
+  readWorktreeBranch?: (worktreePath: string) => Effect.Effect<string | null, never>
 }
 
 const TERMINATED_STATUSES = new Set(["done", "cancelled"])
@@ -209,6 +228,27 @@ export function pollPrStatuses(deps: PrMonitorDeps): Effect.Effect<void, never> 
       Effect.catchAll(() => Effect.succeed([] as TaskRow[]))
     )
     const active = allTasks.filter((t) => !TERMINATED_STATUSES.has(t.status))
+
+    // Phase 0: sync task.branch with the actual git HEAD branch for tasks with a worktree.
+    // Agents sometimes rename their branch directly via git without going through the rename-branch
+    // API, which causes task.branch to drift from the real branch the worktree is on.
+    const withWorktree = active.filter((t) => t.worktree_path && t.branch)
+    if (withWorktree.length > 0) {
+      const branchReader = deps.readWorktreeBranch ?? readWorktreeBranch
+      for (const task of withWorktree) {
+        const actualBranch = yield* branchReader(task.worktree_path!)
+        if (actualBranch && actualBranch !== task.branch) {
+          log.info("Syncing task branch from worktree HEAD", {
+            taskId: task.id,
+            dbBranch: task.branch,
+            actualBranch,
+          })
+          yield* deps.updateTask(task.id, { branch: actualBranch }).pipe(Effect.ignoreLogged)
+          // Update in-memory so Phase 1 uses the corrected branch for PR discovery this cycle
+          task.branch = actualBranch
+        }
+      }
+    }
 
     // Phase 1: discover PR URLs for tasks that have the "pr-track" capability but no URL yet
     const withoutPr = active.filter((t) => !t.pr_url && t.branch && taskHasCapability(t.type, t.capabilities, "pr-track"))
