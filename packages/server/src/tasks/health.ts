@@ -240,8 +240,8 @@ function checkIdleTimeout(
       if (idleMs >= DEFAULT_IDLE_TIMEOUT_MS) {
         log.info("Task idle, suspending agent", { taskId: task.id, title: task.title, idleMs })
         state.suspended = true
-        yield* deps.persistSuspended(task.id, true)
         yield* deps.suspendAgent(task.id)
+        yield* deps.persistSuspended(task.id, true)
         yield* deps.logSuspend(task.id, idleMs)
         return
       }
@@ -251,8 +251,8 @@ function checkIdleTimeout(
       if (idleMs >= DEFAULT_IDLE_TIMEOUT_MS) {
         log.info("Task idle (no messages), suspending agent", { taskId: task.id, title: task.title, idleMs })
         state.suspended = true
-        yield* deps.persistSuspended(task.id, true)
         yield* deps.suspendAgent(task.id)
+        yield* deps.persistSuspended(task.id, true)
         yield* deps.logSuspend(task.id, idleMs)
       }
     }
