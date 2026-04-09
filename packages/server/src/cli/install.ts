@@ -103,7 +103,7 @@ export async function install(): Promise<void> {
   check(
     "LLM credentials",
     hasOpencode || hasApiKey || hasClaude,
-    "Run `tangerine config set ANTHROPIC_API_KEY=...` or `opencode auth login`",
+    "Set credentials for at least one provider:\n  • Claude Code: log in via `claude` CLI, or run `tangerine config set CLAUDE_CODE_OAUTH_TOKEN=...`\n  • OpenCode: run `opencode auth login`\n  • API key: run `tangerine config set ANTHROPIC_API_KEY=...`",
   )
   if (hasOpencode) console.log("    (using opencode auth.json)")
   if (hasApiKey) console.log("    (using ANTHROPIC_API_KEY)")
