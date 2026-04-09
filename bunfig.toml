@@ -1,0 +1,4 @@
+[test]
+# Web tests need happy-dom globals (document, window, etc.).
+# Server tests don't use them but the preload is harmless.
+preload = ["./web/test-setup.ts"]
