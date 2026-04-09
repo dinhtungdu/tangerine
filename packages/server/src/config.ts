@@ -3,7 +3,6 @@ import { join } from "path"
 import { homedir, userInfo } from "os"
 import { tangerineConfigSchema, DEFAULT_API_PORT } from "@tangerine/shared"
 import type { TangerineConfig, ProjectConfig } from "@tangerine/shared"
-import { DAEMON_FATAL_EXIT_CODE } from "./daemon-exit"
 
 export const TANGERINE_HOME = join(homedir(), "tangerine")
 export const CONFIG_PATH = join(TANGERINE_HOME, "config.json")
@@ -192,16 +191,6 @@ export function loadConfig(overrides?: { configPath?: string }): AppConfig {
   const claudeOauthToken =
     process.env["CLAUDE_CODE_OAUTH_TOKEN"] ?? dotfile.CLAUDE_CODE_OAUTH_TOKEN ?? readClaudeCliToken()
   const anthropicApiKey = process.env["ANTHROPIC_API_KEY"] ?? dotfile.ANTHROPIC_API_KEY ?? null
-
-  if (!opencodeAuthPath && !claudeOauthToken && !anthropicApiKey) {
-    console.error(
-      "No LLM credentials found. Either:\n" +
-      "  tangerine config set ANTHROPIC_API_KEY=sk-ant-...\n" +
-      "  tangerine config set CLAUDE_CODE_OAUTH_TOKEN=...\n" +
-      "  or run `opencode auth login`",
-    )
-    process.exit(DAEMON_FATAL_EXIT_CODE)
-  }
 
   return {
     config,
