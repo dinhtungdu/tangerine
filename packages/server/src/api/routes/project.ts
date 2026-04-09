@@ -8,13 +8,29 @@ import { ProjectNotFoundError, ProjectExistsError, ConfigValidationError } from 
 import { checkForUpdate, clearUpdateStatus } from "../../self-update"
 import { getRepoDir } from "../../config"
 import { createLogger } from "../../logger"
-import { extractGithubSlug, getRepoForkInfo, syncForkRepo } from "../../gh"
+import { resolveGithubSlug, getRepoForkInfo, syncForkRepo } from "../../gh"
 import { listTasks } from "../../db/queries"
 import { deletePoolForProject, localExec } from "../../tasks/worktree-pool"
 import type { WorktreeSlotRow } from "../../db/types"
 import { DAEMON_RESTART_EXIT_CODE } from "../../daemon-exit"
 
 const log = createLogger("project-routes")
+
+// Cache fork info to avoid hitting GitHub API on every 30s poll
+const FORK_CACHE_TTL_MS = 5 * 60 * 1000 // 5 minutes
+const forkInfoCache = new Map<string, { info: { isFork: boolean; parentSlug: string | null }; expiresAt: number }>()
+
+async function getCachedForkInfo(slug: string): Promise<{ isFork: boolean; parentSlug: string | null }> {
+  const cached = forkInfoCache.get(slug)
+  if (cached && Date.now() < cached.expiresAt) return cached.info
+  try {
+    const info = await getRepoForkInfo(slug)
+    forkInfoCache.set(slug, { info, expiresAt: Date.now() + FORK_CACHE_TTL_MS })
+    return info
+  } catch {
+    return { isFork: false, parentSlug: null }
+  }
+}
 
 function shellExec(cmd: string, cwd: string) {
   return Effect.tryPromise({
@@ -226,13 +242,10 @@ export function projectRoutes(deps: AppDeps): Hono {
 
     const repoDir = getRepoDir(deps.config.config, name)
     const defaultBranch = project.defaultBranch ?? "main"
+    const slug = resolveGithubSlug(project.repo)
     const [status, forkInfo] = await Promise.all([
       Effect.runPromise(checkForUpdate(repoDir, defaultBranch)),
-      (async () => {
-        const slug = extractGithubSlug(project.repo)
-        if (!slug) return { isFork: false, parentSlug: null }
-        try { return await getRepoForkInfo(slug) } catch { return { isFork: false, parentSlug: null } }
-      })(),
+      slug ? getCachedForkInfo(slug) : Promise.resolve({ isFork: false, parentSlug: null }),
     ])
 
     return c.json({ ...status, ...forkInfo })
@@ -256,7 +269,7 @@ export function projectRoutes(deps: AppDeps): Hono {
         )
 
         // If the repo is a fork, sync from upstream first
-        const slug = extractGithubSlug(project.repo)
+        const slug = resolveGithubSlug(project.repo)
         if (slug) {
           const forkInfo = yield* Effect.tryPromise({
             try: () => getRepoForkInfo(slug),
@@ -326,7 +339,7 @@ export function projectRoutes(deps: AppDeps): Hono {
     const project = deps.config.config.projects.find((p) => p.name === name)
     if (!project) return c.json({ error: "Project not found" }, 404)
 
-    const slug = extractGithubSlug(project.repo)
+    const slug = resolveGithubSlug(project.repo)
     if (!slug) return c.json({ isFork: false, parentSlug: null })
 
     try {
@@ -345,7 +358,7 @@ export function projectRoutes(deps: AppDeps): Hono {
         const project = deps.config.config.projects.find((p) => p.name === name)
         if (!project) return yield* Effect.fail(new ProjectNotFoundError({ name }))
 
-        const slug = extractGithubSlug(project.repo)
+        const slug = resolveGithubSlug(project.repo)
         if (!slug) return yield* Effect.fail(new Error("Could not extract GitHub slug from repo URL"))
 
         const forkInfo = yield* Effect.tryPromise({

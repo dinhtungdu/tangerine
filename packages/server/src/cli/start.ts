@@ -26,7 +26,7 @@ import type { HealthCheckDeps } from "../tasks/health"
 import { reconnectSessionWithRetry } from "../tasks/retry"
 import { AgentError } from "../errors"
 import { extractPrUrl, verifyPrBranch, startPrMonitor } from "../tasks/pr-monitor"
-import { ghSpawnEnv, isGithubRepo, extractGithubSlug, getRepoForkInfo } from "../gh"
+import { ghSpawnEnv, isGithubRepo, resolveGithubSlug, getRepoForkInfo } from "../gh"
 import type { PrMonitorDeps } from "../tasks/pr-monitor"
 import { initSystemLog, cleanupSystemLogs } from "../system-log"
 import type { AgentHandle } from "../agent/provider"
@@ -653,7 +653,7 @@ export async function start(): Promise<void> {
                       // Resolve upstream slug for fork repos
                       let nudgeUpstreamSlug: string | undefined
                       if (projConfig?.repo) {
-                        const slug = extractGithubSlug(projConfig.repo)
+                        const slug = resolveGithubSlug(projConfig.repo)
                         if (slug) {
                           try {
                             const forkInfo = await getRepoForkInfo(slug)

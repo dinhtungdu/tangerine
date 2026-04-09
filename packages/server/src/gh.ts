@@ -72,20 +72,33 @@ export interface RepoForkInfo {
 }
 
 /**
+ * Resolve a repo config value to a slug usable with `gh` CLI.
+ * Handles full URLs (via extractGithubSlug) and bare `owner/repo` shorthand.
+ */
+export function resolveGithubSlug(repo: string): string | null {
+  return extractGithubSlug(repo) ?? (/^[^/]+\/[^/]+$/.test(repo) ? repo : null)
+}
+
+/**
  * Check if a GitHub repo is a fork and return its parent slug.
- * Uses `gh api` to query the repo metadata.
+ * Uses `gh repo view` which handles both bare and host-qualified slugs.
+ * Throws on gh CLI failure (auth/network) so callers can distinguish
+ * "not a fork" from "couldn't check".
  */
 export async function getRepoForkInfo(repoSlug: string): Promise<RepoForkInfo> {
   const proc = Bun.spawn(
-    ["gh", "api", `repos/${repoSlug}`, "--jq", "[.fork, .parent.full_name] | @tsv"],
+    ["gh", "repo", "view", repoSlug, "--json", "isFork,parent", "--jq", "[.isFork, .parent.nameWithOwner] | @tsv"],
     ghSpawnEnv(),
   )
-  const text = await new Response(proc.stdout).text()
+  const [stdout, stderr] = await Promise.all([
+    new Response(proc.stdout).text(),
+    new Response(proc.stderr).text(),
+  ])
   const exitCode = await proc.exited
   if (exitCode !== 0) {
-    return { isFork: false, parentSlug: null }
+    throw new Error(stderr.trim() || stdout.trim() || `gh repo view exited with ${exitCode}`)
   }
-  const parts = text.trim().split("\t")
+  const parts = stdout.trim().split("\t")
   const isFork = parts[0] === "true"
   const parentSlug = isFork && parts[1] ? parts[1] : null
   return { isFork, parentSlug }

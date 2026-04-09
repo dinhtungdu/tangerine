@@ -3,6 +3,7 @@ import { Effect } from "effect"
 import type { Database } from "bun:sqlite"
 import { createTestDb } from "./helpers"
 import { extractPrUrl, extractGithubSlug, getPrLookupTargets, pollPrStatuses } from "../tasks/pr-monitor"
+import { resolveGithubSlug } from "../gh"
 import type { PrMonitorDeps, PrState } from "../tasks/pr-monitor"
 import type { TaskRow } from "../db/types"
 import { buildSystemNotes, buildSystemLayer, buildUserLayer } from "../tasks/prompts"
@@ -93,6 +94,32 @@ describe("extractGithubSlug", () => {
 
   test("extracts host-qualified slug from GHE SSH remote URL", () => {
     expect(extractGithubSlug("git@github.example.com:owner/repo.git")).toBe("github.example.com/owner/repo")
+  })
+})
+
+// ---------------------------------------------------------------------------
+// resolveGithubSlug
+// ---------------------------------------------------------------------------
+
+describe("resolveGithubSlug", () => {
+  test("resolves full https URL", () => {
+    expect(resolveGithubSlug("https://github.com/owner/repo.git")).toBe("owner/repo")
+  })
+
+  test("resolves bare owner/repo shorthand", () => {
+    expect(resolveGithubSlug("dinhtungdu/tangerine")).toBe("dinhtungdu/tangerine")
+  })
+
+  test("resolves GHE URL to host-qualified slug", () => {
+    expect(resolveGithubSlug("https://github.example.com/owner/repo")).toBe("github.example.com/owner/repo")
+  })
+
+  test("returns null for non-github URL", () => {
+    expect(resolveGithubSlug("https://gitlab.com/owner/repo")).toBeNull()
+  })
+
+  test("returns null for bare single-word string", () => {
+    expect(resolveGithubSlug("tangerine")).toBeNull()
   })
 })
 
@@ -518,6 +545,22 @@ describe("buildSystemNotes", () => {
   test("does not inject prMode instruction for non-worker tasks", () => {
     const notes = buildSystemNotes("test-id", { taskType: "reviewer", prMode: "draft" })
     expect(notes.some((n) => n.includes("PR MODE"))).toBe(false)
+  })
+
+  test("includes --repo upstream flag for fork projects (draft)", () => {
+    const notes = buildSystemNotes("test-id", { taskType: "worker", prMode: "draft", upstreamSlug: "upstream/repo" })
+    expect(notes.some((n) => n.includes("--repo upstream/repo"))).toBe(true)
+    expect(notes.some((n) => n.includes("This is a fork"))).toBe(true)
+  })
+
+  test("includes --repo upstream flag for fork projects (ready)", () => {
+    const notes = buildSystemNotes("test-id", { taskType: "worker", prMode: "ready", upstreamSlug: "upstream/repo" })
+    expect(notes.some((n) => n.includes("--repo upstream/repo"))).toBe(true)
+  })
+
+  test("omits --repo flag when no upstream slug", () => {
+    const notes = buildSystemNotes("test-id", { taskType: "worker", prMode: "draft" })
+    expect(notes.some((n) => n.includes("--repo"))).toBe(false)
   })
 })
 

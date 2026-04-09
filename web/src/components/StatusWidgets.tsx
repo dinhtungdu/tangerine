@@ -166,7 +166,7 @@ export function ProjectUpdateCard({ project }: { project?: string }) {
     setResult(null)
     try {
       const res = await syncProjectFork(project)
-      setResult(res.synced ? `Fork synced from ${res.upstream}` : "Sync completed")
+      setResult(res.synced ? (res.upstream ? `Fork synced from ${res.upstream}` : "Fork synced") : "Sync completed")
       const s = await fetchUpdateStatus(project).catch(() => null)
       setStatus(s)
     } catch (e) {

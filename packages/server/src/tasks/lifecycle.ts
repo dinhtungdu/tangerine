@@ -13,7 +13,7 @@ import type { TaskRow } from "../db/types"
 import { initPool, acquireSlot, acquireOrchestratorSlot } from "./worktree-pool"
 import { buildSystemNotes } from "./prompts"
 import { killProcessTree } from "../agent/process-tree"
-import { extractGithubSlug, getRepoForkInfo } from "../gh"
+import { resolveGithubSlug, getRepoForkInfo } from "../gh"
 
 const log = createLogger("lifecycle")
 
@@ -254,7 +254,7 @@ export function startSession(
     // 5. Detect fork upstream for PR targeting
     let upstreamSlug: string | undefined
     if (task.type === "worker" && config.prMode !== "none") {
-      const slug = extractGithubSlug(config.repo)
+      const slug = resolveGithubSlug(config.repo)
       if (slug) {
         const forkInfo = yield* Effect.tryPromise({
           try: () => getRepoForkInfo(slug),
@@ -377,7 +377,7 @@ export function reconnectSession(
     // Detect fork upstream for PR targeting on reconnect
     let reconnectUpstreamSlug: string | undefined
     if (taskType === "worker" && project?.prMode !== "none" && project?.repo) {
-      const slug = extractGithubSlug(project.repo)
+      const slug = resolveGithubSlug(project.repo)
       if (slug) {
         const forkInfo = yield* Effect.tryPromise({
           try: () => getRepoForkInfo(slug),
