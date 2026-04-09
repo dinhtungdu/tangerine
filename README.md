@@ -49,10 +49,7 @@ npm i -g @dinhtungdu/tangerine # Not yet published — my npmjs.com account is b
 tangerine install
 ```
 
-Add a project use command below or better ask your clanker to set up the first project for you using `platform-setup` skill.
-```bash
-tangerine project add --name <name> --repo <url> --setup "<cmd>"  # once
-```
+Ask your agent to set up the first project using the `platform-setup` skill (`/platform-setup`).
 
 Then start:
 ```bash
