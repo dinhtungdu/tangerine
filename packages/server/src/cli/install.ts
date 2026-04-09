@@ -3,7 +3,7 @@
 
 import { existsSync, lstatSync, mkdirSync, rmSync, symlinkSync, readlinkSync } from "fs"
 import { join, resolve } from "path"
-import { TANGERINE_HOME, OPENCODE_AUTH_PATH, readCredentialsFile, readClaudeCliToken } from "../config"
+import { TANGERINE_HOME } from "../config"
 import { AGENT_PROVIDER_METADATA } from "../agent/metadata"
 
 // Resolve project root relative to this file:
@@ -93,23 +93,6 @@ export async function install(): Promise<void> {
       }
     }
   }
-
-  // 3. Credentials (env vars override dotfile)
-  console.log("\nCredentials:")
-  const dotfile = readCredentialsFile()
-  const hasOpencode = existsSync(OPENCODE_AUTH_PATH)
-  const hasApiKey = !!(process.env["ANTHROPIC_API_KEY"] || dotfile.ANTHROPIC_API_KEY)
-  const hasClaude = !!(process.env["CLAUDE_CODE_OAUTH_TOKEN"] || dotfile.CLAUDE_CODE_OAUTH_TOKEN || readClaudeCliToken())
-  check(
-    "LLM credentials",
-    hasOpencode || hasApiKey || hasClaude,
-    "No credentials found. Set up auth for at least one provider:\n  • Claude Code: log in via `claude` CLI, or run `tangerine config set CLAUDE_CODE_OAUTH_TOKEN=...`\n  • OpenCode: run `opencode auth login`\n  • Codex: run `codex login`\n  • Pi / others: set the relevant API key env var (e.g. GOOGLE_API_KEY)\n  • Anthropic API key: run `tangerine config set ANTHROPIC_API_KEY=...`\n  Each provider uses its own existing auth when spawned.",
-  )
-  if (hasOpencode) console.log("    (using opencode auth.json)")
-  if (hasApiKey) console.log("    (using ANTHROPIC_API_KEY)")
-  if (process.env["CLAUDE_CODE_OAUTH_TOKEN"] || dotfile.CLAUDE_CODE_OAUTH_TOKEN)
-    console.log("    (using CLAUDE_CODE_OAUTH_TOKEN)")
-  else if (readClaudeCliToken()) console.log("    (using ~/.claude/.credentials.json)")
 
   console.log()
 }
