@@ -171,7 +171,8 @@ export function NewAgentForm({ onSubmit, refTaskId, refTaskTitle, refBranch, aut
     }
   }, [draftKey, description, customBranch, taskType, pendingImages])
 
-  const canSubmit = (!!description.trim() || pendingImages.length > 0) && !!current && !submitting
+  const providerAvailable = isProviderAvailable(systemCapabilities, provider)
+  const canSubmit = (!!description.trim() || pendingImages.length > 0) && !!current && !submitting && providerAvailable
 
   const submitAndReset = useCallback((data: Parameters<typeof onSubmit>[0]) => {
     setSubmitting(true)

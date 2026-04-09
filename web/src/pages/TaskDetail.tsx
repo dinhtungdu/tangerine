@@ -390,9 +390,10 @@ export function TaskDetail() {
 
   // Desktop: multi-pane from visiblePanes set. Mobile: single pane from mobilePane.
   // Both states are tracked; CSS breakpoints control which layout renders.
-  const desktopIsSolo = visiblePanes.size === 1
+  const dtachAvailable = systemCapabilities?.dtach.available !== false
   const PANE_ORDER: PaneId[] = ["chat", "diff", "terminal", "activity"]
-  const orderedVisible = PANE_ORDER.filter((p) => visiblePanes.has(p) && (p !== "diff" || hasDiff))
+  const orderedVisible = PANE_ORDER.filter((p) => visiblePanes.has(p) && (p !== "diff" || hasDiff) && (p !== "terminal" || dtachAvailable))
+  const desktopIsSolo = orderedVisible.length === 1
   const firstVisiblePane = orderedVisible[0]
   orderedVisibleRef.current = orderedVisible
 

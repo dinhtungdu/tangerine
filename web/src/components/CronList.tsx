@@ -110,7 +110,7 @@ export function CronForm({ projectId, onCreated, modelsByProvider }: {
   const providerModels = modelsByProvider[provider] ?? []
   const activeModel = model && providerModels.includes(model) ? model : providerModels[0] ?? ""
 
-  const canSubmit = title.trim() && cron.trim() && !submitting
+  const canSubmit = title.trim() && cron.trim() && !submitting && isProviderAvailable(systemCapabilities, provider)
 
   const handleSubmit = useCallback(async () => {
     if (!canSubmit) return
@@ -203,7 +203,7 @@ export function CronRow({ cron, onToggle, onDelete, onRefresh, modelsByProvider 
   // activeModel is only for display; saving uses raw `model` to avoid silent fallback
   const activeModel = model && providerModels.includes(model) ? model : providerModels[0] ?? ""
 
-  const canSubmit = title.trim() && cronExpr.trim() && !submitting
+  const canSubmit = title.trim() && cronExpr.trim() && !submitting && isProviderAvailable(systemCapabilities, provider)
 
   const handleCancel = useCallback(() => {
     // Reset to saved values
