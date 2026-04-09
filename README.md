@@ -52,9 +52,10 @@ bun test
 bun run build
 ```
 
-Run the server:
+Add a project, then start:
 
 ```bash
+tangerine project add --name <name> --repo <url> --setup "<cmd>"  # once
 tangerine install  # install agent skills (once)
 tangerine start
 ```

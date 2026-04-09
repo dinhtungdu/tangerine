@@ -53,6 +53,11 @@ function getBinPath(): string {
 // ── Commands ────────────────────────────────────────────────────────
 
 export async function daemonStart(): Promise<void> {
+  // Validate config before spawning so errors surface immediately instead of
+  // silently failing inside the detached daemon process.
+  const { loadConfig } = await import("../config.ts")
+  loadConfig()
+
   const existingPid = readPid()
   if (existingPid !== null && isTangerineProcess(existingPid)) {
     console.log(`Tangerine is already running (PID ${existingPid}).`)
