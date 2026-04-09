@@ -110,37 +110,49 @@ export function TaskDetail() {
 
   const MIN_PANE = 200
 
-  const terminalResize = useResizable({
-    onResize: useCallback((delta: number) => {
-      setTerminalWidth((w) => {
-        const next = Math.max(MIN_PANE, w - delta)
-        dimsRef.current.terminal = next
-        saveDims()
-        return next
-      })
-    }, [saveDims]),
-  })
+  // Track which pane the current drag handle belongs to, and the ordered
+  // visible panes so the resize callback can adjust both adjacent panes.
+  const dragPaneRef = useRef<PaneId | null>(null)
+  const orderedVisibleRef = useRef<PaneId[]>([])
 
-  const activityResize = useResizable({
-    onResize: useCallback((delta: number) => {
-      setActivityWidth((w) => {
-        const next = Math.max(MIN_PANE, w - delta)
-        dimsRef.current.activity = next
-        saveDims()
-        return next
-      })
-    }, [saveDims]),
-  })
+  const widthSetters: Record<string, (v: number) => void> = useMemo(() => ({
+    diff: (v: number) => { dimsRef.current.diff = v; setDiffWidth(v) },
+    terminal: (v: number) => { dimsRef.current.terminal = v; setTerminalWidth(v) },
+    activity: (v: number) => { dimsRef.current.activity = v; setActivityWidth(v) },
+  }), [])
 
-  const diffResize = useResizable({
+  const resize = useResizable({
     onResize: useCallback((delta: number) => {
-      setDiffWidth((w) => {
-        const next = Math.max(MIN_PANE, w - delta)
-        dimsRef.current.diff = next
-        saveDims()
-        return next
-      })
-    }, [saveDims]),
+      const pane = dragPaneRef.current
+      if (!pane || pane === "chat") return
+
+      const ordered = orderedVisibleRef.current
+      const idx = ordered.indexOf(pane)
+      if (idx <= 0) return
+
+      const leftPane = ordered[idx - 1]
+      const leftIsFlexible = idx === 1 // ordered[0] is always the flex-1 pane
+      const paneKey = pane as "diff" | "terminal" | "activity"
+      const rightW = dimsRef.current[paneKey]
+
+      const rightSetter = widthSetters[paneKey]
+      if (!rightSetter) return
+
+      if (leftIsFlexible || leftPane === "chat") {
+        // Left pane is flex-1 — only adjust the right pane
+        rightSetter(Math.max(MIN_PANE, rightW - delta))
+      } else {
+        // Both panes are fixed — adjust both so their shared boundary moves
+        const leftKey = leftPane as "diff" | "terminal" | "activity"
+        const leftSetter = widthSetters[leftKey]
+        if (!leftSetter) return
+        const leftW = dimsRef.current[leftKey]
+        const effective = Math.max(-(leftW - MIN_PANE), Math.min(delta, rightW - MIN_PANE))
+        leftSetter(leftW + effective)
+        rightSetter(rightW - effective)
+      }
+      saveDims()
+    }, [saveDims, widthSetters]),
   })
 
   const togglePane = useCallback((pane: PaneId) => {
@@ -382,10 +394,12 @@ export function TaskDetail() {
   const PANE_ORDER: PaneId[] = ["chat", "diff", "terminal", "activity"]
   const orderedVisible = PANE_ORDER.filter((p) => visiblePanes.has(p) && (p !== "diff" || hasDiff))
   const firstVisiblePane = orderedVisible[0]
-  const resizeHandlers: Partial<Record<PaneId, (e: React.PointerEvent<HTMLDivElement>) => void>> = {
-    diff: diffResize.onPointerDown,
-    terminal: terminalResize.onPointerDown,
-    activity: activityResize.onPointerDown,
+  orderedVisibleRef.current = orderedVisible
+
+  const resizeHandlers: Record<string, (e: React.PointerEvent<HTMLDivElement>) => void> = {
+    diff: (e) => { dragPaneRef.current = "diff"; resize.onPointerDown(e) },
+    terminal: (e) => { dragPaneRef.current = "terminal"; resize.onPointerDown(e) },
+    activity: (e) => { dragPaneRef.current = "activity"; resize.onPointerDown(e) },
   }
 
   return (
