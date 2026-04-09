@@ -2,7 +2,7 @@ import { describe, test, expect, beforeEach, afterEach } from "bun:test"
 import { writeFileSync, readFileSync, mkdirSync, rmSync } from "fs"
 import { join } from "path"
 import { tmpdir } from "os"
-import { DAEMON_RESTART_EXIT_CODE, shouldRestartDaemon } from "../daemon-exit"
+import { DAEMON_RESTART_EXIT_CODE, DAEMON_FATAL_EXIT_CODE, shouldRestartDaemon } from "../daemon-exit"
 
 // We test the pure logic by importing daemon internals indirectly.
 // For unit testing, we test the PID file read/write and process-alive logic.
@@ -53,5 +53,9 @@ describe("daemon", () => {
 
   test("signal exits also restart", () => {
     expect(shouldRestartDaemon(null)).toBe(true)
+  })
+
+  test("fatal exit code does not restart", () => {
+    expect(shouldRestartDaemon(DAEMON_FATAL_EXIT_CODE)).toBe(false)
   })
 })
