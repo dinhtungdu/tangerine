@@ -33,6 +33,7 @@ export function makeTask(overrides?: Partial<Task>): Task {
     userId: null,
     agentSessionId: null,
     agentPid: null,
+    suspended: false,
     error: null,
     createdAt: now,
     updatedAt: now,

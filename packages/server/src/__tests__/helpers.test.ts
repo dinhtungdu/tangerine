@@ -55,6 +55,7 @@ describe("mapTaskRow", () => {
       user_id: null,
       agent_session_id: null,
       agent_pid: null,
+      suspended: 0,
       error: null,
       created_at: "2026-03-27 09:00:00",
       updated_at: "2026-03-27 09:10:00",

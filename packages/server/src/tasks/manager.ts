@@ -19,7 +19,7 @@ import { cleanupSession } from "./cleanup"
 import { startSessionWithRetry, reconnectSessionWithRetry } from "./retry"
 import { emitStatusChange, clearAgentWorkingState } from "./events"
 import { clearQueue } from "../agent/prompt-queue"
-import { clearTaskState } from "./task-state"
+import { clearTaskState, getTaskState } from "./task-state"
 import { deletePoolForProject, reconcileStaleSlots } from "./worktree-pool"
 
 const log = createLogger("tasks")
@@ -257,7 +257,14 @@ export function resumeOrphanedTasks(
     const running = yield* deps.listTasks({ status: "running" })
 
     const needsFullRestart = [...created, ...provisioning]
-    const needsReconnect = running
+    const needsReconnect = running.filter((t) => !t.suspended)
+    const suspendedTasks = running.filter((t) => t.suspended)
+
+    // Restore in-memory suspended flag for tasks that were idle before the crash
+    for (const task of suspendedTasks) {
+      log.info("Skipping suspended task on resume", { taskId: task.id, title: task.title })
+      getTaskState(task.id).suspended = true
+    }
 
     const total = needsFullRestart.length + needsReconnect.length
     if (total === 0) return 0

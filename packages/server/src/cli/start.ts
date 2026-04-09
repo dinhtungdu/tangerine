@@ -910,6 +910,7 @@ export async function start(): Promise<void> {
             // Restart the agent and queue the prompt for delivery once ready.
             if (isTaskSuspended(taskId)) {
               clearSuspended(taskId)
+              yield* updateTask(db, taskId, { suspended: 0 }).pipe(Effect.ignoreLogged)
             }
             const task = yield* getTask(db, taskId).pipe(Effect.catchAll(() => Effect.succeed(null)))
             if (task && task.status === "running") {
@@ -1095,6 +1096,8 @@ export async function start(): Promise<void> {
         agentHandles.delete(taskId)
         return handle.shutdown().pipe(Effect.catchAll(() => Effect.void))
       },
+      persistSuspended: (taskId, suspended) =>
+        updateTask(db, taskId, { suspended: suspended ? 1 : 0 }).pipe(Effect.asVoid, Effect.catchAll(() => Effect.void)),
       getLastAgentError: (taskId) => getTaskState(taskId).lastError,
       isAgentWorking: (taskId) => getAgentWorkingState(taskId) === "working",
       logSuspend: (taskId, idleMs) =>

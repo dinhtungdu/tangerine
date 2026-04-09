@@ -88,6 +88,8 @@ export interface HealthCheckDeps {
   logHungTool(taskId: string, hungMs: number): Effect.Effect<void, never>
   /** Abort the agent process so the health monitor can restart it. */
   abortHungTool(taskId: string): Effect.Effect<void, never>
+  /** Persist suspended flag to DB so it survives server restarts. */
+  persistSuspended(taskId: string, suspended: boolean): Effect.Effect<void, never>
   cleanupDeps: CleanupDeps
 }
 
@@ -164,7 +166,10 @@ export function checkTask(
     // agent completes real work (goes idle → resetRestartCount in start.ts).
     // Clear suspended flag if agent is alive — abort may have only interrupted
     // the current turn without killing the process (codex, pi).
-    if (state.suspended) state.suspended = false
+    if (state.suspended) {
+      state.suspended = false
+      yield* deps.persistSuspended(task.id, false)
+    }
     taskLog.debug("Task healthy")
     return "healthy"
   })
@@ -235,6 +240,7 @@ function checkIdleTimeout(
       if (idleMs >= DEFAULT_IDLE_TIMEOUT_MS) {
         log.info("Task idle, suspending agent", { taskId: task.id, title: task.title, idleMs })
         state.suspended = true
+        yield* deps.persistSuspended(task.id, true)
         yield* deps.suspendAgent(task.id)
         yield* deps.logSuspend(task.id, idleMs)
         return
@@ -245,6 +251,7 @@ function checkIdleTimeout(
       if (idleMs >= DEFAULT_IDLE_TIMEOUT_MS) {
         log.info("Task idle (no messages), suspending agent", { taskId: task.id, title: task.title, idleMs })
         state.suspended = true
+        yield* deps.persistSuspended(task.id, true)
         yield* deps.suspendAgent(task.id)
         yield* deps.logSuspend(task.id, idleMs)
       }

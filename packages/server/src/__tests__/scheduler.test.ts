@@ -42,6 +42,7 @@ function makeTask(overrides?: Partial<TaskRow>): TaskRow {
     user_id: null,
     agent_session_id: null,
     agent_pid: null,
+    suspended: 0,
     error: null,
     created_at: now,
     updated_at: now,
