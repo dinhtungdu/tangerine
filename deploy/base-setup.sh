@@ -22,6 +22,7 @@ apt-get install -y -qq \
   jq \
   openssh-server \
   dtach \
+  lsof \
   unzip \
   ca-certificates \
   gnupg
