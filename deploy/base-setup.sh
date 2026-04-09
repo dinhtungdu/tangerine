@@ -53,10 +53,8 @@ npm install -g pnpm
 apt-get install -y -qq php-cli php-xml php-mbstring php-curl
 curl -sS https://getcomposer.org/installer | php -- --install-dir=/usr/local/bin --filename=composer
 
-# --- OpenCode ---
+# --- Agent CLIs (install binaries only — auth must be configured by the user after setup) ---
 npm install -g opencode-ai
-
-# --- Claude Code CLI ---
 npm install -g @anthropic-ai/claude-code
 
 # --- Bun runtime ---

@@ -17,7 +17,14 @@ limactl start --name=tangerine deploy/tangerine.yaml
 limactl copy deploy/base-setup.sh tangerine:/tmp/base-setup.sh
 limactl shell tangerine sudo bash /tmp/base-setup.sh
 
-# 3. Clone and install Tangerine
+# 3. Authenticate agents (required before Tangerine can use them)
+#    base-setup.sh installs the agent CLIs but does not configure auth.
+#    Inside the VM, authenticate each agent you plan to use:
+#      claude        # complete Claude Code OAuth
+#      gh auth login # authenticate GitHub CLI
+#      opencode      # complete OpenCode auth (if used)
+
+# 4. Clone and install Tangerine
 limactl shell tangerine bash -c "
   cd /workspace
   git clone https://github.com/user/tangerine.git
@@ -25,7 +32,7 @@ limactl shell tangerine bash -c "
   bun install
 "
 
-# 4. Initialize and start
+# 5. Initialize and start
 limactl shell tangerine bash -c "
   cd /workspace/tangerine
   bun run tangerine init
@@ -40,7 +47,14 @@ limactl shell tangerine bash -c "
 scp deploy/base-setup.sh user@server:/tmp/
 ssh user@server 'sudo bash /tmp/base-setup.sh'
 
-# 2. Clone and install Tangerine
+# 2. Authenticate agents (required before Tangerine can use them)
+#    base-setup.sh installs the agent CLIs but does not configure auth.
+#    SSH into the server and authenticate each agent you plan to use:
+#      claude        # complete Claude Code OAuth
+#      gh auth login # authenticate GitHub CLI
+#      opencode      # complete OpenCode auth (if used)
+
+# 3. Clone and install Tangerine
 ssh user@server bash -c "
   cd /workspace
   git clone https://github.com/user/tangerine.git
@@ -48,7 +62,7 @@ ssh user@server bash -c "
   bun install
 "
 
-# 3. Initialize and start
+# 4. Initialize and start
 ssh user@server bash -c "
   cd /workspace/tangerine
   bun run tangerine init
@@ -65,8 +79,10 @@ ssh user@server bash -c "
 | Bun | latest (bun.sh) |
 | GitHub CLI | latest (gh apt repo) |
 | PHP + Composer | php-cli from apt, composer from getcomposer.org |
-| OpenCode | latest (npm global) |
-| Claude Code | latest (npm global) |
+| OpenCode | latest (npm global) — binary only, auth required separately |
+| Claude Code | latest (npm global) — binary only, auth required separately |
 | dtach, git, curl, jq, unzip | apt |
 
 It also configures SSH (key-only auth, GatewayPorts clientspecified), disables IPv6 (Lima VZ workaround), creates `/workspace`, and sets `git safe.directory '*'`.
+
+> **Note**: base-setup.sh installs agent binaries only. It does not configure API keys or authentication. After running it, authenticate each agent you plan to use before starting Tangerine.
