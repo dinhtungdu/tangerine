@@ -262,9 +262,6 @@ function checkHungTool(
   deps: HealthCheckDeps,
 ): Effect.Effect<void, never> {
   return Effect.gen(function* () {
-    // Only relevant when the agent is actively running a tool
-    if (!deps.isAgentWorking(task.id)) return
-
     const state = getTaskState(task.id)
 
     // Apply cooldown: after a hung-tool abort the old tool.start entry stays in

@@ -435,13 +435,13 @@ describe("hung tool watchdog", () => {
     expect(abortFn).toHaveBeenCalledTimes(0)
   })
 
-  test("does not abort when agent is idle (no tool running)", async () => {
+  test("does not abort when last activity is a completed tool (not running)", async () => {
+    // getLastRunningActivityTime returns null when the last activity is not a running tool
     const task = makeTask()
     const abortFn = mock(() => Effect.void)
     const deps = makeDeps({
       listRunningTasks: () => Effect.succeed([task]),
-      isAgentWorking: () => false,
-      getLastRunningActivityTime: () => new Date(Date.now() - 360_000).toISOString(),
+      getLastRunningActivityTime: () => null,
       abortHungTool: abortFn,
     })
     await Effect.runPromise(checkAllTasks(deps))
@@ -479,17 +479,4 @@ describe("hung tool watchdog", () => {
     }
   })
 
-  test("no abort when last activity is not a running tool", async () => {
-    const task = makeTask()
-    const abortFn = mock(() => Effect.void)
-    const deps = makeDeps({
-      listRunningTasks: () => Effect.succeed([task]),
-      isAgentWorking: () => true,
-      // Returns null — last activity is not a running tool (e.g. completed tool)
-      getLastRunningActivityTime: () => null,
-      abortHungTool: abortFn,
-    })
-    await Effect.runPromise(checkAllTasks(deps))
-    expect(abortFn).toHaveBeenCalledTimes(0)
-  })
 })
