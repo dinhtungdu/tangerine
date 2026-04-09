@@ -1073,6 +1073,31 @@ export async function start(): Promise<void> {
           idleMs,
           reason: "idle_timeout",
         }).pipe(Effect.asVoid, Effect.catchAll(() => Effect.void)),
+      getLastRunningActivityTime: (() => {
+        const stmt = db.prepare(
+          "SELECT timestamp, metadata FROM activity_log WHERE task_id = ? ORDER BY id DESC LIMIT 1"
+        )
+        return (taskId: string) => {
+          const row = stmt.get(taskId) as { timestamp: string; metadata: string | null } | null
+          if (!row?.metadata) return null
+          try {
+            const meta = JSON.parse(row.metadata) as Record<string, unknown>
+            return meta.status === "running" ? row.timestamp : null
+          } catch {
+            return null
+          }
+        }
+      })(),
+      logHungTool: (taskId, hungMs) =>
+        logActivity(db, taskId, "lifecycle", "agent.hung_tool", "Restarted: tool hung for >5min", {
+          hungMs,
+          reason: "hung_tool",
+        }).pipe(Effect.asVoid, Effect.catchAll(() => Effect.void)),
+      abortHungTool: (taskId) => {
+        const handle = agentHandles.get(taskId)
+        if (!handle) return Effect.void
+        return handle.abort().pipe(Effect.catchAll(() => Effect.void))
+      },
       getLastUserMessageTime: (() => {
         const stmt = db.prepare(
           "SELECT timestamp FROM session_logs WHERE task_id = ? AND role = 'user' ORDER BY id DESC LIMIT 1"

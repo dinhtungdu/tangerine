@@ -50,6 +50,9 @@ function makeDeps(overrides?: Partial<HealthCheckDeps>): HealthCheckDeps {
     isAgentWorking: () => false,
     logSuspend: () => Effect.void,
     getLastUserMessageTime: () => new Date().toISOString(),
+    getLastRunningActivityTime: () => null,
+    logHungTool: () => Effect.void,
+    abortHungTool: () => Effect.void,
     cleanupDeps: {
       db: null as never,
       getTask: () => Effect.succeed(null),
@@ -396,4 +399,87 @@ describe("idle timeout", () => {
     // Clean up
     clearSuspended(task.id)
   })
+})
+
+describe("hung tool watchdog", () => {
+  test("aborts agent when tool has been running for >5min", async () => {
+    const taskId = "hung-tool-test-1"
+    const task = makeTask({ id: taskId })
+    const abortFn = mock(() => Effect.void)
+    const logFn = mock(() => Effect.void)
+    const deps = makeDeps({
+      listRunningTasks: () => Effect.succeed([task]),
+      isAgentWorking: () => true,
+      // Last activity is a running tool from 6 minutes ago
+      getLastRunningActivityTime: () => new Date(Date.now() - 360_000).toISOString(),
+      abortHungTool: abortFn,
+      logHungTool: logFn,
+    })
+    await Effect.runPromise(checkAllTasks(deps))
+    expect(abortFn).toHaveBeenCalledTimes(1)
+    expect(logFn).toHaveBeenCalledTimes(1)
+    clearTaskState(taskId)
+  })
+
+  test("does not abort when tool has been running for <5min", async () => {
+    const task = makeTask()
+    const abortFn = mock(() => Effect.void)
+    const deps = makeDeps({
+      listRunningTasks: () => Effect.succeed([task]),
+      isAgentWorking: () => true,
+      // Last activity is a running tool from 2 minutes ago — not yet hung
+      getLastRunningActivityTime: () => new Date(Date.now() - 120_000).toISOString(),
+      abortHungTool: abortFn,
+    })
+    await Effect.runPromise(checkAllTasks(deps))
+    expect(abortFn).toHaveBeenCalledTimes(0)
+  })
+
+  test("does not abort when agent is idle even if last DB activity is a running tool", async () => {
+    // tool.end is not persisted — the last activity_log row remains tool.start
+    // (status: "running") after the tool completes. Without the isAgentWorking
+    // guard an idle healthy agent would be spuriously aborted after 5 minutes.
+    const task = makeTask()
+    const abortFn = mock(() => Effect.void)
+    const deps = makeDeps({
+      listRunningTasks: () => Effect.succeed([task]),
+      isAgentWorking: () => false,
+      getLastRunningActivityTime: () => new Date(Date.now() - 360_000).toISOString(),
+      abortHungTool: abortFn,
+    })
+    await Effect.runPromise(checkAllTasks(deps))
+    expect(abortFn).toHaveBeenCalledTimes(0)
+  })
+
+  test("does not re-abort within cooldown period after hung-tool abort", async () => {
+    const taskId = "hung-tool-test-2"
+    const task = makeTask({ id: taskId })
+    const abortFn = mock(() => Effect.void)
+    const deps = makeDeps({
+      listRunningTasks: () => Effect.succeed([task]),
+      isAgentWorking: () => true,
+      getLastRunningActivityTime: () => new Date(Date.now() - 360_000).toISOString(),
+      abortHungTool: abortFn,
+    })
+    // First pass: aborts
+    await Effect.runPromise(checkAllTasks(deps))
+    expect(abortFn).toHaveBeenCalledTimes(1)
+    // Second pass immediately: should be within cooldown, no re-abort
+    await Effect.runPromise(checkAllTasks(deps))
+    expect(abortFn).toHaveBeenCalledTimes(1)
+    clearTaskState(taskId)
+  })
+
+  test("resetRestartCount clears hung-tool cooldown", () => {
+    const taskId = "hung-tool-test-3"
+    try {
+      const state = getTaskState(taskId)
+      state.hungToolAbortedAt = Date.now()
+      resetRestartCount(taskId)
+      expect(getTaskState(taskId).hungToolAbortedAt).toBeUndefined()
+    } finally {
+      clearTaskState(taskId)
+    }
+  })
+
 })

@@ -13,6 +13,10 @@ export interface TaskState {
   prNudgeSent: boolean
   prNudgeTimer?: Timer
   consecutiveRestarts: number
+  /** Timestamp (ms) when we last aborted the agent for a hung tool. Used to
+   *  apply a cooldown so we don't re-abort immediately after restart when the
+   *  old tool.start entry is still the most recent activity in the DB. */
+  hungToolAbortedAt?: number
 }
 
 const taskStates = new Map<string, TaskState>()
