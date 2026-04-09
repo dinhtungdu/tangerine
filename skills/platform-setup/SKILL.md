@@ -72,7 +72,7 @@ User runs `/platform-setup` from their host machine (macOS or Linux) and wants t
    ```bash
    mkdir -p ~/workspace
    git clone <tangerine-repo> ~/workspace/tangerine
-   cd ~/workspace/tangerine && bun install
+   cd ~/workspace/tangerine && bun install && bun link
    ```
 
 4. **Configure projects** (see Project Setup below)
@@ -107,7 +107,7 @@ User runs `/platform-setup` from the HOST machine and wants a Lima VM. You help 
    ```bash
    cd ~/workspace
    git clone <tangerine-repo> tangerine
-   cd tangerine && bun install
+   cd tangerine && bun install && bun link
    ```
 
 4. **Configure projects** (see Project Setup below)

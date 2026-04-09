@@ -6,7 +6,8 @@ Local background coding agent platform. Multi-provider local agents (OpenCode, C
 
 1. Read `specs/architecture.md` and `specs/v0-scope.md`
 2. `bun install`
-3. `bun run check` before commit
+3. `bun link` (make `tangerine` available globally)
+4. `bun run check` before commit
 
 ## Structure
 

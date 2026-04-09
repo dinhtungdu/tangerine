@@ -46,6 +46,7 @@ specs/             # design and implementation docs
 
 ```bash
 bun install
+bun link        # make `tangerine` available globally
 bun run check
 bun test
 bun run build
@@ -54,7 +55,8 @@ bun run build
 Run the server:
 
 ```bash
-bin/tangerine start
+tangerine install  # install agent skills
+tangerine start
 ```
 
 During development you can run the API and web processes separately:
