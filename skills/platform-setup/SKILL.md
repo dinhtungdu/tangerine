@@ -246,7 +246,7 @@ Tangerine does not manage agent credentials. Before starting Tangerine, ensure e
 
 Tangerine does not configure or verify credentials — it relies on the agent's own auth being in place. If an agent fails to start due to missing credentials, authenticate it directly (e.g. run `claude` once to complete OAuth, or set the relevant API key in your shell profile) and retry.
 
-`gh` CLI is also required for GitHub integration (PR tracking, webhook setup). Run `gh auth status` to verify it is authenticated — this is a prerequisite tool, not an agent.
+`gh` CLI is also required for GitHub integration (PR tracking, webhook setup). Tangerine checks `gh auth status` on startup and will warn if it is not authenticated — run `gh auth login` to fix it.
 
 ## File Locations
 
