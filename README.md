@@ -55,7 +55,7 @@ bun run build
 Run the server:
 
 ```bash
-tangerine install  # install agent skills
+tangerine install  # install agent skills (once)
 tangerine start
 ```
 
