@@ -59,10 +59,13 @@ export function cleanupSession(
       )
     }
 
-    // 2. Kill dtach session for this task's terminal
+    // 2. Kill dtach session for this task's terminal.
+    // Removing the socket orphans the shell, so find its PID first via lsof.
     const socketPath = dtachSocketPath(task.id)
-    yield* localExec(`rm -f ${socketPath}`).pipe(
-      Effect.tap(() => Effect.sync(() => taskLog.debug("dtach socket removed", { socketPath }))),
+    yield* localExec(
+      `lsof -t ${socketPath} 2>/dev/null | xargs -r kill 2>/dev/null; rm -f ${socketPath}`
+    ).pipe(
+      Effect.tap(() => Effect.sync(() => taskLog.debug("dtach session killed", { socketPath }))),
       Effect.catchAll(() => Effect.void),
     )
 
