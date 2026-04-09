@@ -1,7 +1,9 @@
-// WebSocket route for interactive terminal access to a task's VM worktree.
-// Uses bun-pty to attach to a persistent tmux session per task.
-// The tmux session survives WebSocket disconnects — navigating away and back
-// re-attaches to the same session with full scrollback preserved.
+// WebSocket route for interactive terminal access to a task's worktree.
+// Uses bun-pty + dtach for persistent sessions per task.
+// dtach keeps the shell alive across WebSocket disconnects — navigating away
+// and back re-attaches to the same session with the shell state preserved.
+// Unlike tmux, dtach doesn't capture the mouse, so copy/paste and mobile
+// scroll work natively in xterm.js.
 
 import { Effect } from "effect"
 import { Hono } from "hono"
@@ -11,43 +13,14 @@ import type { IPty } from "bun-pty"
 import type { AppDeps } from "../app"
 import { getTask } from "../../db/queries"
 import { createLogger } from "../../logger"
+import { tmpdir } from "os"
+import { join } from "path"
 
 const log = createLogger("terminal-ws")
 
-/** tmux session name for a given task */
-export function tmuxSessionName(taskId: string): string {
-  return `tng-${taskId.slice(0, 8)}`
-}
-
-const TMUX_TIMEOUT_MS = 5000
-
-/** Ensure a tmux session exists for the task, creating one if needed. */
-async function ensureTmuxSession(sessionName: string, cwd: string): Promise<void> {
-  let timer: ReturnType<typeof setTimeout>
-  const timeout = new Promise<never>((_, reject) => {
-    timer = setTimeout(() => reject(new Error("tmux session setup timed out")), TMUX_TIMEOUT_MS)
-  })
-  try {
-    await Promise.race([_ensureTmuxSession(sessionName, cwd), timeout])
-  } finally {
-    clearTimeout(timer!)
-  }
-}
-
-async function _ensureTmuxSession(sessionName: string, cwd: string): Promise<void> {
-  const check = Bun.spawn(["tmux", "has-session", "-t", sessionName], { stderr: "pipe" })
-  if ((await check.exited) === 0) return
-
-  const stderrBuf: Uint8Array[] = []
-  const create = Bun.spawn(["tmux", "new-session", "-d", "-s", sessionName, "-c", cwd], {
-    stderr: "pipe",
-  })
-  for await (const chunk of create.stderr) stderrBuf.push(chunk)
-  const exitCode = await create.exited
-  if (exitCode !== 0) {
-    const stderr = Buffer.concat(stderrBuf).toString()
-    throw new Error(`Failed to create tmux session: ${stderr}`)
-  }
+/** dtach socket path for a given task */
+export function dtachSocketPath(taskId: string): string {
+  return join(tmpdir(), `tng-${taskId.slice(0, 8)}.dtach`)
 }
 
 export function terminalWsRoutes(deps: AppDeps, upgradeWebSocket: UpgradeWebSocket): Hono {
@@ -68,22 +41,21 @@ export function terminalWsRoutes(deps: AppDeps, upgradeWebSocket: UpgradeWebSock
               if (!task?.worktree_path) throw new Error("Task has no worktree")
 
               const worktree = task.worktree_path
-              const sessionName = tmuxSessionName(taskId)
+              const socketPath = dtachSocketPath(taskId)
 
-              log.info("Terminal session starting", { taskId, worktree, sessionName })
+              log.info("Terminal session starting", { taskId, worktree, socketPath })
 
-              const t0 = Date.now()
-              yield* Effect.tryPromise(() => ensureTmuxSession(sessionName, worktree))
-              log.info("tmux session ready", { taskId, sessionName, ms: Date.now() - t0 })
-
-              // Attach to the tmux session via PTY — this gives the browser
-              // a live view into the persistent session.
-              pty = spawn("tmux", [
-                "attach-session", "-t", sessionName,
+              // dtach -A: attach if socket exists, otherwise create new session.
+              // -z: disable suspend (Ctrl-Z goes to shell, not dtach)
+              pty = spawn("dtach", [
+                "-A", socketPath,
+                "-z",
+                "/bin/bash", "--login",
               ], {
                 cols: 80,
                 rows: 24,
                 name: "xterm-256color",
+                cwd: worktree,
               })
 
               pty.onData((data) => {
@@ -137,7 +109,7 @@ export function terminalWsRoutes(deps: AppDeps, upgradeWebSocket: UpgradeWebSock
 
         onClose() {
           alive = false
-          // Only kill the PTY attachment — the tmux session stays alive
+          // Only kill the PTY attachment — the dtach session stays alive
           // so the next connection can re-attach with history preserved.
           if (pty) {
             try {
@@ -147,7 +119,7 @@ export function terminalWsRoutes(deps: AppDeps, upgradeWebSocket: UpgradeWebSock
             }
             pty = null
           }
-          log.debug("Terminal detached (tmux session preserved)", { taskId })
+          log.debug("Terminal detached (dtach session preserved)", { taskId })
         },
       }
     })

@@ -7,7 +7,7 @@ import { createLogger } from "../logger"
 import { SessionCleanupError } from "../errors"
 import type { TaskRow } from "../db/types"
 import { releaseSlot, localExec } from "./worktree-pool"
-import { tmuxSessionName } from "../api/routes/terminal-ws"
+import { dtachSocketPath } from "../api/routes/terminal-ws"
 
 const log = createLogger("cleanup")
 
@@ -59,10 +59,10 @@ export function cleanupSession(
       )
     }
 
-    // 2. Kill tmux session for this task's terminal
-    const sessionName = tmuxSessionName(task.id)
-    yield* localExec(`tmux kill-session -t ${sessionName} 2>/dev/null; true`).pipe(
-      Effect.tap(() => Effect.sync(() => taskLog.debug("Tmux session killed", { sessionName }))),
+    // 2. Kill dtach session for this task's terminal
+    const socketPath = dtachSocketPath(task.id)
+    yield* localExec(`rm -f ${socketPath}`).pipe(
+      Effect.tap(() => Effect.sync(() => taskLog.debug("dtach socket removed", { socketPath }))),
       Effect.catchAll(() => Effect.void),
     )
 

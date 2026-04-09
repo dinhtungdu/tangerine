@@ -2,7 +2,7 @@ import { describe, test, expect, beforeEach } from "bun:test"
 import { Effect } from "effect"
 import type { Database } from "bun:sqlite"
 import { createTestDb } from "./helpers"
-import { tmuxSessionName } from "../api/routes/terminal-ws"
+import { dtachSocketPath } from "../api/routes/terminal-ws"
 import { createApp, type AppDeps } from "../api/app"
 import { createTask as dbCreateTask, updateTaskStatus, insertSessionLog, getTask as dbGetTask } from "../db/queries"
 import { TaskNotFoundError } from "../errors"
@@ -894,9 +894,10 @@ describe("API routes", () => {
     })
   })
 
-  describe("tmuxSessionName", () => {
-    test("uses first 8 chars of task ID with tng- prefix", () => {
-      expect(tmuxSessionName("b1c01db0-3c2a-4735-9534-b12d33ec34f8")).toBe("tng-b1c01db0")
+  describe("dtachSocketPath", () => {
+    test("returns socket path using first 8 chars of task ID", () => {
+      const result = dtachSocketPath("b1c01db0-3c2a-4735-9534-b12d33ec34f8")
+      expect(result).toMatch(/tng-b1c01db0\.dtach$/)
     })
   })
 

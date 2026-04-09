@@ -230,9 +230,9 @@ export async function start(): Promise<void> {
         }
       }
 
-      // tmux — needed for terminal sessions, but not critical for core operation
-      if (!(await cmdExists("tmux"))) {
-        warnings.push("tmux is not installed — terminal sessions will not work.")
+      // dtach — needed for persistent terminal sessions, but not critical for core operation
+      if (!(await cmdExists("dtach"))) {
+        warnings.push("dtach is not installed — terminal sessions will not work.")
       }
 
       // Agent provider CLIs — any provider can be selected at task creation time,

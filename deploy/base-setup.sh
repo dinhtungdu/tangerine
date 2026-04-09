@@ -21,7 +21,7 @@ apt-get install -y -qq \
   curl \
   jq \
   openssh-server \
-  tmux \
+  dtach \
   unzip \
   ca-certificates \
   gnupg
@@ -89,7 +89,7 @@ echo "bun:      $(bun --version)"
 echo "gh:       $(gh --version 2>/dev/null | head -1)"
 echo "php:      $(php --version 2>/dev/null | head -1)"
 echo "composer: $(composer --version 2>/dev/null | head -1)"
-echo "tmux:     $(tmux -V 2>/dev/null)"
+echo "dtach:    $(dtach --help 2>&1 | head -1 || echo 'not found')"
 echo "opencode: $(which opencode 2>/dev/null || echo 'not found')"
 echo "claude:   $(which claude 2>/dev/null || echo 'not found')"
 echo "==> Base setup complete"
