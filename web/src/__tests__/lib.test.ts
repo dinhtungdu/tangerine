@@ -30,7 +30,7 @@ import {
   getContext,
   _resetForTesting,
 } from "../lib/actions"
-import type { Task } from "@tangerine/shared"
+import { isGithubRepo, isProviderAvailable, type Task, type SystemCapabilities } from "@tangerine/shared"
 
 function makeTask(overrides: Partial<Task> = {}): Task {
   return {
@@ -778,6 +778,57 @@ describe("linkifyTaskIds", () => {
     // Link is produced and href uses canonical lowercase ID, not the matched text
     expect(result).toContain('<a href="/tasks/abc12345-0000-0000-0000-000000000001"')
     expect(result).toContain("abc12345</a>")
+  })
+})
+
+// --- isGithubRepo & isProviderAvailable (shared utilities) ---
+
+describe("isGithubRepo", () => {
+  test("matches github.com URLs", () => {
+    expect(isGithubRepo("https://github.com/owner/repo")).toBe(true)
+    expect(isGithubRepo("github.com/owner/repo")).toBe(true)
+  })
+
+  test("matches GitHub Enterprise URLs", () => {
+    expect(isGithubRepo("https://github.example.com/owner/repo")).toBe(true)
+    expect(isGithubRepo("github.acme.co/org/project")).toBe(true)
+  })
+
+  test("matches owner/repo shorthand", () => {
+    expect(isGithubRepo("owner/repo")).toBe(true)
+  })
+
+  test("rejects non-GitHub URLs", () => {
+    expect(isGithubRepo("https://gitlab.com/owner/repo")).toBe(false)
+    expect(isGithubRepo("bare-name")).toBe(false)
+  })
+})
+
+describe("isProviderAvailable", () => {
+  const caps: SystemCapabilities = {
+    git: { available: true },
+    gh: { available: true, authenticated: true },
+    dtach: { available: true },
+    providers: {
+      "claude-code": { available: true, cliCommand: "claude" },
+      codex: { available: false, cliCommand: "codex" },
+    },
+  }
+
+  test("returns true when capabilities are null (unknown)", () => {
+    expect(isProviderAvailable(null, "anything")).toBe(true)
+  })
+
+  test("returns true for available provider", () => {
+    expect(isProviderAvailable(caps, "claude-code")).toBe(true)
+  })
+
+  test("returns false for unavailable provider", () => {
+    expect(isProviderAvailable(caps, "codex")).toBe(false)
+  })
+
+  test("returns true for unknown provider (not in capabilities)", () => {
+    expect(isProviderAvailable(caps, "opencode")).toBe(true)
   })
 })
 

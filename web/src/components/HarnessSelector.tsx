@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect } from "react"
-import type { ProviderType, SystemCapabilities } from "@tangerine/shared"
+import { isProviderAvailable as checkProvider, type ProviderType, type SystemCapabilities } from "@tangerine/shared"
 
 interface HarnessSelectorProps {
   value: ProviderType
@@ -14,7 +14,8 @@ const harnesses: { value: ProviderType; label: string }[] = [
   { value: "pi", label: "Pi" },
 ]
 
-export function HarnessSelector({ value, onChange, systemCapabilities }: HarnessSelectorProps) {
+export function HarnessSelector({ value, onChange, systemCapabilities: capsRaw }: HarnessSelectorProps) {
+  const systemCapabilities = capsRaw ?? null
   const [open, setOpen] = useState(false)
   const ref = useRef<HTMLDivElement>(null)
 
@@ -29,9 +30,6 @@ export function HarnessSelector({ value, onChange, systemCapabilities }: Harness
     return () => document.removeEventListener("mousedown", handleClick)
   }, [open])
 
-  const isProviderAvailable = (provider: ProviderType) =>
-    !systemCapabilities || systemCapabilities.providers[provider]?.available !== false
-
   const current = harnesses.find((h) => h.value === value) ?? harnesses[0]!
 
   return (
@@ -44,7 +42,7 @@ export function HarnessSelector({ value, onChange, systemCapabilities }: Harness
           <path strokeLinecap="round" strokeLinejoin="round" d="m5.25 4.5 7.5 7.5-7.5 7.5m6 0h6.75" />
         </svg>
         <span className="text-xxs font-medium text-fg">{current.label}</span>
-        {!isProviderAvailable(value) && (
+        {!checkProvider(systemCapabilities, value) && (
           <span className="text-2xs text-status-error-text">(not installed)</span>
         )}
         <svg
@@ -59,7 +57,7 @@ export function HarnessSelector({ value, onChange, systemCapabilities }: Harness
         <div className="absolute bottom-full left-0 z-50 mb-1 min-w-[160px] overflow-hidden rounded-lg border border-edge bg-surface-card shadow-lg">
           {harnesses.map((h) => {
             const isActive = h.value === value
-            const available = isProviderAvailable(h.value)
+            const available = checkProvider(systemCapabilities, h.value)
             const cliCmd = systemCapabilities?.providers[h.value]?.cliCommand
             return (
               <button

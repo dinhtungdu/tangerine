@@ -734,6 +734,33 @@ describe("API routes", () => {
       expect(body.modelsByProvider.opencode).toEqual(["openai/gpt-5.4"])
       expect(body.modelsByProvider["claude-code"]).toEqual(["claude-sonnet-4-6"])
     })
+
+    test("includes systemCapabilities in response", async () => {
+      const res = await app.fetch(new Request("http://localhost/api/projects"))
+      expect(res.status).toBe(200)
+      const body = await res.json() as { systemCapabilities: import("@tangerine/shared").SystemCapabilities }
+      expect(body.systemCapabilities).toBeDefined()
+      expect(body.systemCapabilities.git).toEqual({ available: true })
+      expect(body.systemCapabilities.gh).toEqual({ available: true, authenticated: true })
+      expect(body.systemCapabilities.dtach).toEqual({ available: true })
+      expect(body.systemCapabilities.providers["claude-code"]).toEqual({ available: true, cliCommand: "claude" })
+    })
+
+    test("reflects unavailable providers in systemCapabilities", async () => {
+      deps.systemCapabilities = {
+        ...deps.systemCapabilities,
+        providers: {
+          ...deps.systemCapabilities.providers,
+          codex: { available: false, cliCommand: "codex" },
+        },
+      }
+      app = createApp(deps).app
+
+      const res = await app.fetch(new Request("http://localhost/api/projects"))
+      const body = await res.json() as { systemCapabilities: import("@tangerine/shared").SystemCapabilities }
+      expect(body.systemCapabilities.providers.codex).toEqual({ available: false, cliCommand: "codex" })
+      expect(body.systemCapabilities.providers["claude-code"]?.available).toBe(true)
+    })
   })
 
   describe("DELETE /api/logs", () => {

@@ -87,6 +87,12 @@ export interface SystemCapabilities {
   providers: Record<string, { available: boolean; cliCommand: string }>
 }
 
+/** Check if a provider CLI is available. Returns true when capabilities are unknown (null). */
+export function isProviderAvailable(capabilities: SystemCapabilities | null, provider: string): boolean {
+  if (!capabilities) return true
+  return capabilities.providers[provider]?.available !== false
+}
+
 // System logs
 export type LogLevel = "debug" | "info" | "warn" | "error"
 

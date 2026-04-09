@@ -58,13 +58,8 @@ export function extractGithubSlug(repoUrl: string): string | null {
   return host === "github.com" ? slug! : `${host}/${slug}`
 }
 
-/**
- * Check if a repo string refers to a GitHub-hosted repo (including GHE).
- * Matches full URLs (github.com/o/r, github.example.com/o/r) and owner/repo shorthand.
- */
-export function isGithubRepo(repo: string): boolean {
-  return /github(?:\.[a-z0-9-]+)*\.[a-z]+/.test(repo) || /^[^/]+\/[^/]+$/.test(repo)
-}
+// Re-export from shared — single source of truth for both server and web
+export { isGithubRepo } from "@tangerine/shared"
 
 export interface RepoForkInfo {
   isFork: boolean
