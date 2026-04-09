@@ -84,6 +84,17 @@ function createMockDeps(db: Database, configOverrides?: Partial<AppDeps["config"
     } satisfies AppDeps["config"],
     getAgentHandle: () => null,
     agentFactories: createAgentFactories(),
+    systemCapabilities: {
+      git: { available: true },
+      gh: { available: true, authenticated: true },
+      dtach: { available: true },
+      providers: {
+        opencode: { available: true, cliCommand: "opencode" },
+        "claude-code": { available: true, cliCommand: "claude" },
+        codex: { available: true, cliCommand: "codex" },
+        pi: { available: true, cliCommand: "pi" },
+      },
+    },
   }
 }
 

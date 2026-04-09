@@ -74,6 +74,7 @@ function buildProjectsResponse(deps: AppDeps) {
     model: deps.config.config.model,
     modelsByProvider,
     providerMetadata,
+    systemCapabilities: deps.systemCapabilities,
     sshHost: deps.config.config.sshHost,
     sshUser: deps.config.config.sshUser,
     editor: deps.config.config.editor,

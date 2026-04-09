@@ -198,9 +198,15 @@ export async function start(): Promise<void> {
     // Agent provider factories (local — no SSH deps)
     const factories = createAgentFactories()
 
-    // Verify required external tools before proceeding. Each feature gates on
-    // the tools it needs — fail early with an actionable message rather than
-    // letting features silently malfunction at runtime.
+    // Detect system tool availability. Results are stored in systemCapabilities
+    // and passed to the API so the UI can gate features on what's installed.
+    const systemCapabilities: import("@tangerine/shared").SystemCapabilities = {
+      git: { available: true },
+      gh: { available: false, authenticated: false },
+      dtach: { available: false },
+      providers: {},
+    }
+
     if (!isTestMode()) {
       const missing: string[] = []
       const warnings: string[] = []
@@ -212,26 +218,35 @@ export async function start(): Promise<void> {
 
       // git — required for worktrees, fetch, branch operations
       if (!(await cmdExists("git"))) {
+        systemCapabilities.git.available = false
         missing.push("git is not installed — worktree setup and branch operations will not work.")
       }
 
       // gh auth — required for PR capture and polling. Detect GitHub repos whether
       // specified as full URLs (github.com/owner/repo, github.example.com/owner/repo) or owner/repo shorthand.
-      const hasGithubProject = config.config.projects.some((p) => isGithubRepo(p.repo))
-      if (hasGithubProject) {
-        const ghInstalled = await cmdExists("gh")
-        if (!ghInstalled) {
-          missing.push("gh CLI is not installed — PR capture and auto-complete will not work. Install from https://cli.github.com/")
+      const ghInstalled = await cmdExists("gh")
+      if (ghInstalled) {
+        systemCapabilities.gh.available = true
+        const ghAuth = Bun.spawn(["gh", "auth", "status"], ghSpawnEnv())
+        if ((await ghAuth.exited) === 0) {
+          systemCapabilities.gh.authenticated = true
         } else {
-          const ghAuth = Bun.spawn(["gh", "auth", "status"], ghSpawnEnv())
-          if ((await ghAuth.exited) !== 0) {
+          const hasGithubProject = config.config.projects.some((p) => isGithubRepo(p.repo))
+          if (hasGithubProject) {
             missing.push("gh CLI is not authenticated — PR capture and GitHub polling will not work. Run `gh auth login`.")
           }
+        }
+      } else {
+        const hasGithubProject = config.config.projects.some((p) => isGithubRepo(p.repo))
+        if (hasGithubProject) {
+          missing.push("gh CLI is not installed — PR capture and auto-complete will not work. Install from https://cli.github.com/")
         }
       }
 
       // dtach — needed for persistent terminal sessions, but not critical for core operation
-      if (!(await cmdExists("dtach"))) {
+      if (await cmdExists("dtach")) {
+        systemCapabilities.dtach.available = true
+      } else {
         warnings.push("dtach is not installed — terminal sessions will not work.")
       }
 
@@ -239,7 +254,9 @@ export async function start(): Promise<void> {
       // so check all supported providers, not just the configured defaults.
       for (const [provider, factory] of Object.entries(factories)) {
         const cli = factory.metadata.cliCommand
-        if (!(await cmdExists(cli))) {
+        const available = await cmdExists(cli)
+        systemCapabilities.providers[provider] = { available, cliCommand: cli }
+        if (!available) {
           warnings.push(`${cli} CLI is not installed — provider "${provider}" will not be available.`)
         }
       }
@@ -249,6 +266,13 @@ export async function start(): Promise<void> {
         for (const msg of missing) log.error(msg)
         log.error("Fix the above issues and restart the server.")
         process.exit(1)
+      }
+    } else {
+      // In test mode, assume all tools available
+      systemCapabilities.gh = { available: true, authenticated: true }
+      systemCapabilities.dtach = { available: true }
+      for (const [provider, factory] of Object.entries(factories)) {
+        systemCapabilities.providers[provider] = { available: true, cliCommand: factory.metadata.cliCommand }
       }
     }
 
@@ -975,6 +999,7 @@ export async function start(): Promise<void> {
       config,
       getAgentHandle: (taskId) => agentHandles.get(taskId) ?? null,
       agentFactories: factories,
+      systemCapabilities,
     }
 
     const { app, websocket } = createApp(deps)

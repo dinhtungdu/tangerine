@@ -79,6 +79,14 @@ export type WsClientMessage =
   | { type: "prompt"; text: string; images?: PromptImage[] }
   | { type: "abort" }
 
+// System-level tool availability detected at server startup
+export interface SystemCapabilities {
+  git: { available: boolean }
+  gh: { available: boolean; authenticated: boolean }
+  dtach: { available: boolean }
+  providers: Record<string, { available: boolean; cliCommand: string }>
+}
+
 // System logs
 export type LogLevel = "debug" | "info" | "warn" | "error"
 

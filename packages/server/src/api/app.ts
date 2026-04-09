@@ -21,6 +21,7 @@ import { testRoutes } from "./routes/test"
 import { wsRoutes } from "./routes/ws"
 import { terminalWsRoutes } from "./routes/terminal-ws"
 import type { AgentFactories } from "../agent/factories"
+import type { SystemCapabilities } from "@tangerine/shared"
 
 const log = createLogger("api")
 
@@ -56,6 +57,7 @@ export interface AppDeps {
   config: AppConfig
   getAgentHandle(taskId: string): import("../agent/provider").AgentHandle | null
   agentFactories: AgentFactories
+  systemCapabilities: SystemCapabilities
 }
 
 export function createApp(deps: AppDeps): { app: Hono; websocket: ReturnType<typeof createBunWebSocket>["websocket"] } {

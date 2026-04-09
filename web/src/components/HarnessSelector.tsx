@@ -1,9 +1,10 @@
 import { useState, useRef, useEffect } from "react"
-import type { ProviderType } from "@tangerine/shared"
+import type { ProviderType, SystemCapabilities } from "@tangerine/shared"
 
 interface HarnessSelectorProps {
   value: ProviderType
   onChange: (value: ProviderType) => void
+  systemCapabilities?: SystemCapabilities | null
 }
 
 const harnesses: { value: ProviderType; label: string }[] = [
@@ -13,7 +14,7 @@ const harnesses: { value: ProviderType; label: string }[] = [
   { value: "pi", label: "Pi" },
 ]
 
-export function HarnessSelector({ value, onChange }: HarnessSelectorProps) {
+export function HarnessSelector({ value, onChange, systemCapabilities }: HarnessSelectorProps) {
   const [open, setOpen] = useState(false)
   const ref = useRef<HTMLDivElement>(null)
 
@@ -28,6 +29,9 @@ export function HarnessSelector({ value, onChange }: HarnessSelectorProps) {
     return () => document.removeEventListener("mousedown", handleClick)
   }, [open])
 
+  const isProviderAvailable = (provider: ProviderType) =>
+    !systemCapabilities || systemCapabilities.providers[provider]?.available !== false
+
   const current = harnesses.find((h) => h.value === value) ?? harnesses[0]!
 
   return (
@@ -40,6 +44,9 @@ export function HarnessSelector({ value, onChange }: HarnessSelectorProps) {
           <path strokeLinecap="round" strokeLinejoin="round" d="m5.25 4.5 7.5 7.5-7.5 7.5m6 0h6.75" />
         </svg>
         <span className="text-xxs font-medium text-fg">{current.label}</span>
+        {!isProviderAvailable(value) && (
+          <span className="text-2xs text-status-error-text">(not installed)</span>
+        )}
         <svg
           className={`h-2.5 w-2.5 text-fg-muted transition-transform ${open ? "rotate-180" : ""}`}
           fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}
@@ -52,15 +59,22 @@ export function HarnessSelector({ value, onChange }: HarnessSelectorProps) {
         <div className="absolute bottom-full left-0 z-50 mb-1 min-w-[160px] overflow-hidden rounded-lg border border-edge bg-surface-card shadow-lg">
           {harnesses.map((h) => {
             const isActive = h.value === value
+            const available = isProviderAvailable(h.value)
+            const cliCmd = systemCapabilities?.providers[h.value]?.cliCommand
             return (
               <button
                 key={h.value}
                 onClick={() => {
+                  if (!available) return
                   onChange(h.value)
                   setOpen(false)
                 }}
+                disabled={!available}
+                title={!available ? `Requires ${cliCmd ?? h.value} CLI` : undefined}
                 className={`flex w-full items-center justify-between px-3 py-2 text-left text-xs transition ${
-                  isActive ? "bg-surface-secondary font-medium text-fg" : "text-fg-muted hover:bg-surface"
+                  !available
+                    ? "cursor-not-allowed opacity-40"
+                    : isActive ? "bg-surface-secondary font-medium text-fg" : "text-fg-muted hover:bg-surface"
                 }`}
               >
                 <div className="flex items-center gap-2">
@@ -68,8 +82,9 @@ export function HarnessSelector({ value, onChange }: HarnessSelectorProps) {
                     <path strokeLinecap="round" strokeLinejoin="round" d="m5.25 4.5 7.5 7.5-7.5 7.5m6 0h6.75" />
                   </svg>
                   <span>{h.label}</span>
+                  {!available && <span className="text-2xs text-fg-muted">(not installed)</span>}
                 </div>
-                {isActive && (
+                {isActive && available && (
                   <svg className="h-3 w-3 text-fg" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
                     <path strokeLinecap="round" strokeLinejoin="round" d="m4.5 12.75 6 6 9-13.5" />
                   </svg>

@@ -2,6 +2,7 @@ import { useState, useCallback } from "react"
 import type { Cron, ProviderType } from "@tangerine/shared"
 import { createCron, updateCron } from "../lib/api"
 import { formatCronExpression, formatRelativeTime } from "../lib/format"
+import { useProject } from "../context/ProjectContext"
 import { HarnessSelector } from "./HarnessSelector"
 import { ModelSelector } from "./ModelSelector"
 
@@ -29,6 +30,7 @@ function CronFields({
   providerModels, activeModel, setModel,
   branch, setBranch,
 }: CronFieldsProps) {
+  const { systemCapabilities } = useProject()
   return (
     <>
       <input
@@ -61,7 +63,7 @@ function CronFields({
         )}
       </div>
       <div className="flex flex-col gap-2 md:flex-row md:items-center">
-        <HarnessSelector value={provider} onChange={setProvider} />
+        <HarnessSelector value={provider} onChange={setProvider} systemCapabilities={systemCapabilities} />
         <ModelSelector
           models={providerModels}
           model={activeModel}
@@ -159,6 +161,7 @@ export function CronRow({ cron, onToggle, onDelete, onRefresh, modelsByProvider 
   onRefresh: () => void
   modelsByProvider: Record<string, string[]>
 }) {
+  const { systemCapabilities } = useProject()
   const [editing, setEditing] = useState(false)
   const [title, setTitle] = useState(cron.title)
   const [description, setDescription] = useState(cron.description ?? "")
@@ -261,7 +264,7 @@ export function CronRow({ cron, onToggle, onDelete, onRefresh, modelsByProvider 
           </label>
           {taskDefaultsEnabled && (
             <div className="flex flex-col gap-2 md:flex-row md:items-center">
-              <HarnessSelector value={provider} onChange={setProvider} />
+              <HarnessSelector value={provider} onChange={setProvider} systemCapabilities={systemCapabilities} />
               <ModelSelector
                 models={providerModels}
                 model={activeModel}

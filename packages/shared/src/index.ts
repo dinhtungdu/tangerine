@@ -13,6 +13,7 @@ export type {
   PromptImage,
   LogLevel,
   SystemLogEntry,
+  SystemCapabilities,
 } from "./types"
 
 export {

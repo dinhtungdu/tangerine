@@ -1,4 +1,4 @@
-import type { Task, ProjectConfig, SystemLogEntry, ActivityEntry, ActionCombo, ShortcutConfig } from "@tangerine/shared"
+import type { Task, ProjectConfig, SystemLogEntry, ActivityEntry, ActionCombo, ShortcutConfig, SystemCapabilities } from "@tangerine/shared"
 
 const BASE = ""
 
@@ -48,6 +48,7 @@ export async function fetchProjects(): Promise<{
   model: string
   modelsByProvider: Record<string, string[]>
   providerMetadata?: Record<string, ProviderMeta>
+  systemCapabilities?: SystemCapabilities
   sshHost?: string
   sshUser?: string
   editor?: "vscode" | "cursor" | "zed"
@@ -59,6 +60,7 @@ export async function fetchProjects(): Promise<{
     model: string
     modelsByProvider: Record<string, string[]>
     providerMetadata?: Record<string, ProviderMeta>
+    systemCapabilities?: SystemCapabilities
     sshHost?: string
     sshUser?: string
     editor?: "vscode" | "cursor" | "zed"

@@ -43,7 +43,7 @@ export function TaskDetail() {
   })
   const [mobilePane, setMobilePane] = useState<PaneId>("chat")
 
-  const { current, modelsByProvider, sshHost, sshUser, editor } = useProject()
+  const { current, modelsByProvider, systemCapabilities, sshHost, sshUser, editor } = useProject()
   const { showToast } = useToast()
 
   // When viewing a task from a different project, show that project's orchestrator chat
@@ -485,7 +485,17 @@ export function TaskDetail() {
                     </svg>
                   </PaneToggle>
                 )}
-                <PaneToggle desktopActive={visiblePanes.has("terminal")} mobileActive={mobilePane === "terminal"} onClick={() => togglePane("terminal")} label="Terminal">
+                <PaneToggle
+                  desktopActive={visiblePanes.has("terminal")}
+                  mobileActive={mobilePane === "terminal"}
+                  onClick={() => {
+                    // When dtach is missing, allow closing an already-open terminal pane but prevent opening
+                    if (systemCapabilities?.dtach.available === false && !visiblePanes.has("terminal")) return
+                    togglePane("terminal")
+                  }}
+                  label={systemCapabilities?.dtach.available === false ? "Terminal (requires dtach)" : "Terminal"}
+                  disabled={systemCapabilities?.dtach.available === false && !visiblePanes.has("terminal")}
+                >
                   <svg className="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                     <path strokeLinecap="round" strokeLinejoin="round" d="m6.75 7.5 3 2.25-3 2.25m4.5 0h3" />
                     <rect x="2" y="3" width="20" height="18" rx="2" />
