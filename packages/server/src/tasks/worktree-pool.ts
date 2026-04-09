@@ -18,11 +18,21 @@ export type LocalExec = (
   command: string,
 ) => Effect.Effect<{ stdout: string; stderr: string; exitCode: number }, Error>
 
+// Strip git env vars so that commands cd-ing into a specific worktree use
+// that worktree's repo, not an inherited GIT_DIR set by a parent git hook
+// (e.g. husky pre-commit hook sets GIT_DIR for all child processes).
+const GIT_ENV_KEYS = ["GIT_DIR", "GIT_WORK_TREE", "GIT_INDEX_FILE", "GIT_OBJECT_DIRECTORY", "GIT_COMMON_DIR"]
+function cleanGitEnv(): Record<string, string> {
+  const env = { ...process.env } as Record<string, string | undefined>
+  for (const k of GIT_ENV_KEYS) delete env[k]
+  return env as Record<string, string>
+}
+
 /** Default local exec via Bun.spawn — does NOT fail on non-zero exit codes */
 export const localExec: LocalExec = (command) =>
   Effect.tryPromise({
     try: async () => {
-      const proc = Bun.spawn(["bash", "-c", command], { stdout: "pipe", stderr: "pipe" })
+      const proc = Bun.spawn(["bash", "-c", command], { stdout: "pipe", stderr: "pipe", env: cleanGitEnv() })
       const [stdout, stderr] = await Promise.all([
         new Response(proc.stdout).text(),
         new Response(proc.stderr).text(),

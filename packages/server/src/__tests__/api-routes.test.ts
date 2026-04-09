@@ -458,6 +458,39 @@ describe("API routes", () => {
       const body = await res.json() as { error: string }
       expect(body.error).toContain("no branch")
     })
+
+    test("renames branch and updates task.branch in DB", async () => {
+      // Provide explicit clean env (no git env vars) so our Bun.spawnSync calls
+      // target the temp repo, not an inherited GIT_DIR from the husky hook.
+      // localExecStrict (called by the route) also strips git env vars — see worktree-pool.ts.
+      const cleanEnv = Object.fromEntries(
+        Object.entries(process.env).filter(([k]) => !["GIT_DIR", "GIT_WORK_TREE", "GIT_INDEX_FILE", "GIT_OBJECT_DIRECTORY", "GIT_COMMON_DIR"].includes(k))
+      ) as Record<string, string>
+
+      // Set up a real git repo so git branch -m succeeds
+      const repoDir = `/tmp/tangerine-test-rename-${crypto.randomUUID()}`
+      Bun.spawnSync(["git", "init", repoDir], { env: cleanEnv })
+      Bun.spawnSync(["git", "-C", repoDir, "config", "user.email", "test@test.com"], { env: cleanEnv })
+      Bun.spawnSync(["git", "-C", repoDir, "config", "user.name", "Test"], { env: cleanEnv })
+      Bun.spawnSync(["git", "-C", repoDir, "commit", "--allow-empty", "-m", "init"], { env: cleanEnv })
+      Bun.spawnSync(["git", "-C", repoDir, "checkout", "-b", "tangerine/old-branch"], { env: cleanEnv })
+
+      const row = seedTask(db)
+      db.prepare("UPDATE tasks SET worktree_path = ?, branch = 'tangerine/old-branch' WHERE id = ?").run(repoDir, row.id)
+
+      const res = await app.fetch(new Request(`http://localhost/api/tasks/${row.id}/rename-branch`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ branch: "fix/my-descriptive-name" }),
+      }))
+      expect(res.status).toBe(200)
+      const body = await res.json() as { branch: string }
+      expect(body.branch).toBe("fix/my-descriptive-name")
+
+      // Verify DB was updated
+      const updated = Effect.runSync(dbGetTask(db, row.id))
+      expect(updated?.branch).toBe("fix/my-descriptive-name")
+    })
   })
 
   describe("DELETE /api/tasks/:id", () => {
