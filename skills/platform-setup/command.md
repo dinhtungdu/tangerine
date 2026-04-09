@@ -32,7 +32,7 @@ Then follow the Project Setup Workflow in SKILL.md:
 4. Scan the cloned repo for stack
 5. Present plan, get confirmation
 6. Write project config to `~/tangerine/config.json`
-7. Ask about agent skills to install (run `bin/tangerine install` — symlinks into each provider's configured skills dir)
+7. If skills are not yet installed, show the manual `ln -sfn` commands from the Agent Skills section in SKILL.md — do NOT suggest `bin/tangerine install` as a bootstrap step since it presupposes skills already being present
 8. Guide through `bin/tangerine start`
 
 $ARGUMENTS

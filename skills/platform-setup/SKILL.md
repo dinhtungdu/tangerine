@@ -79,8 +79,15 @@ User runs `/platform-setup` from their host machine (macOS or Linux) and wants t
 
 5. **Install agent skills** (once):
    ```bash
-   cd ~/workspace/tangerine
-   tangerine install
+   # Manually symlink skills — works before `tangerine` is globally available
+   mkdir -p ~/.claude/skills ~/.codex/skills
+   ln -sfn ~/workspace/tangerine/skills/tangerine-tasks ~/.claude/skills/tangerine-tasks
+   ln -sfn ~/workspace/tangerine/skills/platform-setup ~/.claude/skills/platform-setup
+   ln -sfn ~/workspace/tangerine/skills/browser-test ~/.claude/skills/browser-test
+   ln -sfn ~/workspace/tangerine/skills/tangerine-tasks ~/.codex/skills/tangerine-tasks
+   ln -sfn ~/workspace/tangerine/skills/platform-setup ~/.codex/skills/platform-setup
+   ln -sfn ~/workspace/tangerine/skills/browser-test ~/.codex/skills/browser-test
+   # For OpenCode and Pi, check their configured skills directories in settings
    ```
 
 6. **Add a project** (required before starting — see Project Setup below):
@@ -115,7 +122,16 @@ User runs `/platform-setup` from the HOST machine and wants a Lima VM. You help 
    cd tangerine && bun install && bun link
    ```
 
-4. **Install agent skills** inside VM (once — see Agent Skills below)
+4. **Install agent skills** inside VM (once):
+   ```bash
+   mkdir -p ~/.claude/skills ~/.codex/skills
+   ln -sfn ~/workspace/tangerine/skills/tangerine-tasks ~/.claude/skills/tangerine-tasks
+   ln -sfn ~/workspace/tangerine/skills/platform-setup ~/.claude/skills/platform-setup
+   ln -sfn ~/workspace/tangerine/skills/browser-test ~/.claude/skills/browser-test
+   ln -sfn ~/workspace/tangerine/skills/tangerine-tasks ~/.codex/skills/tangerine-tasks
+   ln -sfn ~/workspace/tangerine/skills/platform-setup ~/.codex/skills/platform-setup
+   ln -sfn ~/workspace/tangerine/skills/browser-test ~/.codex/skills/browser-test
+   ```
 
 5. **Add a project** (required before starting — see Project Setup below):
    ```bash
@@ -229,14 +245,27 @@ The `deploy/base-setup.sh` installs these globally:
 
 ## Agent Skills
 
-Skills are installed by running `bin/tangerine install` inside the VM. This symlinks skill directories into each provider's configured skill directory, including Claude Code, Codex, OpenCode, and Pi.
+Skills must be installed before they can be invoked. Install them by symlinking the skill directories into each provider's configured skills directory.
+
+**Built-in skills** (`tangerine-tasks`, `platform-setup`, `browser-test`):
 
 ```bash
-# Inside the VM:
-bin/tangerine install
+# Claude Code
+mkdir -p ~/.claude/skills
+ln -sfn ~/workspace/tangerine/skills/tangerine-tasks ~/.claude/skills/tangerine-tasks
+ln -sfn ~/workspace/tangerine/skills/platform-setup ~/.claude/skills/platform-setup
+ln -sfn ~/workspace/tangerine/skills/browser-test ~/.claude/skills/browser-test
+
+# Codex
+mkdir -p ~/.codex/skills
+ln -sfn ~/workspace/tangerine/skills/tangerine-tasks ~/.codex/skills/tangerine-tasks
+ln -sfn ~/workspace/tangerine/skills/platform-setup ~/.codex/skills/platform-setup
+ln -sfn ~/workspace/tangerine/skills/browser-test ~/.codex/skills/browser-test
+
+# For OpenCode and Pi, check their configured skills directories in settings
 ```
 
-This installs the built-in skills (`tangerine-tasks`, `platform-setup`, `browser-test`) for Claude Code, Codex, OpenCode, and Pi agents. For project-specific skills, install them manually:
+After the initial manual install, `bin/tangerine install` (from the tangerine source directory) can be used to re-sync skills for all configured providers at once. For project-specific skills, install them manually:
 
 ```bash
 ln -s /path/to/skill ~/.claude/skills/my-skill
