@@ -488,6 +488,68 @@ describe("pollPrStatuses", () => {
     // Should not throw
     await Effect.runPromise(pollPrStatuses(deps))
   })
+
+  // -------------------------------------------------------------------------
+  // Phase 0: worktree branch sync
+  // -------------------------------------------------------------------------
+
+  test("updates task.branch when worktree HEAD differs from DB", async () => {
+    const task = makeTaskRow({ branch: "tangerine/old-branch", worktree_path: "/workspace/worktrees/slot-0", pr_url: null })
+    const deps = makeDeps([task], {})
+    deps.readWorktreeBranch = (_path) => Effect.succeed("fix/new-name")
+
+    await Effect.runPromise(pollPrStatuses(deps))
+
+    expect(deps.updates).toHaveLength(1)
+    expect(deps.updates[0]).toMatchObject({ taskId: task.id, updates: { branch: "fix/new-name" } })
+  })
+
+  test("does not update task.branch when worktree HEAD matches DB", async () => {
+    const task = makeTaskRow({ branch: "tangerine/abc123", worktree_path: "/workspace/worktrees/slot-0", pr_url: null })
+    const deps = makeDeps([task], {})
+    deps.readWorktreeBranch = (_path) => Effect.succeed("tangerine/abc123")
+
+    await Effect.runPromise(pollPrStatuses(deps))
+
+    expect(deps.updates).toHaveLength(0)
+  })
+
+  test("skips branch sync for tasks without worktree_path", async () => {
+    const task = makeTaskRow({ branch: "tangerine/abc123", worktree_path: null, pr_url: null })
+    const deps = makeDeps([task], {})
+    let branchReaderCalled = false
+    deps.readWorktreeBranch = (_path) => { branchReaderCalled = true; return Effect.succeed("other") }
+
+    await Effect.runPromise(pollPrStatuses(deps))
+
+    expect(branchReaderCalled).toBe(false)
+    expect(deps.updates).toHaveLength(0)
+  })
+
+  test("skips branch sync when readWorktreeBranch returns null (detached HEAD)", async () => {
+    const task = makeTaskRow({ branch: "tangerine/abc123", worktree_path: "/workspace/worktrees/slot-0", pr_url: null })
+    const deps = makeDeps([task], {})
+    deps.readWorktreeBranch = (_path) => Effect.succeed(null)
+
+    await Effect.runPromise(pollPrStatuses(deps))
+
+    expect(deps.updates).toHaveLength(0)
+  })
+
+  test("uses updated branch for PR discovery after sync in same cycle", async () => {
+    // task.branch is stale; worktree HEAD is the real branch; a PR exists for the real branch
+    const task = makeTaskRow({ branch: "tangerine/old", worktree_path: "/workspace/worktrees/slot-0", pr_url: null })
+    const deps = makeDeps([task], {}, { "fix/new-name": "https://github.com/test/repo/pull/99" })
+    deps.readWorktreeBranch = (_path) => Effect.succeed("fix/new-name")
+
+    await Effect.runPromise(pollPrStatuses(deps))
+
+    // First update: branch sync. Second update: pr_url discovered using corrected branch.
+    const branchUpdate = deps.updates.find((u) => u.updates.branch === "fix/new-name")
+    const prUpdate = deps.updates.find((u) => u.updates.pr_url === "https://github.com/test/repo/pull/99")
+    expect(branchUpdate).toBeDefined()
+    expect(prUpdate).toBeDefined()
+  })
 })
 
 // ---------------------------------------------------------------------------
