@@ -7,7 +7,8 @@
     "dev": "bunx vite",
     "build": "bunx vite build",
     "build:dev": "bunx vite build --mode development --minify false",
-    "check": "bun x tsc --noEmit"
+    "check": "bun x tsc --noEmit",
+    "test": "bun test"
   },
   "dependencies": {
     "@chenglou/pretext": "^0.0.4",

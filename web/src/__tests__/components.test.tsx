@@ -12,7 +12,8 @@ import { StatusPage } from "../pages/StatusPage"
 import { TaskOverflowMenu } from "../components/TaskListItem"
 import { ProjectProvider, useProject } from "../context/ProjectContext"
 import { ToastProvider } from "../context/ToastContext"
-import { _resetForTesting as resetActions, registerActions } from "../lib/actions"
+import { _resetForTesting as resetActions, registerActions, setShortcutOverrides } from "../lib/actions"
+import { defaultShortcuts } from "../lib/default-shortcuts"
 import { cancelTask, retryTask, deleteTask } from "../lib/api"
 import { useShortcuts } from "../hooks/useShortcuts"
 import type { Task, ActivityEntry } from "@tangerine/shared"
@@ -318,9 +319,11 @@ describe("StatusPage", () => {
     render(
       <MemoryRouter initialEntries={["/status?project=test-project"]}>
         <ProjectProvider>
-          <Routes>
-            <Route path="/status" element={<StatusPage />} />
-          </Routes>
+          <ToastProvider>
+            <Routes>
+              <Route path="/status" element={<StatusPage />} />
+            </Routes>
+          </ToastProvider>
         </ProjectProvider>
       </MemoryRouter>
     )
@@ -531,6 +534,10 @@ describe("ChatPanel", () => {
 })
 
 describe("CommandPalette", () => {
+  beforeEach(() => {
+    setShortcutOverrides(defaultShortcuts)
+  })
+
   function mockTasksFetch(tasks: Task[] = []) {
     global.fetch = async (input) => {
       const url = typeof input === "string" ? input : (input as Request).url
