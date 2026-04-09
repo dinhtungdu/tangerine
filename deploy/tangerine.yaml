@@ -38,9 +38,7 @@ mounts:
   - location: "~/.config/gh"
     mountPoint: "/home/tung.linux/.config/gh"
     writable: false
-  - location: "~/.config/tmux"
-    mountPoint: "/home/tung.linux/.config/tmux"
-    writable: false
+  # dtach has no config file — no mount needed
 
 provision:
   - mode: system

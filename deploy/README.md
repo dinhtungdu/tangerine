@@ -67,6 +67,6 @@ ssh user@server bash -c "
 | PHP + Composer | php-cli from apt, composer from getcomposer.org |
 | OpenCode | latest (npm global) |
 | Claude Code | latest (npm global) |
-| tmux, git, curl, jq, unzip | apt |
+| dtach, git, curl, jq, unzip | apt |
 
 It also configures SSH (key-only auth, GatewayPorts clientspecified), disables IPv6 (Lima VZ workaround), creates `/workspace`, and sets `git safe.directory '*'`.

@@ -60,7 +60,7 @@ export function TerminalPane(props: TerminalPaneProps) {
         if (msg.type === "connected") {
           everConnectedRef.current = true
           setConnState("connected")
-          // Send resize immediately so tmux gets the right size
+          // Send resize immediately so dtach gets the right size
           const fit = fitRef.current
           if (fit) {
             fit.fit()

@@ -38,14 +38,14 @@ User runs `/platform-setup` from their host machine (macOS or Linux) and wants t
 
    **macOS** (use Homebrew; install brew first if missing):
    ```bash
-   brew install git gh jq tmux node
+   brew install git gh jq dtach node
    # Bun:
    curl -fsSL https://bun.sh/install | bash
    ```
 
    **Linux (Debian/Ubuntu)**:
    ```bash
-   sudo apt-get update && sudo apt-get install -y git curl jq tmux
+   sudo apt-get update && sudo apt-get install -y git curl jq dtach
    # Node.js 22:
    curl -fsSL https://deb.nodesource.com/setup_22.x | sudo bash -
    sudo apt-get install -y nodejs
@@ -210,7 +210,7 @@ User runs `/platform-setup` from inside the VM or on the host in a project direc
 ### Base Setup Includes
 
 The `deploy/base-setup.sh` installs these globally:
-- git, curl, jq, tmux, unzip
+- git, curl, jq, dtach, unzip
 - Node.js 22 LTS, npm, pnpm
 - Bun runtime
 - PHP CLI + common extensions, Composer
