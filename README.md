@@ -49,7 +49,7 @@ npm i -g @dinhtungdu/tangerine # Not yet published — my npmjs.com account is b
 tangerine install
 ```
 
-Ask your clanker to set up the app and the first project using the `platform-setup` skill (`/platform-setup`).
+Ask your agent to set up Tangerine and add projects using the `platform-setup` skill (`/platform-setup`) — works for first-time setup and adding new projects.
 
 Then start:
 ```bash
