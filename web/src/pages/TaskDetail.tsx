@@ -632,10 +632,10 @@ export function TaskDetail() {
           )}
 
           {/* Terminal pane */}
-          {orderedVisible.indexOf("terminal") > 0 && (
+          {orderedVisible.indexOf("terminal") > 0 && systemCapabilities?.dtach.available !== false && (
             <ResizeHandle className="hidden md:flex" onPointerDown={resizeHandlers.terminal!} />
           )}
-          {(mobilePane === "terminal" || visiblePanes.has("terminal")) && (
+          {(mobilePane === "terminal" || visiblePanes.has("terminal")) && systemCapabilities?.dtach.available !== false && (
             <div
               className={[
                 "flex min-h-0 min-w-0 flex-col",

@@ -1,5 +1,5 @@
-import { useState, useCallback } from "react"
-import type { Cron, ProviderType } from "@tangerine/shared"
+import { useState, useCallback, useEffect, useRef } from "react"
+import { isProviderAvailable, SUPPORTED_PROVIDERS, type Cron, type ProviderType } from "@tangerine/shared"
 import { createCron, updateCron } from "../lib/api"
 import { formatCronExpression, formatRelativeTime } from "../lib/format"
 import { useProject } from "../context/ProjectContext"
@@ -87,14 +87,25 @@ export function CronForm({ projectId, onCreated, modelsByProvider }: {
   onCreated: () => void
   modelsByProvider: Record<string, string[]>
 }) {
+  const { systemCapabilities } = useProject()
   const [title, setTitle] = useState("")
   const [description, setDescription] = useState("")
   const [cron, setCron] = useState("")
-  const [provider, setProvider] = useState<ProviderType>("claude-code")
+  const [provider, setProvider] = useState<ProviderType>(() => {
+    if (isProviderAvailable(systemCapabilities, "claude-code")) return "claude-code"
+    return (SUPPORTED_PROVIDERS.find((p) => isProviderAvailable(systemCapabilities, p)) ?? "claude-code") as ProviderType
+  })
   const [model, setModel] = useState("")
   const [branch, setBranch] = useState("")
   const [submitting, setSubmitting] = useState(false)
   const [error, setError] = useState<string | null>(null)
+
+  // Resync if capabilities load after mount
+  useEffect(() => {
+    if (!systemCapabilities || isProviderAvailable(systemCapabilities, provider)) return
+    const available = SUPPORTED_PROVIDERS.find((p) => isProviderAvailable(systemCapabilities, p))
+    if (available) setProvider(available as ProviderType)
+  }, [systemCapabilities, provider])
 
   const providerModels = modelsByProvider[provider] ?? []
   const activeModel = model && providerModels.includes(model) ? model : providerModels[0] ?? ""
@@ -169,7 +180,20 @@ export function CronRow({ cron, onToggle, onDelete, onRefresh, modelsByProvider 
   // taskDefaultsEnabled: false when cron.taskDefaults is null so we don't silently
   // override project-level defaults when editing only title/description/schedule.
   const [taskDefaultsEnabled, setTaskDefaultsEnabled] = useState(cron.taskDefaults !== null)
-  const [provider, setProvider] = useState<ProviderType>((cron.taskDefaults?.provider as ProviderType) ?? "claude-code")
+  const [provider, setProvider] = useState<ProviderType>(() => {
+    const saved = (cron.taskDefaults?.provider as ProviderType) ?? "claude-code"
+    if (isProviderAvailable(systemCapabilities, saved)) return saved
+    return (SUPPORTED_PROVIDERS.find((p) => isProviderAvailable(systemCapabilities, p)) ?? saved) as ProviderType
+  })
+  const capsLoadedRef = useRef(false)
+  useEffect(() => {
+    if (!systemCapabilities || capsLoadedRef.current) return
+    capsLoadedRef.current = true
+    if (!isProviderAvailable(systemCapabilities, provider)) {
+      const available = SUPPORTED_PROVIDERS.find((p) => isProviderAvailable(systemCapabilities, p))
+      if (available) setProvider(available as ProviderType)
+    }
+  }, [systemCapabilities, provider])
   const [model, setModel] = useState(cron.taskDefaults?.model ?? "")
   const [branch, setBranch] = useState(cron.taskDefaults?.branch ?? "")
   const [submitting, setSubmitting] = useState(false)
