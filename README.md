@@ -44,8 +44,14 @@ specs/             # design and implementation docs
 
 ## Getting started
 
+Install the package:
 ```bash
-npm i -g @dinhtungdu/tangerine # Not yet published — my npmjs.com account is blocked. Use the development setup below.
+ # Not yet published — my npmjs.com account is blocked. Use the development setup below.
+npm i -g @dinhtungdu/tangerine
+```
+
+Install the skills:
+```bash
 tangerine install
 ```
 
