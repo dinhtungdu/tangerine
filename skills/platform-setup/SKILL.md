@@ -243,9 +243,10 @@ Tangerine does not manage agent credentials. Before starting Tangerine, ensure e
 - **Claude Code**: `claude --version` works and `claude` can make API calls (OAuth or `ANTHROPIC_API_KEY` set)
 - **OpenCode**: `opencode --version` works and `opencode` can make API calls
 - **Codex**: `codex --version` works and credentials are configured
-- **GitHub CLI**: `gh auth status` shows an active login
 
 Tangerine verifies at startup that agent credentials are present but does not configure them. If a credential check fails, authenticate the agent directly (e.g. run `claude` once to complete OAuth, or set the relevant API key in your shell profile) and restart Tangerine.
+
+`gh` CLI is also required for GitHub integration (PR tracking, webhook setup). Run `gh auth status` to verify it is authenticated — this is a prerequisite tool, not an agent.
 
 ## File Locations
 

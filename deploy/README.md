@@ -17,12 +17,12 @@ limactl start --name=tangerine deploy/tangerine.yaml
 limactl copy deploy/base-setup.sh tangerine:/tmp/base-setup.sh
 limactl shell tangerine sudo bash /tmp/base-setup.sh
 
-# 3. Authenticate agents (required before Tangerine can use them)
-#    base-setup.sh installs the agent CLIs but does not configure auth.
-#    Inside the VM, authenticate each agent you plan to use:
+# 3. Authenticate before starting Tangerine
+#    base-setup.sh installs the agent CLIs and tools but does not configure auth.
+#    Inside the VM, authenticate each agent you plan to use, plus gh CLI:
 #      claude        # complete Claude Code OAuth
-#      gh auth login # authenticate GitHub CLI
 #      opencode      # complete OpenCode auth (if used)
+#      gh auth login # authenticate GitHub CLI (required for PR integration)
 
 # 4. Clone and install Tangerine
 limactl shell tangerine bash -c "
