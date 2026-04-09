@@ -18,6 +18,8 @@ import type { RetryDeps } from "./retry"
 import { cleanupSession } from "./cleanup"
 import { startSessionWithRetry, reconnectSessionWithRetry } from "./retry"
 import { emitStatusChange, clearAgentWorkingState } from "./events"
+import { clearQueue } from "../agent/prompt-queue"
+import { clearTaskState } from "./task-state"
 import { deletePoolForProject, reconcileStaleSlots } from "./worktree-pool"
 
 const log = createLogger("tasks")
@@ -167,6 +169,8 @@ export function cancelTask(
     )
 
     clearAgentWorkingState(taskId)
+    yield* clearQueue(taskId)
+    clearTaskState(taskId)
     emitStatusChange(taskId, "cancelled")
 
     // Always clean up — even if the status write failed
@@ -219,6 +223,8 @@ export function completeTask(
     }).pipe(Effect.catchAll(() => Effect.succeed(undefined)))
 
     clearAgentWorkingState(taskId)
+    yield* clearQueue(taskId)
+    clearTaskState(taskId)
     emitStatusChange(taskId, "done")
     log.info("Task completed", { taskId, durationMs })
 
@@ -503,6 +509,8 @@ export function reprovisionTasksForProject(
             `Task failed: branch ${task.branch} not found on remote after rebuild`
           ).pipe(Effect.catchAll(() => Effect.void))
           clearAgentWorkingState(task.id)
+          yield* clearQueue(task.id)
+          clearTaskState(task.id)
           emitStatusChange(task.id, "failed")
           failed++
           continue

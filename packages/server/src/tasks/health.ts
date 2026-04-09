@@ -9,6 +9,7 @@ import type { TaskRow } from "../db/types"
 import type { CleanupDeps } from "./cleanup"
 import { cleanupSession } from "./cleanup"
 import { getTaskState, clearTaskState } from "./task-state"
+import { clearQueue } from "../agent/prompt-queue"
 import { utc } from "../api/helpers"
 
 const log = createLogger("health")
@@ -122,6 +123,7 @@ export function checkTask(
         taskLog.error("Agent died with unrecoverable error, skipping restart", { error: lastError })
         yield* deps.failTask(task.id, lastError).pipe(Effect.ignoreLogged)
         yield* cleanupSession(task.id, deps.cleanupDeps).pipe(Effect.ignoreLogged)
+        yield* clearQueue(task.id)
         clearTaskState(task.id)
         return "failed"
       }
@@ -135,6 +137,7 @@ export function checkTask(
         taskLog.error("Agent dead and max consecutive restarts reached, marking failed", { restarts, lastError })
         yield* deps.failTask(task.id, reason).pipe(Effect.ignoreLogged)
         yield* cleanupSession(task.id, deps.cleanupDeps).pipe(Effect.ignoreLogged)
+        yield* clearQueue(task.id)
         clearTaskState(task.id)
         return "failed"
       }
@@ -150,6 +153,7 @@ export function checkTask(
       taskLog.error("Agent alive but reported unrecoverable error, marking failed", { error: lastError })
       yield* deps.failTask(task.id, lastError).pipe(Effect.ignoreLogged)
       yield* cleanupSession(task.id, deps.cleanupDeps).pipe(Effect.ignoreLogged)
+      yield* clearQueue(task.id)
       clearTaskState(task.id)
       return "failed"
     }
@@ -189,6 +193,7 @@ function attemptRestart(
         taskLog.error("Recovery failed, marking task failed", { error: failReason })
         yield* deps.failTask(task.id, failReason).pipe(Effect.ignoreLogged)
         yield* cleanupSession(task.id, deps.cleanupDeps).pipe(Effect.ignoreLogged)
+        yield* clearQueue(task.id)
         clearTaskState(task.id)
         return yield* new HealthCheckError({
           message: failReason,

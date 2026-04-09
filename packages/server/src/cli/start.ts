@@ -32,7 +32,7 @@ import { initSystemLog, cleanupSystemLogs } from "../system-log"
 import type { AgentHandle } from "../agent/provider"
 import { getHandleMeta } from "../agent/opencode-provider"
 import { createAgentFactories } from "../agent/factories"
-import { enqueue as enqueuePrompt, drainAll as drainQueuedPrompts } from "../agent/prompt-queue"
+import { enqueue as enqueuePrompt, drainAll as drainQueuedPrompts, clearQueue } from "../agent/prompt-queue"
 import { buildSystemNotes, buildEscalationBlock, buildPrWorkflowNote } from "../tasks/prompts"
 import { getTaskState, clearTaskState } from "../tasks/task-state"
 const log = createLogger("cli")
@@ -934,7 +934,11 @@ export async function start(): Promise<void> {
           ),
         cleanupTask: (taskId) =>
           cleanupSession(taskId, cleanupDeps).pipe(
-            Effect.tap(() => Effect.sync(() => clearTaskState(taskId))),
+            Effect.tap(() => clearQueue(taskId)),
+            Effect.tap(() => Effect.sync(() => {
+              clearTaskState(taskId)
+              agentHandles.delete(taskId)
+            })),
             Effect.mapError((e) => ({ _tag: e._tag, message: e.message }))
           ),
         ensureOrchestrator: (projectId, provider, model, reasoningEffort) =>

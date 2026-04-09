@@ -10,6 +10,8 @@ import type { TaskRow } from "../db/types"
 import type { CleanupDeps } from "./cleanup"
 import { cleanupSession } from "./cleanup"
 import { emitStatusChange, clearAgentWorkingState } from "./events"
+import { clearQueue } from "../agent/prompt-queue"
+import { clearTaskState } from "./task-state"
 import { taskHasCapability } from "../api/helpers"
 import { ghSpawnEnv, extractPrUrl, extractGithubSlug } from "../gh"
 
@@ -296,6 +298,8 @@ export function pollPrStatuses(deps: PrMonitorDeps): Effect.Effect<void, never> 
         )
 
         clearAgentWorkingState(task.id)
+        yield* clearQueue(task.id)
+        clearTaskState(task.id)
         emitStatusChange(task.id, "done")
 
         yield* cleanupSession(task.id, deps.cleanupDeps).pipe(Effect.ignoreLogged)
@@ -312,6 +316,8 @@ export function pollPrStatuses(deps: PrMonitorDeps): Effect.Effect<void, never> 
         )
 
         clearAgentWorkingState(task.id)
+        yield* clearQueue(task.id)
+        clearTaskState(task.id)
         emitStatusChange(task.id, "cancelled")
 
         yield* cleanupSession(task.id, deps.cleanupDeps).pipe(Effect.ignoreLogged)
