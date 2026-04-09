@@ -112,7 +112,7 @@ User runs `/platform-setup` from the HOST machine and wants a Lima VM. You help 
    ```bash
    cd ~/workspace
    git clone <tangerine-repo> tangerine
-   cd tangerine && bun install && bun link
+   cd tangerine && bun install
    ```
 
 4. **Install agent skills** inside VM (once):
