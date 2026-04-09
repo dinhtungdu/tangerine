@@ -262,6 +262,12 @@ function checkHungTool(
   deps: HealthCheckDeps,
 ): Effect.Effect<void, never> {
   return Effect.gen(function* () {
+    // Only relevant when the agent is actively working — because tool.end is not
+    // persisted to activity_log, the last entry remains tool.start (status: "running")
+    // even after the tool completes. Without this guard a healthy agent that finishes
+    // a tool and sits idle for >5 min would be spuriously aborted.
+    if (!deps.isAgentWorking(task.id)) return
+
     const state = getTaskState(task.id)
 
     // Apply cooldown: after a hung-tool abort the old tool.start entry stays in

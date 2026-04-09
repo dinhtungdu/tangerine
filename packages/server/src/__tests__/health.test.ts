@@ -435,13 +435,16 @@ describe("hung tool watchdog", () => {
     expect(abortFn).toHaveBeenCalledTimes(0)
   })
 
-  test("does not abort when last activity is a completed tool (not running)", async () => {
-    // getLastRunningActivityTime returns null when the last activity is not a running tool
+  test("does not abort when agent is idle even if last DB activity is a running tool", async () => {
+    // tool.end is not persisted — the last activity_log row remains tool.start
+    // (status: "running") after the tool completes. Without the isAgentWorking
+    // guard an idle healthy agent would be spuriously aborted after 5 minutes.
     const task = makeTask()
     const abortFn = mock(() => Effect.void)
     const deps = makeDeps({
       listRunningTasks: () => Effect.succeed([task]),
-      getLastRunningActivityTime: () => null,
+      isAgentWorking: () => false,
+      getLastRunningActivityTime: () => new Date(Date.now() - 360_000).toISOString(),
       abortHungTool: abortFn,
     })
     await Effect.runPromise(checkAllTasks(deps))
