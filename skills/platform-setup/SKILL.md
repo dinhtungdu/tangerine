@@ -112,10 +112,14 @@ User runs `/platform-setup` from the HOST machine and wants a Lima VM. You help 
    ```bash
    cd ~/workspace
    git clone <tangerine-repo> tangerine
-   cd tangerine && bun install && bun link
+   cd tangerine && bun install
    ```
 
-4. **Install agent skills** inside VM (once — see Agent Skills below)
+4. **Install agent skills** inside VM (once):
+   ```bash
+   cd ~/workspace/tangerine
+   bin/tangerine install
+   ```
 
 5. **Add a project** (required before starting — see Project Setup below):
    ```bash
@@ -226,23 +230,6 @@ The `deploy/base-setup.sh` installs these globally:
 - PHP CLI + common extensions, Composer
 - OpenCode + Claude Code (pre-installed globally)
 - gh CLI
-
-## Agent Skills
-
-Skills are installed by running `bin/tangerine install` inside the VM. This symlinks skill directories into each provider's configured skill directory, including Claude Code, Codex, OpenCode, and Pi.
-
-```bash
-# Inside the VM:
-bin/tangerine install
-```
-
-This installs the built-in skills (`tangerine-tasks`, `platform-setup`, `browser-test`) for Claude Code, Codex, OpenCode, and Pi agents. For project-specific skills, install them manually:
-
-```bash
-ln -s /path/to/skill ~/.claude/skills/my-skill
-ln -s /path/to/skill ~/.codex/skills/my-skill
-ln -s /path/to/skill ~/.pi/agent/skills/my-skill
-```
 
 ## Credentials
 

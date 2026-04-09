@@ -42,17 +42,14 @@ specs/             # design and implementation docs
 - Self-update flow for project repos via `postUpdateCommand`
 - SSH editor deep-links to open task worktrees in VS Code, Cursor, or Zed (requires `sshHost`/`editor` in config and a matching `Host` entry in `~/.ssh/config` on the host machine)
 
-## Usage
+## Getting started
 
 ```bash
 npm i -g @dinhtungdu/tangerine # Not yet published — my npmjs.com account is blocked. Use the development setup below.
 tangerine install
 ```
 
-Add a project use command below or better ask your clanker to set up the first project for you using `platform-setup` skill.
-```bash
-tangerine project add --name <name> --repo <url> --setup "<cmd>"  # once
-```
+Ask your agent to set up Tangerine and add projects using the `platform-setup` skill (`/platform-setup`) — works for first-time setup and adding new projects.
 
 Then start:
 ```bash
