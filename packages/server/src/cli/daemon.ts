@@ -90,10 +90,11 @@ export async function daemonStart(): Promise<void> {
     return spawnSync("which", [cmd], { stdio: "ignore" }).status === 0
   }
 
-  const startupErrors: string[] = []
+  const missing: string[] = []
+  const warnings: string[] = []
 
   if (!cmdExistsSync("git")) {
-    startupErrors.push("git is not installed — worktree setup and branch operations will not work.")
+    missing.push("git is not installed — worktree setup and branch operations will not work.")
   }
 
   // Build proxy env for gh — mirrors ghSpawnEnv() so GHE setups don't get
@@ -111,20 +112,20 @@ export async function daemonStart(): Promise<void> {
   const hasGithubProject = config.config.projects.some((p) => isGithubRepo(p.repo))
   if (!cmdExistsSync("gh")) {
     if (hasGithubProject) {
-      startupErrors.push("gh CLI is not installed — PR capture and auto-complete will not work.")
+      warnings.push("gh CLI is not installed — PR capture and auto-complete will not work.")
     }
   } else {
     const ghAuth = spawnSync("gh", ["auth", "status"], { stdio: "ignore", env: ghProxyEnv })
     if (ghAuth.status !== 0 && hasGithubProject) {
-      startupErrors.push("gh CLI is not authenticated — PR capture and GitHub polling will not work. Run `gh auth login`.")
+      warnings.push("gh CLI is not authenticated — PR capture and GitHub polling will not work. Run `gh auth login`.")
     }
   }
   if (!cmdExistsSync("dtach")) {
-    startupErrors.push("dtach is not installed — terminal sessions will not work.")
+    warnings.push("dtach is not installed — terminal sessions will not work.")
   }
 
-  if (startupErrors.length > 0) {
-    for (const msg of startupErrors) console.error(`ERROR ${msg}`)
+  if (missing.length > 0) {
+    for (const msg of missing) console.error(`ERROR ${msg}`)
     console.error("Fix the above issues and restart the server.")
     process.exit(1)
   }
@@ -154,9 +155,13 @@ export async function daemonStart(): Promise<void> {
 
   writeFileSync(PID_FILE, String(pid))
 
+  const warningLines = warnings.length > 0
+    ? `\n  Warnings:\n${warnings.map((w) => `    WARN ${w}`).join("\n")}\n`
+    : ""
+
   console.log(`
 Tangerine is running!
-
+${warningLines}
   Dashboard:  http://localhost:${port}
 
   Commands:
