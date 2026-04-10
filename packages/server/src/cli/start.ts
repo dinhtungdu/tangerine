@@ -208,7 +208,7 @@ export async function start(): Promise<void> {
     }
 
     if (!isTestMode()) {
-      const missing: string[] = []
+      const errors: string[] = []
       const warnings: string[] = []
 
       const cmdExists = async (cmd: string) => {
@@ -219,7 +219,7 @@ export async function start(): Promise<void> {
       // git — required for worktrees, fetch, branch operations
       if (!(await cmdExists("git"))) {
         systemCapabilities.git.available = false
-        missing.push("git is not installed — worktree setup and branch operations will not work.")
+        errors.push("git is not installed — worktree setup and branch operations will not work.")
       }
 
       // gh auth — required for PR capture and polling. Detect GitHub repos whether
@@ -262,8 +262,8 @@ export async function start(): Promise<void> {
       }
 
       for (const msg of warnings) log.warn(msg)
-      if (missing.length > 0) {
-        for (const msg of missing) log.error(msg)
+      if (errors.length > 0) {
+        for (const msg of errors) log.error(msg)
         log.error("Fix the above issues and restart the server.")
         process.exit(1)
       }

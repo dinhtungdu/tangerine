@@ -90,11 +90,11 @@ export async function daemonStart(): Promise<void> {
     return spawnSync("which", [cmd], { stdio: "ignore" }).status === 0
   }
 
-  const missing: string[] = []
+  const errors: string[] = []
   const warnings: string[] = []
 
   if (!cmdExistsSync("git")) {
-    missing.push("git is not installed — worktree setup and branch operations will not work.")
+    errors.push("git is not installed — worktree setup and branch operations will not work.")
   }
 
   // Build proxy env for gh — mirrors ghSpawnEnv() so GHE setups don't get
@@ -124,8 +124,8 @@ export async function daemonStart(): Promise<void> {
     warnings.push("dtach is not installed — terminal sessions will not work.")
   }
 
-  if (missing.length > 0) {
-    for (const msg of missing) console.error(`ERROR ${msg}`)
+  if (errors.length > 0) {
+    for (const msg of errors) console.error(`ERROR ${msg}`)
     console.error("Fix the above issues and restart the server.")
     process.exit(1)
   }
