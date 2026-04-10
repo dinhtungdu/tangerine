@@ -2,12 +2,12 @@
 // The daemon is a launcher process that holds a restart loop — on crash it
 // respawns the server child, on clean exit (code 0) it stops.
 
-import { spawn, execSync, spawnSync } from "child_process"
+import { spawn, execSync } from "child_process"
 import { existsSync, readFileSync, writeFileSync, writeSync, unlinkSync, mkdirSync, openSync, constants as fsConstants } from "fs"
 import { join } from "path"
 import { homedir } from "os"
 import { DAEMON_RESTART_EXIT_CODE, shouldRestartDaemon } from "../daemon-exit"
-import { isGithubRepo } from "@tangerine/shared"
+import { enrichLoginPath, checkSystemTools, hasGithubProject } from "./system-check"
 
 const TANGERINE_DIR = join(homedir(), "tangerine")
 const PID_FILE = join(TANGERINE_DIR, "tangerine.pid")
@@ -67,62 +67,12 @@ export async function daemonStart(): Promise<void> {
   }
 
   // Run system checks before spawning so errors and warnings appear in the
-  // user's terminal. The detached server process writes to the log file, so
-  // anything logged there is invisible at startup.
-  //
-  // Enrich PATH first — the server does the same in start.ts so our checks
-  // see the same tools the server will see.
-  try {
-    const shell = process.env["SHELL"] || "/bin/bash"
-    const result = spawnSync(shell, ["-lc", 'echo "$PATH"'], { encoding: "utf-8", timeout: 3_000 })
-    const loginPath = result.stdout?.trim().split("\n").pop()
-    if (result.status === 0 && loginPath) {
-      const currentPath = process.env["PATH"] || ""
-      const currentDirs = new Set(currentPath.split(":").filter(Boolean))
-      const newDirs = loginPath.split(":").filter((d) => d && !currentDirs.has(d))
-      if (newDirs.length > 0) {
-        process.env["PATH"] = [currentPath, ...newDirs].filter(Boolean).join(":")
-      }
-    }
-  } catch { /* non-fatal — proceed with existing PATH */ }
-
-  const cmdExistsSync = (cmd: string): boolean => {
-    return spawnSync("which", [cmd], { stdio: "ignore" }).status === 0
-  }
-
-  const errors: string[] = []
-  const warnings: string[] = []
-
-  if (!cmdExistsSync("git")) {
-    errors.push("git is not installed — worktree setup and branch operations will not work.")
-  }
-
-  // Build proxy env for gh — mirrors ghSpawnEnv() so GHE setups don't get
-  // false "not authenticated" warnings due to a missing SOCKS proxy.
-  const ghProxyEnv: NodeJS.ProcessEnv | undefined = process.env["GHE_PROXY"]
-    ? {
-      ...process.env,
-      HTTPS_PROXY: process.env["GHE_PROXY"],
-      HTTP_PROXY: process.env["GHE_PROXY"],
-      NO_PROXY: "localhost,127.0.0.1,host.lima.internal,github.com,api.github.com",
-      no_proxy: "localhost,127.0.0.1,host.lima.internal,github.com,api.github.com",
-    }
-    : undefined
-
-  const hasGithubProject = config.config.projects.some((p) => isGithubRepo(p.repo))
-  if (!cmdExistsSync("gh")) {
-    if (hasGithubProject) {
-      warnings.push("gh CLI is not installed — PR capture and auto-complete will not work.")
-    }
-  } else {
-    const ghAuth = spawnSync("gh", ["auth", "status"], { stdio: "ignore", env: ghProxyEnv })
-    if (ghAuth.status !== 0 && hasGithubProject) {
-      warnings.push("gh CLI is not authenticated — PR capture and GitHub polling will not work. Run `gh auth login`.")
-    }
-  }
-  if (!cmdExistsSync("dtach")) {
-    warnings.push("dtach is not installed — terminal sessions will not work.")
-  }
+  // user's terminal — the detached server process writes to the log file.
+  enrichLoginPath()
+  const { errors, warnings } = checkSystemTools({
+    hasGithubProject: hasGithubProject(config.config.projects.map((p) => p.repo)),
+    providers: [], // provider CLI checks are done by the server process itself
+  })
 
   if (errors.length > 0) {
     for (const msg of errors) console.error(`ERROR ${msg}`)
