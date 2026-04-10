@@ -56,6 +56,11 @@ async function main(): Promise<void> {
       await install()
       break
     }
+    case "logs": {
+      const { runLogs } = await import("./logs.ts")
+      await runLogs(args.slice(1))
+      break
+    }
     default:
       console.error(`Unknown command: ${command}`)
       printHelp()
