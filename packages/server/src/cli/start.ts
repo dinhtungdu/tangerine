@@ -1019,17 +1019,6 @@ export async function start(): Promise<void> {
 
     startSpan.end({ port, projects: projectNames })
 
-    console.log(`
-Tangerine is running!
-
-  Dashboard:  http://localhost:${port}
-
-  Commands:
-    tangerine stop       Stop the server
-    tangerine status     Check server status
-    tangerine logs       View server logs
-`)
-
     // Resume orphaned tasks (check PIDs)
     try {
       const resumed = await Effect.runPromise(taskManager.resumeOrphanedTasks(tmDeps))
