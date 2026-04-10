@@ -266,6 +266,15 @@ export async function start(): Promise<void> {
         for (const msg of missing) log.error(msg)
         process.exit(1)
       }
+
+      const availableProviders = Object.entries(systemCapabilities.providers)
+        .filter(([, v]) => v.available)
+        .map(([k]) => k)
+      if (warnings.length > 0) {
+        log.warn(`Starting with degraded capabilities (${warnings.length} warning${warnings.length === 1 ? "" : "s"} above) — available providers: [${availableProviders.join(", ") || "none"}]`)
+      } else {
+        log.info(`System checks passed — available providers: [${availableProviders.join(", ") || "none"}]`)
+      }
     } else {
       // In test mode, assume all tools available
       systemCapabilities.gh = { available: true, authenticated: true }
