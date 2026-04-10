@@ -20,59 +20,89 @@ The user sees a flat list of all tasks. Orchestrators and workers live in the sa
 
 Current: project-scoped. Orchestrator pinned at top, workers below. Must select project first.
 
-New:
+New: flat task list across all projects. No orchestrator section — orchestrators are in the list like any other task.
+
+**Default view — "All Projects":**
 
 ```
-┌─────────────────────────┐
-│ [+ New]  [Search...]    │
-├─────────────────────────┤
-│ ORCHESTRATORS           │
-│  ● tangerine        idle│
-│  ● orange        working│
-├─────────────────────────┤
-│ [Active ▾]  [All ▾]    │
-│ RUNS                    │
-│  ● fix auth bug    🟢  │
-│    tangerine · sonnet   │
-│  ● update schema   🟡  │
-│    orange · opus        │
-│  ● add cron UI     🔵  │
-│    tangerine · sonnet   │
-└─────────────────────────┘
+┌─────────────────────────────┐
+│ [+ New]  [Search...]        │
+├─────────────────────────────┤
+│ ┌─────────────────────────┐ │
+│ │ All Projects        ▾   │ │
+│ └─────────────────────────┘ │
+├─────────────────────────────┤
+│ ACTIVE RUNS              3  │
+├─────────────────────────────┤
+│ ● fix auth bug          🟢 │
+│   tangerine · sonnet        │
+│ ● update schema         🟡 │
+│   orange · opus             │
+│ ● add cron UI           🔵 │
+│   tangerine · sonnet        │
+└─────────────────────────────┘
 ```
+
+**Filtered to a project (click project in dropdown):**
+
+Selecting a project in the dropdown does two things:
+1. Filters the sidebar to that project's tasks
+2. Opens that project's orchestrator chat in the main panel
+
+```
+┌─────────────────────────────┐
+│ [+ New]  [Search...]        │
+├─────────────────────────────┤
+│ ┌─────────────────────────┐ │
+│ │ tangerine           ▾   │ │
+│ └─────────────────────────┘ │
+├─────────────────────────────┤
+│ ACTIVE RUNS              2  │
+├─────────────────────────────┤
+│ ● fix auth bug          🟢 │
+│   sonnet                    │
+│ ● add cron UI           🔵 │
+│   sonnet                    │
+└─────────────────────────────┘
+```
+
+The main panel shows the tangerine orchestrator chat — ready to receive instructions. The orchestrator is lazy-created on first project selection if it doesn't exist yet.
 
 Key changes:
 - **Default view: all projects** — no project gate
-- **Orchestrators section**: one row per project, always visible, labeled by project name. Clicking creates/navigates to that project's orchestrator (lazy-create, same as today).
-- **Runs section**: all workers/reviewers across projects, flat list. Each shows project name as a subtle tag.
-- **Project filter**: optional — dropdown or toggle to narrow both sections to one project. Default is "All."
+- **No orchestrator section** — orchestrators don't clutter the sidebar. They're accessed via the project dropdown.
+- **Project dropdown is dual-purpose**: filter + orchestrator launcher. Selecting a project opens its orchestrator AND filters the sidebar. Selecting "All Projects" returns to the full list.
+- **Runs list**: flat, all projects. Each task shows project name as a subtle tag (hidden when filtered to one project since it's redundant).
 - **Search**: works across all projects.
 
-### Project filter (replaces ProjectSwitcher)
+### Project dropdown (replaces ProjectSwitcher)
 
-The current `ProjectSwitcher` in the topbar becomes a filter, not a gate:
+The current `ProjectSwitcher` becomes a dual-purpose control:
 
-- Default: "All Projects"
-- Selecting a project filters sidebar and runs to that project only
-- Does NOT change the URL structure — just filters the view
-- Archived projects hidden from filter unless explicitly shown
+- Default: "All Projects" — shows everything, no orchestrator open
+- Selecting a project: filters sidebar to that project AND opens its orchestrator chat
+- Selecting "All Projects" again: returns to unfiltered view
+- Archived projects hidden unless explicitly shown
+- Does NOT change the URL structure — just filters the view and navigates to orchestrator
+
+This solves the "20 projects = 20 orchestrator rows" problem. The dropdown scales to any number of projects. One click to focus on a project and talk to its brain.
 
 ### Orchestrator interaction
 
 No change to orchestrator behavior. Per-project orchestrators stay as-is:
 - One active per project (enforced)
 - Runs on default branch, slot 0
-- Lazy-created on first click
+- Lazy-created on first project selection (if no active orchestrator exists)
 - Idle suspension after 10 min
 - Chained via `parentTaskId` on restart
 
-The only UX change: orchestrators appear as rows in the sidebar labeled by project name, not as a single "Middle Manager" button scoped to the current project.
+The UX change: orchestrators are accessed by selecting a project in the dropdown, not by clicking a dedicated sidebar button. The project dropdown is the entry point to talk to any project's orchestrator.
 
 ### Starting new work
 
 Two paths:
 
-1. **Talk to an orchestrator**: click its row in the sidebar → opens the orchestrator's chat → tell it what you want → it delegates to workers. This is the primary path for complex/multi-step work.
+1. **Talk to an orchestrator**: select a project in the dropdown → orchestrator chat opens in main panel → tell it what you want → it delegates to workers. This is the primary path for complex/multi-step work.
 
 2. **Create a worker directly**: click "+ New" → same new-run form as today, but with project selection inline (dropdown in the form, not a prerequisite). This is for one-off tasks where orchestrator delegation is overkill.
 
@@ -103,11 +133,11 @@ Minimal changes:
 
 2. **`TasksSidebar`**:
    - Remove orchestrator-specific button at top
-   - Add orchestrators section showing one row per project (from task list where `type=orchestrator`, plus un-created orchestrators from project config)
-   - Runs section shows all non-orchestrator tasks, each with project tag
-   - Filter by project when `ProjectContext` has a selection
+   - Move project dropdown into the sidebar (from topbar)
+   - Runs section shows all non-orchestrator tasks across projects, each with project tag (hidden when filtered to one project)
+   - Filter by project when dropdown has a selection
 
-3. **`ProjectSwitcher`** (topbar): rename concept to "project filter." Default option: "All Projects." Selecting filters sidebar + runs page. No URL change.
+3. **Project dropdown** (in sidebar): dual-purpose control. "All Projects" shows everything. Selecting a project filters sidebar AND navigates to that project's orchestrator (lazy-create via `ensureOrchestrator` if needed).
 
 4. **`RunsPage`**: show tasks across all projects when no filter. Add project column/tag to runs table rows.
 
@@ -142,8 +172,12 @@ Make the human the orchestrator (like Superset, Emdash, cmux). Rejected because:
 - Human orchestration doesn't scale to many parallel tasks
 - Orchestrators already work well — the problem is UX surface, not the concept
 
+### Rejected: dedicated orchestrator section in sidebar
+
+One row per project in a pinned "Orchestrators" section. Rejected because it doesn't scale — 20 projects means 20 permanent rows. The project dropdown solves this: one control, scales to any number of projects, and doubles as the orchestrator launcher.
+
 ## Open questions
 
-1. **Orchestrator row for uncreated orchestrators**: should the sidebar show a row for projects that don't have an active orchestrator yet? (Probably yes — clicking creates one, same as today's button.)
-2. **Notification/status indicators**: should orchestrators show unseen-activity badges like workers do? Would help with "which orchestrator needs my attention" in the all-projects view.
-3. **Cross-project orchestrator awareness**: should the orchestrator system prompt mention all configured projects, not just its own? Would let it suggest creating tasks in other projects when relevant.
+1. **Notification/status indicators**: should the project dropdown show a badge when an orchestrator needs attention? (e.g., small dot next to "tangerine" in the dropdown when its orchestrator has unseen activity.)
+2. **Cross-project orchestrator awareness**: should the orchestrator system prompt mention all configured projects, not just its own? Would let it suggest creating tasks in other projects when relevant.
+3. **"All Projects" main panel**: when no project is selected, what does the main panel show? Options: empty state with instructions, a feed of recent activity across projects, or the last-viewed task.
