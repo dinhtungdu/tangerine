@@ -38,7 +38,14 @@ export async function runLogs(args: string[]): Promise<void> {
     tail.kill("SIGTERM")
   })
 
-  await new Promise<void>((resolve) => {
+  await new Promise<void>((resolve, reject) => {
+    tail.on("error", (err: NodeJS.ErrnoException) => {
+      if (err.code === "ENOENT") {
+        reject(new Error("'tail' command not found — cannot follow log file"))
+      } else {
+        reject(err)
+      }
+    })
     tail.on("exit", () => resolve())
   })
 }
