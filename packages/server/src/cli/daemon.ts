@@ -9,6 +9,7 @@ import { homedir } from "os"
 import { DAEMON_RESTART_EXIT_CODE, shouldRestartDaemon } from "../daemon-exit"
 import { applyLoginShellPath, checkSystemTools } from "./system-check"
 import { isGithubRepo } from "@tangerine/shared"
+import { createAgentFactories } from "../agent/factories"
 
 const TANGERINE_DIR = join(homedir(), "tangerine")
 const PID_FILE = join(TANGERINE_DIR, "tangerine.pid")
@@ -70,8 +71,10 @@ export async function daemonStart(): Promise<void> {
   // Run system checks before spawning so errors and warnings appear in the
   // user's terminal — the detached server process writes to the log file.
   applyLoginShellPath()
+  const factories = createAgentFactories()
   const { errors, warnings } = checkSystemTools({
     hasGithubProject: config.config.projects.some((p) => isGithubRepo(p.repo)),
+    providers: Object.entries(factories).map(([id, factory]) => ({ id, cliCommand: factory.metadata.cliCommand })),
   })
 
   if (errors.length > 0) {

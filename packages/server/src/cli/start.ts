@@ -183,7 +183,7 @@ export async function start(): Promise<void> {
 
     // Detect system tool availability. Results are stored in systemCapabilities
     // and passed to the API so the UI can gate features on what's installed.
-    const systemCapabilities: import("@tangerine/shared").SystemCapabilities = {
+    let systemCapabilities: import("@tangerine/shared").SystemCapabilities = {
       git: { available: true },
       gh: { available: false, authenticated: false },
       dtach: { available: false },
@@ -196,7 +196,7 @@ export async function start(): Promise<void> {
         providers: Object.entries(factories).map(([id, factory]) => ({ id, cliCommand: factory.metadata.cliCommand })),
       })
 
-      Object.assign(systemCapabilities, capabilities)
+      systemCapabilities = capabilities
 
       for (const msg of warnings) log.warn(msg)
       if (errors.length > 0) {
