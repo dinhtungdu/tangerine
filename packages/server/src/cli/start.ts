@@ -27,7 +27,7 @@ import { reconnectSessionWithRetry } from "../tasks/retry"
 import { AgentError } from "../errors"
 import { extractPrUrl, verifyPrBranch, startPrMonitor } from "../tasks/pr-monitor"
 import { isGithubRepo, resolveGithubSlug, getRepoForkInfo } from "../gh"
-import { enrichLoginPath, checkSystemTools } from "./system-check"
+import { applyLoginShellPath, checkSystemTools } from "./system-check"
 import type { PrMonitorDeps } from "../tasks/pr-monitor"
 import { initSystemLog, cleanupSystemLogs } from "../system-log"
 import type { AgentHandle } from "../agent/provider"
@@ -175,7 +175,7 @@ export async function start(): Promise<void> {
     // version-manager shim that only exposes node/npm). A login shell sources
     // the user's profile and picks up globally-installed tools.
     if (!isTestMode()) {
-      enrichLoginPath()
+      applyLoginShellPath()
     }
 
     // Agent provider factories (local — no SSH deps)
@@ -196,10 +196,7 @@ export async function start(): Promise<void> {
         providers: Object.entries(factories).map(([id, factory]) => ({ id, cliCommand: factory.metadata.cliCommand })),
       })
 
-      systemCapabilities.git.available = capabilities.git
-      systemCapabilities.gh = capabilities.gh
-      systemCapabilities.dtach.available = capabilities.dtach
-      systemCapabilities.providers = capabilities.providers
+      Object.assign(systemCapabilities, capabilities)
 
       for (const msg of warnings) log.warn(msg)
       if (errors.length > 0) {

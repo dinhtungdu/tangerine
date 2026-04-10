@@ -7,7 +7,8 @@ import { existsSync, readFileSync, writeFileSync, writeSync, unlinkSync, mkdirSy
 import { join } from "path"
 import { homedir } from "os"
 import { DAEMON_RESTART_EXIT_CODE, shouldRestartDaemon } from "../daemon-exit"
-import { enrichLoginPath, checkSystemTools, hasGithubProject } from "./system-check"
+import { applyLoginShellPath, checkSystemTools } from "./system-check"
+import { isGithubRepo } from "@tangerine/shared"
 
 const TANGERINE_DIR = join(homedir(), "tangerine")
 const PID_FILE = join(TANGERINE_DIR, "tangerine.pid")
@@ -68,10 +69,9 @@ export async function daemonStart(): Promise<void> {
 
   // Run system checks before spawning so errors and warnings appear in the
   // user's terminal — the detached server process writes to the log file.
-  enrichLoginPath()
+  applyLoginShellPath()
   const { errors, warnings } = checkSystemTools({
-    hasGithubProject: hasGithubProject(config.config.projects.map((p) => p.repo)),
-    providers: [], // provider CLI checks are done by the server process itself
+    hasGithubProject: config.config.projects.some((p) => isGithubRepo(p.repo)),
   })
 
   if (errors.length > 0) {
