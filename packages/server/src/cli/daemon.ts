@@ -56,7 +56,8 @@ export async function daemonStart(): Promise<void> {
   // Validate config before spawning so errors surface immediately instead of
   // silently failing inside the detached daemon process.
   const { loadConfig } = await import("../config.ts")
-  loadConfig()
+  const config = loadConfig()
+  const port = config.credentials.serverPort
 
   const existingPid = readPid()
   if (existingPid !== null && isTangerineProcess(existingPid)) {
@@ -88,8 +89,16 @@ export async function daemonStart(): Promise<void> {
   }
 
   writeFileSync(PID_FILE, String(pid))
-  console.log(`Tangerine started (PID ${pid}).`)
-  console.log(`  Logs: ${LOG_FILE}`)
+  console.log(`
+Tangerine is running!
+
+  Dashboard:  http://localhost:${port}
+
+  Commands:
+    tangerine stop       Stop the server
+    tangerine status     Check server status
+    tangerine logs       View server logs
+`)
 }
 
 export async function daemonStop(): Promise<void> {
