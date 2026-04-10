@@ -140,6 +140,7 @@ Commands:
   start --foreground Start the server in the foreground
   stop               Stop the running daemon
   status             Show whether the daemon is running
+  logs               Tail the server log file (follow mode)
   project add        Register a project
   project list       List registered projects
   project show       Show project config details
