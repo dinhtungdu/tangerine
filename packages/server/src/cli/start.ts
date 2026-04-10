@@ -209,7 +209,6 @@ export async function start(): Promise<void> {
 
     if (!isTestMode()) {
       const missing: string[] = []
-      const warnings: string[] = []
 
       const cmdExists = async (cmd: string) => {
         const proc = Bun.spawn(["which", cmd], { stdout: "pipe", stderr: "pipe" })
@@ -233,21 +232,21 @@ export async function start(): Promise<void> {
         } else {
           const hasGithubProject = config.config.projects.some((p) => isGithubRepo(p.repo))
           if (hasGithubProject) {
-            warnings.push("gh CLI is not authenticated — PR capture and GitHub polling will not work. Run `gh auth login`.")
+            missing.push("gh CLI is not authenticated — PR capture and GitHub polling will not work. Run `gh auth login`.")
           }
         }
       } else {
         const hasGithubProject = config.config.projects.some((p) => isGithubRepo(p.repo))
         if (hasGithubProject) {
-          warnings.push("gh CLI is not installed — PR capture and auto-complete will not work. Install from https://cli.github.com/")
+          missing.push("gh CLI is not installed — PR capture and auto-complete will not work. Install from https://cli.github.com/")
         }
       }
 
-      // dtach — needed for persistent terminal sessions, but not critical for core operation
+      // dtach — required for persistent terminal sessions
       if (await cmdExists("dtach")) {
         systemCapabilities.dtach.available = true
       } else {
-        warnings.push("dtach is not installed — terminal sessions will not work.")
+        missing.push("dtach is not installed — terminal sessions will not work.")
       }
 
       // Agent provider CLIs — any provider can be selected at task creation time,
@@ -257,24 +256,20 @@ export async function start(): Promise<void> {
         const available = await cmdExists(cli)
         systemCapabilities.providers[provider] = { available, cliCommand: cli }
         if (!available) {
-          warnings.push(`${cli} CLI is not installed — provider "${provider}" will not be available.`)
+          missing.push(`${cli} CLI is not installed — provider "${provider}" will not be available.`)
         }
       }
 
-      for (const msg of warnings) log.warn(msg)
       if (missing.length > 0) {
         for (const msg of missing) log.error(msg)
+        log.error("Fix the above issues and restart the server.")
         process.exit(1)
       }
 
       const availableProviders = Object.entries(systemCapabilities.providers)
         .filter(([, v]) => v.available)
         .map(([k]) => k)
-      if (warnings.length > 0) {
-        log.warn(`Starting with degraded capabilities (${warnings.length} warning${warnings.length === 1 ? "" : "s"} above) — available providers: [${availableProviders.join(", ") || "none"}]`)
-      } else {
-        log.info(`System checks passed — available providers: [${availableProviders.join(", ") || "none"}]`)
-      }
+      log.info(`System checks passed — available providers: [${availableProviders.join(", ") || "none"}]`)
     } else {
       // In test mode, assume all tools available
       systemCapabilities.gh = { available: true, authenticated: true }

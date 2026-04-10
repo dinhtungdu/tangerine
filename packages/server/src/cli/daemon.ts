@@ -66,6 +66,69 @@ export async function daemonStart(): Promise<void> {
     process.exit(0)
   }
 
+  // Run system checks before spawning so errors and warnings appear in the
+  // user's terminal. The detached server process writes to the log file, so
+  // anything logged there is invisible at startup.
+  //
+  // Enrich PATH first — the server does the same in start.ts so our checks
+  // see the same tools the server will see.
+  try {
+    const shell = process.env["SHELL"] || "/bin/bash"
+    const result = spawnSync(shell, ["-lc", 'echo "$PATH"'], { encoding: "utf-8", timeout: 3_000 })
+    const loginPath = result.stdout?.trim().split("\n").pop()
+    if (result.status === 0 && loginPath) {
+      const currentPath = process.env["PATH"] || ""
+      const currentDirs = new Set(currentPath.split(":").filter(Boolean))
+      const newDirs = loginPath.split(":").filter((d) => d && !currentDirs.has(d))
+      if (newDirs.length > 0) {
+        process.env["PATH"] = [currentPath, ...newDirs].filter(Boolean).join(":")
+      }
+    }
+  } catch { /* non-fatal — proceed with existing PATH */ }
+
+  const cmdExistsSync = (cmd: string): boolean => {
+    return spawnSync("which", [cmd], { stdio: "ignore" }).status === 0
+  }
+
+  const startupErrors: string[] = []
+
+  if (!cmdExistsSync("git")) {
+    startupErrors.push("git is not installed — worktree setup and branch operations will not work.")
+  }
+
+  // Build proxy env for gh — mirrors ghSpawnEnv() so GHE setups don't get
+  // false "not authenticated" warnings due to a missing SOCKS proxy.
+  const ghProxyEnv: NodeJS.ProcessEnv | undefined = process.env["GHE_PROXY"]
+    ? {
+      ...process.env,
+      HTTPS_PROXY: process.env["GHE_PROXY"],
+      HTTP_PROXY: process.env["GHE_PROXY"],
+      NO_PROXY: "localhost,127.0.0.1,host.lima.internal,github.com,api.github.com",
+      no_proxy: "localhost,127.0.0.1,host.lima.internal,github.com,api.github.com",
+    }
+    : undefined
+
+  const hasGithubProject = config.config.projects.some((p) => isGithubRepo(p.repo))
+  if (!cmdExistsSync("gh")) {
+    if (hasGithubProject) {
+      startupErrors.push("gh CLI is not installed — PR capture and auto-complete will not work.")
+    }
+  } else {
+    const ghAuth = spawnSync("gh", ["auth", "status"], { stdio: "ignore", env: ghProxyEnv })
+    if (ghAuth.status !== 0 && hasGithubProject) {
+      startupErrors.push("gh CLI is not authenticated — PR capture and GitHub polling will not work. Run `gh auth login`.")
+    }
+  }
+  if (!cmdExistsSync("dtach")) {
+    startupErrors.push("dtach is not installed — terminal sessions will not work.")
+  }
+
+  if (startupErrors.length > 0) {
+    for (const msg of startupErrors) console.error(`ERROR ${msg}`)
+    console.error("Fix the above issues and restart the server.")
+    process.exit(1)
+  }
+
   // Clean up stale PID file
   if (existingPid !== null) {
     unlinkSync(PID_FILE)
@@ -91,65 +154,9 @@ export async function daemonStart(): Promise<void> {
 
   writeFileSync(PID_FILE, String(pid))
 
-  // Run system checks here so warnings appear in the user's terminal, not
-  // buried in the log file (the server process runs detached, so its stdout
-  // goes to the log, not the terminal).
-  //
-  // Enrich PATH from the login shell first — the server does the same in
-  // start.ts, so our checks see the same tools the server will see.
-  try {
-    const shell = process.env["SHELL"] || "/bin/bash"
-    const result = spawnSync(shell, ["-lc", 'echo "$PATH"'], { encoding: "utf-8", timeout: 3_000 })
-    const loginPath = result.stdout?.trim().split("\n").pop()
-    if (result.status === 0 && loginPath) {
-      const currentPath = process.env["PATH"] || ""
-      const currentDirs = new Set(currentPath.split(":").filter(Boolean))
-      const newDirs = loginPath.split(":").filter((d) => d && !currentDirs.has(d))
-      if (newDirs.length > 0) {
-        process.env["PATH"] = [currentPath, ...newDirs].filter(Boolean).join(":")
-      }
-    }
-  } catch { /* non-fatal — proceed with existing PATH */ }
-
-  const cmdExistsSync = (cmd: string): boolean => {
-    return spawnSync("which", [cmd], { stdio: "ignore" }).status === 0
-  }
-
-  // Build proxy env for gh — mirrors ghSpawnEnv() so GHE setups don't get
-  // false "not authenticated" warnings due to a missing SOCKS proxy.
-  const ghProxyEnv: NodeJS.ProcessEnv | undefined = process.env["GHE_PROXY"]
-    ? {
-      ...process.env,
-      HTTPS_PROXY: process.env["GHE_PROXY"],
-      HTTP_PROXY: process.env["GHE_PROXY"],
-      NO_PROXY: "localhost,127.0.0.1,host.lima.internal,github.com,api.github.com",
-      no_proxy: "localhost,127.0.0.1,host.lima.internal,github.com,api.github.com",
-    }
-    : undefined
-
-  const startupWarnings: string[] = []
-  const hasGithubProject = config.config.projects.some((p) => isGithubRepo(p.repo))
-  if (!cmdExistsSync("gh")) {
-    if (hasGithubProject) {
-      startupWarnings.push("gh CLI is not installed — PR capture and auto-complete will not work.")
-    }
-  } else {
-    const ghAuth = spawnSync("gh", ["auth", "status"], { stdio: "ignore", env: ghProxyEnv })
-    if (ghAuth.status !== 0 && hasGithubProject) {
-      startupWarnings.push("gh CLI is not authenticated — PR capture and GitHub polling will not work. Run `gh auth login`.")
-    }
-  }
-  if (!cmdExistsSync("dtach")) {
-    startupWarnings.push("dtach is not installed — terminal sessions will not work.")
-  }
-
-  const warningLines = startupWarnings.length > 0
-    ? `\n  Warnings:\n${startupWarnings.map((w) => `    WARN ${w}`).join("\n")}\n`
-    : ""
-
   console.log(`
 Tangerine is running!
-${warningLines}
+
   Dashboard:  http://localhost:${port}
 
   Commands:
