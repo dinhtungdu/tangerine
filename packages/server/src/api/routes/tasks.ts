@@ -31,7 +31,12 @@ export function taskRoutes(deps: AppDeps): Hono {
       listTasks(deps.db, { status, projectId, search, limit, offset }).pipe(
         Effect.map(rows => rows.map(row => {
           const task = mapTaskRow(row)
-          if (task.status === "running" && hasAgentWorkingState(task.id)) task.agentStatus = getAgentWorkingState(task.id)
+          if (task.status === "running") {
+            // Suspended tasks are always idle — their agentWorkingState is lost on restart
+            // but suspended=true in the DB is the authoritative source of truth.
+            if (task.suspended) task.agentStatus = "idle"
+            else if (hasAgentWorkingState(task.id)) task.agentStatus = getAgentWorkingState(task.id)
+          }
           return task
         }))
       )
@@ -44,7 +49,10 @@ export function taskRoutes(deps: AppDeps): Hono {
         Effect.flatMap((row) => {
           if (!row) return Effect.fail(new TaskNotFoundError({ taskId: c.req.param("id") }))
           const task = mapTaskRow(row)
-          if (task.status === "running" && hasAgentWorkingState(task.id)) task.agentStatus = getAgentWorkingState(task.id)
+          if (task.status === "running") {
+            if (task.suspended) task.agentStatus = "idle"
+            else if (hasAgentWorkingState(task.id)) task.agentStatus = getAgentWorkingState(task.id)
+          }
           return Effect.succeed(task)
         })
       )

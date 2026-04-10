@@ -211,6 +211,29 @@ describe("API routes", () => {
       const res = await app.fetch(new Request("http://localhost/api/tasks/nonexistent"))
       expect(res.status).toBe(404)
     })
+
+    test("suspended running task always returns agentStatus=idle (survives restart with empty in-memory state)", async () => {
+      const row = seedTask(db, { title: "Idle Task" })
+      db.prepare("UPDATE tasks SET status = 'running', suspended = 1 WHERE id = ?").run(row.id)
+
+      const res = await app.fetch(new Request(`http://localhost/api/tasks/${row.id}`))
+      expect(res.status).toBe(200)
+      const body = await res.json() as { status: string; suspended: boolean; agentStatus?: string }
+      expect(body.status).toBe("running")
+      expect(body.suspended).toBe(true)
+      expect(body.agentStatus).toBe("idle")
+    })
+
+    test("suspended running task appears as agentStatus=idle in task list", async () => {
+      const row = seedTask(db, { title: "Suspended Task" })
+      db.prepare("UPDATE tasks SET status = 'running', suspended = 1 WHERE id = ?").run(row.id)
+
+      const res = await app.fetch(new Request("http://localhost/api/tasks"))
+      expect(res.status).toBe(200)
+      const tasks = await res.json() as Array<{ id: string; agentStatus?: string }>
+      const task = tasks.find((t) => t.id === row.id)
+      expect(task?.agentStatus).toBe("idle")
+    })
   })
 
   describe("POST /api/tasks", () => {
