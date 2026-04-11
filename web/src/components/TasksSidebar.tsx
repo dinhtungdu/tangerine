@@ -306,7 +306,7 @@ export function TasksSidebar({ tasks, projects, searchQuery, onSearchChange, onN
       </div>
 
       <div className="flex w-full shrink-0 items-center justify-between px-4 py-2.5">
-        {projects.length > 1 ? (
+        {projects.filter((p) => !p.archived).length > 1 ? (
           <select
             value={projectFilter}
             onChange={(e) => handleProjectFilterChange(e.target.value)}
