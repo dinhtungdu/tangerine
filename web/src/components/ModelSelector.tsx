@@ -40,7 +40,7 @@ export function ModelSelector({ models: propModels, model: propModel, onModelCha
   return (
     <Popover open={open} onOpenChange={setOpen}>
       <PopoverTrigger
-        className={`flex items-center gap-1.5 transition ${borderless ? "w-full" : "rounded-md border border-border px-2 py-1 hover:bg-muted"}`}
+        className={`flex items-center gap-1.5 transition ${borderless ? "w-full" : "h-7 rounded-md border border-border px-2 py-1 hover:bg-muted"}`}
       >
         <Sparkles className="h-3 w-3 text-muted-foreground" />
         <span className={`min-w-0 truncate font-medium text-foreground ${borderless ? "text-base md:text-xxs" : "text-xxs"}`}>{formatModelName(model)}</span>
