@@ -312,9 +312,9 @@ describe("NewAgentForm", () => {
     const controlsRow = harnessCombobox!.parentElement?.parentElement
     expect(controlsRow?.className.includes("overflow-visible")).toBe(true)
 
-    // ModelSelector trigger is a popover button
-    fireEvent.click(screen.getByRole("button", { name: /anthropic\/claude-sonnet-4-6/ }))
-    expect(screen.getByRole("option", { name: /anthropic\/claude-haiku-4/ })).toBeTruthy()
+    // ModelSelector is a shadcn Select (role="combobox")
+    const modelCombobox = comboboxes.find((el) => el.textContent?.includes("claude-sonnet-4-6"))
+    expect(modelCombobox).toBeTruthy()
 
     // ReasoningEffortSelector is a shadcn Select (role="combobox")
     const effortCombobox = comboboxes.find((el) => el.textContent?.includes("Medium"))
@@ -371,7 +371,7 @@ describe("NewAgentForm", () => {
     expect(workerBtn.className).not.toContain("shadow-sm")
   })
 
-  test("supports fuzzy model search in the selector", () => {
+  test("renders model selector as a Select combobox", () => {
     render(
       <ModelSelector
         model="anthropic/claude-sonnet-4-6"
@@ -379,22 +379,14 @@ describe("NewAgentForm", () => {
           "anthropic/claude-sonnet-4-6",
           "anthropic/claude-haiku-4-20250414",
           "openai/gpt-5.4",
-          "openai/gpt-5-mini",
-          "google/gemini-2.5-pro",
-          "openrouter/deepseek-r1",
         ]}
         onModelChange={() => {}}
       />,
     )
 
-    // ModelSelector trigger is a popover button
-    fireEvent.click(screen.getByRole("button", { name: /anthropic\/claude-sonnet-4-6/ }))
-    // cmdk CommandInput uses onValueChange
-    fireEvent.change(screen.getByPlaceholderText("Search models..."), { target: { value: "g54" } })
-
-    // Items inside Command are role="option"
-    expect(screen.getByRole("option", { name: /openai\/gpt-5\.4/ })).toBeTruthy()
-    expect(screen.queryByRole("option", { name: /openai\/gpt-5-mini/ })).toBeNull()
+    const combobox = screen.getByRole("combobox")
+    expect(combobox).toBeTruthy()
+    expect(combobox.textContent).toContain("claude-sonnet-4-6")
   })
 })
 
