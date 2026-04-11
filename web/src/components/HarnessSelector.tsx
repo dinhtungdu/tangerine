@@ -1,5 +1,5 @@
 import { isProviderAvailable as checkProvider, type ProviderType, type SystemCapabilities } from "@tangerine/shared"
-import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from "@/components/ui/select"
+import { Select, SelectTrigger, SelectValue, SelectContent, SelectGroup, SelectItem } from "@/components/ui/select"
 import { Terminal } from "lucide-react"
 
 interface HarnessSelectorProps {
@@ -37,21 +37,23 @@ export function HarnessSelector({ value, onChange, systemCapabilities: capsRaw }
       </SelectTrigger>
 
       <SelectContent side="top" align="start" alignItemWithTrigger={false} className="min-w-[160px]">
-        {harnesses.map((h) => {
-          const available = checkProvider(systemCapabilities, h.value)
-          const cliCmd = systemCapabilities?.providers[h.value]?.cliCommand
-          return (
-            <SelectItem
-              key={h.value}
-              value={h.value}
-              disabled={!available}
-              title={!available ? `Requires ${cliCmd ?? h.value} CLI` : undefined}
-            >
-              <span>{h.label}</span>
-              {!available && <span className="text-2xs text-muted-foreground">(not installed)</span>}
-            </SelectItem>
-          )
-        })}
+        <SelectGroup>
+          {harnesses.map((h) => {
+            const available = checkProvider(systemCapabilities, h.value)
+            const cliCmd = systemCapabilities?.providers[h.value]?.cliCommand
+            return (
+              <SelectItem
+                key={h.value}
+                value={h.value}
+                disabled={!available}
+                title={!available ? `Requires ${cliCmd ?? h.value} CLI` : undefined}
+              >
+                <span>{h.label}</span>
+                {!available && <span className="text-2xs text-muted-foreground">(not installed)</span>}
+              </SelectItem>
+            )
+          })}
+        </SelectGroup>
       </SelectContent>
     </Select>
   )

@@ -14,6 +14,7 @@ import {
   SelectTrigger,
   SelectValue,
   SelectContent,
+  SelectGroup,
   SelectItem,
 } from "@/components/ui/select"
 import { Button } from "@/components/ui/button"
@@ -317,20 +318,21 @@ export function TasksSidebar({ tasks, projects, searchQuery, onSearchChange, onN
 
       <div className="flex w-full shrink-0 items-center justify-between px-4 py-2.5">
         <Select
-          value={projectFilter || "all"}
+          value={projectFilter }
           onValueChange={handleProjectFilterChange}
         >
           <SelectTrigger
             aria-label="Filter by project"
             size="sm"
           >
-            <SelectValue placeholder="PROJECTS" />
+            <SelectValue placeholder="All Projects" />
           </SelectTrigger>
           <SelectContent>
-            <SelectItem value="all">PROJECTS</SelectItem>
-            {projects.filter((p) => !p.archived).map((p) => (
-              <SelectItem key={p.name} value={p.name}>{p.name.toUpperCase()}</SelectItem>
-            ))}
+            <SelectGroup>
+              {projects.filter((p) => !p.archived).map((p) => (
+                <SelectItem key={p.name} value={p.name}>{p.name}</SelectItem>
+              ))}
+            </SelectGroup>
           </SelectContent>
         </Select>
         <Button

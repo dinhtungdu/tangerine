@@ -8,7 +8,7 @@ import { ModelSelector } from "./ModelSelector"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Textarea } from "@/components/ui/textarea"
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
+import { Select, SelectContent, SelectGroup, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 
 interface CronFieldsProps {
   title: string
@@ -154,9 +154,11 @@ export function CronForm({ projects, onCreated, modelsByProvider }: {
             <SelectValue />
           </SelectTrigger>
           <SelectContent>
-            {projects.map((p) => (
-              <SelectItem key={p.name} value={p.name}>{p.name}</SelectItem>
-            ))}
+            <SelectGroup>
+              {projects.map((p) => (
+                <SelectItem key={p.name} value={p.name}>{p.name}</SelectItem>
+              ))}
+            </SelectGroup>
           </SelectContent>
         </Select>
         <CronFields

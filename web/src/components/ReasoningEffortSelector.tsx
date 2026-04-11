@@ -1,6 +1,6 @@
 import type { ProviderType } from "@tangerine/shared"
 import { useProject } from "../context/ProjectContext"
-import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from "@/components/ui/select"
+import { Select, SelectTrigger, SelectValue, SelectContent, SelectGroup, SelectItem } from "@/components/ui/select"
 import { Zap } from "lucide-react"
 
 interface EffortOption {
@@ -54,12 +54,14 @@ export function ReasoningEffortSelector({ value, onChange, provider }: Reasoning
       </SelectTrigger>
 
       <SelectContent side="top" align="start" alignItemWithTrigger={false} className="min-w-[180px]">
-        {efforts.map((e) => (
-          <SelectItem key={e.value} value={e.value} className="flex flex-col items-start gap-0">
-            <span className="text-xs">{e.label}</span>
-            <span className="text-2xs text-muted-foreground">{e.description}</span>
-          </SelectItem>
-        ))}
+        <SelectGroup>
+          {efforts.map((e) => (
+            <SelectItem key={e.value} value={e.value} className="flex flex-col items-start gap-0">
+              <span className="text-xs">{e.label}</span>
+              <span className="text-2xs text-muted-foreground">{e.description}</span>
+            </SelectItem>
+          ))}
+        </SelectGroup>
       </SelectContent>
     </Select>
   )
