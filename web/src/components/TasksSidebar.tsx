@@ -5,6 +5,7 @@ import { getStatusConfig, hasUnseenUpdates } from "../lib/status"
 import { formatRelativeTime } from "../lib/format"
 import { useProjectNav } from "../hooks/useProjectNav"
 import { useProject } from "../context/ProjectContext"
+import { ensureOrchestrator } from "../lib/api"
 import { TaskOverflowMenu } from "./TaskListItem"
 
 interface TasksSidebarProps {
@@ -43,7 +44,6 @@ function readProjectFilter(): string {
 function TaskItem({
   task,
   isActive,
-
   onRefetch,
 }: {
   task: Task
@@ -61,7 +61,7 @@ function TaskItem({
   return (
     <Link
       to={link(`/tasks/${task.id}`)}
-      className={`group flex items-start gap-2.5 px-4 py-2.5 pl-7 ${
+      className={`group flex items-start gap-2.5 px-4 py-2.5 ${
         isActive
           ? "bg-surface-secondary border-l-[3px] border-l-status-error"
           : "hover:bg-surface-secondary"
@@ -113,24 +113,21 @@ interface ProjectGroup {
 function ProjectGroupHeader({
   group,
   isActive,
+  onRefetch,
 }: {
   group: ProjectGroup
   isActive: boolean
+  onRefetch?: () => void
 }) {
-  const { link } = useProjectNav()
-  const statusConfig = group.orchestrator ? getStatusConfig(group.orchestrator.status) : null
-  const color = group.orchestrator
-    ? (group.orchestrator.status === "running" && group.orchestrator.agentStatus === "idle"
-        ? "var(--color-status-warning)"
-        : statusConfig!.color)
-    : "var(--color-fg-muted)"
+  const { link, navigate } = useProjectNav()
+  const [creating, setCreating] = useState(false)
+
+  const baseClass = "flex w-full items-center gap-2.5 border-t border-edge bg-surface-secondary/50 px-4 py-2 text-left"
+  const activeClass = isActive ? "border-l-[3px] border-l-status-error" : "hover:bg-surface-secondary"
 
   const content = (
     <>
-      <div className="flex h-[18px] w-2 items-center">
-        <div className="h-2 w-2 rounded-full" style={{ backgroundColor: color }} />
-      </div>
-      <span className={`truncate text-md font-semibold text-fg ${isActive ? "" : ""}`}>
+      <span className="truncate text-md font-semibold text-fg">
         {group.projectName}
       </span>
       <div className="flex items-center justify-center rounded-sm bg-surface-secondary px-1.5 py-px">
@@ -143,11 +140,7 @@ function ProjectGroupHeader({
     return (
       <Link
         to={link(`/tasks/${group.orchestrator.id}`)}
-        className={`flex w-full items-center gap-2.5 px-4 py-2 text-left ${
-          isActive
-            ? "bg-surface-secondary border-l-[3px] border-l-status-error"
-            : "hover:bg-surface-secondary"
-        }`}
+        className={`${baseClass} ${activeClass}`}
         style={isActive ? {} : { borderLeft: "3px solid transparent" }}
       >
         {content}
@@ -155,10 +148,25 @@ function ProjectGroupHeader({
     )
   }
 
+  // No orchestrator yet — click to create one
   return (
-    <div className="flex w-full items-center gap-2.5 px-4 py-2" style={{ borderLeft: "3px solid transparent" }}>
+    <button
+      disabled={creating}
+      onClick={async () => {
+        setCreating(true)
+        try {
+          const task = await ensureOrchestrator(group.projectName)
+          onRefetch?.()
+          navigate(`/tasks/${task.id}`)
+        } finally {
+          setCreating(false)
+        }
+      }}
+      className={`${baseClass} hover:bg-surface-secondary`}
+      style={{ borderLeft: "3px solid transparent" }}
+    >
       {content}
-    </div>
+    </button>
   )
 }
 
@@ -166,8 +174,6 @@ export function TasksSidebar({ tasks, projects, searchQuery, onSearchChange, onN
   const { id: activeId } = useParams<{ id: string }>()
   const [activeOnly, setActiveOnly] = useState(readActiveOnly)
   const [projectFilter, setProjectFilter] = useState(readProjectFilter)
-
-
   const isSearching = searchQuery.length > 0
 
   // Filter tasks by activeOnly and project filter, then group by project
@@ -234,13 +240,7 @@ export function TasksSidebar({ tasks, projects, searchQuery, onSearchChange, onN
       group.tasks.push(t)
     }
 
-    // Remove empty groups (no orchestrator and no tasks) unless they match filter
-    const result: ProjectGroup[] = []
-    for (const group of groupMap.values()) {
-      if (group.tasks.length > 0 || group.orchestrator) {
-        result.push(group)
-      }
-    }
+    const result = Array.from(groupMap.values())
 
     const ac = tasks.filter((t) => !TERMINATED_STATUSES.has(t.status) && t.type !== "orchestrator").length
     const tc = filteredWorkers.length
@@ -294,7 +294,7 @@ export function TasksSidebar({ tasks, projects, searchQuery, onSearchChange, onN
             value={searchQuery}
             onChange={(e) => onSearchChange(e.target.value)}
             placeholder="Search tasks..."
-            className="min-w-0 flex-1 bg-transparent text-base text-fg placeholder-fg-muted outline-none md:text-md"
+            className="min-w-0 flex-1 bg-transparent text-base text-fg placeholder-fg-muted outline-none focus-visible:outline-none md:text-md"
           />
           {searchQuery && (
             <button onClick={() => onSearchChange("")} aria-label="Clear search" className="shrink-0 text-fg-muted hover:text-fg">
@@ -304,34 +304,36 @@ export function TasksSidebar({ tasks, projects, searchQuery, onSearchChange, onN
             </button>
           )}
         </div>
-        {/* Project filter */}
-        {projects.length > 1 && (
+      </div>
+
+      <div className="flex w-full shrink-0 items-center justify-between px-4 py-2.5">
+        {projects.length > 1 ? (
           <select
             value={projectFilter}
             onChange={(e) => handleProjectFilterChange(e.target.value)}
-            className="h-[34px] rounded-md border border-edge bg-surface px-2.5 text-md text-fg outline-none"
+            aria-label="Filter by project"
+            className="text-xxs font-medium tracking-wider text-fg-muted bg-transparent outline-none focus-visible:ring-1 focus-visible:ring-fg-muted rounded"
           >
-            <option value="">All projects</option>
+            <option value="">ALL PROJECTS</option>
             {projects.filter((p) => !p.archived).map((p) => (
-              <option key={p.name} value={p.name}>{p.name}</option>
+              <option key={p.name} value={p.name}>{p.name.toUpperCase()}</option>
             ))}
           </select>
+        ) : (
+          <span className="text-xxs font-medium tracking-wider text-fg-muted">
+            {activeOnly && !isSearching ? "ACTIVE RUNS" : "ALL RUNS"}
+          </span>
         )}
-      </div>
-
-      <button
-        onClick={handleToggleActiveOnly}
-        className="flex w-full shrink-0 items-center justify-between px-4 py-2.5 text-left hover:bg-surface-secondary"
-      >
-        <span className="text-xxs font-medium tracking-wider text-fg-muted">
-          {activeOnly && !isSearching ? "ACTIVE RUNS" : "ALL RUNS"}
-        </span>
-        <div className="flex items-center justify-center rounded-sm bg-surface-dark px-2 py-0.5">
+        <button
+          onClick={handleToggleActiveOnly}
+          aria-label={activeOnly && !isSearching ? "Show all runs" : "Show active runs only"}
+          className="flex items-center justify-center rounded-sm bg-surface-dark px-2 py-0.5 hover:opacity-80 focus-visible:ring-1 focus-visible:ring-fg-muted"
+        >
           <span className="font-mono text-xxs font-semibold text-white">
             {activeOnly && !isSearching ? activeCount : totalCount}
           </span>
-        </div>
-      </button>
+        </button>
+      </div>
 
       <div className="h-px bg-edge" />
 
@@ -344,13 +346,13 @@ export function TasksSidebar({ tasks, projects, searchQuery, onSearchChange, onN
               <ProjectGroupHeader
                 group={group}
                 isActive={group.orchestrator?.id === activeId}
+                onRefetch={onRefetch}
               />
               {group.tasks.map((task) => (
                 <TaskItem
                   key={task.id}
                   task={task}
                   isActive={task.id === activeId}
-
                   onRefetch={onRefetch}
                 />
               ))}
