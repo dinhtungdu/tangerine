@@ -328,6 +328,7 @@ export function TasksSidebar({ tasks, projects, searchQuery, onSearchChange, onN
             <SelectValue placeholder="All Projects" />
           </SelectTrigger>
           <SelectContent>
+            <SelectItem key={'all'} value={''}>All Projects</SelectItem>
             <SelectGroup>
               {projects.filter((p) => !p.archived).map((p) => (
                 <SelectItem key={p.name} value={p.name}>{p.name}</SelectItem>
