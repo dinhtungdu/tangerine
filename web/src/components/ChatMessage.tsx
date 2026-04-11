@@ -263,7 +263,7 @@ export const ChatMessage = memo(function ChatMessage({ message, tasks, onReply }
           )}
           {message.content && (
             <div
-              className="text-md leading-[1.5] text-white [&_a]:underline [&_a]:text-blue-600 [&_a]:dark:text-blue-400 hover:[&_a]:text-blue-800 dark:hover:[&_a]:text-blue-300 [&_a]:break-all [&_code]:bg-white/15 [&_code]:border-white/20 [&_pre]:bg-white/10 [&_pre]:border-white/15 [&_blockquote]:border-white/30 [&_blockquote]:text-white/70"
+              className="text-md leading-[1.5] text-primary-foreground [&_a]:underline [&_a]:text-blue-600 [&_a]:dark:text-blue-400 hover:[&_a]:text-blue-800 dark:hover:[&_a]:text-blue-300 [&_a]:break-all [&_code]:bg-primary-foreground/15 [&_code]:border-primary-foreground/20 [&_pre]:bg-primary-foreground/10 [&_pre]:border-primary-foreground/15 [&_blockquote]:border-primary-foreground/30 [&_blockquote]:text-primary-foreground/70"
               onClick={handleLinkClick}
             >
               <ReactMarkdown remarkPlugins={userRemarkPlugins} components={markdownComponents}>
@@ -271,7 +271,7 @@ export const ChatMessage = memo(function ChatMessage({ message, tasks, onReply }
               </ReactMarkdown>
             </div>
           )}
-          <span className="mt-1 block text-right text-2xs text-muted-foreground/50">
+          <span className="mt-1 block text-right text-2xs text-primary-foreground/50">
             {formatTimestamp(message.timestamp)}
           </span>
         </div>
