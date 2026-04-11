@@ -13,7 +13,8 @@ export function StatusPage() {
   const { current, refreshProjects } = useProject()
   const { showToast } = useToast()
   const outletCtx = useOutletContext<SidebarContext | null>()
-  const tasks = outletCtx?.tasks ?? []
+  const allTasks = outletCtx?.tasks ?? []
+  const tasks = current ? allTasks.filter((t) => t.projectId === current.name) : allTasks
 
   const handleArchive = useCallback(async () => {
     if (!current) return

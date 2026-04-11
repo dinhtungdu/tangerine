@@ -242,7 +242,7 @@ export function TasksSidebar({ tasks, projects, searchQuery, onSearchChange, onN
 
     const result = Array.from(groupMap.values())
 
-    const ac = tasks.filter((t) => !TERMINATED_STATUSES.has(t.status) && t.type !== "orchestrator").length
+    const ac = workers.filter((t) => !TERMINATED_STATUSES.has(t.status)).length
     const tc = filteredWorkers.length
 
     return { groups: result, activeCount: ac, totalCount: tc }

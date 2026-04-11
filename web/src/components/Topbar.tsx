@@ -1,4 +1,4 @@
-import { Link, useLocation } from "react-router-dom"
+import { Link, useLocation, useSearchParams } from "react-router-dom"
 import { useTheme } from "../hooks/useTheme"
 
 interface TopbarProps {
@@ -38,9 +38,12 @@ function ThemeToggle() {
 
 export function Topbar({ sidebarOpen, onToggleSidebar }: TopbarProps) {
   const location = useLocation()
+  const [searchParams] = useSearchParams()
   const isRuns = location.pathname === "/" || location.pathname.startsWith("/tasks")
   const isCrons = location.pathname === "/crons"
   const isStatus = location.pathname === "/status"
+  const projectParam = searchParams.get("project")
+  const qs = projectParam ? `?project=${encodeURIComponent(projectParam)}` : ""
 
   return (
     <header className="flex h-[52px] shrink-0 items-center justify-between border-b border-edge bg-surface px-4">
@@ -76,7 +79,7 @@ export function Topbar({ sidebarOpen, onToggleSidebar }: TopbarProps) {
       <div className="flex items-center gap-2">
         <nav className="flex items-center gap-0.5">
           <Link
-            to="/"
+            to={`/${qs}`}
             className={`rounded-md px-3 py-1.5 text-md font-medium ${
               isRuns ? "bg-fg text-surface" : "text-fg-muted hover:text-fg"
             }`}
@@ -84,7 +87,7 @@ export function Topbar({ sidebarOpen, onToggleSidebar }: TopbarProps) {
             Runs
           </Link>
           <Link
-            to="/crons"
+            to={`/crons${qs}`}
             className={`rounded-md px-3 py-1.5 text-md font-medium ${
               isCrons ? "bg-fg text-surface" : "text-fg-muted hover:text-fg"
             }`}
@@ -92,7 +95,7 @@ export function Topbar({ sidebarOpen, onToggleSidebar }: TopbarProps) {
             Crons
           </Link>
           <Link
-            to="/status"
+            to={`/status${qs}`}
             className={`rounded-md px-3 py-1.5 text-md font-medium ${
               isStatus ? "bg-fg text-surface" : "text-fg-muted hover:text-fg"
             }`}
