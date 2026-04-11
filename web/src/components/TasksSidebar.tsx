@@ -275,7 +275,7 @@ export function TasksSidebar({ tasks, projects, searchQuery, onSearchChange, onN
       <div className="flex flex-col gap-3 p-4 pt-5">
         <button
           onClick={onNewAgent}
-          className="flex h-9 items-center justify-center gap-1.5 rounded-md bg-surface-dark text-white"
+          className="hidden md:flex h-9 items-center justify-center gap-1.5 rounded-md bg-surface-dark text-white"
         >
           <svg className="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
             <path strokeLinecap="round" strokeLinejoin="round" d="M12 4.5v15m7.5-7.5h-15" />
