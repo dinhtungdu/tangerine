@@ -74,7 +74,7 @@ export function ToolCallDisplay({ content }: ToolCallDisplayProps) {
           <span className="font-mono text-xs text-foreground">{toolData.command}</span>
         )}
         {isWrite && toolData.path && (
-          <span className="ml-auto rounded bg-modified-bg px-1.5 py-0.5 text-2xs font-medium text-modified">modified</span>
+          <span className="ml-auto rounded bg-amber-100 dark:bg-amber-900/20 px-1.5 py-0.5 text-2xs font-medium text-amber-600 dark:text-amber-400">modified</span>
         )}
       </button>
 

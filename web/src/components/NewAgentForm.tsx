@@ -254,10 +254,10 @@ export function NewAgentForm({ onSubmit, refTaskId, refTaskTitle, refBranch, aut
               <svg className="h-3.5 w-3.5 shrink-0 text-blue-600 dark:text-blue-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                 <path strokeLinecap="round" strokeLinejoin="round" d="M13.19 8.688a4.5 4.5 0 0 1 1.242 7.244l-4.5 4.5a4.5 4.5 0 0 1-6.364-6.364l1.757-1.757m13.35-.622 1.757-1.757a4.5 4.5 0 0 0-6.364-6.364l-4.5 4.5a4.5 4.5 0 0 0 1.242 7.244" />
               </svg>
-              <span className="min-w-0 truncate text-xs text-accent-text">
+              <span className="min-w-0 truncate text-xs text-blue-700 dark:text-blue-300">
                 Continuing from: <span className="font-medium">{refTaskTitle || refTaskId}</span>
               </span>
-              <span className="ml-auto font-mono text-2xs text-accent-muted">{refTaskId.slice(0, 8)}</span>
+              <span className="ml-auto font-mono text-2xs text-blue-400 dark:text-blue-500">{refTaskId.slice(0, 8)}</span>
             </div>
           )}
 

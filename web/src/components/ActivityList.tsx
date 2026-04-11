@@ -113,7 +113,7 @@ function StatusRow({ meta, isRunning }: { meta: Record<string, unknown> | null; 
   if (isRunning) {
     return (
       <div className="mt-1">
-        <span className="rounded bg-accent-bg px-1.5 py-0.5 text-2xs font-medium text-accent">
+        <span className="rounded bg-blue-50 dark:bg-blue-950/20 px-1.5 py-0.5 text-2xs font-medium text-blue-600 dark:text-blue-400">
           in progress
         </span>
       </div>
