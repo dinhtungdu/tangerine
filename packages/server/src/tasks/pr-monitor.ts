@@ -54,14 +54,15 @@ export function checkPrState(prUrl: string): Effect.Effect<PrState | null, never
 }
 
 /**
- * Verify a PR URL actually belongs to the given branch.
- * Prevents false positives when an agent mentions another task's PR in its output.
+ * Verify a PR URL belongs to the given branch AND is still open.
+ * Prevents false positives when an agent mentions another task's PR or a
+ * closed/merged PR from a previous run on the same branch.
  */
 export function verifyPrBranch(prUrl: string, expectedBranch: string): Effect.Effect<boolean, never> {
   return Effect.tryPromise({
     try: async () => {
       const proc = Bun.spawn(
-        ["gh", "pr", "view", prUrl, "--json", "headRefName", "--jq", ".headRefName"],
+        ["gh", "pr", "view", prUrl, "--json", "headRefName,state"],
         ghSpawnEnv(),
       )
       const [text, stderr] = await Promise.all([
@@ -73,7 +74,12 @@ export function verifyPrBranch(prUrl: string, expectedBranch: string): Effect.Ef
         log.warn("gh pr view failed in verifyPrBranch", { prUrl, exitCode, stderr: stderr.trim() })
         return false
       }
-      return text.trim() === expectedBranch
+      const data = JSON.parse(text) as { headRefName?: string; state?: string }
+      if (data.state?.toUpperCase() !== "OPEN") {
+        log.info("Rejecting non-open PR in verifyPrBranch", { prUrl, state: data.state })
+        return false
+      }
+      return data.headRefName === expectedBranch
     },
     catch: (err) => { log.warn("verifyPrBranch threw", { prUrl, error: String(err) }); return false },
   }).pipe(Effect.catchAll(() => Effect.succeed(false)))
