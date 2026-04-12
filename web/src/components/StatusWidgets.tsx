@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback, useRef } from "react"
 import type { Task, SystemLogEntry } from "@tangerine/shared"
-import { fetchSystemLogs, fetchOrphans, cleanupOrphans as apiCleanupOrphans, fetchUpdateStatus, updateProjectRepo, syncProjectFork, fetchHealth, type ProjectUpdateStatus } from "../lib/api"
+import { fetchSystemLogs, fetchOrphans, cleanupOrphans as apiCleanupOrphans, fetchUpdateStatus, updateProjectRepo, fetchHealth, type ProjectUpdateStatus } from "../lib/api"
 import { formatRelativeTime, formatTimestamp } from "../lib/format"
 
 /* ── Cards ── */
@@ -113,7 +113,6 @@ function LogLevelBadge({ level }: { level: string }) {
 export function ProjectUpdateCard({ project }: { project?: string }) {
   const [status, setStatus] = useState<ProjectUpdateStatus | null>(null)
   const [updating, setUpdating] = useState(false)
-  const [syncing, setSyncing] = useState(false)
   const [result, setResult] = useState<string | null>(null)
 
   useEffect(() => {
@@ -160,21 +159,6 @@ export function ProjectUpdateCard({ project }: { project?: string }) {
     setUpdating(false)
   }, [project, updating])
 
-  const handleSyncFork = useCallback(async () => {
-    if (!project || syncing) return
-    setSyncing(true)
-    setResult(null)
-    try {
-      const res = await syncProjectFork(project)
-      setResult(res.synced ? (res.upstream ? `Fork synced from ${res.upstream}` : "Fork synced") : "Sync completed")
-      const s = await fetchUpdateStatus(project).catch(() => null)
-      setStatus(s)
-    } catch (e) {
-      setResult(`Sync failed: ${e instanceof Error ? e.message : String(e)}`)
-    }
-    setSyncing(false)
-  }, [project, syncing])
-
   return (
     <div className="flex flex-1 flex-col gap-2.5 rounded-[10px] border border-border p-3.5 md:gap-3 md:p-4">
       <div className="flex items-center justify-between">
@@ -212,33 +196,9 @@ export function ProjectUpdateCard({ project }: { project?: string }) {
           </>
         )}
         <div className="ml-auto flex items-center gap-2">
-          {status?.isFork && (
-            <button
-              onClick={handleSyncFork}
-              disabled={syncing || updating}
-              className="flex items-center gap-1.5 rounded-md border border-border px-3 py-1.5 text-xs font-medium text-foreground transition hover:bg-muted active:bg-muted disabled:opacity-50"
-            >
-              {syncing ? (
-                <>
-                  <svg className="h-3 w-3 animate-spin" viewBox="0 0 24 24" fill="none">
-                    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
-                    <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
-                  </svg>
-                  Syncing...
-                </>
-              ) : (
-                <>
-                  <svg className="h-3 w-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                    <path strokeLinecap="round" strokeLinejoin="round" d="M7.5 21 3 16.5m0 0L7.5 12M3 16.5h13.5m0-13.5L21 7.5m0 0L16.5 12M21 7.5H7.5" />
-                  </svg>
-                  Sync fork
-                </>
-              )}
-            </button>
-          )}
           <button
             onClick={handleUpdate}
-            disabled={updating || syncing}
+            disabled={updating}
             className="flex items-center gap-1.5 rounded-md border border-border px-3 py-1.5 text-xs font-medium text-foreground transition hover:bg-muted active:bg-muted disabled:opacity-50"
           >
             {updating ? (
