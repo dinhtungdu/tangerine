@@ -344,7 +344,7 @@ export function NewAgentForm({ onSubmit, refTaskId, refTaskTitle, refBranch, ref
                 onPaste={handlePaste}
                 placeholder="Describe the task, paste an issue URL, or continue work on a branch/PR..."
                 rows={4}
-                className="w-full [field-sizing:normal] min-h-[8rem] resize-none rounded-none border-0 bg-transparent px-4 pt-4 pb-2 text-base leading-[1.6] text-foreground placeholder-muted-foreground shadow-none outline-none ring-0 focus-visible:ring-0 focus-visible:border-0 md:text-sm"
+                className="w-full min-h-[8rem] resize-none rounded-none border-0 bg-transparent px-4 pt-4 pb-2 text-base leading-[1.6] text-foreground placeholder-muted-foreground shadow-none outline-none ring-0 focus-visible:ring-0 focus-visible:border-0 md:text-sm"
               />
             </div>
             {/* Inline controls below textarea */}
