@@ -10,8 +10,8 @@ import { useTasks } from "../hooks/useTasks"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Textarea } from "@/components/ui/textarea"
-import { Select, SelectTrigger, SelectValue, SelectContent, SelectGroup, SelectItem } from "@/components/ui/select"
 import { Layers } from "lucide-react"
+import { ProjectSelector } from "./ProjectSelector"
 
 interface NewAgentFormProps {
   onSubmit: (data: { projectId: string; title: string; description?: string; branch?: string; provider?: string; model?: string; reasoningEffort?: string; parentTaskId?: string; type?: string; images?: PromptImage[] }) => void
@@ -352,21 +352,15 @@ export function NewAgentForm({ onSubmit, refTaskId, refTaskTitle, refBranch, ref
             <div className="flex flex-col gap-2.5 overflow-visible border-t border-border px-3 py-2.5">
               <div className="flex flex-wrap items-center gap-2 overflow-visible">
                 {activeProjects.length > 0 && (
-                  <Select value={selectedProjectName || (effectiveProject?.name ?? "")} onValueChange={(v) => { if (v) setSelectedProjectName(v) }}>
-                    <SelectTrigger size="sm">
-                      <Layers className="h-3 w-3 text-muted-foreground" />
-                      <SelectValue>{effectiveProject?.name ?? "Select project"}</SelectValue>
-                    </SelectTrigger>
-                    <SelectContent side="top" align="start" alignItemWithTrigger={false} className="min-w-[160px]">
-                      <SelectGroup>
-                        {activeProjects.map((p) => (
-                          <SelectItem key={p.name} value={p.name}>
-                            {p.name}
-                          </SelectItem>
-                        ))}
-                      </SelectGroup>
-                    </SelectContent>
-                  </Select>
+                  <ProjectSelector
+                    projects={projects}
+                    value={selectedProjectName || (effectiveProject?.name ?? "")}
+                    onChange={(v) => { if (v) setSelectedProjectName(v) }}
+                    size="sm"
+                    icon={<Layers className="h-3 w-3 text-muted-foreground" />}
+                    side="top"
+                    align="start"
+                  />
                 )}
                 <HarnessSelector value={provider} onChange={handleProviderChange} systemCapabilities={systemCapabilities} />
                 <Input

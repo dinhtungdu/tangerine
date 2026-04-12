@@ -9,14 +9,7 @@ import { useProject } from "../context/ProjectContext"
 import { ensureOrchestrator } from "../lib/api"
 import { TaskOverflowMenu } from "./TaskListItem"
 import { Input } from "@/components/ui/input"
-import {
-  Select,
-  SelectTrigger,
-  SelectValue,
-  SelectContent,
-  SelectGroup,
-  SelectItem,
-} from "@/components/ui/select"
+import { ProjectSelector } from "./ProjectSelector"
 import { Button } from "@/components/ui/button"
 import { ScrollArea } from "@/components/ui/scroll-area"
 
@@ -317,25 +310,14 @@ export function TasksSidebar({ tasks, projects, searchQuery, onSearchChange, onN
       </div>
 
       <div className="flex w-full shrink-0 items-center justify-between px-4 py-2.5">
-        <Select
-          value={projectFilter }
-          onValueChange={handleProjectFilterChange}
-        >
-          <SelectTrigger
-            aria-label="Filter by project"
-            size="sm"
-          >
-            <SelectValue placeholder="All Projects" />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectGroup>
-              <SelectItem key={'all'} value={''}>All Projects</SelectItem>
-              {projects.filter((p) => !p.archived).map((p) => (
-                <SelectItem key={p.name} value={p.name}>{p.name}</SelectItem>
-              ))}
-            </SelectGroup>
-          </SelectContent>
-        </Select>
+        <ProjectSelector
+          projects={projects}
+          value={projectFilter}
+          onChange={handleProjectFilterChange}
+          allowAll
+          size="sm"
+          aria-label="Filter by project"
+        />
         <Button
           variant="default"
           size="sm"

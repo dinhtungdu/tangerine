@@ -8,6 +8,7 @@ import { ActiveRunsCard, SystemLog, ProjectUpdateCard } from "../components/Stat
 import { PredefinedPromptsEditor } from "../components/PredefinedPromptsEditor"
 import { SystemPromptEditor } from "../components/SystemPromptEditor"
 import { archiveProject, unarchiveProject } from "../lib/api"
+import { ProjectSelector } from "../components/ProjectSelector"
 
 export function StatusPage() {
   const { current, projects, switchProject, refreshProjects } = useProject()
@@ -50,16 +51,13 @@ export function StatusPage() {
           <div className="flex flex-col gap-1">
             <div className="flex items-center gap-3">
               <h1 className="text-xl font-semibold text-foreground md:text-2xl">System Status</h1>
-              <select
+              <ProjectSelector
+                projects={projects}
                 value={current?.name ?? ""}
-                onChange={(e) => switchProject(e.target.value, { replace: true })}
+                onChange={(v) => switchProject(v, { replace: true })}
+                hideArchived={false}
                 aria-label="Select project"
-                className="rounded-md border border-border bg-background px-2.5 py-1 text-md text-foreground outline-none focus-visible:ring-1 focus-visible:ring-muted-foreground"
-              >
-                {projects.map((p) => (
-                  <option key={p.name} value={p.name}>{p.name}</option>
-                ))}
-              </select>
+              />
             </div>
             <p className="hidden text-sm text-muted-foreground md:block">Infrastructure health for {current?.name ?? "the current project"}</p>
           </div>
