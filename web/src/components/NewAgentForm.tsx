@@ -8,10 +8,9 @@ import { MentionPicker } from "./MentionPicker"
 import { useMentionPicker } from "../hooks/useMentionPicker"
 import { useTasks } from "../hooks/useTasks"
 import { Button } from "@/components/ui/button"
-import { InputGroup, InputGroupAddon, InputGroupInput } from "@/components/ui/input-group"
 import { Textarea } from "@/components/ui/textarea"
 import { ProjectSelector } from "./ProjectSelector"
-import { GitBranch } from "lucide-react"
+import { BranchInput } from "./BranchInput"
 
 interface NewAgentFormProps {
   onSubmit: (data: { projectId: string; title: string; description?: string; branch?: string; provider?: string; model?: string; reasoningEffort?: string; parentTaskId?: string; type?: string; images?: PromptImage[] }) => void
@@ -361,19 +360,13 @@ export function NewAgentForm({ onSubmit, refTaskId, refTaskTitle, refBranch, ref
                   />
                 )}
                 <HarnessSelector value={provider} onChange={handleProviderChange} systemCapabilities={systemCapabilities} />
-                <InputGroup className="h-7 max-w-[180px] text-sm">
-                  <InputGroupAddon>
-                    <GitBranch className="size-3.5" />
-                  </InputGroupAddon>
-                  <InputGroupInput
-                    type="text"
-                    value={customBranch}
-                    onChange={(e) => setCustomBranch(e.target.value)}
-                    placeholder={branch}
-                    aria-label="Branch or PR"
-                    className="text-sm"
-                  />
-                </InputGroup>
+                <BranchInput
+                  value={customBranch}
+                  onChange={setCustomBranch}
+                  placeholder={branch}
+                  aria-label="Branch or PR"
+                  className="h-7 max-w-[180px] text-sm"
+                />
                 <ModelSelector
                   models={providerModels}
                   model={activeModel}
