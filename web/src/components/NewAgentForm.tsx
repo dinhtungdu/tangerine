@@ -367,7 +367,7 @@ export function NewAgentForm({ onSubmit, refTaskId, refTaskTitle, refBranch, ref
             {/* Inline controls below textarea */}
             <div className="flex flex-col gap-2.5 overflow-visible border-t border-border px-3 py-2.5">
               <div className="flex flex-wrap items-center gap-2 overflow-visible">
-                {activeProjects.length > 1 && (
+                {activeProjects.length > 0 && (
                   <Select value={selectedProjectName} onValueChange={(v) => { if (v) handleProjectChange(v) }}>
                     <SelectTrigger size="sm">
                       <Layers className="h-3 w-3 text-muted-foreground" />
