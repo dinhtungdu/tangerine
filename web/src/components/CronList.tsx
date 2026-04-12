@@ -148,7 +148,16 @@ export function CronForm({ projects, onCreated, modelsByProvider }: {
   }, [canSubmit, projectId, title, description, cron, provider, activeModel, branch, onCreated])
 
   return (
-    <Collapsible open={expanded} onOpenChange={setExpanded}>
+    <Collapsible open={expanded} onOpenChange={(open) => {
+        setExpanded(open)
+        if (!open) {
+          setTitle("")
+          setDescription("")
+          setCron("")
+          setBranch("")
+          setError(null)
+        }
+      }}>
       <CollapsibleTrigger
         render={<Button variant="outline" />}
         className="flex h-9 items-center justify-center rounded-md px-4 text-md font-medium"
