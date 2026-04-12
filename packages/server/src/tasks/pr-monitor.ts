@@ -136,8 +136,11 @@ async function getRepoView(repoSlug: string): Promise<RepoViewResult | null> {
 }
 
 async function listPrUrl(repoSlug: string, branch: string, expectedHeadOwner?: string): Promise<string | null> {
+  // Use --state open only: we must never discover a closed/merged PR for an active task.
+  // Assigning a closed PR would cause Phase 2 to immediately cancel the task.
+  // Phase 2 already handles state changes for PRs that were open when discovered.
   const proc = Bun.spawn(
-    ["gh", "pr", "list", "--head", branch, "--repo", repoSlug, "--state", "all", "--json", "url,headRefName,headRepositoryOwner"],
+    ["gh", "pr", "list", "--head", branch, "--repo", repoSlug, "--state", "open", "--json", "url,headRefName,headRepositoryOwner"],
     ghSpawnEnv(),
   )
   const [text, stderr] = await Promise.all([
