@@ -286,6 +286,11 @@ export function projectRoutes(deps: AppDeps): Hono {
               log.warn("Fork sync failed, continuing with normal pull", { name, error: e.message })
               return Effect.void
             }))
+            // gh repo sync pulls upstream into local — push to fork remote
+            yield* exec(`git push origin ${defaultBranch}`).pipe(Effect.catchAll((e) => {
+              log.warn("Push to fork remote failed", { name, error: e.message })
+              return Effect.void
+            }))
           }
         }
 
@@ -378,12 +383,11 @@ export function projectRoutes(deps: AppDeps): Hono {
           catch: (e) => e instanceof Error ? e : new Error(String(e)),
         })
 
-        // Update local repo after sync
+        // gh repo sync pulls upstream into local — push to fork remote
         const repoDir = getRepoDir(deps.config.config, name)
         const defaultBranch = project.defaultBranch ?? "main"
 
-        yield* shellExec("git fetch origin", repoDir)
-        yield* shellExec(`git reset --hard origin/${defaultBranch}`, repoDir)
+        yield* shellExec(`git push origin ${defaultBranch}`, repoDir)
 
         log.info("Fork synced successfully", { name, slug })
         return { synced: true, upstream: forkInfo.parentSlug }
