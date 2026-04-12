@@ -383,11 +383,48 @@ export function projectRoutes(deps: AppDeps): Hono {
         const repoDir = getRepoDir(deps.config.config, name)
         const defaultBranch = project.defaultBranch ?? "main"
 
+        const from = yield* shellExec("git rev-parse --short HEAD", repoDir).pipe(
+          Effect.orElse(() => Effect.succeed("unknown"))
+        )
+
         yield* shellExec("git fetch origin", repoDir)
         yield* shellExec(`git reset --hard origin/${defaultBranch}`, repoDir)
 
-        log.info("Fork synced successfully", { name, slug })
-        return { synced: true, upstream: forkInfo.parentSlug }
+        const to = yield* shellExec("git rev-parse --short HEAD", repoDir).pipe(
+          Effect.orElse(() => Effect.succeed("unknown"))
+        )
+
+        const updated = from !== to
+
+        // Run postUpdateCommand if configured and something changed
+        let postUpdateOutput: string | undefined
+        if (project.postUpdateCommand && updated) {
+          log.info("Running postUpdateCommand", { name, command: project.postUpdateCommand })
+          const output = yield* shellExec(project.postUpdateCommand, repoDir).pipe(
+            Effect.catchAll((e) => {
+              log.error("postUpdateCommand failed", { name, error: e.message })
+              return Effect.succeed(`ERROR: ${e.message}`)
+            })
+          )
+          postUpdateOutput = output
+        }
+
+        // If server or shared code changed, schedule restart after response
+        let restart = false
+        if (updated) {
+          const serverChanged = yield* shellExec(`git diff ${from}..${to} --name-only -- packages/server/ packages/shared/`, repoDir).pipe(
+            Effect.map((diff) => diff.length > 0),
+            Effect.orElse(() => Effect.succeed(false))
+          )
+          if (serverChanged) {
+            restart = true
+            log.info("Server code changed, scheduling restart", { name })
+            setTimeout(() => process.exit(DAEMON_RESTART_EXIT_CODE), 1000)
+          }
+        }
+
+        log.info("Fork synced successfully", { name, slug, from, to, updated })
+        return { synced: true, upstream: forkInfo.parentSlug, updated, from, to, postUpdateOutput, restart }
       })
     )
   })
