@@ -8,7 +8,12 @@ import { formatRelativeTime } from "../lib/format"
 import { useProject } from "../context/ProjectContext"
 import { ensureOrchestrator } from "../lib/api"
 import { TaskOverflowMenu } from "./TaskListItem"
-import { Input } from "@/components/ui/input"
+import {
+  InputGroup,
+  InputGroupAddon,
+  InputGroupButton,
+  InputGroupInput,
+} from "@/components/ui/input-group"
 import { ProjectSelector } from "./ProjectSelector"
 import { Button } from "@/components/ui/button"
 import { ScrollArea } from "@/components/ui/scroll-area"
@@ -286,27 +291,29 @@ export function TasksSidebar({ tasks, projects, searchQuery, onSearchChange, onN
           <Plus className="h-3.5 w-3.5" />
           <span className="text-md font-medium">New Run</span>
         </Button>
-        <div className="flex h-[34px] items-center gap-2 rounded-md border border-border bg-background px-2.5">
-          <Search className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
-          <Input
+        <InputGroup className="h-[34px]">
+          <InputGroupInput
             type="text"
             value={searchQuery}
             onChange={(e) => onSearchChange(e.target.value)}
             placeholder="Search tasks..."
-            className="min-w-0 flex-1 border-0 bg-transparent p-0 text-base text-foreground placeholder:text-muted-foreground shadow-none outline-none focus-visible:ring-0 md:text-md"
+            className="text-base md:text-md"
           />
+          <InputGroupAddon>
+            <Search className="size-3.5" />
+          </InputGroupAddon>
           {searchQuery && (
-            <Button
-              variant="ghost"
-              size="icon"
-              onClick={() => onSearchChange("")}
-              aria-label="Clear search"
-              className="h-5 w-5 shrink-0 text-muted-foreground hover:text-foreground"
-            >
-              <X className="h-3 w-3" />
-            </Button>
+            <InputGroupAddon align="inline-end">
+              <InputGroupButton
+                size="icon-xs"
+                onClick={() => onSearchChange("")}
+                aria-label="Clear search"
+              >
+                <X className="size-3" />
+              </InputGroupButton>
+            </InputGroupAddon>
           )}
-        </div>
+        </InputGroup>
       </div>
 
       <div className="flex w-full shrink-0 items-center justify-between px-4 py-2.5">

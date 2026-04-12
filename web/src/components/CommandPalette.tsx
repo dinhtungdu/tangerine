@@ -6,6 +6,7 @@ import { fetchTasks } from "../lib/api"
 import { getStatusConfig } from "../lib/status"
 import { formatRelativeTime, formatTaskTitle } from "../lib/format"
 import { getRecentTasks, RECENT_TASK_STATUSES } from "../lib/task-recency"
+import { Search, X } from "lucide-react"
 import {
   getActions,
   executeAction,
@@ -14,6 +15,12 @@ import {
   subscribe,
   type Action,
 } from "../lib/actions"
+import {
+  InputGroup,
+  InputGroupAddon,
+  InputGroupButton,
+  InputGroupInput,
+} from "@/components/ui/input-group"
 
 function fuzzyScore(str: string, query: string): number {
   if (!query) return 1
@@ -298,40 +305,30 @@ export function CommandPalette() {
         onClick={(e) => e.stopPropagation()}
       >
         {/* Search input */}
-        <div className="flex items-center gap-snug border-b border-border px-normal">
-          <svg
-            className="h-4 w-4 shrink-0 text-muted-foreground"
-            fill="none"
-            viewBox="0 0 24 24"
-            stroke="currentColor"
-            strokeWidth={2}
-          >
-            <path
-              strokeLinecap="round"
-              strokeLinejoin="round"
-              d="m21 21-5.197-5.197m0 0A7.5 7.5 0 1 0 5.196 5.196a7.5 7.5 0 0 0 10.607 10.607Z"
-            />
-          </svg>
-          <input
+        <InputGroup className="rounded-none border-0 border-b border-border">
+          <InputGroupInput
             ref={inputRef}
             type="text"
             value={query}
             onChange={(e) => setQuery(e.target.value)}
             placeholder={placeholder}
-            className="w-full bg-transparent py-3.5 text-sm text-foreground placeholder:text-muted-foreground outline-none"
+            className="py-3.5 text-sm"
           />
+          <InputGroupAddon className="pl-normal">
+            <Search className="size-4" />
+          </InputGroupAddon>
           {query && (
-            <button
-              onClick={() => setQuery("")}
-              className="shrink-0 text-muted-foreground hover:text-foreground"
-              aria-label="Clear search"
-            >
-              <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                <path strokeLinecap="round" strokeLinejoin="round" d="M6 18 18 6M6 6l12 12" />
-              </svg>
-            </button>
+            <InputGroupAddon align="inline-end" className="pr-normal">
+              <InputGroupButton
+                size="icon-xs"
+                onClick={() => setQuery("")}
+                aria-label="Clear search"
+              >
+                <X className="size-4" />
+              </InputGroupButton>
+            </InputGroupAddon>
           )}
-        </div>
+        </InputGroup>
 
         {/* Results list */}
         <div ref={listRef} className="max-h-[400px] overflow-y-auto py-1">
