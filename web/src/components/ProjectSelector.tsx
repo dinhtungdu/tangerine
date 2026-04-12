@@ -7,6 +7,7 @@ import {
   SelectGroup,
   SelectItem,
 } from "@/components/ui/select"
+import { Layers } from "lucide-react"
 
 interface ProjectSelectorProps {
   projects: ProjectConfig[]
@@ -16,6 +17,8 @@ interface ProjectSelectorProps {
   allowAll?: boolean
   /** Hide archived projects (default: true) */
   hideArchived?: boolean
+  /** Which side the dropdown opens on */
+  side?: "top" | "bottom"
   size?: "sm" | "default"
   className?: string
   "aria-label"?: string
@@ -27,6 +30,7 @@ export function ProjectSelector({
   onChange,
   allowAll = false,
   hideArchived = true,
+  side,
   size,
   className,
   "aria-label": ariaLabel,
@@ -36,9 +40,10 @@ export function ProjectSelector({
   return (
     <Select value={value} onValueChange={(v) => { if (v != null) onChange(v) }}>
       <SelectTrigger size={size} className={className} aria-label={ariaLabel}>
+        <Layers className="h-3 w-3 text-muted-foreground" />
         <SelectValue placeholder={allowAll ? "All Projects" : "Select project"} />
       </SelectTrigger>
-      <SelectContent>
+      <SelectContent side={side}>
         <SelectGroup>
           {allowAll && (
             <SelectItem value="">All Projects</SelectItem>
