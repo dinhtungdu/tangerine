@@ -63,6 +63,7 @@ export function useSession(taskId: string, initialTokens?: { inputTokens: number
     setTaskStatus(null)
     setInputTokens(0)
     setOutputTokens(0)
+    setContextTokens(0)
     processedCountRef.current = 0
   }, [taskId])
 
