@@ -33,19 +33,17 @@ describe("createPiEventMapper", () => {
     }])
   })
 
-  test("emits usage from agent_end with assistant messages", () => {
+  test("agent_end does not emit usage (avoids double-counting with turn_end)", () => {
     const mapEvent = createPiEventMapper()
 
     const events = mapEvent({
       type: "agent_end",
       messages: [
         { role: "assistant", usage: { input: 3000, output: 500, cacheRead: 200, cacheWrite: 100 } },
-        { role: "assistant", usage: { input: 2000, output: 700, cacheRead: 0, cacheWrite: 0 } },
       ],
     })
 
-    expect(events).toContainEqual({ kind: "status", status: "idle" })
-    expect(events).toContainEqual({ kind: "usage", inputTokens: 5300, outputTokens: 1200 })
+    expect(events).toEqual([{ kind: "status", status: "idle" }])
   })
 
   test("emits usage from turn_end message", () => {

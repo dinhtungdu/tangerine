@@ -48,7 +48,7 @@ export function useSession(taskId: string, initialTokens?: { inputTokens: number
       setInputTokens(initialTokens.inputTokens)
       setOutputTokens(initialTokens.outputTokens)
     }
-  }, [initialTokens?.inputTokens, initialTokens?.outputTokens])
+  }, [taskId, initialTokens?.inputTokens, initialTokens?.outputTokens])
 
   // Clear all session state immediately when the task changes so the previous
   // task's messages/activities/status don't leak into the new one while the

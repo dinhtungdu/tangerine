@@ -70,22 +70,10 @@ export function createPiEventMapper(): (data: Record<string, unknown>) => AgentE
       case "agent_start":
         return [{ kind: "status", status: "working" }]
 
-      case "agent_end": {
-        const events: AgentEvent[] = [{ kind: "status", status: "idle" }]
-        // agent_end.messages contains all AssistantMessages from the run
-        const messages = data.messages as Array<Record<string, unknown>> | undefined
-        if (Array.isArray(messages)) {
-          let totalInput = 0, totalOutput = 0
-          for (const msg of messages) {
-            const u = extractPiMessageUsage(msg)
-            if (u) { totalInput += u.inputTokens; totalOutput += u.outputTokens }
-          }
-          if (totalInput > 0 || totalOutput > 0) {
-            events.push({ kind: "usage", inputTokens: totalInput, outputTokens: totalOutput })
-          }
-        }
-        return events
-      }
+      case "agent_end":
+        // Usage is emitted per-turn from turn_end — don't also sum
+        // agent_end.messages or the last event will double-count.
+        return [{ kind: "status", status: "idle" }]
 
       case "turn_end": {
         // turn_end.message is a single AgentMessage
