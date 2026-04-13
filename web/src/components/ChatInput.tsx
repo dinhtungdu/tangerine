@@ -383,7 +383,7 @@ export function ChatInput({ onSend, disabled, queueLength, taskId, isWorking, on
             onHover={(i) => setSlashState((s) => ({ ...s, selectedIndex: i }))}
           />
         )}
-        <InputGroup>
+        <InputGroup className="bg-background dark:bg-background">
           <InputGroupTextarea
             ref={textareaRef}
             value={text}
