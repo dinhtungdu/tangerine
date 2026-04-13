@@ -3,11 +3,13 @@ import type { Cron } from "@tangerine/shared"
 import { useProject } from "../context/ProjectContext"
 import { CronForm, CronRow } from "../components/CronList"
 import { listCrons, deleteCron, updateCron } from "../lib/api"
+import { Button } from "@/components/ui/button"
 
 export function CronsPage() {
   const { projects, modelsByProvider } = useProject()
   const [crons, setCrons] = useState<Cron[]>([])
   const [loading, setLoading] = useState(true)
+  const [newCronOpen, setNewCronOpen] = useState(false)
   const activeProjects = projects.filter((p) => !p.archived)
 
   const fetchCrons = useCallback(async () => {
@@ -41,23 +43,35 @@ export function CronsPage() {
     <div className="flex h-full flex-col overflow-y-auto">
       <div className="mx-auto w-full max-w-[1200px] px-4 py-6 md:px-8 md:py-8">
         {/* Header */}
-        <div className="mb-6">
-          <div className="hidden md:block">
-            <h1 className="text-xl font-bold text-foreground md:text-2xl">Crons</h1>
-            <p className="mt-0.5 text-md text-muted-foreground">Recurring tasks on a schedule</p>
+        <div className="mb-6 flex items-start justify-between gap-4">
+          <div>
+            <div className="hidden md:block">
+              <h1 className="text-xl font-bold text-foreground md:text-2xl">Crons</h1>
+              <p className="mt-0.5 text-md text-muted-foreground">Recurring tasks on a schedule</p>
+            </div>
+            {/* Mobile header */}
+            <div className="flex items-center gap-3 md:hidden">
+              <span className="text-lg font-semibold text-foreground">Crons</span>
+            </div>
           </div>
-          {/* Mobile header */}
-          <div className="flex items-center gap-3 md:hidden">
-            <span className="text-lg font-semibold text-foreground">Crons</span>
-          </div>
+          {activeProjects.length > 0 && !newCronOpen && (
+            <Button
+              variant="outline"
+              onClick={() => setNewCronOpen(true)}
+              className="flex h-9 shrink-0 items-center justify-center rounded-md px-4 text-md font-medium"
+            >
+              + New Cron
+            </Button>
+          )}
         </div>
 
         <div className="flex flex-col gap-6">
           {/* Create form */}
-          {activeProjects.length > 0 && (
+          {activeProjects.length > 0 && newCronOpen && (
             <CronForm
               projects={activeProjects}
               onCreated={fetchCrons}
+              onClose={() => setNewCronOpen(false)}
               modelsByProvider={modelsByProvider}
             />
           )}
