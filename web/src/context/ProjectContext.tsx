@@ -9,6 +9,7 @@ interface ProjectContextValue {
   current: ProjectConfig | null
   model: string
   modelsByProvider: Record<string, string[]>
+  contextWindowByModel: Record<string, number>
   providerMetadata: Record<string, ProviderMeta>
   systemCapabilities: SystemCapabilities | null
   sshHost: string | undefined
@@ -27,6 +28,7 @@ const ProjectContext = createContext<ProjectContextValue>({
   current: null,
   model: "",
   modelsByProvider: {},
+  contextWindowByModel: {},
   providerMetadata: {},
   systemCapabilities: null,
   sshHost: undefined,
@@ -47,6 +49,7 @@ export function ProjectProvider({ children }: { children: ReactNode }) {
   const [projects, setProjects] = useState<ProjectConfig[]>([])
   const [globalModel, setGlobalModel] = useState("")
   const [modelsByProvider, setModelsByProvider] = useState<Record<string, string[]>>({})
+  const [contextWindowByModel, setContextWindowByModel] = useState<Record<string, number>>({})
   const [providerMetadata, setProviderMetadata] = useState<Record<string, ProviderMeta>>({})
   const [systemCapabilities, setSystemCapabilities] = useState<SystemCapabilities | null>(null)
   const [selectedModel, setSelectedModel] = useState<string | null>(null)
@@ -63,6 +66,7 @@ export function ProjectProvider({ children }: { children: ReactNode }) {
         setProjects(data.projects)
         setGlobalModel(data.model)
         setModelsByProvider(data.modelsByProvider ?? {})
+        setContextWindowByModel(data.contextWindowByModel ?? {})
         setProviderMetadata(data.providerMetadata ?? {})
         setSystemCapabilities(data.systemCapabilities ?? null)
         setSshHost(data.sshHost)
@@ -86,6 +90,7 @@ export function ProjectProvider({ children }: { children: ReactNode }) {
         setProjects(data.projects)
         setGlobalModel(data.model)
         setModelsByProvider(data.modelsByProvider ?? {})
+        setContextWindowByModel(data.contextWindowByModel ?? {})
         setProviderMetadata(data.providerMetadata ?? {})
         setSystemCapabilities(data.systemCapabilities ?? null)
         setSshHost(data.sshHost)
@@ -143,7 +148,7 @@ export function ProjectProvider({ children }: { children: ReactNode }) {
   }, [loading, projects, projectParam, setSearchParams])
 
   return (
-    <ProjectContext.Provider value={{ projects, current, model, modelsByProvider, providerMetadata, systemCapabilities, sshHost, sshUser, editor, actionCombos, shortcuts, setModel: setSelectedModel, switchProject, refreshProjects, loading }}>
+    <ProjectContext.Provider value={{ projects, current, model, modelsByProvider, contextWindowByModel, providerMetadata, systemCapabilities, sshHost, sshUser, editor, actionCombos, shortcuts, setModel: setSelectedModel, switchProject, refreshProjects, loading }}>
       {children}
     </ProjectContext.Provider>
   )

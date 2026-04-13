@@ -333,6 +333,28 @@ export function buildCodexTurnStartParams(
 
 const CODEX_MODELS_CACHE = join(homedir(), ".codex", "models_cache.json")
 
+// Known context windows for well-known OpenAI models (slug prefix → tokens).
+// Codex's models cache does not include context window info.
+const OPENAI_CONTEXT_WINDOWS: Record<string, number> = {
+  "o3": 200_000,
+  "o4-mini": 200_000,
+  "o1": 200_000,
+  "o1-mini": 128_000,
+  "o1-preview": 128_000,
+  "gpt-4o": 128_000,
+  "gpt-4o-mini": 128_000,
+  "gpt-4-turbo": 128_000,
+  "gpt-4": 8_192,
+  "gpt-3.5-turbo": 16_385,
+}
+
+function openaiContextWindow(slug: string): number | undefined {
+  for (const [prefix, size] of Object.entries(OPENAI_CONTEXT_WINDOWS)) {
+    if (slug === prefix || slug.startsWith(`${prefix}-`)) return size
+  }
+  return undefined
+}
+
 /**
  * Discover available Codex models by reading ~/.codex/models_cache.json.
  * Only includes models with visibility "list" (publicly available).
@@ -351,6 +373,7 @@ export function discoverModels(): ModelInfo[] {
         name: m.display_name ?? m.slug,
         provider: "openai",
         providerName: "OpenAI",
+        ...(openaiContextWindow(m.slug) ? { contextWindow: openaiContextWindow(m.slug) } : {}),
       }))
   } catch {
     return []
@@ -378,8 +401,10 @@ export function createCodexProvider(): AgentFactory {
           let activeTurnId: string | null = null
           const activeEffort: string | undefined = ctx.reasoningEffort
           let activeSystemPrompt = ctx.systemPrompt
+          let latestUsage: { inputTokens: number; outputTokens: number } | null = null
 
           const emit = (event: AgentEvent) => {
+            if (event.kind === "usage") latestUsage = { inputTokens: event.inputTokens, outputTokens: event.outputTokens }
             for (const cb of subscribers) cb(event)
           }
 
@@ -659,6 +684,10 @@ export function createCodexProvider(): AgentFactory {
 
             getSkills() {
               return scanCodexSkills()
+            },
+
+            getUsage() {
+              return latestUsage
             },
           }
 

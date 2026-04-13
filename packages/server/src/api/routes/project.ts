@@ -54,6 +54,7 @@ function shellExec(cmd: string, cwd: string) {
 
 function buildProjectsResponse(deps: AppDeps) {
   const modelsByProvider: Record<string, string[]> = {}
+  const contextWindowByModel: Record<string, number> = {}
   const providerMetadata: Record<string, {
     displayName: string
     abbreviation: string
@@ -61,7 +62,11 @@ function buildProjectsResponse(deps: AppDeps) {
   }> = {}
 
   for (const [key, factory] of Object.entries(deps.agentFactories)) {
-    modelsByProvider[key] = factory.listModels().map((m) => m.id)
+    const models = factory.listModels()
+    modelsByProvider[key] = models.map((m) => m.id)
+    for (const m of models) {
+      if (m.contextWindow) contextWindowByModel[m.id] = m.contextWindow
+    }
     providerMetadata[key] = {
       displayName: factory.metadata.displayName,
       abbreviation: factory.metadata.abbreviation,
@@ -73,6 +78,7 @@ function buildProjectsResponse(deps: AppDeps) {
     projects: deps.config.config.projects,
     model: deps.config.config.model,
     modelsByProvider,
+    contextWindowByModel,
     providerMetadata,
     systemCapabilities: deps.systemCapabilities,
     sshHost: deps.config.config.sshHost,

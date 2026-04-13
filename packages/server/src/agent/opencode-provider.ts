@@ -454,7 +454,10 @@ export function createOpenCodeProvider(): AgentFactory {
           // Track last spawned PID so cleanup can kill orphaned processes after server restart
           let lastPid: number | null = null
 
+          let latestUsage: { inputTokens: number; outputTokens: number } | null = null
+
           const emit = (event: AgentEvent) => {
+            if (event.kind === "usage") latestUsage = { inputTokens: event.inputTokens, outputTokens: event.outputTokens }
             for (const cb of subscribers) cb(event)
           }
 
@@ -722,6 +725,10 @@ export function createOpenCodeProvider(): AgentFactory {
             getSkills() {
               return scanClaudeSkills()
             },
+
+            getUsage() {
+              return latestUsage
+            },
           }
 
           // Attach metadata so callers can read session info
@@ -781,7 +788,7 @@ interface ProviderEntry {
   id: string
   name: string
   env?: string[]
-  models: Record<string, { id: string; name?: string }>
+  models: Record<string, { id: string; name?: string; limit?: { context?: number; output?: number } }>
 }
 
 interface ConfigProviderEntry {
@@ -803,13 +810,14 @@ function readJsonFile<T>(path: string): T | null {
 function buildModelInfos(
   providerId: string,
   providerName: string,
-  models: Record<string, { name?: string; [key: string]: unknown }>,
+  models: Record<string, { name?: string; limit?: { context?: number }; [key: string]: unknown }>,
 ): ModelInfo[] {
   return Object.entries(models).map(([modelId, model]) => ({
     id: `${providerId}/${modelId}`,
     name: model.name ?? modelId,
     provider: providerId,
     providerName,
+    ...(model.limit?.context ? { contextWindow: model.limit.context } : {}),
   }))
 }
 

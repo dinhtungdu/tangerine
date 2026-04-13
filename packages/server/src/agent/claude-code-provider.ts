@@ -13,9 +13,9 @@ import { killDescendants, killProcessTreeEscalated } from "./process-tree"
 
 const log = createLogger("claude-code-provider")
 const CLAUDE_CODE_MODELS = [
-  { id: "claude-opus-4-6", name: "Claude Opus 4.6", provider: "anthropic", providerName: "Anthropic" },
-  { id: "claude-sonnet-4-6", name: "Claude Sonnet 4.6", provider: "anthropic", providerName: "Anthropic" },
-  { id: "claude-haiku-4-5", name: "Claude Haiku 4.5", provider: "anthropic", providerName: "Anthropic" },
+  { id: "claude-opus-4-6", name: "Claude Opus 4.6", provider: "anthropic", providerName: "Anthropic", contextWindow: 200_000 },
+  { id: "claude-sonnet-4-6", name: "Claude Sonnet 4.6", provider: "anthropic", providerName: "Anthropic", contextWindow: 200_000 },
+  { id: "claude-haiku-4-5", name: "Claude Haiku 4.5", provider: "anthropic", providerName: "Anthropic", contextWindow: 200_000 },
 ] as const
 
 export const CLAUDE_CODE_PROVIDER_METADATA: ProviderMetadata = {
@@ -109,6 +109,8 @@ export function createClaudeCodeProvider(): AgentFactory {
           let resolvedSessionId = sessionId
           // Skills discovered from system/init event
           let discoveredSkills: string[] = []
+          // Latest token usage observed from result events
+          let latestUsage: { inputTokens: number; outputTokens: number } | null = null
           // Stateful mapper — buffers images from tool results for next narration
           const mapClaudeCodeEvent = createClaudeCodeMapper()
 
@@ -132,6 +134,7 @@ export function createClaudeCodeProvider(): AgentFactory {
 
                 const events = mapClaudeCodeEvent(raw)
                 for (const event of events) {
+                  if (event.kind === "usage") latestUsage = { inputTokens: event.inputTokens, outputTokens: event.outputTokens }
                   for (const cb of subscribers) cb(event)
                 }
                 // result event signals end of turn — emit idle after message.complete
@@ -252,6 +255,10 @@ export function createClaudeCodeProvider(): AgentFactory {
 
             getSkills() {
               return discoveredSkills
+            },
+
+            getUsage() {
+              return latestUsage
             },
           }
 

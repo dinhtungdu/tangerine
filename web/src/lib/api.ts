@@ -47,6 +47,7 @@ export async function fetchProjects(): Promise<{
   projects: ProjectConfig[]
   model: string
   modelsByProvider: Record<string, string[]>
+  contextWindowByModel?: Record<string, number>
   providerMetadata?: Record<string, ProviderMeta>
   systemCapabilities?: SystemCapabilities
   sshHost?: string
@@ -59,6 +60,7 @@ export async function fetchProjects(): Promise<{
     projects: ProjectConfig[]
     model: string
     modelsByProvider: Record<string, string[]>
+    contextWindowByModel?: Record<string, number>
     providerMetadata?: Record<string, ProviderMeta>
     systemCapabilities?: SystemCapabilities
     sshHost?: string

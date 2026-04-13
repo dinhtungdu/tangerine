@@ -43,7 +43,7 @@ export function TaskDetail() {
   })
   const [mobilePane, setMobilePane] = useState<PaneId>("chat")
 
-  const { current, modelsByProvider, systemCapabilities, sshHost, sshUser, editor } = useProject()
+  const { current, modelsByProvider, contextWindowByModel, systemCapabilities, sshHost, sshUser, editor } = useProject()
   const { showToast } = useToast()
 
   // When viewing a task from a different project, show that project's orchestrator chat
@@ -463,14 +463,20 @@ export function TaskDetail() {
                 {formatPrNumber(task.prUrl)}
               </a>
             )}
-            {session.inputTokens > 0 && (
-              <span
-                className="flex shrink-0 items-center gap-1 rounded px-1.5 py-0.5 font-mono text-2xs text-muted-foreground"
-                title={`Context window: ${session.inputTokens.toLocaleString()} input tokens, ${session.outputTokens.toLocaleString()} output tokens`}
-              >
-                {formatTokens(session.inputTokens)} ctx
-              </span>
-            )}
+            {session.inputTokens > 0 && (() => {
+              const ctxMax = task.model ? contextWindowByModel[task.model] : undefined
+              const label = ctxMax
+                ? `${formatTokens(session.inputTokens)} / ${formatTokens(ctxMax)}`
+                : `${formatTokens(session.inputTokens)} ctx`
+              return (
+                <span
+                  className="flex shrink-0 items-center gap-1 rounded px-1.5 py-0.5 font-mono text-2xs text-muted-foreground"
+                  title={`Context: ${session.inputTokens.toLocaleString()} input tokens, ${session.outputTokens.toLocaleString()} output tokens${ctxMax ? ` / ${ctxMax.toLocaleString()} max` : ""}`}
+                >
+                  {label}
+                </span>
+              )
+            })()}
             <span
               className="flex shrink-0 items-center gap-1 rounded px-1.5 py-0.5 text-2xs font-medium"
               style={{ backgroundColor: `color-mix(in srgb, ${statusColor} 10%, transparent)`, color: statusColor }}
