@@ -84,7 +84,7 @@ function rpcNotification(method: string, params?: Record<string, unknown>): stri
 //   userMessage        (ignored)
 // ---------------------------------------------------------------------------
 
-function mapNotification(method: string, params: Record<string, unknown>): AgentEvent[] {
+export function mapNotification(method: string, params: Record<string, unknown>): AgentEvent[] {
   switch (method) {
     case "turn/started":
       return [{ kind: "status", status: "working" }]

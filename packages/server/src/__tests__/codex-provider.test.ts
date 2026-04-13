@@ -7,6 +7,7 @@ import {
   CODEX_SANDBOX_MODE,
   CODEX_SANDBOX_POLICY,
   createCodexProvider,
+  mapNotification,
 } from "../agent/codex-provider"
 import { Effect } from "effect"
 
@@ -107,6 +108,51 @@ describe("Codex provider config helpers", () => {
       approvalPolicy: CODEX_APPROVAL_POLICY,
       sandboxPolicy: CODEX_SANDBOX_POLICY,
     })
+  })
+
+  it("emits usage event from turn/completed with prompt_tokens", () => {
+    const events = mapNotification("turn/completed", {
+      turn: {
+        usage: { prompt_tokens: 5000, completion_tokens: 1200 },
+      },
+    })
+
+    expect(events).toContainEqual({ kind: "usage", inputTokens: 5000, outputTokens: 1200 })
+    expect(events).toContainEqual({ kind: "status", status: "idle" })
+  })
+
+  it("emits usage event from turn/completed with input_tokens fallback", () => {
+    const events = mapNotification("turn/completed", {
+      turn: {
+        usage: { input_tokens: 3000, output_tokens: 800 },
+      },
+    })
+
+    expect(events).toContainEqual({ kind: "usage", inputTokens: 3000, outputTokens: 800 })
+  })
+
+  it("emits usage from tokenUsage fallback field", () => {
+    const events = mapNotification("turn/completed", {
+      turn: {
+        tokenUsage: { prompt_tokens: 2000, completion_tokens: 400 },
+      },
+    })
+
+    expect(events).toContainEqual({ kind: "usage", inputTokens: 2000, outputTokens: 400 })
+  })
+
+  it("skips usage event when turn has no usage data", () => {
+    const events = mapNotification("turn/completed", { turn: {} })
+
+    expect(events).toEqual([{ kind: "status", status: "idle" }])
+  })
+
+  it("skips usage event when all tokens are zero", () => {
+    const events = mapNotification("turn/completed", {
+      turn: { usage: { prompt_tokens: 0, completion_tokens: 0 } },
+    })
+
+    expect(events).toEqual([{ kind: "status", status: "idle" }])
   })
 
   it("creates the thread during provider startup so Tangerine can persist the session id", async () => {

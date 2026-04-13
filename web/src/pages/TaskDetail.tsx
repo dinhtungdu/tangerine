@@ -387,6 +387,16 @@ export function TaskDetail() {
   const { color: statusColor, label: statusLabel } = getStatusConfig(task.status)
   const isTerminated = task.status === "done" || task.status === "failed" || task.status === "cancelled"
 
+  const ctxMax = task.model ? contextWindowByModel[task.model] : undefined
+  const tokenLabel = session.inputTokens > 0
+    ? ctxMax
+      ? `${formatTokens(session.inputTokens)} / ${formatTokens(ctxMax)}`
+      : `${formatTokens(session.inputTokens)} ctx`
+    : null
+  const tokenTitle = session.inputTokens > 0
+    ? `Context: ${session.inputTokens.toLocaleString()} input tokens, ${session.outputTokens.toLocaleString()} output tokens${ctxMax ? ` / ${ctxMax.toLocaleString()} max` : ""}`
+    : undefined
+
   // Desktop: multi-pane from visiblePanes set. Mobile: single pane from mobilePane.
   // Both states are tracked; CSS breakpoints control which layout renders.
   const dtachAvailable = systemCapabilities?.dtach.available !== false
@@ -463,20 +473,14 @@ export function TaskDetail() {
                 {formatPrNumber(task.prUrl)}
               </a>
             )}
-            {session.inputTokens > 0 && (() => {
-              const ctxMax = task.model ? contextWindowByModel[task.model] : undefined
-              const label = ctxMax
-                ? `${formatTokens(session.inputTokens)} / ${formatTokens(ctxMax)}`
-                : `${formatTokens(session.inputTokens)} ctx`
-              return (
-                <span
-                  className="flex shrink-0 items-center gap-1 rounded px-1.5 py-0.5 font-mono text-2xs text-muted-foreground"
-                  title={`Context: ${session.inputTokens.toLocaleString()} input tokens, ${session.outputTokens.toLocaleString()} output tokens${ctxMax ? ` / ${ctxMax.toLocaleString()} max` : ""}`}
-                >
-                  {label}
-                </span>
-              )
-            })()}
+            {tokenLabel && (
+              <span
+                className="flex shrink-0 items-center gap-1 rounded px-1.5 py-0.5 font-mono text-2xs text-muted-foreground"
+                title={tokenTitle}
+              >
+                {tokenLabel}
+              </span>
+            )}
             <span
               className="flex shrink-0 items-center gap-1 rounded px-1.5 py-0.5 text-2xs font-medium"
               style={{ backgroundColor: `color-mix(in srgb, ${statusColor} 10%, transparent)`, color: statusColor }}

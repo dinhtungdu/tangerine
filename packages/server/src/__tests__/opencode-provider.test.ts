@@ -1,6 +1,6 @@
 import { describe, expect, it } from "bun:test"
 import { Effect } from "effect"
-import { getHandleMeta, mapOpenCodeEvent, createOpenCodeEventProcessor, adaptRunJsonEvent, buildOpenCodeSystemAgent } from "../agent/opencode-provider"
+import { getHandleMeta, mapOpenCodeEvent, createOpenCodeEventProcessor, adaptRunJsonEvent, buildOpenCodeSystemAgent, extractStepFinishUsage } from "../agent/opencode-provider"
 import type { AgentHandle, AgentEvent } from "../agent/provider"
 import { getAgentRuntimeMeta } from "../tasks/lifecycle"
 
@@ -172,6 +172,36 @@ describe("OpenCode provider helpers", () => {
       mode: "primary",
       prompt: "Be terse.",
     })
+  })
+
+  it("extracts usage from step_finish with camelCase fields", () => {
+    expect(extractStepFinishUsage({
+      type: "step_finish",
+      usage: { inputTokens: 4000, outputTokens: 900 },
+    })).toEqual({ inputTokens: 4000, outputTokens: 900 })
+  })
+
+  it("extracts usage from step_finish with snake_case fields", () => {
+    expect(extractStepFinishUsage({
+      type: "step_finish",
+      usage: { input_tokens: 3000, output_tokens: 700 },
+    })).toEqual({ inputTokens: 3000, outputTokens: 700 })
+  })
+
+  it("returns null for step_finish with no usage", () => {
+    expect(extractStepFinishUsage({ type: "step_finish" })).toBeNull()
+  })
+
+  it("returns null for step_finish with all-zero usage", () => {
+    expect(extractStepFinishUsage({
+      type: "step_finish",
+      usage: { inputTokens: 0, outputTokens: 0 },
+    })).toBeNull()
+  })
+
+  it("returns null for non-step_finish events", () => {
+    expect(extractStepFinishUsage({ type: "step_start" })).toBeNull()
+    expect(extractStepFinishUsage({ type: "text" })).toBeNull()
   })
 })
 

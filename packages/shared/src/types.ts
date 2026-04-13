@@ -71,7 +71,6 @@ export type WsServerMessage =
   | { type: "activity"; entry: ActivityEntry }
   | { type: "status"; status: TaskStatus }
   | { type: "agent_status"; agentStatus: "idle" | "working" }
-  | { type: "usage"; inputTokens: number; outputTokens: number }
   | { type: "error"; message: string }
 
 export interface PromptImage {
