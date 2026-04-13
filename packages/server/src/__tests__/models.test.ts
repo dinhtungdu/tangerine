@@ -1,9 +1,9 @@
 import { describe, test, expect } from "bun:test"
 import { createAgentFactories } from "../agent/factories"
-import { createClaudeCodeProvider } from "../agent/claude-code-provider"
+import { createClaudeCodeProvider, discoverModels as discoverClaudeCodeModels } from "../agent/claude-code-provider"
 import { createCodexProvider, discoverModels as discoverCodexProviderModels } from "../agent/codex-provider"
 import { createOpenCodeProvider, discoverModels as discoverOpenCodeModels } from "../agent/opencode-provider"
-import { buildPiPromptCommand, buildPiSystemPromptCommand, createPiProvider, discoverModels as discoverPiProviderModels } from "../agent/pi-provider"
+import { buildPiPromptCommand, buildPiSystemPromptCommand, createPiProvider, discoverModels as discoverPiProviderModels, parseContextSize } from "../agent/pi-provider"
 
 const factories = createAgentFactories()
 
@@ -32,6 +32,10 @@ describe("opencode provider listModels", () => {
 })
 
 describe("claude-code provider listModels", () => {
+  test("delegates to discoverModels", () => {
+    expect(createClaudeCodeProvider().listModels()).toEqual(discoverClaudeCodeModels())
+  })
+
   test("returns known Claude models", () => {
     const models = createClaudeCodeProvider().listModels()
     expect(models.length).toBeGreaterThan(0)
@@ -40,6 +44,13 @@ describe("claude-code provider listModels", () => {
       "claude-sonnet-4-6",
       "claude-haiku-4-5",
     ])
+  })
+
+  test("each model has a contextWindow", () => {
+    for (const model of createClaudeCodeProvider().listModels()) {
+      expect(typeof model.contextWindow).toBe("number")
+      expect(model.contextWindow).toBeGreaterThan(0)
+    }
   })
 })
 
@@ -54,6 +65,14 @@ describe("codex provider listModels", () => {
       expect(model.provider).toBe("openai")
       expect(model.providerName).toBe("OpenAI")
       expect(model.name).toBeTruthy()
+    }
+  })
+
+  test("each model with contextWindow has a positive value", () => {
+    for (const model of createCodexProvider().listModels()) {
+      if (model.contextWindow !== undefined) {
+        expect(model.contextWindow).toBeGreaterThan(0)
+      }
     }
   })
 })
@@ -72,6 +91,43 @@ describe("pi provider listModels", () => {
     }
   })
 
+  test("models include contextWindow when available", () => {
+    const models = createPiProvider().listModels()
+    // pi is available in this env, so at least some models should have contextWindow
+    if (models.length > 0) {
+      const withWindow = models.filter((m) => m.contextWindow !== undefined)
+      expect(withWindow.length).toBeGreaterThan(0)
+      for (const m of withWindow) {
+        expect(m.contextWindow).toBeGreaterThan(0)
+      }
+    }
+  })
+})
+
+describe("pi parseContextSize", () => {
+  test("parses K suffix", () => {
+    expect(parseContextSize("144K")).toBe(144_000)
+    expect(parseContextSize("128K")).toBe(128_000)
+    expect(parseContextSize("32K")).toBe(32_000)
+  })
+
+  test("parses M suffix", () => {
+    expect(parseContextSize("1M")).toBe(1_000_000)
+    expect(parseContextSize("2M")).toBe(2_000_000)
+  })
+
+  test("parses bare number", () => {
+    expect(parseContextSize("8192")).toBe(8192)
+  })
+
+  test("returns undefined for invalid input", () => {
+    expect(parseContextSize("")).toBeUndefined()
+    expect(parseContextSize("yes")).toBeUndefined()
+    expect(parseContextSize("-")).toBeUndefined()
+  })
+})
+
+describe("pi rpc command builders", () => {
   test("builds set_system_prompt rpc command", () => {
     expect(buildPiSystemPromptCommand("be terse")).toEqual({
       type: "set_system_prompt",
