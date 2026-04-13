@@ -305,7 +305,7 @@ export function CommandPalette() {
         onClick={(e) => e.stopPropagation()}
       >
         {/* Search input */}
-        <InputGroup className="rounded-none border-0 border-b border-border">
+        <InputGroup className="rounded-none border-0 border-b border-border" focusRing={false}>
           <InputGroupInput
             ref={inputRef}
             type="text"
