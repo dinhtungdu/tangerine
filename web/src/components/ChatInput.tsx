@@ -1,7 +1,7 @@
 import React, { useState, useRef, useCallback, useEffect, type KeyboardEvent, type ClipboardEvent, type MouseEvent } from "react"
 import { Send, ArrowUp, X, Quote } from "lucide-react"
 import { Button } from "@/components/ui/button"
-import { InputGroup, InputGroupAddon } from "@/components/ui/input-group"
+import { InputGroup, InputGroupAddon, InputGroupButton, InputGroupTextarea } from "@/components/ui/input-group"
 import type { PromptImage, PredefinedPrompt, ProviderType, Task } from "@tangerine/shared"
 import { ModelSelector } from "./ModelSelector"
 import { ReasoningEffortSelector, type ReasoningEffort } from "./ReasoningEffortSelector"
@@ -156,9 +156,6 @@ export function ChatInput({ onSend, disabled, queueLength, taskId, isWorking, on
     if (draftKey) {
       try { localStorage.removeItem(draftKey) } catch { /* ignore */ }
     }
-    if (textareaRef.current) {
-      textareaRef.current.style.height = "auto"
-    }
   }, [text, pendingImages, disabled, onSend, draftKey, quotedMessage, onQuoteDismiss])
 
   const handleMentionSelect = useCallback((task: Task) => {
@@ -224,13 +221,6 @@ export function ChatInput({ onSend, disabled, queueLength, taskId, isWorking, on
     [handleSend, handleMentionSelect, closeSlash, selectSkill],
   )
 
-  const handleInput = useCallback(() => {
-    const textarea = textareaRef.current
-    if (!textarea) return
-    textarea.style.height = "auto"
-    textarea.style.height = `${Math.min(textarea.scrollHeight, 144)}px`
-  }, [])
-
   const handlePaste = useCallback((e: ClipboardEvent<HTMLTextAreaElement>) => {
     const items = e.clipboardData.items
     for (const item of items) {
@@ -255,19 +245,6 @@ export function ChatInput({ onSend, disabled, queueLength, taskId, isWorking, on
     setPendingImages((prev) => prev.filter((_, i) => i !== index))
   }, [])
 
-
-  const [isFocused, setIsFocused] = useState(false)
-
-  useEffect(() => {
-    const textarea = textareaRef.current
-    if (!textarea) return
-    if (!isFocused) {
-      textarea.style.height = "auto"
-      return
-    }
-    textarea.style.height = "auto"
-    textarea.style.height = `${Math.min(textarea.scrollHeight, 144)}px`
-  }, [text, isFocused])
 
   useEffect(() => {
     if (autoFocusKey === undefined) return
@@ -407,15 +384,13 @@ export function ChatInput({ onSend, disabled, queueLength, taskId, isWorking, on
           />
         )}
         <InputGroup>
-          <textarea
+          <InputGroupTextarea
             ref={textareaRef}
-            data-slot="input-group-control"
             value={text}
             onChange={(e) => {
               const val = e.target.value
               const cursor = e.target.selectionStart ?? val.length
               setText(val)
-              handleInput()
               mention.onTextChange(val, cursor)
               // Detect slash trigger: `/` at start of text or after whitespace
               let si = cursor - 1
@@ -440,22 +415,14 @@ export function ChatInput({ onSend, disabled, queueLength, taskId, isWorking, on
             }}
             onKeyDown={handleKeyDown}
             onPaste={handlePaste}
-            onFocus={() => {
-              setIsFocused(true)
-              handleInput()
-            }}
             onBlur={() => {
-              setIsFocused(false)
               mention.close()
               closeSlash()
-              if (textareaRef.current) {
-                textareaRef.current.style.height = "auto"
-              }
             }}
             placeholder={isWorking ? "Agent is working... (messages will be queued)" : "Message agent..."}
             disabled={disabled}
             rows={1}
-            className="min-h-9 w-full resize-none rounded-none border-0 bg-transparent px-3 py-2 text-base text-foreground placeholder:text-muted-foreground/50 shadow-none outline-none ring-0 focus-visible:ring-0 disabled:cursor-not-allowed disabled:opacity-50 md:px-3.5 md:text-sm md:placeholder:text-muted-foreground"
+            className="min-h-9 max-h-36 px-3 placeholder:text-muted-foreground/50 md:px-3.5 md:placeholder:text-muted-foreground"
           />
           {/* Bottom toolbar: model/effort/context on left, queue badge + send on right */}
           <InputGroupAddon
@@ -490,16 +457,17 @@ export function ChatInput({ onSend, disabled, queueLength, taskId, isWorking, on
                   {queueLength}
                 </span>
               )}
-              <Button
+              <InputGroupButton
                 onClick={handleSend}
                 disabled={!canSend}
                 aria-label="Send message"
+                variant="default"
                 size="icon-sm"
-                className="shrink-0 rounded-lg"
+                className="shrink-0"
               >
                 <ArrowUp className="h-4 w-4 md:hidden" />
                 <Send className="hidden h-4 w-4 md:block" />
-              </Button>
+              </InputGroupButton>
             </div>
           </InputGroupAddon>
         </InputGroup>
