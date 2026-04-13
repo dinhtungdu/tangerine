@@ -1,4 +1,4 @@
-import { memo, useState, useMemo, useCallback, useRef } from "react"
+import { memo, useState, useMemo, useCallback, useRef, createContext, useContext } from "react"
 import { Button } from "@/components/ui/button"
 import type { Components } from "react-markdown"
 import ReactMarkdown from "react-markdown"
@@ -63,6 +63,10 @@ function isToolCall(content: string): boolean {
 }
 
 
+// Signals to the `code` renderer that it's inside a `pre` block, so it
+// doesn't apply inline-code styles to unlanguaged fenced code blocks.
+const InsidePreContext = createContext(false)
+
 const markdownComponents: Components = {
   h1: ({ children }) => <h1 className="mt-4 mb-1 text-base font-bold">{children}</h1>,
   h2: ({ children }) => <h2 className="mt-3 mb-1 text-sub font-bold">{children}</h2>,
@@ -70,13 +74,16 @@ const markdownComponents: Components = {
   h4: ({ children }) => <h4 className="mt-3 mb-1 text-md font-semibold">{children}</h4>,
   p: ({ children }) => <p className="my-1">{children}</p>,
   pre: ({ children }) => (
-    <pre className="my-2 rounded-md bg-muted p-3 font-mono text-xxs leading-[1.6] overflow-x-auto border border-border">
-      {children}
-    </pre>
+    <InsidePreContext.Provider value={true}>
+      <pre className="my-2 rounded-md bg-muted p-3 font-mono text-xxs leading-[1.6] overflow-x-auto border border-border">
+        {children}
+      </pre>
+    </InsidePreContext.Provider>
   ),
   code: ({ children, className }) => {
-    // Inline code (no className means not inside a code block)
-    if (!className) {
+    const insidePre = useContext(InsidePreContext)
+    // Apply inline-code styling only for true inline code, not unlanguaged fenced blocks
+    if (!className && !insidePre) {
       return <code className="rounded bg-muted px-1 py-0.5 font-mono text-xs border border-border">{children}</code>
     }
     return <code className={className}>{children}</code>
