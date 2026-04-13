@@ -6,6 +6,7 @@ import { useProject } from "../context/ProjectContext"
 import { HarnessSelector } from "./HarnessSelector"
 import { ModelSelector } from "./ModelSelector"
 import { Button } from "@/components/ui/button"
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible"
 import { Input } from "@/components/ui/input"
 import { Textarea } from "@/components/ui/textarea"
 import { ProjectSelector } from "./ProjectSelector"
@@ -91,6 +92,7 @@ export function CronForm({ projects, onCreated, modelsByProvider }: {
   modelsByProvider: Record<string, string[]>
 }) {
   const { systemCapabilities } = useProject()
+  const [expanded, setExpanded] = useState(false)
   const [projectId, setProjectId] = useState(projects[0]?.name ?? "")
   const [title, setTitle] = useState("")
   const [description, setDescription] = useState("")
@@ -136,6 +138,7 @@ export function CronForm({ projects, onCreated, modelsByProvider }: {
       setDescription("")
       setCron("")
       setBranch("")
+      setExpanded(false)
       onCreated()
     } catch (e) {
       setError(e instanceof Error ? e.message : String(e))
@@ -145,35 +148,63 @@ export function CronForm({ projects, onCreated, modelsByProvider }: {
   }, [canSubmit, projectId, title, description, cron, provider, activeModel, branch, onCreated])
 
   return (
-    <div className="rounded-lg border border-border bg-background p-4">
-      <h3 className="mb-3 text-sm font-semibold text-foreground">New Cron</h3>
-      <div className="flex flex-col gap-3">
-        <ProjectSelector
-          projects={projects}
-          value={projectId}
-          onChange={(v) => v && setProjectId(v)}
-          hideArchived={false}
-          className="w-full"
-          aria-label="Project"
-        />
-        <CronFields
-          title={title} setTitle={setTitle}
-          description={description} setDescription={setDescription}
-          cron={cron} setCron={setCron}
-          provider={provider} setProvider={setProvider}
-          providerModels={providerModels} activeModel={activeModel} setModel={setModel}
-          branch={branch} setBranch={setBranch}
-        />
-        {error && <p className="text-xs text-status-error">{error}</p>}
-        <Button
-          onClick={handleSubmit}
-          disabled={!canSubmit}
-          className="flex h-9 items-center justify-center rounded-md px-4 text-md font-medium"
-        >
-          {submitting ? "Creating..." : "Create Cron"}
-        </Button>
-      </div>
-    </div>
+    <Collapsible open={expanded} onOpenChange={(open) => {
+        setExpanded(open)
+        if (!open) {
+          setTitle("")
+          setDescription("")
+          setCron("")
+          setBranch("")
+          setError(null)
+        }
+      }}>
+      <CollapsibleTrigger
+        render={<Button variant="outline" />}
+        className="flex h-9 items-center justify-center rounded-md px-4 text-md font-medium"
+      >
+        + New Cron
+      </CollapsibleTrigger>
+      <CollapsibleContent>
+        <div className="mt-3 rounded-lg border border-border bg-background p-4">
+          <h3 className="mb-3 text-sm font-semibold text-foreground">New Cron</h3>
+          <div className="flex flex-col gap-3">
+            <ProjectSelector
+              projects={projects}
+              value={projectId}
+              onChange={(v) => v && setProjectId(v)}
+              hideArchived={false}
+              className="w-full"
+              aria-label="Project"
+            />
+            <CronFields
+              title={title} setTitle={setTitle}
+              description={description} setDescription={setDescription}
+              cron={cron} setCron={setCron}
+              provider={provider} setProvider={setProvider}
+              providerModels={providerModels} activeModel={activeModel} setModel={setModel}
+              branch={branch} setBranch={setBranch}
+            />
+            {error && <p className="text-xs text-status-error">{error}</p>}
+            <div className="flex gap-2">
+              <Button
+                onClick={handleSubmit}
+                disabled={!canSubmit}
+                className="flex h-9 flex-1 items-center justify-center rounded-md px-4 text-md font-medium"
+              >
+                {submitting ? "Creating..." : "Create Cron"}
+              </Button>
+              <Button
+                variant="outline"
+                onClick={() => setExpanded(false)}
+                className="flex h-9 items-center justify-center rounded-md px-4 text-md text-muted-foreground"
+              >
+                Cancel
+              </Button>
+            </div>
+          </div>
+        </div>
+      </CollapsibleContent>
+    </Collapsible>
   )
 }
 
