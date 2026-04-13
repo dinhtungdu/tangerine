@@ -153,6 +153,7 @@ export function ChatInput({ onSend, disabled, queueLength, taskId, isWorking, on
     setText("")
     setPendingImages([])
     onQuoteDismiss?.()
+    if (textareaRef.current) textareaRef.current.style.height = "auto"
     if (draftKey) {
       try { localStorage.removeItem(draftKey) } catch { /* ignore */ }
     }
@@ -220,6 +221,15 @@ export function ChatInput({ onSend, disabled, queueLength, taskId, isWorking, on
     },
     [handleSend, handleMentionSelect, closeSlash, selectSkill],
   )
+
+  // JS fallback for browsers without field-sizing:content support (Chrome <123, Firefox <130, Safari <18)
+  const handleResize = useCallback(() => {
+    if (typeof CSS !== "undefined" && CSS.supports("field-sizing", "content")) return
+    const textarea = textareaRef.current
+    if (!textarea) return
+    textarea.style.height = "auto"
+    textarea.style.height = `${Math.min(textarea.scrollHeight, 144)}px`
+  }, [])
 
   const handlePaste = useCallback((e: ClipboardEvent<HTMLTextAreaElement>) => {
     const items = e.clipboardData.items
@@ -391,6 +401,7 @@ export function ChatInput({ onSend, disabled, queueLength, taskId, isWorking, on
               const val = e.target.value
               const cursor = e.target.selectionStart ?? val.length
               setText(val)
+              handleResize()
               mention.onTextChange(val, cursor)
               // Detect slash trigger: `/` at start of text or after whitespace
               let si = cursor - 1
