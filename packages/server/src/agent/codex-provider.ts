@@ -335,21 +335,22 @@ const CODEX_MODELS_CACHE = join(homedir(), ".codex", "models_cache.json")
 
 // Known context windows for well-known OpenAI models (slug prefix → tokens).
 // Codex's models cache does not include context window info.
-const OPENAI_CONTEXT_WINDOWS: Record<string, number> = {
-  "o3": 200_000,
-  "o4-mini": 200_000,
-  "o1": 200_000,
-  "o1-mini": 128_000,
-  "o1-preview": 128_000,
-  "gpt-4o": 128_000,
-  "gpt-4o-mini": 128_000,
-  "gpt-4-turbo": 128_000,
-  "gpt-4": 8_192,
-  "gpt-3.5-turbo": 16_385,
-}
+// Ordered longest-prefix-first so "o1-mini" matches before "o1".
+const OPENAI_CONTEXT_WINDOWS: [string, number][] = [
+  ["o4-mini", 200_000],
+  ["o3", 200_000],
+  ["o1-mini", 128_000],
+  ["o1-preview", 128_000],
+  ["o1", 200_000],
+  ["gpt-4o-mini", 128_000],
+  ["gpt-4o", 128_000],
+  ["gpt-4-turbo", 128_000],
+  ["gpt-4", 8_192],
+  ["gpt-3.5-turbo", 16_385],
+]
 
 function openaiContextWindow(slug: string): number | undefined {
-  for (const [prefix, size] of Object.entries(OPENAI_CONTEXT_WINDOWS)) {
+  for (const [prefix, size] of OPENAI_CONTEXT_WINDOWS) {
     if (slug === prefix || slug.startsWith(`${prefix}-`)) return size
   }
   return undefined

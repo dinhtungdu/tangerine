@@ -570,6 +570,12 @@ export function createOpenCodeProvider(): AgentFactory {
                     }
                   })
 
+                  // Accumulate token usage across steps within this turn.
+                  // Each step_finish reports that step's tokens — we sum them
+                  // and emit a single usage event when the process ends.
+                  let turnInputTokens = 0
+                  let turnOutputTokens = 0
+
                   // Parse NDJSON from stdout — adapt --format json events to
                   // internal format before feeding to the event processor
                   const parser = parseNdjsonStream(
@@ -586,7 +592,8 @@ export function createOpenCodeProvider(): AgentFactory {
 
                         const stepUsage = extractStepFinishUsage(raw)
                         if (stepUsage) {
-                          emit({ kind: "usage", ...stepUsage })
+                          turnInputTokens += stepUsage.inputTokens
+                          turnOutputTokens += stepUsage.outputTokens
                         }
 
                         const processor = getOrCreateProcessor(sessionId ?? ctx.taskId)
@@ -608,6 +615,12 @@ export function createOpenCodeProvider(): AgentFactory {
                         currentParser = null
                         if (!shutdownCalled) {
                           taskLog.debug("opencode run stdout ended")
+
+                          // Emit accumulated turn usage before idle
+                          if (turnInputTokens > 0 || turnOutputTokens > 0) {
+                            emit({ kind: "usage", inputTokens: turnInputTokens, outputTokens: turnOutputTokens })
+                          }
+
                           // Feed synthetic idle to processor so it promotes
                           // narration → assistant message before emitting idle
                           const processor = getOrCreateProcessor(sessionId ?? ctx.taskId)

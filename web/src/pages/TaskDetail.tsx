@@ -387,7 +387,8 @@ export function TaskDetail() {
   const { color: statusColor, label: statusLabel } = getStatusConfig(task.status)
   const isTerminated = task.status === "done" || task.status === "failed" || task.status === "cancelled"
 
-  const ctxMax = task.model ? contextWindowByModel[task.model] : undefined
+  const tokenModel = sessionTask?.model ?? task.model
+  const ctxMax = tokenModel ? contextWindowByModel[tokenModel] : undefined
   const tokenLabel = session.inputTokens > 0
     ? ctxMax
       ? `${formatTokens(session.inputTokens)} / ${formatTokens(ctxMax)}`
