@@ -3,7 +3,7 @@ name: platform-setup
 description: Set up Tangerine on the host machine or inside a VM — install tools, configure projects, clone repos, and install agent skills.
 metadata:
   author: tung
-  version: "1.1.0"
+  version: "1.2.0"
 ---
 
 # Tangerine Init Skill
@@ -26,11 +26,24 @@ Host (laptop) — or VM (Lima)
 
 No SSH tunnels, no per-project VMs. One machine, all projects.
 
+## Routing
+
+Before doing anything, figure out which mode applies:
+
+1. **Check if Tangerine is already running** (`tangerine --version` or `~/tangerine/config.json` exists) → **Mode 3** (add a project).
+2. **Check if we're inside a Lima VM** (`limactl info` fails or `uname -n` contains "lima") → **Mode 1** (set up Tangerine here).
+3. **Check if the user is on macOS** (`uname -s` = `Darwin`) and `limactl` is available → ask: *"Do you want to run Tangerine directly on this machine or inside a Lima VM?"*
+   - Direct → **Mode 1**
+   - VM → **Mode 2**
+4. **Otherwise** (Linux host, no VM) → **Mode 1**.
+
 ## Setup Modes
 
-### Mode 1: Host Machine Setup
+Two modes: **Tangerine Setup** (install and run Tangerine on the current machine) and **VM Creation** (create a Lima VM on macOS, then run Tangerine Setup inside it — the setup steps are identical once inside).
 
-User runs `/platform-setup` from their host machine (macOS or Linux) and wants to run Tangerine natively — no VM. You help them:
+### Mode 1: Tangerine Setup (host or inside VM)
+
+User is on the machine where Tangerine will run — either their host or inside a Lima VM. You help them:
 
 1. **Install prerequisites**
 
@@ -93,47 +106,73 @@ User runs `/platform-setup` from their host machine (macOS or Linux) and wants t
    tangerine start
    ```
 
-### Mode 2: Fresh VM Setup (from host, Lima)
+### Mode 2: VM Creation (macOS host, Lima)
 
-User runs `/platform-setup` from the HOST machine and wants a Lima VM. You help them:
+User wants a Lima VM to run Tangerine in. You help them create it, then they run Mode 1 inside:
 
-1. **Create Lima VM** (if not exists):
+1. **Write the Lima VM template** and start the VM:
    ```bash
-   limactl start --name tangerine ~/workspace/tangerine/deploy/tangerine.yaml
+   cat > /tmp/tangerine.yaml << 'EOF'
+   # Tangerine Lima VM Template
+
+   # Debian 13 (Trixie) cloud images
+   images:
+     - location: "https://cloud.debian.org/images/cloud/trixie/daily/latest/debian-13-generic-arm64-daily.qcow2"
+       arch: "aarch64"
+     - location: "https://cloud.debian.org/images/cloud/trixie/daily/latest/debian-13-generic-amd64-daily.qcow2"
+       arch: "x86_64"
+
+   # Apple Virtualization.framework for better perf on macOS
+   vmType: "vz"
+   vmOpts:
+     vz:
+       rosetta:
+         enabled: true
+         binfmt: true
+
+   cpus: 4
+   memory: "8GiB"
+   disk: "20GiB"
+
+   ssh:
+     localPort: 0
+     loadDotSSHPubKeys: true
+     forwardAgent: true
+
+   portForwards:
+     - guestPort: 3456
+       hostIP: "0.0.0.0"
+       hostPort: 3456
+
+   # Mount tangerine data — DB, config, credentials survive VM rebuilds.
+   mounts:
+     - location: "~/tangerine"
+       mountPoint: "/home/$USER/tangerine"
+       writable: true
+     - location: "~/.config/gh"
+       mountPoint: "/home/$USER/.config/gh"
+       writable: false
+   EOF
+   limactl start --name tangerine /tmp/tangerine.yaml
    ```
 
-2. **Run base setup** inside VM:
+2. **Shell into the VM**, install your coding agent(s), authenticate them, then run `/platform-setup`:
    ```bash
    limactl shell tangerine
-   sudo bash /path/to/tangerine/deploy/base-setup.sh
+   # Install your agent(s) of choice, e.g.:
+   npm install -g @anthropic-ai/claude-code   # Claude Code
+   npm install -g opencode-ai                 # OpenCode
+   # Authenticate each agent before continuing:
+   claude       # complete OAuth
+   opencode     # complete auth
+   gh auth login
+   # Then run platform-setup to install tools and configure projects:
+   # /platform-setup
    ```
 
-3. **Clone tangerine** inside VM:
-   ```bash
-   cd ~/workspace
-   git clone <tangerine-repo> tangerine
-   cd tangerine && bun install
-   ```
+### Mode 3: Project Setup
 
-4. **Install agent skills** inside VM (once):
-   ```bash
-   cd ~/workspace/tangerine
-   bin/tangerine install
-   ```
-
-5. **Add a project** (required before starting — see Project Setup below):
-   ```bash
-   tangerine project add --name <name> --repo <url> --setup "<cmd>"
-   ```
-
-6. **Start server**:
-   ```bash
-   tangerine start
-   ```
-
-### Mode 3: Project Setup (inside VM or on host)
-
-User runs `/platform-setup` from inside the VM or on the host in a project directory. You help them add the project to Tangerine.
+User wants to add a project to an already-running Tangerine instance. You help them add the project to Tangerine.
 
 ## Project Setup Workflow
 
@@ -221,16 +260,6 @@ User runs `/platform-setup` from inside the VM or on the host in a project direc
    ```
    If validation fails, identify the missing field and ask the user to supply it before continuing.
 
-### Base Setup Includes
-
-The `deploy/base-setup.sh` installs these globally:
-- git, curl, jq, dtach, unzip
-- Node.js 22 LTS, npm, pnpm
-- Bun runtime
-- PHP CLI + common extensions, Composer
-- OpenCode + Claude Code (pre-installed globally)
-- gh CLI
-
 ## Credentials
 
 Tangerine does not manage agent credentials. Before starting Tangerine, ensure each agent you plan to use is already installed and authenticated:
@@ -259,9 +288,6 @@ Tangerine does not configure or verify credentials — it relies on the agent's 
     1/
 
 ~/workspace/tangerine/    # tangerine source code
-  deploy/
-    tangerine.yaml        # Lima VM template
-    base-setup.sh         # common tool installation
 ```
 
 ## What to Ask the User
