@@ -483,9 +483,6 @@ export function ChatInput({ onSend, disabled, queueLength, taskId, isWorking, on
                   provider={provider}
                 />
               )}
-              {contextWindowLabel && (
-                <span className="shrink-0 text-xs text-muted-foreground/60">· {contextWindowLabel} ctx</span>
-              )}
             </div>
             <div className="flex shrink-0 items-center gap-1.5">
               {queueLength > 0 && (
@@ -508,19 +505,24 @@ export function ChatInput({ onSend, disabled, queueLength, taskId, isWorking, on
         </InputGroup>
       </div>
 
-      {/* Stop agent — below the input, right-aligned */}
-      {isWorking && (
-        <div className="mt-2 flex justify-end">
-          <Button
-            variant="destructive"
-            size="xs"
-            onClick={onAbort}
-          >
-            <svg className="h-2.5 w-2.5" fill="currentColor" viewBox="0 0 24 24">
-              <rect x="6" y="6" width="12" height="12" rx="1" />
-            </svg>
-            <span className="text-xxs font-medium">Stop agent</span>
-          </Button>
+      {/* Context window + stop agent — below the input */}
+      {(contextWindowLabel || isWorking) && (
+        <div className="mt-2 flex items-center justify-between">
+          <span className="text-xs text-muted-foreground/60">
+            {contextWindowLabel ? `· ${contextWindowLabel} ctx` : ""}
+          </span>
+          {isWorking && (
+            <Button
+              variant="destructive"
+              size="xs"
+              onClick={onAbort}
+            >
+              <svg className="h-2.5 w-2.5" fill="currentColor" viewBox="0 0 24 24">
+                <rect x="6" y="6" width="12" height="12" rx="1" />
+              </svg>
+              <span className="text-xxs font-medium">Stop agent</span>
+            </Button>
+          )}
         </div>
       )}
     </div>
