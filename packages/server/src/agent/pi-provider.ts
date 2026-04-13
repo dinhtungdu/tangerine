@@ -70,8 +70,17 @@ export function createPiEventMapper(): (data: Record<string, unknown>) => AgentE
       case "agent_start":
         return [{ kind: "status", status: "working" }]
 
-      case "agent_end":
-        return [{ kind: "status", status: "idle" }]
+      case "agent_end": {
+        const events: AgentEvent[] = [{ kind: "status", status: "idle" }]
+        const usage = extractPiUsage(data)
+        if (usage) events.push(usage)
+        return events
+      }
+
+      case "turn_end": {
+        const usage = extractPiUsage(data)
+        return usage ? [usage] : []
+      }
 
       case "message_update": {
         // data.assistantMessageEvent contains the streaming delta
@@ -171,6 +180,17 @@ export function createPiEventMapper(): (data: Record<string, unknown>) => AgentE
   }
 }
 
+export function extractPiUsage(data: Record<string, unknown>): AgentEvent | null {
+  const usage = data.usage as Record<string, unknown> | undefined
+  if (!usage) return null
+  const inputTokens = typeof usage.inputTokens === "number" ? usage.inputTokens
+    : typeof usage.input_tokens === "number" ? usage.input_tokens : 0
+  const outputTokens = typeof usage.outputTokens === "number" ? usage.outputTokens
+    : typeof usage.output_tokens === "number" ? usage.output_tokens : 0
+  if (inputTokens === 0 && outputTokens === 0) return null
+  return { kind: "usage", inputTokens, outputTokens }
+}
+
 function truncate(s: string, maxLen: number): string {
   return s.length <= maxLen ? s : s.slice(0, maxLen) + "\u2026"
 }
@@ -254,7 +274,12 @@ export function createPiProvider(): AgentFactory {
           // Skills discovered from get_state response
           let discoveredSkills: string[] = []
 
+          let latestUsage: { inputTokens: number; outputTokens: number } | null = null
+
           const emit = (event: AgentEvent) => {
+            if (event.kind === "usage") {
+              latestUsage = { inputTokens: event.inputTokens, outputTokens: event.outputTokens }
+            }
             for (const cb of subscribers) cb(event)
           }
 
@@ -506,6 +531,10 @@ export function createPiProvider(): AgentFactory {
               } catch {
                 return false
               }
+            },
+
+            getUsage() {
+              return latestUsage
             },
 
             getSkills() {
