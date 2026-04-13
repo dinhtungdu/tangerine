@@ -1,7 +1,7 @@
 import React, { useState, useRef, useCallback, useEffect, type KeyboardEvent, type ClipboardEvent, type MouseEvent } from "react"
 import { Send, ArrowUp, X, Quote } from "lucide-react"
 import { Button } from "@/components/ui/button"
-import { InputGroup, InputGroupAddon, InputGroupButton, InputGroupTextarea } from "@/components/ui/input-group"
+import { Textarea } from "@/components/ui/textarea"
 import type { PromptImage, PredefinedPrompt, ProviderType, Task } from "@tangerine/shared"
 import { ModelSelector } from "./ModelSelector"
 import { ReasoningEffortSelector, type ReasoningEffort } from "./ReasoningEffortSelector"
@@ -383,8 +383,8 @@ export function ChatInput({ onSend, disabled, queueLength, taskId, isWorking, on
             onHover={(i) => setSlashState((s) => ({ ...s, selectedIndex: i }))}
           />
         )}
-        <InputGroup>
-          <InputGroupTextarea
+        <div className="rounded-lg border border-input bg-background transition-colors focus-within:border-ring focus-within:ring-3 focus-within:ring-ring/50 dark:bg-input/30">
+          <Textarea
             ref={textareaRef}
             value={text}
             onChange={(e) => {
@@ -422,12 +422,11 @@ export function ChatInput({ onSend, disabled, queueLength, taskId, isWorking, on
             placeholder={isWorking ? "Agent is working... (messages will be queued)" : "Message agent..."}
             disabled={disabled}
             rows={1}
-            className="min-h-9 max-h-36 px-3 placeholder:text-muted-foreground/50 md:px-3.5"
+            className="min-h-9 max-h-36 rounded-none border-0 bg-transparent px-3 shadow-none ring-0 focus-visible:border-transparent focus-visible:ring-0 placeholder:text-muted-foreground/50 md:px-3.5"
           />
-          {/* Bottom toolbar: model/effort/context on left, queue badge + send on right */}
-          <InputGroupAddon
-            align="block-end"
-            className="justify-between border-t border-border/50"
+          {/* Bottom toolbar: model/effort on left, queue badge + send on right */}
+          <div
+            className="flex w-full items-center justify-between border-t border-border/50 px-2.5 pb-2 pt-2"
             onClick={(e: React.MouseEvent) => {
               if ((e.target as HTMLElement).closest("button")) return
               textareaRef.current?.focus()
@@ -457,20 +456,19 @@ export function ChatInput({ onSend, disabled, queueLength, taskId, isWorking, on
                   {queueLength}
                 </span>
               )}
-              <InputGroupButton
+              <Button
                 onClick={handleSend}
                 disabled={!canSend}
                 aria-label="Send message"
-                variant="default"
                 size="icon-sm"
                 className="shrink-0"
               >
                 <ArrowUp className="h-4 w-4 md:hidden" />
                 <Send className="hidden h-4 w-4 md:block" />
-              </InputGroupButton>
+              </Button>
             </div>
-          </InputGroupAddon>
-        </InputGroup>
+          </div>
+        </div>
       </div>
 
       {/* Context window + stop agent — below the input */}
