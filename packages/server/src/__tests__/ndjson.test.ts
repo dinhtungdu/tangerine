@@ -197,7 +197,7 @@ describe("mapClaudeCodeEvent", () => {
   })
 
   describe("stream_event usage extraction", () => {
-    test("emits usage from message_start with input tokens only", () => {
+    test("emits contextTokens from message_start", () => {
       const mapper = createClaudeCodeMapper()
       const events = mapper({
         type: "stream_event",
@@ -215,26 +215,10 @@ describe("mapClaudeCodeEvent", () => {
 
       expect(events).toEqual([{
         kind: "usage",
-        inputTokens: 65000,
-      }])
-      expect(events[0]).not.toHaveProperty("outputTokens")
-    })
-
-    test("emits usage from message_delta with output tokens only", () => {
-      const mapper = createClaudeCodeMapper()
-      const events = mapper({
-        type: "stream_event",
-        event: {
-          type: "message_delta",
-          usage: { output_tokens: 1200 },
-        },
-      })
-
-      expect(events).toEqual([{
-        kind: "usage",
-        outputTokens: 1200,
+        contextTokens: 65000,
       }])
       expect(events[0]).not.toHaveProperty("inputTokens")
+      expect(events[0]).not.toHaveProperty("outputTokens")
     })
 
     test("skips usage from message_start when all tokens are zero", () => {

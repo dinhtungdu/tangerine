@@ -26,6 +26,7 @@ interface UseSessionResult {
   abort: () => void
   inputTokens: number
   outputTokens: number
+  contextTokens: number
 }
 
 export function useSession(taskId: string, initialTokens?: { inputTokens: number; outputTokens: number }): UseSessionResult {
@@ -36,6 +37,7 @@ export function useSession(taskId: string, initialTokens?: { inputTokens: number
   const [taskStatus, setTaskStatus] = useState<TaskStatus | null>(null)
   const [inputTokens, setInputTokens] = useState(initialTokens?.inputTokens ?? 0)
   const [outputTokens, setOutputTokens] = useState(initialTokens?.outputTokens ?? 0)
+  const [contextTokens, setContextTokens] = useState(0)
   const { connected, messages: wsMessages, send } = useWebSocket(taskId)
   const processedCountRef = useRef(0)
   // Track optimistic user message IDs so we can deduplicate WS broadcasts
@@ -167,9 +169,10 @@ export function useSession(taskId: string, initialTokens?: { inputTokens: number
           } else if (eventType === "agent.end" || eventType === "agent.idle") {
             setAgentStatus("idle")
           } else if (eventType === "usage") {
-            const ev = data as { inputTokens?: number; outputTokens?: number }
+            const ev = data as { inputTokens?: number; outputTokens?: number; contextTokens?: number }
             if (typeof ev.inputTokens === "number") setInputTokens(ev.inputTokens)
             if (typeof ev.outputTokens === "number") setOutputTokens(ev.outputTokens)
+            if (typeof ev.contextTokens === "number" && ev.contextTokens > 0) setContextTokens(ev.contextTokens)
           }
         }
         break
@@ -239,5 +242,5 @@ export function useSession(taskId: string, initialTokens?: { inputTokens: number
     setQueueLength(0)
   }, [send])
 
-  return { messages, activities, agentStatus, queueLength, connected, taskStatus, sendPrompt, abort, inputTokens, outputTokens }
+  return { messages, activities, agentStatus, queueLength, connected, taskStatus, sendPrompt, abort, inputTokens, outputTokens, contextTokens }
 }

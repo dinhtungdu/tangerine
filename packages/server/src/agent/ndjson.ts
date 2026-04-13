@@ -289,25 +289,17 @@ export function createClaudeCodeMapper(): (raw: Record<string, unknown>) => Agen
         }
       }
 
-      // message_start carries input token count (context window usage for this turn)
+      // message_start carries per-turn context window usage
       if (event.type === "message_start") {
         const message = event.message as Record<string, unknown> | undefined
         const usage = message?.usage as Record<string, unknown> | undefined
         if (usage) {
-          const inputTokens = (typeof usage.input_tokens === "number" ? usage.input_tokens : 0)
+          const contextTokens = (typeof usage.input_tokens === "number" ? usage.input_tokens : 0)
             + (typeof usage.cache_read_input_tokens === "number" ? usage.cache_read_input_tokens : 0)
             + (typeof usage.cache_creation_input_tokens === "number" ? usage.cache_creation_input_tokens : 0)
-          if (inputTokens > 0) {
-            return [{ kind: "usage", inputTokens }]
+          if (contextTokens > 0) {
+            return [{ kind: "usage", contextTokens }]
           }
-        }
-      }
-
-      // message_delta carries final output token count
-      if (event.type === "message_delta") {
-        const usage = event.usage as Record<string, unknown> | undefined
-        if (usage && typeof usage.output_tokens === "number" && usage.output_tokens > 0) {
-          return [{ kind: "usage", outputTokens: usage.output_tokens }]
         }
       }
 

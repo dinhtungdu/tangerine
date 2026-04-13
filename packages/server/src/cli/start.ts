@@ -710,7 +710,12 @@ export async function start(): Promise<void> {
                     )
                   )
                 }
-                emitTaskEvent(taskId, { event: "usage", inputTokens: event.inputTokens ?? 0, outputTokens: event.outputTokens ?? 0 })
+                emitTaskEvent(taskId, {
+                  event: "usage",
+                  inputTokens: event.inputTokens ?? 0,
+                  outputTokens: event.outputTokens ?? 0,
+                  contextTokens: event.contextTokens ?? 0,
+                })
                 break
               }
               case "error": {

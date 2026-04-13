@@ -27,8 +27,10 @@ export type AgentEvent =
   | { kind: "tool.end"; toolName: string; toolResult?: string }
   | { kind: "thinking"; content: string }
   /** Token usage — providers emit this when they have token data.
-   *  Fields are undefined when the event only carries partial data (e.g. stream events). */
-  | { kind: "usage"; inputTokens?: number; outputTokens?: number }
+   *  Fields are undefined when the event only carries partial data (e.g. stream events).
+   *  contextTokens = current context window usage for this turn (from message_start).
+   *  inputTokens/outputTokens = cumulative session totals (from result events). */
+  | { kind: "usage"; inputTokens?: number; outputTokens?: number; contextTokens?: number }
 
 /** Runtime config that can be changed mid-session */
 export interface AgentConfig {
