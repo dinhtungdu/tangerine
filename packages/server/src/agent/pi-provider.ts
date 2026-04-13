@@ -72,13 +72,26 @@ export function createPiEventMapper(): (data: Record<string, unknown>) => AgentE
 
       case "agent_end": {
         const events: AgentEvent[] = [{ kind: "status", status: "idle" }]
-        const usage = extractPiUsage(data)
-        if (usage) events.push(usage)
+        // agent_end.messages contains all AssistantMessages from the run
+        const messages = data.messages as Array<Record<string, unknown>> | undefined
+        if (Array.isArray(messages)) {
+          let totalInput = 0, totalOutput = 0
+          for (const msg of messages) {
+            const u = extractPiMessageUsage(msg)
+            if (u) { totalInput += u.inputTokens; totalOutput += u.outputTokens }
+          }
+          if (totalInput > 0 || totalOutput > 0) {
+            events.push({ kind: "usage", inputTokens: totalInput, outputTokens: totalOutput })
+          }
+        }
         return events
       }
 
       case "turn_end": {
-        const usage = extractPiUsage(data)
+        // turn_end.message is a single AgentMessage
+        const msg = data.message as Record<string, unknown> | undefined
+        if (!msg) return []
+        const usage = extractPiMessageUsage(msg)
         return usage ? [usage] : []
       }
 
@@ -180,13 +193,16 @@ export function createPiEventMapper(): (data: Record<string, unknown>) => AgentE
   }
 }
 
-export function extractPiUsage(data: Record<string, unknown>): AgentEvent | null {
-  const usage = data.usage as Record<string, unknown> | undefined
+// Pi's Usage type: { input, output, cacheRead, cacheWrite, totalTokens, cost }
+// Lives on AssistantMessage.usage (not at event top level).
+export function extractPiMessageUsage(msg: Record<string, unknown>): { kind: "usage"; inputTokens: number; outputTokens: number } | null {
+  const usage = msg.usage as Record<string, unknown> | undefined
   if (!usage) return null
-  const inputTokens = typeof usage.inputTokens === "number" ? usage.inputTokens
-    : typeof usage.input_tokens === "number" ? usage.input_tokens : 0
-  const outputTokens = typeof usage.outputTokens === "number" ? usage.outputTokens
-    : typeof usage.output_tokens === "number" ? usage.output_tokens : 0
+  const input = typeof usage.input === "number" ? usage.input : 0
+  const cacheRead = typeof usage.cacheRead === "number" ? usage.cacheRead : 0
+  const cacheWrite = typeof usage.cacheWrite === "number" ? usage.cacheWrite : 0
+  const inputTokens = input + cacheRead + cacheWrite
+  const outputTokens = typeof usage.output === "number" ? usage.output : 0
   if (inputTokens === 0 && outputTokens === 0) return null
   return { kind: "usage", inputTokens, outputTokens }
 }

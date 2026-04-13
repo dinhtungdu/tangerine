@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test"
-import { createPiEventMapper, extractPiUsage } from "../agent/pi-provider"
+import { createPiEventMapper, extractPiMessageUsage } from "../agent/pi-provider"
 
 describe("createPiEventMapper", () => {
   test("does not promote tool results into assistant messages", () => {
@@ -33,52 +33,51 @@ describe("createPiEventMapper", () => {
     }])
   })
 
-  test("emits usage from agent_end with usage data", () => {
+  test("emits usage from agent_end with assistant messages", () => {
     const mapEvent = createPiEventMapper()
 
     const events = mapEvent({
       type: "agent_end",
-      usage: { inputTokens: 5000, outputTokens: 1200 },
+      messages: [
+        { role: "assistant", usage: { input: 3000, output: 500, cacheRead: 200, cacheWrite: 100 } },
+        { role: "assistant", usage: { input: 2000, output: 700, cacheRead: 0, cacheWrite: 0 } },
+      ],
     })
 
     expect(events).toContainEqual({ kind: "status", status: "idle" })
-    expect(events).toContainEqual({ kind: "usage", inputTokens: 5000, outputTokens: 1200 })
+    expect(events).toContainEqual({ kind: "usage", inputTokens: 5300, outputTokens: 1200 })
   })
 
-  test("emits usage from turn_end", () => {
+  test("emits usage from turn_end message", () => {
     const mapEvent = createPiEventMapper()
 
     const events = mapEvent({
       type: "turn_end",
-      usage: { input_tokens: 3000, output_tokens: 700 },
+      message: { role: "assistant", usage: { input: 3000, output: 700, cacheRead: 0, cacheWrite: 0 } },
+      toolResults: [],
     })
 
     expect(events).toEqual([{ kind: "usage", inputTokens: 3000, outputTokens: 700 }])
   })
 
-  test("agent_end without usage emits only status", () => {
+  test("agent_end without messages emits only status", () => {
     const mapEvent = createPiEventMapper()
 
     expect(mapEvent({ type: "agent_end" })).toEqual([{ kind: "status", status: "idle" }])
   })
 })
 
-describe("extractPiUsage", () => {
-  test("extracts camelCase usage fields", () => {
-    expect(extractPiUsage({ usage: { inputTokens: 4000, outputTokens: 900 } }))
-      .toEqual({ kind: "usage", inputTokens: 4000, outputTokens: 900 })
-  })
-
-  test("extracts snake_case usage fields", () => {
-    expect(extractPiUsage({ usage: { input_tokens: 3000, output_tokens: 700 } }))
-      .toEqual({ kind: "usage", inputTokens: 3000, outputTokens: 700 })
+describe("extractPiMessageUsage", () => {
+  test("extracts Pi usage fields (input, output, cacheRead, cacheWrite)", () => {
+    expect(extractPiMessageUsage({ usage: { input: 4000, output: 900, cacheRead: 500, cacheWrite: 200 } }))
+      .toEqual({ kind: "usage", inputTokens: 4700, outputTokens: 900 })
   })
 
   test("returns null when no usage field", () => {
-    expect(extractPiUsage({})).toBeNull()
+    expect(extractPiMessageUsage({})).toBeNull()
   })
 
   test("returns null when all tokens are zero", () => {
-    expect(extractPiUsage({ usage: { inputTokens: 0, outputTokens: 0 } })).toBeNull()
+    expect(extractPiMessageUsage({ usage: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0 } })).toBeNull()
   })
 })
