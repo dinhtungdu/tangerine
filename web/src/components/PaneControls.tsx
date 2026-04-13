@@ -6,9 +6,10 @@ export function ResizeHandle({ onPointerDown, className }: { onPointerDown: (e: 
       onPointerDown={onPointerDown}
       role="separator"
       aria-orientation="vertical"
-      className={`group relative flex w-3 shrink-0 touch-none cursor-col-resize items-stretch justify-center${className ? ` ${className}` : ""}`}
+      className={`group relative flex w-px shrink-0 touch-none cursor-col-resize items-stretch justify-center${className ? ` ${className}` : ""}`}
     >
-      <span className="pointer-events-none my-0.5 w-px rounded-full bg-border transition-colors group-hover:bg-accent" />
+		  <span className="pointer-events-none my-0.5 w-px rounded-full bg-border transition-colors group-hover:bg-accent" />
+		  <span className="absolute w-3 left-0 top-0 bottom-0 -translate-x-1/2" />
     </div>
   )
 }
