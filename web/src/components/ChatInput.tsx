@@ -1,6 +1,7 @@
-import { useState, useRef, useCallback, useEffect, type KeyboardEvent, type ClipboardEvent, type MouseEvent } from "react"
+import React, { useState, useRef, useCallback, useEffect, type KeyboardEvent, type ClipboardEvent, type MouseEvent } from "react"
 import { Send, ArrowUp, X, Quote } from "lucide-react"
 import { Button } from "@/components/ui/button"
+import { InputGroup, InputGroupAddon } from "@/components/ui/input-group"
 import type { PromptImage, PredefinedPrompt, ProviderType, Task } from "@tangerine/shared"
 import { ModelSelector } from "./ModelSelector"
 import { ReasoningEffortSelector, type ReasoningEffort } from "./ReasoningEffortSelector"
@@ -8,6 +9,15 @@ import { MentionPicker } from "./MentionPicker"
 import { SlashCommandPicker } from "./SlashCommandPicker"
 import { useMentionPicker } from "../hooks/useMentionPicker"
 import { useTasks } from "../hooks/useTasks"
+
+function getContextWindowLabel(model: string | null | undefined): string | null {
+  if (!model) return null
+  const m = model.toLowerCase()
+  if (m.includes("claude")) return "200K"
+  if (m.includes("gemini")) return "1M"
+  if (m.includes("gpt-4") || m.includes("gpt-5") || m.startsWith("o1") || m.startsWith("o3") || m.startsWith("o4")) return "128K"
+  return null
+}
 
 interface PendingImage extends PromptImage {
   dataUrl: string // for thumbnail preview only
@@ -303,6 +313,7 @@ export function ChatInput({ onSend, disabled, queueLength, taskId, isWorking, on
 
   const canSend = (text.trim().length > 0 || pendingImages.length > 0 || !!quotedMessage) && !disabled
   const canChangeModel = providerModels && providerModels.length > 1 && onModelChange
+  const contextWindowLabel = getContextWindowLabel(model)
 
   return (
     <div className="relative border-t border-border bg-background px-3 py-2 md:bg-background md:p-3 md:px-4">
@@ -377,26 +388,28 @@ export function ChatInput({ onSend, disabled, queueLength, taskId, isWorking, on
         </div>
       )}
 
-      <div className="flex items-end gap-2">
-        <div className="relative min-w-0 flex-1">
-          {mention.state.isOpen && (
-            <MentionPicker
-              tasks={mention.filteredTasks}
-              selectedIndex={mention.state.selectedIndex}
-              onSelect={handleMentionSelect}
-              onHover={(i) => mention.setSelectedIndex(i)}
-            />
-          )}
-          {slashState.isOpen && filteredSkills.length > 0 && (
-            <SlashCommandPicker
-              skills={filteredSkills}
-              selectedIndex={slashState.selectedIndex}
-              onSelect={selectSkill}
-              onHover={(i) => setSlashState((s) => ({ ...s, selectedIndex: i }))}
-            />
-          )}
+      {/* Main input group with integrated toolbar */}
+      <div className="relative">
+        {mention.state.isOpen && (
+          <MentionPicker
+            tasks={mention.filteredTasks}
+            selectedIndex={mention.state.selectedIndex}
+            onSelect={handleMentionSelect}
+            onHover={(i) => mention.setSelectedIndex(i)}
+          />
+        )}
+        {slashState.isOpen && filteredSkills.length > 0 && (
+          <SlashCommandPicker
+            skills={filteredSkills}
+            selectedIndex={slashState.selectedIndex}
+            onSelect={selectSkill}
+            onHover={(i) => setSlashState((s) => ({ ...s, selectedIndex: i }))}
+          />
+        )}
+        <InputGroup>
           <textarea
             ref={textareaRef}
+            data-slot="input-group-control"
             value={text}
             onChange={(e) => {
               const val = e.target.value
@@ -442,49 +455,62 @@ export function ChatInput({ onSend, disabled, queueLength, taskId, isWorking, on
             placeholder={isWorking ? "Agent is working... (messages will be queued)" : "Message agent..."}
             disabled={disabled}
             rows={1}
-            className="min-h-9 w-full resize-none rounded-lg border border-border bg-background px-3 py-2 text-base text-foreground placeholder-muted-foreground/50 outline-none transition focus:border-muted-foreground/50 disabled:cursor-not-allowed disabled:opacity-50 md:px-3.5 md:text-md md:placeholder-muted-foreground"
+            className="min-h-9 w-full resize-none rounded-none border-0 bg-transparent px-3 py-2 text-base text-foreground placeholder:text-muted-foreground/50 shadow-none outline-none ring-0 focus-visible:ring-0 disabled:cursor-not-allowed disabled:opacity-50 md:px-3.5 md:text-sm md:placeholder:text-muted-foreground"
           />
-          {queueLength > 0 && (
-            <span className="absolute right-2 top-2 flex h-5 w-5 items-center justify-center rounded-full bg-orange-500 text-2xs font-bold text-white">
-              {queueLength}
-            </span>
-          )}
-        </div>
-
-        {/* Send button — always visible on all breakpoints */}
-        <Button
-          onClick={handleSend}
-          disabled={!canSend}
-          aria-label="Send message"
-          size="icon-lg"
-          className="mb-2 shrink-0 rounded-full md:rounded-lg"
-        >
-          <ArrowUp className="h-4 w-4 md:hidden" />
-          <Send className="hidden h-4 w-4 md:block" />
-        </Button>
+          {/* Bottom toolbar: model/effort/context on left, queue badge + send on right */}
+          <InputGroupAddon
+            align="block-end"
+            className="justify-between border-t border-border/50"
+            onClick={(e: React.MouseEvent) => {
+              if ((e.target as HTMLElement).closest("button")) return
+              textareaRef.current?.focus()
+            }}
+          >
+            <div className="flex min-w-0 items-center gap-1.5">
+              {canChangeModel ? (
+                <ModelSelector
+                  models={providerModels}
+                  model={model ?? providerModels[0] ?? ""}
+                  onModelChange={onModelChange}
+                />
+              ) : model ? (
+                <ModelSelector model={model} models={[model]} />
+              ) : null}
+              {onReasoningEffortChange && (
+                <ReasoningEffortSelector
+                  value={(reasoningEffort as ReasoningEffort) ?? "medium"}
+                  onChange={onReasoningEffortChange}
+                  provider={provider}
+                />
+              )}
+              {contextWindowLabel && (
+                <span className="shrink-0 text-xs text-muted-foreground/60">· {contextWindowLabel} ctx</span>
+              )}
+            </div>
+            <div className="flex shrink-0 items-center gap-1.5">
+              {queueLength > 0 && (
+                <span className="flex h-5 w-5 items-center justify-center rounded-full bg-orange-500 text-2xs font-bold text-white">
+                  {queueLength}
+                </span>
+              )}
+              <Button
+                onClick={handleSend}
+                disabled={!canSend}
+                aria-label="Send message"
+                size="icon-sm"
+                className="shrink-0 rounded-lg"
+              >
+                <ArrowUp className="h-4 w-4 md:hidden" />
+                <Send className="hidden h-4 w-4 md:block" />
+              </Button>
+            </div>
+          </InputGroupAddon>
+        </InputGroup>
       </div>
 
-      {/* Model + reasoning selectors + stop button */}
-      <div className="mt-2 flex items-center justify-between">
-        <div className="flex items-center gap-2">
-          {canChangeModel ? (
-            <ModelSelector
-              models={providerModels}
-              model={model ?? providerModels[0] ?? ""}
-              onModelChange={onModelChange}
-            />
-          ) : model ? (
-            <ModelSelector model={model} models={[model]} />
-          ) : null}
-          {onReasoningEffortChange && (
-            <ReasoningEffortSelector
-              value={(reasoningEffort as ReasoningEffort) ?? "medium"}
-              onChange={onReasoningEffortChange}
-              provider={provider}
-            />
-          )}
-        </div>
-        {isWorking && (
+      {/* Stop agent — below the input, right-aligned */}
+      {isWorking && (
+        <div className="mt-2 flex justify-end">
           <Button
             variant="destructive"
             size="xs"
@@ -495,8 +521,8 @@ export function ChatInput({ onSend, disabled, queueLength, taskId, isWorking, on
             </svg>
             <span className="text-xxs font-medium">Stop agent</span>
           </Button>
-        )}
-      </div>
+        </div>
+      )}
     </div>
   )
 }
