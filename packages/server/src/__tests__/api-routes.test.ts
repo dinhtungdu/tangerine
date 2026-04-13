@@ -311,6 +311,48 @@ describe("API routes", () => {
       expect(res.status).toBe(201)
       expect(capturedProvider).toBe("claude-code")
     })
+
+    test("returns 400 for reasoningEffort invalid for provider (xhigh on claude-code)", async () => {
+      const res = await app.fetch(new Request("http://localhost/api/tasks", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ projectId: "test-project", title: "Task", provider: "claude-code", reasoningEffort: "xhigh" }),
+      }))
+      expect(res.status).toBe(400)
+      const body = await res.json() as { error: string }
+      expect(body.error).toContain("xhigh")
+      expect(body.error).toContain("claude-code")
+    })
+
+    test("accepts valid reasoningEffort for provider (max on claude-code)", async () => {
+      const res = await app.fetch(new Request("http://localhost/api/tasks", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ projectId: "test-project", title: "Task", provider: "claude-code", reasoningEffort: "max" }),
+      }))
+      expect(res.status).toBe(201)
+    })
+
+    test("accepts xhigh reasoningEffort for codex provider", async () => {
+      const res = await app.fetch(new Request("http://localhost/api/tasks", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ projectId: "test-project", title: "Task", provider: "codex", reasoningEffort: "xhigh" }),
+      }))
+      expect(res.status).toBe(201)
+    })
+
+    test("returns 400 for reasoningEffort invalid for project default provider", async () => {
+      // test-project defaultProvider is "opencode", which has low/medium/high but not xhigh
+      const res = await app.fetch(new Request("http://localhost/api/tasks", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ projectId: "test-project", title: "Task", reasoningEffort: "xhigh" }),
+      }))
+      expect(res.status).toBe(400)
+      const body = await res.json() as { error: string }
+      expect(body.error).toContain("xhigh")
+    })
   })
 
   describe("POST /api/tasks (cross-project)", () => {
@@ -693,6 +735,31 @@ describe("API routes", () => {
         body: JSON.stringify({}),
       }))
       expect(res.status).toBe(400)
+    })
+
+    test("returns 400 for reasoningEffort invalid for task's provider (xhigh on claude-code task)", async () => {
+      const row = seedTask(db, { provider: "claude-code" })
+      db.prepare("UPDATE tasks SET status = 'running' WHERE id = ?").run(row.id)
+      const res = await app.fetch(new Request(`http://localhost/api/tasks/${row.id}/model`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ reasoningEffort: "xhigh" }),
+      }))
+      expect(res.status).toBe(400)
+      const body = await res.json() as { error: string }
+      expect(body.error).toContain("xhigh")
+      expect(body.error).toContain("claude-code")
+    })
+
+    test("accepts xhigh reasoningEffort for codex task", async () => {
+      const row = seedTask(db, { provider: "codex" })
+      db.prepare("UPDATE tasks SET status = 'running' WHERE id = ?").run(row.id)
+      const res = await app.fetch(new Request(`http://localhost/api/tasks/${row.id}/model`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ reasoningEffort: "xhigh" }),
+      }))
+      expect(res.status).toBe(200)
     })
   })
 

@@ -36,7 +36,7 @@ function loadDraftFromKey(key: string): { description?: string; customBranch?: s
 /* -- Main form -- */
 
 export function NewAgentForm({ onSubmit, refTaskId, refTaskTitle, refBranch, refProjectId, autoFocus }: NewAgentFormProps) {
-  const { current, projects, modelsByProvider, systemCapabilities } = useProject()
+  const { current, projects, modelsByProvider, systemCapabilities, providerMetadata } = useProject()
   const PREFS_KEY = "tangerine:agent-prefs"
 
   // selectedProjectName is set when the user explicitly picks a project or when
@@ -107,7 +107,17 @@ export function NewAgentForm({ onSubmit, refTaskId, refTaskTitle, refBranch, ref
   const handleProviderChange = useCallback((p: ProviderType) => {
     setProvider(p)
     savePrefs({ provider: p })
-  }, [savePrefs])
+    // Reset reasoningEffort if the current value is invalid for the new provider
+    const meta = providerMetadata[p]
+    if (meta?.reasoningEfforts.length) {
+      const validValues = meta.reasoningEfforts.map((e) => e.value)
+      if (!validValues.includes(reasoningEffort)) {
+        const fallback = meta.reasoningEfforts.find((e) => e.value === "medium") ?? meta.reasoningEfforts[0]!
+        setReasoningEffort(fallback.value as ReasoningEffort)
+        savePrefs({ reasoningEffort: fallback.value })
+      }
+    }
+  }, [savePrefs, providerMetadata, reasoningEffort])
 
   const handleModelChange = useCallback((m: string) => {
     setModelByProvider((prev) => {

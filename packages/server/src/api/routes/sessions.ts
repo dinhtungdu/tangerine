@@ -7,6 +7,7 @@ import { runEffect, runEffectVoid } from "../effect-helpers"
 import { normalizeTimestamps } from "../helpers"
 import { TaskNotFoundError } from "../../errors"
 import { getProjectConfig, getRepoDir, TANGERINE_HOME } from "../../config"
+import { isValidReasoningEffort, getValidReasoningEfforts } from "../../agent/metadata"
 
 function gitDiff(cmd: string, cwd: string): Effect.Effect<string, never> {
   return Effect.tryPromise({
@@ -95,12 +96,21 @@ export function sessionRoutes(deps: AppDeps): Hono {
   })
 
   app.post("/:id/model", async (c) => {
+    const taskId = c.req.param("id")
     const body = await c.req.json<{ model?: string; reasoningEffort?: string }>()
     if (!body.model && !body.reasoningEffort) {
       return c.json({ error: "model or reasoningEffort is required" }, 400)
     }
+    if (body.reasoningEffort !== undefined) {
+      // Validate against the task's current provider to prevent cross-provider effort values
+      const row = deps.db.prepare("SELECT provider FROM tasks WHERE id = ?").get(taskId) as { provider: string } | null
+      if (row?.provider && !isValidReasoningEffort(row.provider, body.reasoningEffort)) {
+        const valid = getValidReasoningEfforts(row.provider).join(", ")
+        return c.json({ error: `Invalid reasoningEffort "${body.reasoningEffort}" for provider "${row.provider}". Must be one of: ${valid}` }, 400)
+      }
+    }
     return runEffectVoid(c,
-      deps.taskManager.changeConfig(c.req.param("id"), { model: body.model, reasoningEffort: body.reasoningEffort })
+      deps.taskManager.changeConfig(taskId, { model: body.model, reasoningEffort: body.reasoningEffort })
     )
   })
 
