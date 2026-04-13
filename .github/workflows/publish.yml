@@ -31,4 +31,4 @@ jobs:
       - name: Publish to npm
         run: bun publish --access public --ignore-scripts
         env:
-          NPM_CONFIG_TOKEN: ${{ secrets.NPM_TOKEN }}
+          BUN_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
