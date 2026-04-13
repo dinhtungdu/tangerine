@@ -4,8 +4,9 @@ Local background coding agent platform. Tangerine runs as a local Bun server, sp
 
 ## Current Architecture
 
-- Single-machine runtime: no per-project VMs, SSH tunnels, or image builds in the active codepath
-- Multi-provider agents: OpenCode, Claude Code, and Codex
+- Single-machine runtime, use it on your host machine or inside a VM.
+- No auth, yet, so don't put it on a VPS, for now, okay?
+- Multi-provider agents: Pi, OpenCode, Claude Code, and Codex
 - Git worktrees per task under a shared workspace
 - Hono API server with REST + WebSocket endpoints
 - Vite + React dashboard served from `web/dist`
@@ -32,7 +33,7 @@ specs/             # design and implementation docs
 
 ## Key Features
 
-- Manual, GitHub, and cross-project task creation
+- Manual and cross-project task creation
 - Task types: `worker`, `orchestrator`, `reviewer`
 - Task capabilities derived from type, not title
 - On-demand orchestrator startup
@@ -58,7 +59,7 @@ Install the skills:
 tangerine install
 ```
 
-Ask your agent to set up Tangerine and add projects using the `platform-setup` skill (`/platform-setup`).
+Ask your clanker to set up Tangerine and add projects using the `platform-setup` skill (`/platform-setup`).
 
 Then start:
 ```bash
