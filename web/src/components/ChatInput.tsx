@@ -383,7 +383,7 @@ export function ChatInput({ onSend, disabled, queueLength, taskId, isWorking, on
             onHover={(i) => setSlashState((s) => ({ ...s, selectedIndex: i }))}
           />
         )}
-        <InputGroup className="bg-background dark:bg-background">
+        <InputGroup>
           <InputGroupTextarea
             ref={textareaRef}
             value={text}
@@ -422,7 +422,7 @@ export function ChatInput({ onSend, disabled, queueLength, taskId, isWorking, on
             placeholder={isWorking ? "Agent is working... (messages will be queued)" : "Message agent..."}
             disabled={disabled}
             rows={1}
-            className="min-h-9 max-h-36 px-3 placeholder:text-muted-foreground/50 md:px-3.5 md:placeholder:text-muted-foreground"
+            className="min-h-9 max-h-36 px-3 placeholder:text-muted-foreground/50 md:px-3.5"
           />
           {/* Bottom toolbar: model/effort/context on left, queue badge + send on right */}
           <InputGroupAddon
