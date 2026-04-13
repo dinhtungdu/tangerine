@@ -333,10 +333,10 @@ export function buildCodexTurnStartParams(
 
 const CODEX_MODELS_CACHE = join(homedir(), ".codex", "models_cache.json")
 
-// Known context windows for well-known OpenAI models (slug prefix → tokens).
-// Codex's models cache does not include context window info.
-// Ordered longest-prefix-first so "o1-mini" matches before "o1".
-const OPENAI_CONTEXT_WINDOWS: [string, number][] = [
+// Fallback context windows for well-known OpenAI model slugs.
+// Used only when the models cache does not include a `context_window` field
+// (older Codex CLI versions). Ordered longest-prefix-first.
+const OPENAI_CONTEXT_WINDOWS_FALLBACK: [string, number][] = [
   ["o4-mini", 200_000],
   ["o3", 200_000],
   ["o1-mini", 128_000],
@@ -349,8 +349,8 @@ const OPENAI_CONTEXT_WINDOWS: [string, number][] = [
   ["gpt-3.5-turbo", 16_385],
 ]
 
-function openaiContextWindow(slug: string): number | undefined {
-  for (const [prefix, size] of OPENAI_CONTEXT_WINDOWS) {
+function fallbackContextWindow(slug: string): number | undefined {
+  for (const [prefix, size] of OPENAI_CONTEXT_WINDOWS_FALLBACK) {
     if (slug === prefix || slug.startsWith(`${prefix}-`)) return size
   }
   return undefined
@@ -359,23 +359,30 @@ function openaiContextWindow(slug: string): number | undefined {
 /**
  * Discover available Codex models by reading ~/.codex/models_cache.json.
  * Only includes models with visibility "list" (publicly available).
+ * Context windows come from the cache's `context_window` field (modern Codex CLI),
+ * with a slug-prefix fallback for older caches that lack this field.
  */
 export function discoverModels(): ModelInfo[] {
   if (!existsSync(CODEX_MODELS_CACHE)) return []
   try {
     const raw = JSON.parse(readFileSync(CODEX_MODELS_CACHE, "utf-8")) as {
-      models?: Array<{ slug: string; display_name?: string; visibility?: string; supported_in_api?: boolean }>
+      models?: Array<{ slug: string; display_name?: string; visibility?: string; supported_in_api?: boolean; context_window?: number }>
     }
     if (!Array.isArray(raw.models)) return []
     return raw.models
       .filter((m) => m.visibility === "list")
-      .map((m) => ({
-        id: m.slug,
-        name: m.display_name ?? m.slug,
-        provider: "openai",
-        providerName: "OpenAI",
-        ...(openaiContextWindow(m.slug) ? { contextWindow: openaiContextWindow(m.slug) } : {}),
-      }))
+      .map((m) => {
+        const contextWindow = (m.context_window && m.context_window > 0)
+          ? m.context_window
+          : fallbackContextWindow(m.slug)
+        return {
+          id: m.slug,
+          name: m.display_name ?? m.slug,
+          provider: "openai",
+          providerName: "OpenAI",
+          ...(contextWindow !== undefined ? { contextWindow } : {}),
+        }
+      })
   } catch {
     return []
   }

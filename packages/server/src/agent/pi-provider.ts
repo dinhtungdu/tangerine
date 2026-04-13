@@ -219,8 +219,20 @@ export function buildPiSystemPromptCommand(text: string): Record<string, unknown
 // Model discovery — runs `pi --list-models` and parses the table output
 // ---------------------------------------------------------------------------
 
+/** Parse a context size string like "144K", "1M", "272K" into a token count. */
+export function parseContextSize(raw: string): number | undefined {
+  const m = raw.trim().match(/^(\d+(?:\.\d+)?)(K|M)?$/i)
+  if (!m || !m[1]) return undefined
+  const n = parseFloat(m[1])
+  const suffix = (m[2] ?? "").toUpperCase()
+  if (suffix === "M") return Math.round(n * 1_000_000)
+  if (suffix === "K") return Math.round(n * 1_000)
+  return Math.round(n)
+}
+
 /**
  * Discover available Pi models by running `pi --list-models`.
+ * Parses the tabular output: provider, model, context, max-out, thinking, images.
  */
 export function discoverModels(): ModelInfo[] {
   try {
@@ -233,19 +245,22 @@ export function discoverModels(): ModelInfo[] {
     const output = (result.stderr || result.stdout || "").trim()
     if (result.status !== 0 || !output) return []
     const lines = output.split("\n")
-    // Skip the header line
+    // Skip the header line (provider, model, context, max-out, thinking, images)
     const models = lines.slice(1)
       .map((line) => {
         const cols = line.trim().split(/\s{2,}/)
         const provider = cols[0]
         const modelId = cols[1]
+        const contextRaw = cols[2]
         if (!provider || !modelId) return null
+        const contextWindow = contextRaw ? parseContextSize(contextRaw) : undefined
         const id = `${provider}/${modelId}`
         return {
           id,
           name: modelId,
           provider,
           providerName: provider.split("-").map((w) => w.charAt(0).toUpperCase() + w.slice(1)).join(" "),
+          ...(contextWindow !== undefined ? { contextWindow } : {}),
         }
       })
       .filter((m): m is ModelInfo => m !== null)

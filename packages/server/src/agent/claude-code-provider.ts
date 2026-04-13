@@ -5,18 +5,92 @@ import { Effect } from "effect"
 import { PROVIDER_DISPLAY_NAMES } from "@tangerine/shared"
 import { createLogger } from "../logger"
 import { AgentError, PromptError, SessionStartError } from "../errors"
-import type { AgentFactory, AgentHandle, AgentEvent, AgentStartContext, PromptImage, ProviderMetadata } from "./provider"
+import type { AgentFactory, AgentHandle, AgentEvent, AgentStartContext, PromptImage, ProviderMetadata, ModelInfo } from "./provider"
 import { parseNdjsonStream, createClaudeCodeMapper } from "./ndjson"
 import { homedir } from "node:os"
 import { join } from "node:path"
+import { existsSync, readFileSync, writeFileSync } from "node:fs"
+import { spawnSync } from "node:child_process"
 import { killDescendants, killProcessTreeEscalated } from "./process-tree"
 
 const log = createLogger("claude-code-provider")
-const CLAUDE_CODE_MODELS = [
+
+// ---------------------------------------------------------------------------
+// Model discovery — tries Anthropic REST API, falls back to static list
+// ---------------------------------------------------------------------------
+
+// Models known to Claude Code, used as fallback when the API is unavailable.
+// Context windows default to 200K — the API provides authoritative values.
+const CLAUDE_CODE_KNOWN_MODELS = [
   { id: "claude-opus-4-6", name: "Claude Opus 4.6", provider: "anthropic", providerName: "Anthropic", contextWindow: 200_000 },
   { id: "claude-sonnet-4-6", name: "Claude Sonnet 4.6", provider: "anthropic", providerName: "Anthropic", contextWindow: 200_000 },
   { id: "claude-haiku-4-5", name: "Claude Haiku 4.5", provider: "anthropic", providerName: "Anthropic", contextWindow: 200_000 },
-] as const
+]
+
+const CLAUDE_MODELS_CACHE = join(homedir(), ".claude", "tangerine-models-cache.json")
+const CACHE_TTL_MS = 24 * 60 * 60 * 1_000 // 24 h
+
+/** Fetch model list from the Anthropic REST API using ANTHROPIC_API_KEY. */
+function fetchAnthropicModels(): Array<{ id: string; context_window?: number }> | null {
+  const apiKey = process.env.ANTHROPIC_API_KEY
+  if (!apiKey) return null
+  try {
+    const result = spawnSync("curl", [
+      "-sf", "--max-time", "5",
+      "https://api.anthropic.com/v1/models",
+      "-H", `x-api-key: ${apiKey}`,
+      "-H", "anthropic-version: 2023-06-01",
+    ], { encoding: "utf-8", timeout: 6_000 })
+    if (result.status !== 0 || !result.stdout) return null
+    const data = JSON.parse(result.stdout) as { data?: Array<{ id: string; context_window?: number }> }
+    return data.data ?? null
+  } catch {
+    return null
+  }
+}
+
+/**
+ * Discover Claude models with per-model context windows from the Anthropic API.
+ * Results are cached to disk for 24 h; falls back to static list if unavailable.
+ */
+export function discoverModels(): ModelInfo[] {
+  let apiModels: Array<{ id: string; context_window?: number }> | null = null
+
+  if (existsSync(CLAUDE_MODELS_CACHE)) {
+    try {
+      const cached = JSON.parse(readFileSync(CLAUDE_MODELS_CACHE, "utf-8")) as {
+        fetchedAt: number
+        models: Array<{ id: string; context_window?: number }>
+      }
+      if (Date.now() - cached.fetchedAt < CACHE_TTL_MS) {
+        apiModels = cached.models
+      }
+    } catch { /* stale or corrupt cache, re-fetch below */ }
+  }
+
+  if (!apiModels) {
+    apiModels = fetchAnthropicModels()
+    if (apiModels) {
+      try {
+        writeFileSync(CLAUDE_MODELS_CACHE, JSON.stringify({ fetchedAt: Date.now(), models: apiModels }))
+      } catch { /* non-fatal: cache write failure */ }
+    }
+  }
+
+  // Only use API values that are actually numeric and positive; fall back to the
+  // static default otherwise (e.g. API omits context_window for a known model).
+  const contextMap = new Map(
+    (apiModels ?? [])
+      .filter((m): m is { id: string; context_window: number } =>
+        typeof m.context_window === "number" && m.context_window > 0)
+      .map((m) => [m.id, m.context_window]),
+  )
+
+  return CLAUDE_CODE_KNOWN_MODELS.map((m) => ({
+    ...m,
+    ...(contextMap.has(m.id) ? { contextWindow: contextMap.get(m.id)! } : {}),
+  }))
+}
 
 export const CLAUDE_CODE_PROVIDER_METADATA: ProviderMetadata = {
   displayName: PROVIDER_DISPLAY_NAMES["claude-code"],
@@ -39,7 +113,7 @@ export function createClaudeCodeProvider(): AgentFactory {
   return {
     metadata: CLAUDE_CODE_PROVIDER_METADATA,
     listModels() {
-      return [...CLAUDE_CODE_MODELS]
+      return discoverModels()
     },
     start(ctx: AgentStartContext): Effect.Effect<AgentHandle, SessionStartError> {
       const taskLog = log.child({ taskId: ctx.taskId })
