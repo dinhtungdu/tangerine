@@ -134,7 +134,15 @@ export function createClaudeCodeProvider(): AgentFactory {
 
                 const events = mapClaudeCodeEvent(raw)
                 for (const event of events) {
-                  if (event.kind === "usage") latestUsage = { inputTokens: event.inputTokens, outputTokens: event.outputTokens }
+                  if (event.kind === "usage") {
+                    // Merge partial usage — stream events emit input/output separately
+                    latestUsage = {
+                      inputTokens: event.inputTokens || latestUsage?.inputTokens || 0,
+                      outputTokens: event.outputTokens || latestUsage?.outputTokens || 0,
+                    }
+                    event.inputTokens = latestUsage.inputTokens
+                    event.outputTokens = latestUsage.outputTokens
+                  }
                   for (const cb of subscribers) cb(event)
                 }
                 // result event signals end of turn — emit idle after message.complete

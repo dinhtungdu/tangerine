@@ -32,6 +32,8 @@ interface ChatPanelProps {
   taskBranch?: string
   taskProjectId?: string
   autoFocusKey?: string
+  inputTokens?: number
+  contextWindowMax?: number
 }
 
 export function ChatPanel({
@@ -57,6 +59,8 @@ export function ChatPanel({
   taskBranch,
   taskProjectId,
   autoFocusKey,
+  inputTokens,
+  contextWindowMax,
 }: ChatPanelProps) {
   const scrollRef = useRef<HTMLDivElement>(null)
   const { navigate } = useProjectNav()
@@ -273,6 +277,8 @@ export function ChatPanel({
           selectedText={selectedText}
           onQuoteSelection={handleQuoteSelection}
           autoFocusKey={autoFocusKey}
+          inputTokens={inputTokens}
+          contextWindowMax={contextWindowMax}
         />
         </>
       )}

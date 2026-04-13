@@ -9,15 +9,7 @@ import { MentionPicker } from "./MentionPicker"
 import { SlashCommandPicker } from "./SlashCommandPicker"
 import { useMentionPicker } from "../hooks/useMentionPicker"
 import { useTasks } from "../hooks/useTasks"
-
-function getContextWindowLabel(model: string | null | undefined): string | null {
-  if (!model) return null
-  const m = model.toLowerCase()
-  if (m.includes("claude")) return "200K"
-  if (m.includes("gemini")) return "1M"
-  if (m.includes("gpt-4") || m.includes("gpt-5") || m.startsWith("o1") || m.startsWith("o3") || m.startsWith("o4")) return "128K"
-  return null
-}
+import { formatTokens } from "../lib/format"
 
 interface PendingImage extends PromptImage {
   dataUrl: string // for thumbnail preview only
@@ -45,6 +37,10 @@ interface ChatInputProps {
   onQuoteSelection?: () => void
   /** When this value changes, the input is focused. Pass the task ID to focus on navigation. */
   autoFocusKey?: string
+  /** Current input token count from the session */
+  inputTokens?: number
+  /** Max context window size in tokens for the current model */
+  contextWindowMax?: number
 }
 
 function loadChatDraft(key: string): { text?: string; pendingImages?: PendingImage[] } {
@@ -60,7 +56,7 @@ export function appendQuotedText(existingText: string, quotedText: string): stri
   return `${prefix}${quotedText}\n\n`
 }
 
-export function ChatInput({ onSend, disabled, queueLength, taskId, isWorking, onAbort, model, provider, providerModels, reasoningEffort, onModelChange, onReasoningEffortChange, predefinedPrompts, quotedMessage, onQuoteDismiss, selectedText, onQuoteSelection, autoFocusKey }: ChatInputProps) {
+export function ChatInput({ onSend, disabled, queueLength, taskId, isWorking, onAbort, model, provider, providerModels, reasoningEffort, onModelChange, onReasoningEffortChange, predefinedPrompts, quotedMessage, onQuoteDismiss, selectedText, onQuoteSelection, autoFocusKey, inputTokens, contextWindowMax }: ChatInputProps) {
   const draftKey = taskId ? `tangerine:chat-draft:${taskId}` : null
 
   const [text, setText] = useState(() => draftKey ? (loadChatDraft(draftKey).text ?? "") : "")
@@ -300,7 +296,11 @@ export function ChatInput({ onSend, disabled, queueLength, taskId, isWorking, on
 
   const canSend = (text.trim().length > 0 || pendingImages.length > 0 || !!quotedMessage) && !disabled
   const canChangeModel = providerModels && providerModels.length > 1 && onModelChange
-  const contextWindowLabel = getContextWindowLabel(model)
+  const contextWindowLabel = inputTokens && inputTokens > 0 && contextWindowMax
+    ? `${formatTokens(inputTokens)} / ${formatTokens(contextWindowMax)}`
+    : contextWindowMax
+      ? formatTokens(contextWindowMax)
+      : null
 
   return (
     <div className="relative border-t border-border bg-background px-3 py-2 md:bg-background md:p-3 md:px-4">

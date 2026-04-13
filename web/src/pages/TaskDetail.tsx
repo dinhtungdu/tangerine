@@ -604,6 +604,8 @@ export function TaskDetail() {
                 taskBranch={chatTask.status === "cancelled" ? (chatTask.branch ?? undefined) : undefined}
                 taskProjectId={chatTask.projectId}
                 autoFocusKey={chatTaskId}
+                inputTokens={session.inputTokens}
+                contextWindowMax={ctxMax}
               />
             </div>
           )}
