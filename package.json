@@ -1,5 +1,7 @@
 {
-  "name": "tangerine",
+  "name": "@dinhtungdu/tangerine",
+  "version": "0.0.1",
+  "description": "Local background coding agent platform with multi-provider support and web dashboard",
   "devDependencies": {
     "@eslint/js": "^10.0.1",
     "eslint": "^10.0.3",
@@ -10,8 +12,13 @@
   "bin": {
     "tangerine": "bin/tangerine"
   },
+  "files": [
+    "bin/",
+    "packages/",
+    "web/dist/",
+    "skills/"
+  ],
   "license": "MIT",
-  "private": true,
   "scripts": {
     "dev": "bun run --filter '*' dev",
     "dev:api": "bun run --filter tangerine-server dev",
