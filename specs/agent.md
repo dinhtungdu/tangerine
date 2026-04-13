@@ -19,6 +19,18 @@ The provider layer exposes:
 - prompt images support
 - optional hot config updates
 
+### AgentEvent kinds
+
+| Kind | Description |
+|------|-------------|
+| `message.streaming` | Partial assistant text (streaming) |
+| `message.complete` | Final assistant/narration message |
+| `status` | `idle` / `working` state changes |
+| `error` | Provider-level error |
+| `tool.start` / `tool.end` | Tool call lifecycle |
+| `thinking` | Extended thinking content |
+| `usage` | Token counts for the completed turn: `{ inputTokens, outputTokens }`. Providers emit this when the data is available. `inputTokens` reflects the total context window consumed (including cache) — suitable for showing context window fill. Persisted to `tasks.input_tokens` / `tasks.output_tokens` and broadcast via WebSocket.
+
 Current provider selection type:
 
 ```typescript
