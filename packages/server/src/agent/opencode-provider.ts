@@ -469,7 +469,7 @@ export function createOpenCodeProvider(): AgentFactory {
           let latestUsage: { inputTokens: number; outputTokens: number } | null = null
 
           const emit = (event: AgentEvent) => {
-            if (event.kind === "usage") latestUsage = { inputTokens: event.inputTokens, outputTokens: event.outputTokens }
+            if (event.kind === "usage") latestUsage = { inputTokens: event.inputTokens ?? 0, outputTokens: event.outputTokens ?? 0 }
             for (const cb of subscribers) cb(event)
           }
 

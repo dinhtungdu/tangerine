@@ -298,7 +298,7 @@ export function createClaudeCodeMapper(): (raw: Record<string, unknown>) => Agen
             + (typeof usage.cache_read_input_tokens === "number" ? usage.cache_read_input_tokens : 0)
             + (typeof usage.cache_creation_input_tokens === "number" ? usage.cache_creation_input_tokens : 0)
           if (inputTokens > 0) {
-            return [{ kind: "usage", inputTokens, outputTokens: 0 }]
+            return [{ kind: "usage", inputTokens }]
           }
         }
       }
@@ -307,7 +307,7 @@ export function createClaudeCodeMapper(): (raw: Record<string, unknown>) => Agen
       if (event.type === "message_delta") {
         const usage = event.usage as Record<string, unknown> | undefined
         if (usage && typeof usage.output_tokens === "number" && usage.output_tokens > 0) {
-          return [{ kind: "usage", inputTokens: 0, outputTokens: usage.output_tokens }]
+          return [{ kind: "usage", outputTokens: usage.output_tokens }]
         }
       }
 

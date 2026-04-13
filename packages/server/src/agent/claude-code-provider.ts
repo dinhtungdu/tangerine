@@ -135,14 +135,11 @@ export function createClaudeCodeProvider(): AgentFactory {
                 const events = mapClaudeCodeEvent(raw)
                 for (const event of events) {
                   if (event.kind === "usage") {
-                    // Merge partial usage — stream events emit input/output separately.
-                    // message_start sends inputTokens only, message_delta sends outputTokens only.
-                    // result event sends both. Use undefined check (not ||) to preserve real zeros.
-                    const prevInput = latestUsage?.inputTokens ?? 0
-                    const prevOutput = latestUsage?.outputTokens ?? 0
+                    // Merge partial usage — stream events carry undefined for fields they don't have.
+                    // Only overwrite a field when the event explicitly provides it.
                     latestUsage = {
-                      inputTokens: event.inputTokens > 0 ? event.inputTokens : prevInput,
-                      outputTokens: event.outputTokens > 0 ? event.outputTokens : prevOutput,
+                      inputTokens: event.inputTokens ?? latestUsage?.inputTokens ?? 0,
+                      outputTokens: event.outputTokens ?? latestUsage?.outputTokens ?? 0,
                     }
                     event.inputTokens = latestUsage.inputTokens
                     event.outputTokens = latestUsage.outputTokens

@@ -698,14 +698,19 @@ export async function start(): Promise<void> {
                 break
               }
               case "usage": {
-                // Accumulate token counts on the task row — each turn adds to the running total.
-                // Providers emit cumulative context usage per turn so we replace rather than add.
-                Effect.runPromise(
-                  updateTask(db, taskId, { input_tokens: event.inputTokens, output_tokens: event.outputTokens }, { skipUpdatedAt: true }).pipe(
-                    Effect.catchAll(() => Effect.void)
+                // Providers merge partial stream events before emitting, so both fields
+                // should be present. Only persist fields that are defined.
+                const updates: Record<string, number> = {}
+                if (event.inputTokens != null) updates.input_tokens = event.inputTokens
+                if (event.outputTokens != null) updates.output_tokens = event.outputTokens
+                if (Object.keys(updates).length > 0) {
+                  Effect.runPromise(
+                    updateTask(db, taskId, updates, { skipUpdatedAt: true }).pipe(
+                      Effect.catchAll(() => Effect.void)
+                    )
                   )
-                )
-                emitTaskEvent(taskId, { event: "usage", inputTokens: event.inputTokens, outputTokens: event.outputTokens })
+                }
+                emitTaskEvent(taskId, { event: "usage", inputTokens: event.inputTokens ?? 0, outputTokens: event.outputTokens ?? 0 })
                 break
               }
               case "error": {

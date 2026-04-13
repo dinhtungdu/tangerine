@@ -26,8 +26,9 @@ export type AgentEvent =
   | { kind: "tool.start"; toolName: string; toolInput?: string }
   | { kind: "tool.end"; toolName: string; toolResult?: string }
   | { kind: "thinking"; content: string }
-  /** Token usage for one completed turn — providers emit this when they have token data */
-  | { kind: "usage"; inputTokens: number; outputTokens: number }
+  /** Token usage — providers emit this when they have token data.
+   *  Fields are undefined when the event only carries partial data (e.g. stream events). */
+  | { kind: "usage"; inputTokens?: number; outputTokens?: number }
 
 /** Runtime config that can be changed mid-session */
 export interface AgentConfig {
