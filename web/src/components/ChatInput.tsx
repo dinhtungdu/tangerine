@@ -296,8 +296,10 @@ export function ChatInput({ onSend, disabled, queueLength, taskId, isWorking, on
 
   const canSend = (text.trim().length > 0 || pendingImages.length > 0 || !!quotedMessage) && !disabled
   const canChangeModel = providerModels && providerModels.length > 1 && onModelChange
-  const contextWindowLabel = inputTokens && inputTokens > 0 && contextWindowMax
-    ? `${formatTokens(inputTokens)} / ${formatTokens(contextWindowMax)}`
+  const contextWindowLabel = inputTokens && inputTokens > 0
+    ? contextWindowMax
+      ? `${formatTokens(inputTokens)} / ${formatTokens(contextWindowMax)}`
+      : `${formatTokens(inputTokens)}`
     : contextWindowMax
       ? formatTokens(contextWindowMax)
       : null
