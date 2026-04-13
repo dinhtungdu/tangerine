@@ -35,6 +35,8 @@ export interface Task {
   lastResultAt: string | null
   capabilities: TaskCapability[]
   agentStatus?: "idle" | "working"
+  inputTokens: number
+  outputTokens: number
 }
 
 export interface Cron {
@@ -69,6 +71,7 @@ export type WsServerMessage =
   | { type: "activity"; entry: ActivityEntry }
   | { type: "status"; status: TaskStatus }
   | { type: "agent_status"; agentStatus: "idle" | "working" }
+  | { type: "usage"; inputTokens: number; outputTokens: number }
   | { type: "error"; message: string }
 
 export interface PromptImage {

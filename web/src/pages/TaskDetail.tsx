@@ -16,7 +16,7 @@ import { ActivityList } from "../components/ActivityList"
 import { ChangesPanel as DiffSidebar, type DiffComment } from "../components/ChangesPanel"
 import { ResizeHandle, PaneToggle } from "../components/PaneControls"
 import { TerminalPane } from "../components/TerminalPane"
-import { formatPrNumber, formatTaskTitle } from "../lib/format"
+import { formatPrNumber, formatTaskTitle, formatTokens } from "../lib/format"
 import { copyToClipboard } from "../lib/clipboard"
 import { TaskOverflowMenu } from "../components/TaskListItem"
 import { useTaskActions } from "../hooks/useTaskActions"
@@ -55,7 +55,8 @@ export function TaskDetail() {
   }, [isCrossProject, task, tasks])
 
   const chatTaskId = (isCrossProject && orchestratorTask) ? orchestratorTask.id : (id ?? "")
-  const session = useSession(chatTaskId)
+  const sessionTask = (isCrossProject && orchestratorTask) ? orchestratorTask : task
+  const session = useSession(chatTaskId, sessionTask ? { inputTokens: sessionTask.inputTokens, outputTokens: sessionTask.outputTokens } : undefined)
   const { files: diffFiles } = useDiffFiles(id ?? "")
   const diffCommentsKey = `diff-comments:${id}`
   const [diffComments, setDiffComments] = useState<DiffComment[]>([])
@@ -461,6 +462,14 @@ export function TaskDetail() {
               >
                 {formatPrNumber(task.prUrl)}
               </a>
+            )}
+            {session.inputTokens > 0 && (
+              <span
+                className="flex shrink-0 items-center gap-1 rounded px-1.5 py-0.5 font-mono text-2xs text-muted-foreground"
+                title={`Context window: ${session.inputTokens.toLocaleString()} input tokens, ${session.outputTokens.toLocaleString()} output tokens`}
+              >
+                {formatTokens(session.inputTokens)} ctx
+              </span>
             )}
             <span
               className="flex shrink-0 items-center gap-1 rounded px-1.5 py-0.5 text-2xs font-medium"

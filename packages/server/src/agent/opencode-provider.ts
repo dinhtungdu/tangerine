@@ -569,6 +569,20 @@ export function createOpenCodeProvider(): AgentFactory {
                           taskLog.info("Captured OpenCode session ID", { sessionId })
                         }
 
+                        // Extract token usage from step_finish events (opencode run --format json)
+                        if (raw.type === "step_finish") {
+                          const usage = raw.usage as Record<string, unknown> | undefined
+                          if (usage) {
+                            const inputTokens = typeof usage.inputTokens === "number" ? usage.inputTokens
+                              : typeof usage.input_tokens === "number" ? usage.input_tokens : 0
+                            const outputTokens = typeof usage.outputTokens === "number" ? usage.outputTokens
+                              : typeof usage.output_tokens === "number" ? usage.output_tokens : 0
+                            if (inputTokens > 0 || outputTokens > 0) {
+                              emit({ kind: "usage", inputTokens, outputTokens })
+                            }
+                          }
+                        }
+
                         const processor = getOrCreateProcessor(sessionId ?? ctx.taskId)
                         const adapted = adaptRunJsonEvent(raw)
                         for (const event of adapted) {

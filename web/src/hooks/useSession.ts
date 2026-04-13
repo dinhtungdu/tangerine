@@ -24,19 +24,31 @@ interface UseSessionResult {
   taskStatus: TaskStatus | null
   sendPrompt: (text: string, images?: PromptImage[]) => void
   abort: () => void
+  inputTokens: number
+  outputTokens: number
 }
 
-export function useSession(taskId: string): UseSessionResult {
+export function useSession(taskId: string, initialTokens?: { inputTokens: number; outputTokens: number }): UseSessionResult {
   const [messages, setMessages] = useState<ChatMessage[]>([])
   const [activities, setActivities] = useState<ActivityEntry[]>([])
   const [agentStatus, setAgentStatus] = useState<"idle" | "working">("idle")
   const [queueLength, setQueueLength] = useState(0)
   const [taskStatus, setTaskStatus] = useState<TaskStatus | null>(null)
+  const [inputTokens, setInputTokens] = useState(initialTokens?.inputTokens ?? 0)
+  const [outputTokens, setOutputTokens] = useState(initialTokens?.outputTokens ?? 0)
   const { connected, messages: wsMessages, send } = useWebSocket(taskId)
   const processedCountRef = useRef(0)
   // Track optimistic user message IDs so we can deduplicate WS broadcasts
   // without false-positives when the same text is sent twice.
   const pendingOptimisticRef = useRef<Set<string>>(new Set())
+
+  // Sync token counts when the task's persisted values change (e.g. on initial load or poll)
+  useEffect(() => {
+    if (initialTokens) {
+      setInputTokens(initialTokens.inputTokens)
+      setOutputTokens(initialTokens.outputTokens)
+    }
+  }, [initialTokens?.inputTokens, initialTokens?.outputTokens])
 
   // Clear all session state immediately when the task changes so the previous
   // task's messages/activities/status don't leak into the new one while the
@@ -47,6 +59,8 @@ export function useSession(taskId: string): UseSessionResult {
     setAgentStatus("idle")
     setQueueLength(0)
     setTaskStatus(null)
+    setInputTokens(0)
+    setOutputTokens(0)
     processedCountRef.current = 0
   }, [taskId])
 
@@ -152,6 +166,10 @@ export function useSession(taskId: string): UseSessionResult {
             setAgentStatus("working")
           } else if (eventType === "agent.end" || eventType === "agent.idle") {
             setAgentStatus("idle")
+          } else if (eventType === "usage") {
+            const ev = data as { inputTokens?: number; outputTokens?: number }
+            if (typeof ev.inputTokens === "number") setInputTokens(ev.inputTokens)
+            if (typeof ev.outputTokens === "number") setOutputTokens(ev.outputTokens)
           }
         }
         break
@@ -221,5 +239,5 @@ export function useSession(taskId: string): UseSessionResult {
     setQueueLength(0)
   }, [send])
 
-  return { messages, activities, agentStatus, queueLength, connected, taskStatus, sendPrompt, abort }
+  return { messages, activities, agentStatus, queueLength, connected, taskStatus, sendPrompt, abort, inputTokens, outputTokens }
 }

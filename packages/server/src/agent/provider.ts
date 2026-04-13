@@ -24,6 +24,8 @@ export type AgentEvent =
   | { kind: "tool.start"; toolName: string; toolInput?: string }
   | { kind: "tool.end"; toolName: string; toolResult?: string }
   | { kind: "thinking"; content: string }
+  /** Token usage for one completed turn — providers emit this when they have token data */
+  | { kind: "usage"; inputTokens: number; outputTokens: number }
 
 /** Runtime config that can be changed mid-session */
 export interface AgentConfig {

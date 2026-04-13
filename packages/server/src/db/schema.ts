@@ -29,7 +29,9 @@ export const SCHEMA = `
     completed_at TEXT,
     last_seen_at TEXT,
     last_result_at TEXT,
-    capabilities TEXT
+    capabilities TEXT,
+    input_tokens INTEGER NOT NULL DEFAULT 0,
+    output_tokens INTEGER NOT NULL DEFAULT 0
   );
 
   CREATE INDEX IF NOT EXISTS idx_tasks_status ON tasks(status);

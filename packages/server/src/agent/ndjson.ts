@@ -263,6 +263,18 @@ export function createClaudeCodeMapper(): (raw: Record<string, unknown>) => Agen
           })
         }
 
+        // Extract token usage from the result event
+        const usage = raw.usage as Record<string, unknown> | undefined
+        if (usage) {
+          const inputTokens = (typeof usage.input_tokens === "number" ? usage.input_tokens : 0)
+            + (typeof usage.cache_read_input_tokens === "number" ? usage.cache_read_input_tokens : 0)
+            + (typeof usage.cache_creation_input_tokens === "number" ? usage.cache_creation_input_tokens : 0)
+          const outputTokens = typeof usage.output_tokens === "number" ? usage.output_tokens : 0
+          if (inputTokens > 0 || outputTokens > 0) {
+            events.push({ kind: "usage", inputTokens, outputTokens })
+          }
+        }
+
         return events
       }
 

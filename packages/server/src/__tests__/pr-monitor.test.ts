@@ -184,6 +184,8 @@ function makeTaskRow(overrides?: Partial<TaskRow>): TaskRow {
     last_seen_at: null,
     last_result_at: null,
     capabilities: null,
+    input_tokens: 0,
+    output_tokens: 0,
     ...overrides,
   }
 }

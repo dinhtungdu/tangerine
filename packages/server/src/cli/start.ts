@@ -697,6 +697,17 @@ export async function start(): Promise<void> {
                 )
                 break
               }
+              case "usage": {
+                // Accumulate token counts on the task row — each turn adds to the running total.
+                // Providers emit cumulative context usage per turn so we replace rather than add.
+                Effect.runPromise(
+                  updateTask(db, taskId, { input_tokens: event.inputTokens, output_tokens: event.outputTokens }, { skipUpdatedAt: true }).pipe(
+                    Effect.catchAll(() => Effect.void)
+                  )
+                )
+                emitTaskEvent(taskId, { event: "usage", inputTokens: event.inputTokens, outputTokens: event.outputTokens })
+                break
+              }
               case "error": {
                 log.error("Agent event error", { taskId, message: event.message })
                 getTaskState(taskId).lastError = event.message

@@ -75,6 +75,14 @@ export function linkifyTaskIds(
 }
 
 
+/** Format a token count for compact display: 0 → "", 1500 → "1.5K", 1200000 → "1.2M" */
+export function formatTokens(tokens: number): string {
+  if (tokens <= 0) return ""
+  if (tokens >= 1_000_000) return `${(tokens / 1_000_000).toFixed(1).replace(/\.0$/, "")}M`
+  if (tokens >= 1000) return `${(tokens / 1000).toFixed(1).replace(/\.0$/, "")}K`
+  return String(tokens)
+}
+
 /** Extract PR number from a GitHub PR URL, e.g. "https://github.com/owner/repo/pull/123" → "#123" */
 export function formatPrNumber(prUrl: string): string {
   const match = prUrl.match(/\/pull\/(\d+)/)
