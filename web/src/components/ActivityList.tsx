@@ -171,11 +171,11 @@ function TimelineView({ activities }: { activities: ActivityEntry[] }) {
                   <div className="min-w-0 flex-1 pb-2">
                     {style.label ? (
                       <>
-                        <p className="text-md font-medium leading-tight text-foreground">{style.label}</p>
+                        <p className="text-sm font-medium leading-tight text-foreground">{style.label}</p>
                         <p className="mt-0.5 text-xxs text-muted-foreground/50">{detail}</p>
                       </>
                     ) : (
-                      <p className="text-md leading-tight text-foreground">{detail}</p>
+                      <p className="text-sm leading-tight text-foreground">{detail}</p>
                     )}
                   </div>
                 </div>

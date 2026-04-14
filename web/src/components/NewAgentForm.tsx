@@ -261,19 +261,19 @@ export function NewAgentForm({ onSubmit, refTaskId, refTaskTitle, refBranch, ref
                 variant="ghost"
                 size="sm"
                 onClick={() => setTaskType("worker")}
-                className={`rounded-md px-4 py-1.5 text-md font-medium ${taskType === "worker" ? "bg-background text-foreground shadow-sm" : "text-muted-foreground hover:text-foreground"}`}
+                className={`rounded-md px-4 py-1.5 text-sm font-medium ${taskType === "worker" ? "bg-background text-foreground shadow-sm" : "text-muted-foreground hover:text-foreground"}`}
               >Worker</Button>
               <Button
                 variant="ghost"
                 size="sm"
                 onClick={() => setTaskType("reviewer")}
-                className={`rounded-md px-4 py-1.5 text-md font-medium ${taskType === "reviewer" ? "bg-background text-foreground shadow-sm" : "text-muted-foreground hover:text-foreground"}`}
+                className={`rounded-md px-4 py-1.5 text-sm font-medium ${taskType === "reviewer" ? "bg-background text-foreground shadow-sm" : "text-muted-foreground hover:text-foreground"}`}
               >Reviewer</Button>
               <Button
                 variant="ghost"
                 size="sm"
                 onClick={() => setTaskType("runner")}
-                className={`rounded-md px-4 py-1.5 text-md font-medium ${taskType === "runner" ? "bg-background text-foreground shadow-sm" : "text-muted-foreground hover:text-foreground"}`}
+                className={`rounded-md px-4 py-1.5 text-sm font-medium ${taskType === "runner" ? "bg-background text-foreground shadow-sm" : "text-muted-foreground hover:text-foreground"}`}
               >Runner</Button>
             </div>
           </div>

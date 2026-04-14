@@ -69,7 +69,7 @@ function TaskItem({
       </div>
       <div className="flex min-w-0 flex-1 flex-col gap-0.5">
         <div className="flex items-center gap-1.5">
-          <span className={`truncate text-md text-foreground ${isActive ? "font-semibold" : "font-medium"}`}>
+          <span className={`truncate text-sm text-foreground ${isActive ? "font-semibold" : "font-medium"}`}>
             {task.title}
           </span>
           {unseen && (
@@ -134,7 +134,7 @@ function ProjectGroupHeader({
     : "hover:bg-muted"
 
   const navContent = (
-    <span className="truncate text-md font-semibold text-foreground">
+    <span className="truncate text-sm font-semibold text-foreground">
       {group.projectName}
     </span>
   )
@@ -295,7 +295,7 @@ export function TasksSidebar({ tasks, projects, searchQuery, onSearchChange, onN
           className="hidden md:flex"
         >
           <Plus className="h-3.5 w-3.5" />
-          <span className="text-md font-medium">New Run</span>
+          <span className="text-sm font-medium">New Run</span>
         </Button>
         <InputGroup className="h-[34px]">
           <InputGroupInput
@@ -303,7 +303,7 @@ export function TasksSidebar({ tasks, projects, searchQuery, onSearchChange, onN
             value={searchQuery}
             onChange={(e) => onSearchChange(e.target.value)}
             placeholder="Search tasks..."
-            className="text-base md:text-md"
+            className="text-base md:text-sm"
           />
           <InputGroupAddon>
             <Search className="size-3.5" />

@@ -47,7 +47,7 @@ export function CronsPage() {
           <div>
             <div className="hidden md:block">
               <h1 className="text-xl font-bold text-foreground md:text-2xl">Crons</h1>
-              <p className="mt-0.5 text-md text-muted-foreground">Recurring tasks on a schedule</p>
+              <p className="mt-0.5 text-sm text-muted-foreground">Recurring tasks on a schedule</p>
             </div>
             {/* Mobile header */}
             <div className="flex items-center gap-3 md:hidden">
@@ -58,7 +58,7 @@ export function CronsPage() {
             <Button
               variant="outline"
               onClick={() => setNewCronOpen(true)}
-              className="flex h-9 shrink-0 items-center justify-center rounded-md px-4 text-md font-medium"
+              className="flex h-9 shrink-0 items-center justify-center rounded-md px-4 text-sm font-medium"
             >
               + New Cron
             </Button>
@@ -79,9 +79,9 @@ export function CronsPage() {
           {/* Cron list */}
           <div className="overflow-hidden rounded-lg border border-border">
             {loading ? (
-              <div className="py-12 text-center text-md text-muted-foreground">Loading...</div>
+              <div className="py-12 text-center text-sm text-muted-foreground">Loading...</div>
             ) : crons.length === 0 ? (
-              <div className="py-12 text-center text-md text-muted-foreground">No crons configured</div>
+              <div className="py-12 text-center text-sm text-muted-foreground">No crons configured</div>
             ) : (
               crons.map((c) => (
                 <CronRow

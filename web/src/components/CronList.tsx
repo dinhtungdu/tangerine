@@ -43,14 +43,14 @@ function CronFields({
         value={title}
         onChange={(e) => setTitle(e.target.value)}
         placeholder="Title (e.g. Nightly test suite)"
-        className="rounded-md border border-border bg-background px-3 py-2 text-md text-foreground placeholder-muted-foreground outline-none"
+        className="rounded-md border border-border bg-background px-3 py-2 text-sm text-foreground placeholder-muted-foreground outline-none"
       />
       <Textarea
         value={description}
         onChange={(e) => setDescription(e.target.value)}
         placeholder="Task description / prompt (optional)"
         rows={2}
-        className="resize-none rounded-md border border-border bg-background px-3 py-2 text-md text-foreground placeholder-muted-foreground outline-none"
+        className="resize-none rounded-md border border-border bg-background px-3 py-2 text-sm text-foreground placeholder-muted-foreground outline-none"
       />
       <div className="flex flex-col gap-2 md:flex-row md:items-center">
         <div className="flex flex-1 items-center gap-2">
@@ -60,7 +60,7 @@ function CronFields({
             value={cron}
             onChange={(e) => setCron(e.target.value)}
             placeholder="0 9 * * 1-5"
-            className="flex-1 rounded-md border border-border bg-background px-3 py-1.5 font-mono text-md text-foreground placeholder-muted-foreground outline-none"
+            className="flex-1 rounded-md border border-border bg-background px-3 py-1.5 font-mono text-sm text-foreground placeholder-muted-foreground outline-none"
           />
         </div>
         {cron.trim() && cron.trim().split(/\s+/).length === 5 && (
@@ -78,7 +78,7 @@ function CronFields({
         <BranchInput
           value={branch}
           onChange={setBranch}
-          className="rounded-md border border-border bg-background text-md md:w-[180px]"
+          className="rounded-md border border-border bg-background text-sm md:w-[180px]"
         />
       </div>
     </>
@@ -171,14 +171,14 @@ export function CronForm({ projects, onCreated, onClose, modelsByProvider }: {
           <Button
             onClick={handleSubmit}
             disabled={!canSubmit}
-            className="flex h-9 flex-1 items-center justify-center rounded-md px-4 text-md font-medium"
+            className="flex h-9 flex-1 items-center justify-center rounded-md px-4 text-sm font-medium"
           >
             {submitting ? "Creating..." : "Create Cron"}
           </Button>
           <Button
             variant="outline"
             onClick={onClose}
-            className="flex h-9 items-center justify-center rounded-md px-4 text-md text-muted-foreground"
+            className="flex h-9 items-center justify-center rounded-md px-4 text-sm text-muted-foreground"
           >
             Cancel
           </Button>
@@ -276,14 +276,14 @@ export function CronRow({ cron, onToggle, onDelete, onRefresh, modelsByProvider 
             value={title}
             onChange={(e) => setTitle(e.target.value)}
             placeholder="Title (e.g. Nightly test suite)"
-            className="rounded-md border border-border bg-background px-3 py-2 text-md text-foreground placeholder-muted-foreground outline-none"
+            className="rounded-md border border-border bg-background px-3 py-2 text-sm text-foreground placeholder-muted-foreground outline-none"
           />
           <Textarea
             value={description}
             onChange={(e) => setDescription(e.target.value)}
             placeholder="Task description / prompt (optional)"
             rows={2}
-            className="resize-none rounded-md border border-border bg-background px-3 py-2 text-md text-foreground placeholder-muted-foreground outline-none"
+            className="resize-none rounded-md border border-border bg-background px-3 py-2 text-sm text-foreground placeholder-muted-foreground outline-none"
           />
           <div className="flex flex-col gap-2 md:flex-row md:items-center">
             <div className="flex flex-1 items-center gap-2">
@@ -293,7 +293,7 @@ export function CronRow({ cron, onToggle, onDelete, onRefresh, modelsByProvider 
                 value={cronExpr}
                 onChange={(e) => setCronExpr(e.target.value)}
                 placeholder="0 9 * * 1-5"
-                className="flex-1 rounded-md border border-border bg-background px-3 py-1.5 font-mono text-md text-foreground placeholder-muted-foreground outline-none"
+                className="flex-1 rounded-md border border-border bg-background px-3 py-1.5 font-mono text-sm text-foreground placeholder-muted-foreground outline-none"
               />
             </div>
             {cronExpr.trim() && cronExpr.trim().split(/\s+/).length === 5 && (
@@ -323,7 +323,7 @@ export function CronRow({ cron, onToggle, onDelete, onRefresh, modelsByProvider 
                 value={branch}
                 onChange={(e) => setBranch(e.target.value)}
                 placeholder="Branch (optional)"
-                className="rounded-md border border-border bg-background px-3 py-1.5 text-md text-foreground placeholder-muted-foreground outline-none md:w-[180px]"
+                className="rounded-md border border-border bg-background px-3 py-1.5 text-sm text-foreground placeholder-muted-foreground outline-none md:w-[180px]"
               />
             </div>
           )}
@@ -332,14 +332,14 @@ export function CronRow({ cron, onToggle, onDelete, onRefresh, modelsByProvider 
             <Button
               onClick={handleSave}
               disabled={!canSubmit}
-              className="flex h-9 flex-1 items-center justify-center rounded-md px-4 text-md font-medium"
+              className="flex h-9 flex-1 items-center justify-center rounded-md px-4 text-sm font-medium"
             >
               {submitting ? "Saving..." : "Save Changes"}
             </Button>
             <Button
               variant="outline"
               onClick={handleCancel}
-              className="flex h-9 items-center justify-center rounded-md px-4 text-md text-muted-foreground"
+              className="flex h-9 items-center justify-center rounded-md px-4 text-sm text-muted-foreground"
             >
               Cancel
             </Button>
@@ -363,7 +363,7 @@ export function CronRow({ cron, onToggle, onDelete, onRefresh, modelsByProvider 
       {/* Title + cron expression */}
       <div className="flex min-w-0 flex-1 flex-col gap-0.5">
         <div className="flex items-center gap-1.5">
-          <span className="truncate text-md font-medium text-foreground">{cron.title}</span>
+          <span className="truncate text-sm font-medium text-foreground">{cron.title}</span>
           <span className="rounded bg-muted px-1.5 py-0.5 text-2xs text-muted-foreground">{cron.projectId}</span>
         </div>
         <div className="flex items-center gap-2">

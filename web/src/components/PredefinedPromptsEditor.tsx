@@ -82,14 +82,14 @@ export function PredefinedPromptsEditor({
               value={prompt.label}
               onChange={(e) => handleChange(i, "label", e.target.value)}
               placeholder="Label"
-              className="w-28 shrink-0 rounded-md border border-border bg-background px-2.5 py-1.5 text-md text-foreground placeholder-muted-foreground/50 outline-none focus:border-muted-foreground/50"
+              className="w-28 shrink-0 rounded-md border border-border bg-background px-2.5 py-1.5 text-sm text-foreground placeholder-muted-foreground/50 outline-none focus:border-muted-foreground/50"
             />
             <Input
               type="text"
               value={prompt.text}
               onChange={(e) => handleChange(i, "text", e.target.value)}
               placeholder="Prompt text sent to agent..."
-              className="min-w-0 flex-1 rounded-md border border-border bg-background px-2.5 py-1.5 text-md text-foreground placeholder-muted-foreground/50 outline-none focus:border-muted-foreground/50"
+              className="min-w-0 flex-1 rounded-md border border-border bg-background px-2.5 py-1.5 text-sm text-foreground placeholder-muted-foreground/50 outline-none focus:border-muted-foreground/50"
             />
             <Button
               variant="ghost"

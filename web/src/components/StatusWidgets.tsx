@@ -35,7 +35,7 @@ export function ActiveRunsCard({ tasks }: { tasks: Task[] }) {
   return (
     <div className="flex flex-1 flex-col gap-2.5 rounded-[10px] border border-border p-3.5 md:gap-3 md:p-4">
       <div className="flex items-center justify-between">
-        <span className="text-md font-medium text-muted-foreground">Active Runs</span>
+        <span className="text-sm font-medium text-muted-foreground">Active Runs</span>
         <span className="rounded-xl bg-status-info-bg px-2.5 py-0.5 text-xxs font-semibold text-status-info-text">
           {running} Running
         </span>
@@ -163,7 +163,7 @@ export function ProjectUpdateCard({ project }: { project?: string }) {
     <div className="flex flex-1 flex-col gap-2.5 rounded-[10px] border border-border p-3.5 md:gap-3 md:p-4">
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-2">
-          <span className="text-md font-medium text-muted-foreground">Repository</span>
+          <span className="text-sm font-medium text-muted-foreground">Repository</span>
           {status?.isFork && (
             <span className="rounded-xl bg-muted px-2 py-0.5 text-xxs font-medium text-muted-foreground">
               Fork
@@ -180,7 +180,7 @@ export function ProjectUpdateCard({ project }: { project?: string }) {
       <div className="flex items-center gap-3">
         {status?.local && (
           <div className="flex flex-col gap-0.5">
-            <span className="font-mono text-md font-medium text-foreground">{status.local}</span>
+            <span className="font-mono text-sm font-medium text-foreground">{status.local}</span>
             <span className="text-xxs text-muted-foreground">Current</span>
           </div>
         )}
@@ -190,7 +190,7 @@ export function ProjectUpdateCard({ project }: { project?: string }) {
               <path strokeLinecap="round" strokeLinejoin="round" d="M13.5 4.5 21 12m0 0-7.5 7.5M21 12H3" />
             </svg>
             <div className="flex flex-col gap-0.5">
-              <span className="font-mono text-md font-medium text-status-info">{status.remote}</span>
+              <span className="font-mono text-sm font-medium text-status-info">{status.remote}</span>
               <span className="text-xxs text-muted-foreground">Latest</span>
             </div>
           </>
@@ -323,7 +323,7 @@ export function SystemLog({ project }: { project?: string }) {
       </div>
 
       {logs.length === 0 ? (
-        <div className="py-8 text-center text-md text-muted-foreground/50">No system logs yet</div>
+        <div className="py-8 text-center text-sm text-muted-foreground/50">No system logs yet</div>
       ) : (
         <div className="max-h-[400px] overflow-x-hidden overflow-y-auto rounded-lg border border-border">
           {/* Desktop: table with task context */}

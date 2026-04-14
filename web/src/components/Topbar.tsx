@@ -80,7 +80,7 @@ export function Topbar({ sidebarOpen, onToggleSidebar }: TopbarProps) {
         <nav className="flex items-center gap-0.5">
           <Link
             to={`/${qs}`}
-            className={`rounded-md px-3 py-1.5 text-md font-medium ${
+            className={`rounded-md px-3 py-1.5 text-sm font-medium ${
               isRuns ? "bg-primary text-primary-foreground" : "text-muted-foreground hover:text-foreground"
             }`}
           >
@@ -88,7 +88,7 @@ export function Topbar({ sidebarOpen, onToggleSidebar }: TopbarProps) {
           </Link>
           <Link
             to={`/crons${qs}`}
-            className={`rounded-md px-3 py-1.5 text-md font-medium ${
+            className={`rounded-md px-3 py-1.5 text-sm font-medium ${
               isCrons ? "bg-primary text-primary-foreground" : "text-muted-foreground hover:text-foreground"
             }`}
           >
@@ -96,7 +96,7 @@ export function Topbar({ sidebarOpen, onToggleSidebar }: TopbarProps) {
           </Link>
           <Link
             to={`/status${qs}`}
-            className={`rounded-md px-3 py-1.5 text-md font-medium ${
+            className={`rounded-md px-3 py-1.5 text-sm font-medium ${
               isStatus ? "bg-primary text-primary-foreground" : "text-muted-foreground hover:text-foreground"
             }`}
           >

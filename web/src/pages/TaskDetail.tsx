@@ -370,7 +370,7 @@ export function TaskDetail() {
 
   if (loading) {
     return (
-      <div className="flex h-full items-center justify-center text-md text-muted-foreground">
+      <div className="flex h-full items-center justify-center text-sm text-muted-foreground">
         Loading...
       </div>
     )
@@ -378,7 +378,7 @@ export function TaskDetail() {
 
   if (!task) {
     return (
-      <div className="flex h-full items-center justify-center text-md text-muted-foreground">
+      <div className="flex h-full items-center justify-center text-sm text-muted-foreground">
         Task not found
       </div>
     )
@@ -616,7 +616,7 @@ export function TaskDetail() {
                   {diffFiles.length > 0 ? (
                     <DiffView files={diffFiles} comments={diffComments} onAddComment={isTerminated ? undefined : handleAddComment} />
                   ) : (
-                    <div className="flex h-full items-center justify-center text-md text-muted-foreground">
+                    <div className="flex h-full items-center justify-center text-sm text-muted-foreground">
                       No file changes yet
                     </div>
                   )}

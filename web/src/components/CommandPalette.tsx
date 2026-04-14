@@ -68,7 +68,7 @@ function TaskResult({ task, isSelected }: { task: Task; isSelected: boolean }) {
         style={{ backgroundColor: dotColor }}
       />
       <div className="min-w-0 flex-1">
-        <p className="truncate text-md font-medium text-foreground">{formatTaskTitle(task)}</p>
+        <p className="truncate text-sm font-medium text-foreground">{formatTaskTitle(task)}</p>
         <p className="truncate text-xxs text-muted-foreground">{task.projectId}</p>
       </div>
       <div className="flex shrink-0 items-center gap-1.5">
@@ -104,7 +104,7 @@ function ActionResult({ action, isSelected }: { action: Action; isSelected: bool
         </svg>
       </div>
       <div className="min-w-0 flex-1">
-        <p className="truncate text-md font-medium text-foreground">{action.label}</p>
+        <p className="truncate text-sm font-medium text-foreground">{action.label}</p>
         {action.description && (
           <p className="truncate text-xxs text-muted-foreground">{action.description}</p>
         )}
@@ -333,7 +333,7 @@ export function CommandPalette() {
         {/* Results list */}
         <div ref={listRef} className="max-h-[400px] overflow-y-auto py-1">
           {items.length === 0 ? (
-            <div className="px-normal py-loose text-center text-md text-muted-foreground">
+            <div className="px-normal py-loose text-center text-sm text-muted-foreground">
               {searchQuery ? "No results" : "No active tasks"}
             </div>
           ) : (

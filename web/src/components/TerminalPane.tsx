@@ -236,7 +236,7 @@ export function TerminalPane(props: TerminalPaneProps) {
         <div ref={containerRef} className="absolute inset-0 bg-card p-1" />
         {connState !== "connected" && (
           <div className="absolute inset-0 flex items-center justify-center bg-[#1a1a1a]">
-            <span className="text-md text-muted-foreground">
+            <span className="text-sm text-muted-foreground">
               {connState === "reconnecting" ? "Reconnecting..." : connState === "error" ? "Connection error" : "Connecting..."}
             </span>
           </div>
