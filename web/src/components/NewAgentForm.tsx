@@ -25,7 +25,8 @@ interface PendingImage extends PromptImage {
   dataUrl: string
 }
 
-type FormTaskType = "worker" | "reviewer" | "runner"
+/** Task types selectable in the form — excludes orchestrator (system-managed) */
+type FormTaskType = Exclude<TaskType, "orchestrator">
 
 function loadDraftFromKey(key: string): { description?: string; customBranch?: string; taskType?: FormTaskType; pendingImages?: PendingImage[] } {
   try {
@@ -385,7 +386,7 @@ export function NewAgentForm({ onSubmit, refTaskId, refTaskTitle, refBranch, ref
                   menuPlacement="bottom"
                 />
                 <ReasoningEffortSelector value={reasoningEffort} onChange={(e) => { setReasoningEffort(e); savePrefs({ reasoningEffort: e }) }} provider={provider} />
-                {getCapabilitiesForType(taskType as TaskType).includes("pr-track") && (
+                {getCapabilitiesForType(taskType).includes("pr-track") && (
                   <BranchInput
                     value={customBranch}
                     onChange={setCustomBranch}
