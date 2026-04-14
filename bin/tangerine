@@ -2,10 +2,12 @@
 import { existsSync } from "fs";
 import { resolve } from "path";
 
-// Use bundled CLI when available (npm installs), fall back to source (local dev)
-const bundled = resolve(import.meta.dir, "../dist/cli.js");
-if (existsSync(bundled)) {
-  await import(bundled);
-} else {
+// In a workspace checkout, always use source for live development.
+// When installed from npm (no workspace), use the bundled CLI.
+const root = resolve(import.meta.dir, "..");
+const isWorkspace = existsSync(resolve(root, "node_modules", "@tangerine", "shared"));
+if (isWorkspace) {
   await import("../packages/server/src/cli/index.ts");
+} else {
+  await import("../dist/cli.js");
 }
