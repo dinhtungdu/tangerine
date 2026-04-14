@@ -1129,6 +1129,20 @@ describe("ChatMessage inline actions", () => {
 })
 
 describe("ChatInput quote chip", () => {
+  test("renders quick reply chips with a solid background", () => {
+    render(
+      <ChatInput
+        onSend={() => {}}
+        disabled={false}
+        queueLength={0}
+        predefinedPrompts={[{ label: "Reply", text: "reply now" }]}
+      />
+    )
+    const chip = screen.getByRole("button", { name: "Reply" })
+    expect(chip.className).toContain("bg-muted")
+    expect(chip.className).toContain("border-transparent")
+  })
+
   test("shows quote chip when quotedMessage is set", () => {
     render(
       <ChatInput
