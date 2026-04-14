@@ -12,6 +12,7 @@ import { join } from "node:path"
 import { existsSync, readFileSync, writeFileSync } from "node:fs"
 import { spawnSync } from "node:child_process"
 import { killDescendants, killProcessTreeEscalated } from "./process-tree"
+import { readCredentialsFile } from "../config"
 
 const log = createLogger("claude-code-provider")
 
@@ -56,11 +57,15 @@ export function toCanonicalId(apiId: string): string {
 const CLAUDE_MODELS_CACHE = join(homedir(), ".claude", "tangerine-models-cache.json")
 const CACHE_TTL_MS = 24 * 60 * 60 * 1_000 // 24 h
 
-/** Fetch model list from the Anthropic REST API using ANTHROPIC_API_KEY. */
+/** Fetch model list from the Anthropic REST API using ANTHROPIC_API_KEY.
+ * Checks process.env first, then the Tangerine credentials dotfile, so
+ * keys set via `tangerine config set ANTHROPIC_API_KEY=...` are honoured. */
 function fetchAnthropicModels(): Array<{ id: string; context_window?: number }> | null {
-  const apiKey = process.env.ANTHROPIC_API_KEY
-  if (!apiKey) return null
   try {
+    // env var takes precedence; fall back to the Tangerine credentials dotfile so
+    // keys set via `tangerine config set ANTHROPIC_API_KEY=...` are honoured.
+    const apiKey = process.env.ANTHROPIC_API_KEY ?? readCredentialsFile().ANTHROPIC_API_KEY
+    if (!apiKey) return null
     const result = spawnSync("curl", [
       "-sf", "--max-time", "5",
       "https://api.anthropic.com/v1/models",
