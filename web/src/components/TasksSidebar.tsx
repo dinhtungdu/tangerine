@@ -16,6 +16,7 @@ import {
 } from "@/components/ui/input-group"
 import { ProjectSelector } from "./ProjectSelector"
 import { Button } from "@/components/ui/button"
+import { Badge } from "@/components/ui/badge"
 import { ScrollArea } from "@/components/ui/scroll-area"
 
 interface TasksSidebarProps {
@@ -139,20 +140,18 @@ function ProjectGroupHeader({
   )
 
   const toggleBtn = (
-    <button
-      onClick={(e) => { e.preventDefault(); e.stopPropagation(); onToggle() }}
-      className="mr-2 flex shrink-0 cursor-pointer items-center rounded-sm border border-border/50 px-1.5 py-px hover:border-border hover:bg-muted"
+    <Badge
+      variant="outline"
+      render={<button />}
+      onClick={(e: React.MouseEvent) => { e.preventDefault(); e.stopPropagation(); onToggle() }}
+      className="mr-2 shrink-0 cursor-pointer font-mono"
       aria-label={activeOnly ? "Show all tasks" : "Show active tasks only"}
       title={activeOnly ? "Showing active only — click to show all" : "Showing all — click to show active only"}
     >
-      <span className={`font-mono text-2xs ${activeOnly ? "text-foreground" : "text-muted-foreground opacity-40"}`}>
-        {activeCount}
-      </span>
-      <span className="font-mono text-2xs text-muted-foreground opacity-40">/</span>
-      <span className={`font-mono text-2xs ${!activeOnly ? "text-foreground" : "text-muted-foreground opacity-40"}`}>
-        {totalCount}
-      </span>
-    </button>
+      <span className={activeOnly ? "text-foreground" : "opacity-40"}>{activeCount}</span>
+      <span className="opacity-40">/</span>
+      <span className={!activeOnly ? "text-foreground" : "opacity-40"}>{totalCount}</span>
+    </Badge>
   )
 
   if (group.orchestrator && !TERMINAL_STATUSES.has(group.orchestrator.status)) {
