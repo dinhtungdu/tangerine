@@ -6,7 +6,7 @@ import { createLogger } from "../logger"
 import { loadConfig, getProjectConfig, TANGERINE_HOME, readRawConfig, writeRawConfig, isTestMode } from "../config"
 import { getDb } from "../db/index"
 import { createTask as dbCreateTask, getTask, listTasks, updateTask, insertSessionLog, markTaskResult, getDueCrons, hasActiveCronTask as dbHasActiveCronTask, updateCron } from "../db/queries"
-import { logActivity, cleanupActivities } from "../activity"
+import { logActivity, cleanupActivities, hasActivityEvent } from "../activity"
 import type { TaskRow, CronRow } from "../db/types"
 import { taskHasCapability } from "../api/helpers"
 import { createApp } from "../api/app"
@@ -1002,6 +1002,8 @@ export async function start(): Promise<void> {
       listTasks: (filter) => listTasks(db, filter),
       updateTask: (taskId, updates) => updateTask(db, taskId, updates).pipe(Effect.asVoid, Effect.mapError((e) => new Error(String(e)))),
       logActivity: (taskId, type, event, content, metadata) => logActivity(db, taskId, type, event, content, metadata),
+      hasActivityEvent: (taskId, event) => hasActivityEvent(db, taskId, event),
+      sendPrompt: (taskId, text) => deps.taskManager.sendPrompt(taskId, text).pipe(Effect.catchAll(() => Effect.void)),
       cleanupDeps,
       getProjectRepoUrl: (projectId) => getProjectConfig(config.config, projectId)?.repo,
     }

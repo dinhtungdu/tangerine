@@ -1,10 +1,13 @@
 // PR monitor: extracts PR URLs from agent events and polls PR status.
-// When a PR is merged → complete task. When closed without merge → cancel task.
+// When a PR is merged or closed:
+// - Running tasks: notify the agent so it can handle post-merge work, then self-complete
+// - Non-running tasks (created, provisioning, failed): directly complete/cancel
 // Also discovers PRs by polling the remote for each task's branch (catches PRs
 // created outside the agent, e.g. manually or by another tool).
 
 import { Effect, Schedule } from "effect"
 import type { Database } from "bun:sqlite"
+import { DEFAULT_API_PORT } from "@tangerine/shared"
 import { createLogger } from "../logger"
 import type { TaskRow } from "../db/types"
 import type { CleanupDeps } from "./cleanup"
@@ -216,6 +219,8 @@ export interface PrMonitorDeps {
   listTasks(filter?: { status?: string }): Effect.Effect<TaskRow[], Error>
   updateTask(taskId: string, updates: Partial<Omit<TaskRow, "id">>): Effect.Effect<unknown, Error>
   logActivity(taskId: string, type: "lifecycle" | "file" | "system", event: string, content: string, metadata?: Record<string, unknown>): Effect.Effect<unknown, Error>
+  hasActivityEvent(taskId: string, event: string): Effect.Effect<boolean, Error>
+  sendPrompt(taskId: string, text: string): Effect.Effect<void, never>
   cleanupDeps: CleanupDeps
   /** Look up project config to get repo URL for PR discovery. */
   getProjectRepoUrl?: (projectId: string) => string | undefined
@@ -288,6 +293,7 @@ export function pollPrStatuses(deps: PrMonitorDeps): Effect.Effect<void, never> 
 
     log.debug("Polling PR statuses", { count: withPr.length })
 
+    const apiPort = Number(process.env["PORT"] ?? DEFAULT_API_PORT)
     const checker = deps.checkPrState ?? checkPrState
     for (const task of withPr) {
       const state = yield* checker(task.pr_url!)
@@ -295,41 +301,93 @@ export function pollPrStatuses(deps: PrMonitorDeps): Effect.Effect<void, never> 
       if (!state || state === "open") continue
 
       if (state === "merged") {
-        log.info("PR merged, completing task", { taskId: task.id, prUrl: task.pr_url })
-
-        yield* deps.updateTask(task.id, {
-          status: "done",
-          completed_at: new Date().toISOString(),
-        }).pipe(Effect.ignoreLogged)
-
-        yield* deps.logActivity(task.id, "lifecycle", "task.completed", `Task completed: PR merged (${task.pr_url})`).pipe(
-          Effect.catchAll(() => Effect.void)
+        // Check if we already handled this PR merge
+        const alreadyHandled = yield* deps.hasActivityEvent(task.id, "pr.merged").pipe(
+          Effect.catchAll(() => Effect.succeed(false))
         )
+        if (alreadyHandled) continue
 
-        clearAgentWorkingState(task.id)
-        yield* clearQueue(task.id)
-        clearTaskState(task.id)
-        emitStatusChange(task.id, "done")
+        // For running tasks: notify the agent so it can do post-merge work
+        // For non-running tasks: directly complete (agent can't respond)
+        if (task.status === "running") {
+          log.info("PR merged, notifying agent", { taskId: task.id, prUrl: task.pr_url })
 
-        yield* cleanupSession(task.id, deps.cleanupDeps).pipe(Effect.ignoreLogged)
+          yield* deps.logActivity(task.id, "lifecycle", "pr.merged", `PR merged: ${task.pr_url}`).pipe(
+            Effect.catchAll(() => Effect.void)
+          )
+
+          yield* deps.sendPrompt(
+            task.id,
+            `[TANGERINE: Your PR has been merged (${task.pr_url}). ` +
+            `If you have post-merge work to do (e.g., publish a release, update documentation), do it now. ` +
+            `When you're done, call \`curl -X POST http://localhost:${apiPort}/api/tasks/${task.id}/done\` to complete the task.]`
+          )
+        } else {
+          log.info("PR merged, completing non-running task", { taskId: task.id, prUrl: task.pr_url, status: task.status })
+
+          yield* deps.updateTask(task.id, {
+            status: "done",
+            completed_at: new Date().toISOString(),
+          }).pipe(Effect.ignoreLogged)
+
+          yield* deps.logActivity(task.id, "lifecycle", "pr.merged", `PR merged: ${task.pr_url}`).pipe(
+            Effect.catchAll(() => Effect.void)
+          )
+          yield* deps.logActivity(task.id, "lifecycle", "task.completed", `Task completed: PR merged (${task.pr_url})`).pipe(
+            Effect.catchAll(() => Effect.void)
+          )
+
+          clearAgentWorkingState(task.id)
+          yield* clearQueue(task.id)
+          clearTaskState(task.id)
+          emitStatusChange(task.id, "done")
+
+          yield* cleanupSession(task.id, deps.cleanupDeps).pipe(Effect.ignoreLogged)
+        }
       } else if (state === "closed") {
-        log.info("PR closed without merge, cancelling task", { taskId: task.id, prUrl: task.pr_url })
-
-        yield* deps.updateTask(task.id, {
-          status: "cancelled",
-          completed_at: new Date().toISOString(),
-        }).pipe(Effect.ignoreLogged)
-
-        yield* deps.logActivity(task.id, "lifecycle", "task.cancelled", `Task cancelled: PR closed without merge (${task.pr_url})`).pipe(
-          Effect.catchAll(() => Effect.void)
+        // Check if we already handled this PR closure
+        const alreadyHandled = yield* deps.hasActivityEvent(task.id, "pr.closed").pipe(
+          Effect.catchAll(() => Effect.succeed(false))
         )
+        if (alreadyHandled) continue
 
-        clearAgentWorkingState(task.id)
-        yield* clearQueue(task.id)
-        clearTaskState(task.id)
-        emitStatusChange(task.id, "cancelled")
+        // For running tasks: notify the agent so it can do cleanup
+        // For non-running tasks: directly cancel (agent can't respond)
+        if (task.status === "running") {
+          log.info("PR closed without merge, notifying agent", { taskId: task.id, prUrl: task.pr_url })
 
-        yield* cleanupSession(task.id, deps.cleanupDeps).pipe(Effect.ignoreLogged)
+          yield* deps.logActivity(task.id, "lifecycle", "pr.closed", `PR closed without merge: ${task.pr_url}`).pipe(
+            Effect.catchAll(() => Effect.void)
+          )
+
+          yield* deps.sendPrompt(
+            task.id,
+            `[TANGERINE: Your PR has been closed without merge (${task.pr_url}). ` +
+            `If you need to inform a parent task or do cleanup, do it now. ` +
+            `When you're done, call \`curl -X POST http://localhost:${apiPort}/api/tasks/${task.id}/cancel\` to cancel the task.]`
+          )
+        } else {
+          log.info("PR closed without merge, cancelling non-running task", { taskId: task.id, prUrl: task.pr_url, status: task.status })
+
+          yield* deps.updateTask(task.id, {
+            status: "cancelled",
+            completed_at: new Date().toISOString(),
+          }).pipe(Effect.ignoreLogged)
+
+          yield* deps.logActivity(task.id, "lifecycle", "pr.closed", `PR closed without merge: ${task.pr_url}`).pipe(
+            Effect.catchAll(() => Effect.void)
+          )
+          yield* deps.logActivity(task.id, "lifecycle", "task.cancelled", `Task cancelled: PR closed without merge (${task.pr_url})`).pipe(
+            Effect.catchAll(() => Effect.void)
+          )
+
+          clearAgentWorkingState(task.id)
+          yield* clearQueue(task.id)
+          clearTaskState(task.id)
+          emitStatusChange(task.id, "cancelled")
+
+          yield* cleanupSession(task.id, deps.cleanupDeps).pipe(Effect.ignoreLogged)
+        }
       }
     }
   }).pipe(Effect.catchAll(() => Effect.void))

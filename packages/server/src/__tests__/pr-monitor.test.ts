@@ -197,12 +197,19 @@ describe("pollPrStatuses", () => {
     tasks: TaskRow[],
     prStates: Record<string, PrState | null>,
     branchPrs: Record<string, string | null> = {},
-  ): PrMonitorDeps & { updates: Array<{ taskId: string; updates: Partial<TaskRow> }>; activities: Array<{ taskId: string; event: string; content: string }> } {
+    existingEvents: Record<string, string[]> = {},
+  ): PrMonitorDeps & {
+    updates: Array<{ taskId: string; updates: Partial<TaskRow> }>;
+    activities: Array<{ taskId: string; event: string; content: string }>;
+    prompts: Array<{ taskId: string; text: string }>;
+  } {
     const updates: Array<{ taskId: string; updates: Partial<TaskRow> }> = []
     const activities: Array<{ taskId: string; event: string; content: string }> = []
+    const prompts: Array<{ taskId: string; text: string }> = []
     return {
       updates,
       activities,
+      prompts,
       db,
       listTasks: () => Effect.succeed(tasks),
       updateTask: (taskId, u) => {
@@ -212,6 +219,11 @@ describe("pollPrStatuses", () => {
       logActivity: (taskId, _type, event, content) => {
         activities.push({ taskId, event, content })
         return Effect.succeed(null)
+      },
+      hasActivityEvent: (taskId, event) => Effect.succeed(existingEvents[taskId]?.includes(event) ?? false),
+      sendPrompt: (taskId, text) => {
+        prompts.push({ taskId, text })
+        return Effect.void
       },
       cleanupDeps: {
         db,
@@ -249,38 +261,46 @@ describe("pollPrStatuses", () => {
     expect(deps.updates).toHaveLength(0)
   })
 
-  test("completes task when PR is merged", async () => {
+  test("notifies agent when PR is merged", async () => {
     const prUrl = "https://github.com/test/repo/pull/1"
     const task = makeTaskRow({ pr_url: prUrl })
     const deps = makeDeps([task], { [prUrl]: "merged" })
 
     await Effect.runPromise(pollPrStatuses(deps))
 
-    expect(deps.updates).toHaveLength(1)
-    expect(deps.updates[0]!.taskId).toBe(task.id)
-    expect(deps.updates[0]!.updates.status).toBe("done")
-    expect(deps.updates[0]!.updates.completed_at).toBeDefined()
-
+    // Should log activity and send prompt, not update status
     expect(deps.activities).toHaveLength(1)
-    expect(deps.activities[0]!.event).toBe("task.completed")
-    expect(deps.activities[0]!.content).toContain("PR merged")
+    expect(deps.activities[0]!.event).toBe("pr.merged")
+    expect(deps.activities[0]!.content).toContain(prUrl)
+
+    expect(deps.prompts).toHaveLength(1)
+    expect(deps.prompts[0]!.taskId).toBe(task.id)
+    expect(deps.prompts[0]!.text).toContain("PR has been merged")
+    expect(deps.prompts[0]!.text).toContain("/done")
+
+    // Should not update status - agent does that
+    expect(deps.updates.filter((u) => u.updates.status)).toHaveLength(0)
   })
 
-  test("cancels task when PR is closed without merge", async () => {
+  test("notifies agent when PR is closed without merge", async () => {
     const prUrl = "https://github.com/test/repo/pull/2"
     const task = makeTaskRow({ pr_url: prUrl })
     const deps = makeDeps([task], { [prUrl]: "closed" })
 
     await Effect.runPromise(pollPrStatuses(deps))
 
-    expect(deps.updates).toHaveLength(1)
-    expect(deps.updates[0]!.taskId).toBe(task.id)
-    expect(deps.updates[0]!.updates.status).toBe("cancelled")
-    expect(deps.updates[0]!.updates.completed_at).toBeDefined()
-
+    // Should log activity and send prompt, not update status
     expect(deps.activities).toHaveLength(1)
-    expect(deps.activities[0]!.event).toBe("task.cancelled")
+    expect(deps.activities[0]!.event).toBe("pr.closed")
     expect(deps.activities[0]!.content).toContain("closed without merge")
+
+    expect(deps.prompts).toHaveLength(1)
+    expect(deps.prompts[0]!.taskId).toBe(task.id)
+    expect(deps.prompts[0]!.text).toContain("PR has been closed without merge")
+    expect(deps.prompts[0]!.text).toContain("/cancel")
+
+    // Should not update status - agent does that
+    expect(deps.updates.filter((u) => u.updates.status)).toHaveLength(0)
   })
 
   test("handles multiple tasks with different PR states", async () => {
@@ -300,10 +320,10 @@ describe("pollPrStatuses", () => {
 
     await Effect.runPromise(pollPrStatuses(deps))
 
-    // merged + closed = 2 updates; open = no update
-    expect(deps.updates).toHaveLength(2)
-    expect(deps.updates[0]!.updates.status).toBe("done")
-    expect(deps.updates[1]!.updates.status).toBe("cancelled")
+    // merged + closed = 2 prompts; open = no prompt
+    expect(deps.prompts).toHaveLength(2)
+    expect(deps.activities.filter((a) => a.event === "pr.merged")).toHaveLength(1)
+    expect(deps.activities.filter((a) => a.event === "pr.closed")).toHaveLength(1)
   })
 
   test("skips tasks when checkPrState returns null", async () => {
@@ -314,6 +334,30 @@ describe("pollPrStatuses", () => {
     await Effect.runPromise(pollPrStatuses(deps))
 
     expect(deps.updates).toHaveLength(0)
+  })
+
+  test("skips notification when agent already notified about merged PR", async () => {
+    const prUrl = "https://github.com/test/repo/pull/100"
+    const task = makeTaskRow({ pr_url: prUrl })
+    const deps = makeDeps([task], { [prUrl]: "merged" }, {}, { [task.id]: ["pr.merged"] })
+
+    await Effect.runPromise(pollPrStatuses(deps))
+
+    // Should not prompt or log activity again
+    expect(deps.prompts).toHaveLength(0)
+    expect(deps.activities).toHaveLength(0)
+  })
+
+  test("skips notification when agent already notified about closed PR", async () => {
+    const prUrl = "https://github.com/test/repo/pull/101"
+    const task = makeTaskRow({ pr_url: prUrl })
+    const deps = makeDeps([task], { [prUrl]: "closed" }, {}, { [task.id]: ["pr.closed"] })
+
+    await Effect.runPromise(pollPrStatuses(deps))
+
+    // Should not prompt or log activity again
+    expect(deps.prompts).toHaveLength(0)
+    expect(deps.activities).toHaveLength(0)
   })
 
   test("discovers pr_url from branch when task has none", async () => {
@@ -336,8 +380,11 @@ describe("pollPrStatuses", () => {
 
     await Effect.runPromise(pollPrStatuses(deps))
 
-    const statusUpdate = deps.updates.find((u) => u.updates.status)
-    expect(statusUpdate?.updates.status).toBe("done")
+    // Should discover PR and notify agent about merge in same cycle
+    expect(deps.activities.some((a) => a.event === "pr.discovered")).toBe(true)
+    expect(deps.activities.some((a) => a.event === "pr.merged")).toBe(true)
+    expect(deps.prompts).toHaveLength(1)
+    expect(deps.prompts[0]!.text).toContain("PR has been merged")
   })
 
   test("does not look up branch PR when task already has pr_url", async () => {
@@ -375,28 +422,29 @@ describe("pollPrStatuses", () => {
     expect(deps.activities.some((a) => a.event === "pr.discovered")).toBe(true)
   })
 
-  test("completes reviewer task when PR is merged", async () => {
+  test("notifies reviewer task when PR is merged", async () => {
     const prUrl = "https://github.com/test/repo/pull/21"
     const task = makeTaskRow({ pr_url: prUrl, type: "reviewer" })
     const deps = makeDeps([task], { [prUrl]: "merged" })
 
     await Effect.runPromise(pollPrStatuses(deps))
 
-    expect(deps.updates).toHaveLength(1)
-    expect(deps.updates[0]!.taskId).toBe(task.id)
-    expect(deps.updates[0]!.updates.status).toBe("done")
-    expect(deps.activities[0]!.event).toBe("task.completed")
+    expect(deps.activities).toHaveLength(1)
+    expect(deps.activities[0]!.event).toBe("pr.merged")
+    expect(deps.prompts).toHaveLength(1)
+    expect(deps.prompts[0]!.taskId).toBe(task.id)
   })
 
-  test("discovers and completes reviewer task in same cycle", async () => {
+  test("discovers and notifies reviewer task in same cycle", async () => {
     const prUrl = "https://github.com/test/repo/pull/22"
     const task = makeTaskRow({ pr_url: null, branch: "tangerine/review1", type: "reviewer" })
     const deps = makeDeps([task], { [prUrl]: "merged" }, { "tangerine/review1": prUrl })
 
     await Effect.runPromise(pollPrStatuses(deps))
 
-    const statusUpdate = deps.updates.find((u) => u.updates.status)
-    expect(statusUpdate?.updates.status).toBe("done")
+    expect(deps.activities.some((a) => a.event === "pr.discovered")).toBe(true)
+    expect(deps.activities.some((a) => a.event === "pr.merged")).toBe(true)
+    expect(deps.prompts).toHaveLength(1)
   })
 
   test("discovers pr_url for provisioning tasks", async () => {
@@ -439,15 +487,18 @@ describe("pollPrStatuses", () => {
     expect(deps.activities).toHaveLength(0)
   })
 
-  test("completes failed task when discovered PR is merged", async () => {
+  test("directly completes failed task when discovered PR is merged", async () => {
     const prUrl = "https://github.com/test/repo/pull/32"
     const task = makeTaskRow({ pr_url: null, branch: "tangerine/abc123", status: "failed" })
     const deps = makeDeps([task], { [prUrl]: "merged" }, { "tangerine/abc123": prUrl })
 
     await Effect.runPromise(pollPrStatuses(deps))
 
-    const statusUpdate = deps.updates.find((u) => u.updates.status)
-    expect(statusUpdate?.updates.status).toBe("done")
+    // Non-running tasks should be directly completed, not prompted
+    expect(deps.activities.some((a) => a.event === "pr.merged")).toBe(true)
+    expect(deps.activities.some((a) => a.event === "task.completed")).toBe(true)
+    expect(deps.updates.some((u) => u.updates.status === "done")).toBe(true)
+    expect(deps.prompts).toHaveLength(0)
   })
 
   test("discovers pr_url using getProjectRepoUrl", async () => {
@@ -479,6 +530,8 @@ describe("pollPrStatuses", () => {
       listTasks: () => Effect.fail(new Error("db gone")),
       updateTask: () => Effect.succeed(null),
       logActivity: () => Effect.succeed(null),
+      hasActivityEvent: () => Effect.succeed(false),
+      sendPrompt: () => Effect.void,
       cleanupDeps: {
         db,
         getTask: () => Effect.succeed(null),
