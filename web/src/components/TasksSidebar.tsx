@@ -290,7 +290,7 @@ export function TasksSidebar({ tasks, projects, searchQuery, onSearchChange, onN
   return (
     <div className="flex h-full w-full shrink-0 flex-col border-r border-border bg-background md:w-[240px]">
       {/* Top section */}
-      <div className="flex flex-col gap-3 px-4 pt-5 pb-2">
+      <div className="flex flex-col gap-2 px-4 pt-5 pb-3">
         <Button
           onClick={onNewAgent}
           className="hidden md:flex"
@@ -321,9 +321,6 @@ export function TasksSidebar({ tasks, projects, searchQuery, onSearchChange, onN
             </InputGroupAddon>
           )}
         </InputGroup>
-      </div>
-
-      <div className="flex w-full shrink-0 items-center px-4 py-1.5">
         <ProjectSelector
           projects={projects}
           value={projectFilter}
