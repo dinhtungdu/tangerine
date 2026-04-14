@@ -2,7 +2,7 @@ import { useMemo, useState, useCallback, useEffect } from "react"
 import { Link, useParams, useNavigate } from "react-router-dom"
 import { TERMINAL_STATUSES } from "@tangerine/shared"
 import type { Task, ProjectConfig } from "@tangerine/shared"
-import { Search, Plus, X, ListFilter } from "lucide-react"
+import { Search, Plus, X } from "lucide-react"
 import { getStatusConfig, hasUnseenUpdates } from "../lib/status"
 import { formatRelativeTime } from "../lib/format"
 import { useProject } from "../context/ProjectContext"
@@ -131,24 +131,21 @@ function ProjectGroupHeader({
     : "hover:bg-muted"
 
   const navContent = (
-    <>
-      <span className="truncate text-md font-semibold text-foreground">
-        {group.projectName}
-      </span>
-      <div className="flex items-center justify-center rounded-sm bg-muted px-1.5 py-px">
-        <span className="font-mono text-2xs text-muted-foreground">{filteredCount}</span>
-      </div>
-    </>
+    <span className="truncate text-md font-semibold text-foreground">
+      {group.projectName}
+    </span>
   )
 
   const toggleBtn = (
     <button
       onClick={(e) => { e.preventDefault(); e.stopPropagation(); onToggle() }}
-      className="flex shrink-0 items-center px-2 py-2 hover:bg-muted"
+      className="mr-2 flex shrink-0 items-center justify-center rounded-sm px-1.5 py-px hover:bg-muted"
       aria-label={activeOnly ? "Show all tasks" : "Show active tasks only"}
       title={activeOnly ? "Showing active only — click to show all" : "Showing all — click to show active only"}
     >
-      <ListFilter className={`h-3.5 w-3.5 transition-opacity ${activeOnly ? "text-foreground" : "opacity-30"}`} />
+      <span className={`font-mono text-2xs transition-opacity ${activeOnly ? "text-foreground" : "text-muted-foreground opacity-50"}`}>
+        {filteredCount}
+      </span>
     </button>
   )
 
