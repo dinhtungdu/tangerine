@@ -188,6 +188,7 @@ export function createClaudeCodeProvider(): AgentFactory {
               "claude",
               "--output-format", "stream-json",
               "--input-format", "stream-json",
+              "--include-partial-messages",
               "--verbose",
               ...sessionFlag.split(" "),
               ...(ctx.model ? ["--model", ctx.model] : []),
