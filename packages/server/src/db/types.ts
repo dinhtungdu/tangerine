@@ -6,6 +6,7 @@ export interface TaskRow {
   source_url: string | null
   title: string
   type: string
+  workflow: string
   description: string | null
   status: string
   provider: string

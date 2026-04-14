@@ -129,6 +129,26 @@ Task types — **always pass the correct type**:
 - `reviewer` — **MUST use for any code review task** (reviewing a PR, auditing a diff, checking for regressions). Never use `worker` for review work — reviewer tasks get review-specific capabilities and UI treatment.
 - `orchestrator` — system-managed, do not create manually
 
+Task workflows — controls worktree and PR behavior:
+
+- `pr` (default) — allocates a worktree, creates a branch, tracks PRs, auto-completes on PR merge
+- `script` — no worktree allocation, runs on project root, no PR tracking, agent self-completes. Use for publish, deploy, or any non-code-change task.
+
+Example script task:
+
+```bash
+curl -X POST "$API/api/tasks" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "projectId": "my-project",
+    "title": "Publish v1.0.0 to npm",
+    "workflow": "script",
+    "description": "Run bun publish after verifying build passes",
+    "source": "cross-project",
+    "parentTaskId": "abc123"
+  }'
+```
+
 ### Session / Chat
 
 ```bash

@@ -22,6 +22,9 @@ export const ORCHESTRATOR_TASK_NAME = "_orchestrator"
 /** Task statuses that represent a completed lifecycle (no longer active). */
 export const TERMINAL_STATUSES = new Set(["done", "failed", "cancelled"])
 
+/** Valid workflow values for tasks. */
+export const SUPPORTED_WORKFLOWS = ["pr", "script"] as const
+
 /** Check if a repo string refers to a GitHub-hosted repo (including GHE). */
 export function isGithubRepo(repo: string): boolean {
   return /github(?:\.[a-z0-9-]+)*\.[a-z]+/.test(repo) || /^[^/]+\/[^/]+$/.test(repo)

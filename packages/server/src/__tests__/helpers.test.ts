@@ -43,6 +43,7 @@ describe("mapTaskRow", () => {
       source_url: null,
       title: "Test",
       type: "worker",
+      workflow: "pr",
       description: null,
       status: "running",
       provider: "claude-code",

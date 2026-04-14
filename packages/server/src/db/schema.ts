@@ -9,6 +9,7 @@ export const SCHEMA = `
     source_url TEXT,
     title TEXT NOT NULL,
     type TEXT NOT NULL DEFAULT 'worker',
+    workflow TEXT NOT NULL DEFAULT 'pr',
     description TEXT,
     status TEXT NOT NULL DEFAULT 'created',
     provider TEXT NOT NULL DEFAULT '${DEFAULT_PROVIDER}',

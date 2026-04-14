@@ -1,4 +1,4 @@
-import type { Task, Cron, TaskType, TaskSource, TaskStatus, ProviderType, TaskCapability } from "@tangerine/shared"
+import type { Task, Cron, TaskType, TaskWorkflow, TaskSource, TaskStatus, ProviderType, TaskCapability } from "@tangerine/shared"
 import type { TaskRow, CronRow } from "../db/types"
 
 /**
@@ -14,9 +14,13 @@ export function utc(ts: string | null): string | null {
   return ts.replace(" ", "T") + "Z"
 }
 
-// Canonical capabilities per task type. Used as baseline for all tasks.
-function canonicalCapabilities(type: string): TaskCapability[] {
+// Canonical capabilities per task type + workflow. Used as baseline for all tasks.
+function canonicalCapabilities(type: string, workflow = "pr"): TaskCapability[] {
   if (type === "orchestrator") return ["resolve", "predefined-prompts"]
+  if (workflow === "script") {
+    if (type === "reviewer") return ["resolve", "predefined-prompts", "diff"]
+    return ["resolve", "predefined-prompts", "diff", "continue"]
+  }
   if (type === "reviewer") return ["resolve", "predefined-prompts", "diff", "pr-track"]
   return ["resolve", "predefined-prompts", "diff", "continue", "pr-track", "pr-create"]
 }
@@ -24,8 +28,8 @@ function canonicalCapabilities(type: string): TaskCapability[] {
 // Merge stored capabilities with canonical ones so that:
 // - New capabilities added to the canonical set appear on existing rows
 // - Custom per-task capabilities stored in the DB are preserved
-function mergeCapabilities(stored: string | null, type: string): TaskCapability[] {
-  const canonical = canonicalCapabilities(type)
+function mergeCapabilities(stored: string | null, type: string, workflow = "pr"): TaskCapability[] {
+  const canonical = canonicalCapabilities(type, workflow)
   if (!stored) return canonical
   const parsed: TaskCapability[] = JSON.parse(stored)
   const merged = new Set([...canonical, ...parsed])
@@ -34,10 +38,12 @@ function mergeCapabilities(stored: string | null, type: string): TaskCapability[
 
 /** Maps a snake_case TaskRow from SQLite to a camelCase Task for API responses */
 export function mapTaskRow(row: TaskRow): Task {
+  const workflow = (row.workflow ?? "pr") as TaskWorkflow
   return {
     id: row.id,
     projectId: row.project_id,
     type: (row.type ?? "worker") as TaskType,
+    workflow,
     source: row.source as TaskSource,
     sourceId: row.source_id,
     sourceUrl: row.source_url,
@@ -62,7 +68,7 @@ export function mapTaskRow(row: TaskRow): Task {
     completedAt: utc(row.completed_at),
     lastSeenAt: utc(row.last_seen_at),
     lastResultAt: utc(row.last_result_at),
-    capabilities: mergeCapabilities(row.capabilities, row.type ?? "worker"),
+    capabilities: mergeCapabilities(row.capabilities, row.type ?? "worker", workflow),
     inputTokens: row.input_tokens ?? 0,
     outputTokens: row.output_tokens ?? 0,
   }
@@ -97,8 +103,8 @@ export function normalizeTimestamps<T extends object>(row: T): T {
 }
 
 /** Check if a task (by type + stored capabilities) has a given capability. */
-export function taskHasCapability(type: string, storedCapabilities: string | null, cap: TaskCapability): boolean {
-  const canonical = canonicalCapabilities(type)
+export function taskHasCapability(type: string, storedCapabilities: string | null, cap: TaskCapability, workflow = "pr"): boolean {
+  const canonical = canonicalCapabilities(type, workflow)
   if (canonical.includes(cap)) return true
   if (!storedCapabilities) return false
   const parsed: TaskCapability[] = JSON.parse(storedCapabilities)

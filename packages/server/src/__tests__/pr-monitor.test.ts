@@ -163,6 +163,7 @@ function makeTaskRow(overrides?: Partial<TaskRow>): TaskRow {
     source_url: null,
     title: "Test task",
     type: "worker",
+    workflow: "pr",
     description: null,
     status: "running",
     provider: "opencode",

@@ -32,7 +32,7 @@ Tangerine is a local background coding agent platform. The current implementatio
 - Multi-provider agents behind a shared abstraction
 - Git worktree isolation per task
 - Project-agnostic setup through per-project config (with archive/unarchive support)
-- Typed task model: source, type, capabilities, provider, model, reasoning effort
+- Typed task model: source, type, workflow, capabilities, provider, model, reasoning effort
 - Recoverable sessions: restart, reconnect, retry, and orphan cleanup are first-class paths
 
 ## Stack
@@ -93,7 +93,8 @@ The main persisted tables are:
 
 Notable task fields in the active schema:
 
-- `type`
+- `type` — "worker", "orchestrator", "reviewer"
+- `workflow` — "pr" (default: worktree + branch + PR tracking) or "script" (no worktree, runs on project root, no PR tracking, agent self-completes)
 - `provider`
 - `model`
 - `reasoning_effort`

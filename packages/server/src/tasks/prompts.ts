@@ -14,6 +14,7 @@ const apiPort = () => Number(process.env["PORT"] ?? DEFAULT_API_PORT)
 export interface SystemNotesInfo {
   setupCommand?: string
   taskType?: string
+  workflow?: "pr" | "script"
   prMode?: "ready" | "draft" | "none"
   /** Custom system prompt from taskTypes config (already resolved by caller). */
   customSystemPrompt?: string
@@ -63,7 +64,7 @@ export function buildSystemLayer(taskId: string, info: SystemNotesInfo, port = a
   const notes: string[] = []
   notes.push(`[TANGERINE: You are running inside a Tangerine task (task ID: ${taskId}). The Tangerine API is at http://localhost:${port}. Load the tangerine-tasks skill for full API reference and common workflows.]`)
 
-  if (info.taskType === "worker") {
+  if (info.taskType === "worker" && info.workflow !== "script") {
     const prMode = info.prMode ?? "none"
     const prModeInstruction = buildPrModeInstruction(prMode, info.upstreamSlug)
     notes.push(`[PR MODE — CRITICAL: ${prModeInstruction}]`)
@@ -71,6 +72,10 @@ export function buildSystemLayer(taskId: string, info: SystemNotesInfo, port = a
       notes.push(`[NOTE: When your work is complete: ${buildPrWorkflowNote(taskId, port, prMode, info.upstreamSlug)} Do not stop at just committing.]`)
       notes.push(`[PR TEMPLATE: Before running \`gh pr create\`, check for a PR template: \`cat .github/pull_request_template.md 2>/dev/null || cat .github/PULL_REQUEST_TEMPLATE.md 2>/dev/null\`. If a PR template exists in the repo, you MUST use it as the structure for your PR body. Follow it strictly — do not skip sections, do not add sections not in the template.]`)
     }
+  }
+
+  if (info.workflow === "script") {
+    notes.push(`[SCRIPT TASK: This task runs without a dedicated worktree or branch. No PR creation needed. Complete the task when done by calling POST /api/tasks/${taskId}/done or by finishing your work.]`)
   }
 
   if (info.taskType === "orchestrator") {
