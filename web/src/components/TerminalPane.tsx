@@ -204,8 +204,18 @@ export function TerminalPane(props: TerminalPaneProps) {
       if (reconnectTimerRef.current) clearTimeout(reconnectTimerRef.current)
       const ws = wsRef.current
       if (ws) {
+        // Null handlers before close so reconnect logic doesn't fire.
+        // If still CONNECTING, defer close until onopen to avoid the
+        // browser warning about closing before the handshake completes.
+        ws.onmessage = null
+        ws.onerror = null
         ws.onclose = null
-        ws.close()
+        if (ws.readyState === WebSocket.CONNECTING) {
+          ws.onopen = () => ws.close()
+        } else {
+          ws.onopen = null
+          ws.close()
+        }
         wsRef.current = null
       }
       setConnState("connecting")
