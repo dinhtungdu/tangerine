@@ -141,7 +141,7 @@ function ProjectGroupHeader({
   const toggleBtn = (
     <button
       onClick={(e) => { e.preventDefault(); e.stopPropagation(); onToggle() }}
-      className="mr-2 flex shrink-0 items-center rounded-sm px-1.5 py-px hover:bg-muted"
+      className="mr-2 flex shrink-0 cursor-pointer items-center rounded-sm border border-border/50 px-1.5 py-px hover:border-border hover:bg-muted"
       aria-label={activeOnly ? "Show all tasks" : "Show active tasks only"}
       title={activeOnly ? "Showing active only — click to show all" : "Showing all — click to show active only"}
     >
