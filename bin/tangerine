@@ -1,2 +1,20 @@
 #!/usr/bin/env bun
-import "../packages/server/src/cli/index.ts"
+import { existsSync, mkdirSync, symlinkSync } from "fs";
+import { join } from "path";
+
+// When installed from npm (not in a bun workspace), @tangerine/shared
+// won't be resolvable. Create a symlink so bun can find it.
+const root = join(import.meta.dir, "..");
+const sharedTarget = join(root, "node_modules", "@tangerine", "shared");
+
+if (!existsSync(sharedTarget)) {
+  try {
+    mkdirSync(join(root, "node_modules", "@tangerine"), { recursive: true });
+    const type = process.platform === "win32" ? "junction" : "dir";
+    symlinkSync(join(root, "packages", "shared"), sharedTarget, type);
+  } catch {
+    // Ignore — may already exist or lack permissions
+  }
+}
+
+await import("../packages/server/src/cli/index.ts");
