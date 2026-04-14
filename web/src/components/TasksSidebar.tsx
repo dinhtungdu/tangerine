@@ -244,8 +244,13 @@ export function TasksSidebar({ tasks, projects, searchQuery, onSearchChange, onN
       })
     }
 
+    // Build set of archived project names to skip tasks from them
+    const archivedProjectNames = new Set(projects.filter((p) => p.archived).map((p) => p.name))
+
     // Assign tasks to groups
     for (const t of sorted) {
+      // Skip tasks from archived projects — they should not appear in the sidebar
+      if (archivedProjectNames.has(t.projectId)) continue
       let group = groupMap.get(t.projectId)
       if (!group) {
         group = {
