@@ -36,14 +36,12 @@ describe("claude-code provider listModels", () => {
     expect(createClaudeCodeProvider().listModels()).toEqual(discoverClaudeCodeModels())
   })
 
-  test("returns known Claude models", () => {
+  test("always includes known Claude models", () => {
     const models = createClaudeCodeProvider().listModels()
-    expect(models.length).toBeGreaterThan(0)
-    expect(models.map((m) => m.id)).toEqual([
-      "claude-opus-4-6",
-      "claude-sonnet-4-6",
-      "claude-haiku-4-5",
-    ])
+    const ids = models.map((m) => m.id)
+    expect(ids).toContain("claude-opus-4-6")
+    expect(ids).toContain("claude-sonnet-4-6")
+    expect(ids).toContain("claude-haiku-4-5")
   })
 
   test("each model has a contextWindow", () => {

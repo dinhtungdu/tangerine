@@ -103,8 +103,7 @@ export function discoverModels(): ModelInfo[] {
     }
   }
 
-  // Map versioned API IDs to canonical short IDs so lookups match our known models.
-  // e.g. "claude-opus-4-6-20250514" → "claude-opus-4-6"
+  const knownIds = new Set(CLAUDE_CODE_KNOWN_MODELS.map((m) => m.id))
   const contextMap = new Map(
     (apiModels ?? [])
       .filter((m): m is { id: string; context_window: number } =>
@@ -112,10 +111,34 @@ export function discoverModels(): ModelInfo[] {
       .map((m) => [toCanonicalId(m.id), m.context_window]),
   )
 
-  return CLAUDE_CODE_KNOWN_MODELS.map((m) => ({
+  // Start with known models, enriched with API context windows
+  const result: ModelInfo[] = CLAUDE_CODE_KNOWN_MODELS.map((m) => ({
     ...m,
     ...(contextMap.has(m.id) ? { contextWindow: contextMap.get(m.id)! } : {}),
   }))
+
+  // Add any Claude models from the API that aren't already in the static list.
+  // Dedup by canonical ID but keep the original API ID for CLI compatibility.
+  if (apiModels) {
+    const seen = new Set<string>()
+    for (const m of apiModels) {
+      if (!m.id.startsWith("claude-")) continue
+      const canonicalId = toCanonicalId(m.id)
+      if (knownIds.has(canonicalId) || seen.has(canonicalId)) continue
+      seen.add(canonicalId)
+      result.push({
+        id: m.id,
+        name: m.id,
+        provider: "anthropic",
+        providerName: "Anthropic",
+        ...(typeof m.context_window === "number" && m.context_window > 0
+          ? { contextWindow: m.context_window }
+          : { contextWindow: 200_000 }),
+      })
+    }
+  }
+
+  return result
 }
 
 export const CLAUDE_CODE_PROVIDER_METADATA: ProviderMetadata = {
