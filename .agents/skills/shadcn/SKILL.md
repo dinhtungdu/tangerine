@@ -14,10 +14,12 @@ A framework for building ui, components and design systems. Components are added
 ## Current Project Context
 
 ```json
-!`npx shadcn@latest info --json`
+!`f() { local dir="${1:-.}"; if [ -f "$dir/components.json" ]; then npx shadcn@latest info --json -c "$dir"; return; fi; for d in $(find . -maxdepth 3 -name "components.json" -not -path "*/node_modules/*" 2>/dev/null | head -5 | xargs -I{} dirname {}); do npx shadcn@latest info --json -c "$d"; return; done; npx shadcn@latest info --json; }; f`
 ```
 
 The JSON above contains the project config and installed components. Use `npx shadcn@latest docs <component>` to get documentation and example URLs for any component.
+
+> **Monorepo note:** In monorepos, `components.json` lives in a subdirectory (e.g. `web/`). The context above auto-detects it by searching up to 3 levels deep. If auto-detect fails or you need a specific workspace, pass `-c <path>` explicitly: `npx shadcn@latest info -c web --json`. Never run `npx shadcn@latest info` from a monorepo root without `-c` — it will error.
 
 ## Principles
 
@@ -165,7 +167,7 @@ npx shadcn@latest docs button dialog select
 
 ## Workflow
 
-1. **Get project context** — already injected above. Run `npx shadcn@latest info` again if you need to refresh.
+1. **Get project context** — already injected above. Run `npx shadcn@latest info` (or `npx shadcn@latest info -c <workspace>` in monorepos) if you need to refresh.
 2. **Check installed components first** — before running `add`, always check the `components` list from project context or list the `resolvedPaths.ui` directory. Don't import components that haven't been added, and don't re-add ones already installed.
 3. **Find components** — `npx shadcn@latest search`.
 4. **Get docs and examples** — run `npx shadcn@latest docs <component>` to get URLs, then fetch them. Use `npx shadcn@latest view` to browse registry items you haven't installed. To preview changes to installed components, use `npx shadcn@latest add --diff`.
@@ -177,7 +179,7 @@ npx shadcn@latest docs button dialog select
    - **Overwrite**: `npx shadcn@latest apply --preset <code>`. Overwrites detected components, fonts, and CSS variables.
    - **Merge**: `npx shadcn@latest init --preset <code> --force --no-reinstall`, then run `npx shadcn@latest info` to list installed components, then for each installed component use `--dry-run` and `--diff` to [smart merge](#updating-components) it individually.
    - **Skip**: `npx shadcn@latest init --preset <code> --force --no-reinstall`. Only updates config and CSS, leaves components as-is.
-   - **Important**: Always run preset commands inside the user's project directory. `apply` only works in an existing project with a `components.json` file. The CLI automatically preserves the current base (`base` vs `radix`) from `components.json`. If you must use a scratch/temp directory (e.g. for `--dry-run` comparisons), pass `--base <current-base>` explicitly — preset codes do not encode the base.
+   - **Important**: Always run preset commands inside the shadcn workspace directory (where `components.json` lives), or pass `-c <workspace>` if running from the repo root. `apply` only works in an existing project with a `components.json` file. The CLI automatically preserves the current base (`base` vs `radix`) from `components.json`. If you must use a scratch/temp directory (e.g. for `--dry-run` comparisons), pass `--base <current-base>` explicitly — preset codes do not encode the base.
 
 ## Updating Components
 
