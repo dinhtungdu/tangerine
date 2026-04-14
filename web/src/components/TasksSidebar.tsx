@@ -326,6 +326,7 @@ export function TasksSidebar({ tasks, projects, searchQuery, onSearchChange, onN
           onChange={handleProjectFilterChange}
           allowAll
           size="sm"
+          className="w-full"
           aria-label="Filter by project"
         />
       </div>
