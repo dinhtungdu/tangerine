@@ -125,9 +125,25 @@ Provider values:
 
 Task types — **always pass the correct type**:
 
-- `worker` — default for implementation (features, fixes, refactors)
+- `worker` — default for implementation (features, fixes, refactors). Gets a worktree, branch, and PR tracking.
 - `reviewer` — **MUST use for any code review task** (reviewing a PR, auditing a diff, checking for regressions). Never use `worker` for review work — reviewer tasks get review-specific capabilities and UI treatment.
+- `runner` — no worktree allocation, runs on project root, no PR tracking, agent self-completes. Use for publish, deploy, or any non-code-change task.
 - `orchestrator` — system-managed, do not create manually
+
+Example runner task (no worktree, no PR):
+
+```bash
+curl -X POST "$API/api/tasks" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "projectId": "my-project",
+    "title": "Publish v1.0.0 to npm",
+    "type": "runner",
+    "description": "Run bun publish after verifying build passes",
+    "source": "cross-project",
+    "parentTaskId": "abc123"
+  }'
+```
 
 ### Session / Chat
 

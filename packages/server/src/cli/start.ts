@@ -335,7 +335,7 @@ export async function start(): Promise<void> {
                 const nudgeParts = [
                   `[TANGERINE: Server restarted. You are working on: ${originalTask}]`,
                 ]
-                if (taskRow?.type !== "reviewer" && reconnectProjConfig?.prMode !== "none") {
+                if (taskRow?.type === "worker" && reconnectProjConfig?.prMode !== "none") {
                   nudgeParts.push(`[NOTE: When your work is complete: ${buildPrWorkflowNote(taskId, undefined, reconnectProjConfig?.prMode)}]`)
                 }
                 nudgeParts.push(

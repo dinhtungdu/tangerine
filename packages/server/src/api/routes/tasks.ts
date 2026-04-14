@@ -61,7 +61,7 @@ export function taskRoutes(deps: AppDeps): Hono {
   })
 
   app.post("/", async (c) => {
-    const body = await c.req.json<{ projectId?: string; title?: string; type?: "worker" | "orchestrator" | "reviewer"; description?: string; provider?: string; model?: string; reasoningEffort?: string; source?: string; sourceId?: string; sourceUrl?: string; branch?: string; parentTaskId?: string; images?: import("../../agent/provider").PromptImage[] }>()
+    const body = await c.req.json<{ projectId?: string; title?: string; type?: "worker" | "orchestrator" | "reviewer" | "runner"; description?: string; provider?: string; model?: string; reasoningEffort?: string; source?: string; sourceId?: string; sourceUrl?: string; branch?: string; parentTaskId?: string; images?: import("../../agent/provider").PromptImage[] }>()
     if (!body.title) {
       return c.json({ error: "title is required" }, 400)
     }
@@ -85,9 +85,9 @@ export function taskRoutes(deps: AppDeps): Hono {
         return c.json({ error: `Invalid reasoningEffort "${body.reasoningEffort}" for provider "${effectiveProvider}". Must be one of: ${valid}` }, 400)
       }
     }
-    const validTypes = new Set(["worker", "orchestrator", "reviewer"])
+    const validTypes = new Set(["worker", "orchestrator", "reviewer", "runner"])
     if (body.type && !validTypes.has(body.type)) {
-      return c.json({ error: `Invalid type: ${body.type}. Must be worker, orchestrator, or reviewer` }, 400)
+      return c.json({ error: `Invalid type: ${body.type}. Must be worker, orchestrator, reviewer, or runner` }, 400)
     }
     const source = body.source === "cross-project" ? "cross-project" : "manual"
 
@@ -153,7 +153,7 @@ export function taskRoutes(deps: AppDeps): Hono {
                 source: task.source as "manual" | "github" | "api" | "cross-project",
                 projectId: task.project_id,
                 title: task.title,
-                type: (task.type ?? "worker") as "worker" | "orchestrator" | "reviewer",
+                type: (task.type ?? "worker") as "worker" | "orchestrator" | "reviewer" | "runner",
                 description: task.description ?? undefined,
                 sourceId: task.source_id ?? undefined,
                 sourceUrl: task.source_url ?? undefined,

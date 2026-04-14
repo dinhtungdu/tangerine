@@ -612,6 +612,13 @@ describe("buildSystemNotes", () => {
     expect(notes.some((n) => n.includes("PR MODE"))).toBe(false)
   })
 
+  test("includes runner task note and excludes PR notes for runner type", () => {
+    const notes = buildSystemNotes("test-id", { taskType: "runner", prMode: "draft" })
+    expect(notes.some((n) => n.includes("RUNNER TASK"))).toBe(true)
+    expect(notes.some((n) => n.includes("PR MODE"))).toBe(false)
+    expect(notes.some((n) => n.includes("rename-branch"))).toBe(false)
+  })
+
   test("includes --repo upstream flag for fork projects (draft)", () => {
     const notes = buildSystemNotes("test-id", { taskType: "worker", prMode: "draft", upstreamSlug: "upstream/repo" })
     expect(notes.some((n) => n.includes("--repo upstream/repo"))).toBe(true)

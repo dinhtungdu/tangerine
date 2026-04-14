@@ -73,6 +73,10 @@ export function buildSystemLayer(taskId: string, info: SystemNotesInfo, port = a
     }
   }
 
+  if (info.taskType === "runner") {
+    notes.push(`[RUNNER TASK: This task runs without a dedicated worktree or branch. No PR creation needed. Complete the task when done by calling POST /api/tasks/${taskId}/done or by finishing your work.]`)
+  }
+
   if (info.taskType === "orchestrator") {
     notes.push(`[DELEGATION — CRITICAL: All implementation and review work must go through sub-tasks. Never implement, review diffs, or read code directly. The orchestrator only coordinates.]`)
     notes.push(`[CONTEXT: Every file read, git diff, tool call, and message fetch consumes your context window and shortens your session life. Keep interactions with the API minimal and purposeful.]`)
