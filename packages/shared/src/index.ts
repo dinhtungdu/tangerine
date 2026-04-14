@@ -1,5 +1,6 @@
 export {
   isProviderAvailable,
+  getCapabilitiesForType,
   type TaskStatus,
   type TaskSource,
   type TaskType,

@@ -1,5 +1,5 @@
 import { useState, useCallback, useEffect, useRef, type ClipboardEvent, type KeyboardEvent } from "react"
-import { isGithubRepo, isProviderAvailable, SUPPORTED_PROVIDERS, type ProviderType, type PromptImage, type Task } from "@tangerine/shared"
+import { isGithubRepo, isProviderAvailable, getCapabilitiesForType, SUPPORTED_PROVIDERS, type ProviderType, type PromptImage, type Task, type TaskType } from "@tangerine/shared"
 import { useProject } from "../context/ProjectContext"
 import { ModelSelector } from "./ModelSelector"
 import { HarnessSelector } from "./HarnessSelector"
@@ -25,9 +25,12 @@ interface PendingImage extends PromptImage {
   dataUrl: string
 }
 
-function loadDraftFromKey(key: string): { description?: string; customBranch?: string; taskType?: "worker" | "reviewer"; pendingImages?: PendingImage[] } {
+/** Task types selectable in the form — excludes orchestrator (system-managed) */
+type FormTaskType = Exclude<TaskType, "orchestrator">
+
+function loadDraftFromKey(key: string): { description?: string; customBranch?: string; taskType?: FormTaskType; pendingImages?: PendingImage[] } {
   try {
-    return JSON.parse(localStorage.getItem(key) ?? "{}") as { description?: string; customBranch?: string; taskType?: "worker" | "reviewer"; pendingImages?: PendingImage[] }
+    return JSON.parse(localStorage.getItem(key) ?? "{}") as { description?: string; customBranch?: string; taskType?: FormTaskType; pendingImages?: PendingImage[] }
   } catch {
     return {}
   }
@@ -82,7 +85,7 @@ export function NewAgentForm({ onSubmit, refTaskId, refTaskTitle, refBranch, ref
       if (available) setProvider(available as ProviderType)
     }
   }, [systemCapabilities, provider])
-  const [taskType, setTaskType] = useState<"worker" | "reviewer">(() => loadDraftFromKey(draftKey).taskType ?? "worker")
+  const [taskType, setTaskType] = useState<FormTaskType>(() => loadDraftFromKey(draftKey).taskType ?? "worker")
   const [submitting, setSubmitting] = useState(false)
   const branch = effectiveProject?.defaultBranch ?? "main"
 
@@ -251,7 +254,7 @@ export function NewAgentForm({ onSubmit, refTaskId, refTaskTitle, refBranch, ref
             </p>
           </div>
 
-          {/* Worker / Reviewer toggle */}
+          {/* Worker / Reviewer / Runner toggle */}
           <div className="flex justify-center">
             <div className="inline-flex rounded-lg border border-border bg-muted p-0.5">
               <Button
@@ -266,6 +269,12 @@ export function NewAgentForm({ onSubmit, refTaskId, refTaskTitle, refBranch, ref
                 onClick={() => setTaskType("reviewer")}
                 className={`rounded-md px-4 py-1.5 text-md font-medium ${taskType === "reviewer" ? "bg-background text-foreground shadow-sm" : "text-muted-foreground hover:text-foreground"}`}
               >Reviewer</Button>
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => setTaskType("runner")}
+                className={`rounded-md px-4 py-1.5 text-md font-medium ${taskType === "runner" ? "bg-background text-foreground shadow-sm" : "text-muted-foreground hover:text-foreground"}`}
+              >Runner</Button>
             </div>
           </div>
 
@@ -377,13 +386,15 @@ export function NewAgentForm({ onSubmit, refTaskId, refTaskTitle, refBranch, ref
                   menuPlacement="bottom"
                 />
                 <ReasoningEffortSelector value={reasoningEffort} onChange={(e) => { setReasoningEffort(e); savePrefs({ reasoningEffort: e }) }} provider={provider} />
-                <BranchInput
-                  value={customBranch}
-                  onChange={setCustomBranch}
-                  placeholder={branch}
-                  aria-label="Branch or PR"
-                  className="h-7 max-w-[180px] text-sm"
-                />
+                {getCapabilitiesForType(taskType).includes("pr-track") && (
+                  <BranchInput
+                    value={customBranch}
+                    onChange={setCustomBranch}
+                    placeholder={branch}
+                    aria-label="Branch or PR"
+                    className="h-7 max-w-[180px] text-sm"
+                  />
+                )}
               </div>
               <Button
                 onClick={handleSubmit}
