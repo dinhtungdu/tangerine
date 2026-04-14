@@ -1,4 +1,4 @@
-import type { Task, Cron, TaskType, TaskSource, TaskStatus, ProviderType, TaskCapability } from "@tangerine/shared"
+import { getCapabilitiesForType, type Task, type Cron, type TaskType, type TaskSource, type TaskStatus, type ProviderType, type TaskCapability } from "@tangerine/shared"
 import type { TaskRow, CronRow } from "../db/types"
 
 /**
@@ -16,10 +16,7 @@ export function utc(ts: string | null): string | null {
 
 // Canonical capabilities per task type. Used as baseline for all tasks.
 function canonicalCapabilities(type: string): TaskCapability[] {
-  if (type === "orchestrator") return ["resolve", "predefined-prompts"]
-  if (type === "runner") return ["resolve", "diff", "continue"]
-  if (type === "reviewer") return ["resolve", "predefined-prompts", "diff", "pr-track"]
-  return ["resolve", "predefined-prompts", "diff", "continue", "pr-track", "pr-create"]
+  return getCapabilitiesForType(type as TaskType)
 }
 
 // Merge stored capabilities with canonical ones so that:
