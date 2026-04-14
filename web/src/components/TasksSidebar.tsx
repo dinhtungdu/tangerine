@@ -2,7 +2,7 @@ import { useMemo, useState, useCallback, useEffect } from "react"
 import { Link, useParams, useNavigate } from "react-router-dom"
 import { TERMINAL_STATUSES } from "@tangerine/shared"
 import type { Task, ProjectConfig } from "@tangerine/shared"
-import { Search, Plus, X } from "lucide-react"
+import { Search, Plus, X, ListFilter } from "lucide-react"
 import { getStatusConfig, hasUnseenUpdates } from "../lib/status"
 import { formatRelativeTime } from "../lib/format"
 import { useProject } from "../context/ProjectContext"
@@ -27,20 +27,7 @@ interface TasksSidebarProps {
   onRefetch?: () => void
 }
 
-const ACTIVE_ONLY_KEY = "tangerine:sidebar-active-only"
 const PROJECT_FILTER_KEY = "tangerine:sidebar-project-filter"
-
-function readActiveOnly(): boolean {
-  try {
-    const v = localStorage.getItem(ACTIVE_ONLY_KEY)
-    if (v !== null) return v !== "false"
-    const old = localStorage.getItem("tangerine:sidebar-show-completed")
-    if (old === "true") return false
-    return true
-  } catch {
-    return true
-  }
-}
 
 function readProjectFilter(): string {
   try {
@@ -122,80 +109,106 @@ function ProjectGroupHeader({
   group,
   isActive,
   onRefetch,
+  activeOnly,
+  onToggle,
+  filteredCount,
 }: {
   group: ProjectGroup
   isActive: boolean
   onRefetch?: () => void
+  activeOnly: boolean
+  onToggle: () => void
+  filteredCount: number
 }) {
   const nav = useNavigate()
   const [creating, setCreating] = useState(false)
   const projectQs = `?project=${encodeURIComponent(group.projectName)}`
 
-  const baseClass = "flex w-full items-center gap-2.5 border-t border-border bg-muted/50 px-4 py-2 text-left"
-  const activeClass = isActive ? "border-l-[3px] border-l-status-error" : "hover:bg-muted"
+  const rowClass = "flex w-full items-center border-t border-border bg-muted/50"
+  const navClass = `flex flex-1 items-center gap-2.5 px-4 py-2 text-left min-w-0`
+  const activeNavClass = isActive
+    ? "border-l-[3px] border-l-status-error"
+    : "hover:bg-muted"
 
-  const content = (
+  const navContent = (
     <>
       <span className="truncate text-md font-semibold text-foreground">
         {group.projectName}
       </span>
       <div className="flex items-center justify-center rounded-sm bg-muted px-1.5 py-px">
-        <span className="font-mono text-2xs text-muted-foreground">{group.tasks.length}</span>
+        <span className="font-mono text-2xs text-muted-foreground">{filteredCount}</span>
       </div>
     </>
   )
 
+  const toggleBtn = (
+    <button
+      onClick={(e) => { e.preventDefault(); e.stopPropagation(); onToggle() }}
+      className="flex shrink-0 items-center px-2 py-2 hover:bg-muted"
+      aria-label={activeOnly ? "Show all tasks" : "Show active tasks only"}
+      title={activeOnly ? "Showing active only — click to show all" : "Showing all — click to show active only"}
+    >
+      <ListFilter className={`h-3.5 w-3.5 transition-opacity ${activeOnly ? "text-foreground" : "opacity-30"}`} />
+    </button>
+  )
+
   if (group.orchestrator && !TERMINAL_STATUSES.has(group.orchestrator.status)) {
     return (
-      <Link
-        to={`/tasks/${group.orchestrator.id}${projectQs}`}
-        className={`${baseClass} ${activeClass}`}
-        style={isActive ? {} : { borderLeft: "3px solid transparent" }}
-      >
-        {content}
-      </Link>
+      <div className={rowClass}>
+        <Link
+          to={`/tasks/${group.orchestrator.id}${projectQs}`}
+          className={`${navClass} ${activeNavClass}`}
+          style={isActive ? {} : { borderLeft: "3px solid transparent" }}
+        >
+          {navContent}
+        </Link>
+        {toggleBtn}
+      </div>
     )
   }
 
   // No orchestrator yet — click to create one
   return (
-    <button
-      disabled={creating}
-      onClick={async () => {
-        setCreating(true)
-        try {
-          const task = await ensureOrchestrator(group.projectName)
-          onRefetch?.()
-          nav(`/tasks/${task.id}${projectQs}`)
-        } finally {
-          setCreating(false)
-        }
-      }}
-      className={`${baseClass} hover:bg-muted`}
-      style={{ borderLeft: "3px solid transparent" }}
-    >
-      {content}
-    </button>
+    <div className={rowClass}>
+      <button
+        disabled={creating}
+        onClick={async () => {
+          setCreating(true)
+          try {
+            const task = await ensureOrchestrator(group.projectName)
+            onRefetch?.()
+            nav(`/tasks/${task.id}${projectQs}`)
+          } finally {
+            setCreating(false)
+          }
+        }}
+        className={`${navClass} hover:bg-muted`}
+        style={{ borderLeft: "3px solid transparent" }}
+      >
+        {navContent}
+      </button>
+      {toggleBtn}
+    </div>
   )
 }
 
 export function TasksSidebar({ tasks, projects, searchQuery, onSearchChange, onNewAgent, onRefetch }: TasksSidebarProps) {
   const { id: activeId } = useParams<{ id: string }>()
-  const [activeOnly, setActiveOnly] = useState(readActiveOnly)
   const [projectFilter, setProjectFilter] = useState(readProjectFilter)
+  // Per-group active-only toggle: undefined means default (true = active only)
+  const [groupActiveOnly, setGroupActiveOnly] = useState<Record<string, boolean>>({})
   const isSearching = searchQuery.length > 0
 
-  // Filter tasks by activeOnly and project filter, then group by project
-  const { groups, activeCount, totalCount } = useMemo(() => {
+  // Group tasks by project (no global active filter — per-group toggles handle it)
+  const groups = useMemo(() => {
     // Apply project filter
     const filtered = projectFilter
       ? tasks.filter((t) => t.projectId === projectFilter)
       : tasks
 
-    // Split orchestrators vs workers, count active in one pass
+    // Split orchestrators vs workers
     const orchestrators = new Map<string, Task>()
     const workers: Task[] = []
-    let ac = 0
     for (const t of filtered) {
       if (t.type === "orchestrator") {
         const existing = orchestrators.get(t.projectId)
@@ -204,17 +217,11 @@ export function TasksSidebar({ tasks, projects, searchQuery, onSearchChange, onN
         }
       } else {
         workers.push(t)
-        if (!TERMINAL_STATUSES.has(t.status)) ac++
       }
     }
 
-    // Filter workers by active status
-    const filteredWorkers = activeOnly && !isSearching
-      ? workers.filter((t) => !TERMINAL_STATUSES.has(t.status))
-      : workers
-
     // Sort: active first, then terminated
-    const sorted = [...filteredWorkers].sort((a, b) => {
+    const sorted = [...workers].sort((a, b) => {
       const aTerminated = TERMINAL_STATUSES.has(a.status) ? 1 : 0
       const bTerminated = TERMINAL_STATUSES.has(b.status) ? 1 : 0
       return aTerminated - bTerminated
@@ -250,10 +257,8 @@ export function TasksSidebar({ tasks, projects, searchQuery, onSearchChange, onN
       group.tasks.push(t)
     }
 
-    const result = Array.from(groupMap.values())
-
-    return { groups: result, activeCount: ac, totalCount: filteredWorkers.length }
-  }, [tasks, projects, activeOnly, isSearching, projectFilter])
+    return Array.from(groupMap.values())
+  }, [tasks, projects, projectFilter])
 
   useEffect(() => {
     // Validate project filter — clear if project no longer exists
@@ -263,12 +268,11 @@ export function TasksSidebar({ tasks, projects, searchQuery, onSearchChange, onN
     }
   }, [projects, projectFilter])
 
-  const handleToggleActiveOnly = useCallback(() => {
-    setActiveOnly((prev) => {
-      const next = !prev
-      try { localStorage.setItem(ACTIVE_ONLY_KEY, String(next)) } catch { /* ignore */ }
-      return next
-    })
+  const handleGroupToggle = useCallback((projectId: string) => {
+    setGroupActiveOnly((prev) => ({
+      ...prev,
+      [projectId]: !(prev[projectId] ?? true),
+    }))
   }, [])
 
   const handleProjectFilterChange = useCallback((value: string | null) => {
@@ -283,7 +287,7 @@ export function TasksSidebar({ tasks, projects, searchQuery, onSearchChange, onN
   return (
     <div className="flex h-full w-full shrink-0 flex-col border-r border-border bg-background md:w-[240px]">
       {/* Top section */}
-      <div className="flex flex-col gap-3 p-4 pt-5">
+      <div className="flex flex-col gap-3 px-4 pt-5 pb-2">
         <Button
           onClick={onNewAgent}
           className="hidden md:flex"
@@ -316,7 +320,7 @@ export function TasksSidebar({ tasks, projects, searchQuery, onSearchChange, onN
         </InputGroup>
       </div>
 
-      <div className="flex w-full shrink-0 items-center justify-between px-4 py-2.5">
+      <div className="flex w-full shrink-0 items-center px-4 py-1.5">
         <ProjectSelector
           projects={projects}
           value={projectFilter}
@@ -325,16 +329,6 @@ export function TasksSidebar({ tasks, projects, searchQuery, onSearchChange, onN
           size="sm"
           aria-label="Filter by project"
         />
-        <Button
-          variant="default"
-          size="sm"
-          onClick={handleToggleActiveOnly}
-          aria-label={activeOnly && !isSearching ? "Show all runs" : "Show active runs only"}
-        >
-          <span className="font-mono text-xs font-semibold">
-            {activeOnly && !isSearching ? activeCount : totalCount}
-          </span>
-        </Button>
       </div>
 
       <div className="h-px bg-border" />
@@ -343,23 +337,33 @@ export function TasksSidebar({ tasks, projects, searchQuery, onSearchChange, onN
         {groups.length === 0 ? (
           <div className="px-4 py-3 text-xs text-muted-foreground">No tasks</div>
         ) : (
-          groups.map((group) => (
-            <div key={group.projectId}>
-              <ProjectGroupHeader
-                group={group}
-                isActive={group.orchestrator?.id === activeId}
-                onRefetch={onRefetch}
-              />
-              {group.tasks.map((task) => (
-                <TaskItem
-                  key={task.id}
-                  task={task}
-                  isActive={task.id === activeId}
+          groups.map((group) => {
+            // Per-group active filter: default true (active only), overridden per group; search shows all
+            const groupOnly = !isSearching && (groupActiveOnly[group.projectId] ?? true)
+            const displayedTasks = groupOnly
+              ? group.tasks.filter((t) => !TERMINAL_STATUSES.has(t.status))
+              : group.tasks
+            return (
+              <div key={group.projectId}>
+                <ProjectGroupHeader
+                  group={group}
+                  isActive={group.orchestrator?.id === activeId}
                   onRefetch={onRefetch}
+                  activeOnly={groupOnly}
+                  onToggle={() => handleGroupToggle(group.projectId)}
+                  filteredCount={displayedTasks.length}
                 />
-              ))}
-            </div>
-          ))
+                {displayedTasks.map((task) => (
+                  <TaskItem
+                    key={task.id}
+                    task={task}
+                    isActive={task.id === activeId}
+                    onRefetch={onRefetch}
+                  />
+                ))}
+              </div>
+            )
+          })
         )}
       </ScrollArea>
     </div>
