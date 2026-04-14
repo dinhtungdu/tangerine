@@ -14,6 +14,7 @@
   },
   "files": [
     "bin/",
+    "dist/",
     "packages/",
     "scripts/",
     "web/dist/",
@@ -28,10 +29,11 @@
     "build": "bun run --filter tangerine-web build",
     "build:dev": "bun run --filter tangerine-web build:dev",
     "lint": "eslint 'packages/*/src/**/*.ts' 'web/src/**/*.{ts,tsx}'",
+    "build:cli": "bun build packages/server/src/cli/index.ts --target bun --outfile dist/cli.js --external 'bun:*' --external bun-pty --external effect --external hono --external 'hono/*' --external cron-parser --external '@opencode-ai/sdk' --external zod",
     "check": "bun run --filter '*' check && bun run lint",
     "test": "bun run --filter '*' test",
-    "prepare": "husky",
-    "postinstall": "node scripts/postinstall.js"
+    "prepublishOnly": "bun run build:cli",
+    "prepare": "husky"
   },
   "workspaces": [
     "packages/*",

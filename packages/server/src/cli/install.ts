@@ -1,14 +1,25 @@
 // CLI entrypoint: one-time setup for Tangerine.
 // Checks system deps, creates directories, and symlinks agent skills.
 
-import { existsSync, lstatSync, mkdirSync, rmSync, symlinkSync, readlinkSync } from "fs"
+import { existsSync, lstatSync, mkdirSync, readFileSync, rmSync, symlinkSync, readlinkSync } from "fs"
 import { join, resolve } from "path"
 import { TANGERINE_HOME } from "../config"
 import { AGENT_PROVIDER_METADATA } from "../agent/metadata"
 
-// Resolve project root relative to this file:
-// packages/server/src/cli/install.ts → 4 levels up
-const PROJECT_ROOT = resolve(import.meta.dir, "../../../../")
+// Walk up from this file to find the package root (directory with package.json
+// containing the package name). Works from both source and bundled locations.
+function findProjectRoot(): string {
+  let dir = import.meta.dir
+  for (let i = 0; i < 5; i++) {
+    try {
+      const pkg = JSON.parse(readFileSync(join(dir, "package.json"), "utf8"))
+      if (pkg.name === "@dinhtungdu/tangerine") return dir
+    } catch { /* not this directory */ }
+    dir = resolve(dir, "..")
+  }
+  return resolve(import.meta.dir, "../../../../")
+}
+const PROJECT_ROOT = findProjectRoot()
 
 // Skills to symlink into agent skill directories.
 // source: path relative to PROJECT_ROOT

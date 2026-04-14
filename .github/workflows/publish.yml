@@ -25,8 +25,11 @@ jobs:
       - name: Test
         run: bun test
 
-      - name: Build
+      - name: Build web
         run: bun run build
+
+      - name: Build CLI
+        run: bun run build:cli
 
       - name: Publish to npm
         run: bun publish --access public --ignore-scripts

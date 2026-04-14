@@ -1,2 +1,17 @@
 #!/usr/bin/env bun
-import "../packages/server/src/cli/index.ts"
+import { readFileSync } from "fs";
+import { resolve } from "path";
+
+// Dev checkout has "workspaces" in package.json; npm install does not.
+const root = resolve(import.meta.dir, "..");
+let isDevCheckout = false;
+try {
+  const pkg = JSON.parse(readFileSync(resolve(root, "package.json"), "utf8"));
+  isDevCheckout = Array.isArray(pkg.workspaces);
+} catch {}
+
+if (isDevCheckout) {
+  await import("../packages/server/src/cli/index.ts");
+} else {
+  await import("../dist/cli.js");
+}

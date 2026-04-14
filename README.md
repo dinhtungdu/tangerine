@@ -51,7 +51,7 @@ specs/             # design and implementation docs
 
 Install the package:
 ```bash
-npm i -g @dinhtungdu/tangerine
+bun i -g @dinhtungdu/tangerine
 ```
 
 Install the skills:
