@@ -132,13 +132,31 @@ export function startSession(
     let worktreePath: string
 
     if (isRunner) {
-      // Runner tasks run directly on the project root — no worktree slot, no branch.
-      // Reset to default branch so the task doesn't inherit stale state from a previous run.
-      worktreePath = resolve(repoDir)
+      // Runner tasks use the project root (slot 0) — acquire the orchestrator slot
+      // for mutual exclusion so concurrent runners don't clobber each other.
+      const exec = (cmd: string) => localExec(cmd, repoDir)
+      yield* initPool(deps.db, task.project_id, exec, repoDir, config.poolSize).pipe(
+        Effect.mapError((e) => new SessionStartError({
+          message: `Pool init failed: ${e.message}`,
+          taskId: task.id,
+          phase: "pool-init",
+          cause: e,
+        }))
+      )
+      yield* activity("worktree.acquiring", "Acquiring orchestrator slot for runner")
+      const slot = yield* acquireOrchestratorSlot(deps.db, task.project_id, task.id, deps.getTask).pipe(
+        Effect.mapError((e) => new SessionStartError({
+          message: `Slot acquisition failed: ${e.message}`,
+          taskId: task.id,
+          phase: "acquire-slot",
+          cause: e,
+        }))
+      )
+      worktreePath = resolve(slot.path)
       yield* localExec(
         `cd ${worktreePath} && git checkout ${defaultBranch} 2>/dev/null; git reset --hard origin/${defaultBranch} && git clean -fd`,
       ).pipe(
-        Effect.tap(() => activity("worktree.ready", "Runner task using project root", { worktreePath })),
+        Effect.tap(() => activity("worktree.ready", "Runner task using project root", { worktreePath, slot: slot.id })),
         Effect.mapError((e) => new SessionStartError({
           message: `Project root reset failed: ${e.message}`,
           taskId: task.id,
@@ -146,7 +164,7 @@ export function startSession(
           cause: e,
         }))
       )
-      taskLog.debug("Runner task using project root", { worktreePath })
+      taskLog.debug("Runner task using project root", { worktreePath, slotId: slot.id })
     } else {
       // 2. Init worktree pool (idempotent) and acquire a slot
       const exec = (cmd: string) => localExec(cmd, repoDir)
@@ -291,7 +309,7 @@ export function startSession(
     // 6. Start agent locally (with timeout to prevent indefinite hangs)
     yield* activity("agent.starting", "Starting agent")
     const systemNotes = buildSystemNotes(task.id, {
-      setupCommand: isRunner ? undefined : config.setup,
+      setupCommand: config.setup,
       taskType: task.type ?? undefined,
       prMode: config.prMode,
       customSystemPrompt: resolveCustomSystemPrompt(config, task.type),
@@ -411,9 +429,8 @@ export function reconnectSession(
       }
     }
 
-    const isRunner = taskType === "runner"
     const systemNotes = buildSystemNotes(task.id, {
-      setupCommand: isRunner ? undefined : project?.setup,
+      setupCommand: project?.setup,
       taskType: taskType,
       prMode: project?.prMode,
       customSystemPrompt: resolved?.systemPrompt,

@@ -97,7 +97,7 @@ export function createTask(
     const capabilities: TaskCapability[] = taskType === "orchestrator"
       ? ["resolve", "predefined-prompts"]
       : taskType === "runner"
-        ? ["resolve", "predefined-prompts", "diff", "continue"]
+        ? ["resolve", "diff", "continue"]
         : taskType === "reviewer"
           ? ["resolve", "predefined-prompts", "diff"]
           : ["resolve", "predefined-prompts", "diff", "continue"]
