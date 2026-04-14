@@ -40,8 +40,13 @@ describe("claude-code provider listModels", () => {
     const models = createClaudeCodeProvider().listModels()
     const ids = models.map((m) => m.id)
     expect(ids).toContain("claude-opus-4-6")
+    expect(ids).toContain("claude-opus-4-5-20251101")
     expect(ids).toContain("claude-sonnet-4-6")
-    expect(ids).toContain("claude-haiku-4-5")
+    expect(ids).toContain("claude-sonnet-4-5-20250929")
+    expect(ids).toContain("claude-haiku-4-5-20251001")
+    expect(ids).toContain("claude-3-7-sonnet-20250219")
+    expect(ids).toContain("claude-3-5-sonnet-20241022")
+    expect(ids).toContain("claude-3-5-haiku-20241022")
   })
 
   test("each model has a contextWindow", () => {
