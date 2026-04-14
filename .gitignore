@@ -6,3 +6,4 @@ data/
 .env
 *.db
 .DS_Store
+.npmrc
