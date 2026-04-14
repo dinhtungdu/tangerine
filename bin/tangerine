@@ -1,12 +1,16 @@
 #!/usr/bin/env bun
-import { existsSync } from "fs";
+import { readFileSync } from "fs";
 import { resolve } from "path";
 
-// In a workspace checkout, always use source for live development.
-// When installed from npm (no workspace), use the bundled CLI.
+// Dev checkout has "workspaces" in package.json; npm install does not.
 const root = resolve(import.meta.dir, "..");
-const isWorkspace = existsSync(resolve(root, "node_modules", "@tangerine", "shared"));
-if (isWorkspace) {
+let isDevCheckout = false;
+try {
+  const pkg = JSON.parse(readFileSync(resolve(root, "package.json"), "utf8"));
+  isDevCheckout = Array.isArray(pkg.workspaces);
+} catch {}
+
+if (isDevCheckout) {
   await import("../packages/server/src/cli/index.ts");
 } else {
   await import("../dist/cli.js");
