@@ -29,8 +29,9 @@ export type AgentEvent =
   /** Token usage — providers emit this when they have token data.
    *  Fields are undefined when the event only carries partial data (e.g. stream events).
    *  contextTokens = current context window usage for this turn (from message_start).
-   *  inputTokens/outputTokens = cumulative session totals (from result events). */
-  | { kind: "usage"; inputTokens?: number; outputTokens?: number; contextTokens?: number }
+   *  inputTokens/outputTokens = token counts for accumulation.
+   *  cumulative = true means values are already session totals (overwrite, don't add). */
+  | { kind: "usage"; inputTokens?: number; outputTokens?: number; contextTokens?: number; cumulative?: boolean }
 
 /** Runtime config that can be changed mid-session */
 export interface AgentConfig {

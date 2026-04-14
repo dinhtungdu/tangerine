@@ -701,11 +701,19 @@ export async function start(): Promise<void> {
                 break
               }
               case "usage": {
-                // Accumulate token usage across turns. Providers emit per-turn values;
-                // we track cumulative totals in task state and persist to DB.
+                // Track cumulative totals in task state and persist to DB.
+                // Most providers emit per-turn values (accumulate). Codex emits
+                // cumulative session totals (overwrite).
                 const state = getTaskState(taskId)
-                if (event.inputTokens != null) state.cumulativeInputTokens += event.inputTokens
-                if (event.outputTokens != null) state.cumulativeOutputTokens += event.outputTokens
+                if (event.cumulative) {
+                  // Provider already sends cumulative totals — overwrite
+                  if (event.inputTokens != null) state.cumulativeInputTokens = event.inputTokens
+                  if (event.outputTokens != null) state.cumulativeOutputTokens = event.outputTokens
+                } else {
+                  // Per-turn values — accumulate
+                  if (event.inputTokens != null) state.cumulativeInputTokens += event.inputTokens
+                  if (event.outputTokens != null) state.cumulativeOutputTokens += event.outputTokens
+                }
                 const updates: Record<string, number> = {
                   input_tokens: state.cumulativeInputTokens,
                   output_tokens: state.cumulativeOutputTokens,

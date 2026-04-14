@@ -63,9 +63,18 @@ function rpcNotification(method: string, params?: Record<string, unknown>): stri
 //   item/agentMessage/delta   { threadId, turnId, itemId, delta }
 //   item/reasoning/summaryTextDelta  { threadId, turnId, itemId, delta }
 //   item/commandExecution/outputDelta  { threadId, turnId, itemId, ... }
+//   token_count               { info: TokenUsageInfo }
 //   error                     { message }
 //   thread/started            { thread }
 //   thread/status/changed     { threadId, status }
+//
+// TokenUsageInfo (in token_count notification):
+//   total_token_usage: TokenUsage  - cumulative session totals
+//   last_token_usage: TokenUsage   - per-turn usage
+//   model_context_window: number   - context window size
+//
+// TokenUsage:
+//   input_tokens, cached_input_tokens, output_tokens, reasoning_output_tokens, total_tokens
 //
 // Server requests (approval callbacks — auto-approved):
 //   item/commandExecution/requestApproval  { threadId, turnId, itemId, command }
@@ -89,21 +98,26 @@ export function mapNotification(method: string, params: Record<string, unknown>)
     case "turn/started":
       return [{ kind: "status", status: "working" }]
 
-    case "turn/completed": {
-      const events: AgentEvent[] = [{ kind: "status", status: "idle" }]
-      // Extract token usage from turn object if available
-      const turn = params.turn as Record<string, unknown> | undefined
-      const usage = (turn?.usage ?? turn?.tokenUsage) as Record<string, unknown> | undefined
-      if (usage) {
-        const inputTokens = typeof usage.prompt_tokens === "number" ? usage.prompt_tokens
-          : typeof usage.input_tokens === "number" ? usage.input_tokens : 0
-        const outputTokens = typeof usage.completion_tokens === "number" ? usage.completion_tokens
-          : typeof usage.output_tokens === "number" ? usage.output_tokens : 0
-        if (inputTokens > 0 || outputTokens > 0) {
-          events.push({ kind: "usage", inputTokens, outputTokens })
-        }
+    case "turn/completed":
+      // Usage comes from separate token_count notification, not turn/completed
+      return [{ kind: "status", status: "idle" }]
+
+    case "token_count": {
+      // Codex sends cumulative session totals in total_token_usage
+      const info = params.info as Record<string, unknown> | undefined
+      if (!info) return []
+      const totalUsage = info.total_token_usage as Record<string, unknown> | undefined
+      if (!totalUsage) return []
+      const inputTokens = (typeof totalUsage.input_tokens === "number" ? totalUsage.input_tokens : 0)
+        + (typeof totalUsage.cached_input_tokens === "number" ? totalUsage.cached_input_tokens : 0)
+      const outputTokens = (typeof totalUsage.output_tokens === "number" ? totalUsage.output_tokens : 0)
+        + (typeof totalUsage.reasoning_output_tokens === "number" ? totalUsage.reasoning_output_tokens : 0)
+      const contextWindow = typeof info.model_context_window === "number" ? info.model_context_window : undefined
+      if (inputTokens > 0 || outputTokens > 0) {
+        // Mark as cumulative so start.ts overwrites instead of accumulating
+        return [{ kind: "usage", inputTokens, outputTokens, contextTokens: contextWindow, cumulative: true }]
       }
-      return events
+      return []
     }
 
     case "item/started":

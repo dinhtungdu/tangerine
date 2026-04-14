@@ -110,49 +110,61 @@ describe("Codex provider config helpers", () => {
     })
   })
 
-  it("emits usage event from turn/completed with prompt_tokens", () => {
+  it("turn/completed emits only idle status (usage comes from token_count)", () => {
     const events = mapNotification("turn/completed", {
-      turn: {
-        usage: { prompt_tokens: 5000, completion_tokens: 1200 },
-      },
+      turn: { usage: { prompt_tokens: 5000, completion_tokens: 1200 } },
     })
-
-    expect(events).toContainEqual({ kind: "usage", inputTokens: 5000, outputTokens: 1200 })
-    expect(events).toContainEqual({ kind: "status", status: "idle" })
-  })
-
-  it("emits usage event from turn/completed with input_tokens fallback", () => {
-    const events = mapNotification("turn/completed", {
-      turn: {
-        usage: { input_tokens: 3000, output_tokens: 800 },
-      },
-    })
-
-    expect(events).toContainEqual({ kind: "usage", inputTokens: 3000, outputTokens: 800 })
-  })
-
-  it("emits usage from tokenUsage fallback field", () => {
-    const events = mapNotification("turn/completed", {
-      turn: {
-        tokenUsage: { prompt_tokens: 2000, completion_tokens: 400 },
-      },
-    })
-
-    expect(events).toContainEqual({ kind: "usage", inputTokens: 2000, outputTokens: 400 })
-  })
-
-  it("skips usage event when turn has no usage data", () => {
-    const events = mapNotification("turn/completed", { turn: {} })
-
     expect(events).toEqual([{ kind: "status", status: "idle" }])
+  })
+
+  it("emits cumulative usage from token_count notification", () => {
+    const events = mapNotification("token_count", {
+      info: {
+        total_token_usage: { input_tokens: 5000, output_tokens: 1200 },
+        model_context_window: 128000,
+      },
+    })
+    expect(events).toContainEqual({
+      kind: "usage",
+      inputTokens: 5000,
+      outputTokens: 1200,
+      contextTokens: 128000,
+      cumulative: true,
+    })
+  })
+
+  it("includes cached and reasoning tokens in token_count", () => {
+    const events = mapNotification("token_count", {
+      info: {
+        total_token_usage: {
+          input_tokens: 3000,
+          cached_input_tokens: 1000,
+          output_tokens: 500,
+          reasoning_output_tokens: 200,
+        },
+      },
+    })
+    expect(events).toContainEqual({
+      kind: "usage",
+      inputTokens: 4000, // 3000 + 1000 cached
+      outputTokens: 700, // 500 + 200 reasoning
+      contextTokens: undefined,
+      cumulative: true,
+    })
+  })
+
+  it("skips usage event when token_count has no info", () => {
+    const events = mapNotification("token_count", {})
+    expect(events).toEqual([])
   })
 
   it("skips usage event when all tokens are zero", () => {
-    const events = mapNotification("turn/completed", {
-      turn: { usage: { prompt_tokens: 0, completion_tokens: 0 } },
+    const events = mapNotification("token_count", {
+      info: {
+        total_token_usage: { input_tokens: 0, output_tokens: 0 },
+      },
     })
-
-    expect(events).toEqual([{ kind: "status", status: "idle" }])
+    expect(events).toEqual([])
   })
 
   it("creates the thread during provider startup so Tangerine can persist the session id", async () => {
