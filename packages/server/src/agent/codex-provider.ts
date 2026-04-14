@@ -103,19 +103,19 @@ export function mapNotification(method: string, params: Record<string, unknown>)
       return [{ kind: "status", status: "idle" }]
 
     case "token_count": {
-      // Codex sends cumulative session totals in total_token_usage
+      // Use last_token_usage (per-turn), not total_token_usage (cumulative).
+      // This allows start.ts to accumulate correctly across turns and session restarts.
       const info = params.info as Record<string, unknown> | undefined
       if (!info) return []
-      const totalUsage = info.total_token_usage as Record<string, unknown> | undefined
-      if (!totalUsage) return []
-      const inputTokens = (typeof totalUsage.input_tokens === "number" ? totalUsage.input_tokens : 0)
-        + (typeof totalUsage.cached_input_tokens === "number" ? totalUsage.cached_input_tokens : 0)
-      const outputTokens = (typeof totalUsage.output_tokens === "number" ? totalUsage.output_tokens : 0)
-        + (typeof totalUsage.reasoning_output_tokens === "number" ? totalUsage.reasoning_output_tokens : 0)
-      const contextWindow = typeof info.model_context_window === "number" ? info.model_context_window : undefined
+      const lastUsage = info.last_token_usage as Record<string, unknown> | undefined
+      if (!lastUsage) return []
+      const inputTokens = (typeof lastUsage.input_tokens === "number" ? lastUsage.input_tokens : 0)
+        + (typeof lastUsage.cached_input_tokens === "number" ? lastUsage.cached_input_tokens : 0)
+      const outputTokens = (typeof lastUsage.output_tokens === "number" ? lastUsage.output_tokens : 0)
+        + (typeof lastUsage.reasoning_output_tokens === "number" ? lastUsage.reasoning_output_tokens : 0)
+      // Note: model_context_window is the max window size, not current context usage
       if (inputTokens > 0 || outputTokens > 0) {
-        // Mark as cumulative so start.ts overwrites instead of accumulating
-        return [{ kind: "usage", inputTokens, outputTokens, contextTokens: contextWindow, cumulative: true }]
+        return [{ kind: "usage", inputTokens, outputTokens }]
       }
       return []
     }

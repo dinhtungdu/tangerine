@@ -37,9 +37,11 @@ interface ChatInputProps {
   onQuoteSelection?: () => void
   /** When this value changes, the input is focused. Pass the task ID to focus on navigation. */
   autoFocusKey?: string
-  /** Current input token count from the session */
+  /** Actual current context window usage (only available for Claude Code via message_start) */
+  contextTokens?: number
+  /** Cumulative input tokens across all turns (available for all providers) */
   inputTokens?: number
-  /** Current output token count from the session */
+  /** Cumulative output tokens across all turns */
   outputTokens?: number
   /** Max context window size in tokens for the current model */
   contextWindowMax?: number
@@ -58,7 +60,7 @@ export function appendQuotedText(existingText: string, quotedText: string): stri
   return `${prefix}${quotedText}\n\n`
 }
 
-export function ChatInput({ onSend, disabled, queueLength, taskId, isWorking, onAbort, model, provider, providerModels, reasoningEffort, onModelChange, onReasoningEffortChange, predefinedPrompts, quotedMessage, onQuoteDismiss, selectedText, onQuoteSelection, autoFocusKey, inputTokens, outputTokens, contextWindowMax }: ChatInputProps) {
+export function ChatInput({ onSend, disabled, queueLength, taskId, isWorking, onAbort, model, provider, providerModels, reasoningEffort, onModelChange, onReasoningEffortChange, predefinedPrompts, quotedMessage, onQuoteDismiss, selectedText, onQuoteSelection, autoFocusKey, contextTokens, inputTokens, outputTokens, contextWindowMax }: ChatInputProps) {
   const draftKey = taskId ? `tangerine:chat-draft:${taskId}` : null
 
   const [text, setText] = useState(() => draftKey ? (loadChatDraft(draftKey).text ?? "") : "")
@@ -298,18 +300,26 @@ export function ChatInput({ onSend, disabled, queueLength, taskId, isWorking, on
 
   const canSend = (text.trim().length > 0 || pendingImages.length > 0 || !!quotedMessage) && !disabled
   const canChangeModel = providerModels && providerModels.length > 1 && onModelChange
-  const contextWindowLabel = inputTokens && inputTokens > 0
+  // Context display: show "X / Y ctx" only when we have actual context usage (contextTokens).
+  // For cumulative inputTokens (no context info), show "X tokens" without max comparison.
+  const hasContext = contextTokens && contextTokens > 0
+  const hasCumulative = inputTokens && inputTokens > 0
+  const contextWindowLabel = hasContext
     ? contextWindowMax
-      ? `${formatTokens(inputTokens)} / ${formatTokens(contextWindowMax)} ctx`
-      : `${formatTokens(inputTokens)} ctx`
-    : contextWindowMax
-      ? `${formatTokens(contextWindowMax)} ctx`
-      : null
-  const contextWindowTitle = inputTokens && inputTokens > 0
-    ? `Context: ${inputTokens.toLocaleString()} input tokens, ${(outputTokens ?? 0).toLocaleString()} output tokens${contextWindowMax ? ` / ${contextWindowMax.toLocaleString()} max` : ""}`
-    : contextWindowMax
-      ? `Max context: ${contextWindowMax.toLocaleString()} tokens`
-      : undefined
+      ? `${formatTokens(contextTokens)} / ${formatTokens(contextWindowMax)} ctx`
+      : `${formatTokens(contextTokens)} ctx`
+    : hasCumulative
+      ? `${formatTokens(inputTokens)} tokens`
+      : contextWindowMax
+        ? `${formatTokens(contextWindowMax)} ctx`
+        : null
+  const contextWindowTitle = hasContext
+    ? `Context: ${contextTokens.toLocaleString()} tokens${contextWindowMax ? ` / ${contextWindowMax.toLocaleString()} max` : ""}`
+    : hasCumulative
+      ? `Total: ${inputTokens.toLocaleString()} input, ${(outputTokens ?? 0).toLocaleString()} output tokens`
+      : contextWindowMax
+        ? `Max context: ${contextWindowMax.toLocaleString()} tokens`
+        : undefined
 
   return (
     <div className="relative border-t border-border bg-background px-3 py-2 md:bg-background md:p-3 md:px-4">

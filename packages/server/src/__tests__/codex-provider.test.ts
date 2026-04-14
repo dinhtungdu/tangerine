@@ -117,26 +117,24 @@ describe("Codex provider config helpers", () => {
     expect(events).toEqual([{ kind: "status", status: "idle" }])
   })
 
-  it("emits cumulative usage from token_count notification", () => {
+  it("emits per-turn usage from token_count notification", () => {
     const events = mapNotification("token_count", {
       info: {
-        total_token_usage: { input_tokens: 5000, output_tokens: 1200 },
-        model_context_window: 128000,
+        last_token_usage: { input_tokens: 5000, output_tokens: 1200 },
+        model_context_window: 128000, // Not used — max window, not current usage
       },
     })
     expect(events).toContainEqual({
       kind: "usage",
       inputTokens: 5000,
       outputTokens: 1200,
-      contextTokens: 128000,
-      cumulative: true,
     })
   })
 
   it("includes cached and reasoning tokens in token_count", () => {
     const events = mapNotification("token_count", {
       info: {
-        total_token_usage: {
+        last_token_usage: {
           input_tokens: 3000,
           cached_input_tokens: 1000,
           output_tokens: 500,
@@ -148,8 +146,6 @@ describe("Codex provider config helpers", () => {
       kind: "usage",
       inputTokens: 4000, // 3000 + 1000 cached
       outputTokens: 700, // 500 + 200 reasoning
-      contextTokens: undefined,
-      cumulative: true,
     })
   })
 
@@ -161,7 +157,7 @@ describe("Codex provider config helpers", () => {
   it("skips usage event when all tokens are zero", () => {
     const events = mapNotification("token_count", {
       info: {
-        total_token_usage: { input_tokens: 0, output_tokens: 0 },
+        last_token_usage: { input_tokens: 0, output_tokens: 0 },
       },
     })
     expect(events).toEqual([])

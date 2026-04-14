@@ -32,6 +32,7 @@ interface ChatPanelProps {
   taskBranch?: string
   taskProjectId?: string
   autoFocusKey?: string
+  contextTokens?: number
   inputTokens?: number
   outputTokens?: number
   contextWindowMax?: number
@@ -60,6 +61,7 @@ export function ChatPanel({
   taskBranch,
   taskProjectId,
   autoFocusKey,
+  contextTokens,
   inputTokens,
   outputTokens,
   contextWindowMax,
@@ -279,6 +281,7 @@ export function ChatPanel({
           selectedText={selectedText}
           onQuoteSelection={handleQuoteSelection}
           autoFocusKey={autoFocusKey}
+          contextTokens={contextTokens}
           inputTokens={inputTokens}
           outputTokens={outputTokens}
           contextWindowMax={contextWindowMax}
