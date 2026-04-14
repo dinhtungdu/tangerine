@@ -111,14 +111,16 @@ function ProjectGroupHeader({
   onRefetch,
   activeOnly,
   onToggle,
-  filteredCount,
+  activeCount,
+  totalCount,
 }: {
   group: ProjectGroup
   isActive: boolean
   onRefetch?: () => void
   activeOnly: boolean
   onToggle: () => void
-  filteredCount: number
+  activeCount: number
+  totalCount: number
 }) {
   const nav = useNavigate()
   const [creating, setCreating] = useState(false)
@@ -139,12 +141,16 @@ function ProjectGroupHeader({
   const toggleBtn = (
     <button
       onClick={(e) => { e.preventDefault(); e.stopPropagation(); onToggle() }}
-      className="mr-2 flex shrink-0 items-center justify-center rounded-sm px-1.5 py-px hover:bg-muted"
+      className="mr-2 flex shrink-0 items-center rounded-sm px-1.5 py-px hover:bg-muted"
       aria-label={activeOnly ? "Show all tasks" : "Show active tasks only"}
       title={activeOnly ? "Showing active only — click to show all" : "Showing all — click to show active only"}
     >
-      <span className={`font-mono text-2xs transition-opacity ${activeOnly ? "text-foreground" : "text-muted-foreground opacity-50"}`}>
-        {filteredCount}
+      <span className={`font-mono text-2xs ${activeOnly ? "text-foreground" : "text-muted-foreground opacity-40"}`}>
+        {activeCount}
+      </span>
+      <span className="font-mono text-2xs text-muted-foreground opacity-40">/</span>
+      <span className={`font-mono text-2xs ${!activeOnly ? "text-foreground" : "text-muted-foreground opacity-40"}`}>
+        {totalCount}
       </span>
     </button>
   )
@@ -337,9 +343,8 @@ export function TasksSidebar({ tasks, projects, searchQuery, onSearchChange, onN
           groups.map((group) => {
             // Per-group active filter: default true (active only), overridden per group; search shows all
             const groupOnly = !isSearching && (groupActiveOnly[group.projectId] ?? true)
-            const displayedTasks = groupOnly
-              ? group.tasks.filter((t) => !TERMINAL_STATUSES.has(t.status))
-              : group.tasks
+            const activeTasks = group.tasks.filter((t) => !TERMINAL_STATUSES.has(t.status))
+            const displayedTasks = groupOnly ? activeTasks : group.tasks
             return (
               <div key={group.projectId}>
                 <ProjectGroupHeader
@@ -348,7 +353,8 @@ export function TasksSidebar({ tasks, projects, searchQuery, onSearchChange, onN
                   onRefetch={onRefetch}
                   activeOnly={groupOnly}
                   onToggle={() => handleGroupToggle(group.projectId)}
-                  filteredCount={displayedTasks.length}
+                  activeCount={activeTasks.length}
+                  totalCount={group.tasks.length}
                 />
                 {displayedTasks.map((task) => (
                   <TaskItem
