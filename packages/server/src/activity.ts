@@ -73,6 +73,21 @@ export function getActivities(
   })
 }
 
+/** Check if a specific activity event exists for a task. */
+export function hasActivityEvent(
+  db: Database,
+  taskId: string,
+  event: string,
+): Effect.Effect<boolean, Error> {
+  return Effect.try({
+    try: () => {
+      const row = db.prepare("SELECT 1 FROM activity_log WHERE task_id = ? AND event = ? LIMIT 1").get(taskId, event)
+      return row != null
+    },
+    catch: (e) => new Error(`Failed to check activity event: ${e}`),
+  })
+}
+
 /** Delete activity entries for tasks that no longer exist. Silent on error. */
 export function cleanupActivities(db: Database): void {
   try {
