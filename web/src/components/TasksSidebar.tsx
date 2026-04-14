@@ -244,18 +244,12 @@ export function TasksSidebar({ tasks, projects, searchQuery, onSearchChange, onN
       })
     }
 
-    // Assign tasks to groups
+    // Assign tasks to groups (only for non-archived projects)
     for (const t of sorted) {
-      let group = groupMap.get(t.projectId)
-      if (!group) {
-        group = {
-          projectId: t.projectId,
-          projectName: t.projectId,
-          orchestrator: orchestrators.get(t.projectId) ?? null,
-          tasks: [],
-        }
-        groupMap.set(t.projectId, group)
-      }
+      const group = groupMap.get(t.projectId)
+      // Skip tasks whose project isn't in groupMap — archived projects are excluded from
+      // activeProjects above, so their tasks won't create new groups here
+      if (!group) continue
       group.tasks.push(t)
     }
 
