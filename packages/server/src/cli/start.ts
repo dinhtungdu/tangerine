@@ -289,8 +289,11 @@ export async function start(): Promise<void> {
           }
 
           // Hydrate in-memory tracking from DB (lost on restart)
-          const taskMeta = db.prepare("SELECT pr_url FROM tasks WHERE id = ?").get(taskId) as { pr_url: string | null } | null
+          const taskMeta = db.prepare("SELECT pr_url, input_tokens, output_tokens FROM tasks WHERE id = ?").get(taskId) as { pr_url: string | null; input_tokens: number; output_tokens: number } | null
           const s = getTaskState(taskId)
+          // Restore cumulative token counts so we continue accumulating after restart
+          s.cumulativeInputTokens = taskMeta?.input_tokens ?? 0
+          s.cumulativeOutputTokens = taskMeta?.output_tokens ?? 0
           const taskRow = db.prepare("SELECT project_id, type FROM tasks WHERE id = ?").get(taskId) as { project_id: string | null; type: string | null } | null
           const projConfig = taskRow?.project_id ? getProjectConfig(config.config, taskRow.project_id) : undefined
           s.systemPromptApplied = buildSystemNotes(taskId, {
@@ -698,22 +701,24 @@ export async function start(): Promise<void> {
                 break
               }
               case "usage": {
-                // Providers merge partial stream events before emitting, so both fields
-                // should be present. Only persist fields that are defined.
-                const updates: Record<string, number> = {}
-                if (event.inputTokens != null) updates.input_tokens = event.inputTokens
-                if (event.outputTokens != null) updates.output_tokens = event.outputTokens
-                if (Object.keys(updates).length > 0) {
-                  Effect.runPromise(
-                    updateTask(db, taskId, updates, { skipUpdatedAt: true }).pipe(
-                      Effect.catchAll(() => Effect.void)
-                    )
-                  )
+                // Accumulate token usage across turns. Providers emit per-turn values;
+                // we track cumulative totals in task state and persist to DB.
+                const state = getTaskState(taskId)
+                if (event.inputTokens != null) state.cumulativeInputTokens += event.inputTokens
+                if (event.outputTokens != null) state.cumulativeOutputTokens += event.outputTokens
+                const updates: Record<string, number> = {
+                  input_tokens: state.cumulativeInputTokens,
+                  output_tokens: state.cumulativeOutputTokens,
                 }
+                Effect.runPromise(
+                  updateTask(db, taskId, updates, { skipUpdatedAt: true }).pipe(
+                    Effect.catchAll(() => Effect.void)
+                  )
+                )
                 emitTaskEvent(taskId, {
                   event: "usage",
-                  inputTokens: event.inputTokens ?? 0,
-                  outputTokens: event.outputTokens ?? 0,
+                  inputTokens: state.cumulativeInputTokens,
+                  outputTokens: state.cumulativeOutputTokens,
                   contextTokens: event.contextTokens ?? 0,
                 })
                 break
