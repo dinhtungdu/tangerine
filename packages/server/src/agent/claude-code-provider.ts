@@ -27,6 +27,32 @@ const CLAUDE_CODE_KNOWN_MODELS = [
   { id: "claude-haiku-4-5", name: "Claude Haiku 4.5", provider: "anthropic", providerName: "Anthropic", contextWindow: 200_000 },
 ]
 
+// Canonical model ID patterns, ordered most-specific first.
+// Used to map versioned API IDs (e.g. "claude-opus-4-6-20250514") to our short IDs.
+const CANONICAL_PATTERNS = [
+  "claude-opus-4-6",
+  "claude-opus-4-5",
+  "claude-opus-4-1",
+  "claude-opus-4",
+  "claude-sonnet-4-6",
+  "claude-sonnet-4-5",
+  "claude-sonnet-4",
+  "claude-haiku-4-5",
+  "claude-3-7-sonnet",
+  "claude-3-5-sonnet",
+  "claude-3-5-haiku",
+  "claude-3-opus",
+] as const
+
+/** Strip date/provider suffixes from an API model ID to get the canonical short ID. */
+export function toCanonicalId(apiId: string): string {
+  const lower = apiId.toLowerCase()
+  for (const pattern of CANONICAL_PATTERNS) {
+    if (lower.includes(pattern)) return pattern
+  }
+  return apiId
+}
+
 const CLAUDE_MODELS_CACHE = join(homedir(), ".claude", "tangerine-models-cache.json")
 const CACHE_TTL_MS = 24 * 60 * 60 * 1_000 // 24 h
 
@@ -77,13 +103,13 @@ export function discoverModels(): ModelInfo[] {
     }
   }
 
-  // Only use API values that are actually numeric and positive; fall back to the
-  // static default otherwise (e.g. API omits context_window for a known model).
+  // Map versioned API IDs to canonical short IDs so lookups match our known models.
+  // e.g. "claude-opus-4-6-20250514" → "claude-opus-4-6"
   const contextMap = new Map(
     (apiModels ?? [])
       .filter((m): m is { id: string; context_window: number } =>
         typeof m.context_window === "number" && m.context_window > 0)
-      .map((m) => [m.id, m.context_window]),
+      .map((m) => [toCanonicalId(m.id), m.context_window]),
   )
 
   return CLAUDE_CODE_KNOWN_MODELS.map((m) => ({

@@ -1,6 +1,6 @@
 import { describe, test, expect } from "bun:test"
 import { createAgentFactories } from "../agent/factories"
-import { createClaudeCodeProvider, discoverModels as discoverClaudeCodeModels } from "../agent/claude-code-provider"
+import { createClaudeCodeProvider, discoverModels as discoverClaudeCodeModels, toCanonicalId } from "../agent/claude-code-provider"
 import { createCodexProvider, discoverModels as discoverCodexProviderModels } from "../agent/codex-provider"
 import { createOpenCodeProvider, discoverModels as discoverOpenCodeModels } from "../agent/opencode-provider"
 import { buildPiPromptCommand, buildPiSystemPromptCommand, createPiProvider, discoverModels as discoverPiProviderModels, parseContextSize } from "../agent/pi-provider"
@@ -51,6 +51,38 @@ describe("claude-code provider listModels", () => {
       expect(typeof model.contextWindow).toBe("number")
       expect(model.contextWindow).toBeGreaterThan(0)
     }
+  })
+})
+
+describe("toCanonicalId", () => {
+  test("strips date suffixes from versioned API IDs", () => {
+    expect(toCanonicalId("claude-opus-4-6-20250514")).toBe("claude-opus-4-6")
+    expect(toCanonicalId("claude-sonnet-4-6-20250514")).toBe("claude-sonnet-4-6")
+    expect(toCanonicalId("claude-haiku-4-5-20250414")).toBe("claude-haiku-4-5")
+  })
+
+  test("returns short IDs unchanged", () => {
+    expect(toCanonicalId("claude-opus-4-6")).toBe("claude-opus-4-6")
+    expect(toCanonicalId("claude-sonnet-4-6")).toBe("claude-sonnet-4-6")
+  })
+
+  test("handles older model formats", () => {
+    expect(toCanonicalId("claude-3-5-sonnet-20241022")).toBe("claude-3-5-sonnet")
+    expect(toCanonicalId("claude-3-opus-20240229")).toBe("claude-3-opus")
+  })
+
+  test("is case-insensitive", () => {
+    expect(toCanonicalId("Claude-Opus-4-6-20250514")).toBe("claude-opus-4-6")
+  })
+
+  test("returns unknown IDs unchanged", () => {
+    expect(toCanonicalId("some-other-model")).toBe("some-other-model")
+  })
+
+  test("matches most specific pattern first", () => {
+    expect(toCanonicalId("claude-opus-4-6-20250514")).toBe("claude-opus-4-6")
+    expect(toCanonicalId("claude-opus-4-5-20250101")).toBe("claude-opus-4-5")
+    expect(toCanonicalId("claude-opus-4-1-20250101")).toBe("claude-opus-4-1")
   })
 })
 
