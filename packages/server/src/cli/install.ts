@@ -6,9 +6,10 @@ import { join, resolve } from "path"
 import { TANGERINE_HOME } from "../config"
 import { AGENT_PROVIDER_METADATA } from "../agent/metadata"
 
-// Resolve project root relative to this file:
-// packages/server/src/cli/install.ts → 4 levels up
-const PROJECT_ROOT = resolve(import.meta.dir, "../../../../")
+// Resolve project root: from dist/cli.js it's one level up, from source it's four.
+const PROJECT_ROOT = existsSync(resolve(import.meta.dir, "..", "packages"))
+  ? resolve(import.meta.dir, "..")
+  : resolve(import.meta.dir, "../../../../")
 
 // Skills to symlink into agent skill directories.
 // source: path relative to PROJECT_ROOT
