@@ -21,7 +21,6 @@ export function makeTask(overrides?: Partial<Task>): Task {
     sourceUrl: null,
     title: "Test task",
     type: "worker",
-    workflow: "pr",
     description: null,
     status: "created",
     provider: "opencode",

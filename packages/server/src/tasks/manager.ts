@@ -3,7 +3,7 @@
 
 import { Effect } from "effect"
 import { createLogger } from "../logger"
-import { type ActivityType, type TaskType, type TaskWorkflow, type TaskCapability, DEFAULT_PROVIDER, ORCHESTRATOR_TASK_NAME, TERMINAL_STATUSES } from "@tangerine/shared"
+import { type ActivityType, type TaskType, type TaskCapability, DEFAULT_PROVIDER, ORCHESTRATOR_TASK_NAME, TERMINAL_STATUSES } from "@tangerine/shared"
 import {
   TaskNotFoundError,
   TaskNotTerminalError,
@@ -34,7 +34,7 @@ function depsForProvider(deps: TaskManagerDeps, provider: string): LifecycleDeps
 export type TaskSource = "github" | "manual" | "api" | "cross-project" | "cron"
 
 export interface TaskManagerDeps {
-  insertTask(task: Pick<TaskRow, "id" | "project_id" | "source" | "title"> & Partial<Pick<TaskRow, "source_id" | "source_url" | "type" | "workflow" | "description" | "user_id" | "branch" | "provider" | "model" | "reasoning_effort" | "parent_task_id" | "capabilities">>): Effect.Effect<TaskRow, Error>
+  insertTask(task: Pick<TaskRow, "id" | "project_id" | "source" | "title"> & Partial<Pick<TaskRow, "source_id" | "source_url" | "type" | "description" | "user_id" | "branch" | "provider" | "model" | "reasoning_effort" | "parent_task_id" | "capabilities">>): Effect.Effect<TaskRow, Error>
   updateTask(taskId: string, updates: Partial<Omit<TaskRow, "id">>): Effect.Effect<TaskRow | null, Error>
   getTask(taskId: string): Effect.Effect<TaskRow | null, Error>
   listTasks(filter?: { status?: string; projectId?: string }): Effect.Effect<TaskRow[], Error>
@@ -57,7 +57,6 @@ export function createTask(
     sourceUrl?: string
     title: string
     type?: TaskType
-    workflow?: TaskWorkflow
     description?: string
     provider?: string
     model?: string
@@ -94,17 +93,14 @@ export function createTask(
     const resolvedProvider = params.provider ?? projectConfig.defaultProvider ?? DEFAULT_PROVIDER
 
     const description = params.description ?? null
-    const workflow: TaskWorkflow = taskType === "orchestrator" ? "pr" : (params.workflow ?? "pr")
 
     const capabilities: TaskCapability[] = taskType === "orchestrator"
       ? ["resolve", "predefined-prompts"]
-      : workflow === "none"
-        ? (taskType === "reviewer"
+      : taskType === "runner"
+        ? ["resolve", "predefined-prompts", "diff", "continue"]
+        : taskType === "reviewer"
           ? ["resolve", "predefined-prompts", "diff"]
-          : ["resolve", "predefined-prompts", "diff", "continue"])
-        : (taskType === "reviewer"
-          ? ["resolve", "predefined-prompts", "diff"]
-          : ["resolve", "predefined-prompts", "diff", "continue"])
+          : ["resolve", "predefined-prompts", "diff", "continue"]
 
     const task = yield* deps.insertTask({
       id,
@@ -114,7 +110,6 @@ export function createTask(
       source_url: params.sourceUrl ?? null,
       title: params.title,
       type: taskType,
-      workflow,
       description,
       provider: resolvedProvider,
       model: params.model ?? null,

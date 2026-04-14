@@ -94,15 +94,15 @@ export function startSession(
     const taskPrefix = task.id.slice(0, 8)
     const defaultBranch = config.defaultBranch ?? "main"
     const isOrchestrator = task.type === "orchestrator"
-    const isNoneWorkflow = (task.workflow ?? "pr") === "none"
+    const isRunner = task.type === "runner"
     // Orchestrator stays on the default branch in slot 0.
-    // No-workflow tasks run on the project root without a dedicated worktree.
+    // Runner tasks run on the project root without a dedicated worktree.
     // Regular tasks use pre-set branch (from PR/branch input) or generate one.
     // Never work directly on the default branch — git worktrees can't share branches
     // with the main repo, and agents should always work on isolated branches.
-    const taskBranch = (isOrchestrator || isNoneWorkflow) ? defaultBranch : (task.branch === defaultBranch ? null : task.branch)
-    const isExistingBranch = !isOrchestrator && !isNoneWorkflow && !!taskBranch && !taskBranch.startsWith("tangerine/")
-    const branch = (isOrchestrator || isNoneWorkflow) ? defaultBranch : (taskBranch ?? `tangerine/${taskPrefix}`)
+    const taskBranch = (isOrchestrator || isRunner) ? defaultBranch : (task.branch === defaultBranch ? null : task.branch)
+    const isExistingBranch = !isOrchestrator && !isRunner && !!taskBranch && !taskBranch.startsWith("tangerine/")
+    const branch = (isOrchestrator || isRunner) ? defaultBranch : (taskBranch ?? `tangerine/${taskPrefix}`)
     const repoDir = getRepoDir(deps.tangerineConfig, task.project_id)
 
     const baseBranch = defaultBranch
@@ -131,14 +131,14 @@ export function startSession(
 
     let worktreePath: string
 
-    if (isNoneWorkflow) {
-      // No-workflow tasks run directly on the project root — no worktree slot, no branch.
+    if (isRunner) {
+      // Runner tasks run directly on the project root — no worktree slot, no branch.
       // Reset to default branch so the task doesn't inherit stale state from a previous run.
       worktreePath = resolve(repoDir)
       yield* localExec(
         `cd ${worktreePath} && git checkout ${defaultBranch} 2>/dev/null; git reset --hard origin/${defaultBranch} && git clean -fd`,
       ).pipe(
-        Effect.tap(() => activity("worktree.ready", "No-workflow task using project root", { worktreePath })),
+        Effect.tap(() => activity("worktree.ready", "Runner task using project root", { worktreePath })),
         Effect.mapError((e) => new SessionStartError({
           message: `Project root reset failed: ${e.message}`,
           taskId: task.id,
@@ -146,7 +146,7 @@ export function startSession(
           cause: e,
         }))
       )
-      taskLog.debug("No-workflow task using project root", { worktreePath })
+      taskLog.debug("Runner task using project root", { worktreePath })
     } else {
       // 2. Init worktree pool (idempotent) and acquire a slot
       const exec = (cmd: string) => localExec(cmd, repoDir)
@@ -211,7 +211,7 @@ export function startSession(
       taskLog.debug("Worktree slot acquired", { worktreePath, branch, slotId: slot.id })
     }
 
-    yield* deps.updateTask(task.id, { branch: isNoneWorkflow ? null : branch, worktree_path: worktreePath }).pipe(
+    yield* deps.updateTask(task.id, { branch: isRunner ? null : branch, worktree_path: worktreePath }).pipe(
       Effect.mapError((e) => new SessionStartError({
         message: e.message,
         taskId: task.id,
@@ -275,7 +275,7 @@ export function startSession(
 
     // 5. Detect fork upstream for PR targeting
     let upstreamSlug: string | undefined
-    if (task.type === "worker" && !isNoneWorkflow && config.prMode !== "none") {
+    if (task.type === "worker" && config.prMode !== "none") {
       const slug = resolveGithubSlug(config.repo)
       if (slug) {
         const forkInfo = yield* Effect.tryPromise({
@@ -290,11 +290,9 @@ export function startSession(
 
     // 6. Start agent locally (with timeout to prevent indefinite hangs)
     yield* activity("agent.starting", "Starting agent")
-    const taskWorkflow = (task.workflow ?? "pr") as "pr" | "none"
     const systemNotes = buildSystemNotes(task.id, {
-      setupCommand: isNoneWorkflow ? undefined : config.setup,
+      setupCommand: isRunner ? undefined : config.setup,
       taskType: task.type ?? undefined,
-      workflow: taskWorkflow,
       prMode: config.prMode,
       customSystemPrompt: resolveCustomSystemPrompt(config, task.type),
       upstreamSlug,
@@ -395,8 +393,8 @@ export function reconnectSession(
     // 3. Start agent — resume session if we have a session ID (with timeout)
     yield* activity("agent.reconnecting", "Restarting agent process")
     const project = deps.tangerineConfig.projects.find((p) => p.name === task.project_id)
-    const taskType = task.type as "worker" | "orchestrator" | "reviewer" | undefined
-    const resolved = project && taskType ? resolveTaskTypeConfig(project, taskType) : undefined
+    const taskType = task.type as "worker" | "orchestrator" | "reviewer" | "runner" | undefined
+    const resolved = project && taskType && taskType !== "runner" ? resolveTaskTypeConfig(project, taskType) : undefined
 
     // Detect fork upstream for PR targeting on reconnect
     let reconnectUpstreamSlug: string | undefined
@@ -413,11 +411,10 @@ export function reconnectSession(
       }
     }
 
-    const reconnectWorkflow = (task.workflow ?? "pr") as "pr" | "none"
+    const isRunner = taskType === "runner"
     const systemNotes = buildSystemNotes(task.id, {
-      setupCommand: reconnectWorkflow === "none" ? undefined : project?.setup,
+      setupCommand: isRunner ? undefined : project?.setup,
       taskType: taskType,
-      workflow: reconnectWorkflow,
       prMode: project?.prMode,
       customSystemPrompt: resolved?.systemPrompt,
       upstreamSlug: reconnectUpstreamSlug,

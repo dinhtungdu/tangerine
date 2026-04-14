@@ -3,7 +3,6 @@ export {
   type TaskStatus,
   type TaskSource,
   type TaskType,
-  type TaskWorkflow,
   type TaskCapability,
   type Task,
   type Cron,
@@ -49,6 +48,5 @@ export {
   SUPPORTED_PROVIDERS,
   ORCHESTRATOR_TASK_NAME,
   TERMINAL_STATUSES,
-  SUPPORTED_WORKFLOWS,
   isGithubRepo,
 } from "./constants"

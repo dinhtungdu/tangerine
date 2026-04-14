@@ -262,7 +262,7 @@ export function pollPrStatuses(deps: PrMonitorDeps): Effect.Effect<void, never> 
     }
 
     // Phase 1: discover PR URLs for tasks that have the "pr-track" capability but no URL yet
-    const withoutPr = active.filter((t) => !t.pr_url && t.branch && taskHasCapability(t.type, t.capabilities, "pr-track", t.workflow ?? "pr"))
+    const withoutPr = active.filter((t) => !t.pr_url && t.branch && taskHasCapability(t.type, t.capabilities, "pr-track"))
     if (withoutPr.length > 0) {
       const lookup = deps.lookupPrByBranch ?? lookupPrByBranch
       log.debug("Discovering PRs for tasks without pr_url", { count: withoutPr.length })

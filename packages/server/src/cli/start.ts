@@ -81,9 +81,9 @@ function trySavePrUrl(
   prUrl: string,
   source: "message" | "tool",
 ) {
-  const taskRow = db.prepare("SELECT branch, type, workflow, capabilities FROM tasks WHERE id = ?")
-    .get(taskId) as { branch: string | null; type: string; workflow: string | null; capabilities: string | null } | null
-  if (!taskRow || !taskHasCapability(taskRow.type, taskRow.capabilities, "pr-create", taskRow.workflow ?? "pr")) return
+  const taskRow = db.prepare("SELECT branch, type, capabilities FROM tasks WHERE id = ?")
+    .get(taskId) as { branch: string | null; type: string; capabilities: string | null } | null
+  if (!taskRow || !taskHasCapability(taskRow.type, taskRow.capabilities, "pr-create")) return
 
   const taskBranch = taskRow.branch
   Effect.runPromise(
@@ -291,12 +291,11 @@ export async function start(): Promise<void> {
           // Hydrate in-memory tracking from DB (lost on restart)
           const taskMeta = db.prepare("SELECT pr_url FROM tasks WHERE id = ?").get(taskId) as { pr_url: string | null } | null
           const s = getTaskState(taskId)
-          const taskRow = db.prepare("SELECT project_id, type, workflow FROM tasks WHERE id = ?").get(taskId) as { project_id: string | null; type: string | null; workflow: string | null } | null
+          const taskRow = db.prepare("SELECT project_id, type FROM tasks WHERE id = ?").get(taskId) as { project_id: string | null; type: string | null } | null
           const projConfig = taskRow?.project_id ? getProjectConfig(config.config, taskRow.project_id) : undefined
           s.systemPromptApplied = buildSystemNotes(taskId, {
             setupCommand: projConfig?.setup,
             taskType: taskRow?.type ?? undefined,
-            workflow: (taskRow?.workflow ?? "pr") as "pr" | "none",
             prMode: projConfig?.prMode,
             customSystemPrompt: resolveCustomSystemPrompt(projConfig, taskRow?.type),
           }).length > 0
@@ -326,18 +325,17 @@ export async function start(): Promise<void> {
                 await new Promise((r) => setTimeout(r, 1500))
 
                 const taskRow = db.prepare(
-                  "SELECT title, description, type, workflow, project_id FROM tasks WHERE id = ?"
-                ).get(taskId) as { title: string; description: string | null; type: string | null; workflow: string | null; project_id: string | null } | null
+                  "SELECT title, description, type, project_id FROM tasks WHERE id = ?"
+                ).get(taskId) as { title: string; description: string | null; type: string | null; project_id: string | null } | null
 
                 const originalTask = taskRow?.description || taskRow?.title || ""
                 const unansweredUserMsg = lastLog?.role === "user" ? lastLog.content : null
                 const reconnectProjConfig = taskRow?.project_id ? getProjectConfig(config.config, taskRow.project_id) : undefined
-                const reconnectWorkflow = taskRow?.workflow ?? "pr"
 
                 const nudgeParts = [
                   `[TANGERINE: Server restarted. You are working on: ${originalTask}]`,
                 ]
-                if (taskRow?.type !== "reviewer" && reconnectWorkflow !== "none" && reconnectProjConfig?.prMode !== "none") {
+                if (taskRow?.type === "worker" && reconnectProjConfig?.prMode !== "none") {
                   nudgeParts.push(`[NOTE: When your work is complete: ${buildPrWorkflowNote(taskId, undefined, reconnectProjConfig?.prMode)}]`)
                 }
                 nudgeParts.push(
@@ -364,7 +362,7 @@ export async function start(): Promise<void> {
             // Queued prompts are drained AFTER the initial prompt so the agent gets
             // its task description (including orchestrator system prompt) first.
             const isRetry = !!hasLogs // User message already saved, just re-deliver prompt
-            const task = db.prepare("SELECT description, title, project_id, type, workflow FROM tasks WHERE id = ?").get(taskId) as { description: string | null; title: string; project_id: string; type: string | null; workflow: string | null } | null
+            const task = db.prepare("SELECT description, title, project_id, type FROM tasks WHERE id = ?").get(taskId) as { description: string | null; title: string; project_id: string; type: string | null } | null
             const initialPrompt = task?.description || task?.title
             if (initialPrompt) {
               // Load initial images saved during task creation (if any)
@@ -400,7 +398,6 @@ export async function start(): Promise<void> {
                 const notes = buildSystemNotes(taskId, {
                   setupCommand: projConfig?.setup,
                   taskType: task?.type ?? undefined,
-                  workflow: (task?.workflow ?? "pr") as "pr" | "none",
                   prMode: projConfig?.prMode,
                   customSystemPrompt: resolveCustomSystemPrompt(projConfig, task?.type),
                 })
@@ -607,8 +604,8 @@ export async function start(): Promise<void> {
                       if (st.prUrlSaved || st.prNudgeSent) return
 
                       // Check DB for existing pr_url (in-memory set is lost on restart)
-                      const task = db.prepare("SELECT project_id, pr_url, type, workflow, capabilities FROM tasks WHERE id = ?").get(taskId) as { project_id: string; pr_url: string | null; type: string; workflow: string | null; capabilities: string | null } | null
-                      if (!task || !taskHasCapability(task.type, task.capabilities, "pr-create", task.workflow ?? "pr")) return
+                      const task = db.prepare("SELECT project_id, pr_url, type, capabilities FROM tasks WHERE id = ?").get(taskId) as { project_id: string; pr_url: string | null; type: string; capabilities: string | null } | null
+                      if (!task || !taskHasCapability(task.type, task.capabilities, "pr-create")) return
                       if (task?.pr_url) {
                         st.prUrlSaved = true
                         return
@@ -836,7 +833,6 @@ export async function start(): Promise<void> {
               const notes = buildSystemNotes(taskId, {
                 setupCommand: projConfig?.setup,
                 taskType: task?.type ?? undefined,
-                workflow: (task?.workflow ?? "pr") as "pr" | "none",
                 prMode: projConfig?.prMode,
                 customSystemPrompt: resolveCustomSystemPrompt(projConfig, task?.type),
               })

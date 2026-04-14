@@ -30,7 +30,6 @@ function makeTask(overrides?: Partial<TaskRow>): TaskRow {
     source_url: null,
     title: "Nightly check",
     type: "worker",
-    workflow: "pr",
     description: null,
     status: "running",
     provider: "claude-code",

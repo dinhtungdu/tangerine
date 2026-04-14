@@ -33,7 +33,7 @@ interface TaggedError { _tag: string; message?: string }
 export interface AppDeps {
   db: Database
   taskManager: {
-    createTask(params: { source: TaskSource; projectId: string; title: string; type?: import("@tangerine/shared").TaskType; workflow?: import("@tangerine/shared").TaskWorkflow; description?: string; sourceId?: string; sourceUrl?: string; provider?: string; model?: string; reasoningEffort?: string; branch?: string; parentTaskId?: string; images?: import("../agent/provider").PromptImage[] }): Effect.Effect<TaskRow, TaggedError>
+    createTask(params: { source: TaskSource; projectId: string; title: string; type?: import("@tangerine/shared").TaskType; description?: string; sourceId?: string; sourceUrl?: string; provider?: string; model?: string; reasoningEffort?: string; branch?: string; parentTaskId?: string; images?: import("../agent/provider").PromptImage[] }): Effect.Effect<TaskRow, TaggedError>
     cancelTask(taskId: string): Effect.Effect<void, TaggedError>
     completeTask(taskId: string): Effect.Effect<void, TaggedError>
     resolveTask(taskId: string): Effect.Effect<void, TaggedError>
