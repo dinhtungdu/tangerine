@@ -20,12 +20,19 @@ const log = createLogger("claude-code-provider")
 // Model discovery — tries Anthropic REST API, falls back to static list
 // ---------------------------------------------------------------------------
 
-// Models known to Claude Code, used as fallback when the API is unavailable.
-// Context windows default to 200K — the API provides authoritative values.
+// Models known to Claude Code. IDs match the first-party Anthropic API IDs from
+// the Claude Code source (configs.ts). Opus/Sonnet 4.6 use unversioned canonical
+// IDs; older models require the dated suffix. Context windows default to 200K.
+// Keep ordered newest→oldest so the model picker shows the best options first.
 const CLAUDE_CODE_KNOWN_MODELS = [
-  { id: "claude-opus-4-6", name: "Claude Opus 4.6", provider: "anthropic", providerName: "Anthropic", contextWindow: 200_000 },
-  { id: "claude-sonnet-4-6", name: "Claude Sonnet 4.6", provider: "anthropic", providerName: "Anthropic", contextWindow: 200_000 },
-  { id: "claude-haiku-4-5", name: "Claude Haiku 4.5", provider: "anthropic", providerName: "Anthropic", contextWindow: 200_000 },
+  { id: "claude-opus-4-6",           name: "Claude Opus 4.6",     provider: "anthropic", providerName: "Anthropic", contextWindow: 200_000 },
+  { id: "claude-opus-4-5-20251101",  name: "Claude Opus 4.5",     provider: "anthropic", providerName: "Anthropic", contextWindow: 200_000 },
+  { id: "claude-sonnet-4-6",         name: "Claude Sonnet 4.6",   provider: "anthropic", providerName: "Anthropic", contextWindow: 200_000 },
+  { id: "claude-sonnet-4-5-20250929",name: "Claude Sonnet 4.5",   provider: "anthropic", providerName: "Anthropic", contextWindow: 200_000 },
+  { id: "claude-haiku-4-5-20251001", name: "Claude Haiku 4.5",    provider: "anthropic", providerName: "Anthropic", contextWindow: 200_000 },
+  { id: "claude-3-7-sonnet-20250219",name: "Claude 3.7 Sonnet",   provider: "anthropic", providerName: "Anthropic", contextWindow: 200_000 },
+  { id: "claude-3-5-sonnet-20241022",name: "Claude 3.5 Sonnet",   provider: "anthropic", providerName: "Anthropic", contextWindow: 200_000 },
+  { id: "claude-3-5-haiku-20241022", name: "Claude 3.5 Haiku",    provider: "anthropic", providerName: "Anthropic", contextWindow: 200_000 },
 ]
 
 // Canonical model ID patterns, ordered most-specific first.
@@ -108,7 +115,9 @@ export function discoverModels(): ModelInfo[] {
     }
   }
 
-  const knownIds = new Set(CLAUDE_CODE_KNOWN_MODELS.map((m) => m.id))
+  // Use canonical IDs for dedup so versioned static IDs (e.g. "claude-haiku-4-5-20251001")
+  // and unversioned API IDs (e.g. "claude-haiku-4-5") both map to the same key.
+  const knownCanonicalIds = new Set(CLAUDE_CODE_KNOWN_MODELS.map((m) => toCanonicalId(m.id)))
   const contextMap = new Map(
     (apiModels ?? [])
       .filter((m): m is { id: string; context_window: number } =>
@@ -116,10 +125,10 @@ export function discoverModels(): ModelInfo[] {
       .map((m) => [toCanonicalId(m.id), m.context_window]),
   )
 
-  // Start with known models, enriched with API context windows
+  // Start with known models, enriched with API context windows when available
   const result: ModelInfo[] = CLAUDE_CODE_KNOWN_MODELS.map((m) => ({
     ...m,
-    ...(contextMap.has(m.id) ? { contextWindow: contextMap.get(m.id)! } : {}),
+    ...(contextMap.has(toCanonicalId(m.id)) ? { contextWindow: contextMap.get(toCanonicalId(m.id))! } : {}),
   }))
 
   // Add any Claude models from the API that aren't already in the static list.
@@ -129,7 +138,7 @@ export function discoverModels(): ModelInfo[] {
     for (const m of apiModels) {
       if (!m.id.startsWith("claude-")) continue
       const canonicalId = toCanonicalId(m.id)
-      if (knownIds.has(canonicalId) || seen.has(canonicalId)) continue
+      if (knownCanonicalIds.has(canonicalId) || seen.has(canonicalId)) continue
       seen.add(canonicalId)
       result.push({
         id: m.id,
