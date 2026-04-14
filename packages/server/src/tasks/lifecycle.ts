@@ -133,8 +133,19 @@ export function startSession(
 
     if (isNoneWorkflow) {
       // No-workflow tasks run directly on the project root — no worktree slot, no branch.
+      // Reset to default branch so the task doesn't inherit stale state from a previous run.
       worktreePath = resolve(repoDir)
-      yield* activity("worktree.ready", "No-workflow task using project root", { worktreePath, branch })
+      yield* localExec(
+        `cd ${worktreePath} && git checkout ${defaultBranch} 2>/dev/null; git reset --hard origin/${defaultBranch} && git clean -fd`,
+      ).pipe(
+        Effect.tap(() => activity("worktree.ready", "No-workflow task using project root", { worktreePath })),
+        Effect.mapError((e) => new SessionStartError({
+          message: `Project root reset failed: ${e.message}`,
+          taskId: task.id,
+          phase: "checkout-branch",
+          cause: e,
+        }))
+      )
       taskLog.debug("No-workflow task using project root", { worktreePath })
     } else {
       // 2. Init worktree pool (idempotent) and acquire a slot
