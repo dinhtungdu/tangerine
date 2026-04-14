@@ -132,9 +132,9 @@ Task types — **always pass the correct type**:
 Task workflows — controls worktree and PR behavior:
 
 - `pr` (default) — allocates a worktree, creates a branch, tracks PRs, auto-completes on PR merge
-- `script` — no worktree allocation, runs on project root, no PR tracking, agent self-completes. Use for publish, deploy, or any non-code-change task.
+- `none` — no worktree allocation, runs on project root, no PR tracking, agent self-completes. Use for publish, deploy, or any non-code-change task.
 
-Example script task:
+Example workflow-less task:
 
 ```bash
 curl -X POST "$API/api/tasks" \
@@ -142,7 +142,7 @@ curl -X POST "$API/api/tasks" \
   -d '{
     "projectId": "my-project",
     "title": "Publish v1.0.0 to npm",
-    "workflow": "script",
+    "workflow": "none",
     "description": "Run bun publish after verifying build passes",
     "source": "cross-project",
     "parentTaskId": "abc123"

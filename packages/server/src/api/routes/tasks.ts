@@ -61,7 +61,7 @@ export function taskRoutes(deps: AppDeps): Hono {
   })
 
   app.post("/", async (c) => {
-    const body = await c.req.json<{ projectId?: string; title?: string; type?: "worker" | "orchestrator" | "reviewer"; workflow?: "pr" | "script"; description?: string; provider?: string; model?: string; reasoningEffort?: string; source?: string; sourceId?: string; sourceUrl?: string; branch?: string; parentTaskId?: string; images?: import("../../agent/provider").PromptImage[] }>()
+    const body = await c.req.json<{ projectId?: string; title?: string; type?: "worker" | "orchestrator" | "reviewer"; workflow?: "pr" | "none"; description?: string; provider?: string; model?: string; reasoningEffort?: string; source?: string; sourceId?: string; sourceUrl?: string; branch?: string; parentTaskId?: string; images?: import("../../agent/provider").PromptImage[] }>()
     if (!body.title) {
       return c.json({ error: "title is required" }, 400)
     }
@@ -89,7 +89,7 @@ export function taskRoutes(deps: AppDeps): Hono {
     if (body.type && !validTypes.has(body.type)) {
       return c.json({ error: `Invalid type: ${body.type}. Must be worker, orchestrator, or reviewer` }, 400)
     }
-    const validWorkflows = new Set(["pr", "script"])
+    const validWorkflows = new Set(["pr", "none"])
     if (body.workflow && !validWorkflows.has(body.workflow)) {
       return c.json({ error: `Invalid workflow: ${body.workflow}. Must be pr or script` }, 400)
     }
@@ -158,7 +158,7 @@ export function taskRoutes(deps: AppDeps): Hono {
                 projectId: task.project_id,
                 title: task.title,
                 type: (task.type ?? "worker") as "worker" | "orchestrator" | "reviewer",
-                workflow: (task.workflow ?? "pr") as "pr" | "script",
+                workflow: (task.workflow ?? "pr") as "pr" | "none",
                 description: task.description ?? undefined,
                 sourceId: task.source_id ?? undefined,
                 sourceUrl: task.source_url ?? undefined,

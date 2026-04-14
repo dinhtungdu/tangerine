@@ -94,7 +94,7 @@ The main persisted tables are:
 Notable task fields in the active schema:
 
 - `type` — "worker", "orchestrator", "reviewer"
-- `workflow` — "pr" (default: worktree + branch + PR tracking) or "script" (no worktree, runs on project root, no PR tracking, agent self-completes)
+- `workflow` — "pr" (default: worktree + branch + PR tracking) or "none" (no worktree, runs on project root, no PR tracking, agent self-completes)
 - `provider`
 - `model`
 - `reasoning_effort`

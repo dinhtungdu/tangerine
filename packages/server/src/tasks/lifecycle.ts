@@ -94,15 +94,15 @@ export function startSession(
     const taskPrefix = task.id.slice(0, 8)
     const defaultBranch = config.defaultBranch ?? "main"
     const isOrchestrator = task.type === "orchestrator"
-    const isScript = (task.workflow ?? "pr") === "script"
+    const isNoneWorkflow = (task.workflow ?? "pr") === "none"
     // Orchestrator stays on the default branch in slot 0.
-    // Script tasks run on the project root without a dedicated worktree.
+    // No-workflow tasks run on the project root without a dedicated worktree.
     // Regular tasks use pre-set branch (from PR/branch input) or generate one.
     // Never work directly on the default branch — git worktrees can't share branches
     // with the main repo, and agents should always work on isolated branches.
-    const taskBranch = (isOrchestrator || isScript) ? defaultBranch : (task.branch === defaultBranch ? null : task.branch)
-    const isExistingBranch = !isOrchestrator && !isScript && !!taskBranch && !taskBranch.startsWith("tangerine/")
-    const branch = (isOrchestrator || isScript) ? defaultBranch : (taskBranch ?? `tangerine/${taskPrefix}`)
+    const taskBranch = (isOrchestrator || isNoneWorkflow) ? defaultBranch : (task.branch === defaultBranch ? null : task.branch)
+    const isExistingBranch = !isOrchestrator && !isNoneWorkflow && !!taskBranch && !taskBranch.startsWith("tangerine/")
+    const branch = (isOrchestrator || isNoneWorkflow) ? defaultBranch : (taskBranch ?? `tangerine/${taskPrefix}`)
     const repoDir = getRepoDir(deps.tangerineConfig, task.project_id)
 
     const baseBranch = defaultBranch
@@ -131,11 +131,11 @@ export function startSession(
 
     let worktreePath: string
 
-    if (isScript) {
-      // Script tasks run directly on the project root — no worktree slot, no branch.
+    if (isNoneWorkflow) {
+      // No-workflow tasks run directly on the project root — no worktree slot, no branch.
       worktreePath = resolve(repoDir)
-      yield* activity("worktree.ready", "Script task using project root", { worktreePath, branch })
-      taskLog.debug("Script task using project root", { worktreePath })
+      yield* activity("worktree.ready", "No-workflow task using project root", { worktreePath, branch })
+      taskLog.debug("No-workflow task using project root", { worktreePath })
     } else {
       // 2. Init worktree pool (idempotent) and acquire a slot
       const exec = (cmd: string) => localExec(cmd, repoDir)
@@ -200,7 +200,7 @@ export function startSession(
       taskLog.debug("Worktree slot acquired", { worktreePath, branch, slotId: slot.id })
     }
 
-    yield* deps.updateTask(task.id, { branch: isScript ? null : branch, worktree_path: worktreePath }).pipe(
+    yield* deps.updateTask(task.id, { branch: isNoneWorkflow ? null : branch, worktree_path: worktreePath }).pipe(
       Effect.mapError((e) => new SessionStartError({
         message: e.message,
         taskId: task.id,
@@ -264,7 +264,7 @@ export function startSession(
 
     // 5. Detect fork upstream for PR targeting
     let upstreamSlug: string | undefined
-    if (task.type === "worker" && !isScript && config.prMode !== "none") {
+    if (task.type === "worker" && !isNoneWorkflow && config.prMode !== "none") {
       const slug = resolveGithubSlug(config.repo)
       if (slug) {
         const forkInfo = yield* Effect.tryPromise({
@@ -279,9 +279,9 @@ export function startSession(
 
     // 6. Start agent locally (with timeout to prevent indefinite hangs)
     yield* activity("agent.starting", "Starting agent")
-    const taskWorkflow = (task.workflow ?? "pr") as "pr" | "script"
+    const taskWorkflow = (task.workflow ?? "pr") as "pr" | "none"
     const systemNotes = buildSystemNotes(task.id, {
-      setupCommand: isScript ? undefined : config.setup,
+      setupCommand: isNoneWorkflow ? undefined : config.setup,
       taskType: task.type ?? undefined,
       workflow: taskWorkflow,
       prMode: config.prMode,
@@ -402,9 +402,9 @@ export function reconnectSession(
       }
     }
 
-    const reconnectWorkflow = (task.workflow ?? "pr") as "pr" | "script"
+    const reconnectWorkflow = (task.workflow ?? "pr") as "pr" | "none"
     const systemNotes = buildSystemNotes(task.id, {
-      setupCommand: reconnectWorkflow === "script" ? undefined : project?.setup,
+      setupCommand: reconnectWorkflow === "none" ? undefined : project?.setup,
       taskType: taskType,
       workflow: reconnectWorkflow,
       prMode: project?.prMode,

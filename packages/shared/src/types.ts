@@ -4,7 +4,7 @@ export type TaskStatus = "created" | "provisioning" | "running" | "done" | "fail
 export type ProviderType = typeof SUPPORTED_PROVIDERS[number]
 export type TaskSource = "github" | "linear" | "manual" | "cross-project" | "cron"
 export type TaskType = "worker" | "orchestrator" | "reviewer"
-export type TaskWorkflow = "pr" | "script"
+export type TaskWorkflow = "pr" | "none"
 export type TaskCapability = "resolve" | "predefined-prompts" | "diff" | "continue" | "pr-track" | "pr-create"
 export interface Task {
   id: string

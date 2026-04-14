@@ -17,7 +17,7 @@ export function utc(ts: string | null): string | null {
 // Canonical capabilities per task type + workflow. Used as baseline for all tasks.
 function canonicalCapabilities(type: string, workflow = "pr"): TaskCapability[] {
   if (type === "orchestrator") return ["resolve", "predefined-prompts"]
-  if (workflow === "script") {
+  if (workflow === "none") {
     if (type === "reviewer") return ["resolve", "predefined-prompts", "diff"]
     return ["resolve", "predefined-prompts", "diff", "continue"]
   }

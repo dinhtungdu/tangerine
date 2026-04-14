@@ -23,7 +23,7 @@ export const ORCHESTRATOR_TASK_NAME = "_orchestrator"
 export const TERMINAL_STATUSES = new Set(["done", "failed", "cancelled"])
 
 /** Valid workflow values for tasks. */
-export const SUPPORTED_WORKFLOWS = ["pr", "script"] as const
+export const SUPPORTED_WORKFLOWS = ["pr", "none"] as const
 
 /** Check if a repo string refers to a GitHub-hosted repo (including GHE). */
 export function isGithubRepo(repo: string): boolean {
