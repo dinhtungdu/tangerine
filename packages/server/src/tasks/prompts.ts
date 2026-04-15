@@ -8,9 +8,9 @@
 //   Configurable per project via taskTypes config.
 
 import { DEFAULT_API_PORT } from "@tangerine/shared"
+import { AUTH_CURL_FLAG } from "./api-auth"
 
 const apiPort = () => Number(process.env["PORT"] ?? DEFAULT_API_PORT)
-const authCurlFlag = '${TANGERINE_AUTH_TOKEN:+-H "Authorization: Bearer $TANGERINE_AUTH_TOKEN"}'
 
 export interface SystemNotesInfo {
   setupCommand?: string
@@ -37,7 +37,7 @@ export function buildPrWorkflowNote(taskId: string, port = apiPort(), prMode: "r
         ? `\`git push -u origin HEAD\` then \`gh pr create${repoFlag}\`.`
         : `\`git push -u origin HEAD\` then \`gh pr create --draft${repoFlag}\`.`
   return (
-    `1) Rename your branch via: curl -X POST http://localhost:${port}/api/tasks/${taskId}/rename-branch ${authCurlFlag} ` +
+    `1) Rename your branch via: curl -X POST http://localhost:${port}/api/tasks/${taskId}/rename-branch ${AUTH_CURL_FLAG} ` +
     `-H "Content-Type: application/json" -d '{"branch":"fix/<descriptive-slug>"}'. ` +
     `2) Push and create a PR with ${prCommand}`
   )
@@ -63,7 +63,7 @@ export function buildPrModeInstruction(prMode: "ready" | "draft" | "none", upstr
 export function buildSystemLayer(taskId: string, info: SystemNotesInfo, port = apiPort()): string[] {
   const notes: string[] = []
   notes.push(`[TANGERINE: You are running inside a Tangerine task (task ID: ${taskId}). The Tangerine API is at http://localhost:${port}. Load the tangerine-tasks skill for full API reference and common workflows.]`)
-  notes.push(`[AUTH: If \`TANGERINE_AUTH_TOKEN\` is set, include ${authCurlFlag} on Tangerine API curl calls.]`)
+  notes.push(`[AUTH: If \`TANGERINE_AUTH_TOKEN\` is set, include ${AUTH_CURL_FLAG} on Tangerine API curl calls.]`)
 
   if (info.taskType === "worker") {
     const prMode = info.prMode ?? "none"
@@ -125,7 +125,7 @@ export function buildEscalationBlock(orchestratorId: string, port = apiPort()): 
     "",
     "```bash",
     `curl -X POST http://localhost:${port}/api/tasks/${orchestratorId}/prompt \\`,
-    `  ${authCurlFlag} \\`,
+    `  ${AUTH_CURL_FLAG} \\`,
     '  -H "Content-Type: application/json" \\',
     `  -d '{"text": "Discovered out-of-scope issue: <brief description>"}'`,
     "```",

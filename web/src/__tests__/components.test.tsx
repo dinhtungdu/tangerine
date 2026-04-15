@@ -81,6 +81,7 @@ mock.module("@base-ui/react/select", () => {
 
 import { MemoryRouter, Route, Routes, useLocation } from "react-router-dom"
 import { ActivityList } from "../components/ActivityList"
+import { AuthenticatedImage } from "../components/AuthenticatedImage"
 import { ChatMessage } from "../components/ChatMessage"
 import { NewAgentForm } from "../components/NewAgentForm"
 import { ChatInput, appendQuotedText } from "../components/ChatInput"
@@ -287,6 +288,18 @@ describe("ActivityList", () => {
     expect(screen.getByText(/VM acquired/)).toBeTruthy()
     expect(screen.getByText(/Worktree created/)).toBeTruthy()
     expect(screen.getByText("Thinking")).toBeTruthy()
+  })
+})
+
+describe("AuthenticatedImage", () => {
+  test("exposes an accessible loading placeholder for protected images", () => {
+    global.fetch = mock(() => new Promise(() => {})) as typeof fetch
+
+    render(<AuthenticatedImage src="/api/tasks/t1/images/example.png" alt="Agent image" className="h-16 w-16" />)
+
+    const placeholder = screen.getByRole("img", { name: "Agent image" })
+    expect(placeholder.getAttribute("aria-busy")).toBe("true")
+    expect(screen.getByText("Loading image")).toBeTruthy()
   })
 })
 

@@ -3,7 +3,7 @@ import { cleanup, render, screen, waitFor } from "@testing-library/react"
 import { useEffect } from "react"
 import { useAuth, AuthProvider } from "../context/AuthContext"
 import { fetchAuthSession } from "../lib/api"
-import { clearAuthToken, setAuthToken } from "../lib/auth"
+import { clearAuthToken, emitAuthFailure, setAuthToken } from "../lib/auth"
 
 const originalFetch = global.fetch
 
@@ -100,5 +100,32 @@ describe("auth", () => {
     })
 
     expect(localStorage.getItem("tangerine-auth-token")).toBe("secret-token")
+  })
+
+  test("AuthProvider preserves auth failure error after refresh", async () => {
+    global.fetch = mock(() =>
+      Promise.resolve(new Response(JSON.stringify({ enabled: true, authenticated: false }), {
+        status: 200,
+        headers: { "Content-Type": "application/json" },
+      }))
+    ) as typeof fetch
+
+    render(
+      <AuthProvider>
+        <AuthProbe />
+      </AuthProvider>,
+    )
+
+    await waitFor(() => {
+      const state = JSON.parse(screen.getByTestId("auth-state").textContent ?? "{}") as { loading: boolean }
+      expect(state.loading).toBe(false)
+    })
+
+    emitAuthFailure()
+
+    await waitFor(() => {
+      const state = JSON.parse(screen.getByTestId("auth-state").textContent ?? "{}") as { error: string | null }
+      expect(state.error).toBe("Authentication required")
+    })
   })
 })

@@ -13,21 +13,25 @@ export function AuthenticatedImage({
   ...props
 }: ImgHTMLAttributes<HTMLImageElement>) {
   const [resolvedSrc, setResolvedSrc] = useState<string | null>(null)
+  const [status, setStatus] = useState<"loading" | "ready" | "error">("loading")
 
   useEffect(() => {
     if (!src) {
       setResolvedSrc(null)
+      setStatus("error")
       return
     }
 
     if (!requiresAuthenticatedFetch(src)) {
       setResolvedSrc(src)
+      setStatus("ready")
       return
     }
 
     let cancelled = false
     let objectUrl: string | null = null
     setResolvedSrc(null)
+    setStatus("loading")
 
     fetch(src, { headers: buildAuthHeaders() })
       .then(async (res) => {
@@ -37,10 +41,16 @@ export function AuthenticatedImage({
         }
         const blob = await res.blob()
         objectUrl = URL.createObjectURL(blob)
-        if (!cancelled) setResolvedSrc(objectUrl)
+        if (!cancelled) {
+          setResolvedSrc(objectUrl)
+          setStatus("ready")
+        }
       })
       .catch(() => {
-        if (!cancelled) setResolvedSrc(null)
+        if (!cancelled) {
+          setResolvedSrc(null)
+          setStatus("error")
+        }
       })
 
     return () => {
@@ -59,5 +69,14 @@ export function AuthenticatedImage({
     return <img {...props} alt={alt} className={className} src={src} />
   }
 
-  return <div aria-label={alt} className={cn("bg-muted", className)} />
+  return (
+    <div
+      aria-busy={status === "loading" ? true : undefined}
+      aria-label={alt}
+      className={cn("bg-muted", className)}
+      role="img"
+    >
+      <span className="sr-only">{status === "loading" ? "Loading image" : "Image unavailable"}</span>
+    </div>
+  )
 }

@@ -54,10 +54,18 @@ export function buildAuthSession(c: Context, config: AppConfig): { enabled: bool
 
 export function isLoopbackHost(hostname: string): boolean {
   const normalized = hostname.trim().toLowerCase()
-  return normalized === "localhost"
-    || normalized === "127.0.0.1"
-    || normalized === "::1"
-    || normalized === "[::1]"
+  const unbracketed = normalized.startsWith("[") && normalized.endsWith("]")
+    ? normalized.slice(1, -1)
+    : normalized
+
+  if (unbracketed === "localhost" || unbracketed === "::1" || unbracketed === "0:0:0:0:0:0:0:1") {
+    return true
+  }
+
+  const octets = unbracketed.split(".")
+  return octets.length === 4
+    && octets[0] === "127"
+    && octets.every((octet) => /^\d+$/.test(octet) && Number.parseInt(octet, 10) >= 0 && Number.parseInt(octet, 10) <= 255)
 }
 
 export function getStartupAuthError(config: AppConfig, hostname: string): string | null {

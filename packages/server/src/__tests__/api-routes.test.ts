@@ -2,7 +2,7 @@ import { describe, test, expect, beforeEach } from "bun:test"
 import { Effect } from "effect"
 import type { Database } from "bun:sqlite"
 import { createTestDb } from "./helpers"
-import { isPublicApiPath } from "../auth"
+import { isLoopbackHost, isPublicApiPath } from "../auth"
 import { dtachSocketPath } from "../api/routes/terminal-ws"
 import { createApp, type AppDeps } from "../api/app"
 import { createTask as dbCreateTask, updateTaskStatus, insertSessionLog, getTask as dbGetTask } from "../db/queries"
@@ -158,6 +158,26 @@ describe("API routes", () => {
     db = createTestDb()
     deps = createMockDeps(db)
     app = createApp(deps).app
+  })
+
+  describe("isLoopbackHost", () => {
+    test("accepts the full IPv4 loopback range", () => {
+      expect(isLoopbackHost("127.0.0.1")).toBe(true)
+      expect(isLoopbackHost("127.0.1.1")).toBe(true)
+      expect(isLoopbackHost("127.255.255.255")).toBe(true)
+    })
+
+    test("accepts IPv6 loopback forms", () => {
+      expect(isLoopbackHost("::1")).toBe(true)
+      expect(isLoopbackHost("[::1]")).toBe(true)
+      expect(isLoopbackHost("0:0:0:0:0:0:0:1")).toBe(true)
+    })
+
+    test("rejects non-loopback hosts", () => {
+      expect(isLoopbackHost("0.0.0.0")).toBe(false)
+      expect(isLoopbackHost("192.168.1.5")).toBe(false)
+      expect(isLoopbackHost("example.com")).toBe(false)
+    })
   })
 
   describe("GET /api/health", () => {

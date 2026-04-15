@@ -7,7 +7,7 @@ interface AuthContextValue extends AuthSession {
   error: string | null
   login: (token: string) => Promise<void>
   logout: () => void
-  refreshSession: () => Promise<void>
+  refreshSession: (unauthenticatedError?: string | null) => Promise<void>
 }
 
 const AuthContext = createContext<AuthContextValue>({
@@ -30,19 +30,21 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
 
-  const applySession = useCallback((session: AuthSession) => {
+  const applySession = useCallback((session: AuthSession, nextError: string | null = null) => {
     setEnabled(session.enabled)
     setAuthenticated(session.authenticated)
-    setError(null)
+    setError(nextError)
     setLoading(false)
   }, [])
 
-  const refreshSession = useCallback(async () => {
+  const refreshSession = useCallback(async (unauthenticatedError: string | null = null) => {
     setLoading(true)
     try {
       const session = await fetchAuthSession()
       if (session.enabled && !session.authenticated) {
         clearAuthToken()
+        applySession(session, unauthenticatedError)
+        return
       }
       applySession(session)
     } catch (err) {
@@ -59,9 +61,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     return subscribeAuthFailure(() => {
       clearAuthToken()
-      setAuthenticated(false)
-      setError("Authentication required")
-      void refreshSession().catch(() => {})
+      void refreshSession("Authentication required").catch(() => {})
     })
   }, [refreshSession])
 
