@@ -317,6 +317,16 @@ export function createClaudeCodeMapper(): (raw: Record<string, unknown>) => Agen
       return []
     }
 
+    case "rate_limit_event": {
+      // Claude Code surfaces rate limits via this event type.
+      // Extract details and emit as error so the UI can display it.
+      const retryAfter = typeof raw.retry_after === "number" ? raw.retry_after : null
+      const message = retryAfter
+        ? `Rate limited. Retry in ${Math.ceil(retryAfter)}s`
+        : "Rate limited by provider"
+      return [{ kind: "error", message }]
+    }
+
     default:
       return []
     }

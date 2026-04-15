@@ -731,3 +731,28 @@ describe("createClaudeCodeMapper — result always emits assistant", () => {
     expect(resultEvents).toEqual([])
   })
 })
+
+describe("rate_limit_event handling", () => {
+  test("emits error event for rate_limit_event with retry_after", () => {
+    const events = mapClaudeCodeEvent({
+      type: "rate_limit_event",
+      retry_after: 30.5,
+    })
+
+    expect(events).toEqual([{
+      kind: "error",
+      message: "Rate limited. Retry in 31s",
+    }])
+  })
+
+  test("emits error event for rate_limit_event without retry_after", () => {
+    const events = mapClaudeCodeEvent({
+      type: "rate_limit_event",
+    })
+
+    expect(events).toEqual([{
+      kind: "error",
+      message: "Rate limited by provider",
+    }])
+  })
+})
