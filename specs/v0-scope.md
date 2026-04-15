@@ -37,7 +37,6 @@ This file reflects the shipped baseline in the current codebase, not the origina
 - [x] WebSocket task event stream
 - [x] Terminal WebSocket support
 - [x] Shared bearer-token auth for remote dashboard/API/WebSocket access
-- [x] Configurable remote access modes: `localhost`, `tailscale`, `lan`
 - [x] Static serving for the built dashboard
 - [x] GitHub webhook signature verification
 

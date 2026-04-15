@@ -23,13 +23,7 @@ Supported flags:
 
 The server verifies required external tools at startup, including `git`, `gh` for GitHub-backed repos, and optional agent CLIs.
 
-Top-level config controls network exposure with `remoteAccess`:
-
-- `localhost` — bind loopback only
-- `tailscale` — bind loopback plus detected Tailscale IPs, reject non-loopback/non-Tailscale peer IPs
-- `lan` — bind broadly for LAN access
-
-If `remoteAccess` is `tailscale` or `lan` and `TANGERINE_AUTH_TOKEN` is not configured, startup must fail unless `TANGERINE_INSECURE_NO_AUTH=1` is explicitly set.
+If the server binds a non-loopback host (for example `0.0.0.0`) and `TANGERINE_AUTH_TOKEN` is not configured, startup must fail unless `TANGERINE_INSECURE_NO_AUTH=1` is explicitly set.
 
 ## `tangerine install`
 

@@ -62,8 +62,6 @@ export const actionComboSchema = z.object({
   sequence: z.array(z.string()).min(1),
 })
 
-export const remoteAccessSchema = z.enum(["localhost", "tailscale", "lan"])
-
 const githubTriggerSchema = z.object({
   type: z.enum(["label", "assignee"]),
   value: z.string(),
@@ -89,7 +87,6 @@ const defaultModels = [
 export const tangerineConfigSchema = z.object({
   projects: z.array(projectConfigSchema).min(1),
   workspace: z.string().default("~/tangerine-workspace"),
-  remoteAccess: remoteAccessSchema.default("localhost"),
   model: z.string().default("anthropic/claude-sonnet-4-6"),
   models: z.array(z.string()).default(defaultModels),
   integrations: integrationsSchema.optional(),
@@ -103,7 +100,6 @@ export const tangerineConfigSchema = z.object({
 export type PredefinedPrompt = z.infer<typeof predefinedPromptSchema>
 export type ShortcutConfig = z.infer<typeof shortcutSchema>
 export type ActionCombo = z.infer<typeof actionComboSchema>
-export type RemoteAccessMode = z.infer<typeof remoteAccessSchema>
 export type TaskTypeConfig = z.infer<typeof taskTypeConfigSchema>
 export type ProjectConfig = z.infer<typeof projectConfigSchema>
 export type TangerineConfig = z.infer<typeof tangerineConfigSchema>

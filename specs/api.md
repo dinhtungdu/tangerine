@@ -10,7 +10,6 @@ Tangerine uses a single shared bearer token for remote single-user access when `
 - Browser WebSocket clients authenticate immediately after connect with an auth message before subscribing or opening a terminal
 - `GET /api/health` and `GET /api/auth/session` are public
 - GitHub webhooks stay protected by webhook HMAC, not bearer auth
-- When `remoteAccess` is `tailscale`, the server also rejects non-loopback and non-Tailscale peer IPs before route handling, including the dashboard shell and static assets
 
 ## REST Endpoints
 

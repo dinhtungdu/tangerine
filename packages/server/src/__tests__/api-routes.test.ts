@@ -21,7 +21,6 @@ function createMockDeps(db: Database, configOverrides?: Partial<AppDeps["config"
     model: "openai/gpt-4o",
     models: ["openai/gpt-4o"],
     workspace: "/tmp/tangerine-test-workspace",
-    remoteAccess: "localhost" as const,
     pool: {
       maxPoolSize: 2,
       minReady: 1,
@@ -217,29 +216,6 @@ describe("API routes", () => {
       expect(isPublicApiPath("/api/tasks/task-123/ws")).toBe(true)
       expect(isPublicApiPath("/api/tasks/task-123/terminal")).toBe(true)
       expect(isPublicApiPath("/api/tasks/task-123/messages")).toBe(false)
-    })
-
-    test("rejects non-tailscale peers in tailscale mode", async () => {
-      deps.config.config.remoteAccess = "tailscale"
-      app = createApp(deps).app
-
-      const res = await app.fetch(new Request("http://localhost/api/health", {
-        headers: { "x-tangerine-peer-ip": "192.168.1.5" },
-      }))
-
-      expect(res.status).toBe(403)
-      expect(await res.json()).toEqual({ error: "Forbidden" })
-    })
-
-    test("allows tailscale peers in tailscale mode", async () => {
-      deps.config.config.remoteAccess = "tailscale"
-      app = createApp(deps).app
-
-      const res = await app.fetch(new Request("http://localhost/api/health", {
-        headers: { "x-tangerine-peer-ip": "100.117.134.73" },
-      }))
-
-      expect(res.status).toBe(200)
     })
   })
 
