@@ -405,8 +405,19 @@ export function createPiProvider(): AgentFactory {
                   return
                 }
 
-                // Skip other response messages (they're acknowledgements)
-                if (msgType === "response") return
+                // Handle other response messages — log errors so we can diagnose
+                // why the agent didn't respond to a prompt.
+                if (msgType === "response") {
+                  if (msg.success === false || msg.error) {
+                    const errMsg = typeof msg.error === "string" ? msg.error
+                      : typeof (msg.error as Record<string, unknown>)?.message === "string"
+                        ? (msg.error as Record<string, unknown>).message as string
+                        : JSON.stringify(msg.error ?? msg)
+                    taskLog.error("Pi command failed", { command: msg.command, error: errMsg })
+                    emit({ kind: "error", message: `Pi command failed: ${errMsg}` })
+                  }
+                  return
+                }
 
                 // Skip extension UI requests
                 if (msgType === "extension_ui_request") return
@@ -460,7 +471,11 @@ export function createPiProvider(): AgentFactory {
             sendPrompt(text: string, images?: PromptImage[]) {
               return Effect.try({
                 try: () => {
-                  if (shutdownCalled) return
+                  if (shutdownCalled) {
+                    taskLog.warn("sendPrompt called after shutdown", { textLen: text.length })
+                    return
+                  }
+                  taskLog.debug("Sending prompt command", { sessionId, textLen: text.length, hasImages: !!(images?.length) })
                   sendCommand(buildPiPromptCommand(text, images))
                 },
                 catch: (e) =>

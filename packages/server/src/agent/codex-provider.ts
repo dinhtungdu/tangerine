@@ -100,6 +100,7 @@ export function mapNotification(method: string, params: Record<string, unknown>)
 
     case "turn/completed":
       // Usage comes from separate token_count notification, not turn/completed
+      // Note: this signals the agent is ready for new prompts
       return [{ kind: "status", status: "idle" }]
 
     case "token_count": {
@@ -491,6 +492,13 @@ export function createCodexProvider(): AgentFactory {
                     } else {
                       pending.resolve((msg.result ?? {}) as Record<string, unknown>)
                     }
+                  } else if (msg.error) {
+                    // Fire-and-forget RPC (e.g. turn/start) returned an error — log it
+                    // so we can diagnose why the agent didn't respond.
+                    const err = msg.error as Record<string, unknown>
+                    const errMsg = typeof err.message === "string" ? err.message : JSON.stringify(err)
+                    taskLog.error("Unhandled RPC error response", { rpcId: id, error: errMsg })
+                    emit({ kind: "error", message: `RPC error: ${errMsg}` })
                   }
                   return
                 }
@@ -616,8 +624,12 @@ export function createCodexProvider(): AgentFactory {
             sendPrompt(text: string, images?: PromptImage[]) {
               return Effect.tryPromise({
                 try: async () => {
-                  if (shutdownCalled) return
+                  if (shutdownCalled) {
+                    taskLog.warn("sendPrompt called after shutdown", { textLen: text.length })
+                    return
+                  }
                   const ensuredThreadId = await ensureThread()
+                  taskLog.debug("Sending turn/start", { threadId: ensuredThreadId, textLen: text.length, hasImages: !!(images?.length) })
 
                   // Build input content array (Codex uses OpenAI Responses API format)
                   const input: Array<Record<string, unknown>> = []
