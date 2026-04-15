@@ -2,7 +2,6 @@ import { useCallback } from "react"
 import { useProject } from "../context/ProjectContext"
 import { formatModelName } from "../lib/format"
 import { Select, SelectTrigger, SelectValue, SelectContent, SelectGroup, SelectItem } from "@/components/ui/select"
-import { Sparkles } from "lucide-react"
 
 interface ModelSelectorProps {
   /** Override the model list (e.g. filtered by provider) */
@@ -30,8 +29,7 @@ export function ModelSelector({ models: propModels, model: propModel, onModelCha
 
   return (
     <Select value={model} onValueChange={handleChange}>
-      <SelectTrigger size="sm">
-        <Sparkles className="h-3 w-3 text-muted-foreground" />
+      <SelectTrigger size="sm" className="border-0 bg-transparent dark:bg-transparent dark:hover:bg-transparent focus-visible:ring-0">
         <SelectValue>{formatModelName(model)}</SelectValue>
       </SelectTrigger>
       <SelectContent side={menuPlacement === "bottom" ? "bottom" : "top"} align="start" alignItemWithTrigger={false}>
