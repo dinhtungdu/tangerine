@@ -10,7 +10,7 @@ How API keys and tokens are configured. All credentials live on the machine wher
 | `CLAUDE_CODE_OAUTH_TOKEN` | Claude Code OAuth authentication | Dotfile or env var |
 | `ANTHROPIC_API_KEY` | Direct Anthropic API key (both providers) | Dotfile or env var |
 | `TANGERINE_AUTH_TOKEN` | Shared bearer token for dashboard/API/WebSocket access | Dotfile or env var |
-| `EXTERNAL_HOST` | External hostname for access (e.g. Tailscale hostname) | Dotfile or env var (default: `localhost`) |
+| `EXTERNAL_HOST` | External hostname shown to the operator for remote access (for example a Tailscale MagicDNS hostname) | Dotfile or env var (default: `localhost`) |
 
 ## GitHub Authentication
 
@@ -72,4 +72,5 @@ gh pr create --base main --head tangerine/abc123 --fill
 - Dotfile stored with mode 0600
 - `auth.json` stored with mode 0600
 - Credentials persist between tasks (acceptable for local single-user)
-- Remote access over LAN/Tailscale should use `TANGERINE_AUTH_TOKEN`
+- Remote access over Tailscale/LAN should use `TANGERINE_AUTH_TOKEN`
+- Network exposure is controlled by top-level config `remoteAccess`, not by credential keys

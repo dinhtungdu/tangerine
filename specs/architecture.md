@@ -29,7 +29,7 @@ Tangerine is a local background coding agent platform. The current implementatio
 
 - Local-first: Tangerine runs locally and serves the built web app itself
 - Single-machine architecture: no VM provisioning, SSH tunneling, or preview port forwarding in the active design
-- Single-user remote access uses a shared bearer token when the server is reachable over LAN/Tailscale
+- Single-user remote access uses a shared bearer token, with explicit network exposure modes
 - Multi-provider agents behind a shared abstraction
 - Git worktree isolation per task
 - Project-agnostic setup through per-project config (with archive/unarchive support)
@@ -85,10 +85,15 @@ specs/
 ## Access Model
 
 - The dashboard and API are single-user, not anonymous
+- Top-level config includes `remoteAccess: "localhost" | "tailscale" | "lan"` and defaults to `localhost`
+- `remoteAccess: "localhost"` binds loopback only
+- `remoteAccess: "tailscale"` keeps loopback binding for local/task self-calls and adds a Tailscale-only listener for remote access
+- `remoteAccess: "lan"` exposes the server on the broader network and must be an explicit choice
 - When `TANGERINE_AUTH_TOKEN` is configured, all task-observing and task-mutating REST routes require `Authorization: Bearer <token>`
 - Task event WebSockets and terminal WebSockets authenticate immediately after connect with an auth message
 - `GET /api/health` and `GET /api/auth/session` stay public so the UI can probe server state before login
-- If the server binds a non-loopback host and no auth token is configured, startup must fail unless the operator explicitly opts into insecure mode
+- In `tailscale` mode, request-time peer checks must reject non-loopback and non-Tailscale source IPs as a defense-in-depth guard
+- If remote access is enabled and no auth token is configured, startup must fail unless the operator explicitly opts into insecure mode
 
 ## Data Model
 

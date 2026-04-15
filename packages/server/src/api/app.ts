@@ -7,7 +7,7 @@ import { logger as honoLogger } from "hono/logger"
 import { serveStatic, createBunWebSocket } from "hono/bun"
 import { createLogger } from "../logger"
 import type { AppConfig } from "../config"
-import { buildUnauthorizedResponse, isPublicApiPath, isRequestAuthenticated } from "../auth"
+import { buildForbiddenResponse, buildUnauthorizedResponse, isPublicApiPath, isRequestAuthenticated, isRequestPeerAllowed } from "../auth"
 import type { Database } from "bun:sqlite"
 import type { TaskRow } from "../db/types"
 import type { TaskSource } from "../tasks/manager"
@@ -68,6 +68,13 @@ export function createApp(deps: AppDeps): { app: Hono; websocket: ReturnType<typ
 
   // Hono's built-in request logger for HTTP access logs
   app.use("*", honoLogger())
+
+  app.use("*", async (c, next) => {
+    if (!isRequestPeerAllowed(c, deps.config)) {
+      return buildForbiddenResponse(c)
+    }
+    await next()
+  })
 
   app.use("/api/*", async (c, next) => {
     if (isPublicApiPath(c.req.path)) {

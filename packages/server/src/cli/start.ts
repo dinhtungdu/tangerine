@@ -28,7 +28,7 @@ import { AgentError } from "../errors"
 import { extractPrUrl, verifyPrBranch, startPrMonitor } from "../tasks/pr-monitor"
 import { isGithubRepo, resolveGithubSlug, getRepoForkInfo } from "../gh"
 import { applyLoginShellPath, checkSystemTools } from "./system-check"
-import { getStartupAuthError, getStartupAuthWarning } from "../auth"
+import { attachRequestPeerIp, getStartupAccessError, getStartupAccessWarning, resolveListenHosts } from "../auth"
 import type { PrMonitorDeps } from "../tasks/pr-monitor"
 import { initSystemLog, cleanupSystemLogs } from "../system-log"
 import type { AgentHandle } from "../agent/provider"
@@ -169,17 +169,17 @@ export async function start(): Promise<void> {
 
     const config = loadConfig({ configPath: flags.configPath })
     const projectNames = config.config.projects.map((p) => p.name)
-    const hostname = process.env.HOST ?? "0.0.0.0"
+    const listenHosts = resolveListenHosts(config)
     log.info("Config loaded", { projects: projectNames, home: TANGERINE_HOME, testMode: isTestMode() })
 
-    const startupAuthError = getStartupAuthError(config, hostname)
-    if (startupAuthError) {
-      log.error(startupAuthError)
+    const startupAccessError = getStartupAccessError(config, listenHosts)
+    if (startupAccessError) {
+      log.error(startupAccessError)
       process.exit(1)
     }
 
-    const startupAuthWarning = getStartupAuthWarning(config, hostname)
-    if (startupAuthWarning) log.warn(startupAuthWarning)
+    const startupAccessWarning = getStartupAccessWarning(config)
+    if (startupAccessWarning) log.warn(startupAccessWarning)
 
     // Ensure process.env.PATH includes everything a login shell would have.
     // The server may be started from a context with a limited PATH (e.g. a
@@ -990,16 +990,21 @@ export async function start(): Promise<void> {
     const { app, websocket } = createApp(deps)
     const port = Number(process.env.PORT ?? DEFAULT_API_PORT)
 
-    log.info("Server starting", { port })
+    log.info("Server starting", { port, remoteAccess: config.config.remoteAccess, listenHosts })
 
-    Bun.serve({
-      hostname,
-      port,
-      fetch: app.fetch,
-      websocket,
-    })
+    for (const hostname of listenHosts) {
+      Bun.serve({
+        hostname,
+        port,
+        fetch(req, server) {
+          attachRequestPeerIp(req, server.requestIP(req)?.address ?? null)
+          return app.fetch(req)
+        },
+        websocket,
+      })
+    }
 
-    startSpan.end({ port, projects: projectNames })
+    startSpan.end({ port, projects: projectNames, listenHosts })
 
     // Resume orphaned tasks (check PIDs)
     try {

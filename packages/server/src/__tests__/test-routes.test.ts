@@ -19,6 +19,7 @@ function createMockDeps(db: Database, configOverrides?: Partial<AppDeps["config"
     },
     model: "anthropic/claude-sonnet-4-6",
     models: ["anthropic/claude-sonnet-4-6"],
+    remoteAccess: "localhost" as const,
     ...configOverrides,
   }
 

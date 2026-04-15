@@ -21,6 +21,7 @@ export {
 export {
   projectConfigSchema,
   actionComboSchema,
+  remoteAccessSchema,
   tangerineConfigSchema,
   resolveTaskTypeConfig,
 } from "./config"
@@ -28,6 +29,7 @@ export {
 export type {
   ActionCombo,
   PredefinedPrompt,
+  RemoteAccessMode,
   TaskTypeConfig,
   ProjectConfig,
   ShortcutConfig,
