@@ -286,7 +286,7 @@ export function TasksSidebar({ tasks, projects, searchQuery, onSearchChange, onN
       <div className="flex flex-col gap-2 px-4 pt-5 pb-3">
         <Button
           onClick={onNewAgent}
-          className="hidden md:flex"
+          className="flex"
         >
           <Plus className="h-3.5 w-3.5" />
           <span className="text-sm font-medium">New Run</span>
