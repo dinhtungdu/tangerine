@@ -172,40 +172,50 @@ The task detail view shows branching lineage inline:
 
 ### Conversation Tree View
 
-A sidebar or panel showing the full conversation tree for a task family. Inspired by Pi's tree navigation.
+A sidebar or panel showing the **full family tree** for any task — every ancestor, sibling branch, and descendant, regardless of depth. Inspired by Pi's tree navigation.
 
-**Structure**: The tree root is the original task. Each node is a turn (message pair). Branch points show where child tasks diverge.
+**Key behavior**: The tree shows the complete family, not just one task's history. Branching doesn't stop the parent — the parent's turns continue below the branch point while child tasks run in parallel. You can branch from branches (grandchildren), creating arbitrarily deep trees.
+
+**Structure**: The tree root is the original (oldest ancestor) task. Each node is a turn (message pair). Branch points show where child tasks diverge. Parent turns continue past branch points.
 
 ```
-Task: "Implement auth"
+Task: "Implement auth" (original)                    ← root
 ├─ Turn 0: "Add login endpoint"
 ├─ Turn 1: "Add JWT validation"
-├─ Turn 2: "Add rate limiting"      ← branch point
-│  ├─ Branch A: "Try token bucket"  ← child task
-│  │  ├─ Turn 0: "Implement bucket"
-│  │  └─ Turn 1: "Add Redis backend"
-│  └─ Branch B: "Try sliding window" ← child task
-│     └─ Turn 0: "Implement window"
-├─ Turn 3: "Add tests"
-└─ Turn 4: "Done"
+├─ Turn 2: "Add rate limiting"                        ← branch point
+│  ├─ Branch A: "Distributed approach" (failed ✗)     ← child task
+│  │  ├─ Turn 0: "Add Redis cluster"
+│  │  └─ Turn 1: "Got stuck on config"
+│  └─ Branch B: "Simple bucket" (done ✓)              ← child task
+│     ├─ Turn 0: "In-memory token bucket"
+│     ├─ Turn 1: "Add tests"                          ← nested branch point
+│     │  └─ Branch C: "Property-based tests"          ← grandchild task
+│     │     └─ Turn 0: "QuickCheck-style props"
+│     └─ Turn 2: "Done"
+├─ Turn 3: "Original continued here"                  ← parent kept going
+└─ Turn 4: "Add middleware"
 ```
 
+**Full family resolution**: Calling the tree endpoint from *any* task in the family returns the same complete tree. The API walks `parent_task_id` up to the root (the task with no parent), then recursively collects all descendants via `parent_task_id` + `branched_from_checkpoint_id` to place each branch at the correct turn. This means you always see the full picture regardless of which task you're currently viewing.
+
 **Interaction**:
-- Click any node → navigates to that message in the conversation view (cross-task if needed)
+- Click any node → navigates to that message in the conversation view (cross-task navigation)
+- Current task's turns are highlighted/bold; other tasks' turns are dimmed
 - Branch points highlighted with a fork icon
 - Active/running branches show a pulse indicator
-- Completed branches show status (done/failed) with color coding
+- Completed branches show status (done ✓ / failed ✗) with color coding
 - Hover on a branch node → tooltip with title, provider, model, status
+- Collapse/expand any branch subtree
 
-**Layout**: Vertical tree with indentation, similar to a file explorer. Collapsible branches. The tree sits in a panel that can be toggled from the conversation view toolbar.
+**Layout**: Vertical tree with indentation, similar to a file explorer. Collapsible branches. The tree sits in a panel that can be toggled from the conversation view toolbar. The current task's position in the tree is auto-scrolled into view on open.
 
-**Data**: Built from `checkpoints` + `tasks` tables. Query: all tasks in a family (connected via `parent_task_id` chain), their checkpoints, and their `branched_from_checkpoint_id` to know where each branch diverges.
+**Data**: Built from `checkpoints` + `tasks` tables. Query: walk `parent_task_id` to root, then collect all descendants. Each task's checkpoints determine turn positions; `branched_from_checkpoint_id` determines where branches attach to their parent's timeline.
 
 **API**:
 ```
 GET /api/tasks/:id/tree
 ```
-Returns the full tree for a task family (walks `parent_task_id` up to root, then down to all descendants):
+Returns the full tree for a task family (walks `parent_task_id` up to root, then down to all descendants). Works from any task in the family — always returns the same complete tree:
 
 ```typescript
 interface TaskTreeNode {
@@ -218,10 +228,12 @@ interface TaskTreeNode {
     turnIndex: number;
     checkpointId: string;
     lastMessage: string;        // truncated preview
-    branches: TaskTreeNode[];   // child tasks branching from this turn
+    branches: TaskTreeNode[];   // child tasks branching from this turn (recursive)
   }[];
 }
 ```
+
+The recursive `TaskTreeNode` structure supports arbitrary depth — branches of branches of branches. The UI renders this recursively with increasing indentation.
 
 ## Shared Types
 
