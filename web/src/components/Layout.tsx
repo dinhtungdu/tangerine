@@ -101,15 +101,11 @@ export function Layout() {
               searchQuery={query}
               onSearchChange={setQuery}
               onNewAgent={() => {
-                // On mobile, focus must happen in click handler for keyboard to open.
-                // If already on home page, focus directly; otherwise navigate with hash.
+                // Focus first (mobile keyboard needs this in gesture chain), then navigate
                 if (location.pathname === "/") {
-                  const textarea = document.getElementById("new-agent-textarea") as HTMLTextAreaElement | null
-                  textarea?.focus()
-                  textarea?.scrollIntoView({ behavior: "smooth", block: "start" })
-                } else {
-                  navigate("/#new-agent-textarea")
+                  ;(document.getElementById("new-agent-textarea") as HTMLTextAreaElement | null)?.focus()
                 }
+                navigate("/#new-agent-textarea")
               }}
               onRefetch={refetch}
             />
