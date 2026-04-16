@@ -733,26 +733,65 @@ describe("createClaudeCodeMapper — result always emits assistant", () => {
 })
 
 describe("rate_limit_event handling", () => {
-  test("emits error event for rate_limit_event with retry_after", () => {
+  test("ignores rate_limit_event with status 'allowed' (informational telemetry after every API call)", () => {
     const events = mapClaudeCodeEvent({
       type: "rate_limit_event",
-      retry_after: 30.5,
+      rate_limit_info: {
+        status: "allowed",
+        resetsAt: 1773910800,
+        rateLimitType: "five_hour",
+      },
     })
 
-    expect(events).toEqual([{
-      kind: "error",
-      message: "Rate limited. Retry in 31s",
-    }])
+    expect(events).toEqual([])
   })
 
-  test("emits error event for rate_limit_event without retry_after", () => {
+  test("ignores rate_limit_event with status 'allowed_warning' (approaching limit, not rejected)", () => {
     const events = mapClaudeCodeEvent({
       type: "rate_limit_event",
+      rate_limit_info: {
+        status: "allowed_warning",
+        resetsAt: 1773910800,
+      },
+    })
+
+    expect(events).toEqual([])
+  })
+
+  test("emits error for status 'rejected' with retry timing derived from resetsAt", () => {
+    const nowSeconds = Math.floor(Date.now() / 1000)
+    const events = mapClaudeCodeEvent({
+      type: "rate_limit_event",
+      rate_limit_info: {
+        status: "rejected",
+        resetsAt: nowSeconds + 30,
+      },
+    })
+
+    expect(events).toHaveLength(1)
+    expect(events[0]?.kind).toBe("error")
+    expect((events[0] as { message: string }).message).toMatch(/^Rate limited\. Retry in (29|30|31)s$/)
+  })
+
+  test("emits generic error for status 'rejected' without resetsAt", () => {
+    const events = mapClaudeCodeEvent({
+      type: "rate_limit_event",
+      rate_limit_info: {
+        status: "rejected",
+      },
     })
 
     expect(events).toEqual([{
       kind: "error",
       message: "Rate limited by provider",
     }])
+  })
+
+  test("ignores malformed rate_limit_event without rate_limit_info", () => {
+    const events = mapClaudeCodeEvent({
+      type: "rate_limit_event",
+    })
+
+    expect(events).toEqual([])
   })
 })

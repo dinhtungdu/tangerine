@@ -195,7 +195,17 @@ Emitted when a tool completes. Shows the tool result being fed back to the model
 
 ### 4. `rate_limit_event`
 
-Emitted after each API call.
+Emitted after each API call as informational telemetry. Per `SDKRateLimitInfo`
+in `@anthropic-ai/claude-agent-sdk`, `rate_limit_info.status` is one of:
+
+- `"allowed"` — request succeeded, plenty of capacity. **Ignore.**
+- `"allowed_warning"` — request succeeded but approaching the limit. **Ignore.**
+- `"rejected"` — request was actually rate limited. Surface as an error.
+
+Only `"rejected"` is a real rate limit. Treating every `rate_limit_event` as
+fatal will fail healthy tasks (the SDK emits this after every successful call).
+Retry timing should be derived from `resetsAt` (unix seconds), not a
+non-existent `retry_after` field.
 
 ```json
 {

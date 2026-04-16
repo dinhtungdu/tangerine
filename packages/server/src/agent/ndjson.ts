@@ -88,7 +88,7 @@ export function parseNdjsonStream(
  * - system (init): session metadata — ignored
  * - assistant: complete assistant message (text + tool_use + thinking content blocks)
  * - user: tool results — emits tool.end, tracks image source paths
- * - rate_limit_event: ignored
+ * - rate_limit_event: emits error only when status is "rejected"
  * - stream_event: token-level streaming (only with --include-partial-messages)
  * - result: final event with aggregated stats
  */
@@ -318,11 +318,16 @@ export function createClaudeCodeMapper(): (raw: Record<string, unknown>) => Agen
     }
 
     case "rate_limit_event": {
-      // Claude Code surfaces rate limits via this event type.
-      // Extract details and emit as error so the UI can display it.
-      const retryAfter = typeof raw.retry_after === "number" ? raw.retry_after : null
-      const message = retryAfter
-        ? `Rate limited. Retry in ${Math.ceil(retryAfter)}s`
+      // Claude Code emits this after every API call as informational telemetry.
+      // Only `status: "rejected"` is a real rate limit — "allowed" and
+      // "allowed_warning" mean the request went through. See SDKRateLimitInfo
+      // in @anthropic-ai/claude-agent-sdk.
+      const info = raw.rate_limit_info as Record<string, unknown> | undefined
+      if (info?.status !== "rejected") return []
+      const resetsAt = typeof info.resetsAt === "number" ? info.resetsAt : null
+      const secondsUntilReset = resetsAt ? Math.max(0, Math.ceil(resetsAt - Date.now() / 1000)) : null
+      const message = secondsUntilReset
+        ? `Rate limited. Retry in ${secondsUntilReset}s`
         : "Rate limited by provider"
       return [{ kind: "error", message }]
     }
