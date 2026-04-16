@@ -180,6 +180,15 @@ export function ChatPanel({
     virtualizer.scrollToIndex(rowCount - 1, { align: "end" })
   }, [virtualizer, rowCount])
 
+  // Auto-scroll only when user is already at the bottom
+  const prevCountRef = useRef(0)
+  useEffect(() => {
+    if (rowCount > prevCountRef.current && isAtBottom) {
+      virtualizer.scrollToIndex(rowCount - 1, { align: "end" })
+    }
+    prevCountRef.current = rowCount
+  }, [rowCount, isAtBottom, virtualizer])
+
   return (
     <div className="flex h-full flex-col bg-background">
       {/* Messages */}
