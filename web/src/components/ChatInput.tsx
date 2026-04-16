@@ -1,5 +1,5 @@
 import React, { useState, useRef, useCallback, useEffect, type KeyboardEvent, type ClipboardEvent, type MouseEvent } from "react"
-import { Send, ArrowUp, X, Quote } from "lucide-react"
+import { ArrowUp, X, Quote, Paperclip } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Textarea } from "@/components/ui/textarea"
 import type { PromptImage, PredefinedPrompt, ProviderType, Task } from "@tangerine/shared"
@@ -66,6 +66,7 @@ export function ChatInput({ onSend, disabled, queueLength, taskId, isWorking, on
   const [text, setText] = useState(() => draftKey ? (loadChatDraft(draftKey).text ?? "") : "")
   const [pendingImages, setPendingImages] = useState<PendingImage[]>(() => draftKey ? (loadChatDraft(draftKey).pendingImages ?? []) : [])
   const textareaRef = useRef<HTMLTextAreaElement>(null)
+  const fileInputRef = useRef<HTMLInputElement>(null)
 
   const { tasks: allTasks } = useTasks()
   const mention = useMentionPicker(allTasks)
@@ -255,6 +256,26 @@ export function ChatInput({ onSend, disabled, queueLength, taskId, isWorking, on
     setPendingImages((prev) => prev.filter((_, i) => i !== index))
   }, [])
 
+  const handleFileSelect = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
+    const files = e.target.files
+    if (!files) return
+    for (const file of files) {
+      if (file.type.startsWith("image/")) {
+        const reader = new FileReader()
+        reader.onload = () => {
+          const dataUrl = reader.result as string
+          const commaIdx = dataUrl.indexOf(",")
+          const meta = dataUrl.slice(5, commaIdx)
+          const mediaType = meta.split(";")[0] as PromptImage["mediaType"]
+          const data = dataUrl.slice(commaIdx + 1)
+          setPendingImages((prev) => [...prev, { dataUrl, mediaType, data }])
+        }
+        reader.readAsDataURL(file)
+      }
+    }
+    // Reset input so same file can be selected again
+    e.target.value = ""
+  }, [])
 
   useEffect(() => {
     if (autoFocusKey === undefined) return
@@ -332,7 +353,7 @@ export function ChatInput({ onSend, disabled, queueLength, taskId, isWorking, on
                 variant="outline"
                 size="xs"
                 onMouseDown={(e) => { e.preventDefault(); onQuoteSelection() }}
-                className="pointer-events-auto shrink-0 border-orange-500/30 bg-orange-500/10 text-orange-500 shadow-sm hover:bg-orange-500/20"
+                className="pointer-events-auto shrink-0 border-orange-200 bg-orange-100 text-orange-600 shadow-sm hover:bg-orange-200 dark:border-orange-800 dark:bg-orange-900 dark:text-orange-400 dark:hover:bg-orange-800"
               >
                 <Quote className="h-3 w-3" />
                 Quote
@@ -412,7 +433,7 @@ export function ChatInput({ onSend, disabled, queueLength, taskId, isWorking, on
             onHover={(i) => setSlashState((s) => ({ ...s, selectedIndex: i }))}
           />
         )}
-        <div className="rounded-lg bg-background dark:bg-input/30">
+        <div className="rounded-lg border border-input bg-background transition-colors focus-within:border-ring focus-within:ring-3 focus-within:ring-ring/50 dark:bg-input/30">
           <Textarea
             ref={textareaRef}
             value={text}
@@ -452,17 +473,34 @@ export function ChatInput({ onSend, disabled, queueLength, taskId, isWorking, on
             placeholder={isWorking ? "Agent is working... (messages will be queued)" : "Message agent..."}
             disabled={disabled}
             rows={1}
-            className="min-h-9 max-h-36 rounded-none border-0 bg-transparent px-3 shadow-none ring-0 focus-visible:border-transparent focus-visible:ring-0 placeholder:text-muted-foreground/50 md:px-3.5"
+            className="min-h-9 max-h-36 resize-none rounded-none border-0 bg-transparent px-3 shadow-none ring-0 focus-visible:border-transparent focus-visible:ring-0 placeholder:text-muted-foreground/50 md:px-3.5"
           />
           {/* Bottom toolbar: model/effort on left, queue badge + send on right */}
           <div
-            className="flex w-full items-center justify-between border-t border-border/50 px-2.5 pb-2 pt-2"
+            className="flex w-full items-center justify-between px-2.5 pb-2 pt-2"
             onClick={(e: React.MouseEvent) => {
               if ((e.target as HTMLElement).closest("button")) return
               textareaRef.current?.focus()
             }}
           >
             <div className="flex min-w-0 items-center gap-1.5">
+              <input
+                ref={fileInputRef}
+                type="file"
+                accept="image/*,video/*,.txt,.md"
+                multiple
+                onChange={handleFileSelect}
+                className="hidden"
+              />
+              <Button
+                variant="ghost"
+                size="icon-xs"
+                onClick={() => fileInputRef.current?.click()}
+                aria-label="Attach file"
+                className="text-muted-foreground hover:text-foreground"
+              >
+                <Paperclip className="h-4 w-4" />
+              </Button>
               {canChangeModel ? (
                 <ModelSelector
                   models={providerModels}
@@ -493,8 +531,7 @@ export function ChatInput({ onSend, disabled, queueLength, taskId, isWorking, on
                 size="icon-sm"
                 className="shrink-0"
               >
-                <ArrowUp className="h-4 w-4 md:hidden" />
-                <Send className="hidden h-4 w-4 md:block" />
+                <ArrowUp className="h-4 w-4" />
               </Button>
             </div>
           </div>

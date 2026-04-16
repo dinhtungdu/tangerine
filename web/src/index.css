@@ -221,6 +221,9 @@ body {
   * {
     @apply border-border outline-ring/50;
   }
+  *:focus-visible {
+    @apply outline-1 outline-offset-1;
+  }
   body {
     @apply bg-background text-foreground;
   }

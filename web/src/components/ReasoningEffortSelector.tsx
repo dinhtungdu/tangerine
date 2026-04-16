@@ -1,7 +1,6 @@
 import type { ProviderType } from "@tangerine/shared"
 import { useProject } from "../context/ProjectContext"
 import { Select, SelectTrigger, SelectValue, SelectContent, SelectGroup, SelectItem } from "@/components/ui/select"
-import { Zap } from "lucide-react"
 
 interface EffortOption {
   value: string
@@ -47,9 +46,7 @@ export function ReasoningEffortSelector({ value, onChange, provider }: Reasoning
         if (v) onChange(v as string)
       }}
     >
-      <SelectTrigger size="sm">
-
-        <Zap className="h-3 w-3 text-muted-foreground" />
+      <SelectTrigger size="sm" className="border-0 bg-transparent p-0 dark:bg-transparent dark:hover:bg-transparent focus-visible:ring-0">
         <SelectValue>{current.label}</SelectValue>
       </SelectTrigger>
 
