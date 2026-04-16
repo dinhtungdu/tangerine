@@ -260,7 +260,7 @@ export function ChatPanel({
           <Button
             size="icon-sm"
             onClick={scrollToBottom}
-            className="rounded-full shadow-lg"
+            className="rounded-full shadow-lg bg-foreground text-background hover:bg-foreground/90"
             aria-label="Scroll to bottom"
           >
             <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
