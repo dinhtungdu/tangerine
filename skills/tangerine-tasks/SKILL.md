@@ -3,7 +3,7 @@ name: tangerine-tasks
 description: Reference for agents running inside a Tangerine task — API endpoints, env vars, and common workflows.
 metadata:
   author: tung
-  version: "1.4.0"
+  version: "1.5.0"
 ---
 
 # Tangerine Agent Reference
@@ -12,6 +12,13 @@ metadata:
 > **`gh pr review`, `gh pr comment`, `gh pr merge`** — follow these rules strictly:
 > - **Personal repos** (repo owner matches `gh api user --jq .login`): allowed when needed
 > - **All other repos**: NEVER, unless the user has **explicitly asked** you to do so in this task
+>
+> **NEVER use bypass flags** — these skip branch protections and CI:
+> - `--admin` — bypasses all branch protection rules
+> - `--force` on git push — overwrites remote history
+> - `--no-verify` — skips pre-push/pre-commit hooks
+>
+> If CI is pending, use `gh pr merge --auto --squash` to queue the merge for when checks pass. Do NOT bypass CI with `--admin`.
 >
 > This applies regardless of task type — orchestrators, workers, and reviewers must all follow these rules.
 
