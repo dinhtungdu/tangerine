@@ -19,17 +19,24 @@ export function RunsPage() {
   const shouldFocus = searchParams.get("focus") === "1"
   const formRef = useRef<HTMLDivElement>(null)
   const scrolledForRef = useRef<string | undefined>(undefined)
+  const scrolledForFocusRef = useRef(false)
 
   // On mobile the sidebar stacks above the form. Wait for the sidebar's initial
   // task fetch to complete (sidebar has its full height) before scrolling, so
   // the form doesn't get pushed back below the viewport after we scroll.
   // Track which refTaskId triggered the scroll so repeated continues work correctly.
+  // Use a one-shot flag for focus=1 so sidebar polling doesn't re-trigger the scroll.
   useEffect(() => {
-    if (refTaskId && !tasksLoading && scrolledForRef.current !== refTaskId && formRef.current) {
-      scrolledForRef.current = refTaskId
-      formRef.current.scrollIntoView({ behavior: "smooth", block: "start" })
+    if (!tasksLoading && formRef.current) {
+      if (refTaskId && scrolledForRef.current !== refTaskId) {
+        scrolledForRef.current = refTaskId
+        formRef.current.scrollIntoView({ behavior: "smooth", block: "start" })
+      } else if (shouldFocus && !refTaskId && !scrolledForFocusRef.current) {
+        scrolledForFocusRef.current = true
+        formRef.current.scrollIntoView({ behavior: "smooth", block: "start" })
+      }
     }
-  }, [refTaskId, tasksLoading])
+  }, [refTaskId, shouldFocus, tasksLoading])
 
   const handleSubmit = useCallback(async (data: { projectId: string; title: string; description?: string; branch?: string; provider?: string; model?: string; reasoningEffort?: string; parentTaskId?: string; type?: string; images?: import("@tangerine/shared").PromptImage[] }) => {
     try {
