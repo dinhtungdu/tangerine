@@ -366,7 +366,7 @@ export function ChatInput({ onSend, disabled, queueLength, taskId, isWorking, on
                 variant="secondary"
                 size="xs"
                 onMouseDown={(e) => handlePromptClick(e, prompt.text)}
-                className="pointer-events-auto shrink-0 rounded-full bg-muted text-muted-foreground shadow-sm hover:bg-muted hover:text-foreground"
+                className="pointer-events-auto shrink-0 rounded-full"
               >
                 {prompt.label}
               </Button>

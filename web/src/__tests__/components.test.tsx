@@ -1152,8 +1152,7 @@ describe("ChatInput quote chip", () => {
       />
     )
     const chip = screen.getByRole("button", { name: "Reply" })
-    expect(chip.className).toContain("bg-muted")
-    expect(chip.className).toContain("border-transparent")
+    expect(chip.className).toContain("bg-secondary")
   })
 
   test("shows quote chip when quotedMessage is set", () => {
