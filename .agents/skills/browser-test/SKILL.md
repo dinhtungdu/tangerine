@@ -2,7 +2,7 @@
 name: browser-test
 description: Visually verify web UI changes using playwright-cli with Chromium. Start a dev server on a unique port per worktree, navigate to affected pages, take screenshots, and check for console errors. Use after completing any web dashboard feature, bug fix, or UI change.
 compatibility: Requires playwright-cli (npm install -g @playwright/cli) and Chromium (npx playwright install chromium)
-allowed-tools: Bash(playwright-cli:*) Bash(bunx vite:*) Bash(curl:*) Bash(kill:*)
+allowed-tools: Bash(playwright-cli:*) Bash(bunx vite:*) Bash(curl:*) Bash(kill:*) Bash(jq:*)
 metadata:
   author: tangerine
   version: "1.0"
