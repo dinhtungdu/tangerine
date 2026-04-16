@@ -122,6 +122,7 @@ User is on the machine where Tangerine will run — either their host or inside 
    Add an `ssl` block to `~/tangerine/config.json`:
    ```json
    {
+     "port": 3456,
      "ssl": {
        "cert": "/path/to/cert.pem",
        "key": "/path/to/key.pem",
@@ -129,7 +130,8 @@ User is on the machine where Tangerine will run — either their host or inside 
      }
    }
    ```
-   - `port` defaults to `3443` if omitted. Must differ from the HTTP port (3456).
+   - Top-level `port` is the HTTP port, defaults to `3456`. Override with `TANGERINE_PORT` env var.
+   - `ssl.port` defaults to `3443`. Must differ from the HTTP port.
    - For local use, generate a self-signed cert with openssl:
      ```bash
      openssl req -x509 -newkey rsa:4096 -keyout ~/tangerine/key.pem \

@@ -293,7 +293,7 @@ export function pollPrStatuses(deps: PrMonitorDeps): Effect.Effect<void, never> 
 
     log.debug("Polling PR statuses", { count: withPr.length })
 
-    const apiPort = Number(process.env["PORT"] ?? DEFAULT_API_PORT)
+    const apiPort = Number(process.env["TANGERINE_PORT"] ?? DEFAULT_API_PORT)
     const checker = deps.checkPrState ?? checkPrState
     for (const task of withPr) {
       const state = yield* checker(task.pr_url!)

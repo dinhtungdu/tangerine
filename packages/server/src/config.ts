@@ -207,16 +207,19 @@ export function loadConfig(overrides?: { configPath?: string }): AppConfig {
   const anthropicApiKey = process.env["ANTHROPIC_API_KEY"] ?? dotfile.ANTHROPIC_API_KEY ?? null
   const tangerineAuthToken = process.env["TANGERINE_AUTH_TOKEN"] ?? dotfile.TANGERINE_AUTH_TOKEN ?? null
 
+  // HTTP port: TANGERINE_PORT env var overrides config.port, which overrides the default.
+  const envPort = parseInt(process.env["TANGERINE_PORT"] ?? "", 10)
+  const serverPort = Number.isFinite(envPort) && envPort > 0 ? envPort : config.port ?? DEFAULT_API_PORT
+
   // Resolve ssl: apply port default here so callers get a complete object
   const sslBase = config.ssl ?? null
   let ssl: ResolvedSslConfig | null = null
   if (sslBase) {
-    const serverPort = parseInt(process.env["PORT"] ?? "", 10) || DEFAULT_API_PORT
     const resolvedSslPort = sslBase.port ?? DEFAULT_SSL_PORT
     if (resolvedSslPort === serverPort) {
       throw new Error(
         `ssl.port (${resolvedSslPort}) must differ from the HTTP server port (${serverPort}). ` +
-        `Set a different ssl.port in config.json or change the PORT env var.`,
+        `Set a different ssl.port or port in config.json, or change the TANGERINE_PORT env var.`,
       )
     }
     if (!existsSync(sslBase.cert)) {
@@ -235,7 +238,7 @@ export function loadConfig(overrides?: { configPath?: string }): AppConfig {
       claudeOauthToken,
       anthropicApiKey,
       tangerineAuthToken,
-      serverPort: parseInt(process.env["PORT"] ?? "", 10) || DEFAULT_API_PORT,
+      serverPort,
       externalHost: process.env["EXTERNAL_HOST"] ?? dotfile.EXTERNAL_HOST ?? "localhost",
       ssl,
     },

@@ -101,6 +101,7 @@ export const tangerineConfigSchema = z.object({
   editor: z.enum(["vscode", "cursor", "zed"]).optional(),
   actionCombos: z.array(actionComboSchema).optional().default([]),
   shortcuts: z.record(shortcutSchema).optional(),
+  port: z.number().int().positive().optional(),
   ssl: sslConfigSchema.optional(),
 })
 

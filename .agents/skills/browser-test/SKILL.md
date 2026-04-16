@@ -149,7 +149,7 @@ TEST_DB="/tmp/tangerine-test-${TASK_SHORT}.db"
 TEST_CONFIG="$(pwd)/packages/server/src/test-fixtures/test-config.json"
 
 # Start the test server with isolated config, DB, and test mode enabled
-TEST_MODE=1 TANGERINE_CONFIG="$TEST_CONFIG" TANGERINE_DB="$TEST_DB" PORT=$TEST_API_PORT \
+TEST_MODE=1 TANGERINE_CONFIG="$TEST_CONFIG" TANGERINE_DB="$TEST_DB" TANGERINE_PORT=$TEST_API_PORT \
   bun run packages/server/src/cli/index.ts start > /tmp/tangerine-test-server.log 2>&1 &
 TEST_SERVER_PID=$!
 

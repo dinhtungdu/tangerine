@@ -10,7 +10,7 @@
 import { DEFAULT_API_PORT } from "@tangerine/shared"
 import { AUTH_CURL_FLAG } from "./api-auth"
 
-const apiPort = () => Number(process.env["PORT"] ?? DEFAULT_API_PORT)
+const apiPort = () => Number(process.env["TANGERINE_PORT"] ?? DEFAULT_API_PORT)
 
 export interface SystemNotesInfo {
   setupCommand?: string

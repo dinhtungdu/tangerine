@@ -11,7 +11,7 @@ import type { TaskRow, CronRow } from "../db/types"
 import { taskHasCapability } from "../api/helpers"
 import { createApp } from "../api/app"
 import type { AppDeps } from "../api/app"
-import { DEFAULT_API_PORT, resolveTaskTypeConfig } from "@tangerine/shared"
+import { resolveTaskTypeConfig } from "@tangerine/shared"
 import * as taskManager from "../tasks/manager"
 import type { TaskManagerDeps } from "../tasks/manager"
 import { onTaskEvent, onStatusChange, emitTaskEvent, setAgentWorkingState, getAgentWorkingState } from "../tasks/events"
@@ -170,6 +170,9 @@ export async function start(): Promise<void> {
     const config = loadConfig({ configPath: flags.configPath })
     const projectNames = config.config.projects.map((p) => p.name)
     const hostname = process.env.HOST ?? "0.0.0.0"
+    // Republish the resolved HTTP port so prompt builders (pr-monitor, prompts) pick up
+    // the config-derived value without each call site needing to thread it through.
+    process.env["TANGERINE_PORT"] = String(config.credentials.serverPort)
     log.info("Config loaded", { projects: projectNames, home: TANGERINE_HOME, testMode: isTestMode() })
 
     const startupAuthError = getStartupAuthError(config, hostname)
@@ -988,7 +991,7 @@ export async function start(): Promise<void> {
     }
 
     const { app, websocket } = createApp(deps)
-    const port = Number(process.env.PORT ?? DEFAULT_API_PORT)
+    const port = config.credentials.serverPort
     const ssl = config.credentials.ssl
 
     if (ssl) {
