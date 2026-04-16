@@ -105,7 +105,7 @@ User is on the machine where Tangerine will run — either their host or inside 
 
    If Tangerine will bind a non-loopback host (the default `tangerine start` behavior) or the user wants shared dashboard/API access, set a shared token before starting:
    ```bash
-   tangerine config set TANGERINE_AUTH_TOKEN=$(openssl rand -hex 32)
+   tangerine secret set TANGERINE_AUTH_TOKEN=$(openssl rand -hex 32)
    ```
    This token is used for:
    - dashboard unlock screen

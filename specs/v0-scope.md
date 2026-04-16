@@ -54,7 +54,7 @@ This file reflects the shipped baseline in the current codebase, not the origina
 - [x] `tangerine install`
 - [x] `tangerine project add|list|show|remove`
 - [x] `tangerine task create`
-- [x] `tangerine config set|get|unset|list`
+- [x] `tangerine secret set|get|list|delete`
 
 ## Out of Scope
 
