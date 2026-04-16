@@ -71,7 +71,7 @@ tangerine start
 If you want dashboard/API auth, or you plan to bind Tangerine on a non-loopback host, set a shared token before starting:
 
 ```bash
-tangerine config set TANGERINE_AUTH_TOKEN=$(openssl rand -hex 32)
+tangerine secret set TANGERINE_AUTH_TOKEN=$(openssl rand -hex 32)
 tangerine start
 ```
 
@@ -118,7 +118,7 @@ bun run dev:web
 - `tangerine install` — install agent skills
 - `tangerine project add|list|show|remove`
 - `tangerine task create`
-- `tangerine config set|get|unset|list`
+- `tangerine secret set|get|list|delete`
 
 ## Specs
 

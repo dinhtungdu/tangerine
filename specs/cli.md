@@ -10,7 +10,7 @@ The `tangerine` CLI is implemented under `packages/server/src/cli/`.
 | `tangerine install` | Create local directories and install skills for all providers |
 | `tangerine project ...` | Manage registered projects |
 | `tangerine task ...` | Create manual tasks |
-| `tangerine config ...` | Manage stored credentials |
+| `tangerine secret ...` | Manage secrets stored in `.credentials` |
 
 ## `tangerine start`
 
@@ -71,14 +71,16 @@ Current subcommands:
 
 It inserts a manual task row directly into the DB.
 
-## `tangerine config`
+## `tangerine secret`
+
+Manages secrets stored in `~/tangerine/.credentials` (mode 0600). Use this for API keys, auth tokens, and other sensitive values.
 
 Subcommands:
 
 - `set KEY=VALUE`
 - `get KEY`
-- `unset KEY`
 - `list`
+- `delete KEY`
 
 Allowed keys currently come from `ALLOWED_CREDENTIAL_KEYS`:
 
@@ -88,3 +90,13 @@ Allowed keys currently come from `ALLOWED_CREDENTIAL_KEYS`:
 - `EXTERNAL_HOST`
 
 Credentials are stored in `~/tangerine/.credentials` with mode `0600`.
+
+Examples:
+
+```bash
+tangerine secret set TANGERINE_AUTH_TOKEN=$(openssl rand -hex 32)
+tangerine secret set ANTHROPIC_API_KEY=sk-ant-...
+tangerine secret get ANTHROPIC_API_KEY
+tangerine secret list
+tangerine secret delete ANTHROPIC_API_KEY
+```

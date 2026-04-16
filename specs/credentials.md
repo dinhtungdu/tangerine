@@ -23,19 +23,19 @@ The startup check (`tangerine start`) verifies `gh auth status` and warns if una
 Three sources (in priority order — first match wins):
 
 1. **Environment variables** — `ANTHROPIC_API_KEY`, `CLAUDE_CODE_OAUTH_TOKEN`, `TANGERINE_AUTH_TOKEN`, etc.
-2. **Dotfile** (`~/tangerine/.credentials`) — managed via CLI, mode 0600
+2. **Dotfile** (`~/tangerine/.credentials`) — managed via `tangerine secret`, mode 0600
 3. **OpenCode auth.json** (`~/.local/share/opencode/auth.json`) — LLM provider credentials for OpenCode
 
 ### Credential Dotfile
 
-`~/tangerine/.credentials` stores credentials as `KEY=VALUE` lines (mode 0600). Managed via CLI:
+`~/tangerine/.credentials` stores credentials as `KEY=VALUE` lines (mode 0600). Managed via `tangerine secret`:
 
 ```bash
-tangerine config set ANTHROPIC_API_KEY=sk-ant-...
-tangerine config set TANGERINE_AUTH_TOKEN=$(openssl rand -hex 32)
-tangerine config get ANTHROPIC_API_KEY
-tangerine config unset ANTHROPIC_API_KEY
-tangerine config list                          # shows all keys, values masked
+tangerine secret set ANTHROPIC_API_KEY=sk-ant-...
+tangerine secret set TANGERINE_AUTH_TOKEN=$(openssl rand -hex 32)
+tangerine secret get ANTHROPIC_API_KEY
+tangerine secret delete ANTHROPIC_API_KEY
+tangerine secret list                          # shows all keys, values masked
 ```
 
 Allowed keys: `ANTHROPIC_API_KEY`, `CLAUDE_CODE_OAUTH_TOKEN`, `TANGERINE_AUTH_TOKEN`, `EXTERNAL_HOST`.

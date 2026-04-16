@@ -146,10 +146,10 @@ Commands:
   project show       Show project config details
   project remove     Remove a project
   task create        Create a task manually
-  config set         Set a credential (KEY=VALUE)
-  config get         Get a credential value
-  config unset       Remove a credential
-  config list        List all credentials (masked)
+  secret set         Write a secret to .credentials (KEY=VALUE)
+  secret get         Read a secret from .credentials
+  secret list        List all secrets (masked)
+  secret delete      Remove a secret from .credentials
 
 Options:
   --help, -h         Show help text

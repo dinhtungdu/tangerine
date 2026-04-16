@@ -51,6 +51,11 @@ async function main(): Promise<void> {
       await runConfig(args.slice(1))
       break
     }
+    case "secret": {
+      const { runSecret } = await import("./secret.ts")
+      await runSecret(args.slice(1))
+      break
+    }
     case "install": {
       const { install } = await import("./install.ts")
       await install()
