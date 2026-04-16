@@ -35,11 +35,13 @@ export function RunsPage() {
 
   // Hash-based focus: browser scrolls natively, we just need to focus the textarea.
   // Track which hash we focused for to avoid re-focusing on re-renders.
+  // Use requestAnimationFrame to defer focus until after paint, ensuring DOM is ready.
   useEffect(() => {
     if (location.hash === "#new-agent-textarea" && focusedForHashRef.current !== location.key) {
       focusedForHashRef.current = location.key
-      // Focus immediately - this preserves the user gesture chain on mobile for keyboard popup.
-      newAgentFormRef.current?.focus()
+      requestAnimationFrame(() => {
+        newAgentFormRef.current?.focus()
+      })
     }
   }, [location.hash, location.key])
 
