@@ -11,7 +11,7 @@ export function RunsPage() {
   const { current } = useProject()
   const { showToast } = useToast()
   const { tasksLoading } = useOutletContext<SidebarContext>()
-  const [searchParams] = useSearchParams()
+  const [searchParams, setSearchParams] = useSearchParams()
   const refTaskId = searchParams.get("ref") ?? undefined
   const refTaskTitle = searchParams.get("refTitle") ?? undefined
   const refBranch = searchParams.get("branch") ?? undefined
@@ -35,12 +35,17 @@ export function RunsPage() {
       } else if (shouldFocus && !refTaskId && !scrolledForFocusRef.current) {
         scrolledForFocusRef.current = true
         formRef.current.scrollIntoView({ behavior: "smooth", block: "start" })
-        // Focus the textarea after the scroll animation completes so the
-        // mobile keyboard opens in the right position.
-        setTimeout(() => newAgentFormRef.current?.focus(), 400)
+        // Focus immediately - delaying breaks the user gesture chain on mobile.
+        // The browser will scroll the focused element into view automatically.
+        newAgentFormRef.current?.focus()
+        // Clear focus=1 from URL but preserve other params (e.g. project)
+        setSearchParams((prev) => {
+          prev.delete("focus")
+          return prev
+        }, { replace: true })
       }
     }
-  }, [refTaskId, shouldFocus, tasksLoading])
+  }, [refTaskId, setSearchParams, shouldFocus, tasksLoading])
 
   const handleSubmit = useCallback(async (data: { projectId: string; title: string; description?: string; branch?: string; provider?: string; model?: string; reasoningEffort?: string; parentTaskId?: string; type?: string; images?: import("@tangerine/shared").PromptImage[] }) => {
     try {
