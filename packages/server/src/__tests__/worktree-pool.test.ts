@@ -140,19 +140,17 @@ describe("worktree-pool", () => {
       expect(after).toBeNull()
     })
 
-    test("skips git reset for slot 0 (orchestrator)", async () => {
+    test("slot 0 is not bound in DB — release is a no-op (shared slot)", async () => {
       await Effect.runPromise(initPool(db, PROJECT_ID, mockExec, REPO_PATH, 1))
       insertTask("task-1")
       await Effect.runPromise(acquireOrchestratorSlot(db, PROJECT_ID, "task-1", mockGetTask({})))
 
+      // Slot 0 is shared — no exclusive DB binding, so getSlotForTask returns null
       const slot = await Effect.runPromise(getSlotForTask(db, "task-1"))
-      expect(slot!.id).toBe("proj-1-slot-0")
+      expect(slot).toBeNull()
 
-      // Release should succeed without git reset
-      await Effect.runPromise(releaseSlot(db, "task-1", mockExec))
-
-      const after = await Effect.runPromise(getSlotForTask(db, "task-1"))
-      expect(after).toBeNull()
+      // Release is a no-op (no slot bound to this task)
+      await expect(Effect.runPromise(releaseSlot(db, "task-1", mockExec))).resolves.toBeUndefined()
     })
 
     test("no-ops when task has no slot", async () => {
@@ -199,37 +197,27 @@ describe("worktree-pool", () => {
       await Effect.runPromise(initPool(db, PROJECT_ID, mockExec, REPO_PATH, 2))
     })
 
-    test("acquires slot 0", async () => {
+    test("acquires slot 0 and returns its path", async () => {
       insertTask("task-1")
       const slot = await Effect.runPromise(
         acquireOrchestratorSlot(db, PROJECT_ID, "task-1", mockGetTask({})),
       )
       expect(slot.id).toBe("proj-1-slot-0")
-      expect(slot.status).toBe("bound")
-      expect(slot.task_id).toBe("task-1")
+      expect(slot.path).toBe(REPO_PATH)
     })
 
-    test("fails when slot 0 is bound to active task", async () => {
+    test("allows multiple tasks to concurrently acquire slot 0 (shared, non-exclusive)", async () => {
       insertTask("task-1")
       insertTask("task-2")
-      await Effect.runPromise(acquireOrchestratorSlot(db, PROJECT_ID, "task-1", mockGetTask({ "task-1": "running" })))
-
-      const result = Effect.runPromise(
+      // Both acquisitions must succeed — slot 0 is shared
+      const slot1 = await Effect.runPromise(
+        acquireOrchestratorSlot(db, PROJECT_ID, "task-1", mockGetTask({ "task-1": "running" })),
+      )
+      const slot2 = await Effect.runPromise(
         acquireOrchestratorSlot(db, PROJECT_ID, "task-2", mockGetTask({ "task-1": "running" })),
       )
-      await expect(result).rejects.toThrow(/already bound to active task/)
-    })
-
-    test("reuses slot 0 when previous task is terminal", async () => {
-      insertTask("task-1")
-      insertTask("task-2")
-      await Effect.runPromise(acquireOrchestratorSlot(db, PROJECT_ID, "task-1", mockGetTask({ "task-1": "running" })))
-
-      // task-1 is now done
-      const slot = await Effect.runPromise(
-        acquireOrchestratorSlot(db, PROJECT_ID, "task-2", mockGetTask({ "task-1": "done" })),
-      )
-      expect(slot.task_id).toBe("task-2")
+      expect(slot1.id).toBe("proj-1-slot-0")
+      expect(slot2.id).toBe("proj-1-slot-0")
     })
 
     test("regular acquireSlot never picks slot 0", async () => {

@@ -210,12 +210,16 @@ export function acquireSlot(
 
 // --- Orchestrator slot ---
 
-/** Acquire slot 0 for an orchestrator task. No git reset — slot 0 is the main repo. */
+/** Acquire slot 0 for an orchestrator or runner task.
+ *  Slot 0 is the main repo directory — no branch isolation needed, so it is
+ *  treated as a *shared* (non-exclusive) slot.  Multiple concurrent tasks
+ *  (e.g. orchestrator + runner) may hold it at the same time.  No DB binding
+ *  is performed, so releaseSlot is a no-op for these tasks. */
 export function acquireOrchestratorSlot(
   db: Database,
   projectId: string,
   taskId: string,
-  getTask: GetTask,
+  _getTask: GetTask,
 ): Effect.Effect<WorktreeSlotRow, DbError | Error> {
   return Effect.gen(function* () {
     const slot0Id = `${projectId}-slot-0`
@@ -227,26 +231,9 @@ export function acquireOrchestratorSlot(
       return yield* Effect.fail(new Error(`Slot 0 not found for project ${projectId} — run initPool first`))
     }
 
-    // If bound, check if the existing task is still active
-    if (slot.status === "bound" && slot.task_id) {
-      const existing = yield* getTask(slot.task_id).pipe(
-        Effect.catchAll(() => Effect.succeed(null)),
-      )
-      if (existing && !TERMINAL_STATUSES.has(existing.status)) {
-        return yield* Effect.fail(
-          new Error(`Orchestrator slot already bound to active task ${slot.task_id}`),
-        )
-      }
-    }
-
-    yield* dbTry(() =>
-      db.prepare(
-        "UPDATE worktree_slots SET status = 'bound', task_id = ? WHERE id = ?",
-      ).run(taskId, slot0Id)
-    )
-
-    log.info("Orchestrator slot acquired", { projectId, taskId })
-    return { ...slot, status: "bound" as const, task_id: taskId }
+    // No exclusive binding — slot 0 is shared across concurrent tasks.
+    log.info("Slot 0 acquired (shared, no exclusive lock)", { projectId, taskId })
+    return slot
   })
 }
 
