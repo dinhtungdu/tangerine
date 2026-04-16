@@ -166,22 +166,37 @@ export function ChatPanel({
     },
   })
 
-  // Auto-scroll to bottom when new messages arrive
+  // Track whether user is near the bottom to show/hide scroll button
+  const [isAtBottom, setIsAtBottom] = useState(true)
+
+  const handleScroll = useCallback(() => {
+    const el = scrollRef.current
+    if (!el) return
+    const threshold = 80
+    setIsAtBottom(el.scrollHeight - el.scrollTop - el.clientHeight < threshold)
+  }, [])
+
+  const scrollToBottom = useCallback(() => {
+    virtualizer.scrollToIndex(rowCount - 1, { align: "end" })
+  }, [virtualizer, rowCount])
+
+  // Auto-scroll only when user is already at the bottom
   const prevCountRef = useRef(0)
   useEffect(() => {
-    if (rowCount > prevCountRef.current) {
+    if (rowCount > prevCountRef.current && isAtBottom) {
       virtualizer.scrollToIndex(rowCount - 1, { align: "end" })
     }
     prevCountRef.current = rowCount
-  }, [rowCount, virtualizer])
-
+  }, [rowCount, isAtBottom, virtualizer])
 
   return (
     <div className="flex h-full flex-col bg-background">
       {/* Messages */}
+      <div className="relative flex-1 overflow-hidden">
       <div
         ref={scrollRef}
-        className="flex-1 overflow-y-auto"
+        className="h-full overflow-y-auto"
+        onScroll={handleScroll}
       >
         {visibleMessages.length === 0 && thinkingCount === 0 ? (
           <div className="flex h-full items-center justify-center py-20 text-sm text-muted-foreground">
@@ -239,6 +254,22 @@ export function ChatPanel({
             })}
           </div>
         )}
+      </div>
+      {!isAtBottom && (
+        <div className="absolute bottom-3 left-1/2 -translate-x-1/2">
+          <Button
+            variant="outline"
+            size="icon"
+            onClick={scrollToBottom}
+            className="rounded-full shadow-md h-8 w-8"
+            aria-label="Scroll to bottom"
+          >
+            <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+              <path strokeLinecap="round" strokeLinejoin="round" d="M19 9l-7 7-7-7" />
+            </svg>
+          </Button>
+        </div>
+      )}
       </div>
 
       {/* Input or terminal-state banner */}
