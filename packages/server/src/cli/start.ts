@@ -992,7 +992,7 @@ export async function start(): Promise<void> {
     const ssl = config.credentials.ssl
 
     if (ssl) {
-      const sslPort = ssl.port!
+      const sslPort = ssl.port
       log.info("Server starting with TLS", { port, sslPort })
       // HTTP server on the regular port (backward-compatible)
       Bun.serve({

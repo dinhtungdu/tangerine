@@ -127,7 +127,7 @@ export async function daemonStart(): Promise<void> {
     : ""
 
   const httpsLine = ssl
-    ? `  HTTPS:      https://localhost:${ssl.port!}\n  HTTP:       http://localhost:${port} (plaintext fallback)`
+    ? `  HTTPS:      https://localhost:${ssl.port}\n  HTTP:       http://localhost:${port} (plaintext fallback)`
     : `  Dashboard:  http://localhost:${port}`
 
   console.log(`

@@ -77,6 +77,9 @@ export const VM_USER = userInfo().username
 /** Relative path for auth.json inside the VM (under user's home) */
 export const VM_AUTH_RELPATH = ".local/share/opencode/auth.json"
 
+/** SslConfig with port resolved to a concrete number (never undefined). */
+export type ResolvedSslConfig = Omit<SslConfig, "port"> & { port: number }
+
 export interface AppConfig {
   config: TangerineConfig
   credentials: {
@@ -86,7 +89,7 @@ export interface AppConfig {
     tangerineAuthToken: string | null
     serverPort: number
     externalHost: string
-    ssl: SslConfig | null
+    ssl: ResolvedSslConfig | null
   }
 }
 
@@ -198,7 +201,7 @@ export function loadConfig(overrides?: { configPath?: string }): AppConfig {
 
   // Resolve ssl: apply port default here so callers get a complete object
   const sslBase = config.ssl ?? null
-  let ssl: SslConfig | null = null
+  let ssl: ResolvedSslConfig | null = null
   if (sslBase) {
     const serverPort = parseInt(process.env["PORT"] ?? "", 10) || DEFAULT_API_PORT
     const resolvedSslPort = sslBase.port ?? DEFAULT_SSL_PORT
