@@ -25,11 +25,15 @@ export function RunsPage() {
   // the form doesn't get pushed back below the viewport after we scroll.
   // Track which refTaskId triggered the scroll so repeated continues work correctly.
   useEffect(() => {
-    if (refTaskId && !tasksLoading && scrolledForRef.current !== refTaskId && formRef.current) {
-      scrolledForRef.current = refTaskId
-      formRef.current.scrollIntoView({ behavior: "smooth", block: "start" })
+    if (!tasksLoading && formRef.current) {
+      if (refTaskId && scrolledForRef.current !== refTaskId) {
+        scrolledForRef.current = refTaskId
+        formRef.current.scrollIntoView({ behavior: "smooth", block: "start" })
+      } else if (shouldFocus && !refTaskId) {
+        formRef.current.scrollIntoView({ behavior: "smooth", block: "start" })
+      }
     }
-  }, [refTaskId, tasksLoading])
+  }, [refTaskId, shouldFocus, tasksLoading])
 
   const handleSubmit = useCallback(async (data: { projectId: string; title: string; description?: string; branch?: string; provider?: string; model?: string; reasoningEffort?: string; parentTaskId?: string; type?: string; images?: import("@tangerine/shared").PromptImage[] }) => {
     try {
