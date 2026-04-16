@@ -100,7 +100,13 @@ export function Layout() {
               projects={projects}
               searchQuery={query}
               onSearchChange={setQuery}
-              onNewAgent={() => navigate("/#new-agent-textarea")}
+              onNewAgent={() => {
+                // Focus first (mobile keyboard needs this in gesture chain), then navigate
+                if (location.pathname === "/") {
+                  ;(document.getElementById("new-agent-textarea") as HTMLTextAreaElement | null)?.focus()
+                }
+                navigate("/#new-agent-textarea")
+              }}
               onRefetch={refetch}
             />
           </div>
