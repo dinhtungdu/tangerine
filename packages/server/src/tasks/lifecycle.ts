@@ -272,9 +272,12 @@ export function startSession(
     )
 
     // 4. Kill any stale agent processes in this worktree
-    yield* localExec(
-      `pkill -f "claude.*${worktreePath}" 2>/dev/null; true`,
-    ).pipe(Effect.catchAll(() => Effect.void))
+    // Skip for slot 0 (orchestrator/runner) — it's shared, so we'd kill a concurrent task's agent.
+    if (!isOrchestrator && !isRunner) {
+      yield* localExec(
+        `pkill -f "claude.*${worktreePath}" 2>/dev/null; true`,
+      ).pipe(Effect.catchAll(() => Effect.void))
+    }
 
     // 5. Detect fork upstream for PR targeting
     let upstreamSlug: string | undefined
