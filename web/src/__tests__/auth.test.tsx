@@ -34,6 +34,40 @@ describe("auth", () => {
     expect(authHeader).toBe("Bearer secret-token")
   })
 
+  test("fetchAuthSession falls back to in-memory auth when localStorage throws", async () => {
+    let authHeader: string | null = null
+    const storageProto = Object.getPrototypeOf(window.localStorage) as {
+      getItem: typeof window.localStorage.getItem
+      setItem: typeof window.localStorage.setItem
+    }
+    const originalGetItem = storageProto.getItem
+    const originalSetItem = storageProto.setItem
+
+    storageProto.getItem = mock(() => {
+      throw new Error("storage blocked")
+    }) as typeof window.localStorage.getItem
+    storageProto.setItem = mock(() => {
+      throw new Error("storage blocked")
+    }) as typeof window.localStorage.setItem
+
+    try {
+      setAuthToken("secret-token")
+      global.fetch = mock((_input: RequestInfo | URL, init?: RequestInit) => {
+        authHeader = new Headers(init?.headers).get("Authorization")
+        return Promise.resolve(new Response(JSON.stringify({ enabled: true, authenticated: true }), {
+          status: 200,
+          headers: { "Content-Type": "application/json" },
+        }))
+      }) as typeof fetch
+
+      await expect(fetchAuthSession()).resolves.toEqual({ enabled: true, authenticated: true })
+      expect(authHeader).toBe("Bearer secret-token")
+    } finally {
+      storageProto.getItem = originalGetItem
+      storageProto.setItem = originalSetItem
+    }
+  })
+
   test("AuthProvider exposes unauthenticated protected state", async () => {
     global.fetch = mock(() =>
       Promise.resolve(new Response(JSON.stringify({ enabled: true, authenticated: false }), {
