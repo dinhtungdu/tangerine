@@ -100,7 +100,17 @@ export function Layout() {
               projects={projects}
               searchQuery={query}
               onSearchChange={setQuery}
-              onNewAgent={() => navigate("/#new-agent-textarea")}
+              onNewAgent={() => {
+                // On mobile, focus must happen in click handler for keyboard to open.
+                // If already on home page, focus directly; otherwise navigate with hash.
+                if (location.pathname === "/") {
+                  const textarea = document.getElementById("new-agent-textarea") as HTMLTextAreaElement | null
+                  textarea?.focus()
+                  textarea?.scrollIntoView({ behavior: "smooth", block: "start" })
+                } else {
+                  navigate("/#new-agent-textarea")
+                }
+              }}
               onRefetch={refetch}
             />
           </div>
