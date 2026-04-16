@@ -154,17 +154,10 @@ export function startSession(
         }))
       )
       worktreePath = resolve(slot.path)
-      yield* localExec(
-        `cd ${worktreePath} && git checkout ${defaultBranch} 2>/dev/null; git reset --hard origin/${defaultBranch} && git clean -fd`,
-      ).pipe(
-        Effect.tap(() => activity("worktree.ready", "Runner task using project root", { worktreePath, slot: slot.id })),
-        Effect.mapError((e) => new SessionStartError({
-          message: `Project root reset failed: ${e.message}`,
-          taskId: task.id,
-          phase: "checkout-branch",
-          cause: e,
-        }))
-      )
+      // Slot 0 is always on the default branch (worker worktrees use numbered slots).
+      // git fetch already ran above; no reset needed — slot 0 is shared and must not
+      // be destructively modified at startup.
+      yield* activity("worktree.ready", "Runner task using project root", { worktreePath, slot: slot.id })
       taskLog.debug("Runner task using project root", { worktreePath, slotId: slot.id })
     } else {
       // 2. Init worktree pool (idempotent) and acquire a slot
@@ -194,19 +187,10 @@ export function startSession(
       worktreePath = resolve(slot.path)
 
       if (isOrchestrator) {
-        // Orchestrator uses slot 0 (main repo) — fetch, reset to clean default branch state.
-        // Previous orchestrator runs may have left uncommitted changes or a different checkout.
-        yield* localExec(
-          `cd ${worktreePath} && git fetch origin && git checkout ${defaultBranch} 2>/dev/null; git reset --hard origin/${defaultBranch} && git clean -fd`,
-        ).pipe(
-          Effect.tap(() => activity("worktree.ready", "Orchestrator slot ready", { worktreePath, branch, slot: slot.id })),
-          Effect.mapError((e) => new SessionStartError({
-            message: `Orchestrator reset failed: ${e.message}`,
-            taskId: task.id,
-            phase: "checkout-branch",
-            cause: e,
-          }))
-        )
+        // Slot 0 is always on the default branch (worker worktrees use numbered slots).
+        // git fetch already ran above; no reset needed — slot 0 is shared and must not
+        // be destructively modified at startup.
+        yield* activity("worktree.ready", "Orchestrator slot ready", { worktreePath, branch, slot: slot.id })
       } else {
         // Checkout the task branch on the acquired slot
         yield* localExec(
