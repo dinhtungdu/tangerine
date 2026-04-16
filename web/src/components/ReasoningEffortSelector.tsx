@@ -1,4 +1,5 @@
 import type { ProviderType } from "@tangerine/shared"
+import { Zap } from "lucide-react"
 import { useProject } from "../context/ProjectContext"
 import { Select, SelectTrigger, SelectValue, SelectContent, SelectGroup, SelectItem } from "@/components/ui/select"
 
@@ -27,9 +28,11 @@ interface ReasoningEffortSelectorProps {
   value: ReasoningEffort
   onChange: (value: ReasoningEffort) => void
   provider?: ProviderType
+  /** "ghost" = borderless (chat input); "default" = bordered with icon (new agent form) */
+  variant?: "ghost" | "default"
 }
 
-export function ReasoningEffortSelector({ value, onChange, provider }: ReasoningEffortSelectorProps) {
+export function ReasoningEffortSelector({ value, onChange, provider, variant = "ghost" }: ReasoningEffortSelectorProps) {
   const { providerMetadata } = useProject()
 
   const effortsByProvider: Record<string, EffortOption[]> = {}
@@ -46,7 +49,8 @@ export function ReasoningEffortSelector({ value, onChange, provider }: Reasoning
         if (v) onChange(v as string)
       }}
     >
-      <SelectTrigger size="sm" className="border-0 bg-transparent p-0 dark:bg-transparent dark:hover:bg-transparent focus-visible:ring-0">
+      <SelectTrigger size="sm" className={variant === "ghost" ? "border-0 bg-transparent p-0 dark:bg-transparent dark:hover:bg-transparent focus-visible:ring-0" : undefined}>
+        {variant === "default" && <Zap className="h-3 w-3 text-muted-foreground" />}
         <SelectValue>{current.label}</SelectValue>
       </SelectTrigger>
 

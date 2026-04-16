@@ -384,8 +384,9 @@ export function NewAgentForm({ onSubmit, refTaskId, refTaskTitle, refBranch, ref
                   model={activeModel}
                   onModelChange={handleModelChange}
                   menuPlacement="bottom"
+                  variant="default"
                 />
-                <ReasoningEffortSelector value={reasoningEffort} onChange={(e) => { setReasoningEffort(e); savePrefs({ reasoningEffort: e }) }} provider={provider} />
+                <ReasoningEffortSelector value={reasoningEffort} onChange={(e) => { setReasoningEffort(e); savePrefs({ reasoningEffort: e }) }} provider={provider} variant="default" />
                 {getCapabilitiesForType(taskType).includes("pr-track") && (
                   <BranchInput
                     value={customBranch}
