@@ -320,7 +320,7 @@ export const NewAgentForm = forwardRef<NewAgentFormHandle, NewAgentFormProps>(fu
           })()}
 
           {/* Input card */}
-          <div className="overflow-visible rounded-xl border border-border bg-background">
+          <div className="overflow-visible rounded-xl border border-border bg-background transition-colors focus-within:border-ring focus-within:ring-1 focus-within:ring-ring/50">
             {pendingImages.length > 0 && (
               <div className="flex flex-wrap gap-1.5 px-4 pt-3">
                 {pendingImages.map((img, i) => (
