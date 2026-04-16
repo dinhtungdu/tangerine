@@ -413,7 +413,7 @@ export function TaskDetail() {
         <div className="flex flex-col border-b border-border md:h-12 md:flex-row md:items-center md:px-5">
           {/* Row 1 / Left: back + task name + branch */}
           <div className="flex h-11 min-w-0 items-center gap-2 px-3 md:h-auto md:flex-1 md:gap-3 md:px-0">
-            <button onClick={() => navigate("/")} aria-label="Back to runs" className="shrink-0 text-foreground md:hidden">
+            <button onClick={() => navigate("/")} aria-label="Back to runs" className="shrink-0 rounded text-foreground outline-none focus-visible:ring-1 focus-visible:ring-ring/50 md:hidden">
               <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                 <path strokeLinecap="round" strokeLinejoin="round" d="M10.5 19.5 3 12m0 0 7.5-7.5M3 12h18" />
               </svg>
@@ -421,7 +421,7 @@ export function TaskDetail() {
             <button
               onClick={handleCopyId}
               title="Click to copy task ID"
-              className="min-w-0 truncate text-sm font-semibold text-foreground hover:text-muted-foreground"
+              className="min-w-0 truncate rounded text-sm font-semibold text-foreground outline-none hover:text-muted-foreground focus-visible:ring-1 focus-visible:ring-ring/50"
             >
               {copiedId ? "Copied ID!" : formatTaskTitle(task)}
             </button>
@@ -429,7 +429,7 @@ export function TaskDetail() {
               <button
                 onClick={() => handleCopyBranch(task.branch!)}
                 title="Click to copy branch name"
-                className="flex shrink-0 items-center gap-1 hover:text-foreground"
+                className="flex shrink-0 items-center gap-1 rounded outline-none hover:text-foreground focus-visible:ring-1 focus-visible:ring-ring/50"
               >
                 <svg className="h-3.5 w-3.5 text-muted-foreground" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                   <path strokeLinecap="round" strokeLinejoin="round" d="M6 3v12m0 0a3 3 0 1 0 3 3m-3-3a3 3 0 0 1 3 3m0 0h6a3 3 0 0 0 3-3V9m0 0a3 3 0 1 0 0-6 3 3 0 0 0 0 6Z" />
@@ -522,7 +522,7 @@ export function TaskDetail() {
             {parentTask && (
               <Link
                 to={link(`/tasks/${parentTask.id}`)}
-                className="flex shrink-0 items-center gap-1 hover:text-foreground"
+                className="flex shrink-0 items-center gap-1 rounded outline-none hover:text-foreground focus-visible:ring-1 focus-visible:ring-ring/50"
               >
                 <svg className="h-3 w-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                   <path strokeLinecap="round" strokeLinejoin="round" d="M13.19 8.688a4.5 4.5 0 0 1 1.242 7.244l-4.5 4.5a4.5 4.5 0 0 1-6.364-6.364l1.757-1.757m13.35-.622 1.757-1.757a4.5 4.5 0 0 0-6.364-6.364l-4.5 4.5a4.5 4.5 0 0 0 1.242 7.244" />
@@ -541,7 +541,7 @@ export function TaskDetail() {
                   <Link
                     key={child.id}
                     to={link(`/tasks/${child.id}`)}
-                    className="shrink-0 max-w-[200px] truncate rounded bg-muted px-1.5 py-0.5 text-xxs font-medium text-foreground hover:bg-border"
+                    className="shrink-0 max-w-[200px] truncate rounded bg-muted px-1.5 py-0.5 text-xxs font-medium text-foreground outline-none hover:bg-border focus-visible:ring-1 focus-visible:ring-ring/50"
                     title={child.title}
                   >
                     Continued in: {child.title}

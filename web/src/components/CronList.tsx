@@ -354,7 +354,7 @@ export function CronRow({ cron, onToggle, onDelete, onRefresh, modelsByProvider 
       {/* Enable/disable toggle */}
       <button
         onClick={() => onToggle(cron.id, !cron.enabled)}
-        className="shrink-0 rounded p-1 hover:bg-muted"
+        className="shrink-0 rounded p-1 outline-none hover:bg-muted focus-visible:ring-1 focus-visible:ring-ring/50"
         title={cron.enabled ? "Disable" : "Enable"}
       >
         <div className={`h-2.5 w-2.5 rounded-full ${cron.enabled ? "bg-green-500" : "bg-muted-foreground"}`} />

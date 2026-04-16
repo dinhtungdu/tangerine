@@ -36,7 +36,7 @@ export function MentionPicker({ tasks, selectedIndex, onSelect, onHover }: Menti
                 onSelect(task)
               }}
               onMouseMove={() => onHover(i)}
-              className={`flex w-full items-center gap-2 px-3 py-2 text-left transition-colors ${
+              className={`flex w-full items-center gap-2 px-3 py-2 text-left outline-none transition-colors focus-visible:ring-1 focus-visible:ring-ring/50 ${
                 isSelected ? "bg-muted" : ""
               }`}
             >

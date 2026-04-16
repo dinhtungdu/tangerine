@@ -57,7 +57,7 @@ function TaskItem({
   return (
     <Link
       to={`/tasks/${task.id}?project=${encodeURIComponent(task.projectId)}`}
-      className={`group flex items-start gap-2.5 px-4 py-2.5 ${
+      className={`group flex items-start gap-2.5 px-4 py-2.5 outline-none focus-visible:ring-1 focus-visible:ring-ring/50 ${
         isActive
           ? "bg-muted border-l-[3px] border-l-status-error"
           : "hover:bg-muted"
@@ -184,7 +184,7 @@ function ProjectGroupHeader({
             setCreating(false)
           }
         }}
-        className={`${navClass} hover:bg-muted`}
+        className={`${navClass} outline-none hover:bg-muted focus-visible:ring-1 focus-visible:ring-ring/50`}
         style={{ borderLeft: "3px solid transparent" }}
       >
         {navContent}

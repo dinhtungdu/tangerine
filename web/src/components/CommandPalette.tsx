@@ -345,7 +345,7 @@ export function CommandPalette() {
                   key={key}
                   onClick={() => handleSelect(item)}
                   onMouseMove={() => setSelectedIndex(i)}
-                  className="w-full"
+                  className="w-full outline-none focus-visible:ring-1 focus-visible:ring-ring/50"
                 >
                   {item.type === "task" ? (
                     <TaskResult task={item.task!} isSelected={isSelected} />

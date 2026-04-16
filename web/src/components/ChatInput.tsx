@@ -407,7 +407,7 @@ export function ChatInput({ onSend, disabled, queueLength, taskId, isWorking, on
               <button
                 onClick={() => removeImage(i)}
                 aria-label="Remove image"
-                className="absolute -right-1 -top-1 flex h-4 w-4 items-center justify-center rounded-full bg-foreground text-2xs text-white"
+                className="absolute -right-1 -top-1 flex h-4 w-4 items-center justify-center rounded-full bg-foreground text-2xs text-white outline-none focus-visible:ring-1 focus-visible:ring-ring/50"
               >
                 <X className="h-2.5 w-2.5" />
               </button>

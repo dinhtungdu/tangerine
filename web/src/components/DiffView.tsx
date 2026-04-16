@@ -332,7 +332,7 @@ function LineNum({ num, canComment, onMouseDown }: { num: number | string; canCo
       {canComment ? (
         <button
           onMouseDown={(e) => { e.preventDefault(); onMouseDown?.(e) }}
-          className="flex h-[22px] w-5 items-center justify-center opacity-0 group-hover/gutter:opacity-100"
+          className="flex h-[22px] w-5 items-center justify-center opacity-0 outline-none group-hover/gutter:opacity-100 focus-visible:opacity-100 focus-visible:ring-1 focus-visible:ring-ring/50"
           aria-label="Add comment"
         >
           <span className="flex h-[18px] w-[18px] items-center justify-center rounded bg-status-info text-white">
@@ -494,7 +494,7 @@ function FileSection({ file, comments = [], onAddComment }: { file: DiffFile; co
         <div className="flex min-w-0 flex-1 items-center gap-1.5 group/path">
           <button
             onClick={() => setCollapsed(!collapsed)}
-            className="flex min-w-0 flex-1 items-center gap-1.5"
+            className="flex min-w-0 flex-1 items-center gap-1.5 rounded outline-none focus-visible:ring-1 focus-visible:ring-ring/50"
           >
             <svg
               className={`h-3.5 w-3.5 shrink-0 text-muted-foreground transition-transform ${collapsed ? "" : "rotate-90"}`}
@@ -509,7 +509,7 @@ function FileSection({ file, comments = [], onAddComment }: { file: DiffFile; co
           </button>
           <button
             onClick={() => { copyToClipboard(file.path).then(() => { setCopied(true); setTimeout(() => setCopied(false), 2000) }).catch(() => {}) }}
-            className="shrink-0 opacity-0 group-hover/path:opacity-100 transition-opacity text-muted-foreground hover:text-foreground"
+            className="shrink-0 rounded opacity-0 outline-none transition-opacity group-hover/path:opacity-100 hover:text-foreground focus-visible:opacity-100 focus-visible:ring-1 focus-visible:ring-ring/50"
             title="Copy path"
           >
             {copied ? (
@@ -529,13 +529,13 @@ function FileSection({ file, comments = [], onAddComment }: { file: DiffFile; co
           <div className="hidden overflow-hidden rounded-md border border-border @min-[900px]:flex">
             <button
               onClick={() => setViewMode("split")}
-              className={`px-2.5 py-1 text-xxs font-medium ${viewMode === "split" ? "bg-muted text-foreground" : "text-muted-foreground"}`}
+              className={`px-2.5 py-1 text-xxs font-medium outline-none focus-visible:ring-1 focus-visible:ring-ring/50 ${viewMode === "split" ? "bg-muted text-foreground" : "text-muted-foreground"}`}
             >
               Split
             </button>
             <button
               onClick={() => setViewMode("unified")}
-              className={`border-l border-border px-2.5 py-1 text-xxs font-medium ${viewMode === "unified" ? "bg-muted text-foreground" : "text-muted-foreground"}`}
+              className={`border-l border-border px-2.5 py-1 text-xxs font-medium outline-none focus-visible:ring-1 focus-visible:ring-ring/50 ${viewMode === "unified" ? "bg-muted text-foreground" : "text-muted-foreground"}`}
             >
               Unified
             </button>

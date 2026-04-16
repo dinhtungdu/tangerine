@@ -30,7 +30,7 @@ export function SettingsPage() {
                 <button
                   key={value}
                   onClick={() => setTheme(value)}
-                  className={`flex flex-1 flex-col items-center gap-2 rounded-lg border p-4 transition ${
+                  className={`flex flex-1 flex-col items-center gap-2 rounded-lg border p-4 outline-none transition focus-visible:ring-1 focus-visible:ring-ring/50 ${
                     theme === value
                       ? "border-accent bg-accent/5 text-accent"
                       : "border-border text-muted-foreground hover:border-muted-foreground/50 hover:text-foreground"

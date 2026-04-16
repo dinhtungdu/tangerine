@@ -62,7 +62,7 @@ export function ActiveRunsCard({ tasks }: { tasks: Task[] }) {
           <button
             onClick={handleCleanup}
             disabled={cleaning}
-            className="flex items-center gap-1 rounded-md bg-status-warning-text px-2 py-0.5 text-xxs font-medium text-white disabled:opacity-50"
+            className="flex items-center gap-1 rounded-md bg-status-warning-text px-2 py-0.5 text-xxs font-medium text-white outline-none disabled:opacity-50 focus-visible:ring-1 focus-visible:ring-ring/50"
           >
             {cleaning ? "Cleaning…" : "Clean up"}
           </button>
@@ -199,7 +199,7 @@ export function ProjectUpdateCard({ project }: { project?: string }) {
           <button
             onClick={handleUpdate}
             disabled={updating}
-            className="flex items-center gap-1.5 rounded-md border border-border px-3 py-1.5 text-xs font-medium text-foreground transition hover:bg-muted active:bg-muted disabled:opacity-50"
+            className="flex items-center gap-1.5 rounded-md border border-border px-3 py-1.5 text-xs font-medium text-foreground outline-none transition hover:bg-muted active:bg-muted disabled:opacity-50 focus-visible:ring-1 focus-visible:ring-ring/50"
           >
             {updating ? (
               <>
@@ -311,7 +311,7 @@ export function SystemLog({ project }: { project?: string }) {
           <button
             key={f.label}
             onClick={() => setActiveFilter(i)}
-            className={`rounded-lg px-2.5 py-1 text-xs font-medium transition-colors ${
+            className={`rounded-lg px-2.5 py-1 text-xs font-medium outline-none transition-colors focus-visible:ring-1 focus-visible:ring-ring/50 ${
               i === activeFilter
                 ? "bg-primary text-primary-foreground"
                 : "bg-muted text-muted-foreground hover:text-foreground"

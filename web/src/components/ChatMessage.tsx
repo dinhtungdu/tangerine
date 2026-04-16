@@ -251,7 +251,7 @@ export const ChatMessage = memo(function ChatMessage({ message, tasks, onReply }
             <>
               <div className="mb-2 flex flex-wrap gap-1">
                 {message.images.map((img, i) => (
-                  <button key={i} onClick={() => setLightboxIndex(i)} className="cursor-zoom-in">
+                  <button key={i} onClick={() => setLightboxIndex(i)} className="cursor-zoom-in rounded outline-none focus-visible:ring-1 focus-visible:ring-ring/50">
                     <AuthenticatedImage
                       src={img.src}
                       alt="Attached image"

@@ -49,7 +49,7 @@ export function ReasoningEffortSelector({ value, onChange, provider, variant = "
         if (v) onChange(v as string)
       }}
     >
-      <SelectTrigger size="sm" className={variant === "ghost" ? "border-0 bg-transparent p-0 dark:bg-transparent dark:hover:bg-transparent focus-visible:ring-0" : undefined}>
+      <SelectTrigger size="sm" className={variant === "ghost" ? "border-0 bg-transparent p-0 dark:bg-transparent dark:hover:bg-transparent focus-visible:ring-1 focus-visible:ring-ring/50" : undefined}>
         {variant === "default" && <Zap className="h-3 w-3 text-muted-foreground" />}
         <SelectValue>{current.label}</SelectValue>
       </SelectTrigger>

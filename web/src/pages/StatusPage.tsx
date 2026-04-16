@@ -125,14 +125,14 @@ export function StatusPage() {
               {current.archived ? (
                 <button
                   onClick={handleUnarchive}
-                  className="rounded-md bg-accent px-4 py-2 text-sm font-medium text-white transition hover:bg-accent/90"
+                  className="rounded-md bg-accent px-4 py-2 text-sm font-medium text-white outline-none transition hover:bg-accent/90 focus-visible:ring-1 focus-visible:ring-ring/50"
                 >
                   Unarchive Project
                 </button>
               ) : (
                 <button
                   onClick={handleArchive}
-                  className="text-sm text-muted-foreground transition hover:text-foreground"
+                  className="rounded text-sm text-muted-foreground outline-none transition hover:text-foreground focus-visible:ring-1 focus-visible:ring-ring/50"
                 >
                   Archive project
                 </button>

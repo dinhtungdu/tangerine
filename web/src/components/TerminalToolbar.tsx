@@ -100,7 +100,7 @@ export function TerminalToolbar({ termRef, onInput }: TerminalToolbarProps) {
               handlePress(key)
             }}
             aria-label={key.ariaLabel ?? key.label}
-            className="shrink-0 rounded-md border border-border bg-background px-2 py-1 text-xs font-medium text-muted-foreground active:bg-card active:text-foreground"
+            className="shrink-0 rounded-md border border-border bg-background px-2 py-1 text-xs font-medium text-muted-foreground outline-none active:bg-card active:text-foreground focus-visible:ring-1 focus-visible:ring-ring/50"
           >
             {key.label}
           </button>
@@ -112,7 +112,7 @@ export function TerminalToolbar({ termRef, onInput }: TerminalToolbarProps) {
             ref={pasteRef}
             rows={1}
             placeholder="Paste here, then tap Send"
-            className="min-h-[32px] flex-1 resize-none rounded-md border border-border bg-background px-2 py-1 text-xs text-foreground placeholder:text-muted-foreground"
+            className="min-h-[32px] flex-1 resize-none rounded-md border border-border bg-background px-2 py-1 text-xs text-foreground outline-none placeholder:text-muted-foreground focus-visible:border-ring focus-visible:ring-1 focus-visible:ring-ring/50"
             onKeyDown={(e) => {
               if (e.key === "Enter" && !e.shiftKey) {
                 e.preventDefault()
@@ -122,7 +122,7 @@ export function TerminalToolbar({ termRef, onInput }: TerminalToolbarProps) {
           />
           <button
             onClick={submitPaste}
-            className="shrink-0 rounded-md bg-accent px-3 py-1 text-xs font-medium text-white active:opacity-80"
+            className="shrink-0 rounded-md bg-accent px-3 py-1 text-xs font-medium text-white outline-none active:opacity-80 focus-visible:ring-1 focus-visible:ring-ring/50"
           >
             Send
           </button>
@@ -132,7 +132,7 @@ export function TerminalToolbar({ termRef, onInput }: TerminalToolbarProps) {
               termRef.current?.focus()
             }}
             aria-label="Cancel paste"
-            className="shrink-0 rounded-md border border-border bg-background px-2 py-1 text-xs text-muted-foreground active:bg-card"
+            className="shrink-0 rounded-md border border-border bg-background px-2 py-1 text-xs text-muted-foreground outline-none active:bg-card focus-visible:ring-1 focus-visible:ring-ring/50"
           >
             ✕
           </button>

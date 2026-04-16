@@ -329,7 +329,7 @@ export const NewAgentForm = forwardRef<NewAgentFormHandle, NewAgentFormProps>(fu
                     <button
                       onClick={() => removeImage(i)}
                       aria-label="Remove image"
-                      className="absolute -right-1 -top-1 flex h-4 w-4 items-center justify-center rounded-full bg-foreground text-2xs text-background"
+                      className="absolute -right-1 -top-1 flex h-4 w-4 items-center justify-center rounded-full bg-foreground text-2xs text-background outline-none focus-visible:ring-1 focus-visible:ring-ring/50"
                     >×</button>
                   </div>
                 ))}
