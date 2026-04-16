@@ -42,10 +42,9 @@ const log = createLogger("cli")
 /** Resolve custom system prompt for a task type from project config. */
 function resolveCustomSystemPrompt(projConfig: ReturnType<typeof getProjectConfig>, taskType: string | null | undefined): string | undefined {
   if (!projConfig || !taskType) return undefined
-  // Runner tasks don't have custom system prompts from taskTypes config
-  if (taskType === "runner") return undefined
-  const tt = taskType as "worker" | "orchestrator" | "reviewer"
-  return resolveTaskTypeConfig(projConfig, tt).systemPrompt
+  // Only worker, orchestrator, reviewer have taskTypes config — skip others to avoid crash
+  if (taskType !== "worker" && taskType !== "orchestrator" && taskType !== "reviewer") return undefined
+  return resolveTaskTypeConfig(projConfig, taskType).systemPrompt
 }
 
 /** Classify agent tool name -> activity type + event name.
