@@ -70,7 +70,7 @@ export function RunsPage() {
   return (
     <div className="flex flex-col md:h-full">
       <div ref={formRef} id="new-agent-form" className="min-h-0 flex-1">
-        <NewAgentForm ref={newAgentFormRef} onSubmit={handleSubmit} refTaskId={refTaskId} refTaskTitle={refTaskTitle} refBranch={refBranch} refProjectId={refProjectId} />
+        <NewAgentForm ref={newAgentFormRef} onSubmit={handleSubmit} refTaskId={refTaskId} refTaskTitle={refTaskTitle} refBranch={refBranch} refProjectId={refProjectId} autoFocus={location.hash === "#new-agent-textarea"} />
       </div>
     </div>
   )
