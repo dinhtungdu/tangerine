@@ -4,8 +4,12 @@ import { useNavigate, useSearchParams } from "react-router-dom"
 /** Build a path with the current ?project= param preserved. */
 function withProject(path: string, project: string | null): string {
   if (!project) return path
-  const sep = path.includes("?") ? "&" : "?"
-  return `${path}${sep}project=${encodeURIComponent(project)}`
+  // Split off hash if present — hash must come after query string
+  const hashIdx = path.indexOf("#")
+  const hash = hashIdx >= 0 ? path.slice(hashIdx) : ""
+  const pathWithoutHash = hashIdx >= 0 ? path.slice(0, hashIdx) : path
+  const sep = pathWithoutHash.includes("?") ? "&" : "?"
+  return `${pathWithoutHash}${sep}project=${encodeURIComponent(project)}${hash}`
 }
 
 /** Navigation helpers that preserve the ?project= search param. */

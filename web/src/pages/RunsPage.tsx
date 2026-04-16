@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef } from "react"
-import { useOutletContext, useSearchParams, useNavigate } from "react-router-dom"
+import { useOutletContext, useSearchParams, useNavigate, useLocation } from "react-router-dom"
 import { useProject } from "../context/ProjectContext"
 import { NewAgentForm, type NewAgentFormHandle } from "../components/NewAgentForm"
 import { createTask } from "../lib/api"
@@ -8,44 +8,40 @@ import { useToast } from "../context/ToastContext"
 
 export function RunsPage() {
   const navigate = useNavigate()
+  const location = useLocation()
   const { current } = useProject()
   const { showToast } = useToast()
   const { tasksLoading } = useOutletContext<SidebarContext>()
-  const [searchParams, setSearchParams] = useSearchParams()
+  const [searchParams] = useSearchParams()
   const refTaskId = searchParams.get("ref") ?? undefined
   const refTaskTitle = searchParams.get("refTitle") ?? undefined
   const refBranch = searchParams.get("branch") ?? undefined
   const refProjectId = searchParams.get("refProject") ?? undefined
-  const shouldFocus = searchParams.get("focus") === "1"
   const formRef = useRef<HTMLDivElement>(null)
   const newAgentFormRef = useRef<NewAgentFormHandle>(null)
   const scrolledForRef = useRef<string | undefined>(undefined)
-  const scrolledForFocusRef = useRef(false)
+  const focusedForHashRef = useRef<string | null>(null)
 
   // On mobile the sidebar stacks above the form. Wait for the sidebar's initial
   // task fetch to complete (sidebar has its full height) before scrolling, so
   // the form doesn't get pushed back below the viewport after we scroll.
   // Track which refTaskId triggered the scroll so repeated continues work correctly.
-  // Use a one-shot flag for focus=1 so sidebar polling doesn't re-trigger the scroll.
   useEffect(() => {
-    if (!tasksLoading && formRef.current) {
-      if (refTaskId && scrolledForRef.current !== refTaskId) {
-        scrolledForRef.current = refTaskId
-        formRef.current.scrollIntoView({ behavior: "smooth", block: "start" })
-      } else if (shouldFocus && !refTaskId && !scrolledForFocusRef.current) {
-        scrolledForFocusRef.current = true
-        formRef.current.scrollIntoView({ behavior: "smooth", block: "start" })
-        // Focus immediately - delaying breaks the user gesture chain on mobile.
-        // The browser will scroll the focused element into view automatically.
-        newAgentFormRef.current?.focus()
-        // Clear focus=1 from URL but preserve other params (e.g. project)
-        setSearchParams((prev) => {
-          prev.delete("focus")
-          return prev
-        }, { replace: true })
-      }
+    if (!tasksLoading && formRef.current && refTaskId && scrolledForRef.current !== refTaskId) {
+      scrolledForRef.current = refTaskId
+      formRef.current.scrollIntoView({ behavior: "smooth", block: "start" })
     }
-  }, [refTaskId, setSearchParams, shouldFocus, tasksLoading])
+  }, [refTaskId, tasksLoading])
+
+  // Hash-based focus: browser scrolls natively, we just need to focus the textarea.
+  // Track which hash we focused for to avoid re-focusing on re-renders.
+  useEffect(() => {
+    if (location.hash === "#new-agent-textarea" && focusedForHashRef.current !== location.key) {
+      focusedForHashRef.current = location.key
+      // Focus immediately - this preserves the user gesture chain on mobile for keyboard popup.
+      newAgentFormRef.current?.focus()
+    }
+  }, [location.hash, location.key])
 
   const handleSubmit = useCallback(async (data: { projectId: string; title: string; description?: string; branch?: string; provider?: string; model?: string; reasoningEffort?: string; parentTaskId?: string; type?: string; images?: import("@tangerine/shared").PromptImage[] }) => {
     try {

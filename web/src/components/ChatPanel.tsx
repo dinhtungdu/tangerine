@@ -254,8 +254,7 @@ export function ChatPanel({
             if (refTitle) params.set("refTitle", refTitle)
             if (taskBranch) params.set("branch", taskBranch)
             if (taskProjectId) params.set("refProject", taskProjectId)
-            params.set("focus", "1")
-            navigate(`/?${params}`)
+            navigate(`/?${params}#new-agent-textarea`)
           } : undefined}
           onResolve={onResolve}
         />

@@ -100,7 +100,7 @@ export function Layout() {
               projects={projects}
               searchQuery={query}
               onSearchChange={setQuery}
-              onNewAgent={() => navigate("/?focus=1")}
+              onNewAgent={() => navigate("/#new-agent-textarea")}
               onRefetch={refetch}
             />
           </div>

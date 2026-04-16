@@ -61,7 +61,7 @@ export function useAppActions() {
         label: "New task",
         description: "Create a new agent task",
         section: "Tasks",
-        handler: () => navigate(link("/?focus=1")),
+        handler: () => navigate(link("/#new-agent-textarea")),
       },
       {
         id: "task.cancel",
