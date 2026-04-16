@@ -224,52 +224,56 @@ export function startSession(
     )
 
     // 3. Run setup in background (non-blocking)
-    const setupStatusFile = `/tmp/tangerine-setup-${taskPrefix}.status`
-    const setupLogFile = `/tmp/tangerine-setup-${taskPrefix}.log`
-    const setupSpan = taskLog.startOp("setup")
-    yield* activity("setup.started", `Running setup (background): ${config.setup}`)
+    // Skip for slot 0 (orchestrator/runner) — they don't need fresh deps and setup
+    // could race with other slot 0 tasks.
+    if (!isOrchestrator && !isRunner) {
+      const setupStatusFile = `/tmp/tangerine-setup-${taskPrefix}.status`
+      const setupLogFile = `/tmp/tangerine-setup-${taskPrefix}.log`
+      const setupSpan = taskLog.startOp("setup")
+      yield* activity("setup.started", `Running setup (background): ${config.setup}`)
 
-    const setupCmd = [
-      `echo running > ${setupStatusFile};`,
-      `( cd ${worktreePath} && ${config.setup} ) > ${setupLogFile} 2>&1;`,
-      `if [ $? -eq 0 ]; then echo done > ${setupStatusFile}; else echo failed > ${setupStatusFile}; fi`,
-    ].join(" ")
+      const setupCmd = [
+        `echo running > ${setupStatusFile};`,
+        `( cd ${worktreePath} && ${config.setup} ) > ${setupLogFile} 2>&1;`,
+        `if [ $? -eq 0 ]; then echo done > ${setupStatusFile}; else echo failed > ${setupStatusFile}; fi`,
+      ].join(" ")
 
-    // Fire and forget — nohup so it survives if this process dies
-    Bun.spawn(["bash", "-c", `nohup bash -c '${setupCmd.replace(/'/g, "'\\''")}' </dev/null >/dev/null 2>&1 &`], {
-      cwd: worktreePath,
-      stdout: "ignore",
-      stderr: "ignore",
-      stdin: "ignore",
-    })
-
-    // Monitor setup completion in background (for activity log, not blocking)
-    yield* Effect.forkDaemon(
-      Effect.gen(function* () {
-        for (let i = 0; i < 120; i++) {
-          yield* Effect.sleep("5 seconds")
-          const result = yield* localExec(`cat ${setupStatusFile} 2>/dev/null || echo running`).pipe(
-            Effect.catchAll(() => Effect.succeed({ stdout: "running", stderr: "", exitCode: 0 }))
-          )
-          const status = result.stdout.trim()
-          if (status === "done") {
-            yield* activity("setup.completed", "Setup completed")
-            setupSpan.end()
-            return
-          }
-          if (status === "failed") {
-            const logResult = yield* localExec(`tail -20 ${setupLogFile} 2>/dev/null`).pipe(
-              Effect.catchAll(() => Effect.succeed({ stdout: "(no log)", stderr: "", exitCode: 0 }))
-            )
-            yield* activity("setup.failed", `Setup failed (non-blocking): ${logResult.stdout.trim().slice(0, 500)}`)
-            setupSpan.fail(new Error("Setup failed"))
-            return
-          }
-        }
-        yield* activity("setup.failed", "Setup timed out after 10 minutes")
-        setupSpan.fail(new Error("Setup timed out"))
+      // Fire and forget — nohup so it survives if this process dies
+      Bun.spawn(["bash", "-c", `nohup bash -c '${setupCmd.replace(/'/g, "'\\''")}' </dev/null >/dev/null 2>&1 &`], {
+        cwd: worktreePath,
+        stdout: "ignore",
+        stderr: "ignore",
+        stdin: "ignore",
       })
-    )
+
+      // Monitor setup completion in background (for activity log, not blocking)
+      yield* Effect.forkDaemon(
+        Effect.gen(function* () {
+          for (let i = 0; i < 120; i++) {
+            yield* Effect.sleep("5 seconds")
+            const result = yield* localExec(`cat ${setupStatusFile} 2>/dev/null || echo running`).pipe(
+              Effect.catchAll(() => Effect.succeed({ stdout: "running", stderr: "", exitCode: 0 }))
+            )
+            const status = result.stdout.trim()
+            if (status === "done") {
+              yield* activity("setup.completed", "Setup completed")
+              setupSpan.end()
+              return
+            }
+            if (status === "failed") {
+              const logResult = yield* localExec(`tail -20 ${setupLogFile} 2>/dev/null`).pipe(
+                Effect.catchAll(() => Effect.succeed({ stdout: "(no log)", stderr: "", exitCode: 0 }))
+              )
+              yield* activity("setup.failed", `Setup failed (non-blocking): ${logResult.stdout.trim().slice(0, 500)}`)
+              setupSpan.fail(new Error("Setup failed"))
+              return
+            }
+          }
+          yield* activity("setup.failed", "Setup timed out after 10 minutes")
+          setupSpan.fail(new Error("Setup timed out"))
+        })
+      )
+    }
 
     // 4. Kill any stale agent processes in this worktree
     // Skip for slot 0 (orchestrator/runner) — it's shared, so we'd kill a concurrent task's agent.
