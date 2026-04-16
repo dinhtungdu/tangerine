@@ -198,9 +198,24 @@ export function loadConfig(overrides?: { configPath?: string }): AppConfig {
 
   // Resolve ssl: apply port default here so callers get a complete object
   const sslBase = config.ssl ?? null
-  const ssl: SslConfig | null = sslBase
-    ? { ...sslBase, port: sslBase.port ?? DEFAULT_SSL_PORT }
-    : null
+  let ssl: SslConfig | null = null
+  if (sslBase) {
+    const serverPort = parseInt(process.env["PORT"] ?? "", 10) || DEFAULT_API_PORT
+    const resolvedSslPort = sslBase.port ?? DEFAULT_SSL_PORT
+    if (resolvedSslPort === serverPort) {
+      throw new Error(
+        `ssl.port (${resolvedSslPort}) must differ from the HTTP server port (${serverPort}). ` +
+        `Set a different ssl.port in config.json or change the PORT env var.`,
+      )
+    }
+    if (!existsSync(sslBase.cert)) {
+      throw new Error(`ssl.cert file not found: ${sslBase.cert}`)
+    }
+    if (!existsSync(sslBase.key)) {
+      throw new Error(`ssl.key file not found: ${sslBase.key}`)
+    }
+    ssl = { ...sslBase, port: resolvedSslPort }
+  }
 
   return {
     config,
