@@ -299,7 +299,7 @@ export function startSession(
     // 6. Start agent locally (with timeout to prevent indefinite hangs)
     yield* activity("agent.starting", "Starting agent")
     const systemNotes = buildSystemNotes(task.id, {
-      setupCommand: config.setup,
+      setupCommand: usesSlot0 ? undefined : config.setup, // slot 0 skips setup
       taskType: task.type ?? undefined,
       prMode: config.prMode,
       customSystemPrompt: resolveCustomSystemPrompt(config, task.type),
@@ -422,8 +422,10 @@ export function reconnectSession(
       }
     }
 
+    // Slot 0 tasks (orchestrator/runner) skip setup — don't advertise it
+    const isSlot0Task = taskType === "orchestrator" || taskType === "runner"
     const systemNotes = buildSystemNotes(task.id, {
-      setupCommand: project?.setup,
+      setupCommand: isSlot0Task ? undefined : project?.setup,
       taskType: taskType,
       prMode: project?.prMode,
       customSystemPrompt: resolved?.systemPrompt,
