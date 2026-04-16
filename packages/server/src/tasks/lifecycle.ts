@@ -131,10 +131,10 @@ export function startSession(
     )
 
     let worktreePath: string
+    let usesSlot0: boolean
 
     if (isRunner) {
-      // Runner tasks use the project root (slot 0) — acquire the orchestrator slot
-      // for mutual exclusion so concurrent runners don't clobber each other.
+      // Runner tasks use the project root (slot 0) — shared with other slot 0 tasks.
       const exec = (cmd: string) => localExec(cmd, repoDir)
       yield* initPool(deps.db, task.project_id, exec, repoDir, config.poolSize).pipe(
         Effect.mapError((e) => new SessionStartError({
@@ -144,7 +144,7 @@ export function startSession(
           cause: e,
         }))
       )
-      yield* activity("worktree.acquiring", "Acquiring orchestrator slot for runner")
+      yield* activity("worktree.acquiring", "Acquiring slot 0 for runner")
       const slot = yield* acquireOrchestratorSlot(deps.db, task.project_id, task.id, deps.getTask).pipe(
         Effect.mapError((e) => new SessionStartError({
           message: `Slot acquisition failed: ${e.message}`,
@@ -154,11 +154,9 @@ export function startSession(
         }))
       )
       worktreePath = resolve(slot.path)
-      // Slot 0 is always on the default branch (worker worktrees use numbered slots).
-      // git fetch already ran above; no reset needed — slot 0 is shared and must not
-      // be destructively modified at startup.
-      yield* activity("worktree.ready", "Runner task using project root", { worktreePath, slot: slot.id })
-      taskLog.debug("Runner task using project root", { worktreePath, slotId: slot.id })
+      usesSlot0 = true
+      yield* activity("worktree.ready", "Runner task using slot 0", { worktreePath, slot: slot.id })
+      taskLog.debug("Runner task using slot 0", { worktreePath, slotId: slot.id })
     } else {
       // 2. Init worktree pool (idempotent) and acquire a slot
       const exec = (cmd: string) => localExec(cmd, repoDir)
@@ -171,7 +169,7 @@ export function startSession(
         }))
       )
 
-      yield* activity("worktree.acquiring", isOrchestrator ? "Acquiring orchestrator slot" : "Acquiring worktree slot")
+      yield* activity("worktree.acquiring", isOrchestrator ? "Acquiring slot 0" : "Acquiring worktree slot")
       const slot = yield* (isOrchestrator
         ? acquireOrchestratorSlot(deps.db, task.project_id, task.id, deps.getTask)
         : acquireSlot(deps.db, task.project_id, task.id, deps.getTask, exec, defaultBranch)
@@ -185,12 +183,13 @@ export function startSession(
       )
       yield* activity("worktree.acquired", `Acquired worktree slot`, { slot: slot.id })
       worktreePath = resolve(slot.path)
+      usesSlot0 = slot.id.endsWith("-slot-0")
 
-      if (isOrchestrator) {
+      if (usesSlot0) {
         // Slot 0 is always on the default branch (worker worktrees use numbered slots).
         // git fetch already ran above; no reset needed — slot 0 is shared and must not
         // be destructively modified at startup.
-        yield* activity("worktree.ready", "Orchestrator slot ready", { worktreePath, branch, slot: slot.id })
+        yield* activity("worktree.ready", "Task using slot 0", { worktreePath, branch, slot: slot.id })
       } else {
         // Checkout the task branch on the acquired slot
         yield* localExec(
@@ -211,7 +210,7 @@ export function startSession(
           }))
         )
       }
-      taskLog.debug("Worktree slot acquired", { worktreePath, branch, slotId: slot.id })
+      taskLog.debug("Worktree slot acquired", { worktreePath, branch, slotId: slot.id, usesSlot0 })
     }
 
     yield* deps.updateTask(task.id, { branch: isRunner ? null : branch, worktree_path: worktreePath }).pipe(
@@ -224,9 +223,8 @@ export function startSession(
     )
 
     // 3. Run setup in background (non-blocking)
-    // Skip for slot 0 (orchestrator/runner) — they don't need fresh deps and setup
-    // could race with other slot 0 tasks.
-    if (!isOrchestrator && !isRunner) {
+    // Skip for slot 0 — it's shared, so setup could race with other tasks.
+    if (!usesSlot0) {
       const setupStatusFile = `/tmp/tangerine-setup-${taskPrefix}.status`
       const setupLogFile = `/tmp/tangerine-setup-${taskPrefix}.log`
       const setupSpan = taskLog.startOp("setup")
@@ -276,8 +274,8 @@ export function startSession(
     }
 
     // 4. Kill any stale agent processes in this worktree
-    // Skip for slot 0 (orchestrator/runner) — it's shared, so we'd kill a concurrent task's agent.
-    if (!isOrchestrator && !isRunner) {
+    // Skip for slot 0 — it's shared, so we'd kill a concurrent task's agent.
+    if (!usesSlot0) {
       yield* localExec(
         `pkill -f "claude.*${worktreePath}" 2>/dev/null; true`,
       ).pipe(Effect.catchAll(() => Effect.void))
