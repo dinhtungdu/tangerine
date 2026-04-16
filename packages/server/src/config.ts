@@ -1,8 +1,8 @@
 import { existsSync, readFileSync, writeFileSync, mkdirSync, chmodSync } from "fs"
 import { join } from "path"
 import { homedir, userInfo } from "os"
-import { tangerineConfigSchema, DEFAULT_API_PORT } from "@tangerine/shared"
-import type { TangerineConfig, ProjectConfig } from "@tangerine/shared"
+import { tangerineConfigSchema, DEFAULT_API_PORT, DEFAULT_SSL_PORT } from "@tangerine/shared"
+import type { TangerineConfig, ProjectConfig, SslConfig } from "@tangerine/shared"
 
 export const TANGERINE_HOME = join(homedir(), "tangerine")
 export const CONFIG_PATH = join(TANGERINE_HOME, "config.json")
@@ -82,6 +82,9 @@ export const VM_USER = userInfo().username
 /** Relative path for auth.json inside the VM (under user's home) */
 export const VM_AUTH_RELPATH = ".local/share/opencode/auth.json"
 
+/** SslConfig with port resolved to a concrete number (never undefined). */
+export type ResolvedSslConfig = Omit<SslConfig, "port"> & { port: number }
+
 export interface AppConfig {
   config: TangerineConfig
   credentials: {
@@ -91,6 +94,7 @@ export interface AppConfig {
     tangerineAuthToken: string | null
     serverPort: number
     externalHost: string
+    ssl: ResolvedSslConfig | null
   }
 }
 
@@ -203,6 +207,27 @@ export function loadConfig(overrides?: { configPath?: string }): AppConfig {
   const anthropicApiKey = process.env["ANTHROPIC_API_KEY"] ?? dotfile.ANTHROPIC_API_KEY ?? null
   const tangerineAuthToken = process.env["TANGERINE_AUTH_TOKEN"] ?? dotfile.TANGERINE_AUTH_TOKEN ?? null
 
+  // Resolve ssl: apply port default here so callers get a complete object
+  const sslBase = config.ssl ?? null
+  let ssl: ResolvedSslConfig | null = null
+  if (sslBase) {
+    const serverPort = parseInt(process.env["PORT"] ?? "", 10) || DEFAULT_API_PORT
+    const resolvedSslPort = sslBase.port ?? DEFAULT_SSL_PORT
+    if (resolvedSslPort === serverPort) {
+      throw new Error(
+        `ssl.port (${resolvedSslPort}) must differ from the HTTP server port (${serverPort}). ` +
+        `Set a different ssl.port in config.json or change the PORT env var.`,
+      )
+    }
+    if (!existsSync(sslBase.cert)) {
+      throw new Error(`ssl.cert file not found: ${sslBase.cert}`)
+    }
+    if (!existsSync(sslBase.key)) {
+      throw new Error(`ssl.key file not found: ${sslBase.key}`)
+    }
+    ssl = { ...sslBase, port: resolvedSslPort }
+  }
+
   return {
     config,
     credentials: {
@@ -212,6 +237,7 @@ export function loadConfig(overrides?: { configPath?: string }): AppConfig {
       tangerineAuthToken,
       serverPort: parseInt(process.env["PORT"] ?? "", 10) || DEFAULT_API_PORT,
       externalHost: process.env["EXTERNAL_HOST"] ?? dotfile.EXTERNAL_HOST ?? "localhost",
+      ssl,
     },
   }
 }

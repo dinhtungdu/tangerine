@@ -117,7 +117,28 @@ User is on the machine where Tangerine will run — either their host or inside 
    - `GET /api/health` and `GET /api/auth/session` stay public
    - startup fails on non-loopback binds without `TANGERINE_AUTH_TOKEN` unless `TANGERINE_INSECURE_NO_AUTH=1` is explicitly set
 
-8. **Start server**:
+8. **Enable HTTPS (optional)** — serves tokens over TLS, recommended when auth is enabled.
+
+   Add an `ssl` block to `~/tangerine/config.json`:
+   ```json
+   {
+     "ssl": {
+       "cert": "/path/to/cert.pem",
+       "key": "/path/to/key.pem",
+       "port": 3443
+     }
+   }
+   ```
+   - `port` defaults to `3443` if omitted. Must differ from the HTTP port (3456).
+   - For local use, generate a self-signed cert with openssl:
+     ```bash
+     openssl req -x509 -newkey rsa:4096 -keyout ~/tangerine/key.pem \
+       -out ~/tangerine/cert.pem -days 365 -nodes \
+       -subj "/CN=localhost"
+     ```
+   - When SSL is configured, both HTTP (3456) and HTTPS (3443) are served. The startup message shows both URLs.
+
+9. **Start server**:
    ```bash
    tangerine start
    ```

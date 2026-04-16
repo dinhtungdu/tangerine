@@ -84,6 +84,12 @@ const defaultModels = [
   "openai/gpt-5.4",
 ]
 
+const sslConfigSchema = z.object({
+  cert: z.string(),
+  key: z.string(),
+  port: z.number().int().positive().optional(),
+})
+
 export const tangerineConfigSchema = z.object({
   projects: z.array(projectConfigSchema).min(1),
   workspace: z.string().default("~/tangerine-workspace"),
@@ -95,6 +101,7 @@ export const tangerineConfigSchema = z.object({
   editor: z.enum(["vscode", "cursor", "zed"]).optional(),
   actionCombos: z.array(actionComboSchema).optional().default([]),
   shortcuts: z.record(shortcutSchema).optional(),
+  ssl: sslConfigSchema.optional(),
 })
 
 export type PredefinedPrompt = z.infer<typeof predefinedPromptSchema>
@@ -102,6 +109,7 @@ export type ShortcutConfig = z.infer<typeof shortcutSchema>
 export type ActionCombo = z.infer<typeof actionComboSchema>
 export type TaskTypeConfig = z.infer<typeof taskTypeConfigSchema>
 export type ProjectConfig = z.infer<typeof projectConfigSchema>
+export type SslConfig = z.infer<typeof sslConfigSchema>
 export type TangerineConfig = z.infer<typeof tangerineConfigSchema>
 
 const DEFAULTS: Record<string, { predefinedPrompts: PredefinedPrompt[] }> = {

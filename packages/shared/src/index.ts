@@ -31,11 +31,13 @@ export type {
   TaskTypeConfig,
   ProjectConfig,
   ShortcutConfig,
+  SslConfig,
   TangerineConfig,
 } from "./config"
 
 export {
   DEFAULT_API_PORT,
+  DEFAULT_SSL_PORT,
   DEFAULT_OPENCODE_PORT,
   DEFAULT_POLL_INTERVAL_MINUTES,
   DEFAULT_IDLE_TIMEOUT_MS,
