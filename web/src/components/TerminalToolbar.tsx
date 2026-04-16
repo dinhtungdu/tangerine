@@ -1,5 +1,6 @@
 import { useState, useRef as useReactRef } from "react"
 import type { Terminal } from "@xterm/xterm"
+import { Button } from "@/components/ui/button"
 
 interface TerminalToolbarProps {
   termRef: React.RefObject<Terminal | null>
@@ -120,22 +121,25 @@ export function TerminalToolbar({ termRef, onInput }: TerminalToolbarProps) {
               }
             }}
           />
-          <button
+          <Button
+            size="sm"
             onClick={submitPaste}
-            className="shrink-0 rounded-md bg-accent px-3 py-1 text-xs font-medium text-white outline-none active:opacity-80 focus-visible:ring-1 focus-visible:ring-ring/50"
+            className="shrink-0"
           >
             Send
-          </button>
-          <button
+          </Button>
+          <Button
+            variant="outline"
+            size="sm"
             onClick={() => {
               setShowPasteInput(false)
               termRef.current?.focus()
             }}
             aria-label="Cancel paste"
-            className="shrink-0 rounded-md border border-border bg-background px-2 py-1 text-xs text-muted-foreground outline-none active:bg-card focus-visible:ring-1 focus-visible:ring-ring/50"
+            className="shrink-0"
           >
             ✕
-          </button>
+          </Button>
         </div>
       )}
     </div>
