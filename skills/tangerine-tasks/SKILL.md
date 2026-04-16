@@ -76,8 +76,8 @@ curl -X POST "$API/api/tasks/$TANGERINE_TASK_ID/done"
 ```
 
 > **IMPORTANT — when to call `/done`:**
-> - **Orchestrators only**: call `/done` on yourself when ending the session.
-> - **Workers and reviewers**: NEVER call `/done` on yourself. After working, the agent auto-suspends, and the PR poller will mark the task as done when the PR is merged, or cancelled when the PR is closed.
+> - **Orchestrators**: call `/done` on yourself when ending the session.
+> - **Workers and reviewers**: Do NOT call `/done` proactively. After creating a PR, the agent auto-suspends. When the PR is merged, Tangerine will re-prompt you with post-merge instructions — call `/done` then (or `/cancel` if the PR was closed without merging).
 
 Create a worker task:
 
