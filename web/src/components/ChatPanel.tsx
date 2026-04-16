@@ -256,16 +256,15 @@ export function ChatPanel({
         )}
       </div>
       {!isAtBottom && (
-        <div className="absolute bottom-3 left-1/2 -translate-x-1/2">
+        <div className="absolute bottom-12 left-1/2 -translate-x-1/2">
           <Button
-            variant="outline"
-            size="icon"
+            size="icon-sm"
             onClick={scrollToBottom}
-            className="rounded-full shadow-md h-8 w-8"
+            className="rounded-full shadow-lg bg-foreground text-background hover:bg-foreground/90"
             aria-label="Scroll to bottom"
           >
             <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-              <path strokeLinecap="round" strokeLinejoin="round" d="M19 9l-7 7-7-7" />
+              <path strokeLinecap="round" strokeLinejoin="round" d="M19 14l-7 7m0 0l-7-7m7 7V3" />
             </svg>
           </Button>
         </div>
