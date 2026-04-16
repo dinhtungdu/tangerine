@@ -5,7 +5,7 @@ Local background coding agent platform. Tangerine runs as a local Bun server, sp
 ## Current Architecture
 
 - Single-machine runtime, use it on your host machine or inside a VM.
-- No auth, yet, so don't put it on a VPS, for now, okay?
+- Shared bearer-token auth for dashboard, API, and task/terminal WebSockets when `TANGERINE_AUTH_TOKEN` is set
 - Multi-provider agents: Pi, OpenCode, Claude Code, and Codex
 - Git worktrees per task under a shared workspace
 - Hono API server with REST + WebSocket endpoints
@@ -65,6 +65,33 @@ Then start:
 ```bash
 tangerine start
 ```
+
+## Auth Setup
+
+If you want dashboard/API auth, or you plan to bind Tangerine on a non-loopback host, set a shared token before starting:
+
+```bash
+tangerine config set TANGERINE_AUTH_TOKEN=$(openssl rand -hex 32)
+tangerine start
+```
+
+How it works:
+
+- The dashboard shows an unlock screen. Enter the same token once per browser.
+- REST calls use `Authorization: Bearer <token>`.
+- WebSocket clients connect, then immediately send `{"type":"auth","token":"<token>"}`.
+- Agent tasks inherit `TANGERINE_AUTH_TOKEN` automatically for self-calls back into the Tangerine API.
+
+Useful example:
+
+```bash
+curl -H "Authorization: Bearer $TANGERINE_AUTH_TOKEN" http://localhost:3456/api/tasks
+```
+
+Notes:
+
+- `GET /api/health` and `GET /api/auth/session` stay public.
+- If Tangerine binds a non-loopback host and no token is configured, startup fails unless `TANGERINE_INSECURE_NO_AUTH=1` is set explicitly.
 
 ## Development
 
