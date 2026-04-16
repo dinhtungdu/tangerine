@@ -434,7 +434,7 @@ export function ChatInput({ onSend, disabled, queueLength, taskId, isWorking, on
             onHover={(i) => setSlashState((s) => ({ ...s, selectedIndex: i }))}
           />
         )}
-        <div className="rounded-lg border border-input bg-background transition-colors focus-within:border-ring focus-within:ring-3 focus-within:ring-ring/50 dark:bg-input/30">
+        <div className="rounded-lg border border-input bg-background transition-colors focus-within:border-ring focus-within:ring-1 focus-within:ring-ring/50 dark:bg-input/30">
           <Textarea
             ref={textareaRef}
             value={text}
