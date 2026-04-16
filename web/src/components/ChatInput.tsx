@@ -487,7 +487,7 @@ export function ChatInput({ onSend, disabled, queueLength, taskId, isWorking, on
               <input
                 ref={fileInputRef}
                 type="file"
-                accept="image/*,video/*,.txt,.md"
+                accept="image/*"
                 multiple
                 onChange={handleFileSelect}
                 className="hidden"
