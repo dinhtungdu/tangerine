@@ -10,6 +10,7 @@ import { SlashCommandPicker } from "./SlashCommandPicker"
 import { useMentionPicker } from "../hooks/useMentionPicker"
 import { useTasks } from "../hooks/useTasks"
 import { formatTokens } from "../lib/format"
+import { buildAuthHeaders } from "../lib/auth"
 
 interface PendingImage extends PromptImage {
   dataUrl: string // for thumbnail preview only
@@ -89,7 +90,7 @@ export function ChatInput({ onSend, disabled, queueLength, taskId, isWorking, on
   // because Claude/Pi populate skills asynchronously from the init/state event.
   useEffect(() => {
     if (!taskId || isWorking) return
-    fetch(`/api/tasks/${taskId}/skills`)
+    fetch(`/api/tasks/${taskId}/skills`, { headers: buildAuthHeaders() })
       .then((r) => r.ok ? r.json() as Promise<{ skills: string[] }> : Promise.resolve({ skills: [] }))
       .then((data) => { if (data.skills.length > 0) setSkills(data.skills) })
       .catch(() => {})

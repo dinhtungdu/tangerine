@@ -6,7 +6,7 @@ import { extractPrUrl, extractGithubSlug, getPrLookupTargets, pollPrStatuses } f
 import { resolveGithubSlug } from "../gh"
 import type { PrMonitorDeps, PrState } from "../tasks/pr-monitor"
 import type { TaskRow } from "../db/types"
-import { buildSystemNotes, buildSystemLayer, buildUserLayer } from "../tasks/prompts"
+import { buildPrWorkflowNote, buildSystemNotes, buildSystemLayer, buildUserLayer } from "../tasks/prompts"
 import { resolveTaskTypeConfig, type ProjectConfig } from "@tangerine/shared"
 
 // ---------------------------------------------------------------------------
@@ -613,6 +613,11 @@ describe("pollPrStatuses", () => {
 // ---------------------------------------------------------------------------
 
 describe("buildSystemNotes", () => {
+  test("places auth curl flags before the rename-branch URL", () => {
+    const note = buildPrWorkflowNote("test-id")
+    expect(note).toContain('curl -X POST ${TANGERINE_AUTH_TOKEN:+-H "Authorization: Bearer $TANGERINE_AUTH_TOKEN"} http://localhost:')
+  })
+
   test("includes PR workflow note for worker tasks", () => {
     const notes = buildSystemNotes("test-id", { taskType: "worker", prMode: "draft" })
     expect(notes.some((n) => n.includes("rename-branch") && n.includes("gh pr create"))).toBe(true)

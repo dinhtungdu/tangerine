@@ -78,6 +78,7 @@ function createMockDeps(db: Database, configOverrides?: Partial<AppDeps["config"
         opencodeAuthPath: null,
         claudeOauthToken: null,
         anthropicApiKey: null,
+        tangerineAuthToken: null,
         serverPort: 3456,
         externalHost: "localhost",
       },

@@ -23,6 +23,8 @@ Supported flags:
 
 The server verifies required external tools at startup, including `git`, `gh` for GitHub-backed repos, and optional agent CLIs.
 
+If the server binds a non-loopback host (for example `0.0.0.0`) and `TANGERINE_AUTH_TOKEN` is not configured, startup must fail unless `TANGERINE_INSECURE_NO_AUTH=1` is explicitly set.
+
 ## `tangerine install`
 
 Current behavior:
@@ -82,6 +84,7 @@ Allowed keys currently come from `ALLOWED_CREDENTIAL_KEYS`:
 
 - `ANTHROPIC_API_KEY`
 - `CLAUDE_CODE_OAUTH_TOKEN`
+- `TANGERINE_AUTH_TOKEN`
 - `EXTERNAL_HOST`
 
 Credentials are stored in `~/tangerine/.credentials` with mode `0600`.

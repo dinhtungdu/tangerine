@@ -2,6 +2,15 @@
 
 Tangerine exposes a Hono API on Bun. The current server provides REST routes, per-task WebSocket streams, terminal WebSocket streams, GitHub webhooks, test-only endpoints, and static serving for the built dashboard.
 
+## Authentication
+
+Tangerine uses a single shared bearer token for remote single-user access when `TANGERINE_AUTH_TOKEN` is configured.
+
+- Browser and CLI REST clients send `Authorization: Bearer <token>`
+- Browser WebSocket clients authenticate immediately after connect with an auth message before subscribing or opening a terminal
+- `GET /api/health` and `GET /api/auth/session` are public
+- GitHub webhooks stay protected by webhook HMAC, not bearer auth
+
 ## REST Endpoints
 
 ### Tasks
@@ -50,6 +59,12 @@ Current task types:
 - `worker`
 - `orchestrator`
 - `reviewer`
+
+### Auth
+
+| Method | Path | Description |
+|--------|------|-------------|
+| GET | `/api/auth/session` | Return whether auth is enabled and whether the current client is authenticated |
 
 ### Sessions
 
@@ -107,6 +122,7 @@ If `integrations.github.webhookSecret` is configured, the route verifies `x-hub-
 ### Test Mode
 
 When `TEST_MODE=1`, the server also mounts `/api/test/*` routes for deterministic seeded-state tests.
+These routes follow the same bearer-token rules as the rest of `/api/*`.
 
 ## WebSocket Endpoints
 
@@ -132,9 +148,12 @@ Client messages:
 
 ```typescript
 type WsClientMessage =
+  | { type: "auth"; token: string }
   | { type: "prompt"; text: string; images?: PromptImage[] }
   | { type: "abort" }
 ```
+
+When bearer auth is enabled, the client must send the auth message before any prompt or terminal input.
 
 ### Terminal Stream
 
@@ -153,6 +172,7 @@ This endpoint backs the dashboard terminal pane.
 ## Error Semantics
 
 - Validation failures return `400`
+- Missing or invalid bearer auth returns `401` with `WWW-Authenticate: Bearer`
 - Missing tasks/projects return `404`
 - Non-terminal delete attempts return `409`
 - Unhandled route errors are logged and return `500`

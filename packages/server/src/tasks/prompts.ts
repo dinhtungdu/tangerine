@@ -8,6 +8,7 @@
 //   Configurable per project via taskTypes config.
 
 import { DEFAULT_API_PORT } from "@tangerine/shared"
+import { AUTH_CURL_FLAG } from "./api-auth"
 
 const apiPort = () => Number(process.env["PORT"] ?? DEFAULT_API_PORT)
 
@@ -36,7 +37,7 @@ export function buildPrWorkflowNote(taskId: string, port = apiPort(), prMode: "r
         ? `\`git push -u origin HEAD\` then \`gh pr create${repoFlag}\`.`
         : `\`git push -u origin HEAD\` then \`gh pr create --draft${repoFlag}\`.`
   return (
-    `1) Rename your branch via: curl -X POST http://localhost:${port}/api/tasks/${taskId}/rename-branch ` +
+    `1) Rename your branch via: curl -X POST ${AUTH_CURL_FLAG} http://localhost:${port}/api/tasks/${taskId}/rename-branch ` +
     `-H "Content-Type: application/json" -d '{"branch":"fix/<descriptive-slug>"}'. ` +
     `2) Push and create a PR with ${prCommand}`
   )
@@ -62,6 +63,7 @@ export function buildPrModeInstruction(prMode: "ready" | "draft" | "none", upstr
 export function buildSystemLayer(taskId: string, info: SystemNotesInfo, port = apiPort()): string[] {
   const notes: string[] = []
   notes.push(`[TANGERINE: You are running inside a Tangerine task (task ID: ${taskId}). The Tangerine API is at http://localhost:${port}. Load the tangerine-tasks skill for full API reference and common workflows.]`)
+  notes.push(`[AUTH: If \`TANGERINE_AUTH_TOKEN\` is set, include ${AUTH_CURL_FLAG} on Tangerine API curl calls.]`)
 
   if (info.taskType === "worker") {
     const prMode = info.prMode ?? "none"
@@ -122,7 +124,9 @@ export function buildEscalationBlock(orchestratorId: string, port = apiPort()): 
     `If you discover issues outside your task scope, first mention them to the user in your conversation, then send them to the orchestrator (task ID: ${orchestratorId}) for triage — do NOT create tasks yourself:`,
     "",
     "```bash",
-    `curl -X POST http://localhost:${port}/api/tasks/${orchestratorId}/prompt \\`,
+    "curl -X POST \\",
+    `  ${AUTH_CURL_FLAG} \\`,
+    `  http://localhost:${port}/api/tasks/${orchestratorId}/prompt \\`,
     '  -H "Content-Type: application/json" \\',
     `  -d '{"text": "Discovered out-of-scope issue: <brief description>"}'`,
     "```",

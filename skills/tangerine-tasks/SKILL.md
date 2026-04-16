@@ -3,7 +3,7 @@ name: tangerine-tasks
 description: Reference for agents running inside a Tangerine task — API endpoints, env vars, and common workflows.
 metadata:
   author: tung
-  version: "1.3.0"
+  version: "1.4.0"
 ---
 
 # Tangerine Agent Reference
@@ -27,16 +27,19 @@ API base:
 
 ```bash
 API=http://localhost:3456
+AUTH_HEADER=${TANGERINE_AUTH_TOKEN:+-H "Authorization: Bearer $TANGERINE_AUTH_TOKEN"}
 echo "$TANGERINE_TASK_ID"
 ```
+
+When calling the Tangerine API, include `$AUTH_HEADER` if `TANGERINE_AUTH_TOKEN` is set.
 
 ## 🚨 PR Mode — CRITICAL (Worker Tasks)
 
 > **You MUST check `prMode` before creating any PR. Injected into your system prompt — follow it exactly.**
 
 ```bash
-PROJECT_NAME=$(curl -s "$API/api/tasks/$TANGERINE_TASK_ID" | jq -r '.projectId')
-PR_MODE=$(curl -s "$API/api/projects/$PROJECT_NAME" | jq -r '.prMode // "draft"')
+PROJECT_NAME=$(curl -s $AUTH_HEADER "$API/api/tasks/$TANGERINE_TASK_ID" | jq -r '.projectId')
+PR_MODE=$(curl -s $AUTH_HEADER "$API/api/projects/$PROJECT_NAME" | jq -r '.prMode // "draft"')
 ```
 
 Act strictly according to `PR_MODE` — no exceptions:

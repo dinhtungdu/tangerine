@@ -101,7 +101,23 @@ User is on the machine where Tangerine will run — either their host or inside 
    tangerine project add --name <name> --repo <url> --setup "<cmd>"
    ```
 
-7. **Start server**:
+7. **Configure dashboard/API auth**.
+
+   If Tangerine will bind a non-loopback host (the default `tangerine start` behavior) or the user wants shared dashboard/API access, set a shared token before starting:
+   ```bash
+   tangerine config set TANGERINE_AUTH_TOKEN=$(openssl rand -hex 32)
+   ```
+   This token is used for:
+   - dashboard unlock screen
+   - REST API bearer auth
+   - task and terminal WebSocket auth
+   - agent self-calls back into the Tangerine API
+
+   Notes:
+   - `GET /api/health` and `GET /api/auth/session` stay public
+   - startup fails on non-loopback binds without `TANGERINE_AUTH_TOKEN` unless `TANGERINE_INSECURE_NO_AUTH=1` is explicitly set
+
+8. **Start server**:
    ```bash
    tangerine start
    ```

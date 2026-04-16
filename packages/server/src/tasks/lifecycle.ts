@@ -33,6 +33,7 @@ export interface LifecycleDeps {
   db: Database
   tangerineConfig: TangerineConfig
   agentFactory: import("../agent/provider").AgentFactory
+  authToken?: string | null
   getTask(taskId: string): Effect.Effect<{ status: string; branch?: string | null } | null, Error>
   updateTask(taskId: string, updates: Partial<TaskRow>): Effect.Effect<void, Error>
   logActivity(taskId: string, type: "lifecycle" | "system", event: string, content: string, metadata?: Record<string, unknown>): Effect.Effect<unknown, Error>
@@ -322,7 +323,10 @@ export function startSession(
       systemPrompt: systemNotes.length > 0 ? systemNotes.join("\n") : undefined,
       model: task.model ?? undefined,
       reasoningEffort: task.reasoning_effort ?? undefined,
-      env: { TANGERINE_TASK_ID: task.id },
+      env: {
+        TANGERINE_TASK_ID: task.id,
+        ...(deps.authToken ? { TANGERINE_AUTH_TOKEN: deps.authToken } : {}),
+      },
     }).pipe(
       Effect.timeoutFail({
         duration: AGENT_START_TIMEOUT,
@@ -444,6 +448,10 @@ export function reconnectSession(
       model: task.model ?? undefined,
       reasoningEffort: task.reasoning_effort ?? undefined,
       resumeSessionId: task.agent_session_id ?? undefined,
+      env: {
+        TANGERINE_TASK_ID: task.id,
+        ...(deps.authToken ? { TANGERINE_AUTH_TOKEN: deps.authToken } : {}),
+      },
     }).pipe(
       Effect.timeoutFail({
         duration: AGENT_START_TIMEOUT,

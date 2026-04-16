@@ -87,6 +87,7 @@ export interface PromptImage {
 }
 
 export type WsClientMessage =
+  | { type: "auth"; token: string }
   | { type: "prompt"; text: string; images?: PromptImage[] }
   | { type: "abort" }
 

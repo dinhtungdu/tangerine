@@ -2,6 +2,7 @@ import { describe, test, expect, beforeEach } from "bun:test"
 import { Effect } from "effect"
 import type { Database } from "bun:sqlite"
 import { createTestDb } from "./helpers"
+import { isLoopbackHost, isPublicApiPath } from "../auth"
 import { dtachSocketPath } from "../api/routes/terminal-ws"
 import { createApp, type AppDeps } from "../api/app"
 import { createTask as dbCreateTask, updateTaskStatus, insertSessionLog, getTask as dbGetTask } from "../db/queries"
@@ -114,6 +115,7 @@ function createMockDeps(db: Database, configOverrides?: Partial<AppDeps["config"
         opencodeAuthPath: null,
         claudeOauthToken: null,
         anthropicApiKey: null,
+        tangerineAuthToken: null,
         serverPort: 3456,
         externalHost: "localhost",
       },
@@ -158,12 +160,82 @@ describe("API routes", () => {
     app = createApp(deps).app
   })
 
+  describe("isLoopbackHost", () => {
+    test("accepts the full IPv4 loopback range", () => {
+      expect(isLoopbackHost("127.0.0.1")).toBe(true)
+      expect(isLoopbackHost("127.0.1.1")).toBe(true)
+      expect(isLoopbackHost("127.255.255.255")).toBe(true)
+    })
+
+    test("accepts IPv6 loopback forms", () => {
+      expect(isLoopbackHost("::1")).toBe(true)
+      expect(isLoopbackHost("[::1]")).toBe(true)
+      expect(isLoopbackHost("0:0:0:0:0:0:0:1")).toBe(true)
+    })
+
+    test("rejects non-loopback hosts", () => {
+      expect(isLoopbackHost("0.0.0.0")).toBe(false)
+      expect(isLoopbackHost("192.168.1.5")).toBe(false)
+      expect(isLoopbackHost("example.com")).toBe(false)
+    })
+  })
+
   describe("GET /api/health", () => {
     test("returns ok", async () => {
       const res = await app.fetch(new Request("http://localhost/api/health"))
       expect(res.status).toBe(200)
       const body = await res.json() as { status: string }
       expect(body.status).toBe("ok")
+    })
+  })
+
+  describe("auth", () => {
+    test("session route reports auth disabled by default", async () => {
+      const res = await app.fetch(new Request("http://localhost/api/auth/session"))
+      expect(res.status).toBe(200)
+      expect(await res.json()).toEqual({ enabled: false, authenticated: true })
+    })
+
+    test("protects API routes when auth is enabled", async () => {
+      deps.config.credentials.tangerineAuthToken = "secret-token"
+      app = createApp(deps).app
+
+      const unauthorized = await app.fetch(new Request("http://localhost/api/tasks"))
+      expect(unauthorized.status).toBe(401)
+
+      const authorized = await app.fetch(new Request("http://localhost/api/tasks", {
+        headers: { Authorization: "Bearer secret-token" },
+      }))
+      expect(authorized.status).toBe(200)
+    })
+
+    test("session route reports authenticated state when auth is enabled", async () => {
+      deps.config.credentials.tangerineAuthToken = "secret-token"
+      app = createApp(deps).app
+
+      const unauthorized = await app.fetch(new Request("http://localhost/api/auth/session"))
+      expect(unauthorized.status).toBe(200)
+      expect(await unauthorized.json()).toEqual({ enabled: true, authenticated: false })
+
+      const authorized = await app.fetch(new Request("http://localhost/api/auth/session", {
+        headers: { Authorization: "Bearer secret-token" },
+      }))
+      expect(authorized.status).toBe(200)
+      expect(await authorized.json()).toEqual({ enabled: true, authenticated: true })
+    })
+
+    test("health route remains public when auth is enabled", async () => {
+      deps.config.credentials.tangerineAuthToken = "secret-token"
+      app = createApp(deps).app
+
+      const res = await app.fetch(new Request("http://localhost/api/health"))
+      expect(res.status).toBe(200)
+    })
+
+    test("websocket endpoints stay public for in-band auth", () => {
+      expect(isPublicApiPath("/api/tasks/task-123/ws")).toBe(true)
+      expect(isPublicApiPath("/api/tasks/task-123/terminal")).toBe(true)
+      expect(isPublicApiPath("/api/tasks/task-123/messages")).toBe(false)
     })
   })
 

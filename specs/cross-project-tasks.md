@@ -93,8 +93,8 @@ No schema migration needed — `source` is TEXT. Just update validation.
 
 In `startSession` and `reconnectSession`:
 
-1. Create reverse tunnel: `-R 3456:127.0.0.1:3456`
-2. Inject `TANGERINE_TASK_ID=<task.id>` and `TANGERINE_SERVER_PORT=3456` as env vars
+1. Inject `TANGERINE_TASK_ID=<task.id>` and `TANGERINE_SERVER_PORT=3456` as env vars
+2. If configured, also inject `TANGERINE_AUTH_TOKEN=<shared bearer token>`
 
 Reverse tunnel stored in `SessionInfo` alongside existing `proxyTunnel`. Killed on cleanup.
 
@@ -104,7 +104,7 @@ Install `tangerine-task` script in base image build. Simple shell script (~30 li
 - `projects`: `curl -s http://127.0.0.1:$TANGERINE_SERVER_PORT/api/projects | jq -r '.[].name'`
 - `create`: builds JSON payload, `curl -X POST http://127.0.0.1:$TANGERINE_SERVER_PORT/api/tasks`
 
-No auth — reverse tunnel is localhost-only, VM is single-tenant.
+Use the same bearer token as the dashboard/API. Agent-side `curl` calls must send `Authorization: Bearer $TANGERINE_AUTH_TOKEN` when the token is present.
 
 ## Implementation Order
 
@@ -119,6 +119,6 @@ No auth — reverse tunnel is localhost-only, VM is single-tenant.
 ## Not In Scope (future)
 
 - Task linking (blocked-by, related-to relationships)
-- Auth token for reverse tunnel
+- Per-user auth or scoped tokens
 - Web dashboard UI for cross-project task lineage
 - Bidirectional context sharing (attaching files/diffs from origin task)

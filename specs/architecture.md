@@ -29,6 +29,7 @@ Tangerine is a local background coding agent platform. The current implementatio
 
 - Local-first: Tangerine runs locally and serves the built web app itself
 - Single-machine architecture: no VM provisioning, SSH tunneling, or preview port forwarding in the active design
+- Single-user remote access uses a shared bearer token when the server is reachable over LAN/Tailscale
 - Multi-provider agents behind a shared abstraction
 - Git worktree isolation per task
 - Project-agnostic setup through per-project config (with archive/unarchive support)
@@ -80,6 +81,14 @@ specs/
 4. Provider events are normalized and forwarded to WebSocket clients, activity logs, and session logs.
 5. The task can be prompted, aborted, reconfigured, retried, completed, cancelled, or reconnected after restart.
 6. Crons are separate entities that fire on a cron schedule, spawning regular worker tasks.
+
+## Access Model
+
+- The dashboard and API are single-user, not anonymous
+- When `TANGERINE_AUTH_TOKEN` is configured, all task-observing and task-mutating REST routes require `Authorization: Bearer <token>`
+- Task event WebSockets and terminal WebSockets authenticate immediately after connect with an auth message
+- `GET /api/health` and `GET /api/auth/session` stay public so the UI can probe server state before login
+- If the server binds a non-loopback host and no auth token is configured, startup must fail unless the operator explicitly opts into insecure mode
 
 ## Data Model
 
@@ -153,6 +162,7 @@ The dashboard currently exposes:
 Notable UI features:
 
 - project switching (archived projects sorted to collapsible section)
+- auth gate when `TANGERINE_AUTH_TOKEN` is enabled
 - project archive/unarchive
 - orchestrator entry point
 - diff viewer

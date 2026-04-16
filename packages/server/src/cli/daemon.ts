@@ -10,6 +10,7 @@ import { DAEMON_RESTART_EXIT_CODE, shouldRestartDaemon } from "../daemon-exit"
 import { applyLoginShellPath, checkSystemTools } from "./system-check"
 import { isGithubRepo } from "@tangerine/shared"
 import { createAgentFactories } from "../agent/factories"
+import { getStartupAuthError, getStartupAuthWarning } from "../auth"
 
 const TANGERINE_DIR = join(homedir(), "tangerine")
 const PID_FILE = join(TANGERINE_DIR, "tangerine.pid")
@@ -61,11 +62,23 @@ export async function daemonStart(): Promise<void> {
   const { loadConfig } = await import("../config.ts")
   const config = loadConfig()
   const port = config.credentials.serverPort
+  const hostname = process.env.HOST ?? "0.0.0.0"
 
   const existingPid = readPid()
   if (existingPid !== null && isTangerineProcess(existingPid)) {
     console.log(`Tangerine is already running (PID ${existingPid}).`)
     process.exit(0)
+  }
+
+  const startupAuthError = getStartupAuthError(config, hostname)
+  if (startupAuthError) {
+    console.error(`ERROR ${startupAuthError}`)
+    process.exit(1)
+  }
+
+  const startupAuthWarning = getStartupAuthWarning(config, hostname)
+  if (startupAuthWarning) {
+    console.warn(`WARN ${startupAuthWarning}`)
   }
 
   // Run system checks before spawning so errors and warnings appear in the

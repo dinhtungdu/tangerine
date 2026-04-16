@@ -1,6 +1,23 @@
 import type { Task, ProjectConfig, SystemLogEntry, ActivityEntry, ActionCombo, ShortcutConfig, SystemCapabilities } from "@tangerine/shared"
+import { buildAuthHeaders, emitAuthFailure } from "./auth"
 
 const BASE = ""
+
+export interface AuthSession {
+  enabled: boolean
+  authenticated: boolean
+}
+
+export class ApiError extends Error {
+  status: number
+  body: string
+
+  constructor(status: number, body: string) {
+    super(`${status}: ${body}`)
+    this.status = status
+    this.body = body
+  }
+}
 
 export interface SessionLog {
   id: number
@@ -21,20 +38,26 @@ export interface DiffData {
 }
 
 async function request<T>(path: string, init?: RequestInit): Promise<T> {
+  const headers = buildAuthHeaders(init?.headers)
+  if (!headers.has("Content-Type")) {
+    headers.set("Content-Type", "application/json")
+  }
   const res = await fetch(`${BASE}${path}`, {
     ...init,
-    headers: {
-      "Content-Type": "application/json",
-      ...init?.headers,
-    },
+    headers,
   })
   if (!res.ok) {
     const body = await res.text().catch(() => "Unknown error")
-    throw new Error(`${res.status}: ${body}`)
+    if (res.status === 401) emitAuthFailure()
+    throw new ApiError(res.status, body)
   }
   // Some endpoints return no content
   if (res.status === 204) return undefined as T
   return res.json() as Promise<T>
+}
+
+export async function fetchAuthSession(): Promise<AuthSession> {
+  return request<AuthSession>("/api/auth/session")
 }
 
 export interface ProviderMeta {

@@ -17,6 +17,7 @@ import { clearQueue } from "../agent/prompt-queue"
 import { clearTaskState } from "./task-state"
 import { taskHasCapability } from "../api/helpers"
 import { ghSpawnEnv, extractPrUrl, extractGithubSlug } from "../gh"
+import { AUTH_CURL_FLAG } from "./api-auth"
 
 export { extractPrUrl, extractGithubSlug }
 
@@ -33,7 +34,6 @@ interface PrListItem {
 }
 
 const log = createLogger("pr-monitor")
-
 const PR_POLL_INTERVAL_MS = 60_000
 
 export type PrState = "open" | "merged" | "closed"
@@ -320,7 +320,7 @@ export function pollPrStatuses(deps: PrMonitorDeps): Effect.Effect<void, never> 
             task.id,
             `[TANGERINE: Your PR has been merged (${task.pr_url}). ` +
             `If you have post-merge work to do (e.g., publish a release, update documentation), do it now. ` +
-            `When you're done, call \`curl -X POST http://localhost:${apiPort}/api/tasks/${task.id}/done\` to complete the task.]`
+            `When you're done, call \`curl -X POST ${AUTH_CURL_FLAG} http://localhost:${apiPort}/api/tasks/${task.id}/done\` to complete the task.]`
           )
         } else {
           log.info("PR merged, completing non-running task", { taskId: task.id, prUrl: task.pr_url, status: task.status })
@@ -364,7 +364,7 @@ export function pollPrStatuses(deps: PrMonitorDeps): Effect.Effect<void, never> 
             task.id,
             `[TANGERINE: Your PR has been closed without merge (${task.pr_url}). ` +
             `If you need to inform a parent task or do cleanup, do it now. ` +
-            `When you're done, call \`curl -X POST http://localhost:${apiPort}/api/tasks/${task.id}/cancel\` to cancel the task.]`
+            `When you're done, call \`curl -X POST ${AUTH_CURL_FLAG} http://localhost:${apiPort}/api/tasks/${task.id}/cancel\` to cancel the task.]`
           )
         } else {
           log.info("PR closed without merge, cancelling non-running task", { taskId: task.id, prUrl: task.pr_url, status: task.status })

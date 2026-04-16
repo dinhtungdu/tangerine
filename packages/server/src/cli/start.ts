@@ -28,6 +28,7 @@ import { AgentError } from "../errors"
 import { extractPrUrl, verifyPrBranch, startPrMonitor } from "../tasks/pr-monitor"
 import { isGithubRepo, resolveGithubSlug, getRepoForkInfo } from "../gh"
 import { applyLoginShellPath, checkSystemTools } from "./system-check"
+import { getStartupAuthError, getStartupAuthWarning } from "../auth"
 import type { PrMonitorDeps } from "../tasks/pr-monitor"
 import { initSystemLog, cleanupSystemLogs } from "../system-log"
 import type { AgentHandle } from "../agent/provider"
@@ -168,7 +169,17 @@ export async function start(): Promise<void> {
 
     const config = loadConfig({ configPath: flags.configPath })
     const projectNames = config.config.projects.map((p) => p.name)
+    const hostname = process.env.HOST ?? "0.0.0.0"
     log.info("Config loaded", { projects: projectNames, home: TANGERINE_HOME, testMode: isTestMode() })
+
+    const startupAuthError = getStartupAuthError(config, hostname)
+    if (startupAuthError) {
+      log.error(startupAuthError)
+      process.exit(1)
+    }
+
+    const startupAuthWarning = getStartupAuthWarning(config, hostname)
+    if (startupAuthWarning) log.warn(startupAuthWarning)
 
     // Ensure process.env.PATH includes everything a login shell would have.
     // The server may be started from a context with a limited PATH (e.g. a
@@ -253,6 +264,7 @@ export async function start(): Promise<void> {
         db,
         tangerineConfig: config.config,
         agentFactory: factories.opencode,
+        authToken: config.credentials.tangerineAuthToken,
         getTask: (taskId) => getTask(db, taskId),
         updateTask: (taskId, updates) => updateTask(db, taskId, updates).pipe(Effect.asVoid),
         logActivity: (taskId, type, event, content, metadata) => logActivity(db, taskId, type, event, content, metadata),
@@ -979,8 +991,6 @@ export async function start(): Promise<void> {
     const port = Number(process.env.PORT ?? DEFAULT_API_PORT)
 
     log.info("Server starting", { port })
-
-    const hostname = process.env.HOST ?? "0.0.0.0"
 
     Bun.serve({
       hostname,

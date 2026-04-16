@@ -4,6 +4,7 @@ import { FitAddon } from "@xterm/addon-fit"
 import { WebLinksAddon } from "@xterm/addon-web-links"
 import "@xterm/xterm/css/xterm.css"
 import { TerminalToolbar } from "./TerminalToolbar"
+import { emitAuthFailure, getAuthToken } from "../lib/auth"
 
 type TerminalPaneProps =
   | { taskId: string; wsUrl?: never }
@@ -44,6 +45,10 @@ export function TerminalPane(props: TerminalPaneProps) {
 
     ws.onopen = () => {
       backoffRef.current = 1000
+      const token = getAuthToken()
+      if (token) {
+        ws.send(JSON.stringify({ type: "auth", token }))
+      }
       // Send initial size after a tick so the container is measured
       requestAnimationFrame(() => {
         const fit = fitRef.current
@@ -72,6 +77,7 @@ export function TerminalPane(props: TerminalPaneProps) {
           term.writeln(`\r\n[Process exited with code ${msg.code}]`)
         } else if (msg.type === "error") {
           hadErrorRef.current = true
+          if (msg.message === "Unauthorized") emitAuthFailure()
           setConnState("error")
           term.writeln(`\r\n[Error: ${msg.message}]`)
         }

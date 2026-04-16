@@ -36,6 +36,7 @@ This file reflects the shipped baseline in the current codebase, not the origina
 - [x] REST routes for tasks, sessions, projects, system state, and test helpers
 - [x] WebSocket task event stream
 - [x] Terminal WebSocket support
+- [x] Shared bearer-token auth for remote dashboard/API/WebSocket access
 - [x] Static serving for the built dashboard
 - [x] GitHub webhook signature verification
 

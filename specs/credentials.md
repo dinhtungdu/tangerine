@@ -9,6 +9,7 @@ How API keys and tokens are configured. All credentials live on the machine wher
 | OpenCode `auth.json` | LLM provider auth for OpenCode (API keys or OAuth tokens) | `~/.local/share/opencode/auth.json` |
 | `CLAUDE_CODE_OAUTH_TOKEN` | Claude Code OAuth authentication | Dotfile or env var |
 | `ANTHROPIC_API_KEY` | Direct Anthropic API key (both providers) | Dotfile or env var |
+| `TANGERINE_AUTH_TOKEN` | Shared bearer token for dashboard/API/WebSocket access | Dotfile or env var |
 | `EXTERNAL_HOST` | External hostname for access (e.g. Tailscale hostname) | Dotfile or env var (default: `localhost`) |
 
 ## GitHub Authentication
@@ -21,7 +22,7 @@ The startup check (`tangerine start`) verifies `gh auth status` and warns if una
 
 Three sources (in priority order — first match wins):
 
-1. **Environment variables** — `ANTHROPIC_API_KEY`, `CLAUDE_CODE_OAUTH_TOKEN`, etc.
+1. **Environment variables** — `ANTHROPIC_API_KEY`, `CLAUDE_CODE_OAUTH_TOKEN`, `TANGERINE_AUTH_TOKEN`, etc.
 2. **Dotfile** (`~/tangerine/.credentials`) — managed via CLI, mode 0600
 3. **OpenCode auth.json** (`~/.local/share/opencode/auth.json`) — LLM provider credentials for OpenCode
 
@@ -31,18 +32,21 @@ Three sources (in priority order — first match wins):
 
 ```bash
 tangerine config set ANTHROPIC_API_KEY=sk-ant-...
+tangerine config set TANGERINE_AUTH_TOKEN=$(openssl rand -hex 32)
 tangerine config get ANTHROPIC_API_KEY
 tangerine config unset ANTHROPIC_API_KEY
 tangerine config list                          # shows all keys, values masked
 ```
 
-Allowed keys: `ANTHROPIC_API_KEY`, `CLAUDE_CODE_OAUTH_TOKEN`, `EXTERNAL_HOST`.
+Allowed keys: `ANTHROPIC_API_KEY`, `CLAUDE_CODE_OAUTH_TOKEN`, `TANGERINE_AUTH_TOKEN`, `EXTERNAL_HOST`.
 
 Env vars override dotfile values. Server reads dotfile at startup via `loadConfig()`.
 
 ## Agent Credential Resolution
 
 Agents run as local processes and inherit the server's environment. The task lifecycle sets credential env vars before spawning the agent.
+
+This includes `TANGERINE_AUTH_TOKEN`, so agent prompts can use authenticated `curl` calls back into the Tangerine API.
 
 ### Per-Provider Validation
 
@@ -67,4 +71,6 @@ gh pr create --base main --head tangerine/abc123 --fill
 
 - Dotfile stored with mode 0600
 - `auth.json` stored with mode 0600
+- The dashboard stores `TANGERINE_AUTH_TOKEN` in browser `localStorage` on the client machine after unlock
 - Credentials persist between tasks (acceptable for local single-user)
+- Remote access over LAN/Tailscale should use `TANGERINE_AUTH_TOKEN`

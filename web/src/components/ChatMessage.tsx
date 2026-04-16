@@ -10,6 +10,7 @@ import type { ChatMessage as ChatMessageType } from "../hooks/useSession"
 import { formatTimestamp } from "../lib/format"
 import { useNavigate } from "react-router-dom"
 import { ToolCallDisplay } from "./ToolCallDisplay"
+import { AuthenticatedImage } from "./AuthenticatedImage"
 import { ImageLightbox } from "./ImageLightbox"
 import { copyToClipboard } from "../lib/clipboard"
 
@@ -251,7 +252,7 @@ export const ChatMessage = memo(function ChatMessage({ message, tasks, onReply }
               <div className="mb-2 flex flex-wrap gap-1">
                 {message.images.map((img, i) => (
                   <button key={i} onClick={() => setLightboxIndex(i)} className="cursor-zoom-in">
-                    <img
+                    <AuthenticatedImage
                       src={img.src}
                       alt="Attached image"
                       className="h-16 w-16 rounded-md object-cover"
@@ -341,7 +342,7 @@ export const ChatMessage = memo(function ChatMessage({ message, tasks, onReply }
             <div className="mt-1 flex flex-wrap gap-1">
               {message.images.map((img, i) => (
                 <button key={i} onClick={() => setLightboxIndex(i)} className="cursor-zoom-in">
-                  <img src={img.src} alt="Agent image" className="h-16 w-16 rounded-md object-cover" />
+                  <AuthenticatedImage src={img.src} alt="Agent image" className="h-16 w-16 rounded-md object-cover" />
                 </button>
               ))}
             </div>
@@ -376,7 +377,7 @@ export const ChatMessage = memo(function ChatMessage({ message, tasks, onReply }
           <div className="flex flex-wrap gap-1">
             {message.images.map((img, i) => (
               <button key={i} onClick={() => setLightboxIndex(i)} className="cursor-zoom-in">
-                <img src={img.src} alt="Agent image" className="h-16 w-16 rounded-md object-cover" />
+                <AuthenticatedImage src={img.src} alt="Agent image" className="h-16 w-16 rounded-md object-cover" />
               </button>
             ))}
           </div>

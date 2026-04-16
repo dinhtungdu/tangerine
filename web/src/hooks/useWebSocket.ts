@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef, useCallback } from "react"
 import type { WsServerMessage, WsClientMessage } from "@tangerine/shared"
+import { emitAuthFailure, getAuthToken } from "../lib/auth"
 
 const MAX_BACKOFF = 30000
 
@@ -53,6 +54,10 @@ export function useWebSocket(taskId: string): UseWebSocketResult {
 
     ws.onopen = () => {
       if (unmountedRef.current) return
+      const token = getAuthToken()
+      if (token) {
+        ws.send(JSON.stringify({ type: "auth", token }))
+      }
       setConnected(true)
       backoffRef.current = 1000
     }
@@ -61,6 +66,9 @@ export function useWebSocket(taskId: string): UseWebSocketResult {
       if (unmountedRef.current) return
       try {
         const msg = JSON.parse(event.data as string) as WsServerMessage
+        if (msg.type === "error" && msg.message === "Unauthorized") {
+          emitAuthFailure()
+        }
         setMessages((prev) => [...prev, msg])
         setLastEvent(msg)
       } catch {

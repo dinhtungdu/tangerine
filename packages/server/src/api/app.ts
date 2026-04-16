@@ -7,11 +7,13 @@ import { logger as honoLogger } from "hono/logger"
 import { serveStatic, createBunWebSocket } from "hono/bun"
 import { createLogger } from "../logger"
 import type { AppConfig } from "../config"
+import { buildUnauthorizedResponse, isPublicApiPath, isRequestAuthenticated } from "../auth"
 import type { Database } from "bun:sqlite"
 import type { TaskRow } from "../db/types"
 import type { TaskSource } from "../tasks/manager"
 import { verifyWebhookSignature, processWebhookPayload } from "../integrations/github"
 import type { WebhookIssuePayload } from "../integrations/github"
+import { authRoutes } from "./routes/auth"
 import { taskRoutes } from "./routes/tasks"
 import { cronRoutes } from "./routes/crons"
 import { sessionRoutes } from "./routes/sessions"
@@ -67,8 +69,20 @@ export function createApp(deps: AppDeps): { app: Hono; websocket: ReturnType<typ
   // Hono's built-in request logger for HTTP access logs
   app.use("*", honoLogger())
 
+  app.use("/api/*", async (c, next) => {
+    if (isPublicApiPath(c.req.path)) {
+      await next()
+      return
+    }
+    if (!isRequestAuthenticated(c, deps.config)) {
+      return buildUnauthorizedResponse(c)
+    }
+    await next()
+  })
+
   // Wire route modules
   app.route("/api", systemRoutes(deps))
+  app.route("/api/auth", authRoutes(deps))
   app.route("/api/tasks", taskRoutes(deps))
   app.route("/api/tasks", sessionRoutes(deps))
   app.route("/api/crons", cronRoutes(deps))

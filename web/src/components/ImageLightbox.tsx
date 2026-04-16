@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback } from "react"
 import { createPortal } from "react-dom"
+import { AuthenticatedImage } from "./AuthenticatedImage"
 
 interface LightboxImage {
   src: string
@@ -64,7 +65,7 @@ export function ImageLightbox({ images, initialIndex, onClose }: ImageLightboxPr
       )}
 
       {/* Image */}
-      <img
+      <AuthenticatedImage
         src={images[index]!.src}
         alt={images[index]!.alt ?? "Image"}
         className="max-h-[85vh] max-w-[90vw] rounded-lg object-contain"

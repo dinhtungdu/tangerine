@@ -83,6 +83,7 @@ export interface AppConfig {
     opencodeAuthPath: string | null
     claudeOauthToken: string | null
     anthropicApiKey: string | null
+    tangerineAuthToken: string | null
     serverPort: number
     externalHost: string
   }
@@ -91,6 +92,7 @@ export interface AppConfig {
 export const ALLOWED_CREDENTIAL_KEYS = [
   "ANTHROPIC_API_KEY",
   "CLAUDE_CODE_OAUTH_TOKEN",
+  "TANGERINE_AUTH_TOKEN",
   "EXTERNAL_HOST",
 ] as const
 
@@ -191,6 +193,7 @@ export function loadConfig(overrides?: { configPath?: string }): AppConfig {
   const claudeOauthToken =
     process.env["CLAUDE_CODE_OAUTH_TOKEN"] ?? dotfile.CLAUDE_CODE_OAUTH_TOKEN ?? readClaudeCliToken()
   const anthropicApiKey = process.env["ANTHROPIC_API_KEY"] ?? dotfile.ANTHROPIC_API_KEY ?? null
+  const tangerineAuthToken = process.env["TANGERINE_AUTH_TOKEN"] ?? dotfile.TANGERINE_AUTH_TOKEN ?? null
 
   return {
     config,
@@ -198,6 +201,7 @@ export function loadConfig(overrides?: { configPath?: string }): AppConfig {
       opencodeAuthPath,
       claudeOauthToken,
       anthropicApiKey,
+      tangerineAuthToken,
       serverPort: parseInt(process.env["PORT"] ?? "", 10) || DEFAULT_API_PORT,
       externalHost: process.env["EXTERNAL_HOST"] ?? dotfile.EXTERNAL_HOST ?? "localhost",
     },
