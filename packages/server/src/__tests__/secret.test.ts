@@ -12,7 +12,6 @@ process.env["TANGERINE_CREDENTIALS"] = credentialsPath
 
 // Imported after the env var is set (modules are cached with the patched env).
 const { runSecret } = await import("../cli/secret.ts")
-const { runConfig } = await import("../cli/config.ts")
 const { readCredentialsFile, writeCredentialsFile } = await import("../config.ts")
 
 afterAll(() => {
@@ -156,32 +155,6 @@ describe("tangerine secret help", () => {
 
   it("shows help for unknown subcommand and exits 1", async () => {
     const { exitCode } = await captureOutput(() => runSecret(["badcmd"]))
-    expect(exitCode).toBe(1)
-  })
-})
-
-describe("tangerine config (deprecated credential commands)", () => {
-  it("config set redirects to tangerine secret set", async () => {
-    const { stderr, exitCode } = await captureOutput(() => runConfig(["set", "FOO=bar"]))
-    expect(stderr).toContain("tangerine secret set")
-    expect(exitCode).toBe(1)
-  })
-
-  it("config get redirects to tangerine secret get", async () => {
-    const { stderr, exitCode } = await captureOutput(() => runConfig(["get", "ANTHROPIC_API_KEY"]))
-    expect(stderr).toContain("tangerine secret get")
-    expect(exitCode).toBe(1)
-  })
-
-  it("config list redirects to tangerine secret list", async () => {
-    const { stderr, exitCode } = await captureOutput(() => runConfig(["list"]))
-    expect(stderr).toContain("tangerine secret list")
-    expect(exitCode).toBe(1)
-  })
-
-  it("config unset redirects to tangerine secret delete", async () => {
-    const { stderr, exitCode } = await captureOutput(() => runConfig(["unset", "ANTHROPIC_API_KEY"]))
-    expect(stderr).toContain("tangerine secret delete")
     expect(exitCode).toBe(1)
   })
 })
