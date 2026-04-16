@@ -62,6 +62,7 @@ export async function daemonStart(): Promise<void> {
   const { loadConfig } = await import("../config.ts")
   const config = loadConfig()
   const port = config.credentials.serverPort
+  const ssl = config.credentials.ssl
   const hostname = process.env.HOST ?? "0.0.0.0"
 
   const existingPid = readPid()
@@ -125,10 +126,14 @@ export async function daemonStart(): Promise<void> {
     ? `\n  Warnings:\n${warnings.map((w) => `    WARN ${w}`).join("\n")}\n`
     : ""
 
+  const httpsLine = ssl
+    ? `  HTTPS:      https://localhost:${ssl.port!}\n  HTTP:       http://localhost:${port} (plaintext fallback)`
+    : `  Dashboard:  http://localhost:${port}`
+
   console.log(`
 Tangerine is running!
 ${warningLines}
-  Dashboard:  http://localhost:${port}
+${httpsLine}
 
   Commands:
     tangerine stop       Stop the server

@@ -1,8 +1,8 @@
 import { existsSync, readFileSync, writeFileSync, mkdirSync, chmodSync } from "fs"
 import { join } from "path"
 import { homedir, userInfo } from "os"
-import { tangerineConfigSchema, DEFAULT_API_PORT } from "@tangerine/shared"
-import type { TangerineConfig, ProjectConfig } from "@tangerine/shared"
+import { tangerineConfigSchema, DEFAULT_API_PORT, DEFAULT_SSL_PORT } from "@tangerine/shared"
+import type { TangerineConfig, ProjectConfig, SslConfig } from "@tangerine/shared"
 
 export const TANGERINE_HOME = join(homedir(), "tangerine")
 export const CONFIG_PATH = join(TANGERINE_HOME, "config.json")
@@ -86,6 +86,7 @@ export interface AppConfig {
     tangerineAuthToken: string | null
     serverPort: number
     externalHost: string
+    ssl: SslConfig | null
   }
 }
 
@@ -195,6 +196,12 @@ export function loadConfig(overrides?: { configPath?: string }): AppConfig {
   const anthropicApiKey = process.env["ANTHROPIC_API_KEY"] ?? dotfile.ANTHROPIC_API_KEY ?? null
   const tangerineAuthToken = process.env["TANGERINE_AUTH_TOKEN"] ?? dotfile.TANGERINE_AUTH_TOKEN ?? null
 
+  // Resolve ssl: apply port default here so callers get a complete object
+  const sslBase = config.ssl ?? null
+  const ssl: SslConfig | null = sslBase
+    ? { ...sslBase, port: sslBase.port ?? DEFAULT_SSL_PORT }
+    : null
+
   return {
     config,
     credentials: {
@@ -204,6 +211,7 @@ export function loadConfig(overrides?: { configPath?: string }): AppConfig {
       tangerineAuthToken,
       serverPort: parseInt(process.env["PORT"] ?? "", 10) || DEFAULT_API_PORT,
       externalHost: process.env["EXTERNAL_HOST"] ?? dotfile.EXTERNAL_HOST ?? "localhost",
+      ssl,
     },
   }
 }

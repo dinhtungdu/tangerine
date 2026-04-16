@@ -118,6 +118,7 @@ function createMockDeps(db: Database, configOverrides?: Partial<AppDeps["config"
         tangerineAuthToken: null,
         serverPort: 3456,
         externalHost: "localhost",
+        ssl: null,
       },
     } satisfies AppDeps["config"],
     getAgentHandle: () => null,

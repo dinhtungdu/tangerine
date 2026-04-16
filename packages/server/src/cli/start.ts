@@ -989,15 +989,38 @@ export async function start(): Promise<void> {
 
     const { app, websocket } = createApp(deps)
     const port = Number(process.env.PORT ?? DEFAULT_API_PORT)
+    const ssl = config.credentials.ssl
 
-    log.info("Server starting", { port })
-
-    Bun.serve({
-      hostname,
-      port,
-      fetch: app.fetch,
-      websocket,
-    })
+    if (ssl) {
+      const sslPort = ssl.port!
+      log.info("Server starting with TLS", { port, sslPort })
+      // HTTP server on the regular port (backward-compatible)
+      Bun.serve({
+        hostname,
+        port,
+        fetch: app.fetch,
+        websocket,
+      })
+      // HTTPS server on ssl.port
+      Bun.serve({
+        hostname,
+        port: sslPort,
+        fetch: app.fetch,
+        websocket,
+        tls: {
+          cert: Bun.file(ssl.cert),
+          key: Bun.file(ssl.key),
+        },
+      })
+    } else {
+      log.info("Server starting", { port })
+      Bun.serve({
+        hostname,
+        port,
+        fetch: app.fetch,
+        websocket,
+      })
+    }
 
     startSpan.end({ port, projects: projectNames })
 
