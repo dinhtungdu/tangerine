@@ -1,4 +1,4 @@
-import { useState, useCallback, useEffect, useRef, type ClipboardEvent, type KeyboardEvent } from "react"
+import { useState, useCallback, useEffect, useRef, forwardRef, useImperativeHandle, type ClipboardEvent, type KeyboardEvent } from "react"
 import { isGithubRepo, isProviderAvailable, getCapabilitiesForType, SUPPORTED_PROVIDERS, type ProviderType, type PromptImage, type Task, type TaskType } from "@tangerine/shared"
 import { useProject } from "../context/ProjectContext"
 import { ModelSelector } from "./ModelSelector"
@@ -11,6 +11,10 @@ import { Button } from "@/components/ui/button"
 import { Textarea } from "@/components/ui/textarea"
 import { ProjectSelector } from "./ProjectSelector"
 import { BranchInput } from "./BranchInput"
+
+export interface NewAgentFormHandle {
+  focus(): void
+}
 
 interface NewAgentFormProps {
   onSubmit: (data: { projectId: string; title: string; description?: string; branch?: string; provider?: string; model?: string; reasoningEffort?: string; parentTaskId?: string; type?: string; images?: PromptImage[] }) => void
@@ -38,7 +42,7 @@ function loadDraftFromKey(key: string): { description?: string; customBranch?: s
 
 /* -- Main form -- */
 
-export function NewAgentForm({ onSubmit, refTaskId, refTaskTitle, refBranch, refProjectId, autoFocus }: NewAgentFormProps) {
+export const NewAgentForm = forwardRef<NewAgentFormHandle, NewAgentFormProps>(function NewAgentForm({ onSubmit, refTaskId, refTaskTitle, refBranch, refProjectId, autoFocus }: NewAgentFormProps, ref) {
   const { current, projects, modelsByProvider, systemCapabilities, providerMetadata } = useProject()
   const PREFS_KEY = "tangerine:agent-prefs"
 
@@ -90,6 +94,11 @@ export function NewAgentForm({ onSubmit, refTaskId, refTaskTitle, refBranch, ref
   const branch = effectiveProject?.defaultBranch ?? "main"
 
   const textareaRef = useRef<HTMLTextAreaElement>(null)
+
+  useImperativeHandle(ref, () => ({
+    focus() { textareaRef.current?.focus() },
+  }))
+
   const { tasks: allTasks } = useTasks({ project: effectiveProject?.name })
   const mention = useMentionPicker(allTasks)
   const mentionRef = useRef(mention)
@@ -414,4 +423,4 @@ export function NewAgentForm({ onSubmit, refTaskId, refTaskTitle, refBranch, ref
       </div>
     </div>
   )
-}
+})

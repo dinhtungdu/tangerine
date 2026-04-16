@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useRef } from "react"
 import { useOutletContext, useSearchParams, useNavigate } from "react-router-dom"
 import { useProject } from "../context/ProjectContext"
-import { NewAgentForm } from "../components/NewAgentForm"
+import { NewAgentForm, type NewAgentFormHandle } from "../components/NewAgentForm"
 import { createTask } from "../lib/api"
 import type { SidebarContext } from "../components/Layout"
 import { useToast } from "../context/ToastContext"
@@ -18,6 +18,7 @@ export function RunsPage() {
   const refProjectId = searchParams.get("refProject") ?? undefined
   const shouldFocus = searchParams.get("focus") === "1"
   const formRef = useRef<HTMLDivElement>(null)
+  const newAgentFormRef = useRef<NewAgentFormHandle>(null)
   const scrolledForRef = useRef<string | undefined>(undefined)
   const scrolledForFocusRef = useRef(false)
 
@@ -34,6 +35,9 @@ export function RunsPage() {
       } else if (shouldFocus && !refTaskId && !scrolledForFocusRef.current) {
         scrolledForFocusRef.current = true
         formRef.current.scrollIntoView({ behavior: "smooth", block: "start" })
+        // Focus the textarea after the scroll animation completes so the
+        // mobile keyboard opens in the right position.
+        setTimeout(() => newAgentFormRef.current?.focus(), 400)
       }
     }
   }, [refTaskId, shouldFocus, tasksLoading])
@@ -65,7 +69,7 @@ export function RunsPage() {
   return (
     <div className="flex flex-col md:h-full">
       <div ref={formRef} id="new-agent-form" className="min-h-0 flex-1">
-        <NewAgentForm onSubmit={handleSubmit} refTaskId={refTaskId} refTaskTitle={refTaskTitle} refBranch={refBranch} refProjectId={refProjectId} autoFocus={shouldFocus} />
+        <NewAgentForm ref={newAgentFormRef} onSubmit={handleSubmit} refTaskId={refTaskId} refTaskTitle={refTaskTitle} refBranch={refBranch} refProjectId={refProjectId} />
       </div>
     </div>
   )
