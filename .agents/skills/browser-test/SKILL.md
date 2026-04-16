@@ -31,9 +31,10 @@ After completing work on any feature, bug fix, or change that affects the **web 
 2. Start vite dev server on that port (background)
 3. Wait for server ready
 4. Open Chromium with playwright-cli
-5. Navigate to affected pages, take screenshots
-6. Check console for errors
-7. Clean up (close browser, kill dev server)
+5. If auth is enabled, inject the auth token into localStorage
+6. Navigate to affected pages, take screenshots
+7. Check console for errors
+8. Clean up (close browser, kill dev server)
 ```
 
 ## Detailed steps
@@ -88,7 +89,27 @@ playwright-cli -s=$SESSION resize 1920 1080
 
 All later `playwright-cli` commands in the session reuse that Chromium instance.
 
-### Step 5 — Navigate and screenshot affected pages
+### Step 5 — Authenticate if needed
+
+If the Tangerine server has auth enabled (`TANGERINE_AUTH_TOKEN` is set), you must inject the token into localStorage before the app loads:
+
+```bash
+# Check if auth is enabled
+AUTH_STATUS=$(curl -s http://localhost:$VITE_PORT/api/auth/session | jq -r '.enabled')
+
+if [ "$AUTH_STATUS" = "true" ]; then
+  # Inject the auth token into localStorage (must be done before navigating)
+  playwright-cli -s=$SESSION eval "localStorage.setItem('tangerine-auth-token', '$TANGERINE_AUTH_TOKEN')"
+  # Reload to pick up the token
+  playwright-cli -s=$SESSION goto http://localhost:$VITE_PORT/
+fi
+```
+
+If you don't have `TANGERINE_AUTH_TOKEN` in your environment and auth is enabled, the dashboard will show a login screen. Either:
+1. Set `TANGERINE_AUTH_TOKEN` before running the test
+2. Or use Test Server Mode (below) which disables auth
+
+### Step 6 — Navigate and screenshot affected pages
 
 Determine which pages are affected by your changes and screenshot them.
 See [references/pages.md](references/pages.md) for the full route map.
@@ -105,7 +126,7 @@ playwright-cli -s=$SESSION screenshot --filename=task-detail.png
 
 Save screenshots with descriptive filenames. The default output directory is `.playwright-cli/`.
 
-### Step 6 — Check for console errors
+### Step 7 — Check for console errors
 
 ```bash
 playwright-cli -s=$SESSION console error
@@ -113,7 +134,7 @@ playwright-cli -s=$SESSION console error
 
 If there are errors, investigate and fix them before finishing.
 
-### Step 7 — Clean up
+### Step 8 — Clean up
 
 Always clean up, even if earlier steps failed:
 
@@ -138,7 +159,7 @@ kill $VITE_PID 2>/dev/null
 
 ## Test Server Mode (Deterministic Screenshots)
 
-For deterministic, seeded data instead of live state, start an isolated test server.
+For deterministic, seeded data instead of live state, start an isolated test server. Test servers run with `TANGERINE_INSECURE_NO_AUTH=1` to disable authentication, so you don't need to inject tokens.
 
 ### Start a test server
 
@@ -148,8 +169,8 @@ TEST_API_PORT=$((3456 + SLOT_NUM + 100))
 TEST_DB="/tmp/tangerine-test-${TASK_SHORT}.db"
 TEST_CONFIG="$(pwd)/packages/server/src/test-fixtures/test-config.json"
 
-# Start the test server with isolated config, DB, and test mode enabled
-TEST_MODE=1 TANGERINE_CONFIG="$TEST_CONFIG" TANGERINE_DB="$TEST_DB" TANGERINE_PORT=$TEST_API_PORT \
+# Start the test server with isolated config, DB, test mode, and auth disabled
+TEST_MODE=1 TANGERINE_INSECURE_NO_AUTH=1 TANGERINE_CONFIG="$TEST_CONFIG" TANGERINE_DB="$TEST_DB" TANGERINE_PORT=$TEST_API_PORT \
   bun run packages/server/src/cli/index.ts start > /tmp/tangerine-test-server.log 2>&1 &
 TEST_SERVER_PID=$!
 
@@ -209,3 +230,4 @@ rm -f "$TEST_DB"
 | Screenshots are at 1/4 resolution (e.g. 320x180 instead of 1920x1080) | The browser opened with a non-standard default viewport. Always run `playwright-cli -s=$SESSION resize 1920 1080` immediately after `open` (already in Step 4). |
 | Browser launch fails because Chrome is unavailable | Re-run the command with `--browser chromium`; this skill requires Chromium explicitly |
 | Chromium not found | Run `npx playwright install chromium` |
+| Dashboard shows login screen | Auth is enabled. Either inject token via Step 5, use Test Server Mode, or set `TANGERINE_INSECURE_NO_AUTH=1` on the API server |
