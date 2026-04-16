@@ -78,6 +78,7 @@ tangerine start
 How it works:
 
 - The dashboard shows an unlock screen. Enter the same token once per browser.
+- The browser stores that token in `localStorage` on the client machine.
 - REST calls use `Authorization: Bearer <token>`.
 - WebSocket clients connect, then immediately send `{"type":"auth","token":"<token>"}`.
 - Agent tasks inherit `TANGERINE_AUTH_TOKEN` automatically for self-calls back into the Tangerine API.

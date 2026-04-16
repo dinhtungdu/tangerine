@@ -65,7 +65,7 @@ export function isLoopbackHost(hostname: string): boolean {
   const octets = unbracketed.split(".")
   return octets.length === 4
     && octets[0] === "127"
-    && octets.every((octet) => /^\d+$/.test(octet) && Number.parseInt(octet, 10) >= 0 && Number.parseInt(octet, 10) <= 255)
+    && octets.every((octet) => /^\d+$/.test(octet) && Number.parseInt(octet, 10) <= 255)
 }
 
 export function getStartupAuthError(config: AppConfig, hostname: string): string | null {

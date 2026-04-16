@@ -71,5 +71,6 @@ gh pr create --base main --head tangerine/abc123 --fill
 
 - Dotfile stored with mode 0600
 - `auth.json` stored with mode 0600
+- The dashboard stores `TANGERINE_AUTH_TOKEN` in browser `localStorage` on the client machine after unlock
 - Credentials persist between tasks (acceptable for local single-user)
 - Remote access over LAN/Tailscale should use `TANGERINE_AUTH_TOKEN`

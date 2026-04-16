@@ -12,18 +12,19 @@ export function AuthenticatedImage({
   className,
   ...props
 }: ImgHTMLAttributes<HTMLImageElement>) {
+  const source = typeof src === "string" ? src : null
   const [resolvedSrc, setResolvedSrc] = useState<string | null>(null)
   const [status, setStatus] = useState<"loading" | "ready" | "error">("loading")
 
   useEffect(() => {
-    if (!src) {
+    if (!source) {
       setResolvedSrc(null)
       setStatus("error")
       return
     }
 
-    if (!requiresAuthenticatedFetch(src)) {
-      setResolvedSrc(src)
+    if (!requiresAuthenticatedFetch(source)) {
+      setResolvedSrc(source)
       setStatus("ready")
       return
     }
@@ -33,7 +34,7 @@ export function AuthenticatedImage({
     setResolvedSrc(null)
     setStatus("loading")
 
-    fetch(src, { headers: buildAuthHeaders() })
+    fetch(source, { headers: buildAuthHeaders() })
       .then(async (res) => {
         if (!res.ok) {
           if (res.status === 401) emitAuthFailure()
@@ -57,16 +58,16 @@ export function AuthenticatedImage({
       cancelled = true
       if (objectUrl) URL.revokeObjectURL(objectUrl)
     }
-  }, [src])
+  }, [source])
 
-  if (!src) return null
+  if (!source) return null
 
   if (resolvedSrc) {
     return <img {...props} alt={alt} className={className} src={resolvedSrc} />
   }
 
-  if (!requiresAuthenticatedFetch(src)) {
-    return <img {...props} alt={alt} className={className} src={src} />
+  if (!requiresAuthenticatedFetch(source)) {
+    return <img {...props} alt={alt} className={className} src={source} />
   }
 
   return (
