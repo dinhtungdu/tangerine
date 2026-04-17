@@ -170,9 +170,11 @@ The task detail view shows branching lineage inline:
 - "Branched from: {parent task title} at turn {N}" with a link back
 - Badge showing branch depth (e.g., "Branch 2 of 3")
 
-### Conversation Tree View
+### Conversation Tree Pane
 
-A sidebar or panel showing the **full family tree** for any task — every ancestor, sibling branch, and descendant, regardless of depth. Inspired by Pi's tree navigation.
+A dedicated pane in the task detail view — alongside Chat, Diff, Terminal, and Activity — showing the **full family tree** for any task. Inspired by Pi's tree navigation.
+
+**Visibility**: The "Tree" tab appears in the pane tab bar once the task has at least one checkpoint OR is part of a family (has `parent_task_id` or has children branched from it). For fresh tasks with no history, the tab is hidden.
 
 **Key behavior**: The tree shows the complete family, not just one task's history. Branching doesn't stop the parent — the parent's turns continue below the branch point while child tasks run in parallel. You can branch from branches (grandchildren), creating arbitrarily deep trees.
 
@@ -207,7 +209,7 @@ Task: "Implement auth" (original)                    ← root
 - Hover on a branch node → tooltip with title, provider, model, status
 - Collapse/expand any branch subtree
 
-**Layout**: Vertical tree with indentation, similar to a file explorer. Collapsible branches. The tree sits in a panel that can be toggled from the conversation view toolbar. The current task's position in the tree is auto-scrolled into view on open.
+**Layout**: Vertical tree with indentation, similar to a file explorer. Collapsible branches. The pane fills the same space as Chat/Diff/Terminal/Activity — user switches between them via the tab bar. The current task's position in the tree is auto-scrolled into view on open.
 
 **Data**: Built from `checkpoints` + `tasks` tables. Query: walk `parent_task_id` to root, then collect all descendants. Each task's checkpoints determine turn positions; `branched_from_checkpoint_id` determines where branches attach to their parent's timeline.
 
