@@ -25,6 +25,7 @@ const log = createLogger("claude-code-provider")
 // IDs; older models require the dated suffix. Context windows default to 200K.
 // Keep ordered newest→oldest so the model picker shows the best options first.
 const CLAUDE_CODE_KNOWN_MODELS = [
+  { id: "claude-opus-4-7",           name: "Claude Opus 4.7",     provider: "anthropic", providerName: "Anthropic", contextWindow: 1_000_000 },
   { id: "claude-opus-4-6",           name: "Claude Opus 4.6",     provider: "anthropic", providerName: "Anthropic", contextWindow: 1_000_000 },
   { id: "claude-opus-4-5-20251101",  name: "Claude Opus 4.5",     provider: "anthropic", providerName: "Anthropic", contextWindow: 200_000 },
   { id: "claude-sonnet-4-6",         name: "Claude Sonnet 4.6",   provider: "anthropic", providerName: "Anthropic", contextWindow: 200_000 },
@@ -38,6 +39,7 @@ const CLAUDE_CODE_KNOWN_MODELS = [
 // Canonical model ID patterns, ordered most-specific first.
 // Used to map versioned API IDs (e.g. "claude-opus-4-6-20250514") to our short IDs.
 const CANONICAL_PATTERNS = [
+  "claude-opus-4-7",
   "claude-opus-4-6",
   "claude-opus-4-5",
   "claude-opus-4-1",

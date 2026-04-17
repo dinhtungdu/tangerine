@@ -39,6 +39,7 @@ describe("claude-code provider listModels", () => {
   test("always includes known Claude models", () => {
     const models = createClaudeCodeProvider().listModels()
     const ids = models.map((m) => m.id)
+    expect(ids).toContain("claude-opus-4-7")
     expect(ids).toContain("claude-opus-4-6")
     expect(ids).toContain("claude-opus-4-5-20251101")
     expect(ids).toContain("claude-sonnet-4-6")
