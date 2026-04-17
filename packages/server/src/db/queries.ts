@@ -276,13 +276,6 @@ export function listCheckpoints(db: Database, taskId: string): Effect.Effect<Che
   })
 }
 
-export function countCheckpoints(db: Database, taskId: string): Effect.Effect<number, DbError> {
-  return dbTry(() => {
-    const row = db.prepare("SELECT COUNT(*) as n FROM checkpoints WHERE task_id = ?").get(taskId) as { n: number }
-    return row.n
-  })
-}
-
 export function deleteCheckpointsForTask(db: Database, taskId: string): Effect.Effect<void, DbError> {
   return dbTry(() => {
     db.prepare("DELETE FROM checkpoints WHERE task_id = ?").run(taskId)
@@ -308,8 +301,8 @@ export function deleteTask(db: Database, id: string): Effect.Effect<void, DbErro
       throw new Error(`Task ${id} is not terminal (status: ${task.status})`)
     }
     db.prepare("DELETE FROM activity_log WHERE task_id = ?").run(id)
-    db.prepare("DELETE FROM session_logs WHERE task_id = ?").run(id)
     db.prepare("DELETE FROM checkpoints WHERE task_id = ?").run(id)
+    db.prepare("DELETE FROM session_logs WHERE task_id = ?").run(id)
     db.prepare("DELETE FROM tasks WHERE id = ?").run(id)
   })
 }

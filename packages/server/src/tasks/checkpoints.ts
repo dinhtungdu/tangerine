@@ -14,9 +14,6 @@ import { localExec } from "./worktree-pool"
 
 const log = createLogger("checkpoints")
 
-// Default TTL: keep checkpoints 24 hours after task reaches terminal state
-export const CHECKPOINT_TTL_MS = 24 * 60 * 60 * 1000
-
 /**
  * Snapshot the worktree at the current agent idle point.
  * Auto-commits if dirty, records a detached ref and a DB row.
@@ -68,23 +65,15 @@ export function snapshotCheckpoint(
 
 /**
  * Delete checkpoint refs and DB rows for a task.
- * Respects TTL: skips cleanup if completedAt is more recent than ttlMs.
- * Pass completedAt=null to force immediate cleanup (e.g. on explicit delete).
+ * Called when the worktree is torn down. Phase 4 will add a TTL-based scheduler
+ * so checkpoints survive long enough for the branching window before cleanup.
  */
 export function cleanupTaskCheckpoints(
   db: Database,
   taskId: string,
   worktreePath: string | null,
-  completedAt: string | null,
-  ttlMs = CHECKPOINT_TTL_MS,
 ): Effect.Effect<void, never> {
   return Effect.gen(function* () {
-    // Enforce TTL: skip if the task completed recently and branching window is still open
-    if (completedAt !== null) {
-      const ageMs = Date.now() - new Date(completedAt).getTime()
-      if (ageMs < ttlMs) return
-    }
-
     const checkpoints = yield* listCheckpoints(db, taskId)
     if (checkpoints.length === 0) return
 

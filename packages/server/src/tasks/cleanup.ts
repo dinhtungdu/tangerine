@@ -73,10 +73,10 @@ export function cleanupSession(
       Effect.ignoreLogged,
     )
 
-    // 4. Clean up checkpoint refs and DB rows when TTL has passed.
-    // Newly-completed tasks stay within the TTL window (checkpoints preserved for branching).
-    // Explicit deletes/retries of old tasks will clean up here once TTL has expired.
-    yield* cleanupTaskCheckpoints(deps.db, task.id, task.worktree_path, task.completed_at)
+    // 4. Delete checkpoint git refs and DB rows.
+    // Phase 4 will add a TTL-based scheduler so checkpoints survive task completion for
+    // the branching window. For now, clean up eagerly when the worktree is torn down.
+    yield* cleanupTaskCheckpoints(deps.db, task.id, task.worktree_path)
 
     // 5. Clear worktree_path so task isn't flagged as orphaned
     if (task.worktree_path) {

@@ -333,6 +333,37 @@ describe("API routes", () => {
     })
   })
 
+  describe("GET /api/tasks/:id/checkpoints", () => {
+    test("returns empty array for task with no checkpoints", async () => {
+      const row = seedTask(db)
+      const res = await app.fetch(new Request(`http://localhost/api/tasks/${row.id}/checkpoints`))
+      expect(res.status).toBe(200)
+      const body = await res.json() as unknown[]
+      expect(body).toEqual([])
+    })
+
+    test("returns checkpoints in turn order", async () => {
+      const row = seedTask(db)
+      const logId = (db.prepare("INSERT INTO session_logs (task_id, role, content) VALUES (?, 'assistant', 'done') RETURNING id").get(row.id) as { id: number }).id
+      db.prepare("INSERT INTO checkpoints (id, task_id, session_log_id, commit_sha, turn_index) VALUES (?, ?, ?, ?, ?)").run(crypto.randomUUID(), row.id, logId, "sha1", 0)
+      db.prepare("INSERT INTO checkpoints (id, task_id, session_log_id, commit_sha, turn_index) VALUES (?, ?, ?, ?, ?)").run(crypto.randomUUID(), row.id, logId, "sha2", 1)
+
+      const res = await app.fetch(new Request(`http://localhost/api/tasks/${row.id}/checkpoints`))
+      expect(res.status).toBe(200)
+      const body = await res.json() as Array<{ turnIndex: number; commitSha: string; taskId: string }>
+      expect(body).toHaveLength(2)
+      expect(body[0]!.turnIndex).toBe(0)
+      expect(body[1]!.turnIndex).toBe(1)
+      expect(body[0]!.commitSha).toBe("sha1")
+      expect(body[0]!.taskId).toBe(row.id)
+    })
+
+    test("returns 404 for unknown task", async () => {
+      const res = await app.fetch(new Request("http://localhost/api/tasks/no-such-task/checkpoints"))
+      expect(res.status).toBe(404)
+    })
+  })
+
   describe("POST /api/tasks", () => {
     test("creates a task", async () => {
       const res = await app.fetch(new Request("http://localhost/api/tasks", {
