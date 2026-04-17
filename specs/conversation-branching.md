@@ -38,11 +38,27 @@ The new task is fully independent — its own worktree, its own branch, its own 
 | Aspect | Restored? | How |
 |--------|-----------|-----|
 | Files | Yes | `git checkout` from checkpoint commit |
-| Conversation context | Yes | Replay `session_logs` up to branch point as system context |
-| Agent internal state | No | Fresh agent session — provider-specific state (tool caches, thinking) is lost |
+| Tangerine conversation | Yes | Replay `session_logs` up to branch point as system context |
+| Agent native context | No | Fresh agent session — provider-specific state is lost |
 | External side effects | No | PRs created, APIs called, etc. are not reversible |
 
-The conversation replay is "best effort context" — the agent gets the history as a prompt prefix, not as its native session state. This is a deliberate tradeoff: it works across all providers uniformly, at the cost of losing provider-specific optimizations (e.g., Claude Code's `--resume` with exact internal state).
+### Why We Don't Restore Agent Native Context
+
+Each provider maintains its own internal conversation state:
+- **Claude Code**: session file with messages, thinking blocks, tool results, file caches
+- **OpenCode**: SDK session with conversation memory and summaries
+- **Codex**: thread with message history
+- **Pi**: session file with native tree structure
+
+We deliberately **don't** restore this. Instead, the agent reads the Tangerine conversation (from `session_logs`) as injected context. Reasons:
+
+1. **Provider-agnostic**: Each provider stores context differently. Restoring Claude Code's session format doesn't help when you branch to a different provider. The replay-as-system-note approach works uniformly across all providers.
+
+2. **Context isn't just messages**: Providers build up internal caches — tool results, file read summaries, thinking state. Even if we restored the message history, the internal caches would be stale. The agent would have outdated assumptions about file contents.
+
+3. **Fresh start is often better**: When you branch, you're typically trying a *different* approach. A fresh agent reading a transcript is more likely to take a new direction than one pattern-matching on its prior thinking.
+
+**The tradeoff**: The branched agent doesn't have the same "feel" as continuing the original conversation — it's reading history, not remembering it. For most branching use cases (trying a different approach after a wrong turn), this is fine. For exact continuation, stay on the original task.
 
 ## Database Changes
 
