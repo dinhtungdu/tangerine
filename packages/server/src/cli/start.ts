@@ -37,6 +37,7 @@ import { createAgentFactories } from "../agent/factories"
 import { enqueue as enqueuePrompt, drainAll as drainQueuedPrompts, clearQueue } from "../agent/prompt-queue"
 import { buildSystemNotes, buildEscalationBlock, buildPrWorkflowNote } from "../tasks/prompts"
 import { getTaskState, clearTaskState } from "../tasks/task-state"
+import { snapshotCheckpoint } from "../tasks/checkpoints"
 const log = createLogger("cli")
 
 /** Resolve custom system prompt for a task type from project config. */
@@ -598,6 +599,15 @@ export async function start(): Promise<void> {
                   // the restart counter to prevent false positives from the
                   // stability window in the health checker.
                   resetRestartCount(taskId)
+
+                  // Snapshot checkpoint: auto-commit worktree + record in DB
+                  {
+                    const taskRow = db.prepare("SELECT worktree_path FROM tasks WHERE id = ?").get(taskId) as { worktree_path: string | null } | null
+                    const worktreePath = taskRow?.worktree_path
+                    if (worktreePath) {
+                      Effect.runPromise(snapshotCheckpoint(db, taskId, worktreePath))
+                    }
+                  }
 
                   // Persist dynamically captured session ID (e.g. OpenCode's ses_... ID
                   // is only known after the first prompt produces NDJSON output)

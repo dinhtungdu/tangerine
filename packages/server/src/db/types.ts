@@ -53,6 +53,15 @@ export interface SessionLogRow {
   timestamp: string
 }
 
+export interface CheckpointRow {
+  id: string
+  task_id: string
+  session_log_id: number
+  commit_sha: string
+  turn_index: number
+  created_at: string
+}
+
 export type WorktreeSlotStatus = "available" | "bound" | "initializing"
 
 export interface WorktreeSlotRow {

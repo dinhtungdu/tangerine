@@ -2,7 +2,7 @@ import { SUPPORTED_PROVIDERS } from "./constants"
 
 export type TaskStatus = "created" | "provisioning" | "running" | "done" | "failed" | "cancelled"
 export type ProviderType = typeof SUPPORTED_PROVIDERS[number]
-export type TaskSource = "github" | "linear" | "manual" | "cross-project" | "cron"
+export type TaskSource = "github" | "linear" | "manual" | "cross-project" | "cron" | "branch"
 export type TaskType = "worker" | "orchestrator" | "reviewer" | "runner"
 export type TaskCapability = "resolve" | "predefined-prompts" | "diff" | "continue" | "pr-track" | "pr-create"
 
@@ -110,6 +110,15 @@ export interface SystemCapabilities {
 export function isProviderAvailable(capabilities: SystemCapabilities | null, provider: string): boolean {
   if (!capabilities) return true
   return capabilities.providers[provider]?.available !== false
+}
+
+export interface Checkpoint {
+  id: string
+  taskId: string
+  sessionLogId: number
+  commitSha: string
+  turnIndex: number
+  createdAt: string
 }
 
 // System logs

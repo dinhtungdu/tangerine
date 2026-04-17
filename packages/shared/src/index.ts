@@ -17,6 +17,7 @@ export {
   type LogLevel,
   type SystemLogEntry,
   type SystemCapabilities,
+  type Checkpoint,
 } from "./types"
 
 export {

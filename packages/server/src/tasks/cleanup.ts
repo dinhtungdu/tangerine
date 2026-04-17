@@ -8,6 +8,7 @@ import { SessionCleanupError } from "../errors"
 import type { TaskRow } from "../db/types"
 import { releaseSlot, localExec } from "./worktree-pool"
 import { clearTerminalSession } from "../api/routes/terminal-ws"
+import { cleanupTaskCheckpoints } from "./checkpoints"
 
 const log = createLogger("cleanup")
 
@@ -72,7 +73,12 @@ export function cleanupSession(
       Effect.ignoreLogged,
     )
 
-    // 4. Clear worktree_path so task isn't flagged as orphaned
+    // 4. Clean up checkpoint refs and DB rows when TTL has passed.
+    // Newly-completed tasks stay within the TTL window (checkpoints preserved for branching).
+    // Explicit deletes/retries of old tasks will clean up here once TTL has expired.
+    yield* cleanupTaskCheckpoints(deps.db, task.id, task.worktree_path, task.completed_at)
+
+    // 5. Clear worktree_path so task isn't flagged as orphaned
     if (task.worktree_path) {
       yield* deps.updateTask(task.id, { worktree_path: null }).pipe(Effect.ignoreLogged)
     }

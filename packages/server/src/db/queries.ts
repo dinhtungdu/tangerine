@@ -1,7 +1,7 @@
 import { Effect } from "effect"
 import type { Database } from "bun:sqlite"
 import { DEFAULT_PROVIDER } from "@tangerine/shared"
-import type { TaskRow, CronRow, SessionLogRow } from "./types"
+import type { TaskRow, CronRow, SessionLogRow, CheckpointRow } from "./types"
 import { DbError } from "../errors"
 
 function dbTry<T>(op: () => T): Effect.Effect<T, DbError> {
@@ -249,6 +249,55 @@ export function hasActiveCronTask(db: Database, cronId: string): Effect.Effect<b
   })
 }
 
+// --- Checkpoints ---
+
+export function insertCheckpoint(
+  db: Database,
+  cp: Pick<CheckpointRow, "id" | "task_id" | "session_log_id" | "commit_sha" | "turn_index">
+): Effect.Effect<CheckpointRow, DbError> {
+  return dbTry(() => {
+    db.prepare(`
+      INSERT INTO checkpoints (id, task_id, session_log_id, commit_sha, turn_index)
+      VALUES ($id, $task_id, $session_log_id, $commit_sha, $turn_index)
+    `).run({
+      $id: cp.id,
+      $task_id: cp.task_id,
+      $session_log_id: cp.session_log_id,
+      $commit_sha: cp.commit_sha,
+      $turn_index: cp.turn_index,
+    })
+    return db.prepare("SELECT * FROM checkpoints WHERE id = ?").get(cp.id) as CheckpointRow
+  })
+}
+
+export function listCheckpoints(db: Database, taskId: string): Effect.Effect<CheckpointRow[], DbError> {
+  return dbTry(() => {
+    return db.prepare("SELECT * FROM checkpoints WHERE task_id = ? ORDER BY turn_index ASC").all(taskId) as CheckpointRow[]
+  })
+}
+
+export function countCheckpoints(db: Database, taskId: string): Effect.Effect<number, DbError> {
+  return dbTry(() => {
+    const row = db.prepare("SELECT COUNT(*) as n FROM checkpoints WHERE task_id = ?").get(taskId) as { n: number }
+    return row.n
+  })
+}
+
+export function deleteCheckpointsForTask(db: Database, taskId: string): Effect.Effect<void, DbError> {
+  return dbTry(() => {
+    db.prepare("DELETE FROM checkpoints WHERE task_id = ?").run(taskId)
+  })
+}
+
+export function getLastAssistantSessionLogId(db: Database, taskId: string): Effect.Effect<number | null, DbError> {
+  return dbTry(() => {
+    const row = db.prepare(
+      "SELECT id FROM session_logs WHERE task_id = ? AND role = 'assistant' ORDER BY id DESC LIMIT 1"
+    ).get(taskId) as { id: number } | null
+    return row?.id ?? null
+  })
+}
+
 const TERMINAL_STATUSES = new Set(["done", "failed", "cancelled"])
 
 export function deleteTask(db: Database, id: string): Effect.Effect<void, DbError> {
@@ -260,6 +309,7 @@ export function deleteTask(db: Database, id: string): Effect.Effect<void, DbErro
     }
     db.prepare("DELETE FROM activity_log WHERE task_id = ?").run(id)
     db.prepare("DELETE FROM session_logs WHERE task_id = ?").run(id)
+    db.prepare("DELETE FROM checkpoints WHERE task_id = ?").run(id)
     db.prepare("DELETE FROM tasks WHERE id = ?").run(id)
   })
 }
