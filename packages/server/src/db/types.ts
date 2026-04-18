@@ -27,8 +27,7 @@ export interface TaskRow {
   last_seen_at: string | null
   last_result_at: string | null
   capabilities: string | null
-  input_tokens: number
-  output_tokens: number
+  context_tokens: number
 }
 
 export interface CronRow {

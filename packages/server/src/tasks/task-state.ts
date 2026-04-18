@@ -17,10 +17,8 @@ export interface TaskState {
    *  apply a cooldown so we don't re-abort immediately after restart when the
    *  old tool.start entry is still the most recent activity in the DB. */
   hungToolAbortedAt?: number
-  /** Cumulative input tokens across all turns (persisted to DB on each usage event) */
-  cumulativeInputTokens: number
-  /** Cumulative output tokens across all turns (persisted to DB on each usage event) */
-  cumulativeOutputTokens: number
+  /** Current context window usage (persisted to DB, displayed as used/max) */
+  contextTokens: number
 }
 
 const taskStates = new Map<string, TaskState>()
@@ -35,8 +33,7 @@ function defaultState(): TaskState {
     prUrlSaved: false,
     prNudgeSent: false,
     consecutiveRestarts: 0,
-    cumulativeInputTokens: 0,
-    cumulativeOutputTokens: 0,
+    contextTokens: 0,
   }
 }
 

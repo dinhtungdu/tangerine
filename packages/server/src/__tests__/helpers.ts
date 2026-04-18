@@ -42,8 +42,7 @@ export function makeTask(overrides?: Partial<Task>): Task {
     lastSeenAt: null,
     lastResultAt: null,
     capabilities: ["resolve", "predefined-prompts", "diff"],
-    inputTokens: 0,
-    outputTokens: 0,
+    contextTokens: 0,
     ...overrides,
   }
 }

@@ -24,45 +24,40 @@ interface UseSessionResult {
   taskStatus: TaskStatus | null
   sendPrompt: (text: string, images?: PromptImage[]) => void
   abort: () => void
-  inputTokens: number
-  outputTokens: number
   contextTokens: number
 }
 
-export function useSession(taskId: string, initialTokens?: { inputTokens: number; outputTokens: number }): UseSessionResult {
+export function useSession(taskId: string, initialContextTokens?: number): UseSessionResult {
   const [messages, setMessages] = useState<ChatMessage[]>([])
   const [activities, setActivities] = useState<ActivityEntry[]>([])
   const [agentStatus, setAgentStatus] = useState<"idle" | "working">("idle")
   const [queueLength, setQueueLength] = useState(0)
   const [taskStatus, setTaskStatus] = useState<TaskStatus | null>(null)
-  const [inputTokens, setInputTokens] = useState(initialTokens?.inputTokens ?? 0)
-  const [outputTokens, setOutputTokens] = useState(initialTokens?.outputTokens ?? 0)
-  const [contextTokens, setContextTokens] = useState(0)
+  const [contextTokens, setContextTokens] = useState(initialContextTokens ?? 0)
   const { connected, messages: wsMessages, send } = useWebSocket(taskId)
   const processedCountRef = useRef(0)
   // Track optimistic user message IDs so we can deduplicate WS broadcasts
   // without false-positives when the same text is sent twice.
   const pendingOptimisticRef = useRef<Set<string>>(new Set())
 
-  // Sync token counts when the task's persisted values change (e.g. on initial load or poll)
+  // Sync context tokens when the task's persisted value changes (e.g. on initial load or poll).
+  // Reset to 0 when switching tasks and new data hasn't loaded yet.
   useEffect(() => {
-    if (initialTokens) {
-      setInputTokens(initialTokens.inputTokens)
-      setOutputTokens(initialTokens.outputTokens)
-    }
-  }, [taskId, initialTokens?.inputTokens, initialTokens?.outputTokens])
+    setContextTokens(initialContextTokens ?? 0)
+  }, [taskId, initialContextTokens])
 
   // Clear all session state immediately when the task changes so the previous
   // task's messages/activities/status don't leak into the new one while the
-  // REST fetch is in flight.
+  // REST fetch is in flight. Reset contextTokens to 0 here to clear stale data
+  // from the previous task — the sync effect above will update it when the new
+  // task's initialContextTokens arrives. This runs AFTER the sync effect, so it
+  // overrides any stale initialContextTokens that hasn't updated yet.
   useEffect(() => {
     setMessages([])
     setActivities([])
     setAgentStatus("idle")
     setQueueLength(0)
     setTaskStatus(null)
-    setInputTokens(0)
-    setOutputTokens(0)
     setContextTokens(0)
     processedCountRef.current = 0
   }, [taskId])
@@ -170,9 +165,7 @@ export function useSession(taskId: string, initialTokens?: { inputTokens: number
           } else if (eventType === "agent.end" || eventType === "agent.idle") {
             setAgentStatus("idle")
           } else if (eventType === "usage") {
-            const ev = data as { inputTokens?: number; outputTokens?: number; contextTokens?: number }
-            if (typeof ev.inputTokens === "number") setInputTokens(ev.inputTokens)
-            if (typeof ev.outputTokens === "number") setOutputTokens(ev.outputTokens)
+            const ev = data as { contextTokens?: number }
             if (typeof ev.contextTokens === "number" && ev.contextTokens > 0) setContextTokens(ev.contextTokens)
           }
         }
@@ -243,5 +236,5 @@ export function useSession(taskId: string, initialTokens?: { inputTokens: number
     setQueueLength(0)
   }, [send])
 
-  return { messages, activities, agentStatus, queueLength, connected, taskStatus, sendPrompt, abort, inputTokens, outputTokens, contextTokens }
+  return { messages, activities, agentStatus, queueLength, connected, taskStatus, sendPrompt, abort, contextTokens }
 }

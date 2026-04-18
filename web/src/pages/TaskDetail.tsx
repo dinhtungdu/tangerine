@@ -56,7 +56,7 @@ export function TaskDetail() {
 
   const chatTaskId = (isCrossProject && orchestratorTask) ? orchestratorTask.id : (id ?? "")
   const sessionTask = (isCrossProject && orchestratorTask) ? orchestratorTask : task
-  const session = useSession(chatTaskId, sessionTask ? { inputTokens: sessionTask.inputTokens, outputTokens: sessionTask.outputTokens } : undefined)
+  const session = useSession(chatTaskId, sessionTask?.contextTokens)
   const { files: diffFiles } = useDiffFiles(id ?? "")
   const diffCommentsKey = `diff-comments:${id}`
   const [diffComments, setDiffComments] = useState<DiffComment[]>([])
@@ -589,8 +589,6 @@ export function TaskDetail() {
                 taskProjectId={chatTask.projectId}
                 autoFocusKey={chatTaskId}
                 contextTokens={session.contextTokens || undefined}
-                inputTokens={session.inputTokens || undefined}
-                outputTokens={session.outputTokens}
                 contextWindowMax={ctxMax}
               />
             </div>

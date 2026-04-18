@@ -92,12 +92,6 @@ export interface AgentHandle {
    * OpenCode/Codex: scanned from ~/.claude/skills or ~/.codex/skills.
    */
   getSkills?(): string[]
-  /**
-   * Return the most recently observed token usage for this session.
-   * Updated each time the provider emits a `usage` event.
-   * Returns null if no usage has been observed yet.
-   */
-  getUsage?(): { inputTokens: number; outputTokens: number } | null
 }
 
 /** Context passed to AgentFactory.start() to bootstrap an agent session */

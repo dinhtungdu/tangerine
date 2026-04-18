@@ -466,10 +466,7 @@ export function createOpenCodeProvider(): AgentFactory {
           // Track last spawned PID so cleanup can kill orphaned processes after server restart
           let lastPid: number | null = null
 
-          let latestUsage: { inputTokens: number; outputTokens: number } | null = null
-
           const emit = (event: AgentEvent) => {
-            if (event.kind === "usage") latestUsage = { inputTokens: event.inputTokens ?? 0, outputTokens: event.outputTokens ?? 0 }
             for (const cb of subscribers) cb(event)
           }
 
@@ -573,6 +570,8 @@ export function createOpenCodeProvider(): AgentFactory {
                   // Accumulate token usage across steps within this turn.
                   // Each step_finish reports that step's tokens — we sum them
                   // and emit a single usage event when the process ends.
+                  // Note: OpenCode doesn't expose context window size in JSON output,
+                  // only the TUI has access via internal pubsub. No contextTokens here.
                   let turnInputTokens = 0
                   let turnOutputTokens = 0
 
@@ -740,10 +739,6 @@ export function createOpenCodeProvider(): AgentFactory {
 
             getSkills() {
               return scanClaudeSkills()
-            },
-
-            getUsage() {
-              return latestUsage
             },
           }
 

@@ -91,7 +91,7 @@ describe("mapClaudeCodeEvent", () => {
   })
 
   describe("result events", () => {
-    test("emits usage event when result has token usage", () => {
+    test("does not emit usage from result (contextTokens comes from message_start)", () => {
       const events = mapClaudeCodeEvent({
         type: "result",
         result: "Done",
@@ -99,43 +99,7 @@ describe("mapClaudeCodeEvent", () => {
           input_tokens: 1500,
           output_tokens: 300,
           cache_read_input_tokens: 500,
-          cache_creation_input_tokens: 200,
         },
-      })
-
-      const usage = events.find((e) => e.kind === "usage")
-      expect(usage).toEqual({
-        kind: "usage",
-        inputTokens: 2200, // 1500 + 500 + 200
-        outputTokens: 300,
-      })
-    })
-
-    test("includes cache tokens in input total", () => {
-      const events = mapClaudeCodeEvent({
-        type: "result",
-        result: "Done",
-        usage: {
-          input_tokens: 0,
-          output_tokens: 0,
-          cache_read_input_tokens: 1000,
-          cache_creation_input_tokens: 500,
-        },
-      })
-
-      const usage = events.find((e) => e.kind === "usage")
-      expect(usage).toEqual({
-        kind: "usage",
-        inputTokens: 1500,
-        outputTokens: 0,
-      })
-    })
-
-    test("skips usage event when all token counts are zero", () => {
-      const events = mapClaudeCodeEvent({
-        type: "result",
-        result: "Done",
-        usage: { input_tokens: 0, output_tokens: 0 },
       })
 
       expect(events.find((e) => e.kind === "usage")).toBeUndefined()

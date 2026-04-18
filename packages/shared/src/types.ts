@@ -43,8 +43,7 @@ export interface Task {
   lastResultAt: string | null
   capabilities: TaskCapability[]
   agentStatus?: "idle" | "working"
-  inputTokens: number
-  outputTokens: number
+  contextTokens: number
 }
 
 export interface Cron {

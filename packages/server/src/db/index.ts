@@ -129,6 +129,26 @@ function dropRepoUrlColumn(db: Database): void {
   console.error("[db] Migrated tasks: dropped redundant repo_url column")
 }
 
+/**
+ * Drop unused input_tokens and output_tokens columns from tasks.
+ * We now only track context_tokens for display.
+ */
+function dropCumulativeTokenColumns(db: Database): void {
+  const cols = db.prepare("PRAGMA table_info(tasks)").all() as { name: string }[]
+  const dropped: string[] = []
+  if (cols.some((c) => c.name === "input_tokens")) {
+    db.exec("ALTER TABLE tasks DROP COLUMN input_tokens")
+    dropped.push("input_tokens")
+  }
+  if (cols.some((c) => c.name === "output_tokens")) {
+    db.exec("ALTER TABLE tasks DROP COLUMN output_tokens")
+    dropped.push("output_tokens")
+  }
+  if (dropped.length > 0) {
+    console.error(`[db] Migrated tasks: dropped ${dropped.join(", ")} columns`)
+  }
+}
+
 /** Returns a singleton DB connection, creating it if needed. Pass ":memory:" for tests.
  *  Respects TANGERINE_DB env var for path override. */
 export function getDb(path?: string): Database {
@@ -156,6 +176,9 @@ export function getDb(path?: string): Database {
 
   // Drop redundant repo_url column — tasks use project_id to look up repo URL
   dropRepoUrlColumn(db)
+
+  // Drop unused cumulative token columns — now only track context_tokens
+  dropCumulativeTokenColumns(db)
 
   instance = db
   return db
