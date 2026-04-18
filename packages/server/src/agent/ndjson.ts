@@ -131,10 +131,13 @@ export function createClaudeCodeMapper(): (raw: Record<string, unknown>) => Agen
                 toolUseFilePaths.set(b.id, input.file_path)
               }
             }
+            // Edit tools need full input for diff rendering in the UI
+            const isEditTool = b.name === "Edit"
+            const inputJson = b.input ? JSON.stringify(b.input) : undefined
             events.push({
               kind: "tool.start",
               toolName: b.name,
-              toolInput: b.input ? truncate(JSON.stringify(b.input), 500) : undefined,
+              toolInput: inputJson ? (isEditTool ? inputJson : truncate(inputJson, 500)) : undefined,
             })
           } else if (b.type === "text" && typeof b.text === "string" && b.text.length > 0) {
             textParts.push(b.text)
