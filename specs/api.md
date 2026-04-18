@@ -142,6 +142,7 @@ type WsServerMessage =
   | { type: "status"; status: TaskStatus }
   | { type: "agent_status"; agentStatus: "idle" | "working" }
   | { type: "error"; message: string }
+  | { type: "ping" }
 ```
 
 Client messages:
@@ -151,9 +152,12 @@ type WsClientMessage =
   | { type: "auth"; token: string }
   | { type: "prompt"; text: string; images?: PromptImage[] }
   | { type: "abort" }
+  | { type: "pong" }
 ```
 
 When bearer auth is enabled, the client must send the auth message before any prompt or terminal input.
+
+The server also sends periodic `{ type: "ping" }` keepalives. Browser clients must reply with `{ type: "pong" }`. This keeps mobile/Tailscale HTTPS connections from going half-open silently and gives both sides a fast reconnect path.
 
 ### Terminal Stream
 
@@ -162,6 +166,30 @@ WS /api/tasks/:id/terminal
 ```
 
 This endpoint backs the dashboard terminal pane.
+
+Server messages:
+
+```typescript
+type TerminalWsServerMessage =
+  | { type: "connected" }
+  | { type: "scrollback"; data: string }
+  | { type: "output"; data: string }
+  | { type: "exit"; code: number }
+  | { type: "error"; message: string }
+  | { type: "ping" }
+```
+
+Client messages:
+
+```typescript
+type TerminalWsClientMessage =
+  | { type: "auth"; token: string }
+  | { type: "input"; data: string }
+  | { type: "resize"; cols: number; rows: number }
+  | { type: "pong" }
+```
+
+Like the task event stream, the terminal stream uses app-level ping/pong keepalives so idle shells stay reliable over mobile/Tailscale HTTPS access.
 
 ## Response Mapping
 

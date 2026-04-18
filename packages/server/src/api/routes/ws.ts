@@ -2,6 +2,7 @@ import { Effect } from "effect"
 import { Hono } from "hono"
 import type { UpgradeWebSocket } from "hono/ws"
 import type { AppDeps } from "../app"
+import { createWebSocketHeartbeat, type WebSocketHeartbeat } from "../ws-heartbeat"
 import { isAuthEnabled, isRequestAuthenticated, isValidAuthToken } from "../../auth"
 import { getTask } from "../../db/queries"
 import { getAgentWorkingState } from "../../tasks/events"
@@ -25,6 +26,7 @@ export function wsRoutes(deps: AppDeps, upgradeWebSocket: UpgradeWebSocket): Hon
       // Store unsubscribe functions so we can clean up on close
       let unsubEvent: (() => void) | null = null
       let unsubStatus: (() => void) | null = null
+      let heartbeat: WebSocketHeartbeat | null = null
       let authenticated = !authEnabled || requestAuthenticated
       let authTimer: ReturnType<typeof setTimeout> | null = null
       let started = false
@@ -32,6 +34,8 @@ export function wsRoutes(deps: AppDeps, upgradeWebSocket: UpgradeWebSocket): Hon
       const startStreaming = (ws: SocketLike) => {
         if (started) return
         started = true
+        heartbeat = createWebSocketHeartbeat(ws)
+        heartbeat.start()
 
         Effect.runPromise(getTask(deps.db, taskId)).then(
           (task) => {
@@ -122,12 +126,19 @@ export function wsRoutes(deps: AppDeps, upgradeWebSocket: UpgradeWebSocket): Hon
             return
           }
 
+          if (parsed.type === "pong") {
+            heartbeat?.markAlive()
+            return
+          }
+
           if (!authenticated) {
             const msg: WsServerMessage = { type: "error", message: "Unauthorized" }
             ws.send(JSON.stringify(msg))
             ws.close(1008, "Unauthorized")
             return
           }
+
+          heartbeat?.markAlive()
 
           if (parsed.type === "prompt" && (parsed.text || parsed.images?.length)) {
             Effect.runPromise(
@@ -158,6 +169,7 @@ export function wsRoutes(deps: AppDeps, upgradeWebSocket: UpgradeWebSocket): Hon
 
         onClose() {
           if (authTimer) clearTimeout(authTimer)
+          heartbeat?.stop()
           unsubEvent?.()
           unsubStatus?.()
         },

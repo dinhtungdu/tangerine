@@ -5,6 +5,7 @@ import { WebLinksAddon } from "@xterm/addon-web-links"
 import "@xterm/xterm/css/xterm.css"
 import { TerminalToolbar } from "./TerminalToolbar"
 import { emitAuthFailure, getAuthToken } from "../lib/auth"
+import { createHeartbeatMonitor, type HeartbeatMonitor } from "../lib/ws-heartbeat"
 
 type TerminalPaneProps =
   | { taskId: string; wsUrl?: never }
@@ -20,6 +21,7 @@ export function TerminalPane(props: TerminalPaneProps) {
   const fitRef = useRef<FitAddon | null>(null)
   const wsRef = useRef<WebSocket | null>(null)
   const reconnectTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const heartbeatRef = useRef<HeartbeatMonitor | null>(null)
   const backoffRef = useRef(1000)
   const disposedRef = useRef(false)
   const everConnectedRef = useRef(false)
@@ -40,10 +42,21 @@ export function TerminalPane(props: TerminalPaneProps) {
 
     const protocol = window.location.protocol === "https:" ? "wss:" : "ws:"
     const url = `${protocol}//${window.location.host}${wsPath}`
+    heartbeatRef.current?.stop()
+
     const ws = new WebSocket(url)
     wsRef.current = ws
 
+    const heartbeat = createHeartbeatMonitor(() => {
+      if (disposedRef.current || wsRef.current !== ws) return
+      if (ws.readyState < WebSocket.CLOSING) {
+        ws.close()
+      }
+    })
+    heartbeatRef.current = heartbeat
+
     ws.onopen = () => {
+      heartbeat.markAlive()
       backoffRef.current = 1000
       const token = getAuthToken()
       if (token) {
@@ -60,8 +73,13 @@ export function TerminalPane(props: TerminalPaneProps) {
     }
 
     ws.onmessage = (event) => {
+      heartbeat.markAlive()
       try {
         const msg = JSON.parse(event.data as string)
+        if (msg.type === "ping") {
+          ws.send(JSON.stringify({ type: "pong" }))
+          return
+        }
         if (msg.type === "connected") {
           everConnectedRef.current = true
           setConnState("connected")
@@ -91,6 +109,8 @@ export function TerminalPane(props: TerminalPaneProps) {
     }
 
     ws.onclose = () => {
+      heartbeat.stop()
+      if (heartbeatRef.current === heartbeat) heartbeatRef.current = null
       // Only handle reconnect if this is still the active WebSocket
       if (wsRef.current !== ws) return
       wsRef.current = null
@@ -212,6 +232,8 @@ export function TerminalPane(props: TerminalPaneProps) {
       document.removeEventListener("visibilitychange", onVisibilityChange)
       resizeObserver.disconnect()
       if (reconnectTimerRef.current) clearTimeout(reconnectTimerRef.current)
+      heartbeatRef.current?.stop()
+      heartbeatRef.current = null
       const ws = wsRef.current
       if (ws) {
         // Null handlers before close so reconnect logic doesn't fire.

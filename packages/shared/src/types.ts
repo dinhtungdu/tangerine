@@ -79,6 +79,7 @@ export type WsServerMessage =
   | { type: "status"; status: TaskStatus }
   | { type: "agent_status"; agentStatus: "idle" | "working" }
   | { type: "error"; message: string }
+  | { type: "ping" }
 
 export interface PromptImage {
   mediaType: "image/png" | "image/jpeg" | "image/gif" | "image/webp"
@@ -89,6 +90,7 @@ export type WsClientMessage =
   | { type: "auth"; token: string }
   | { type: "prompt"; text: string; images?: PromptImage[] }
   | { type: "abort" }
+  | { type: "pong" }
 
 // System-level tool availability detected at server startup
 export interface SystemCapabilities {

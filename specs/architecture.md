@@ -86,7 +86,7 @@ specs/
 
 - The dashboard and API are single-user, not anonymous
 - When `TANGERINE_AUTH_TOKEN` is configured, all task-observing and task-mutating REST routes require `Authorization: Bearer <token>`
-- Task event WebSockets and terminal WebSockets authenticate immediately after connect with an auth message
+- Task event WebSockets and terminal WebSockets authenticate immediately after connect with an auth message and use app-level ping/pong keepalives so mobile/Tailscale HTTPS paths fail fast and reconnect cleanly
 - `GET /api/health` and `GET /api/auth/session` stay public so the UI can probe server state before login
 - If the server binds a non-loopback host and no auth token is configured, startup must fail unless the operator explicitly opts into insecure mode
 

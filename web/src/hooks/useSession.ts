@@ -198,6 +198,7 @@ export function useSession(taskId: string, initialContextTokens?: number): UseSe
         ])
         break
       case "connected":
+      case "ping":
         break
     }
   }

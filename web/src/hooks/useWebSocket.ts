@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef, useCallback } from "react"
 import type { WsServerMessage, WsClientMessage } from "@tangerine/shared"
 import { emitAuthFailure, getAuthToken } from "../lib/auth"
+import { createHeartbeatMonitor, type HeartbeatMonitor } from "../lib/ws-heartbeat"
 
 const MAX_BACKOFF = 30000
 
@@ -38,6 +39,7 @@ export function useWebSocket(taskId: string): UseWebSocketResult {
   const wsRef = useRef<TaggedWebSocket | null>(null)
   const backoffRef = useRef(1000)
   const reconnectTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const heartbeatRef = useRef<HeartbeatMonitor | null>(null)
   const unmountedRef = useRef(false)
   // Updated synchronously during render so send() can guard against stale WS
   const activeTaskIdRef = useRef(taskId)
@@ -48,11 +50,22 @@ export function useWebSocket(taskId: string): UseWebSocketResult {
 
     const protocol = window.location.protocol === "https:" ? "wss:" : "ws:"
     const url = `${protocol}//${window.location.host}/api/tasks/${taskId}/ws`
+    heartbeatRef.current?.stop()
+
     const ws: TaggedWebSocket = new WebSocket(url)
     ws.__taskId = taskId
     wsRef.current = ws
 
+    const heartbeat = createHeartbeatMonitor(() => {
+      if (unmountedRef.current || wsRef.current !== ws) return
+      if (ws.readyState < WebSocket.CLOSING) {
+        ws.close()
+      }
+    })
+    heartbeatRef.current = heartbeat
+
     ws.onopen = () => {
+      heartbeat.markAlive()
       if (unmountedRef.current) return
       const token = getAuthToken()
       if (token) {
@@ -64,8 +77,13 @@ export function useWebSocket(taskId: string): UseWebSocketResult {
 
     ws.onmessage = (event) => {
       if (unmountedRef.current) return
+      heartbeat.markAlive()
       try {
         const msg = JSON.parse(event.data as string) as WsServerMessage
+        if (msg.type === "ping") {
+          ws.send(JSON.stringify({ type: "pong" } satisfies WsClientMessage))
+          return
+        }
         if (msg.type === "error" && msg.message === "Unauthorized") {
           emitAuthFailure()
         }
@@ -77,6 +95,8 @@ export function useWebSocket(taskId: string): UseWebSocketResult {
     }
 
     ws.onclose = () => {
+      heartbeat.stop()
+      if (heartbeatRef.current === heartbeat) heartbeatRef.current = null
       if (unmountedRef.current) return
       // Guard against stale close events from a previous connection. When the
       // taskId changes, cleanup closes the old WS but the new one is already
@@ -108,6 +128,8 @@ export function useWebSocket(taskId: string): UseWebSocketResult {
     // send() could push through the old connection.
     const ws = wsRef.current
     if (ws && ws.__taskId !== taskId) {
+      heartbeatRef.current?.stop()
+      heartbeatRef.current = null
       safeClose(ws)
       wsRef.current = null
     }
@@ -138,6 +160,8 @@ export function useWebSocket(taskId: string): UseWebSocketResult {
       if (reconnectTimerRef.current) {
         clearTimeout(reconnectTimerRef.current)
       }
+      heartbeatRef.current?.stop()
+      heartbeatRef.current = null
       const ws = wsRef.current
       if (ws) safeClose(ws)
     }

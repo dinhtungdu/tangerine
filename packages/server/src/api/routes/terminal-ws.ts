@@ -19,6 +19,7 @@ import type { UpgradeWebSocket } from "hono/ws"
 import { spawn } from "bun-pty"
 import type { IPty } from "bun-pty"
 import type { AppDeps } from "../app"
+import { createWebSocketHeartbeat, type WebSocketHeartbeat } from "../ws-heartbeat"
 import { isAuthEnabled, isRequestAuthenticated, isValidAuthToken } from "../../auth"
 import { getTask } from "../../db/queries"
 import { createLogger } from "../../logger"
@@ -119,6 +120,7 @@ export function terminalWsRoutes(deps: AppDeps, upgradeWebSocket: UpgradeWebSock
       const authEnabled = isAuthEnabled(deps.config)
       const requestAuthenticated = isRequestAuthenticated(c, deps.config)
       let pty: IPty | null = null
+      let heartbeat: WebSocketHeartbeat | null = null
       let alive = true
       let authenticated = !authEnabled || requestAuthenticated
       let authTimer: ReturnType<typeof setTimeout> | null = null
@@ -127,6 +129,8 @@ export function terminalWsRoutes(deps: AppDeps, upgradeWebSocket: UpgradeWebSock
       const startTerminal = (ws: SocketLike) => {
         if (started) return
         started = true
+        heartbeat = createWebSocketHeartbeat(ws)
+        heartbeat.start()
 
         Effect.runPromise(
           Effect.gen(function* () {
@@ -241,7 +245,14 @@ export function terminalWsRoutes(deps: AppDeps, upgradeWebSocket: UpgradeWebSock
             return
           }
 
+          if (parsed.type === "pong") {
+            heartbeat?.markAlive()
+            return
+          }
+
           if (!authenticated || !pty) return
+
+          heartbeat?.markAlive()
 
           if (parsed.type === "input" && parsed.data) {
             pty.write(parsed.data)
@@ -254,6 +265,7 @@ export function terminalWsRoutes(deps: AppDeps, upgradeWebSocket: UpgradeWebSock
 
         onClose() {
           if (authTimer) clearTimeout(authTimer)
+          heartbeat?.stop()
           alive = false
           // Only kill this client's PTY attachment — the dtach session and
           // the shadow recorder stay alive to capture output while disconnected.
