@@ -60,7 +60,7 @@ export function ModelEffortPopover({
         <span className="max-w-[140px] truncate">{formatModelName(resolvedModel)}</span>
         <ChevronDown data-icon="inline-end" />
       </PopoverTrigger>
-      <PopoverContent side="top" align="start" sideOffset={6} className="w-auto max-w-none p-0">
+      <PopoverContent side="top" align="start" sideOffset={6} className="w-auto max-w-none overflow-hidden p-0">
         <div className="flex">
           {/* Model column */}
           {resolvedModel && (
