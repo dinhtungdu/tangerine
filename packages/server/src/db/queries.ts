@@ -119,6 +119,27 @@ export function getChildTasks(db: Database, parentTaskId: string): Effect.Effect
   })
 }
 
+export function countTasksByProject(db: Database, filter?: { status?: string; search?: string }): Effect.Effect<Record<string, number>, DbError> {
+  return dbTry(() => {
+    const conditions: string[] = []
+    const params: Record<string, string> = {}
+    if (filter?.status) {
+      conditions.push("status = $status")
+      params.$status = filter.status
+    }
+    if (filter?.search) {
+      const searchNormalized = filter.search.startsWith("#") ? filter.search.slice(1) : filter.search
+      conditions.push("(title LIKE $search OR description LIKE $search OR branch LIKE $search OR pr_url LIKE $search)")
+      params.$search = `%${searchNormalized}%`
+    }
+    const where = conditions.length > 0 ? ` WHERE ${conditions.join(" AND ")}` : ""
+    const rows = db.prepare(`SELECT project_id, COUNT(*) as count FROM tasks${where} GROUP BY project_id`).all(params) as { project_id: string; count: number }[]
+    const counts: Record<string, number> = {}
+    for (const row of rows) counts[row.project_id] = row.count
+    return counts
+  })
+}
+
 // --- Session Logs ---
 
 export function insertSessionLog(

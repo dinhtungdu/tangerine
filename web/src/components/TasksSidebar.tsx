@@ -26,6 +26,9 @@ interface TasksSidebarProps {
   onSearchChange: (query: string) => void
   onNewAgent: () => void
   onRefetch?: () => void
+  counts?: Record<string, number>
+  loadedCounts?: Record<string, number>
+  onLoadMore?: (projectId: string) => Promise<void>
 }
 
 const PROJECT_FILTER_KEY = "tangerine:sidebar-project-filter"
@@ -194,11 +197,12 @@ function ProjectGroupHeader({
   )
 }
 
-export function TasksSidebar({ tasks, projects, searchQuery, onSearchChange, onNewAgent, onRefetch }: TasksSidebarProps) {
+export function TasksSidebar({ tasks, projects, searchQuery, onSearchChange, onNewAgent, onRefetch, counts = {}, loadedCounts = {}, onLoadMore }: TasksSidebarProps) {
   const { id: activeId } = useParams<{ id: string }>()
   const [projectFilter, setProjectFilter] = useState(readProjectFilter)
   // Per-group active-only toggle: undefined means default (true = active only)
   const [groupActiveOnly, setGroupActiveOnly] = useState<Record<string, boolean>>({})
+  const [loadingMore, setLoadingMore] = useState<Record<string, boolean>>({})
   const isSearching = searchQuery.length > 0
 
   // Group tasks by project (no global active filter — per-group toggles handle it)
@@ -280,6 +284,16 @@ export function TasksSidebar({ tasks, projects, searchQuery, onSearchChange, onN
     } catch { /* ignore */ }
   }, [])
 
+  const handleLoadMore = useCallback(async (projectId: string) => {
+    if (!onLoadMore || loadingMore[projectId]) return
+    setLoadingMore((prev) => ({ ...prev, [projectId]: true }))
+    try {
+      await onLoadMore(projectId)
+    } finally {
+      setLoadingMore((prev) => ({ ...prev, [projectId]: false }))
+    }
+  }, [onLoadMore, loadingMore])
+
   return (
     <div className="flex h-full w-full shrink-0 flex-col border-r border-border bg-background md:w-[240px]">
       {/* Top section */}
@@ -336,6 +350,10 @@ export function TasksSidebar({ tasks, projects, searchQuery, onSearchChange, onN
             const groupOnly = !isSearching && (groupActiveOnly[group.projectId] ?? true)
             const activeTasks = group.tasks.filter((t) => !TERMINAL_STATUSES.has(t.status))
             const displayedTasks = groupOnly ? activeTasks : group.tasks
+            const totalForProject = counts[group.projectId] ?? 0
+            const loadedForProject = loadedCounts[group.projectId] ?? 0
+            const hasMore = loadedForProject < totalForProject
+            const isLoading = loadingMore[group.projectId] ?? false
             return (
               <div key={group.projectId}>
                 <ProjectGroupHeader
@@ -345,7 +363,7 @@ export function TasksSidebar({ tasks, projects, searchQuery, onSearchChange, onN
                   activeOnly={groupOnly}
                   onToggle={() => handleGroupToggle(group.projectId)}
                   activeCount={activeTasks.length}
-                  totalCount={group.tasks.length}
+                  totalCount={totalForProject}
                 />
                 {displayedTasks.map((task) => (
                   <TaskItem
@@ -355,6 +373,15 @@ export function TasksSidebar({ tasks, projects, searchQuery, onSearchChange, onN
                     onRefetch={onRefetch}
                   />
                 ))}
+                {hasMore && !groupOnly && (
+                  <button
+                    onClick={() => handleLoadMore(group.projectId)}
+                    disabled={isLoading}
+                    className="flex w-full items-center justify-center gap-1.5 py-2 text-xs text-muted-foreground hover:bg-muted hover:text-foreground disabled:opacity-50"
+                  >
+                    {isLoading ? "Loading..." : `Load more (${loadedForProject}/${totalForProject})`}
+                  </button>
+                )}
               </div>
             )
           })

@@ -109,6 +109,14 @@ export async function fetchTask(id: string): Promise<Task> {
   return request<Task>(`/api/tasks/${id}`)
 }
 
+export async function fetchTaskCounts(filter?: { status?: string; search?: string }): Promise<Record<string, number>> {
+  const params = new URLSearchParams()
+  if (filter?.status) params.set("status", filter.status)
+  if (filter?.search) params.set("search", filter.search)
+  const query = params.toString() ? `?${params}` : ""
+  return request<Record<string, number>>(`/api/tasks/counts${query}`)
+}
+
 export async function fetchChildTasks(id: string): Promise<Task[]> {
   return request<Task[]>(`/api/tasks/${id}/children`)
 }

@@ -4,7 +4,7 @@ import { SUPPORTED_PROVIDERS } from "@tangerine/shared"
 import type { AppDeps } from "../app"
 import { mapTaskRow } from "../helpers"
 import { runEffect, runEffectVoid } from "../effect-helpers"
-import { getTask, listTasks, updateTask, deleteTask, markTaskSeen, getChildTasks } from "../../db/queries"
+import { getTask, listTasks, updateTask, deleteTask, markTaskSeen, getChildTasks, countTasksByProject } from "../../db/queries"
 import { TaskNotFoundError, TaskNotTerminalError, PrCapabilityError, BranchRenameError } from "../../errors"
 import { getAgentWorkingState, hasAgentWorkingState } from "../../tasks/events"
 import { getRepoDir } from "../../config"
@@ -42,6 +42,12 @@ export function taskRoutes(deps: AppDeps): Hono {
         }))
       )
     )
+  })
+
+  app.get("/counts", (c) => {
+    const status = c.req.query("status") || undefined
+    const search = c.req.query("search") || undefined
+    return runEffect(c, countTasksByProject(deps.db, { status, search }))
   })
 
   app.get("/:id", (c) => {

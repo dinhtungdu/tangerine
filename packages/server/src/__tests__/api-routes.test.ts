@@ -269,6 +269,32 @@ describe("API routes", () => {
     })
   })
 
+  describe("GET /api/tasks/counts", () => {
+    test("returns counts grouped by project", async () => {
+      seedTask(db, { title: "Task1", project_id: "test-project" })
+      seedTask(db, { title: "Task2", project_id: "test-project" })
+      seedTask(db, { title: "Task3", project_id: "other-project" })
+
+      const res = await app.fetch(new Request("http://localhost/api/tasks/counts"))
+      expect(res.status).toBe(200)
+      const body = await res.json() as Record<string, number>
+      expect(body["test-project"]).toBe(2)
+      expect(body["other-project"]).toBe(1)
+    })
+
+    test("filters by status", async () => {
+      const task1 = seedTask(db, { title: "Running", project_id: "test-project" })
+      const task2 = seedTask(db, { title: "Done", project_id: "test-project" })
+      Effect.runSync(updateTaskStatus(db, task1.id, "running"))
+      Effect.runSync(updateTaskStatus(db, task2.id, "done"))
+
+      const res = await app.fetch(new Request("http://localhost/api/tasks/counts?status=running"))
+      expect(res.status).toBe(200)
+      const body = await res.json() as Record<string, number>
+      expect(body["test-project"]).toBe(1)
+    })
+  })
+
   describe("GET /api/tasks/:id", () => {
     test("returns task by id", async () => {
       const row = seedTask(db, { title: "My Task" })

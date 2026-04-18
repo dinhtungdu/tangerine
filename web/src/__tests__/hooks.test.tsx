@@ -32,12 +32,18 @@ const mockTasks = [
 const originalFetch = globalThis.fetch
 
 beforeEach(() => {
-  globalThis.fetch = mock(() =>
-    Promise.resolve(new Response(JSON.stringify(mockTasks), {
+  globalThis.fetch = mock((url: string) => {
+    if (url.includes("/api/tasks/counts")) {
+      return Promise.resolve(new Response(JSON.stringify({ proj: 2 }), {
+        status: 200,
+        headers: { "Content-Type": "application/json" },
+      }))
+    }
+    return Promise.resolve(new Response(JSON.stringify(mockTasks), {
       status: 200,
       headers: { "Content-Type": "application/json" },
     }))
-  ) as typeof fetch
+  }) as typeof fetch
 })
 
 afterEach(() => {
@@ -65,15 +71,21 @@ describe("useTasks", () => {
     })
 
     const calls = (globalThis.fetch as ReturnType<typeof mock>).mock.calls as unknown[][]
-    const url = calls[0]![0] as string
-    expect(url).toContain("project=my-project")
-    expect(url).toContain("status=running")
+    const tasksUrl = calls[1]![0] as string
+    expect(tasksUrl).toContain("project=my-project")
+    expect(tasksUrl).toContain("status=running")
   })
 
   test("handles fetch error", async () => {
-    globalThis.fetch = mock(() =>
-      Promise.resolve(new Response("Internal Server Error", { status: 500 }))
-    ) as typeof fetch
+    globalThis.fetch = mock((url: string) => {
+      if (url.includes("/api/tasks/counts")) {
+        return Promise.resolve(new Response(JSON.stringify({}), {
+          status: 200,
+          headers: { "Content-Type": "application/json" },
+        }))
+      }
+      return Promise.resolve(new Response("Internal Server Error", { status: 500 }))
+    }) as typeof fetch
 
     const { result } = renderHook(() => useTasks())
 
@@ -93,12 +105,18 @@ describe("useTasks", () => {
     })
 
     // Change mock to return different data
-    globalThis.fetch = mock(() =>
-      Promise.resolve(new Response(JSON.stringify([mockTasks[0]]), {
+    globalThis.fetch = mock((url: string) => {
+      if (url.includes("/api/tasks/counts")) {
+        return Promise.resolve(new Response(JSON.stringify({ proj: 1 }), {
+          status: 200,
+          headers: { "Content-Type": "application/json" },
+        }))
+      }
+      return Promise.resolve(new Response(JSON.stringify([mockTasks[0]]), {
         status: 200,
         headers: { "Content-Type": "application/json" },
       }))
-    ) as typeof fetch
+    }) as typeof fetch
 
     await act(async () => {
       await result.current.refetch()
