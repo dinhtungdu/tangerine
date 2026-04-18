@@ -18,18 +18,37 @@ export interface OrphanCleanupDeps {
   cleanupDeps: CleanupDeps
 }
 
-/** Find terminal tasks that still have a worktree_path — these are orphans. */
+/** Find terminal tasks that still have a worktree_path — these are orphans.
+ * Excludes any task whose worktree_path is currently referenced by an active
+ * task (running/created/pending) — guards against multi-instance data races. */
 export function findOrphans(
   deps: OrphanCleanupDeps,
 ): Effect.Effect<TaskRow[], Error> {
   return Effect.gen(function* () {
     const terminal = ["done", "failed", "cancelled"]
+    const active = ["running", "created", "pending"]
+
     const allTerminal: TaskRow[] = []
     for (const status of terminal) {
       const tasks = yield* deps.listTasks({ status })
       allTerminal.push(...tasks)
     }
-    return allTerminal.filter((t) => t.worktree_path)
+
+    const candidates = allTerminal.filter((t) => t.worktree_path)
+    if (candidates.length === 0) return []
+
+    // Build the set of worktree paths currently held by active tasks so we
+    // don't tear down a path that another task (possibly on a second server
+    // instance sharing the same DB) is still using.
+    const activePaths = new Set<string>()
+    for (const status of active) {
+      const tasks = yield* deps.listTasks({ status })
+      for (const t of tasks) {
+        if (t.worktree_path) activePaths.add(t.worktree_path)
+      }
+    }
+
+    return candidates.filter((t) => !activePaths.has(t.worktree_path!))
   })
 }
 
