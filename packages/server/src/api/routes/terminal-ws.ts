@@ -48,6 +48,7 @@ function appendScrollback(taskId: string, data: string): void {
     combined = combined.slice(-SCROLLBACK_LIMIT)
   }
   scrollbackBuffers.set(taskId, combined)
+  log.debug("Scrollback appended", { taskId, addedBytes: data.length, totalBytes: combined.length })
 }
 
 /** Get scrollback buffer for a task */
@@ -72,9 +73,12 @@ function stopShadowRecorder(taskId: string): void {
  * No-op if one already exists for this task.
  */
 function startShadowRecorder(taskId: string, socketPath: string, worktree: string): void {
-  if (shadowRecorders.has(taskId)) return
+  if (shadowRecorders.has(taskId)) {
+    log.debug("Shadow recorder already exists", { taskId })
+    return
+  }
 
-  log.debug("Starting shadow recorder", { taskId })
+  log.info("Starting shadow recorder", { taskId, socketPath })
 
   const pty = spawn("dtach", [
     "-A", socketPath,
@@ -95,7 +99,9 @@ function startShadowRecorder(taskId: string, socketPath: string, worktree: strin
 
   pty.onExit(() => {
     // Shell exited — clear stale scrollback only if we're still the live recorder
-    if (shadowRecorders.get(taskId) === pty) {
+    const isLiveRecorder = shadowRecorders.get(taskId) === pty
+    log.info("Shadow recorder exited", { taskId, isLiveRecorder })
+    if (isLiveRecorder) {
       shadowRecorders.delete(taskId)
       scrollbackBuffers.delete(taskId)
     }
@@ -104,6 +110,7 @@ function startShadowRecorder(taskId: string, socketPath: string, worktree: strin
 
 /** Clear scrollback buffer and stop shadow recorder (call on task cleanup) */
 export function clearScrollback(taskId: string): void {
+  log.info("Clearing scrollback", { taskId, hadBuffer: scrollbackBuffers.has(taskId) })
   scrollbackBuffers.delete(taskId)
   stopShadowRecorder(taskId)
 }
@@ -141,6 +148,11 @@ export function terminalWsRoutes(deps: AppDeps, upgradeWebSocket: UpgradeWebSock
             // Replay scrollback buffer BEFORE spawning dtach to avoid race.
             // Use "scrollback" type so client knows to clear before writing.
             const scrollback = getScrollback(taskId)
+            log.info("Client connecting", {
+              taskId,
+              hasShadowRecorder: shadowRecorders.has(taskId),
+              scrollbackBytes: scrollback.length,
+            })
             if (scrollback) {
               ws.send(JSON.stringify({ type: "scrollback", data: scrollback }))
             }
@@ -151,14 +163,16 @@ export function terminalWsRoutes(deps: AppDeps, upgradeWebSocket: UpgradeWebSock
 
             // Spawn a separate client attachment for this WebSocket session.
             // It relays output to the browser; scrollback is written only by the shadow.
-            // "-r none" suppresses dtach's screen redraw on attach — scrollback replay
-            // already covers history, so the redraw would duplicate the tail of the buffer.
-            pty = spawn("dtach", [
-              "-A", socketPath,
-              "-z",
-              "-r", "none",
-              "/bin/bash", "--login",
-            ], {
+            // "-r none" suppresses dtach's screen redraw on attach — only use it when
+            // we have scrollback to replay, otherwise we need the redraw (e.g. after
+            // server restart when scrollback was lost but dtach session still exists).
+            const dtachArgs = ["-A", socketPath, "-z"]
+            if (scrollback) {
+              dtachArgs.push("-r", "none")
+            }
+            dtachArgs.push("/bin/bash", "--login")
+
+            pty = spawn("dtach", dtachArgs, {
               cols: 80,
               rows: 24,
               name: "xterm-256color",
