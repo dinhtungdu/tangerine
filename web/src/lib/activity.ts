@@ -201,37 +201,45 @@ export function getActivityStyle(event: string): ActivityStyle {
   return TOOL_STYLES[event] ?? LIFECYCLE_STYLES[event] ?? DEFAULT_LIFECYCLE_STYLE
 }
 
+/** Normalize toolInput to a parsed object, handling both string-encoded JSON and plain objects. */
+export function resolveToolInput(raw: unknown): Record<string, unknown> | null {
+  if (typeof raw === "string") {
+    try {
+      const parsed = JSON.parse(raw)
+      if (parsed !== null && typeof parsed === "object" && !Array.isArray(parsed)) {
+        return parsed as Record<string, unknown>
+      }
+    } catch {
+      // not valid JSON
+    }
+    return null
+  }
+  if (raw !== null && typeof raw === "object" && !Array.isArray(raw)) {
+    return raw as Record<string, unknown>
+  }
+  return null
+}
+
 /** Extract the detail text to show below the label */
 export function getActivityDetail(event: string, content: string, metadata: Record<string, unknown> | null): string {
   if (!metadata) return content
 
-  const toolInput = metadata.toolInput as string | undefined
+  const input = resolveToolInput(metadata.toolInput)
 
   switch (event) {
     case "tool.read":
     case "tool.write":
     case "tool.read.done":
     case "tool.write.done": {
-      // Extract file_path from toolInput JSON
-      if (toolInput) {
-        try {
-          const input = JSON.parse(toolInput)
-          return input.file_path ?? input.path ?? input.pattern ?? content
-        } catch {
-          return toolInput
-        }
+      if (input) {
+        return (input.file_path ?? input.path ?? input.pattern ?? content) as string
       }
       return content
     }
     case "tool.bash":
     case "tool.bash.done": {
-      if (toolInput) {
-        try {
-          const input = JSON.parse(toolInput)
-          return input.command ?? content
-        } catch {
-          return toolInput
-        }
+      if (input) {
+        return (input.command ?? content) as string
       }
       return content
     }
@@ -254,14 +262,8 @@ export function getActivityDetail(event: string, content: string, metadata: Reco
       return content
     }
     default: {
-      // Fallback: try to extract useful detail from toolInput for unclassified tools
-      if (toolInput) {
-        try {
-          const input = JSON.parse(toolInput)
-          return input.file_path ?? input.path ?? input.pattern ?? input.command ?? content
-        } catch {
-          return content
-        }
+      if (input) {
+        return (input.file_path ?? input.path ?? input.pattern ?? input.command ?? content) as string
       }
       return content
     }

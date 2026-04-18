@@ -269,6 +269,15 @@ describe("ActivityList", () => {
     expect(screen.getByText("src/index.ts")).toBeTruthy()
   })
 
+  test("compact variant handles toolInput as object (not string)", () => {
+    const activities = [
+      makeActivity({ event: "tool.read", content: "Read", metadata: { toolInput: { file_path: "src/index.ts" } } }),
+    ]
+    render(<ActivityList activities={activities} variant="compact" />)
+    expect(screen.getByText("Read file")).toBeTruthy()
+    expect(screen.getByText("src/index.ts")).toBeTruthy()
+  })
+
   test("timeline variant groups by day", () => {
     const activities = [
       makeActivity({ event: "tool.bash", content: "npm test", timestamp: new Date().toISOString() }),

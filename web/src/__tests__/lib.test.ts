@@ -9,7 +9,7 @@ import {
   linkifyTaskIds,
 } from "../lib/format"
 import { getStatusConfig, STATUS_CONFIG } from "../lib/status"
-import { getActivityStyle, getActivityDetail } from "../lib/activity"
+import { getActivityStyle, getActivityDetail, resolveToolInput } from "../lib/activity"
 import { searchModels } from "../lib/model-search"
 import { copyToClipboard } from "../lib/clipboard"
 import { buildSshEditorUri } from "../lib/ssh-editor"
@@ -241,6 +241,52 @@ describe("activity", () => {
   test("getActivityDetail falls back to content", () => {
     const detail = getActivityDetail("tool.other", "Some content", null)
     expect(detail).toBe("Some content")
+  })
+
+  test("getActivityDetail handles toolInput as object (not string)", () => {
+    const detail = getActivityDetail("tool.read", "Read", {
+      toolInput: { file_path: "src/index.ts" },
+    })
+    expect(detail).toBe("src/index.ts")
+  })
+
+  test("getActivityDetail handles bash toolInput as object", () => {
+    const detail = getActivityDetail("tool.bash", "Bash", {
+      toolInput: { command: "npm test" },
+    })
+    expect(detail).toBe("npm test")
+  })
+
+  test("getActivityDetail returns string (never object) when toolInput is unparseable", () => {
+    const detail = getActivityDetail("tool.read", "fallback", {
+      toolInput: "not-json",
+    })
+    expect(typeof detail).toBe("string")
+    expect(detail).toBe("fallback")
+  })
+})
+
+describe("resolveToolInput", () => {
+  test("parses JSON string to object", () => {
+    expect(resolveToolInput(JSON.stringify({ file_path: "a.ts" }))).toEqual({ file_path: "a.ts" })
+  })
+
+  test("returns object as-is", () => {
+    const obj = { command: "ls" }
+    expect(resolveToolInput(obj)).toBe(obj)
+  })
+
+  test("returns null for invalid JSON string", () => {
+    expect(resolveToolInput("not-json")).toBeNull()
+  })
+
+  test("returns null for null/undefined", () => {
+    expect(resolveToolInput(null)).toBeNull()
+    expect(resolveToolInput(undefined)).toBeNull()
+  })
+
+  test("returns null for arrays", () => {
+    expect(resolveToolInput(["a"])).toBeNull()
   })
 })
 

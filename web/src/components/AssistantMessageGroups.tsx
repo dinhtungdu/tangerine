@@ -4,6 +4,7 @@ import type { ChatMessage as ChatMessageType } from "../hooks/useSession"
 import { ChatMessage } from "./ChatMessage"
 import { ToolCallDisplay } from "./ToolCallDisplay"
 import { ToolCallsSummaryBar } from "./ToolCallsSummaryBar"
+import { resolveToolInput } from "../lib/activity"
 
 interface AssistantMessageGroupsProps {
   messages: ChatMessageType[]
@@ -39,8 +40,9 @@ function isWriteOrEditActivity(activity: ActivityEntry): boolean {
 }
 
 function getFilePathFromActivity(activity: ActivityEntry): string | null {
-  const meta = activity.metadata as { toolInput?: { file_path?: string; path?: string } } | null
-  return meta?.toolInput?.file_path || meta?.toolInput?.path || null
+  const meta = activity.metadata as Record<string, unknown> | null
+  const input = resolveToolInput(meta?.toolInput)
+  return (input?.file_path as string | undefined) || (input?.path as string | undefined) || null
 }
 
 function mergeMessagesAndActivities(
@@ -147,15 +149,7 @@ function groupItems(items: MergedItem[]): MessageGroup[] {
 function buildToolContent(activity: ActivityEntry): string {
   const meta = activity.metadata as Record<string, unknown> | null
   const toolName = meta?.toolName || activity.event.replace("tool.", "")
-  // Parse toolInput JSON string into input object for ToolCallDisplay
-  let input: Record<string, unknown> | undefined
-  if (typeof meta?.toolInput === "string") {
-    try {
-      input = JSON.parse(meta.toolInput)
-    } catch {
-      // Keep as-is if not valid JSON
-    }
-  }
+  const input = resolveToolInput(meta?.toolInput)
   return JSON.stringify({
     tool: toolName,
     name: toolName,
