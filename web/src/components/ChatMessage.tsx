@@ -336,7 +336,7 @@ export const ChatMessage = memo(function ChatMessage({ message, tasks, onReply, 
           )}
           {message.content && (
             <div
-              className="text-sm leading-[1.5] text-primary-foreground [&_a]:underline [&_a]:text-blue-600 [&_a]:dark:text-blue-400 hover:[&_a]:text-blue-800 dark:hover:[&_a]:text-blue-300 [&_a]:break-all [&_code]:bg-primary-foreground/15 [&_code]:border-primary-foreground/20 [&_pre_code]:bg-transparent [&_pre_code]:border-transparent [&_pre]:bg-primary-foreground/10 [&_pre]:border-primary-foreground/15 [&_blockquote]:border-primary-foreground/30 [&_blockquote]:text-primary-foreground/70"
+              className="break-words text-sm leading-[1.5] text-primary-foreground [&_a]:underline [&_a]:text-blue-600 [&_a]:dark:text-blue-400 hover:[&_a]:text-blue-800 dark:hover:[&_a]:text-blue-300 [&_a]:break-all [&_code]:bg-primary-foreground/15 [&_code]:border-primary-foreground/20 [&_pre_code]:bg-transparent [&_pre_code]:border-transparent [&_pre]:bg-primary-foreground/10 [&_pre]:border-primary-foreground/15 [&_blockquote]:border-primary-foreground/30 [&_blockquote]:text-primary-foreground/70"
               onClick={handleLinkClick}
             >
               <ReactMarkdown remarkPlugins={userRemarkPlugins} components={markdownComponents}>
