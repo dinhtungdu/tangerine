@@ -9,7 +9,7 @@ interface UseTaskSearchResult {
   total: number
   page: number
   pageSize: number
-  setPage: (page: number) => void
+  setPage: (page: number | ((prev: number) => number)) => void
   loading: boolean
   refetch: () => void
 }

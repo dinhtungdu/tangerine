@@ -29,7 +29,7 @@ interface TasksSidebarProps {
   total: number
   page: number
   pageSize: number
-  onPageChange: (page: number) => void
+  onPageChange: (page: number | ((prev: number) => number)) => void
   projectFilter: string
   onProjectFilterChange: (value: string | null) => void
 }
@@ -224,10 +224,17 @@ export function TasksSidebar({ tasks, projects, searchQuery, onSearchChange, onN
     // Group by project
     const groupMap = new Map<string, ProjectGroup>()
 
-    // Initialize groups from projects list (to maintain order)
+    // When viewing a single project, always show that project's header.
+    // When viewing all projects (paginated), only show projects with tasks on the current page
+    // to avoid misleading "create orchestrator" prompts for projects whose orchestrator is on another page.
+    const projectsOnPage = new Set(tasks.map((t) => t.projectId))
     const activeProjects = projects.filter((p) => !p.archived)
     for (const p of activeProjects) {
-      if (projectFilter && p.name !== projectFilter) continue
+      if (projectFilter) {
+        if (p.name !== projectFilter) continue
+      } else {
+        if (!projectsOnPage.has(p.name)) continue
+      }
       groupMap.set(p.name, {
         projectId: p.name,
         projectName: p.name,
@@ -348,7 +355,7 @@ export function TasksSidebar({ tasks, projects, searchQuery, onSearchChange, onN
               <Button
                 variant="ghost"
                 size="icon-xs"
-                onClick={() => onPageChange(page - 1)}
+                onClick={() => onPageChange((p) => Math.max(0, p - 1))}
                 disabled={page === 0}
                 aria-label="Previous page"
               >
@@ -357,7 +364,7 @@ export function TasksSidebar({ tasks, projects, searchQuery, onSearchChange, onN
               <Button
                 variant="ghost"
                 size="icon-xs"
-                onClick={() => onPageChange(page + 1)}
+                onClick={() => onPageChange((p) => p + 1)}
                 disabled={(page + 1) * pageSize >= total}
                 aria-label="Next page"
               >

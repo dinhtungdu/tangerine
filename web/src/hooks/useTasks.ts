@@ -10,7 +10,7 @@ interface UseTasksResult {
   total: number
   page: number
   pageSize: number
-  setPage: (page: number) => void
+  setPage: (page: number | ((prev: number) => number)) => void
   loading: boolean
   error: string | null
   refetch: () => void
@@ -19,46 +19,63 @@ interface UseTasksResult {
 export function useTasks(filter?: { status?: string; project?: string; search?: string }): UseTasksResult {
   const [tasks, setTasks] = useState<Task[]>([])
   const [total, setTotal] = useState(0)
-  const [page, setPage] = useState(0)
+  const [page, setPageState] = useState(0)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
-  const filterRef = useRef(filter)
-  filterRef.current = filter
-  const pageRef = useRef(page)
-  pageRef.current = page
+  const [fetchTrigger, setFetchTrigger] = useState(0)
 
-  const refetch = useCallback(async () => {
-    try {
-      const data = await fetchTasks({
-        ...filterRef.current,
-        limit: PAGE_SIZE,
-        offset: pageRef.current * PAGE_SIZE,
-      })
-      setTasks(data.tasks)
-      setTotal(data.total)
-      setError(null)
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "Failed to fetch tasks")
-    } finally {
-      setLoading(false)
-    }
+  // Track previous filter to detect changes and reset page
+  const prevFilterRef = useRef<string | undefined>(undefined)
+  const filterKey = `${filter?.status}|${filter?.project}|${filter?.search}`
+
+  // Wrapper to support functional updates for rapid clicks
+  const setPage = useCallback((pageOrFn: number | ((prev: number) => number)) => {
+    setPageState(pageOrFn)
   }, [])
 
-  useEffect(() => {
-    setPage(0)
-  }, [filter?.status, filter?.project, filter?.search])
+  const refetch = useCallback(() => {
+    setFetchTrigger((n) => n + 1)
+  }, [])
+
+  // Store filter in ref to avoid object comparison issues in effect deps
+  const filterRef = useRef(filter)
+  filterRef.current = filter
 
   useEffect(() => {
+    // Reset page to 0 when filter changes, then fetch
+    const filterChanged = prevFilterRef.current !== undefined && prevFilterRef.current !== filterKey
+    prevFilterRef.current = filterKey
+    const effectivePage = filterChanged ? 0 : page
+    if (filterChanged) setPageState(0)
+
     setLoading(true)
-    refetch()
 
-    const interval = setInterval(refetch, POLL_INTERVAL)
+    const doFetch = async () => {
+      try {
+        const data = await fetchTasks({
+          ...filterRef.current,
+          limit: PAGE_SIZE,
+          offset: effectivePage * PAGE_SIZE,
+        })
+        setTasks(data.tasks)
+        setTotal(data.total)
+        setError(null)
+      } catch (err) {
+        setError(err instanceof Error ? err.message : "Failed to fetch tasks")
+      } finally {
+        setLoading(false)
+      }
+    }
+
+    doFetch()
+
+    const interval = setInterval(doFetch, POLL_INTERVAL)
     function onVisibilityChange() {
-      if (document.visibilityState === "visible") refetch()
+      if (document.visibilityState === "visible") doFetch()
     }
     document.addEventListener("visibilitychange", onVisibilityChange)
     return () => { clearInterval(interval); document.removeEventListener("visibilitychange", onVisibilityChange) }
-  }, [filter?.status, filter?.project, filter?.search, page, refetch])
+  }, [filterKey, page, fetchTrigger])
 
   return { tasks, total, page, pageSize: PAGE_SIZE, setPage, loading, error, refetch }
 }
