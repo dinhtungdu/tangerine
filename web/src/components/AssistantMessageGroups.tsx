@@ -220,15 +220,19 @@ function AssistantGroup({
   }, [group.items])
 
   // Filter items to exclude narrations that duplicate the final assistant message
-  // Use prefix + length comparison to avoid comparing very long strings
+  // Use prefix + suffix + length comparison to avoid comparing very long strings
   const filteredItems = useMemo(() => {
     if (!lastAssistantContent) return group.items
     const targetLen = lastAssistantContent.length
     const targetPrefix = lastAssistantContent.slice(0, 200)
+    const targetSuffix = lastAssistantContent.slice(-200)
     return group.items.filter((item) => {
       if (item.kind === "message" && item.data.role === "narration") {
         const content = item.data.content
-        return content.length !== targetLen || content.slice(0, 200) !== targetPrefix
+        if (content.length !== targetLen) return true
+        if (content.slice(0, 200) !== targetPrefix) return true
+        if (content.slice(-200) !== targetSuffix) return true
+        return false
       }
       return true
     })
