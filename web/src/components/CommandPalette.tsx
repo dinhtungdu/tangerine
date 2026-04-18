@@ -164,7 +164,7 @@ export function CommandPalette() {
     if (!isOpen) return
     setQuery("")
     setSelectedIndex(0)
-    fetchTasks().then(setTasks).catch(() => {})
+    fetchTasks().then((res) => setTasks(res.tasks)).catch(() => {})
   }, [isOpen])
 
   // Auto-focus input when opened

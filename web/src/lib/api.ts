@@ -94,7 +94,12 @@ export async function fetchProjects(): Promise<{
   }>("/api/projects")
 }
 
-export async function fetchTasks(filter?: { status?: string; project?: string; search?: string; limit?: number; offset?: number }): Promise<Task[]> {
+export interface TasksResponse {
+  tasks: Task[]
+  total: number
+}
+
+export async function fetchTasks(filter?: { status?: string; project?: string; search?: string; limit?: number; offset?: number }): Promise<TasksResponse> {
   const params = new URLSearchParams()
   if (filter?.status) params.set("status", filter.status)
   if (filter?.project) params.set("project", filter.project)
@@ -102,7 +107,7 @@ export async function fetchTasks(filter?: { status?: string; project?: string; s
   if (filter?.limit !== undefined) params.set("limit", String(filter.limit))
   if (filter?.offset !== undefined) params.set("offset", String(filter.offset))
   const query = params.toString() ? `?${params}` : ""
-  return request<Task[]>(`/api/tasks${query}`)
+  return request<TasksResponse>(`/api/tasks${query}`)
 }
 
 export async function fetchTask(id: string): Promise<Task> {

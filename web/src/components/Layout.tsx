@@ -22,7 +22,7 @@ export function Layout() {
   const location = useLocation()
   const { link, navigate } = useProjectNav()
   const { projects } = useProject()
-  const { query, setQuery, tasks, loading: tasksLoading, refetch } = useTaskSearch()
+  const { query, setQuery, tasks, total, page, pageSize, setPage, loading: tasksLoading, refetch } = useTaskSearch()
 
   // Register all app-wide actions + activate global shortcuts
   useAppActions()
@@ -108,6 +108,10 @@ export function Layout() {
                 navigate("/#new-agent-textarea")
               }}
               onRefetch={refetch}
+              total={total}
+              page={page}
+              pageSize={pageSize}
+              onPageChange={setPage}
             />
           </div>
         )}

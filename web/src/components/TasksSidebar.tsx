@@ -2,7 +2,7 @@ import { useMemo, useState, useCallback, useEffect } from "react"
 import { Link, useParams, useNavigate } from "react-router-dom"
 import { TERMINAL_STATUSES } from "@tangerine/shared"
 import type { Task, ProjectConfig } from "@tangerine/shared"
-import { Search, Plus, X } from "lucide-react"
+import { Search, Plus, X, ChevronLeft, ChevronRight } from "lucide-react"
 import { getStatusConfig, hasUnseenUpdates } from "../lib/status"
 import { formatRelativeTime } from "../lib/format"
 import { useProject } from "../context/ProjectContext"
@@ -26,6 +26,10 @@ interface TasksSidebarProps {
   onSearchChange: (query: string) => void
   onNewAgent: () => void
   onRefetch?: () => void
+  total: number
+  page: number
+  pageSize: number
+  onPageChange: (page: number) => void
 }
 
 const PROJECT_FILTER_KEY = "tangerine:sidebar-project-filter"
@@ -194,7 +198,7 @@ function ProjectGroupHeader({
   )
 }
 
-export function TasksSidebar({ tasks, projects, searchQuery, onSearchChange, onNewAgent, onRefetch }: TasksSidebarProps) {
+export function TasksSidebar({ tasks, projects, searchQuery, onSearchChange, onNewAgent, onRefetch, total, page, pageSize, onPageChange }: TasksSidebarProps) {
   const { id: activeId } = useParams<{ id: string }>()
   const [projectFilter, setProjectFilter] = useState(readProjectFilter)
   // Per-group active-only toggle: undefined means default (true = active only)
@@ -360,6 +364,38 @@ export function TasksSidebar({ tasks, projects, searchQuery, onSearchChange, onN
           })
         )}
       </ScrollArea>
+
+      {/* Pagination */}
+      {total > pageSize && (
+        <>
+          <div className="h-px bg-border" />
+          <div className="flex items-center justify-between px-4 py-2">
+            <span className="font-mono text-xs text-muted-foreground">
+              {page * pageSize + 1}–{Math.min((page + 1) * pageSize, total)} of {total}
+            </span>
+            <div className="flex gap-1">
+              <Button
+                variant="ghost"
+                size="icon-xs"
+                onClick={() => onPageChange(page - 1)}
+                disabled={page === 0}
+                aria-label="Previous page"
+              >
+                <ChevronLeft className="size-3.5" />
+              </Button>
+              <Button
+                variant="ghost"
+                size="icon-xs"
+                onClick={() => onPageChange(page + 1)}
+                disabled={(page + 1) * pageSize >= total}
+                aria-label="Next page"
+              >
+                <ChevronRight className="size-3.5" />
+              </Button>
+            </div>
+          </div>
+        </>
+      )}
     </div>
   )
 }

@@ -107,8 +107,8 @@ export function ProjectProvider({ children }: { children: ReactNode }) {
       setSelectedModel(null)
       if (location.pathname.startsWith("/tasks/")) {
         const projectParam = `?project=${encodeURIComponent(name)}`
-        fetchTasks({ project: name }).then((tasks) => {
-          const task = getMostRecentTask(tasks)
+        fetchTasks({ project: name }).then((res) => {
+          const task = getMostRecentTask(res.tasks)
           if (task) {
             navigate(`/tasks/${task.id}${projectParam}`, { replace })
             return

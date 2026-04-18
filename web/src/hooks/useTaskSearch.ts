@@ -12,6 +12,10 @@ interface UseTaskSearchResult {
   query: string
   setQuery: (q: string) => void
   tasks: Task[]
+  total: number
+  page: number
+  pageSize: number
+  setPage: (page: number) => void
   loading: boolean
   refetch: () => void
 }
@@ -22,7 +26,7 @@ export function useTaskSearch(project?: string): UseTaskSearchResult {
 
   // Only hit the server when we have a query — otherwise fetch all
   const serverSearch = deferredQuery.length >= 2 ? deferredQuery : undefined
-  const { tasks: allTasks, loading, refetch } = useTasks(
+  const { tasks: allTasks, total, page, pageSize, setPage, loading, refetch } = useTasks(
     project ? { project, search: serverSearch } : { search: serverSearch }
   )
 
@@ -39,5 +43,5 @@ export function useTaskSearch(project?: string): UseTaskSearchResult {
     )
   }, [allTasks, deferredQuery])
 
-  return { query, setQuery, tasks, loading, refetch }
+  return { query, setQuery, tasks, total, page, pageSize, setPage, loading, refetch }
 }

@@ -4,7 +4,7 @@ import { SUPPORTED_PROVIDERS } from "@tangerine/shared"
 import type { AppDeps } from "../app"
 import { mapTaskRow } from "../helpers"
 import { runEffect, runEffectVoid } from "../effect-helpers"
-import { getTask, listTasks, updateTask, deleteTask, markTaskSeen, getChildTasks } from "../../db/queries"
+import { getTask, listTasks, countTasks, updateTask, deleteTask, markTaskSeen, getChildTasks } from "../../db/queries"
 import { TaskNotFoundError, TaskNotTerminalError, PrCapabilityError, BranchRenameError } from "../../errors"
 import { getAgentWorkingState, hasAgentWorkingState } from "../../tasks/events"
 import { getRepoDir } from "../../config"
@@ -28,18 +28,23 @@ export function taskRoutes(deps: AppDeps): Hono {
     const offsetParsed = offsetStr ? parseInt(offsetStr, 10) : NaN
     const limit = !isNaN(limitParsed) ? Math.max(1, limitParsed) : undefined
     const offset = !isNaN(offsetParsed) ? Math.max(0, offsetParsed) : undefined
+    const filter = { status, projectId, search, limit, offset }
     return runEffect(c,
-      listTasks(deps.db, { status, projectId, search, limit, offset }).pipe(
-        Effect.map(rows => rows.map(row => {
-          const task = mapTaskRow(row)
-          if (task.status === "running") {
-            // Suspended tasks are always idle — their agentWorkingState is lost on restart
-            // but suspended=true in the DB is the authoritative source of truth.
-            if (task.suspended) task.agentStatus = "idle"
-            else if (hasAgentWorkingState(task.id)) task.agentStatus = getAgentWorkingState(task.id)
-          }
-          return task
-        }))
+      Effect.all([
+        listTasks(deps.db, filter),
+        countTasks(deps.db, { status, projectId, search }),
+      ]).pipe(
+        Effect.map(([rows, total]) => {
+          const tasks = rows.map(row => {
+            const task = mapTaskRow(row)
+            if (task.status === "running") {
+              if (task.suspended) task.agentStatus = "idle"
+              else if (hasAgentWorkingState(task.id)) task.agentStatus = getAgentWorkingState(task.id)
+            }
+            return task
+          })
+          return { tasks, total }
+        })
       )
     )
   })
