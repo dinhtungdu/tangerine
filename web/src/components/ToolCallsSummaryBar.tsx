@@ -48,20 +48,15 @@ export function ToolCallsSummaryBar({
     <button
       onClick={onToggle}
       aria-expanded={expanded}
-      className="flex items-center gap-1.5 text-xs text-muted-foreground hover:text-foreground transition-colors"
+      className="inline-flex items-center gap-1.5 text-xs text-muted-foreground hover:text-foreground transition-colors"
     >
-      <svg
-        className={`h-3 w-3 transition-transform ${expanded ? "rotate-90" : ""}`}
-        fill="none"
-        viewBox="0 0 24 24"
-        stroke="currentColor"
-        strokeWidth={2}
-      >
-        <path strokeLinecap="round" strokeLinejoin="round" d="M9 5l7 7-7 7" />
-      </svg>
-      <span>{toolCount} tool calls</span>
-      {filesChanged > 0 && <span>· {filesChanged} files</span>}
-      <span>· {formatElapsed(elapsed)}</span>
+      <span className={`transition-transform inline-block ${expanded ? "rotate-90" : ""}`}>▶</span>
+      <span>
+        {toolCount} tools
+        {filesChanged > 0 && ` · ${filesChanged} files`}
+        {" · "}
+        {formatElapsed(elapsed)}
+      </span>
     </button>
   )
 }
