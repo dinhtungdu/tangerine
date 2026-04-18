@@ -4,25 +4,39 @@ import { findOrphans } from "../tasks/orphan-cleanup"
 import type { TaskRow } from "../db/types"
 
 function makeTask(overrides: Partial<TaskRow>): TaskRow {
+  const now = new Date().toISOString()
   return {
     id: "t1",
     project_id: "p1",
+    source: "manual",
+    source_id: null,
+    source_url: null,
     title: "test",
-    status: "done",
-    worktree_path: null,
-    created_at: new Date().toISOString(),
-    updated_at: new Date().toISOString(),
-    pr_url: null,
-    branch: null,
-    base_branch: null,
-    prompt: null,
     type: "worker",
-    capabilities: "[]",
+    description: null,
+    status: "done",
+    provider: "claude-code",
+    model: null,
+    reasoning_effort: null,
+    branch: null,
+    worktree_path: null,
+    pr_url: null,
+    parent_task_id: null,
+    user_id: null,
+    agent_session_id: null,
     agent_pid: null,
+    suspended: 0,
     error: null,
-    pr_number: null,
+    created_at: now,
+    updated_at: now,
+    started_at: null,
+    completed_at: null,
+    last_seen_at: null,
+    last_result_at: null,
+    capabilities: "[]",
+    context_tokens: 0,
     ...overrides,
-  } as TaskRow
+  }
 }
 
 function makeDeps(tasksByStatus: Record<string, TaskRow[]>) {
@@ -57,10 +71,10 @@ describe("findOrphans", () => {
     expect(result).toHaveLength(0)
   })
 
-  it("excludes orphan whose worktree_path is held by a pending task", async () => {
+  it("excludes orphan whose worktree_path is held by a provisioning task", async () => {
     const orphan = makeTask({ id: "t1", status: "failed", worktree_path: "/wt/shared" })
-    const active = makeTask({ id: "t2", status: "pending", worktree_path: "/wt/shared" })
-    const deps = makeDeps({ failed: [orphan], pending: [active] })
+    const active = makeTask({ id: "t2", status: "provisioning", worktree_path: "/wt/shared" })
+    const deps = makeDeps({ failed: [orphan], provisioning: [active] })
     const result = await Effect.runPromise(findOrphans(deps))
     expect(result).toHaveLength(0)
   })

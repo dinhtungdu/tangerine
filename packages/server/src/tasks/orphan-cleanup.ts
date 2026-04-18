@@ -20,13 +20,13 @@ export interface OrphanCleanupDeps {
 
 /** Find terminal tasks that still have a worktree_path — these are orphans.
  * Excludes any task whose worktree_path is currently referenced by an active
- * task (running/created/pending) — guards against multi-instance data races. */
+ * task (running/created/provisioning) — guards against multi-instance data races. */
 export function findOrphans(
   deps: OrphanCleanupDeps,
 ): Effect.Effect<TaskRow[], Error> {
   return Effect.gen(function* () {
     const terminal = ["done", "failed", "cancelled"]
-    const active = ["running", "created", "pending"]
+    const active = ["running", "created", "provisioning"]
 
     const allTerminal: TaskRow[] = []
     for (const status of terminal) {
