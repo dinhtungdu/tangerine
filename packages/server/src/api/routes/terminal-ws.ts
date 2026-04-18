@@ -4,6 +4,9 @@
 // and back re-attaches to the same session with the shell state preserved.
 // Unlike tmux, dtach doesn't capture the mouse, so copy/paste and mobile
 // scroll work natively in xterm.js.
+//
+// Scrollback buffer: dtach doesn't replay output to new connections, so we
+// keep a ring buffer per task and replay it on reconnect.
 
 import { Effect } from "effect"
 import { Hono } from "hono"
@@ -22,6 +25,29 @@ const log = createLogger("terminal-ws")
 /** dtach socket path for a given task */
 export function dtachSocketPath(taskId: string): string {
   return join(tmpdir(), `tng-${taskId.slice(0, 8)}.dtach`)
+}
+
+const SCROLLBACK_LIMIT = 100 * 1024 // 100KB per task
+const scrollbackBuffers = new Map<string, string>()
+
+/** Append output to scrollback buffer, trimming if over limit */
+function appendScrollback(taskId: string, data: string): void {
+  const existing = scrollbackBuffers.get(taskId) ?? ""
+  let combined = existing + data
+  if (combined.length > SCROLLBACK_LIMIT) {
+    combined = combined.slice(-SCROLLBACK_LIMIT)
+  }
+  scrollbackBuffers.set(taskId, combined)
+}
+
+/** Get scrollback buffer for a task */
+function getScrollback(taskId: string): string {
+  return scrollbackBuffers.get(taskId) ?? ""
+}
+
+/** Clear scrollback buffer (call on task cleanup) */
+export function clearScrollback(taskId: string): void {
+  scrollbackBuffers.delete(taskId)
 }
 
 export function terminalWsRoutes(deps: AppDeps, upgradeWebSocket: UpgradeWebSocket): Hono {
@@ -66,6 +92,7 @@ export function terminalWsRoutes(deps: AppDeps, upgradeWebSocket: UpgradeWebSock
             })
 
             pty.onData((data) => {
+              appendScrollback(taskId, data)
               if (!alive) return
               try {
                 ws.send(JSON.stringify({ type: "output", data }))
@@ -82,6 +109,12 @@ export function terminalWsRoutes(deps: AppDeps, upgradeWebSocket: UpgradeWebSock
                 // Client gone
               }
             })
+
+            // Replay scrollback buffer before live output
+            const scrollback = getScrollback(taskId)
+            if (scrollback) {
+              ws.send(JSON.stringify({ type: "output", data: scrollback }))
+            }
 
             ws.send(JSON.stringify({ type: "connected" }))
           }),
