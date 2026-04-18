@@ -265,7 +265,7 @@ export const NewAgentForm = forwardRef<NewAgentFormHandle, NewAgentFormProps>(fu
 
           {/* Worker / Reviewer / Runner toggle */}
           <div className="flex justify-center">
-            <div className="inline-flex rounded-lg border border-border bg-muted p-0.5">
+            <div className="inline-flex overflow-hidden rounded-lg border border-border bg-muted p-0.5">
               <Button
                 variant="ghost"
                 size="sm"
