@@ -500,12 +500,30 @@ export function ChatInput({ onSend, disabled, queueLength, taskId, isWorking, on
                   provider={provider}
                 />
               )}
+              {contextWindowLabel && (
+                <span className="font-mono text-2xs text-muted-foreground/60" title={contextWindowTitle}>
+                  {contextWindowLabel}
+                </span>
+              )}
             </div>
             <div className="flex shrink-0 items-center gap-1.5">
               {queueLength > 0 && (
                 <span className="flex h-5 w-5 items-center justify-center rounded-full bg-orange-500 text-2xs font-bold text-white">
                   {queueLength}
                 </span>
+              )}
+              {isWorking && (
+                <Button
+                  variant="ghost"
+                  size="icon-xs"
+                  onClick={onAbort}
+                  aria-label="Stop agent"
+                  className="text-destructive hover:bg-destructive/10 hover:text-destructive"
+                >
+                  <svg className="h-3.5 w-3.5" fill="currentColor" viewBox="0 0 24 24">
+                    <rect x="6" y="6" width="12" height="12" rx="1" />
+                  </svg>
+                </Button>
               )}
               <Button
                 onClick={handleSend}
@@ -520,27 +538,6 @@ export function ChatInput({ onSend, disabled, queueLength, taskId, isWorking, on
           </div>
         </div>
       </div>
-
-      {/* Context window + stop agent — below the input */}
-      {(contextWindowLabel || isWorking) && (
-        <div className="mt-2 flex items-center justify-between">
-          <span className="font-mono text-2xs text-muted-foreground/60" title={contextWindowTitle}>
-            {contextWindowLabel ? `· ${contextWindowLabel}` : ""}
-          </span>
-          {isWorking && (
-            <Button
-              variant="destructive"
-              size="xs"
-              onClick={onAbort}
-            >
-              <svg className="h-2.5 w-2.5" fill="currentColor" viewBox="0 0 24 24">
-                <rect x="6" y="6" width="12" height="12" rx="1" />
-              </svg>
-              <span className="text-xxs font-medium">Stop agent</span>
-            </Button>
-          )}
-        </div>
-      )}
     </div>
   )
 }
