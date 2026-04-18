@@ -56,13 +56,22 @@ export function ToolCallsSummaryBar({
 }: ToolCallsSummaryBarProps) {
   const duration = useDuration(startTime, endTime, isStreaming)
 
+  const showSpinner = isStreaming && !expanded
+
   return (
     <button
       onClick={onToggle}
       aria-expanded={expanded}
       className="inline-flex items-center gap-1.5 text-xs text-muted-foreground hover:text-foreground transition-colors"
     >
-      <span className={`transition-transform inline-block ${expanded ? "rotate-90" : ""}`}>▶</span>
+      {showSpinner ? (
+        <svg className="h-3 w-3 animate-spin" viewBox="0 0 24 24" fill="none">
+          <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="3" />
+          <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
+        </svg>
+      ) : (
+        <span className={`transition-transform inline-block ${expanded ? "rotate-90" : ""}`}>▶</span>
+      )}
       <span>
         {toolCount} tools
         {filesChanged > 0 && ` · ${filesChanged} files`}
