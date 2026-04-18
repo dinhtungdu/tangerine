@@ -1,0 +1,36 @@
+- generic [ref=e3]:
+  - banner [ref=e5]:
+    - generic [ref=e6]:
+      - button "Collapse sidebar" [ref=e7]:
+        - img
+      - link "Tangerine" [ref=e8] [cursor=pointer]:
+        - /url: /?project=tangerine
+        - img [ref=e10]
+        - generic [ref=e12]: Tangerine
+    - generic [ref=e13]:
+      - navigation [ref=e14]:
+        - link "Runs" [ref=e15] [cursor=pointer]:
+          - /url: /?project=tangerine
+        - link "Crons" [ref=e16] [cursor=pointer]:
+          - /url: /crons?project=tangerine
+        - link "Status" [ref=e17] [cursor=pointer]:
+          - /url: /status?project=tangerine
+      - 'button "Theme: System" [ref=e19]':
+        - img
+  - main [ref=e20]:
+    - generic [ref=e22]:
+      - generic [ref=e23]:
+        - button "New Run" [ref=e24]:
+          - img
+          - generic [ref=e25]: New Run
+        - group [ref=e26]:
+          - textbox "Search tasks..." [ref=e27]
+          - group [ref=e28]:
+            - img [ref=e29]
+        - combobox "Filter by project" [ref=e32]:
+          - img
+          - generic [ref=e33]: All Projects
+          - img: ▼
+        - textbox [ref=e34]
+      - generic [ref=e37]: No tasks
+    - generic [ref=e39]: Loading...

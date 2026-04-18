@@ -215,7 +215,6 @@ function AssistantGroup({
         startTime={group.startTime}
         toolCount={group.toolCount}
         filesChanged={group.filesChanged}
-        hasError={group.hasError}
         expanded={expanded}
         onToggle={handleToggle}
       />
