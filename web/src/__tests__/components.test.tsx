@@ -83,6 +83,7 @@ import { MemoryRouter, Route, Routes, useLocation } from "react-router-dom"
 import { ActivityList } from "../components/ActivityList"
 import { AuthenticatedImage } from "../components/AuthenticatedImage"
 import { ChatMessage } from "../components/ChatMessage"
+import { AssistantMessageGroups } from "../components/AssistantMessageGroups"
 import { NewAgentForm } from "../components/NewAgentForm"
 import { ChatInput, appendQuotedText } from "../components/ChatInput"
 import { ChatPanel } from "../components/ChatPanel"
@@ -1138,6 +1139,53 @@ describe("ChatMessage inline actions", () => {
   test("action buttons are data-driven — Reply button is a BUTTON element", () => {
     renderMsg({ message: makeMsg(), onReply: () => {} })
     expect(screen.getByLabelText("Reply").tagName).toBe("BUTTON")
+  })
+})
+
+describe("AssistantMessageGroups tool summaries", () => {
+  test("renders a second summary bar at the bottom when expanded", () => {
+    const timestamp = "2026-04-18T12:00:00.000Z"
+    const messages = [
+      { id: "assistant-1", role: "assistant", content: "Done", timestamp },
+    ]
+    const activities = [
+      makeActivity({
+        id: 101,
+        event: "tool.write",
+        metadata: {
+          toolName: "Write",
+          toolInput: { file_path: "web/src/one.tsx" },
+          status: "success",
+        },
+        timestamp: "2026-04-18T11:59:50.000Z",
+      }),
+      makeActivity({
+        id: 102,
+        event: "tool.write",
+        metadata: {
+          toolName: "Write",
+          toolInput: { file_path: "web/src/two.tsx" },
+          status: "success",
+        },
+        timestamp: "2026-04-18T11:59:55.000Z",
+      }),
+    ]
+
+    render(
+      <MemoryRouter>
+        <AssistantMessageGroups
+          messages={messages}
+          activities={activities}
+          isLastGroupStreaming={false}
+        />
+      </MemoryRouter>
+    )
+
+    expect(screen.getAllByRole("button", { name: /2 tools · 2 files/i })).toHaveLength(1)
+
+    fireEvent.click(screen.getByRole("button", { name: /2 tools · 2 files/i }))
+
+    expect(screen.getAllByRole("button", { name: /2 tools · 2 files/i })).toHaveLength(2)
   })
 })
 

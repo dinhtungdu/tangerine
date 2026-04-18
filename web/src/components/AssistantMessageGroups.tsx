@@ -286,31 +286,42 @@ function AssistantGroup({
       />
 
       {expanded && (
-        <div className="flex flex-col gap-4 pl-2 border-l-2 border-border">
-          {filteredItems.map((item, idx) => {
-            if (item.kind === "tool") {
-              const status = deriveToolStatus(item.data, isStreaming, idx === lastToolIdx)
+        <>
+          <div className="flex flex-col gap-4 pl-2 border-l-2 border-border">
+            {filteredItems.map((item, idx) => {
+              if (item.kind === "tool") {
+                const status = deriveToolStatus(item.data, isStreaming, idx === lastToolIdx)
+                return (
+                  <ToolCallDisplay
+                    key={`tool-${item.data.id}`}
+                    content={buildToolContent(item.data)}
+                    status={status}
+                  />
+                )
+              }
+              const isLastThinking =
+                item.data.role === "thinking" && isStreaming && idx === filteredItems.length - 1
               return (
-                <ToolCallDisplay
-                  key={`tool-${item.data.id}`}
-                  content={buildToolContent(item.data)}
-                  status={status}
+                <ChatMessage
+                  key={item.data.id}
+                  message={item.data}
+                  tasks={tasks}
+                  onReply={onReply}
+                  isThinkingActive={isLastThinking}
                 />
               )
-            }
-            const isLastThinking =
-              item.data.role === "thinking" && isStreaming && idx === filteredItems.length - 1
-            return (
-              <ChatMessage
-                key={item.data.id}
-                message={item.data}
-                tasks={tasks}
-                onReply={onReply}
-                isThinkingActive={isLastThinking}
-              />
-            )
-          })}
-        </div>
+            })}
+          </div>
+          <ToolCallsSummaryBar
+            isStreaming={isStreaming}
+            startTime={group.startTime}
+            endTime={group.endTime}
+            toolCount={group.toolCount}
+            filesChanged={group.filesChanged}
+            expanded={expanded}
+            onToggle={handleToggle}
+          />
+        </>
       )}
 
       {!expanded && textMessages.length > 0 && (
