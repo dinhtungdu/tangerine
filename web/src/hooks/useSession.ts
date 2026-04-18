@@ -48,14 +48,17 @@ export function useSession(taskId: string, initialContextTokens?: number): UseSe
 
   // Clear all session state immediately when the task changes so the previous
   // task's messages/activities/status don't leak into the new one while the
-  // REST fetch is in flight. Don't reset contextTokens here — the sync effect
-  // above handles hydration from initialContextTokens.
+  // REST fetch is in flight. Reset contextTokens to 0 here to clear stale data
+  // from the previous task — the sync effect above will update it when the new
+  // task's initialContextTokens arrives. This runs AFTER the sync effect, so it
+  // overrides any stale initialContextTokens that hasn't updated yet.
   useEffect(() => {
     setMessages([])
     setActivities([])
     setAgentStatus("idle")
     setQueueLength(0)
     setTaskStatus(null)
+    setContextTokens(0)
     processedCountRef.current = 0
   }, [taskId])
 
