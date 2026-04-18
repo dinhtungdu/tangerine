@@ -255,7 +255,7 @@ export const NewAgentForm = forwardRef<NewAgentFormHandle, NewAgentFormProps>(fu
         <div className="flex w-full max-w-[640px] flex-col gap-6">
           {/* Heading */}
           <div className="flex flex-col gap-2">
-            <h1 className="text-xl font-semibold text-foreground md:text-center md:text-2xl md:font-bold">
+            <h1 className="text-center text-xl font-semibold text-foreground md:text-2xl md:font-bold">
               What should the agent work on?
             </h1>
             <p className="text-center text-sm leading-[1.6] text-muted-foreground">
