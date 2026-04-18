@@ -83,10 +83,11 @@ export function terminalWsRoutes(deps: AppDeps, upgradeWebSocket: UpgradeWebSock
 
             log.info("Terminal session starting", { taskId, worktree, socketPath })
 
-            // Replay scrollback buffer BEFORE spawning dtach to avoid race
+            // Replay scrollback buffer BEFORE spawning dtach to avoid race.
+            // Use "scrollback" type so client knows to clear before writing.
             const scrollback = getScrollback(taskId)
             if (scrollback) {
-              ws.send(JSON.stringify({ type: "output", data: scrollback }))
+              ws.send(JSON.stringify({ type: "scrollback", data: scrollback }))
             }
 
             // Only the first connection records to the buffer to avoid N copies
@@ -105,7 +106,14 @@ export function terminalWsRoutes(deps: AppDeps, upgradeWebSocket: UpgradeWebSock
             })
 
             pty.onData((data) => {
-              if (isRecorder) appendScrollback(taskId, data)
+              // Record if we're the recorder, OR take over if no one is recording
+              if (isRecorder || !activeRecorders.has(taskId)) {
+                if (!isRecorder) {
+                  isRecorder = true
+                  activeRecorders.add(taskId)
+                }
+                appendScrollback(taskId, data)
+              }
               if (!alive) return
               try {
                 ws.send(JSON.stringify({ type: "output", data }))

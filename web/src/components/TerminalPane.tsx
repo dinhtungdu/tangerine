@@ -71,6 +71,10 @@ export function TerminalPane(props: TerminalPaneProps) {
             fit.fit()
             ws.send(JSON.stringify({ type: "resize", cols: term.cols, rows: term.rows }))
           }
+        } else if (msg.type === "scrollback") {
+          // Clear terminal before writing scrollback to avoid duplicating on reconnect
+          term.clear()
+          term.write(msg.data)
         } else if (msg.type === "output") {
           term.write(msg.data)
         } else if (msg.type === "exit") {
