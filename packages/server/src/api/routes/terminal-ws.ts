@@ -29,6 +29,7 @@ export function dtachSocketPath(taskId: string): string {
 
 const SCROLLBACK_LIMIT = 100 * 1024 // 100KB per task
 const scrollbackBuffers = new Map<string, string>()
+const activeRecorders = new Set<string>() // tasks with an active recording connection
 
 /** Append output to scrollback buffer, trimming if over limit */
 function appendScrollback(taskId: string, data: string): void {
@@ -48,6 +49,7 @@ function getScrollback(taskId: string): string {
 /** Clear scrollback buffer (call on task cleanup) */
 export function clearScrollback(taskId: string): void {
   scrollbackBuffers.delete(taskId)
+  activeRecorders.delete(taskId)
 }
 
 export function terminalWsRoutes(deps: AppDeps, upgradeWebSocket: UpgradeWebSocket): Hono {
@@ -65,6 +67,7 @@ export function terminalWsRoutes(deps: AppDeps, upgradeWebSocket: UpgradeWebSock
       let authenticated = !authEnabled || requestAuthenticated
       let authTimer: ReturnType<typeof setTimeout> | null = null
       let started = false
+      let isRecorder = false
 
       const startTerminal = (ws: SocketLike) => {
         if (started) return
@@ -80,6 +83,16 @@ export function terminalWsRoutes(deps: AppDeps, upgradeWebSocket: UpgradeWebSock
 
             log.info("Terminal session starting", { taskId, worktree, socketPath })
 
+            // Replay scrollback buffer BEFORE spawning dtach to avoid race
+            const scrollback = getScrollback(taskId)
+            if (scrollback) {
+              ws.send(JSON.stringify({ type: "output", data: scrollback }))
+            }
+
+            // Only the first connection records to the buffer to avoid N copies
+            isRecorder = !activeRecorders.has(taskId)
+            if (isRecorder) activeRecorders.add(taskId)
+
             pty = spawn("dtach", [
               "-A", socketPath,
               "-z",
@@ -92,7 +105,7 @@ export function terminalWsRoutes(deps: AppDeps, upgradeWebSocket: UpgradeWebSock
             })
 
             pty.onData((data) => {
-              appendScrollback(taskId, data)
+              if (isRecorder) appendScrollback(taskId, data)
               if (!alive) return
               try {
                 ws.send(JSON.stringify({ type: "output", data }))
@@ -109,12 +122,6 @@ export function terminalWsRoutes(deps: AppDeps, upgradeWebSocket: UpgradeWebSock
                 // Client gone
               }
             })
-
-            // Replay scrollback buffer before live output
-            const scrollback = getScrollback(taskId)
-            if (scrollback) {
-              ws.send(JSON.stringify({ type: "output", data: scrollback }))
-            }
 
             ws.send(JSON.stringify({ type: "connected" }))
           }),
@@ -186,6 +193,8 @@ export function terminalWsRoutes(deps: AppDeps, upgradeWebSocket: UpgradeWebSock
         onClose() {
           if (authTimer) clearTimeout(authTimer)
           alive = false
+          // Release recorder status so next connection can record
+          if (isRecorder) activeRecorders.delete(taskId)
           // Only kill the PTY attachment — the dtach session stays alive
           // so the next connection can re-attach with history preserved.
           if (pty) {
