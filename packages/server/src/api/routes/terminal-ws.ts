@@ -28,6 +28,14 @@ import { join } from "path"
 
 const log = createLogger("terminal-ws")
 
+type TerminalSocket = { send(data: string): void; close(code?: number, reason?: string): void }
+
+interface BufferedTerminalClient {
+  socket: TerminalSocket
+  ready: boolean
+  pendingOutput: string
+}
+
 /** dtach socket path for a given task */
 export function dtachSocketPath(taskId: string): string {
   return join(tmpdir(), `tng-${taskId.slice(0, 8)}.dtach`)
@@ -40,6 +48,7 @@ const scrollbackBuffers = new Map<string, string>()
 // even when all WebSocket clients disconnect. One per task, keyed by taskId.
 // This is the only writer to scrollbackBuffers.
 const shadowRecorders = new Map<string, IPty>()
+const terminalClients = new Map<string, Set<BufferedTerminalClient>>()
 
 /** Append output to scrollback buffer, trimming if over limit */
 function appendScrollback(taskId: string, data: string): void {
@@ -54,6 +63,75 @@ function appendScrollback(taskId: string, data: string): void {
 /** Get scrollback buffer for a task */
 function getScrollback(taskId: string): string {
   return scrollbackBuffers.get(taskId) ?? ""
+}
+
+const PENDING_OUTPUT_LIMIT = SCROLLBACK_LIMIT
+
+export function bufferTerminalOutput(client: BufferedTerminalClient, data: string): string | null {
+  if (!data) return null
+  if (!client.ready) {
+    client.pendingOutput += data
+    if (client.pendingOutput.length > PENDING_OUTPUT_LIMIT) {
+      client.pendingOutput = client.pendingOutput.slice(-PENDING_OUTPUT_LIMIT)
+    }
+    return null
+  }
+  return data
+}
+
+export function drainPendingTerminalOutput(client: BufferedTerminalClient): string {
+  const pendingOutput = client.pendingOutput
+  client.pendingOutput = ""
+  return pendingOutput
+}
+
+function addTerminalClient(taskId: string, socket: TerminalSocket): BufferedTerminalClient {
+  const client: BufferedTerminalClient = { socket, ready: false, pendingOutput: "" }
+  const clients = terminalClients.get(taskId)
+  if (clients) {
+    clients.add(client)
+  } else {
+    terminalClients.set(taskId, new Set([client]))
+  }
+  return client
+}
+
+function removeTerminalClient(taskId: string, client: BufferedTerminalClient | null): void {
+  if (!client) return
+  const clients = terminalClients.get(taskId)
+  if (!clients) return
+  clients.delete(client)
+  if (clients.size === 0) {
+    terminalClients.delete(taskId)
+  }
+}
+
+function broadcastTerminalOutput(taskId: string, data: string): void {
+  const clients = terminalClients.get(taskId)
+  if (!clients || !data) return
+
+  for (const client of clients) {
+    const output = bufferTerminalOutput(client, data)
+    if (!output) continue
+    try {
+      client.socket.send(JSON.stringify({ type: "output", data: output }))
+    } catch {
+      removeTerminalClient(taskId, client)
+    }
+  }
+}
+
+function broadcastTerminalExit(taskId: string, exitCode: number): void {
+  const clients = terminalClients.get(taskId)
+  if (!clients) return
+
+  for (const client of clients) {
+    try {
+      client.socket.send(JSON.stringify({ type: "exit", code: exitCode }))
+    } catch {
+      // Client disconnected
+    }
+  }
 }
 
 /** Stop the shadow recorder for a task (deletes before kill to prevent onExit loop) */
@@ -92,14 +170,16 @@ function startShadowRecorder(taskId: string, socketPath: string, worktree: strin
 
   pty.onData((data) => {
     appendScrollback(taskId, data)
+    broadcastTerminalOutput(taskId, data)
   })
 
-  pty.onExit(() => {
+  pty.onExit(({ exitCode }) => {
     // Shell exited — clear stale scrollback only if we're still the live recorder
     if (shadowRecorders.get(taskId) === pty) {
       shadowRecorders.delete(taskId)
       scrollbackBuffers.delete(taskId)
     }
+    broadcastTerminalExit(taskId, exitCode)
   })
 }
 
@@ -111,7 +191,6 @@ export function clearScrollback(taskId: string): void {
 
 export function terminalWsRoutes(deps: AppDeps, upgradeWebSocket: UpgradeWebSocket): Hono {
   const app = new Hono()
-  type SocketLike = { send(data: string): void; close(code?: number, reason?: string): void }
 
   app.get(
     "/:id/terminal",
@@ -119,14 +198,13 @@ export function terminalWsRoutes(deps: AppDeps, upgradeWebSocket: UpgradeWebSock
       const taskId = c.req.param("id")!
       const authEnabled = isAuthEnabled(deps.config)
       const requestAuthenticated = isRequestAuthenticated(c, deps.config)
-      let pty: IPty | null = null
+      let client: BufferedTerminalClient | null = null
       let heartbeat: WebSocketHeartbeat | null = null
-      let alive = true
       let authenticated = !authEnabled || requestAuthenticated
       let authTimer: ReturnType<typeof setTimeout> | null = null
       let started = false
 
-      const startTerminal = (ws: SocketLike) => {
+      const startTerminal = (ws: TerminalSocket) => {
         if (started) return
         started = true
         heartbeat = createWebSocketHeartbeat(ws)
@@ -142,52 +220,29 @@ export function terminalWsRoutes(deps: AppDeps, upgradeWebSocket: UpgradeWebSock
 
             log.info("Terminal session starting", { taskId, worktree, socketPath })
 
-            // Replay scrollback buffer BEFORE spawning dtach to avoid race.
-            // Use "scrollback" type so client knows to clear before writing.
-            const scrollback = getScrollback(taskId)
-            if (scrollback) {
-              ws.send(JSON.stringify({ type: "scrollback", data: scrollback }))
-            }
-
             // Ensure the shadow recorder is running so output is captured
             // continuously regardless of how many WebSocket clients are connected.
             startShadowRecorder(taskId, socketPath, worktree)
+            client = addTerminalClient(taskId, ws)
 
-            // Spawn a separate client attachment for this WebSocket session.
-            // It relays output to the browser; scrollback is written only by the shadow.
-            // "-r none" suppresses dtach's screen redraw on attach — scrollback replay
-            // already covers history, so the redraw would duplicate the tail of the buffer.
-            pty = spawn("dtach", [
-              "-A", socketPath,
-              "-z",
-              "-r", "none",
-              "/bin/bash", "--login",
-            ], {
-              cols: 80,
-              rows: 24,
-              name: "xterm-256color",
-              cwd: worktree,
-            })
-
-            pty.onData((data) => {
-              if (!alive) return
-              try {
-                ws.send(JSON.stringify({ type: "output", data }))
-              } catch {
-                // Client disconnected
+            // Replay scrollback, then enable live output. Set ready=true before
+            // draining so any shadow output that arrives during replay is either:
+            // (a) buffered if it lands before ready=true, then drained, or
+            // (b) sent directly via broadcastTerminalOutput if it lands after.
+            try {
+              const scrollback = getScrollback(taskId)
+              if (scrollback) {
+                ws.send(JSON.stringify({ type: "scrollback", data: scrollback }))
               }
-            })
-
-            pty.onExit(({ exitCode }) => {
-              if (!alive) return
-              try {
-                ws.send(JSON.stringify({ type: "exit", code: exitCode }))
-              } catch {
-                // Client gone
+              client.ready = true
+              const pendingOutput = drainPendingTerminalOutput(client)
+              if (pendingOutput) {
+                ws.send(JSON.stringify({ type: "output", data: pendingOutput }))
               }
-            })
-
-            ws.send(JSON.stringify({ type: "connected" }))
+              ws.send(JSON.stringify({ type: "connected" }))
+            } catch {
+              removeTerminalClient(taskId, client)
+            }
           }),
         ).catch((err) => {
           log.error("Terminal session failed", { taskId, error: String(err) })
@@ -250,33 +305,24 @@ export function terminalWsRoutes(deps: AppDeps, upgradeWebSocket: UpgradeWebSock
             return
           }
 
-          if (!authenticated || !pty) return
+          if (!authenticated) return
+
+          const recorder = shadowRecorders.get(taskId)
+          if (!recorder) return
 
           heartbeat?.markAlive()
 
           if (parsed.type === "input" && parsed.data) {
-            pty.write(parsed.data)
+            recorder.write(parsed.data)
           } else if (parsed.type === "resize" && parsed.cols && parsed.rows) {
-            pty.resize(parsed.cols, parsed.rows)
-            // Keep shadow recorder in sync so dtach doesn't reflow to 80x24 on disconnect
-            shadowRecorders.get(taskId)?.resize(parsed.cols, parsed.rows)
+            recorder.resize(parsed.cols, parsed.rows)
           }
         },
 
         onClose() {
           if (authTimer) clearTimeout(authTimer)
           heartbeat?.stop()
-          alive = false
-          // Only kill this client's PTY attachment — the dtach session and
-          // the shadow recorder stay alive to capture output while disconnected.
-          if (pty) {
-            try {
-              pty.kill()
-            } catch {
-              // Already dead
-            }
-            pty = null
-          }
+          removeTerminalClient(taskId, client)
           log.debug("Terminal client detached (shadow recorder continues)", { taskId })
         },
       }
