@@ -64,8 +64,7 @@ describe("mapTaskRow", () => {
       last_seen_at: null,
       last_result_at: null,
       capabilities: null,
-      input_tokens: 0,
-      output_tokens: 0,
+      context_tokens: 0,
     }
     const task = mapTaskRow(row)
     expect(task.createdAt).toBe("2026-03-27T09:00:00Z")

@@ -61,8 +61,7 @@ export function mapTaskRow(row: TaskRow): Task {
     lastSeenAt: utc(row.last_seen_at),
     lastResultAt: utc(row.last_result_at),
     capabilities: mergeCapabilities(row.capabilities, row.type ?? "worker"),
-    inputTokens: row.input_tokens ?? 0,
-    outputTokens: row.output_tokens ?? 0,
+    contextTokens: row.context_tokens ?? 0,
   }
 }
 
