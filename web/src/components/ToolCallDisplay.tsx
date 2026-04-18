@@ -177,8 +177,10 @@ export function ToolCallDisplay({ content, status = "success" }: ToolCallDisplay
           )}
         </svg>
         <span className="text-xs font-medium text-muted-foreground">{label}</span>
-        {summary && (
-          <span className="min-w-0 flex-1 truncate font-mono text-xs text-foreground">{summary}</span>
+        {summary ? (
+          <span className="min-w-0 flex-1 truncate text-left font-mono text-xs text-foreground">{summary}</span>
+        ) : (
+          <span className="flex-1" />
         )}
         {diffStats && (
           <span className="shrink-0 font-mono text-2xs">
