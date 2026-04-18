@@ -120,7 +120,7 @@ export function ModelEffortPopover({
                         setOpen(false)
                       }}
                       className={cn(
-                        "h-auto w-full items-start gap-1.5 px-2 py-1.5",
+                        "h-auto w-full justify-start items-start gap-1.5 px-2 py-1.5",
                         e.value === effectiveEffort && "bg-accent/60"
                       )}
                     >
