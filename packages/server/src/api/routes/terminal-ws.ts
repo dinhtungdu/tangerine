@@ -151,9 +151,12 @@ export function terminalWsRoutes(deps: AppDeps, upgradeWebSocket: UpgradeWebSock
 
             // Spawn a separate client attachment for this WebSocket session.
             // It relays output to the browser; scrollback is written only by the shadow.
+            // "-r none" suppresses dtach's screen redraw on attach — scrollback replay
+            // already covers history, so the redraw would duplicate the tail of the buffer.
             pty = spawn("dtach", [
               "-A", socketPath,
               "-z",
+              "-r", "none",
               "/bin/bash", "--login",
             ], {
               cols: 80,
