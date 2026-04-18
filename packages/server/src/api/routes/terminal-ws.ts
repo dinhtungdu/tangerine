@@ -123,6 +123,8 @@ export function terminalWsRoutes(deps: AppDeps, upgradeWebSocket: UpgradeWebSock
             })
 
             pty.onExit(({ exitCode }) => {
+              // Clear scrollback when shell exits to avoid replaying stale history
+              clearScrollback(taskId)
               if (!alive) return
               try {
                 ws.send(JSON.stringify({ type: "exit", code: exitCode }))
