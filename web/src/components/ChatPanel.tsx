@@ -241,13 +241,20 @@ export function ChatPanel({
                           {showThinking ? "Hide" : "Show"} reasoning ({thinkingCount})
                         </Button>
                       </div>
-                    ) : (
-                      <ChatMessage
-                        message={visibleMessages[msgIndex]!}
-                        tasks={tasks}
-                        onReply={handleReply}
-                      />
-                    )}
+                    ) : (() => {
+                      const msg = visibleMessages[msgIndex]!
+                      const isLastThinking = msg.role === "thinking" &&
+                        agentStatus === "working" &&
+                        msgIndex === visibleMessages.length - 1
+                      return (
+                        <ChatMessage
+                          message={msg}
+                          tasks={tasks}
+                          onReply={handleReply}
+                          isThinkingActive={isLastThinking}
+                        />
+                      )
+                    })()}
                   </div>
                 </div>
               )
