@@ -244,9 +244,8 @@ describe("API routes", () => {
     test("returns empty array when no tasks", async () => {
       const res = await app.fetch(new Request("http://localhost/api/tasks"))
       expect(res.status).toBe(200)
-      const body = await res.json() as { tasks: unknown[]; total: number }
-      expect(body.tasks).toEqual([])
-      expect(body.total).toBe(0)
+      const body = await res.json() as unknown[]
+      expect(body).toEqual([])
     })
 
     test("returns tasks", async () => {
@@ -255,9 +254,8 @@ describe("API routes", () => {
 
       const res = await app.fetch(new Request("http://localhost/api/tasks"))
       expect(res.status).toBe(200)
-      const body = await res.json() as { tasks: Array<{ title: string }>; total: number }
-      expect(body.tasks).toHaveLength(2)
-      expect(body.total).toBe(2)
+      const body = await res.json() as Array<{ title: string }>
+      expect(body).toHaveLength(2)
     })
 
     test("filters by project", async () => {
@@ -265,31 +263,9 @@ describe("API routes", () => {
       seedTask(db, { title: "Other", project_id: "other-project" })
 
       const res = await app.fetch(new Request("http://localhost/api/tasks?project=test-project"))
-      const body = await res.json() as { tasks: Array<{ title: string }>; total: number }
-      expect(body.tasks).toHaveLength(1)
-      expect(body.tasks[0]!.title).toBe("Match")
-      expect(body.total).toBe(1)
-    })
-
-    test("paginates with limit and offset", async () => {
-      for (let i = 1; i <= 5; i++) {
-        seedTask(db, { title: `Task ${i}` })
-      }
-
-      const res1 = await app.fetch(new Request("http://localhost/api/tasks?limit=2"))
-      const body1 = await res1.json() as { tasks: Array<{ title: string }>; total: number }
-      expect(body1.tasks).toHaveLength(2)
-      expect(body1.total).toBe(5)
-
-      const res2 = await app.fetch(new Request("http://localhost/api/tasks?limit=2&offset=2"))
-      const body2 = await res2.json() as { tasks: Array<{ title: string }>; total: number }
-      expect(body2.tasks).toHaveLength(2)
-      expect(body2.total).toBe(5)
-
-      const res3 = await app.fetch(new Request("http://localhost/api/tasks?limit=2&offset=4"))
-      const body3 = await res3.json() as { tasks: Array<{ title: string }>; total: number }
-      expect(body3.tasks).toHaveLength(1)
-      expect(body3.total).toBe(5)
+      const body = await res.json() as Array<{ title: string }>
+      expect(body).toHaveLength(1)
+      expect(body[0]!.title).toBe("Match")
     })
   })
 
@@ -327,8 +303,8 @@ describe("API routes", () => {
 
       const res = await app.fetch(new Request("http://localhost/api/tasks"))
       expect(res.status).toBe(200)
-      const body = await res.json() as { tasks: Array<{ id: string; agentStatus?: string }>; total: number }
-      const task = body.tasks.find((t) => t.id === row.id)
+      const tasks = await res.json() as Array<{ id: string; agentStatus?: string }>
+      const task = tasks.find((t) => t.id === row.id)
       expect(task?.agentStatus).toBe("idle")
     })
   })

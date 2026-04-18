@@ -1,8 +1,8 @@
-import { useMemo, useState, useCallback } from "react"
+import { useMemo, useState, useCallback, useEffect } from "react"
 import { Link, useParams, useNavigate } from "react-router-dom"
 import { TERMINAL_STATUSES } from "@tangerine/shared"
 import type { Task, ProjectConfig } from "@tangerine/shared"
-import { Search, Plus, X, ChevronLeft, ChevronRight } from "lucide-react"
+import { Search, Plus, X } from "lucide-react"
 import { getStatusConfig, hasUnseenUpdates } from "../lib/status"
 import { formatRelativeTime } from "../lib/format"
 import { useProject } from "../context/ProjectContext"
@@ -26,14 +26,17 @@ interface TasksSidebarProps {
   onSearchChange: (query: string) => void
   onNewAgent: () => void
   onRefetch?: () => void
-  total: number
-  page: number
-  pageSize: number
-  onPageChange: (page: number | ((prev: number) => number)) => void
-  projectFilter: string
-  onProjectFilterChange: (value: string | null) => void
 }
 
+const PROJECT_FILTER_KEY = "tangerine:sidebar-project-filter"
+
+function readProjectFilter(): string {
+  try {
+    return localStorage.getItem(PROJECT_FILTER_KEY) ?? ""
+  } catch {
+    return ""
+  }
+}
 
 function TaskItem({
   task,
@@ -191,19 +194,24 @@ function ProjectGroupHeader({
   )
 }
 
-export function TasksSidebar({ tasks, projects, searchQuery, onSearchChange, onNewAgent, onRefetch, total, page, pageSize, onPageChange, projectFilter, onProjectFilterChange }: TasksSidebarProps) {
+export function TasksSidebar({ tasks, projects, searchQuery, onSearchChange, onNewAgent, onRefetch }: TasksSidebarProps) {
   const { id: activeId } = useParams<{ id: string }>()
+  const [projectFilter, setProjectFilter] = useState(readProjectFilter)
   // Per-group active-only toggle: undefined means default (true = active only)
   const [groupActiveOnly, setGroupActiveOnly] = useState<Record<string, boolean>>({})
   const isSearching = searchQuery.length > 0
 
   // Group tasks by project (no global active filter — per-group toggles handle it)
-  // Note: project filtering is done server-side via API, so tasks already filtered
   const groups = useMemo(() => {
+    // Apply project filter
+    const filtered = projectFilter
+      ? tasks.filter((t) => t.projectId === projectFilter)
+      : tasks
+
     // Split orchestrators vs workers
     const orchestrators = new Map<string, Task>()
     const workers: Task[] = []
-    for (const t of tasks) {
+    for (const t of filtered) {
       if (t.type === "orchestrator") {
         const existing = orchestrators.get(t.projectId)
         if (!existing || (!TERMINAL_STATUSES.has(t.status) && TERMINAL_STATUSES.has(existing.status))) {
@@ -224,17 +232,10 @@ export function TasksSidebar({ tasks, projects, searchQuery, onSearchChange, onN
     // Group by project
     const groupMap = new Map<string, ProjectGroup>()
 
-    // When viewing a single project, always show that project's header.
-    // When viewing all projects (paginated), only show projects with tasks on the current page
-    // to avoid misleading "create orchestrator" prompts for projects whose orchestrator is on another page.
-    const projectsOnPage = new Set(tasks.map((t) => t.projectId))
+    // Initialize groups from projects list (to maintain order)
     const activeProjects = projects.filter((p) => !p.archived)
     for (const p of activeProjects) {
-      if (projectFilter) {
-        if (p.name !== projectFilter) continue
-      } else {
-        if (!projectsOnPage.has(p.name)) continue
-      }
+      if (projectFilter && p.name !== projectFilter) continue
       groupMap.set(p.name, {
         projectId: p.name,
         projectName: p.name,
@@ -255,11 +256,28 @@ export function TasksSidebar({ tasks, projects, searchQuery, onSearchChange, onN
     return Array.from(groupMap.values())
   }, [tasks, projects, projectFilter])
 
+  useEffect(() => {
+    // Validate project filter — clear if project no longer exists
+    if (projectFilter && !projects.some((p) => p.name === projectFilter)) {
+      setProjectFilter("")
+      try { localStorage.removeItem(PROJECT_FILTER_KEY) } catch { /* ignore */ }
+    }
+  }, [projects, projectFilter])
+
   const handleGroupToggle = useCallback((projectId: string) => {
     setGroupActiveOnly((prev) => ({
       ...prev,
       [projectId]: !(prev[projectId] ?? true),
     }))
+  }, [])
+
+  const handleProjectFilterChange = useCallback((value: string | null) => {
+    const resolvedValue = !value || value === "all" ? "" : value
+    setProjectFilter(resolvedValue)
+    try {
+      if (resolvedValue) localStorage.setItem(PROJECT_FILTER_KEY, resolvedValue)
+      else localStorage.removeItem(PROJECT_FILTER_KEY)
+    } catch { /* ignore */ }
   }, [])
 
   return (
@@ -299,7 +317,7 @@ export function TasksSidebar({ tasks, projects, searchQuery, onSearchChange, onN
         <ProjectSelector
           projects={projects}
           value={projectFilter}
-          onChange={onProjectFilterChange}
+          onChange={handleProjectFilterChange}
           allowAll
           size="sm"
           className="w-full"
@@ -342,38 +360,6 @@ export function TasksSidebar({ tasks, projects, searchQuery, onSearchChange, onN
           })
         )}
       </ScrollArea>
-
-      {/* Pagination */}
-      {total > pageSize && (
-        <>
-          <div className="h-px bg-border" />
-          <div className="flex items-center justify-between px-4 py-2">
-            <span className="font-mono text-xs text-muted-foreground">
-              {page * pageSize + 1}–{Math.min((page + 1) * pageSize, total)} of {total}
-            </span>
-            <div className="flex gap-1">
-              <Button
-                variant="ghost"
-                size="icon-xs"
-                onClick={() => onPageChange((p) => Math.max(0, p - 1))}
-                disabled={page === 0}
-                aria-label="Previous page"
-              >
-                <ChevronLeft className="size-3.5" />
-              </Button>
-              <Button
-                variant="ghost"
-                size="icon-xs"
-                onClick={() => onPageChange((p) => p + 1)}
-                disabled={(page + 1) * pageSize >= total}
-                aria-label="Next page"
-              >
-                <ChevronRight className="size-3.5" />
-              </Button>
-            </div>
-          </div>
-        </>
-      )}
     </div>
   )
 }
