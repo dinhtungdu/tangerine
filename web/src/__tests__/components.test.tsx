@@ -431,7 +431,7 @@ describe("ModelEffortPopover", () => {
     expect(trigger.textContent).not.toContain("20250514")
   })
 
-  test("trigger shows effort label when onReasoningEffortChange provided", () => {
+  test("trigger does not show effort label (model only)", () => {
     render(
       <ModelEffortPopover
         model="anthropic/claude-sonnet-4"
@@ -443,10 +443,11 @@ describe("ModelEffortPopover", () => {
     )
     const trigger = document.querySelector('[data-slot="popover-trigger"]')!
     expect(trigger).toBeTruthy()
-    expect(trigger.textContent).toContain("· High")
+    expect(trigger.textContent).not.toContain("High")
+    expect(trigger.textContent).toContain("claude-sonnet-4")
   })
 
-  test("defaults to medium effort label when reasoningEffort is null", () => {
+  test("trigger shows only model name when reasoningEffort is null", () => {
     render(
       <ModelEffortPopover
         model="anthropic/claude-sonnet-4"
@@ -458,7 +459,7 @@ describe("ModelEffortPopover", () => {
     )
     const trigger = document.querySelector('[data-slot="popover-trigger"]')!
     expect(trigger).toBeTruthy()
-    expect(trigger.textContent).toContain("· Medium")
+    expect(trigger.textContent).not.toContain("Medium")
   })
 
   test("model list is rendered and clicking calls onModelChange", () => {

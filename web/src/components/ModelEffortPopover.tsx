@@ -43,7 +43,6 @@ export function ModelEffortPopover({
   const efforts = getEfforts(provider, effortsByProvider)
   // Normalize to an effective value so trigger and highlight stay in sync
   const effectiveEffort = (efforts.find((e) => e.value === reasoningEffort) ?? efforts.find((e) => e.value === "medium") ?? efforts[0])?.value
-  const currentEffortLabel = efforts.find((e) => e.value === effectiveEffort)?.label
 
   const showEffort = !!onReasoningEffortChange
 
@@ -59,9 +58,6 @@ export function ModelEffortPopover({
         }
       >
         <span className="max-w-[140px] truncate">{formatModelName(resolvedModel)}</span>
-        {showEffort && currentEffortLabel && (
-          <span className="text-muted-foreground/60">· {currentEffortLabel}</span>
-        )}
         <ChevronDown data-icon="inline-end" />
       </PopoverTrigger>
       <PopoverContent side="top" align="start" sideOffset={6} className="w-auto max-w-none p-0">
