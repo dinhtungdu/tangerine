@@ -37,3 +37,26 @@ describe("drainPendingTerminalOutput", () => {
     expect(client.pendingOutput).toBe("")
   })
 })
+
+describe("reconnect sequencing", () => {
+  test("preserves output that arrives during scrollback replay", () => {
+    const client = {
+      socket: { send() {}, close() {} },
+      ready: false,
+      pendingOutput: "",
+    }
+
+    let delivered = "scrollback 1\r\nscrollback 2\r\n"
+
+    expect(bufferTerminalOutput(client, "during replay\r\n")).toBeNull()
+    expect(client.pendingOutput).toBe("during replay\r\n")
+
+    client.ready = true
+    delivered += drainPendingTerminalOutput(client)
+    expect(delivered).toBe("scrollback 1\r\nscrollback 2\r\nduring replay\r\n")
+    expect(client.pendingOutput).toBe("")
+
+    expect(bufferTerminalOutput(client, "after ready\r\n")).toBe("after ready\r\n")
+    expect(client.pendingOutput).toBe("")
+  })
+})
