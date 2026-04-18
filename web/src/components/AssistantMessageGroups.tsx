@@ -180,11 +180,24 @@ function AssistantGroup({
     [group.items],
   )
 
-  if (!group.hasToolsOrThinking) {
+  const showSummaryBar = group.toolCount >= 2
+
+  if (!showSummaryBar) {
     return (
       <>
         {group.items.map((item) => {
-          if (item.kind === "tool") return null
+          if (item.kind === "tool") {
+            const meta = item.data.metadata as { status?: string } | null
+            const status = meta?.status === "error" ? "error" : meta?.status === "running" ? "running" : "success"
+            return (
+              <div key={`tool-${item.data.id}`} className="pb-6">
+                <ToolCallDisplay
+                  content={buildToolContent(item.data)}
+                  status={status as "running" | "success" | "error"}
+                />
+              </div>
+            )
+          }
           return (
             <div key={item.data.id} className="pb-6">
               <ChatMessage message={item.data} tasks={tasks} onReply={onReply} />
