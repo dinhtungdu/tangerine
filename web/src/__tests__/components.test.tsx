@@ -217,8 +217,9 @@ function mockStatusPageFetch() {
     }
 
     if (url.startsWith("/api/tasks")) {
-      const tasks = [makeTask({ id: "task-123", title: "Queued task", status: "provisioning" })]
-      return new Response(JSON.stringify({ tasks, total: tasks.length }), {
+      return new Response(JSON.stringify([
+        makeTask({ id: "task-123", title: "Queued task", status: "provisioning" }),
+      ]), {
         status: 200,
         headers: { "Content-Type": "application/json" },
       })
@@ -642,7 +643,7 @@ describe("CommandPalette", () => {
     global.fetch = async (input) => {
       const url = typeof input === "string" ? input : (input as Request).url
       if (url.startsWith("/api/tasks")) {
-        return new Response(JSON.stringify({ tasks, total: tasks.length }), {
+        return new Response(JSON.stringify(tasks), {
           status: 200,
           headers: { "Content-Type": "application/json" },
         })
@@ -844,13 +845,12 @@ describe("ProjectProvider", () => {
         }), { status: 200, headers: { "Content-Type": "application/json" } })
       }
 
-      if (url.startsWith("/api/tasks") && url.includes("project=proj-b")) {
-        const tasks = [
+      if (url === "/api/tasks?project=proj-b") {
+        return new Response(JSON.stringify([
           makeTask({ id: "done-1", projectId: "proj-b", status: "done", updatedAt: "2026-03-17T12:00:00Z" }),
           makeTask({ id: "active-old", projectId: "proj-b", status: "running", updatedAt: "2026-03-17T11:00:00Z" }),
           makeTask({ id: "active-new", projectId: "proj-b", status: "provisioning", updatedAt: "2026-03-17T13:00:00Z" }),
-        ]
-        return new Response(JSON.stringify({ tasks, total: tasks.length }), { status: 200, headers: { "Content-Type": "application/json" } })
+        ]), { status: 200, headers: { "Content-Type": "application/json" } })
       }
 
       return new Response("Not found", { status: 404 })

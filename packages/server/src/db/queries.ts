@@ -50,48 +50,29 @@ export function getTask(db: Database, id: string): Effect.Effect<TaskRow | null,
   })
 }
 
-export interface TaskFilter {
-  status?: string
-  projectId?: string
-  search?: string
-  limit?: number
-  offset?: number
-}
-
-function buildTaskFilterQuery(filter?: TaskFilter): { where: string; params: Record<string, string> } {
-  const conditions: string[] = []
-  const params: Record<string, string> = {}
-  if (filter?.status) {
-    conditions.push("status = $status")
-    params.$status = filter.status
-  }
-  if (filter?.projectId) {
-    conditions.push("project_id = $project_id")
-    params.$project_id = filter.projectId
-  }
-  if (filter?.search) {
-    const searchNormalized = filter.search.startsWith("#") ? filter.search.slice(1) : filter.search
-    conditions.push("(title LIKE $search OR description LIKE $search OR branch LIKE $search OR pr_url LIKE $search)")
-    params.$search = `%${searchNormalized}%`
-  }
-  const where = conditions.length > 0 ? ` WHERE ${conditions.join(" AND ")}` : ""
-  return { where, params }
-}
-
-export function listTasks(db: Database, filter?: TaskFilter): Effect.Effect<TaskRow[], DbError> {
+export function listTasks(db: Database, filter?: { status?: string; projectId?: string; search?: string; limit?: number; offset?: number }): Effect.Effect<TaskRow[], DbError> {
   return dbTry(() => {
-    const { where, params } = buildTaskFilterQuery(filter)
+    const conditions: string[] = []
+    const params: Record<string, string> = {}
+    if (filter?.status) {
+      conditions.push("status = $status")
+      params.$status = filter.status
+    }
+    if (filter?.projectId) {
+      conditions.push("project_id = $project_id")
+      params.$project_id = filter.projectId
+    }
+    if (filter?.search) {
+      // Strip leading "#" so that "#123" matches pr_url paths like "/pull/123"
+      const searchNormalized = filter.search.startsWith("#") ? filter.search.slice(1) : filter.search
+      conditions.push("(title LIKE $search OR description LIKE $search OR branch LIKE $search OR pr_url LIKE $search)")
+      params.$search = `%${searchNormalized}%`
+    }
+    const where = conditions.length > 0 ? ` WHERE ${conditions.join(" AND ")}` : ""
+    // OFFSET requires LIMIT in SQLite — only apply offset when limit is also set
     const limitClause = filter?.limit !== undefined ? ` LIMIT ${Math.floor(filter.limit)}` : ""
     const offsetClause = filter?.limit !== undefined && filter?.offset !== undefined ? ` OFFSET ${Math.floor(filter.offset)}` : ""
     return db.prepare(`SELECT * FROM tasks${where} ORDER BY created_at DESC${limitClause}${offsetClause}`).all(params) as TaskRow[]
-  })
-}
-
-export function countTasks(db: Database, filter?: TaskFilter): Effect.Effect<number, DbError> {
-  return dbTry(() => {
-    const { where, params } = buildTaskFilterQuery(filter)
-    const row = db.prepare(`SELECT COUNT(*) as count FROM tasks${where}`).get(params) as { count: number }
-    return row.count
   })
 }
 

@@ -1,4 +1,4 @@
-import { useState, useCallback, useEffect } from "react"
+import { useState } from "react"
 import { Link, Outlet, useLocation } from "react-router-dom"
 import type { Task } from "@tangerine/shared"
 import { Topbar } from "./Topbar"
@@ -17,43 +17,15 @@ export interface SidebarContext {
   refetch: () => void
 }
 
-const PROJECT_FILTER_KEY = "tangerine:sidebar-project-filter"
-
-function readProjectFilter(): string {
-  try {
-    return localStorage.getItem(PROJECT_FILTER_KEY) ?? ""
-  } catch {
-    return ""
-  }
-}
-
 export function Layout() {
   const [sidebarOpen, setSidebarOpen] = useState(true)
-  const [projectFilter, setProjectFilter] = useState(readProjectFilter)
   const location = useLocation()
   const { link, navigate } = useProjectNav()
   const { projects } = useProject()
-  const { query, setQuery, tasks, total, page, pageSize, setPage, loading: tasksLoading, refetch } = useTaskSearch(projectFilter || undefined)
+  const { query, setQuery, tasks, loading: tasksLoading, refetch } = useTaskSearch()
 
   // Register all app-wide actions + activate global shortcuts
   useAppActions()
-
-  // Validate project filter — clear if project no longer exists
-  useEffect(() => {
-    if (projectFilter && !projects.some((p) => p.name === projectFilter)) {
-      setProjectFilter("")
-      try { localStorage.removeItem(PROJECT_FILTER_KEY) } catch { /* ignore */ }
-    }
-  }, [projects, projectFilter])
-
-  const handleProjectFilterChange = useCallback((value: string | null) => {
-    const resolvedValue = !value || value === "all" ? "" : value
-    setProjectFilter(resolvedValue)
-    try {
-      if (resolvedValue) localStorage.setItem(PROJECT_FILTER_KEY, resolvedValue)
-      else localStorage.removeItem(PROJECT_FILTER_KEY)
-    } catch { /* ignore */ }
-  }, [])
 
   const isTaskDetail = location.pathname.startsWith("/tasks/")
   const isRoot = location.pathname === "/"
@@ -136,12 +108,6 @@ export function Layout() {
                 navigate("/#new-agent-textarea")
               }}
               onRefetch={refetch}
-              total={total}
-              page={page}
-              pageSize={pageSize}
-              onPageChange={setPage}
-              projectFilter={projectFilter}
-              onProjectFilterChange={handleProjectFilterChange}
             />
           </div>
         )}

@@ -33,7 +33,7 @@ const originalFetch = globalThis.fetch
 
 beforeEach(() => {
   globalThis.fetch = mock(() =>
-    Promise.resolve(new Response(JSON.stringify({ tasks: mockTasks, total: mockTasks.length }), {
+    Promise.resolve(new Response(JSON.stringify(mockTasks), {
       status: 200,
       headers: { "Content-Type": "application/json" },
     }))
@@ -94,7 +94,7 @@ describe("useTasks", () => {
 
     // Change mock to return different data
     globalThis.fetch = mock(() =>
-      Promise.resolve(new Response(JSON.stringify({ tasks: [mockTasks[0]], total: 1 }), {
+      Promise.resolve(new Response(JSON.stringify([mockTasks[0]]), {
         status: 200,
         headers: { "Content-Type": "application/json" },
       }))
