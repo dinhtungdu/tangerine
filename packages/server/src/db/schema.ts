@@ -111,7 +111,8 @@ export const SCHEMA = `
     turn_index INTEGER NOT NULL,
     created_at TEXT NOT NULL DEFAULT (datetime('now')),
     FOREIGN KEY (task_id) REFERENCES tasks(id),
-    FOREIGN KEY (session_log_id) REFERENCES session_logs(id)
+    FOREIGN KEY (session_log_id) REFERENCES session_logs(id),
+    UNIQUE(task_id, session_log_id)
   );
 
   CREATE INDEX IF NOT EXISTS idx_checkpoints_task_id ON checkpoints(task_id);

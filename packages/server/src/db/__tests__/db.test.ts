@@ -281,11 +281,18 @@ describe("checkpoints", () => {
   })
 
   function seedCheckpoint(overrides?: { turn_index?: number; session_log_id?: number }) {
-    const logId = (db.prepare("SELECT id FROM session_logs WHERE task_id = 'task-cp' ORDER BY id DESC LIMIT 1").get() as { id: number }).id
+    // Each checkpoint must have a unique session_log_id — insert a fresh log unless overridden
+    let logId: number
+    if (overrides?.session_log_id !== undefined) {
+      logId = overrides.session_log_id
+    } else {
+      const log = Effect.runSync(insertSessionLog(db, { task_id: "task-cp", role: "assistant", content: `turn ${overrides?.turn_index ?? 0}` }))
+      logId = log.id
+    }
     return Effect.runSync(insertCheckpoint(db, {
       id: crypto.randomUUID(),
       task_id: "task-cp",
-      session_log_id: overrides?.session_log_id ?? logId,
+      session_log_id: logId,
       commit_sha: "abc123",
       turn_index: overrides?.turn_index ?? 0,
     }))

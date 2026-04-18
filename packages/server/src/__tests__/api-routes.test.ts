@@ -344,9 +344,10 @@ describe("API routes", () => {
 
     test("returns checkpoints in turn order", async () => {
       const row = seedTask(db)
-      const logId = (db.prepare("INSERT INTO session_logs (task_id, role, content) VALUES (?, 'assistant', 'done') RETURNING id").get(row.id) as { id: number }).id
-      db.prepare("INSERT INTO checkpoints (id, task_id, session_log_id, commit_sha, turn_index) VALUES (?, ?, ?, ?, ?)").run(crypto.randomUUID(), row.id, logId, "sha1", 0)
-      db.prepare("INSERT INTO checkpoints (id, task_id, session_log_id, commit_sha, turn_index) VALUES (?, ?, ?, ?, ?)").run(crypto.randomUUID(), row.id, logId, "sha2", 1)
+      const logId1 = (db.prepare("INSERT INTO session_logs (task_id, role, content) VALUES (?, 'assistant', 'turn0') RETURNING id").get(row.id) as { id: number }).id
+      const logId2 = (db.prepare("INSERT INTO session_logs (task_id, role, content) VALUES (?, 'assistant', 'turn1') RETURNING id").get(row.id) as { id: number }).id
+      db.prepare("INSERT INTO checkpoints (id, task_id, session_log_id, commit_sha, turn_index) VALUES (?, ?, ?, ?, ?)").run(crypto.randomUUID(), row.id, logId1, "sha1", 0)
+      db.prepare("INSERT INTO checkpoints (id, task_id, session_log_id, commit_sha, turn_index) VALUES (?, ?, ?, ?, ?)").run(crypto.randomUUID(), row.id, logId2, "sha2", 1)
 
       const res = await app.fetch(new Request(`http://localhost/api/tasks/${row.id}/checkpoints`))
       expect(res.status).toBe(200)

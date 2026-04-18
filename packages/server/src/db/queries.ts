@@ -257,7 +257,7 @@ export function insertCheckpoint(
 ): Effect.Effect<CheckpointRow, DbError> {
   return dbTry(() => {
     db.prepare(`
-      INSERT INTO checkpoints (id, task_id, session_log_id, commit_sha, turn_index)
+      INSERT OR IGNORE INTO checkpoints (id, task_id, session_log_id, commit_sha, turn_index)
       VALUES ($id, $task_id, $session_log_id, $commit_sha, $turn_index)
     `).run({
       $id: cp.id,
@@ -266,7 +266,7 @@ export function insertCheckpoint(
       $commit_sha: cp.commit_sha,
       $turn_index: cp.turn_index,
     })
-    return db.prepare("SELECT * FROM checkpoints WHERE id = ?").get(cp.id) as CheckpointRow
+    return db.prepare("SELECT * FROM checkpoints WHERE task_id = ? AND session_log_id = ?").get(cp.task_id, cp.session_log_id) as CheckpointRow
   })
 }
 

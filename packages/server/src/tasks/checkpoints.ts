@@ -1,6 +1,6 @@
 // Checkpoint lifecycle: create a snapshot on agent idle, clean up after TTL.
 
-import { Effect } from "effect"
+import { Effect, Duration } from "effect"
 import crypto from "node:crypto"
 import type { Database } from "bun:sqlite"
 import { createLogger } from "../logger"
@@ -25,6 +25,10 @@ export function snapshotCheckpoint(
   worktreePath: string,
 ): Effect.Effect<void, never> {
   return Effect.gen(function* () {
+    // Yield to let any in-flight session log writes (fire-and-forget Effect.runPromise
+    // calls in the message handler) complete before we query the DB.
+    yield* Effect.sleep(Duration.millis(50))
+
     const sessionLogId = yield* getLastAssistantSessionLogId(db, taskId)
     if (sessionLogId === null) return // No assistant turn yet
 
@@ -34,17 +38,30 @@ export function snapshotCheckpoint(
 
     const turnIndex = existing.length
 
-    // Auto-commit worktree if dirty
+    // Build a commit object for the current worktree state without moving HEAD.
+    // Using plumbing (write-tree + commit-tree) keeps the checkpoint commit off the
+    // task branch so it never appears in the PR history.
     const { stdout: statusOut } = yield* localExec(`cd "${worktreePath}" && git status --porcelain`)
-    if (statusOut.trim().length > 0) {
-      yield* localExec(
-        `cd "${worktreePath}" && git add -A && git commit -m "checkpoint: turn ${turnIndex}" --no-verify --quiet`
+    const isDirty = statusOut.trim().length > 0
+
+    let commitSha: string
+    if (isDirty) {
+      // Stage everything, snapshot the tree, then restore the index — branch tip unchanged.
+      const { stdout: treeOut } = yield* localExec(
+        `cd "${worktreePath}" && git add -A && git write-tree`
       )
+      const treeSha = treeOut.trim()
+      yield* localExec(`cd "${worktreePath}" && git reset HEAD --quiet`)
+
+      const { stdout: commitOut } = yield* localExec(
+        `cd "${worktreePath}" && git commit-tree ${treeSha} -p HEAD -m "checkpoint: turn ${turnIndex}"`
+      )
+      commitSha = commitOut.trim()
+    } else {
+      const { stdout: headOut } = yield* localExec(`cd "${worktreePath}" && git rev-parse HEAD`)
+      commitSha = headOut.trim()
     }
 
-    // Capture HEAD SHA
-    const { stdout: shaOut } = yield* localExec(`cd "${worktreePath}" && git rev-parse HEAD`)
-    const commitSha = shaOut.trim()
     if (!commitSha) return
 
     // Write detached ref so the commit stays reachable without polluting the task branch
