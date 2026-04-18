@@ -249,7 +249,6 @@ export function createClaudeCodeProvider(): AgentFactory {
           let resolvedSessionId = sessionId
           // Skills discovered from system/init event
           let discoveredSkills: string[] = []
-          let latestUsage: { inputTokens: number; outputTokens: number; contextTokens: number } | null = null
           // Stateful mapper — buffers images from tool results for next narration
           const mapClaudeCodeEvent = createClaudeCodeMapper()
 
@@ -273,16 +272,6 @@ export function createClaudeCodeProvider(): AgentFactory {
 
                 const events = mapClaudeCodeEvent(raw)
                 for (const event of events) {
-                  if (event.kind === "usage") {
-                    latestUsage = {
-                      inputTokens: event.inputTokens ?? latestUsage?.inputTokens ?? 0,
-                      outputTokens: event.outputTokens ?? latestUsage?.outputTokens ?? 0,
-                      contextTokens: event.contextTokens ?? latestUsage?.contextTokens ?? 0,
-                    }
-                    event.inputTokens = latestUsage.inputTokens
-                    event.outputTokens = latestUsage.outputTokens
-                    event.contextTokens = latestUsage.contextTokens
-                  }
                   for (const cb of subscribers) cb(event)
                 }
                 // result event signals end of turn — emit idle after message.complete
@@ -403,10 +392,6 @@ export function createClaudeCodeProvider(): AgentFactory {
 
             getSkills() {
               return discoveredSkills
-            },
-
-            getUsage() {
-              return latestUsage
             },
           }
 

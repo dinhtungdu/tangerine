@@ -466,10 +466,7 @@ export function createOpenCodeProvider(): AgentFactory {
           // Track last spawned PID so cleanup can kill orphaned processes after server restart
           let lastPid: number | null = null
 
-          let latestUsage: { inputTokens: number; outputTokens: number } | null = null
-
           const emit = (event: AgentEvent) => {
-            if (event.kind === "usage") latestUsage = { inputTokens: event.inputTokens ?? 0, outputTokens: event.outputTokens ?? 0 }
             for (const cb of subscribers) cb(event)
           }
 
@@ -742,10 +739,6 @@ export function createOpenCodeProvider(): AgentFactory {
 
             getSkills() {
               return scanClaudeSkills()
-            },
-
-            getUsage() {
-              return latestUsage
             },
           }
 

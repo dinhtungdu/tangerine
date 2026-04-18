@@ -46,7 +46,7 @@ describe("createPiEventMapper", () => {
     expect(events).toEqual([{ kind: "status", status: "idle" }])
   })
 
-  test("emits usage from turn_end message", () => {
+  test("emits contextTokens from turn_end message", () => {
     const mapEvent = createPiEventMapper()
 
     const events = mapEvent({
@@ -55,7 +55,7 @@ describe("createPiEventMapper", () => {
       toolResults: [],
     })
 
-    expect(events).toEqual([{ kind: "usage", inputTokens: 3000, outputTokens: 700, contextTokens: 3700 }])
+    expect(events).toEqual([{ kind: "usage", contextTokens: 3700 }])
   })
 
   test("agent_end without messages emits only status", () => {
@@ -66,16 +66,17 @@ describe("createPiEventMapper", () => {
 })
 
 describe("extractPiMessageUsage", () => {
-  test("extracts Pi usage fields including totalTokens for context", () => {
+  test("extracts totalTokens as contextTokens", () => {
     expect(extractPiMessageUsage({ usage: { input: 4000, output: 900, cacheRead: 500, cacheWrite: 200, totalTokens: 5600 } }))
-      .toEqual({ kind: "usage", inputTokens: 4700, outputTokens: 900, contextTokens: 5600 })
+      .toEqual({ kind: "usage", contextTokens: 5600 })
   })
 
   test("returns null when no usage field", () => {
     expect(extractPiMessageUsage({})).toBeNull()
   })
 
-  test("returns null when all tokens are zero", () => {
-    expect(extractPiMessageUsage({ usage: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0 } })).toBeNull()
+  test("returns null when totalTokens is zero or missing", () => {
+    expect(extractPiMessageUsage({ usage: { input: 100, output: 50, totalTokens: 0 } })).toBeNull()
+    expect(extractPiMessageUsage({ usage: { input: 100, output: 50 } })).toBeNull()
   })
 })

@@ -117,22 +117,17 @@ describe("Codex provider config helpers", () => {
     expect(events).toEqual([{ kind: "status", status: "idle" }])
   })
 
-  it("emits per-turn usage from token_count notification", () => {
+  it("emits contextTokens from token_count notification", () => {
     const events = mapNotification("token_count", {
       info: {
         last_token_usage: { input_tokens: 5000, output_tokens: 1200, total_tokens: 6200 },
         model_context_window: 128000, // Not used — max window, not current usage
       },
     })
-    expect(events).toContainEqual({
-      kind: "usage",
-      inputTokens: 5000,
-      outputTokens: 1200,
-      contextTokens: 6200, // total_tokens = current context window usage
-    })
+    expect(events).toEqual([{ kind: "usage", contextTokens: 6200 }])
   })
 
-  it("includes cached and reasoning tokens in token_count", () => {
+  it("uses total_tokens as contextTokens (includes cached/reasoning)", () => {
     const events = mapNotification("token_count", {
       info: {
         last_token_usage: {
@@ -144,12 +139,7 @@ describe("Codex provider config helpers", () => {
         },
       },
     })
-    expect(events).toContainEqual({
-      kind: "usage",
-      inputTokens: 4000, // 3000 + 1000 cached
-      outputTokens: 700, // 500 + 200 reasoning
-      contextTokens: 4700,
-    })
+    expect(events).toEqual([{ kind: "usage", contextTokens: 4700 }])
   })
 
   it("skips usage event when token_count has no info", () => {
@@ -157,13 +147,13 @@ describe("Codex provider config helpers", () => {
     expect(events).toEqual([])
   })
 
-  it("skips usage event when all tokens are zero", () => {
-    const events = mapNotification("token_count", {
-      info: {
-        last_token_usage: { input_tokens: 0, output_tokens: 0 },
-      },
-    })
-    expect(events).toEqual([])
+  it("skips usage event when total_tokens is zero or missing", () => {
+    expect(mapNotification("token_count", {
+      info: { last_token_usage: { input_tokens: 100, output_tokens: 50, total_tokens: 0 } },
+    })).toEqual([])
+    expect(mapNotification("token_count", {
+      info: { last_token_usage: { input_tokens: 100, output_tokens: 50 } },
+    })).toEqual([])
   })
 
   it("creates the thread during provider startup so Tangerine can persist the session id", async () => {

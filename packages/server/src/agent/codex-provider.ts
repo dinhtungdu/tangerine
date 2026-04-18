@@ -105,19 +105,13 @@ export function mapNotification(method: string, params: Record<string, unknown>)
 
     case "token_count": {
       // last_token_usage.total_tokens = current context window usage (what Codex TUI shows)
-      // model_context_window = max context size
       const info = params.info as Record<string, unknown> | undefined
       if (!info) return []
       const lastUsage = info.last_token_usage as Record<string, unknown> | undefined
       if (!lastUsage) return []
-      const inputTokens = (typeof lastUsage.input_tokens === "number" ? lastUsage.input_tokens : 0)
-        + (typeof lastUsage.cached_input_tokens === "number" ? lastUsage.cached_input_tokens : 0)
-      const outputTokens = (typeof lastUsage.output_tokens === "number" ? lastUsage.output_tokens : 0)
-        + (typeof lastUsage.reasoning_output_tokens === "number" ? lastUsage.reasoning_output_tokens : 0)
-      // total_tokens from last_token_usage = current context window size
       const contextTokens = typeof lastUsage.total_tokens === "number" ? lastUsage.total_tokens : undefined
-      if (inputTokens > 0 || outputTokens > 0 || contextTokens) {
-        return [{ kind: "usage", inputTokens, outputTokens, contextTokens }]
+      if (contextTokens && contextTokens > 0) {
+        return [{ kind: "usage", contextTokens }]
       }
       return []
     }
@@ -425,10 +419,7 @@ export function createCodexProvider(): AgentFactory {
           let activeTurnId: string | null = null
           const activeEffort: string | undefined = ctx.reasoningEffort
           let activeSystemPrompt = ctx.systemPrompt
-          let latestUsage: { inputTokens: number; outputTokens: number } | null = null
-
           const emit = (event: AgentEvent) => {
-            if (event.kind === "usage") latestUsage = { inputTokens: event.inputTokens ?? 0, outputTokens: event.outputTokens ?? 0 }
             for (const cb of subscribers) cb(event)
           }
 
@@ -719,10 +710,6 @@ export function createCodexProvider(): AgentFactory {
 
             getSkills() {
               return scanCodexSkills()
-            },
-
-            getUsage() {
-              return latestUsage
             },
           }
 

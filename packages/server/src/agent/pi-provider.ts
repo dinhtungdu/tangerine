@@ -183,18 +183,13 @@ export function createPiEventMapper(): (data: Record<string, unknown>) => AgentE
 
 // Pi's Usage type: { input, output, cacheRead, cacheWrite, totalTokens, cost }
 // Lives on AssistantMessage.usage (not at event top level).
-export function extractPiMessageUsage(msg: Record<string, unknown>): { kind: "usage"; inputTokens: number; outputTokens: number; contextTokens?: number } | null {
+export function extractPiMessageUsage(msg: Record<string, unknown>): { kind: "usage"; contextTokens: number } | null {
   const usage = msg.usage as Record<string, unknown> | undefined
   if (!usage) return null
-  const input = typeof usage.input === "number" ? usage.input : 0
-  const cacheRead = typeof usage.cacheRead === "number" ? usage.cacheRead : 0
-  const cacheWrite = typeof usage.cacheWrite === "number" ? usage.cacheWrite : 0
-  const inputTokens = input + cacheRead + cacheWrite
-  const outputTokens = typeof usage.output === "number" ? usage.output : 0
   // totalTokens = current context window usage
-  const contextTokens = typeof usage.totalTokens === "number" ? usage.totalTokens : undefined
-  if (inputTokens === 0 && outputTokens === 0 && !contextTokens) return null
-  return { kind: "usage", inputTokens, outputTokens, contextTokens }
+  const contextTokens = typeof usage.totalTokens === "number" ? usage.totalTokens : 0
+  if (contextTokens <= 0) return null
+  return { kind: "usage", contextTokens }
 }
 
 function truncate(s: string, maxLen: number): string {
@@ -295,12 +290,7 @@ export function createPiProvider(): AgentFactory {
           // Skills discovered from get_state response
           let discoveredSkills: string[] = []
 
-          let latestUsage: { inputTokens: number; outputTokens: number } | null = null
-
           const emit = (event: AgentEvent) => {
-            if (event.kind === "usage") {
-              latestUsage = { inputTokens: event.inputTokens ?? 0, outputTokens: event.outputTokens ?? 0 }
-            }
             for (const cb of subscribers) cb(event)
           }
 
@@ -567,10 +557,6 @@ export function createPiProvider(): AgentFactory {
               } catch {
                 return false
               }
-            },
-
-            getUsage() {
-              return latestUsage
             },
 
             getSkills() {
