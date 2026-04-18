@@ -1,5 +1,5 @@
 import { useState } from "react"
-import { ChevronDown } from "lucide-react"
+import { Check, ChevronDown } from "lucide-react"
 import type { ProviderType } from "@tangerine/shared"
 import { Button } from "@/components/ui/button"
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
@@ -60,11 +60,16 @@ export function ModelEffortPopover({
         <span className="max-w-[140px] truncate">{formatModelName(resolvedModel)}</span>
         <ChevronDown data-icon="inline-end" />
       </PopoverTrigger>
-      <PopoverContent side="top" align="start" sideOffset={6} className="w-auto max-w-none overflow-hidden p-0">
-        <div className="flex">
+      <PopoverContent
+        side="top"
+        align="start"
+        sideOffset={6}
+        className="w-auto max-w-[calc(100vw-16px)] overflow-hidden p-0"
+      >
+        <div className="flex flex-wrap">
           {/* Model column */}
           {resolvedModel && (
-            <div className="flex min-w-[160px] flex-col">
+            <div className="flex min-w-[140px] flex-1 flex-col">
               <div className="border-b border-border px-3 py-2 text-2xs font-medium uppercase tracking-wide text-muted-foreground">
                 Model
               </div>
@@ -82,10 +87,13 @@ export function ModelEffortPopover({
                       }
                     }}
                     className={cn(
-                      "h-auto w-full justify-start px-2 py-1.5 text-xs",
+                      "h-auto w-full justify-start gap-1.5 px-2 py-1.5 text-xs",
                       m === resolvedModel && "bg-accent/60 font-medium"
                     )}
                   >
+                    <Check
+                      className={cn("size-3 shrink-0", m !== resolvedModel && "invisible")}
+                    />
                     {formatModelName(m)}
                   </Button>
                 ))}
@@ -97,7 +105,7 @@ export function ModelEffortPopover({
           {showEffort && (
             <>
               {resolvedModel && <Separator orientation="vertical" />}
-              <div className="flex min-w-[160px] flex-col">
+              <div className="flex min-w-[140px] flex-1 flex-col">
                 <div className="border-b border-border px-3 py-2 text-2xs font-medium uppercase tracking-wide text-muted-foreground">
                   Effort
                 </div>
@@ -112,12 +120,20 @@ export function ModelEffortPopover({
                         setOpen(false)
                       }}
                       className={cn(
-                        "h-auto w-full flex-col items-start gap-0 px-2 py-1.5",
+                        "h-auto w-full justify-start items-start gap-1.5 px-2 py-1.5",
                         e.value === effectiveEffort && "bg-accent/60"
                       )}
                     >
-                      <span className="text-xs font-medium">{e.label}</span>
-                      <span className="text-2xs text-muted-foreground">{e.description}</span>
+                      <Check
+                        className={cn(
+                          "mt-0.5 size-3 shrink-0",
+                          e.value !== effectiveEffort && "invisible"
+                        )}
+                      />
+                      <span className="flex flex-col items-start gap-0">
+                        <span className="text-xs font-medium">{e.label}</span>
+                        <span className="text-2xs text-muted-foreground">{e.description}</span>
+                      </span>
                     </Button>
                   ))}
                 </div>
