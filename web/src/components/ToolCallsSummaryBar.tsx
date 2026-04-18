@@ -1,4 +1,5 @@
 import { useState, useEffect } from "react"
+import { ChevronRight, Loader2 } from "lucide-react"
 
 interface ToolCallsSummaryBarProps {
   isStreaming: boolean
@@ -56,19 +57,22 @@ export function ToolCallsSummaryBar({
 }: ToolCallsSummaryBarProps) {
   const duration = useDuration(startTime, endTime, isStreaming)
 
+  const showSpinner = isStreaming && !expanded
+
   return (
     <button
       onClick={onToggle}
       aria-expanded={expanded}
       className="inline-flex items-center gap-1.5 text-xs text-muted-foreground hover:text-foreground transition-colors"
     >
-      <span className={`transition-transform inline-block ${expanded ? "rotate-90" : ""}`}>▶</span>
+      <ChevronRight className={`h-3.5 w-3.5 transition-transform ${expanded ? "rotate-90" : ""}`} />
       <span>
         {toolCount} tools
         {filesChanged > 0 && ` · ${filesChanged} files`}
         {" · "}
         {formatElapsed(duration)}
       </span>
+      {showSpinner && <Loader2 className="h-3.5 w-3.5 animate-spin" />}
     </button>
   )
 }
