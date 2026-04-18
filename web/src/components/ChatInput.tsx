@@ -3,8 +3,7 @@ import { ArrowUp, X, Quote, Paperclip } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Textarea } from "@/components/ui/textarea"
 import type { PromptImage, PredefinedPrompt, ProviderType, Task } from "@tangerine/shared"
-import { ModelSelector } from "./ModelSelector"
-import { ReasoningEffortSelector, type ReasoningEffort } from "./ReasoningEffortSelector"
+import { ModelEffortPopover } from "./ModelEffortPopover"
 import { MentionPicker } from "./MentionPicker"
 import { SlashCommandPicker } from "./SlashCommandPicker"
 import { useMentionPicker } from "../hooks/useMentionPicker"
@@ -490,19 +489,14 @@ export function ChatInput({ onSend, disabled, queueLength, taskId, isWorking, on
               >
                 <Paperclip className="h-4 w-4" />
               </Button>
-              {canChangeModel ? (
-                <ModelSelector
-                  models={providerModels}
-                  model={model ?? providerModels[0] ?? ""}
-                  onModelChange={onModelChange}
-                />
-              ) : model ? (
-                <ModelSelector model={model} models={[model]} />
-              ) : null}
-              {onReasoningEffortChange && (
-                <ReasoningEffortSelector
-                  value={(reasoningEffort as ReasoningEffort) ?? "medium"}
-                  onChange={onReasoningEffortChange}
+              {(canChangeModel || model || onReasoningEffortChange) && (
+                <ModelEffortPopover
+                  models={providerModels ?? (model ? [model] : [])}
+                  model={model ?? providerModels?.[0] ?? ""}
+                  onModelChange={onModelChange ?? (() => {})}
+                  canChangeModel={!!canChangeModel}
+                  reasoningEffort={reasoningEffort}
+                  onReasoningEffortChange={onReasoningEffortChange}
                   provider={provider}
                 />
               )}

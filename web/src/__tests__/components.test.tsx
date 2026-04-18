@@ -88,6 +88,7 @@ import { NewAgentForm } from "../components/NewAgentForm"
 import { ChatInput, appendQuotedText } from "../components/ChatInput"
 import { ChatPanel } from "../components/ChatPanel"
 import { ModelSelector } from "../components/ModelSelector"
+import { ModelEffortPopover } from "../components/ModelEffortPopover"
 import { CommandPalette } from "../components/CommandPalette"
 import { StatusPage } from "../pages/StatusPage"
 import { TaskOverflowMenu } from "../components/TaskListItem"
@@ -410,6 +411,111 @@ describe("NewAgentForm", () => {
     const combobox = screen.getByRole("combobox")
     expect(combobox).toBeTruthy()
     expect(combobox.textContent).toContain("claude-sonnet-4-6")
+  })
+})
+
+describe("ModelEffortPopover", () => {
+  test("trigger shows formatted model name", () => {
+    render(
+      <ModelEffortPopover
+        model="anthropic/claude-sonnet-4-20250514"
+        models={["anthropic/claude-sonnet-4-20250514", "anthropic/claude-haiku-4-20250414"]}
+        onModelChange={() => {}}
+      />
+    )
+    // data-slot="popover-trigger" identifies the trigger among all popover buttons
+    const trigger = document.querySelector('[data-slot="popover-trigger"]')!
+    expect(trigger).toBeTruthy()
+    expect(trigger.textContent).toContain("anthropic/claude-sonnet-4")
+    // date suffix stripped by formatModelName
+    expect(trigger.textContent).not.toContain("20250514")
+  })
+
+  test("trigger does not show effort label (model only)", () => {
+    render(
+      <ModelEffortPopover
+        model="anthropic/claude-sonnet-4"
+        models={["anthropic/claude-sonnet-4"]}
+        onModelChange={() => {}}
+        reasoningEffort="high"
+        onReasoningEffortChange={() => {}}
+      />
+    )
+    const trigger = document.querySelector('[data-slot="popover-trigger"]')!
+    expect(trigger).toBeTruthy()
+    expect(trigger.textContent).not.toContain("High")
+    expect(trigger.textContent).toContain("claude-sonnet-4")
+  })
+
+  test("trigger shows only model name when reasoningEffort is null", () => {
+    render(
+      <ModelEffortPopover
+        model="anthropic/claude-sonnet-4"
+        models={["anthropic/claude-sonnet-4"]}
+        onModelChange={() => {}}
+        reasoningEffort={null}
+        onReasoningEffortChange={() => {}}
+      />
+    )
+    const trigger = document.querySelector('[data-slot="popover-trigger"]')!
+    expect(trigger).toBeTruthy()
+    expect(trigger.textContent).not.toContain("Medium")
+  })
+
+  test("model list is rendered and clicking calls onModelChange", () => {
+    const onChange = mock(() => {})
+    render(
+      <ModelEffortPopover
+        model="anthropic/claude-sonnet-4"
+        models={["anthropic/claude-sonnet-4", "anthropic/claude-haiku-4"]}
+        onModelChange={onChange}
+        canChangeModel={true}
+      />
+    )
+    // Popover mock renders content inline, so model buttons are visible
+    const haikuBtn = screen.getAllByRole("button").find((b) => b.textContent?.includes("claude-haiku-4"))
+    expect(haikuBtn).toBeTruthy()
+    fireEvent.click(haikuBtn!)
+    expect(onChange).toHaveBeenCalledWith("anthropic/claude-haiku-4")
+  })
+
+  test("effort list is rendered and clicking calls onReasoningEffortChange", () => {
+    const onEffort = mock(() => {})
+    render(
+      <ModelEffortPopover
+        model="anthropic/claude-sonnet-4"
+        models={["anthropic/claude-sonnet-4"]}
+        onModelChange={() => {}}
+        reasoningEffort="medium"
+        onReasoningEffortChange={onEffort}
+      />
+    )
+    const highBtn = screen.getAllByRole("button").find((b) => b.textContent?.includes("High"))
+    expect(highBtn).toBeTruthy()
+    fireEvent.click(highBtn!)
+    expect(onEffort).toHaveBeenCalledWith("high")
+  })
+
+  test("effort column hidden when onReasoningEffortChange not provided", () => {
+    render(
+      <ModelEffortPopover
+        model="anthropic/claude-sonnet-4"
+        models={["anthropic/claude-sonnet-4"]}
+        onModelChange={() => {}}
+      />
+    )
+    expect(screen.queryByText("Effort")).toBeNull()
+  })
+
+  test("returns null when no model and no effort handler", () => {
+    render(
+      <ModelEffortPopover
+        model=""
+        models={[]}
+        onModelChange={() => {}}
+      />
+    )
+    expect(screen.queryByRole("button")).toBeNull()
   })
 })
 
