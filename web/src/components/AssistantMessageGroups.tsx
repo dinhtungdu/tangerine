@@ -21,6 +21,7 @@ interface MessageGroup {
   id: string
   items: MergedItem[]
   startTime: string
+  endTime: string
   toolCount: number
   filesChanged: number
   hasError: boolean
@@ -32,14 +33,14 @@ function isToolActivity(activity: ActivityEntry): boolean {
 }
 
 function isWriteOrEditActivity(activity: ActivityEntry): boolean {
-  const meta = activity.metadata as { tool?: string } | null
-  const toolName = (meta?.tool || "").toLowerCase()
+  const meta = activity.metadata as { toolName?: string } | null
+  const toolName = (meta?.toolName || "").toLowerCase()
   return toolName.includes("write") || toolName.includes("edit")
 }
 
 function getFilePathFromActivity(activity: ActivityEntry): string | null {
-  const meta = activity.metadata as { path?: string; file_path?: string } | null
-  return meta?.path || meta?.file_path || null
+  const meta = activity.metadata as { toolInput?: { file_path?: string; path?: string } } | null
+  return meta?.toolInput?.file_path || meta?.toolInput?.path || null
 }
 
 function mergeMessagesAndActivities(
@@ -100,12 +101,15 @@ function groupItems(items: MergedItem[]): MessageGroup[] {
     }
 
     const firstItem = currentGroup[0]!
+    const lastItem = currentGroup[currentGroup.length - 1]!
     const id = firstItem.kind === "message" ? firstItem.data.id : `activity-${firstItem.data.id}`
+    const endTime = lastItem.kind === "message" ? lastItem.data.timestamp : lastItem.data.timestamp
 
     groups.push({
       id,
       items: currentGroup,
       startTime: groupStartTime,
+      endTime,
       toolCount,
       filesChanged: changedFiles.size,
       hasError,
@@ -122,6 +126,7 @@ function groupItems(items: MergedItem[]): MessageGroup[] {
         id: item.data.id,
         items: [item],
         startTime: item.data.timestamp,
+        endTime: item.data.timestamp,
         toolCount: 0,
         filesChanged: 0,
         hasError: false,
@@ -141,11 +146,24 @@ function groupItems(items: MergedItem[]): MessageGroup[] {
 
 function buildToolContent(activity: ActivityEntry): string {
   const meta = activity.metadata as Record<string, unknown> | null
+  const toolName = meta?.toolName || activity.event.replace("tool.", "")
   return JSON.stringify({
-    tool: meta?.tool || activity.event.replace("tool.", ""),
-    name: meta?.tool || activity.event.replace("tool.", ""),
+    tool: toolName,
+    name: toolName,
     ...meta,
   })
+}
+
+function deriveToolStatus(
+  activity: ActivityEntry,
+  isStreaming: boolean,
+  isLastTool: boolean
+): "running" | "success" | "error" {
+  const meta = activity.metadata as { status?: string } | null
+  if (meta?.status === "error") return "error"
+  // Only show "running" if this is the last tool in a streaming turn
+  if (isStreaming && isLastTool && meta?.status === "running") return "running"
+  return "success"
 }
 
 function AssistantGroup({
@@ -182,18 +200,25 @@ function AssistantGroup({
 
   const showSummaryBar = group.toolCount >= 2
 
+  // Find the last tool index for status derivation
+  const lastToolIdx = useMemo(() => {
+    for (let i = group.items.length - 1; i >= 0; i--) {
+      if (group.items[i]!.kind === "tool") return i
+    }
+    return -1
+  }, [group.items])
+
   if (!showSummaryBar) {
     return (
       <>
-        {group.items.map((item) => {
+        {group.items.map((item, idx) => {
           if (item.kind === "tool") {
-            const meta = item.data.metadata as { status?: string } | null
-            const status = meta?.status === "error" ? "error" : meta?.status === "running" ? "running" : "success"
+            const status = deriveToolStatus(item.data, isStreaming, idx === lastToolIdx)
             return (
               <div key={`tool-${item.data.id}`} className="pb-6">
                 <ToolCallDisplay
                   content={buildToolContent(item.data)}
-                  status={status as "running" | "success" | "error"}
+                  status={status}
                 />
               </div>
             )
@@ -213,6 +238,7 @@ function AssistantGroup({
       <ToolCallsSummaryBar
         isStreaming={isStreaming}
         startTime={group.startTime}
+        endTime={group.endTime}
         toolCount={group.toolCount}
         filesChanged={group.filesChanged}
         expanded={expanded}
@@ -223,13 +249,12 @@ function AssistantGroup({
         <div className="flex flex-col gap-4 pl-2 border-l-2 border-border">
           {group.items.map((item, idx) => {
             if (item.kind === "tool") {
-              const meta = item.data.metadata as { status?: string } | null
-              const status = meta?.status === "error" ? "error" : meta?.status === "running" ? "running" : "success"
+              const status = deriveToolStatus(item.data, isStreaming, idx === lastToolIdx)
               return (
                 <ToolCallDisplay
                   key={`tool-${item.data.id}`}
                   content={buildToolContent(item.data)}
-                  status={status as "running" | "success" | "error"}
+                  status={status}
                 />
               )
             }

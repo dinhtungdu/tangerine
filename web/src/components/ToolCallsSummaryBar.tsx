@@ -3,26 +3,37 @@ import { useState, useEffect } from "react"
 interface ToolCallsSummaryBarProps {
   isStreaming: boolean
   startTime: string
+  endTime?: string
   toolCount: number
   filesChanged: number
   expanded: boolean
   onToggle: () => void
 }
 
-function useElapsedTime(startTime: string, active: boolean): number {
+function useDuration(startTime: string, endTime: string | undefined, isStreaming: boolean): number {
   const [elapsed, setElapsed] = useState(() => {
     const start = new Date(startTime).getTime()
+    if (!isStreaming && endTime) {
+      return Math.max(0, Math.floor((new Date(endTime).getTime() - start) / 1000))
+    }
     return Math.floor((Date.now() - start) / 1000)
   })
 
   useEffect(() => {
-    if (!active) return
+    // For completed turns, compute fixed duration
+    if (!isStreaming && endTime) {
+      const start = new Date(startTime).getTime()
+      const end = new Date(endTime).getTime()
+      setElapsed(Math.max(0, Math.floor((end - start) / 1000)))
+      return
+    }
+    // For streaming, tick live
     const start = new Date(startTime).getTime()
     const tick = () => setElapsed(Math.floor((Date.now() - start) / 1000))
     tick()
     const interval = setInterval(tick, 1000)
     return () => clearInterval(interval)
-  }, [startTime, active])
+  }, [startTime, endTime, isStreaming])
 
   return elapsed
 }
@@ -37,12 +48,13 @@ function formatElapsed(seconds: number): string {
 export function ToolCallsSummaryBar({
   isStreaming,
   startTime,
+  endTime,
   toolCount,
   filesChanged,
   expanded,
   onToggle,
 }: ToolCallsSummaryBarProps) {
-  const elapsed = useElapsedTime(startTime, isStreaming)
+  const duration = useDuration(startTime, endTime, isStreaming)
 
   return (
     <button
@@ -55,7 +67,7 @@ export function ToolCallsSummaryBar({
         {toolCount} tools
         {filesChanged > 0 && ` · ${filesChanged} files`}
         {" · "}
-        {formatElapsed(elapsed)}
+        {formatElapsed(duration)}
       </span>
     </button>
   )

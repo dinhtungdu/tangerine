@@ -146,14 +146,17 @@ export function ChatPanel({
   }, [])
 
   // Auto-scroll only when user is already at the bottom
-  const prevMsgCountRef = useRef(0)
+  const prevCountRef = useRef({ messages: 0, activities: 0 })
   useEffect(() => {
-    if (messages.length > prevMsgCountRef.current && isAtBottom) {
+    const countChanged =
+      messages.length > prevCountRef.current.messages ||
+      activities.length > prevCountRef.current.activities
+    if (countChanged && isAtBottom) {
       const el = contentRef.current
       if (el) el.scrollIntoView({ block: "end" })
     }
-    prevMsgCountRef.current = messages.length
-  }, [messages.length, isAtBottom])
+    prevCountRef.current = { messages: messages.length, activities: activities.length }
+  }, [messages.length, activities.length, isAtBottom])
 
   return (
     <div className="flex h-full flex-col bg-background">
