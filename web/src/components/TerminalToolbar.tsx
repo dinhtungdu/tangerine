@@ -95,8 +95,11 @@ export function TerminalToolbar({ termRef, onInput }: TerminalToolbarProps) {
         {keys.map((key) => (
           <button
             key={key.label}
-            onPointerDown={(e) => {
-              // Prevent stealing focus from terminal / dismissing keyboard
+            onTouchStart={(e) => {
+              e.preventDefault()
+              handlePress(key)
+            }}
+            onMouseDown={(e) => {
               e.preventDefault()
               handlePress(key)
             }}
