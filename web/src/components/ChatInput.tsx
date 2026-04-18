@@ -489,7 +489,7 @@ export function ChatInput({ onSend, disabled, queueLength, taskId, isWorking, on
               >
                 <Paperclip className="h-4 w-4" />
               </Button>
-              {(model || onReasoningEffortChange) && (
+              {(canChangeModel || model || onReasoningEffortChange) && (
                 <ModelEffortPopover
                   models={providerModels ?? (model ? [model] : [])}
                   model={model ?? providerModels?.[0] ?? ""}

@@ -32,12 +32,18 @@ export function ModelEffortPopover({
   const [open, setOpen] = useState(false)
   const { providerMetadata } = useProject()
 
+  // Don't render if there's nothing to show
+  const resolvedModel = model || models[0] || ""
+  if (!resolvedModel && !onReasoningEffortChange) return null
+
   const effortsByProvider: Record<string, { value: string; label: string; description: string }[]> = {}
   for (const [key, meta] of Object.entries(providerMetadata)) {
     effortsByProvider[key] = meta.reasoningEfforts
   }
   const efforts = getEfforts(provider, effortsByProvider)
-  const currentEffort = efforts.find((e) => e.value === reasoningEffort) ?? efforts.find((e) => e.value === "medium") ?? efforts[0]
+  // Normalize to an effective value so trigger and highlight stay in sync
+  const effectiveEffort = (efforts.find((e) => e.value === reasoningEffort) ?? efforts.find((e) => e.value === "medium") ?? efforts[0])?.value
+  const currentEffortLabel = efforts.find((e) => e.value === effectiveEffort)?.label
 
   const showEffort = !!onReasoningEffortChange
 
@@ -52,47 +58,49 @@ export function ModelEffortPopover({
           />
         }
       >
-        <span className="max-w-[140px] truncate">{formatModelName(model)}</span>
-        {showEffort && currentEffort && (
-          <span className="text-muted-foreground/60">· {currentEffort.label}</span>
+        <span className="max-w-[140px] truncate">{formatModelName(resolvedModel)}</span>
+        {showEffort && currentEffortLabel && (
+          <span className="text-muted-foreground/60">· {currentEffortLabel}</span>
         )}
         <ChevronDown data-icon="inline-end" />
       </PopoverTrigger>
       <PopoverContent side="top" align="start" sideOffset={6} className="w-auto max-w-none p-0">
         <div className="flex">
           {/* Model column */}
-          <div className="flex min-w-[160px] flex-col">
-            <div className="border-b border-border px-3 py-2 text-2xs font-medium uppercase tracking-wide text-muted-foreground">
-              Model
+          {resolvedModel && (
+            <div className="flex min-w-[160px] flex-col">
+              <div className="border-b border-border px-3 py-2 text-2xs font-medium uppercase tracking-wide text-muted-foreground">
+                Model
+              </div>
+              <div className="max-h-60 overflow-y-auto p-1">
+                {models.map((m) => (
+                  <Button
+                    key={m}
+                    variant="ghost"
+                    size="sm"
+                    disabled={!canChangeModel}
+                    onClick={() => {
+                      if (canChangeModel) {
+                        onModelChange(m)
+                        setOpen(false)
+                      }
+                    }}
+                    className={cn(
+                      "h-auto w-full justify-start px-2 py-1.5 text-xs",
+                      m === resolvedModel && "bg-accent/60 font-medium"
+                    )}
+                  >
+                    {formatModelName(m)}
+                  </Button>
+                ))}
+              </div>
             </div>
-            <div className="max-h-60 overflow-y-auto p-1">
-              {models.map((m) => (
-                <Button
-                  key={m}
-                  variant="ghost"
-                  size="sm"
-                  disabled={!canChangeModel}
-                  onClick={() => {
-                    if (canChangeModel) {
-                      onModelChange(m)
-                      setOpen(false)
-                    }
-                  }}
-                  className={cn(
-                    "h-auto w-full justify-start px-2 py-1.5 text-xs",
-                    m === model && "bg-accent/60 font-medium"
-                  )}
-                >
-                  {formatModelName(m)}
-                </Button>
-              ))}
-            </div>
-          </div>
+          )}
 
           {/* Effort column */}
           {showEffort && (
             <>
-              <Separator orientation="vertical" />
+              {resolvedModel && <Separator orientation="vertical" />}
               <div className="flex min-w-[160px] flex-col">
                 <div className="border-b border-border px-3 py-2 text-2xs font-medium uppercase tracking-wide text-muted-foreground">
                   Effort
@@ -109,7 +117,7 @@ export function ModelEffortPopover({
                       }}
                       className={cn(
                         "h-auto w-full flex-col items-start gap-0 px-2 py-1.5",
-                        e.value === reasoningEffort && "bg-accent/60"
+                        e.value === effectiveEffort && "bg-accent/60"
                       )}
                     >
                       <span className="text-xs font-medium">{e.label}</span>
