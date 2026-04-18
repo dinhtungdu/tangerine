@@ -567,6 +567,7 @@ export function TaskDetail() {
             ].join(" ")}>
               <ChatPanel
                 messages={session.messages}
+                activities={session.activities}
                 tasks={tasks}
                 agentStatus={session.agentStatus}
                 queueLength={session.queueLength}

@@ -1,16 +1,16 @@
-import { useEffect, useRef, useState, useMemo, useCallback } from "react"
+import { useEffect, useRef, useState, useCallback } from "react"
 import { Button } from "@/components/ui/button"
-import { useVirtualizer } from "@tanstack/react-virtual"
 import { TERMINAL_STATUSES } from "@tangerine/shared"
-import type { PromptImage, PredefinedPrompt, TaskStatus, ProviderType } from "@tangerine/shared"
+import type { PromptImage, PredefinedPrompt, TaskStatus, ProviderType, ActivityEntry } from "@tangerine/shared"
 import type { ChatMessage as ChatMessageType } from "../hooks/useSession"
-import { ChatMessage } from "./ChatMessage"
+import { AssistantMessageGroups } from "./AssistantMessageGroups"
 import { ChatInput } from "./ChatInput"
 import { useProjectNav } from "../hooks/useProjectNav"
 import { getStatusConfig } from "../lib/status"
 
 interface ChatPanelProps {
   messages: ChatMessageType[]
+  activities?: ActivityEntry[]
   tasks?: ReadonlyArray<{ id: string }>
   agentStatus: "idle" | "working"
   queueLength: number
@@ -36,8 +36,11 @@ interface ChatPanelProps {
   contextWindowMax?: number
 }
 
+const EMPTY_ACTIVITIES: ActivityEntry[] = []
+
 export function ChatPanel({
   messages,
+  activities = EMPTY_ACTIVITIES,
   tasks,
   agentStatus,
   queueLength,
@@ -63,14 +66,9 @@ export function ChatPanel({
   contextWindowMax,
 }: ChatPanelProps) {
   const scrollRef = useRef<HTMLDivElement>(null)
+  const contentRef = useRef<HTMLDivElement>(null)
   const { navigate } = useProjectNav()
   const isTerminated = taskStatus ? TERMINAL_STATUSES.has(taskStatus) : false
-  const [showThinking, setShowThinking] = useState(() => {
-    try { return localStorage.getItem("showThinking") === "true" } catch { return false /* storage unavailable */ }
-  })
-  useEffect(() => {
-    try { localStorage.setItem("showThinking", String(showThinking)) } catch { /* storage unavailable */ }
-  }, [showThinking])
   // pendingQuote is persisted per task so it survives page reloads
   const quoteKey = taskId ? `tangerine:chat-quote:${taskId}` : null
   const [pendingQuote, setPendingQuote] = useState<string | null>(null)
@@ -132,36 +130,6 @@ export function ChatPanel({
     setSelectedText(null)
   }, [selectedText])
 
-  const thinkingCount = useMemo(
-    () => messages.filter((m) => m.role === "thinking" || m.role === "narration").length,
-    [messages],
-  )
-
-  const visibleMessages = useMemo(
-    () => (showThinking ? messages : messages.filter((m) => m.role !== "thinking" && m.role !== "narration")),
-    [messages, showThinking],
-  )
-
-  // Extra "rows" after messages: thinking indicator + thinking toggle
-  const hasThinkingIndicator = agentStatus === "working" && messages.length > 0
-  const hasThinkingToggle = thinkingCount > 0
-  const extraRows = (hasThinkingIndicator ? 1 : 0) + (hasThinkingToggle ? 1 : 0)
-  const rowCount = visibleMessages.length + extraRows
-
-  const virtualizer = useVirtualizer({
-    count: rowCount,
-    getScrollElement: () => scrollRef.current,
-    estimateSize: () => 80,
-    overscan: 5,
-    paddingStart: 16,
-    paddingEnd: 16,
-    getItemKey: (index) => {
-      if (index < visibleMessages.length) return visibleMessages[index]!.id
-      if (index === visibleMessages.length && hasThinkingIndicator) return "__thinking__"
-      return "__toggle__"
-    },
-  })
-
   // Track whether user is near the bottom to show/hide scroll button
   const [isAtBottom, setIsAtBottom] = useState(true)
 
@@ -173,105 +141,62 @@ export function ChatPanel({
   }, [])
 
   const scrollToBottom = useCallback(() => {
-    virtualizer.scrollToIndex(rowCount - 1, { align: "end" })
-  }, [virtualizer, rowCount])
+    const el = contentRef.current
+    if (el) el.scrollIntoView({ block: "end", behavior: "smooth" })
+  }, [])
 
   // Auto-scroll only when user is already at the bottom
-  const prevCountRef = useRef(0)
+  const prevCountRef = useRef({ messages: 0, activities: 0 })
   useEffect(() => {
-    if (rowCount > prevCountRef.current && isAtBottom) {
-      virtualizer.scrollToIndex(rowCount - 1, { align: "end" })
+    const countChanged =
+      messages.length > prevCountRef.current.messages ||
+      activities.length > prevCountRef.current.activities
+    if (countChanged && isAtBottom) {
+      const el = contentRef.current
+      if (el) el.scrollIntoView({ block: "end" })
     }
-    prevCountRef.current = rowCount
-  }, [rowCount, isAtBottom, virtualizer])
+    prevCountRef.current = { messages: messages.length, activities: activities.length }
+  }, [messages.length, activities.length, isAtBottom])
 
   return (
     <div className="flex h-full flex-col bg-background">
       {/* Messages */}
       <div className="relative flex-1 overflow-hidden">
-      <div
-        ref={scrollRef}
-        className="h-full overflow-y-auto"
-        onScroll={handleScroll}
-      >
-        {visibleMessages.length === 0 && thinkingCount === 0 ? (
-          <div className="flex h-full items-center justify-center py-20 text-sm text-muted-foreground">
-            No messages yet. Send a prompt to start.
-          </div>
-        ) : (
-          <div
-            style={{ height: virtualizer.getTotalSize(), width: "100%", position: "relative" }}
-          >
-            {virtualizer.getVirtualItems().map((virtualRow) => {
-              const msgIndex = virtualRow.index
-              const isThinkingIndicator = msgIndex === visibleMessages.length && hasThinkingIndicator
-              const isThinkingToggle = msgIndex === visibleMessages.length + (hasThinkingIndicator ? 1 : 0) && hasThinkingToggle
-
-              return (
-                <div
-                  key={virtualRow.key}
-                  data-index={virtualRow.index}
-                  ref={virtualizer.measureElement}
-                  style={{
-                    position: "absolute",
-                    top: 0,
-                    left: 0,
-                    width: "100%",
-                    transform: `translateY(${virtualRow.start}px)`,
-                  }}
-                >
-                  <div className="px-4 pb-6">
-                    {isThinkingIndicator ? (
-                      <ThinkingIndicator />
-                    ) : isThinkingToggle ? (
-                      <div className="flex justify-end">
-                        <Button
-                          variant="ghost"
-                          size="xs"
-                          onClick={() => setShowThinking((v) => !v)}
-                          className="text-muted-foreground"
-                        >
-                          <svg className="h-3 w-3 text-amber-500/70" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                            <path strokeLinecap="round" strokeLinejoin="round" d="M12 18v-5.25m0 0a6.01 6.01 0 0 0 1.5-.189m-1.5.189a6.01 6.01 0 0 1-1.5-.189m3.75 7.478a12.06 12.06 0 0 1-4.5 0m3.75 2.383a14.406 14.406 0 0 1-3 0M14.25 18v-.192c0-.983.658-1.823 1.508-2.316a7.5 7.5 0 1 0-7.517 0c.85.493 1.509 1.333 1.509 2.316V18" />
-                          </svg>
-                          {showThinking ? "Hide" : "Show"} reasoning ({thinkingCount})
-                        </Button>
-                      </div>
-                    ) : (() => {
-                      const msg = visibleMessages[msgIndex]!
-                      const isLastThinking = msg.role === "thinking" &&
-                        agentStatus === "working" &&
-                        msgIndex === visibleMessages.length - 1
-                      return (
-                        <ChatMessage
-                          message={msg}
-                          tasks={tasks}
-                          onReply={handleReply}
-                          isThinkingActive={isLastThinking}
-                        />
-                      )
-                    })()}
-                  </div>
-                </div>
-              )
-            })}
+        <div
+          ref={scrollRef}
+          className="h-full overflow-y-auto"
+          onScroll={handleScroll}
+        >
+          {messages.length === 0 ? (
+            <div className="flex h-full items-center justify-center py-20 text-sm text-muted-foreground">
+              No messages yet. Send a prompt to start.
+            </div>
+          ) : (
+            <div ref={contentRef} className="px-4 pt-4">
+              <AssistantMessageGroups
+                messages={messages}
+                activities={activities}
+                tasks={tasks}
+                onReply={handleReply}
+                isLastGroupStreaming={agentStatus === "working"}
+              />
+            </div>
+          )}
+        </div>
+        {!isAtBottom && (
+          <div className="absolute bottom-12 left-1/2 -translate-x-1/2">
+            <Button
+              size="icon-sm"
+              onClick={scrollToBottom}
+              className="rounded-full shadow-lg bg-foreground text-background hover:bg-foreground/90"
+              aria-label="Scroll to bottom"
+            >
+              <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M19 14l-7 7m0 0l-7-7m7 7V3" />
+              </svg>
+            </Button>
           </div>
         )}
-      </div>
-      {!isAtBottom && (
-        <div className="absolute bottom-12 left-1/2 -translate-x-1/2">
-          <Button
-            size="icon-sm"
-            onClick={scrollToBottom}
-            className="rounded-full shadow-lg bg-foreground text-background hover:bg-foreground/90"
-            aria-label="Scroll to bottom"
-          >
-            <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-              <path strokeLinecap="round" strokeLinejoin="round" d="M19 14l-7 7m0 0l-7-7m7 7V3" />
-            </svg>
-          </Button>
-        </div>
-      )}
       </div>
 
       {/* Input or terminal-state banner */}
@@ -318,28 +243,6 @@ export function ChatPanel({
         />
         </>
       )}
-    </div>
-  )
-}
-
-/* -- Thinking indicator (extracted to avoid inline definition) -- */
-
-function ThinkingIndicator() {
-  return (
-    <div className="flex flex-col gap-1.5">
-      <div className="flex items-center gap-2">
-        <div className="flex h-5 w-5 items-center justify-center rounded-[10px] bg-primary">
-          <svg className="h-2.5 w-2.5 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-            <path strokeLinecap="round" strokeLinejoin="round" d="M9.75 3.104v5.714a2.25 2.25 0 0 1-.659 1.591L5 14.5M9.75 3.104c-.251.023-.501.05-.75.082m.75-.082a24.301 24.301 0 0 1 4.5 0m0 0v5.714c0 .597.237 1.17.659 1.591L19.8 15.3M14.25 3.104c.251.023.501.05.75.082M19.8 15.3l-1.57.393A9.065 9.065 0 0 1 12 15a9.065 9.065 0 0 0-6.23.693L5 14.5m14.8.8 1.402 1.402c1.232 1.232.65 3.318-1.067 3.611l-.772.13a18.142 18.142 0 0 1-6.126 0l-.772-.13c-1.717-.293-2.3-2.379-1.067-3.61L13 15" />
-          </svg>
-        </div>
-        <span className="text-xs font-semibold text-foreground">Agent</span>
-      </div>
-      <div className="flex w-fit items-center gap-1 rounded-lg bg-muted px-3 py-2">
-        <div className="h-1.5 w-1.5 rounded-full bg-muted-foreground animate-thinking-dot" />
-        <div className="h-1.5 w-1.5 rounded-full bg-muted-foreground animate-thinking-dot" />
-        <div className="h-1.5 w-1.5 rounded-full bg-muted-foreground animate-thinking-dot" />
-      </div>
     </div>
   )
 }
