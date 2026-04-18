@@ -104,8 +104,8 @@ export function mapNotification(method: string, params: Record<string, unknown>)
       return [{ kind: "status", status: "idle" }]
 
     case "token_count": {
-      // Use last_token_usage (per-turn), not total_token_usage (cumulative).
-      // This allows start.ts to accumulate correctly across turns and session restarts.
+      // last_token_usage.total_tokens = current context window usage (what Codex TUI shows)
+      // model_context_window = max context size
       const info = params.info as Record<string, unknown> | undefined
       if (!info) return []
       const lastUsage = info.last_token_usage as Record<string, unknown> | undefined
@@ -114,9 +114,10 @@ export function mapNotification(method: string, params: Record<string, unknown>)
         + (typeof lastUsage.cached_input_tokens === "number" ? lastUsage.cached_input_tokens : 0)
       const outputTokens = (typeof lastUsage.output_tokens === "number" ? lastUsage.output_tokens : 0)
         + (typeof lastUsage.reasoning_output_tokens === "number" ? lastUsage.reasoning_output_tokens : 0)
-      // Note: model_context_window is the max window size, not current context usage
-      if (inputTokens > 0 || outputTokens > 0) {
-        return [{ kind: "usage", inputTokens, outputTokens }]
+      // total_tokens from last_token_usage = current context window size
+      const contextTokens = typeof lastUsage.total_tokens === "number" ? lastUsage.total_tokens : undefined
+      if (inputTokens > 0 || outputTokens > 0 || contextTokens) {
+        return [{ kind: "usage", inputTokens, outputTokens, contextTokens }]
       }
       return []
     }

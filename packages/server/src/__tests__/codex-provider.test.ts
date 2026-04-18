@@ -120,7 +120,7 @@ describe("Codex provider config helpers", () => {
   it("emits per-turn usage from token_count notification", () => {
     const events = mapNotification("token_count", {
       info: {
-        last_token_usage: { input_tokens: 5000, output_tokens: 1200 },
+        last_token_usage: { input_tokens: 5000, output_tokens: 1200, total_tokens: 6200 },
         model_context_window: 128000, // Not used — max window, not current usage
       },
     })
@@ -128,6 +128,7 @@ describe("Codex provider config helpers", () => {
       kind: "usage",
       inputTokens: 5000,
       outputTokens: 1200,
+      contextTokens: 6200, // total_tokens = current context window usage
     })
   })
 
@@ -139,6 +140,7 @@ describe("Codex provider config helpers", () => {
           cached_input_tokens: 1000,
           output_tokens: 500,
           reasoning_output_tokens: 200,
+          total_tokens: 4700,
         },
       },
     })
@@ -146,6 +148,7 @@ describe("Codex provider config helpers", () => {
       kind: "usage",
       inputTokens: 4000, // 3000 + 1000 cached
       outputTokens: 700, // 500 + 200 reasoning
+      contextTokens: 4700,
     })
   })
 

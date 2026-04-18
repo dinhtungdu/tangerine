@@ -573,6 +573,8 @@ export function createOpenCodeProvider(): AgentFactory {
                   // Accumulate token usage across steps within this turn.
                   // Each step_finish reports that step's tokens — we sum them
                   // and emit a single usage event when the process ends.
+                  // Note: OpenCode doesn't expose context window size in JSON output,
+                  // only the TUI has access via internal pubsub. No contextTokens here.
                   let turnInputTokens = 0
                   let turnOutputTokens = 0
 

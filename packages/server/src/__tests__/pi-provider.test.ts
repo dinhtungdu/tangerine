@@ -51,11 +51,11 @@ describe("createPiEventMapper", () => {
 
     const events = mapEvent({
       type: "turn_end",
-      message: { role: "assistant", usage: { input: 3000, output: 700, cacheRead: 0, cacheWrite: 0 } },
+      message: { role: "assistant", usage: { input: 3000, output: 700, cacheRead: 0, cacheWrite: 0, totalTokens: 3700 } },
       toolResults: [],
     })
 
-    expect(events).toEqual([{ kind: "usage", inputTokens: 3000, outputTokens: 700 }])
+    expect(events).toEqual([{ kind: "usage", inputTokens: 3000, outputTokens: 700, contextTokens: 3700 }])
   })
 
   test("agent_end without messages emits only status", () => {
@@ -66,9 +66,9 @@ describe("createPiEventMapper", () => {
 })
 
 describe("extractPiMessageUsage", () => {
-  test("extracts Pi usage fields (input, output, cacheRead, cacheWrite)", () => {
-    expect(extractPiMessageUsage({ usage: { input: 4000, output: 900, cacheRead: 500, cacheWrite: 200 } }))
-      .toEqual({ kind: "usage", inputTokens: 4700, outputTokens: 900 })
+  test("extracts Pi usage fields including totalTokens for context", () => {
+    expect(extractPiMessageUsage({ usage: { input: 4000, output: 900, cacheRead: 500, cacheWrite: 200, totalTokens: 5600 } }))
+      .toEqual({ kind: "usage", inputTokens: 4700, outputTokens: 900, contextTokens: 5600 })
   })
 
   test("returns null when no usage field", () => {

@@ -183,7 +183,7 @@ export function createPiEventMapper(): (data: Record<string, unknown>) => AgentE
 
 // Pi's Usage type: { input, output, cacheRead, cacheWrite, totalTokens, cost }
 // Lives on AssistantMessage.usage (not at event top level).
-export function extractPiMessageUsage(msg: Record<string, unknown>): { kind: "usage"; inputTokens: number; outputTokens: number } | null {
+export function extractPiMessageUsage(msg: Record<string, unknown>): { kind: "usage"; inputTokens: number; outputTokens: number; contextTokens?: number } | null {
   const usage = msg.usage as Record<string, unknown> | undefined
   if (!usage) return null
   const input = typeof usage.input === "number" ? usage.input : 0
@@ -191,8 +191,10 @@ export function extractPiMessageUsage(msg: Record<string, unknown>): { kind: "us
   const cacheWrite = typeof usage.cacheWrite === "number" ? usage.cacheWrite : 0
   const inputTokens = input + cacheRead + cacheWrite
   const outputTokens = typeof usage.output === "number" ? usage.output : 0
-  if (inputTokens === 0 && outputTokens === 0) return null
-  return { kind: "usage", inputTokens, outputTokens }
+  // totalTokens = current context window usage
+  const contextTokens = typeof usage.totalTokens === "number" ? usage.totalTokens : undefined
+  if (inputTokens === 0 && outputTokens === 0 && !contextTokens) return null
+  return { kind: "usage", inputTokens, outputTokens, contextTokens }
 }
 
 function truncate(s: string, maxLen: number): string {
