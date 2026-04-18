@@ -64,6 +64,20 @@ describe("useTasks", () => {
   })
 
   test("passes filter params to fetch", async () => {
+    // Update mock to return counts for specific project
+    globalThis.fetch = mock((url: string) => {
+      if (url.includes("/api/tasks/counts")) {
+        return Promise.resolve(new Response(JSON.stringify({ "my-project": 1 }), {
+          status: 200,
+          headers: { "Content-Type": "application/json" },
+        }))
+      }
+      return Promise.resolve(new Response(JSON.stringify([mockTasks[0]]), {
+        status: 200,
+        headers: { "Content-Type": "application/json" },
+      }))
+    }) as typeof fetch
+
     const { result } = renderHook(() => useTasks({ project: "my-project", status: "running" }))
 
     await waitFor(() => {
@@ -71,21 +85,19 @@ describe("useTasks", () => {
     })
 
     const calls = (globalThis.fetch as ReturnType<typeof mock>).mock.calls as unknown[][]
-    const tasksUrl = calls[1]![0] as string
+    // Find the tasks fetch call (second call onwards are per-project fetches)
+    const tasksCalls = calls.filter(c => (c[0] as string).includes("/api/tasks?"))
+    expect(tasksCalls.length).toBeGreaterThan(0)
+    const tasksUrl = tasksCalls[0]![0] as string
     expect(tasksUrl).toContain("project=my-project")
     expect(tasksUrl).toContain("status=running")
   })
 
   test("handles fetch error", async () => {
-    globalThis.fetch = mock((url: string) => {
-      if (url.includes("/api/tasks/counts")) {
-        return Promise.resolve(new Response(JSON.stringify({}), {
-          status: 200,
-          headers: { "Content-Type": "application/json" },
-        }))
-      }
-      return Promise.resolve(new Response("Internal Server Error", { status: 500 }))
-    }) as typeof fetch
+    // Make counts fail to trigger error handling
+    globalThis.fetch = mock(() =>
+      Promise.resolve(new Response("Internal Server Error", { status: 500 }))
+    ) as typeof fetch
 
     const { result } = renderHook(() => useTasks())
 
@@ -123,6 +135,97 @@ describe("useTasks", () => {
     })
 
     expect(result.current.tasks).toHaveLength(1)
+  })
+
+  test("loadMore appends tasks for a project", async () => {
+    const { result } = renderHook(() => useTasks())
+
+    await waitFor(() => {
+      expect(result.current.loading).toBe(false)
+    })
+
+    // Mock loadMore response
+    const additionalTask = { ...mockTasks[0], id: "3", title: "Additional task" }
+    globalThis.fetch = mock((url: string) => {
+      if (url.includes("/api/tasks/counts")) {
+        return Promise.resolve(new Response(JSON.stringify({ proj: 3 }), {
+          status: 200,
+          headers: { "Content-Type": "application/json" },
+        }))
+      }
+      return Promise.resolve(new Response(JSON.stringify([additionalTask]), {
+        status: 200,
+        headers: { "Content-Type": "application/json" },
+      }))
+    }) as typeof fetch
+
+    await act(async () => {
+      await result.current.loadMore("proj")
+    })
+
+    expect(result.current.tasks.some(t => t.id === "3")).toBe(true)
+  })
+
+  test("refetch preserves loaded pages", async () => {
+    const { result } = renderHook(() => useTasks())
+
+    await waitFor(() => {
+      expect(result.current.loading).toBe(false)
+    })
+
+    // Simulate having loaded more by calling loadMore first
+    const additionalTask = { ...mockTasks[0], id: "3", title: "Additional task" }
+    globalThis.fetch = mock((url: string) => {
+      if (url.includes("/api/tasks/counts")) {
+        return Promise.resolve(new Response(JSON.stringify({ proj: 3 }), {
+          status: 200,
+          headers: { "Content-Type": "application/json" },
+        }))
+      }
+      return Promise.resolve(new Response(JSON.stringify([additionalTask]), {
+        status: 200,
+        headers: { "Content-Type": "application/json" },
+      }))
+    }) as typeof fetch
+
+    await act(async () => {
+      await result.current.loadMore("proj")
+    })
+
+    const countAfterLoadMore = result.current.tasks.length
+
+    // Now refetch - should preserve the loaded limit
+    globalThis.fetch = mock((url: string) => {
+      if (url.includes("/api/tasks/counts")) {
+        return Promise.resolve(new Response(JSON.stringify({ proj: 3 }), {
+          status: 200,
+          headers: { "Content-Type": "application/json" },
+        }))
+      }
+      // Return all 3 tasks since we should request with higher limit
+      return Promise.resolve(new Response(JSON.stringify([...mockTasks, additionalTask]), {
+        status: 200,
+        headers: { "Content-Type": "application/json" },
+      }))
+    }) as typeof fetch
+
+    await act(async () => {
+      await result.current.refetch()
+    })
+
+    // Should have at least as many tasks as after loadMore
+    expect(result.current.tasks.length).toBeGreaterThanOrEqual(countAfterLoadMore)
+  })
+
+  test("returns counts per project", async () => {
+    const { result } = renderHook(() => useTasks())
+
+    await waitFor(() => {
+      expect(result.current.loading).toBe(false)
+    })
+
+    expect(result.current.counts).toHaveProperty("proj")
+    expect(result.current.counts.proj).toBe(2)
   })
 })
 

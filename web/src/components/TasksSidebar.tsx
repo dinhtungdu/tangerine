@@ -1,4 +1,4 @@
-import { useMemo, useState, useCallback, useEffect } from "react"
+import { useMemo, useState, useCallback, useEffect, useRef } from "react"
 import { Link, useParams, useNavigate } from "react-router-dom"
 import { TERMINAL_STATUSES } from "@tangerine/shared"
 import type { Task, ProjectConfig } from "@tangerine/shared"
@@ -203,6 +203,8 @@ export function TasksSidebar({ tasks, projects, searchQuery, onSearchChange, onN
   // Per-group active-only toggle: undefined means default (true = active only)
   const [groupActiveOnly, setGroupActiveOnly] = useState<Record<string, boolean>>({})
   const [loadingMore, setLoadingMore] = useState<Record<string, boolean>>({})
+  // Ref for synchronous double-click prevention
+  const loadingMoreRef = useRef<Set<string>>(new Set())
   const isSearching = searchQuery.length > 0
 
   // Group tasks by project (no global active filter — per-group toggles handle it)
@@ -285,14 +287,16 @@ export function TasksSidebar({ tasks, projects, searchQuery, onSearchChange, onN
   }, [])
 
   const handleLoadMore = useCallback(async (projectId: string) => {
-    if (!onLoadMore || loadingMore[projectId]) return
+    if (!onLoadMore || loadingMoreRef.current.has(projectId)) return
+    loadingMoreRef.current.add(projectId)
     setLoadingMore((prev) => ({ ...prev, [projectId]: true }))
     try {
       await onLoadMore(projectId)
     } finally {
+      loadingMoreRef.current.delete(projectId)
       setLoadingMore((prev) => ({ ...prev, [projectId]: false }))
     }
-  }, [onLoadMore, loadingMore])
+  }, [onLoadMore])
 
   return (
     <div className="flex h-full w-full shrink-0 flex-col border-r border-border bg-background md:w-[240px]">

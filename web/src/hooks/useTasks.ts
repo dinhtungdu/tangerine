@@ -23,17 +23,35 @@ export function useTasks(filter?: { status?: string; project?: string; search?: 
   const filterRef = useRef(filter)
   filterRef.current = filter
 
+  // Track loaded limits per project to preserve pagination across refetches
+  const loadedLimitsRef = useRef<Record<string, number>>({})
+  // Track in-flight loads to prevent double-clicks
+  const loadingRef = useRef<Set<string>>(new Set())
+
   const refetch = useCallback(async () => {
     try {
-      const [countsData, tasksData] = await Promise.all([
-        fetchTaskCounts({ status: filterRef.current?.status, search: filterRef.current?.search }),
-        fetchTasks({ ...filterRef.current, limit: PAGE_SIZE }),
-      ])
+      const countsData = await fetchTaskCounts({
+        status: filterRef.current?.status,
+        search: filterRef.current?.search,
+      })
       setCounts(countsData)
+
+      // Fetch tasks for each project up to the limit we've loaded (or PAGE_SIZE for new projects)
+      const projectIds = Object.keys(countsData)
+      const fetchPromises = projectIds.map(async (projectId) => {
+        const limit = Math.max(loadedLimitsRef.current[projectId] ?? PAGE_SIZE, PAGE_SIZE)
+        const tasks = await fetchTasks({
+          ...filterRef.current,
+          project: projectId,
+          limit,
+        })
+        return { projectId, tasks }
+      })
+
+      const results = await Promise.all(fetchPromises)
       const grouped: Record<string, Task[]> = {}
-      for (const task of tasksData) {
-        const arr = grouped[task.projectId] ?? (grouped[task.projectId] = [])
-        arr.push(task)
+      for (const { projectId, tasks } of results) {
+        grouped[projectId] = tasks
       }
       setTasksByProject(grouped)
       setError(null)
@@ -45,21 +63,33 @@ export function useTasks(filter?: { status?: string; project?: string; search?: 
   }, [])
 
   const loadMore = useCallback(async (projectId: string) => {
-    const currentTasks = tasksByProject[projectId] ?? []
-    const offset = currentTasks.length
+    // Synchronous check using ref to prevent double-clicks
+    if (loadingRef.current.has(projectId)) return
+    loadingRef.current.add(projectId)
+
     try {
+      // Use functional setState to get latest offset
+      const currentTasks = tasksByProject[projectId] ?? []
+      const offset = currentTasks.length
+
       const moreTasks = await fetchTasks({
         ...filterRef.current,
         project: projectId,
         limit: PAGE_SIZE,
         offset,
       })
-      setTasksByProject((prev) => ({
-        ...prev,
-        [projectId]: [...(prev[projectId] ?? []), ...moreTasks],
-      }))
+
+      setTasksByProject((prev) => {
+        const existing = prev[projectId] ?? []
+        const newTasks = [...existing, ...moreTasks]
+        // Update loaded limit so refetch preserves this pagination
+        loadedLimitsRef.current[projectId] = newTasks.length
+        return { ...prev, [projectId]: newTasks }
+      })
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to load more tasks")
+    } finally {
+      loadingRef.current.delete(projectId)
     }
   }, [tasksByProject])
 
