@@ -172,7 +172,7 @@ export function ChatPanel({
               No messages yet. Send a prompt to start.
             </div>
           ) : (
-            <div ref={contentRef} className="px-4 pt-4">
+            <div ref={contentRef} className="px-4 pb-12 pt-4">
               <AssistantMessageGroups
                 messages={messages}
                 activities={activities}

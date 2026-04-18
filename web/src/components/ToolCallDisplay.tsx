@@ -74,6 +74,10 @@ function getToolSummary(toolName: string, toolData: ToolCallData): string | null
     if (desc) return desc.length > 50 ? desc.slice(0, 50) + "…" : desc
   }
 
+  // Fallback: show description for any tool that has one
+  const desc = (input?.description as string)
+  if (desc) return desc.length > 60 ? desc.slice(0, 60) + "…" : desc
+
   return null
 }
 

@@ -147,9 +147,19 @@ function groupItems(items: MergedItem[]): MessageGroup[] {
 function buildToolContent(activity: ActivityEntry): string {
   const meta = activity.metadata as Record<string, unknown> | null
   const toolName = meta?.toolName || activity.event.replace("tool.", "")
+  // Parse toolInput JSON string into input object for ToolCallDisplay
+  let input: Record<string, unknown> | undefined
+  if (typeof meta?.toolInput === "string") {
+    try {
+      input = JSON.parse(meta.toolInput)
+    } catch {
+      // Keep as-is if not valid JSON
+    }
+  }
   return JSON.stringify({
     tool: toolName,
     name: toolName,
+    input,
     ...meta,
   })
 }
