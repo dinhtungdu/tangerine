@@ -265,7 +265,7 @@ export const NewAgentForm = forwardRef<NewAgentFormHandle, NewAgentFormProps>(fu
 
           {/* Worker / Reviewer / Runner toggle */}
           <div className="flex justify-center">
-            <div className="inline-flex overflow-hidden rounded-lg border border-border bg-muted p-0.5">
+            <div className="inline-flex rounded-lg border border-border bg-muted p-0.5">
               <Button
                 variant="ghost"
                 size="sm"
@@ -320,7 +320,16 @@ export const NewAgentForm = forwardRef<NewAgentFormHandle, NewAgentFormProps>(fu
           })()}
 
           {/* Input card */}
-          <div className="overflow-visible rounded-xl border border-border bg-background transition-colors focus-within:border-ring focus-within:ring-1 focus-within:ring-ring/50">
+          <div className="relative">
+            {mention.state.isOpen && (
+              <MentionPicker
+                tasks={mention.filteredTasks}
+                selectedIndex={mention.state.selectedIndex}
+                onSelect={handleMentionSelect}
+                onHover={(i) => mention.setSelectedIndex(i)}
+              />
+            )}
+            <div className="overflow-hidden rounded-xl border border-border bg-background transition-colors focus-within:border-ring focus-within:ring-1 focus-within:ring-ring/50">
             {pendingImages.length > 0 && (
               <div className="flex flex-wrap gap-1.5 px-4 pt-3">
                 {pendingImages.map((img, i) => (
@@ -335,15 +344,6 @@ export const NewAgentForm = forwardRef<NewAgentFormHandle, NewAgentFormProps>(fu
                 ))}
               </div>
             )}
-            <div className="relative">
-              {mention.state.isOpen && (
-                <MentionPicker
-                  tasks={mention.filteredTasks}
-                  selectedIndex={mention.state.selectedIndex}
-                  onSelect={handleMentionSelect}
-                  onHover={(i) => mention.setSelectedIndex(i)}
-                />
-              )}
               <Textarea
                 ref={textareaRef}
                 id="new-agent-textarea"
@@ -375,7 +375,6 @@ export const NewAgentForm = forwardRef<NewAgentFormHandle, NewAgentFormProps>(fu
                 rows={4}
                 className="w-full min-h-[8rem] resize-none rounded-none border-0 bg-transparent px-4 pt-4 pb-2 text-base leading-[1.6] text-foreground placeholder-muted-foreground shadow-none outline-none ring-0 focus-visible:ring-0 focus-visible:border-0 md:text-sm scroll-mt-4"
               />
-            </div>
             {/* Inline controls below textarea */}
             <div className="flex flex-col gap-2.5 overflow-visible border-t border-border px-3 py-2.5">
               <div className="flex flex-wrap items-center gap-2 overflow-visible">
@@ -417,6 +416,7 @@ export const NewAgentForm = forwardRef<NewAgentFormHandle, NewAgentFormProps>(fu
                 </svg>
                 <span className="text-sm font-semibold">Start Agent</span>
               </Button>
+            </div>
             </div>
           </div>
 
