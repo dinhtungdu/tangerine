@@ -1,4 +1,4 @@
-import { useState, useRef, useEffect } from "react"
+import { useState } from "react"
 
 export type ToolStatus = "running" | "success" | "error" | "interrupted"
 
@@ -100,17 +100,7 @@ function StatusIndicator({ status }: { status: ToolStatus }) {
 export function ToolCallDisplay({ content, status = "success" }: ToolCallDisplayProps) {
   const [expanded, setExpanded] = useState(false)
   const [hovered, setHovered] = useState(false)
-  const contentRef = useRef<HTMLDivElement>(null)
   const toolData = parseToolCall(content)
-
-  useEffect(() => {
-    if (contentRef.current) {
-      contentRef.current.style.setProperty(
-        "--content-height",
-        expanded ? "1fr" : "0fr"
-      )
-    }
-  }, [expanded])
 
   if (!toolData) {
     return (
@@ -179,7 +169,6 @@ export function ToolCallDisplay({ content, status = "success" }: ToolCallDisplay
 
       {/* Expanded content with smooth animation */}
       <div
-        ref={contentRef}
         className="grid transition-[grid-template-rows] duration-200 ease-out"
         style={{ gridTemplateRows: expanded ? "1fr" : "0fr" }}
       >
