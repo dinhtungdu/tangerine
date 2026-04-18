@@ -1,4 +1,4 @@
-import { useMemo, useState, useCallback, useEffect } from "react"
+import { useMemo, useState, useCallback } from "react"
 import { Link, useParams, useNavigate } from "react-router-dom"
 import { TERMINAL_STATUSES } from "@tangerine/shared"
 import type { Task, ProjectConfig } from "@tangerine/shared"
@@ -30,17 +30,10 @@ interface TasksSidebarProps {
   page: number
   pageSize: number
   onPageChange: (page: number) => void
+  projectFilter: string
+  onProjectFilterChange: (value: string | null) => void
 }
 
-const PROJECT_FILTER_KEY = "tangerine:sidebar-project-filter"
-
-function readProjectFilter(): string {
-  try {
-    return localStorage.getItem(PROJECT_FILTER_KEY) ?? ""
-  } catch {
-    return ""
-  }
-}
 
 function TaskItem({
   task,
@@ -198,24 +191,19 @@ function ProjectGroupHeader({
   )
 }
 
-export function TasksSidebar({ tasks, projects, searchQuery, onSearchChange, onNewAgent, onRefetch, total, page, pageSize, onPageChange }: TasksSidebarProps) {
+export function TasksSidebar({ tasks, projects, searchQuery, onSearchChange, onNewAgent, onRefetch, total, page, pageSize, onPageChange, projectFilter, onProjectFilterChange }: TasksSidebarProps) {
   const { id: activeId } = useParams<{ id: string }>()
-  const [projectFilter, setProjectFilter] = useState(readProjectFilter)
   // Per-group active-only toggle: undefined means default (true = active only)
   const [groupActiveOnly, setGroupActiveOnly] = useState<Record<string, boolean>>({})
   const isSearching = searchQuery.length > 0
 
   // Group tasks by project (no global active filter — per-group toggles handle it)
+  // Note: project filtering is done server-side via API, so tasks already filtered
   const groups = useMemo(() => {
-    // Apply project filter
-    const filtered = projectFilter
-      ? tasks.filter((t) => t.projectId === projectFilter)
-      : tasks
-
     // Split orchestrators vs workers
     const orchestrators = new Map<string, Task>()
     const workers: Task[] = []
-    for (const t of filtered) {
+    for (const t of tasks) {
       if (t.type === "orchestrator") {
         const existing = orchestrators.get(t.projectId)
         if (!existing || (!TERMINAL_STATUSES.has(t.status) && TERMINAL_STATUSES.has(existing.status))) {
@@ -260,28 +248,11 @@ export function TasksSidebar({ tasks, projects, searchQuery, onSearchChange, onN
     return Array.from(groupMap.values())
   }, [tasks, projects, projectFilter])
 
-  useEffect(() => {
-    // Validate project filter — clear if project no longer exists
-    if (projectFilter && !projects.some((p) => p.name === projectFilter)) {
-      setProjectFilter("")
-      try { localStorage.removeItem(PROJECT_FILTER_KEY) } catch { /* ignore */ }
-    }
-  }, [projects, projectFilter])
-
   const handleGroupToggle = useCallback((projectId: string) => {
     setGroupActiveOnly((prev) => ({
       ...prev,
       [projectId]: !(prev[projectId] ?? true),
     }))
-  }, [])
-
-  const handleProjectFilterChange = useCallback((value: string | null) => {
-    const resolvedValue = !value || value === "all" ? "" : value
-    setProjectFilter(resolvedValue)
-    try {
-      if (resolvedValue) localStorage.setItem(PROJECT_FILTER_KEY, resolvedValue)
-      else localStorage.removeItem(PROJECT_FILTER_KEY)
-    } catch { /* ignore */ }
   }, [])
 
   return (
@@ -321,7 +292,7 @@ export function TasksSidebar({ tasks, projects, searchQuery, onSearchChange, onN
         <ProjectSelector
           projects={projects}
           value={projectFilter}
-          onChange={handleProjectFilterChange}
+          onChange={onProjectFilterChange}
           allowAll
           size="sm"
           className="w-full"
