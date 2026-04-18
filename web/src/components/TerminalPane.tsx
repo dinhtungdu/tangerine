@@ -10,7 +10,7 @@ type TerminalPaneProps =
   | { taskId: string; wsUrl?: never }
   | { taskId?: never; wsUrl: string }
 
-type ConnState = "connecting" | "connected" | "reconnecting" | "error"
+type ConnState = "connecting" | "connected" | "reconnecting" | "error" | "connection_failed"
 
 export function TerminalPane(props: TerminalPaneProps) {
   const wsPath = props.wsUrl ?? `/api/tasks/${props.taskId}/terminal`
@@ -24,7 +24,9 @@ export function TerminalPane(props: TerminalPaneProps) {
   const disposedRef = useRef(false)
   const everConnectedRef = useRef(false)
   const hadErrorRef = useRef(false)
+  const consecutiveFailsRef = useRef(0)
   const [connState, setConnState] = useState<ConnState>("connecting")
+  const [connError, setConnError] = useState<string | null>(null)
 
   const sendInput = useCallback((data: string) => {
     const ws = wsRef.current
@@ -45,6 +47,8 @@ export function TerminalPane(props: TerminalPaneProps) {
 
     ws.onopen = () => {
       backoffRef.current = 1000
+      consecutiveFailsRef.current = 0
+      setConnError(null)
       const token = getAuthToken()
       if (token) {
         ws.send(JSON.stringify({ type: "auth", token }))
@@ -111,6 +115,11 @@ export function TerminalPane(props: TerminalPaneProps) {
     }
 
     ws.onerror = () => {
+      consecutiveFailsRef.current++
+      if (consecutiveFailsRef.current >= 3) {
+        setConnState("connection_failed")
+        setConnError(`WebSocket failed: ${url}`)
+      }
       ws.close()
     }
   }, [wsPath])
@@ -201,6 +210,8 @@ export function TerminalPane(props: TerminalPaneProps) {
           reconnectTimerRef.current = null
         }
         backoffRef.current = 1000
+        consecutiveFailsRef.current = 0
+        setConnError(null)
         setConnState(everConnectedRef.current ? "reconnecting" : "connecting")
         connect()
       }
@@ -226,8 +237,10 @@ export function TerminalPane(props: TerminalPaneProps) {
         wsRef.current = null
       }
       setConnState("connecting")
+      setConnError(null)
       everConnectedRef.current = false
       hadErrorRef.current = false
+      consecutiveFailsRef.current = 0
       term.dispose()
       termRef.current = null
       fitRef.current = null
@@ -246,9 +259,17 @@ export function TerminalPane(props: TerminalPaneProps) {
         <div ref={containerRef} className="absolute inset-0 bg-card p-1" />
         {connState !== "connected" && (
           <div className="absolute inset-0 flex items-center justify-center bg-[#1a1a1a]">
-            <span className="text-sm text-muted-foreground">
-              {connState === "reconnecting" ? "Reconnecting..." : connState === "error" ? "Connection error" : "Connecting..."}
-            </span>
+            <div className="text-center px-4">
+              <span className="text-sm text-muted-foreground">
+                {connState === "reconnecting" ? "Reconnecting..." : connState === "error" ? "Connection error" : connState === "connection_failed" ? "Connection failed" : "Connecting..."}
+              </span>
+              {connState === "connection_failed" && connError && (
+                <div className="mt-2 text-xs text-muted-foreground/70 max-w-md">
+                  <p className="break-all">{connError}</p>
+                  <p className="mt-2">If using a proxy or Tailscale HTTPS, ensure WebSocket upgrades are supported.</p>
+                </div>
+              )}
+            </div>
           </div>
         )}
       </div>
