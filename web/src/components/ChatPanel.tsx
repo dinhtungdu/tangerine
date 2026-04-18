@@ -33,8 +33,6 @@ interface ChatPanelProps {
   taskProjectId?: string
   autoFocusKey?: string
   contextTokens?: number
-  inputTokens?: number
-  outputTokens?: number
   contextWindowMax?: number
 }
 
@@ -62,8 +60,6 @@ export function ChatPanel({
   taskProjectId,
   autoFocusKey,
   contextTokens,
-  inputTokens,
-  outputTokens,
   contextWindowMax,
 }: ChatPanelProps) {
   const scrollRef = useRef<HTMLDivElement>(null)
@@ -311,8 +307,6 @@ export function ChatPanel({
           onQuoteSelection={handleQuoteSelection}
           autoFocusKey={autoFocusKey}
           contextTokens={contextTokens}
-          inputTokens={inputTokens}
-          outputTokens={outputTokens}
           contextWindowMax={contextWindowMax}
         />
         </>

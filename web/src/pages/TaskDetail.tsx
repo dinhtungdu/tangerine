@@ -589,8 +589,6 @@ export function TaskDetail() {
                 taskProjectId={chatTask.projectId}
                 autoFocusKey={chatTaskId}
                 contextTokens={session.contextTokens || undefined}
-                inputTokens={session.inputTokens || undefined}
-                outputTokens={session.outputTokens}
                 contextWindowMax={ctxMax}
               />
             </div>
