@@ -7,6 +7,11 @@
 //
 // Scrollback buffer: dtach doesn't replay output to new connections, so we
 // keep a ring buffer per task and replay it on reconnect.
+//
+// Shadow recorder: a persistent server-side PTY attachment that stays connected
+// to dtach even when all WebSocket clients are gone. This ensures output produced
+// while disconnected (e.g. a long-running command after closing the browser tab)
+// is captured and available when a client reconnects.
 
 import { Effect } from "effect"
 import { Hono } from "hono"
@@ -29,7 +34,11 @@ export function dtachSocketPath(taskId: string): string {
 
 const SCROLLBACK_LIMIT = 100 * 1024 // 100KB per task
 const scrollbackBuffers = new Map<string, string>()
-const activeRecorders = new Set<string>() // tasks with an active recording connection
+
+// Shadow recorders: persistent PTY attachments that stay connected to dtach
+// even when all WebSocket clients disconnect. One per task, keyed by taskId.
+// This is the only writer to scrollbackBuffers.
+const shadowRecorders = new Map<string, IPty>()
 
 /** Append output to scrollback buffer, trimming if over limit */
 function appendScrollback(taskId: string, data: string): void {
@@ -46,10 +55,57 @@ function getScrollback(taskId: string): string {
   return scrollbackBuffers.get(taskId) ?? ""
 }
 
-/** Clear scrollback buffer (call on task cleanup) */
+/** Stop the shadow recorder for a task (deletes before kill to prevent onExit loop) */
+function stopShadowRecorder(taskId: string): void {
+  const recorder = shadowRecorders.get(taskId)
+  if (!recorder) return
+  shadowRecorders.delete(taskId)
+  try {
+    recorder.kill()
+  } catch {
+    // Already dead
+  }
+}
+
+/**
+ * Start a persistent shadow recorder attached to dtach for continuous capture.
+ * No-op if one already exists for this task.
+ */
+function startShadowRecorder(taskId: string, socketPath: string, worktree: string): void {
+  if (shadowRecorders.has(taskId)) return
+
+  log.debug("Starting shadow recorder", { taskId })
+
+  const pty = spawn("dtach", [
+    "-A", socketPath,
+    "-z",
+    "/bin/bash", "--login",
+  ], {
+    cols: 80,
+    rows: 24,
+    name: "xterm-256color",
+    cwd: worktree,
+  })
+
+  shadowRecorders.set(taskId, pty)
+
+  pty.onData((data) => {
+    appendScrollback(taskId, data)
+  })
+
+  pty.onExit(() => {
+    // Shell exited — clear stale scrollback only if we're still the live recorder
+    if (shadowRecorders.get(taskId) === pty) {
+      shadowRecorders.delete(taskId)
+      scrollbackBuffers.delete(taskId)
+    }
+  })
+}
+
+/** Clear scrollback buffer and stop shadow recorder (call on task cleanup) */
 export function clearScrollback(taskId: string): void {
   scrollbackBuffers.delete(taskId)
-  activeRecorders.delete(taskId)
+  stopShadowRecorder(taskId)
 }
 
 export function terminalWsRoutes(deps: AppDeps, upgradeWebSocket: UpgradeWebSocket): Hono {
@@ -67,7 +123,6 @@ export function terminalWsRoutes(deps: AppDeps, upgradeWebSocket: UpgradeWebSock
       let authenticated = !authEnabled || requestAuthenticated
       let authTimer: ReturnType<typeof setTimeout> | null = null
       let started = false
-      let isRecorder = false
 
       const startTerminal = (ws: SocketLike) => {
         if (started) return
@@ -90,10 +145,12 @@ export function terminalWsRoutes(deps: AppDeps, upgradeWebSocket: UpgradeWebSock
               ws.send(JSON.stringify({ type: "scrollback", data: scrollback }))
             }
 
-            // Only the first connection records to the buffer to avoid N copies
-            isRecorder = !activeRecorders.has(taskId)
-            if (isRecorder) activeRecorders.add(taskId)
+            // Ensure the shadow recorder is running so output is captured
+            // continuously regardless of how many WebSocket clients are connected.
+            startShadowRecorder(taskId, socketPath, worktree)
 
+            // Spawn a separate client attachment for this WebSocket session.
+            // It relays output to the browser; scrollback is written only by the shadow.
             pty = spawn("dtach", [
               "-A", socketPath,
               "-z",
@@ -106,14 +163,6 @@ export function terminalWsRoutes(deps: AppDeps, upgradeWebSocket: UpgradeWebSock
             })
 
             pty.onData((data) => {
-              // Record if we're the recorder, OR take over if no one is recording
-              if (isRecorder || !activeRecorders.has(taskId)) {
-                if (!isRecorder) {
-                  isRecorder = true
-                  activeRecorders.add(taskId)
-                }
-                appendScrollback(taskId, data)
-              }
               if (!alive) return
               try {
                 ws.send(JSON.stringify({ type: "output", data }))
@@ -123,8 +172,6 @@ export function terminalWsRoutes(deps: AppDeps, upgradeWebSocket: UpgradeWebSock
             })
 
             pty.onExit(({ exitCode }) => {
-              // Clear scrollback when shell exits to avoid replaying stale history
-              clearScrollback(taskId)
               if (!alive) return
               try {
                 ws.send(JSON.stringify({ type: "exit", code: exitCode }))
@@ -197,16 +244,16 @@ export function terminalWsRoutes(deps: AppDeps, upgradeWebSocket: UpgradeWebSock
             pty.write(parsed.data)
           } else if (parsed.type === "resize" && parsed.cols && parsed.rows) {
             pty.resize(parsed.cols, parsed.rows)
+            // Keep shadow recorder in sync so dtach doesn't reflow to 80x24 on disconnect
+            shadowRecorders.get(taskId)?.resize(parsed.cols, parsed.rows)
           }
         },
 
         onClose() {
           if (authTimer) clearTimeout(authTimer)
           alive = false
-          // Release recorder status so next connection can record
-          if (isRecorder) activeRecorders.delete(taskId)
-          // Only kill the PTY attachment — the dtach session stays alive
-          // so the next connection can re-attach with history preserved.
+          // Only kill this client's PTY attachment — the dtach session and
+          // the shadow recorder stay alive to capture output while disconnected.
           if (pty) {
             try {
               pty.kill()
@@ -215,7 +262,7 @@ export function terminalWsRoutes(deps: AppDeps, upgradeWebSocket: UpgradeWebSock
             }
             pty = null
           }
-          log.debug("Terminal detached (dtach session preserved)", { taskId })
+          log.debug("Terminal client detached (shadow recorder continues)", { taskId })
         },
       }
     })
