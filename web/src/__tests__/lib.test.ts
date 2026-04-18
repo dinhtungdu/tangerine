@@ -257,12 +257,16 @@ describe("activity", () => {
     expect(detail).toBe("npm test")
   })
 
-  test("getActivityDetail returns string (never object) when toolInput is unparseable", () => {
-    const detail = getActivityDetail("tool.read", "fallback", {
-      toolInput: "not-json",
-    })
-    expect(typeof detail).toBe("string")
-    expect(detail).toBe("fallback")
+  test("getActivityDetail returns raw string when toolInput is truncated/invalid JSON", () => {
+    const truncated = '{"command":"some very long command that got cut off at 500 chars...'
+    const detail = getActivityDetail("tool.bash", "Bash", { toolInput: truncated })
+    expect(detail).toBe(truncated)
+  })
+
+  test("getActivityDetail returns raw string for tool.read with invalid JSON", () => {
+    const truncated = '{"file_path":"/some/very/long/path/that/got/truncated...'
+    const detail = getActivityDetail("tool.read", "Read", { toolInput: truncated })
+    expect(detail).toBe(truncated)
   })
 })
 

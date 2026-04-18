@@ -225,6 +225,9 @@ export function getActivityDetail(event: string, content: string, metadata: Reco
   if (!metadata) return content
 
   const input = resolveToolInput(metadata.toolInput)
+  // When toolInput is a truncated/invalid JSON string, preserve the raw string as a fallback
+  // so long commands and paths still show something useful in the activity list.
+  const rawString = typeof metadata.toolInput === "string" ? metadata.toolInput : null
 
   switch (event) {
     case "tool.read":
@@ -234,14 +237,14 @@ export function getActivityDetail(event: string, content: string, metadata: Reco
       if (input) {
         return (input.file_path ?? input.path ?? input.pattern ?? content) as string
       }
-      return content
+      return rawString ?? content
     }
     case "tool.bash":
     case "tool.bash.done": {
       if (input) {
         return (input.command ?? content) as string
       }
-      return content
+      return rawString ?? content
     }
     case "worktree.acquired": {
       const slotId = metadata?.slot as string | undefined
