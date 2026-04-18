@@ -208,20 +208,42 @@ function AssistantGroup({
     [group.items],
   )
 
+  // Find the last assistant message's content to filter duplicate narrations
+  const lastAssistantContent = useMemo(() => {
+    for (let i = group.items.length - 1; i >= 0; i--) {
+      const item = group.items[i]!
+      if (item.kind === "message" && item.data.role === "assistant") {
+        return item.data.content
+      }
+    }
+    return null
+  }, [group.items])
+
+  // Filter items to exclude narrations that duplicate the final assistant message
+  const filteredItems = useMemo(() => {
+    if (!lastAssistantContent) return group.items
+    return group.items.filter((item) => {
+      if (item.kind === "message" && item.data.role === "narration") {
+        return item.data.content !== lastAssistantContent
+      }
+      return true
+    })
+  }, [group.items, lastAssistantContent])
+
   const showSummaryBar = group.toolCount >= 2
 
   // Find the last tool index for status derivation
   const lastToolIdx = useMemo(() => {
-    for (let i = group.items.length - 1; i >= 0; i--) {
-      if (group.items[i]!.kind === "tool") return i
+    for (let i = filteredItems.length - 1; i >= 0; i--) {
+      if (filteredItems[i]!.kind === "tool") return i
     }
     return -1
-  }, [group.items])
+  }, [filteredItems])
 
   if (!showSummaryBar) {
     return (
       <>
-        {group.items.map((item, idx) => {
+        {filteredItems.map((item, idx) => {
           if (item.kind === "tool") {
             const status = deriveToolStatus(item.data, isStreaming, idx === lastToolIdx)
             return (
@@ -257,7 +279,7 @@ function AssistantGroup({
 
       {expanded && (
         <div className="flex flex-col gap-4 pl-2 border-l-2 border-border">
-          {group.items.map((item, idx) => {
+          {filteredItems.map((item, idx) => {
             if (item.kind === "tool") {
               const status = deriveToolStatus(item.data, isStreaming, idx === lastToolIdx)
               return (
@@ -269,7 +291,7 @@ function AssistantGroup({
               )
             }
             const isLastThinking =
-              item.data.role === "thinking" && isStreaming && idx === group.items.length - 1
+              item.data.role === "thinking" && isStreaming && idx === filteredItems.length - 1
             return (
               <ChatMessage
                 key={item.data.id}
