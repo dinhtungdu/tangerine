@@ -833,3 +833,44 @@ describe("isProviderAvailable", () => {
   })
 })
 
+// DiffViewer
+import { getDiffStats } from "../components/DiffViewer"
+
+describe("getDiffStats", () => {
+  test("counts additions and deletions correctly", () => {
+    const oldStr = "line1\nline2\nline3"
+    const newStr = "line1\nline2-modified\nline3\nline4"
+    const stats = getDiffStats(oldStr, newStr)
+    expect(stats.additions).toBe(2)
+    expect(stats.deletions).toBe(1)
+  })
+
+  test("handles no changes", () => {
+    const str = "line1\nline2"
+    const stats = getDiffStats(str, str)
+    expect(stats.additions).toBe(0)
+    expect(stats.deletions).toBe(0)
+  })
+
+  test("handles empty to new content", () => {
+    const stats = getDiffStats("", "new line")
+    expect(stats.additions).toBe(1)
+    expect(stats.deletions).toBe(1) // empty string is one empty line
+  })
+
+  test("calculates totalLines", () => {
+    const oldStr = "a\nb"
+    const newStr = "a\nb\nc"
+    const stats = getDiffStats(oldStr, newStr)
+    expect(stats.totalLines).toBeGreaterThan(0)
+  })
+
+  test("handles reordered lines without hanging", () => {
+    const oldStr = "a\nb"
+    const newStr = "b\na"
+    const stats = getDiffStats(oldStr, newStr)
+    expect(stats.additions + stats.deletions).toBeGreaterThan(0)
+    expect(stats.totalLines).toBeGreaterThan(0)
+  })
+})
+

@@ -1,4 +1,5 @@
-import { useState } from "react"
+import { useState, useMemo, useEffect } from "react"
+import { DiffViewer, getDiffStats, type DiffStats } from "./DiffViewer"
 
 export type ToolStatus = "running" | "success" | "error" | "interrupted"
 
@@ -102,9 +103,32 @@ function StatusIndicator({ status }: { status: ToolStatus }) {
 }
 
 export function ToolCallDisplay({ content, status = "success" }: ToolCallDisplayProps) {
-  const [expanded, setExpanded] = useState(false)
-  const [hovered, setHovered] = useState(false)
   const toolData = parseToolCall(content)
+
+  const editStrings = useMemo(() => {
+    if (!toolData?.input) return null
+    const input = toolData.input
+    const oldStr = input.old_string as string | undefined
+    const newStr = input.new_string as string | undefined
+    const filePath = input.file_path as string | undefined
+    if (typeof oldStr === "string" && typeof newStr === "string") {
+      return { oldString: oldStr, newString: newStr, filePath }
+    }
+    return null
+  }, [toolData])
+
+  const diffStats = useMemo<DiffStats | null>(() => {
+    if (!editStrings) return null
+    return getDiffStats(editStrings.oldString, editStrings.newString)
+  }, [editStrings])
+
+  const shouldAutoExpand = diffStats ? diffStats.totalLines < 20 : false
+  const [expanded, setExpanded] = useState(shouldAutoExpand)
+  const [hovered, setHovered] = useState(false)
+
+  useEffect(() => {
+    if (shouldAutoExpand) setExpanded(true)
+  }, [shouldAutoExpand])
 
   if (!toolData) {
     return (
@@ -119,9 +143,11 @@ export function ToolCallDisplay({ content, status = "success" }: ToolCallDisplay
   const summary = getToolSummary(toolName, toolData)
   const nameLower = toolName.toLowerCase()
   const isShell = nameLower.includes("shell") || nameLower.includes("bash") || nameLower.includes("exec")
-  const isWrite = nameLower.includes("write") || nameLower.includes("edit")
+  const isEdit = nameLower.includes("edit")
+  const isWrite = nameLower.includes("write") || isEdit
   const isRead = nameLower.includes("read")
   const isGrep = nameLower.includes("grep")
+  const hasEditDiff = isEdit && editStrings !== null
 
   return (
     <div
@@ -154,7 +180,14 @@ export function ToolCallDisplay({ content, status = "success" }: ToolCallDisplay
         {summary && (
           <span className="min-w-0 flex-1 truncate font-mono text-xs text-foreground">{summary}</span>
         )}
-        {isWrite && (
+        {diffStats && (
+          <span className="shrink-0 font-mono text-2xs">
+            <span className="text-diff-add">+{diffStats.additions}</span>
+            {" "}
+            <span className="text-diff-remove">-{diffStats.deletions}</span>
+          </span>
+        )}
+        {isWrite && !hasEditDiff && (
           <span className="shrink-0 rounded bg-amber-100 dark:bg-amber-900/20 px-1.5 py-0.5 text-2xs font-medium text-amber-600 dark:text-amber-400">modified</span>
         )}
         {/* Hover expand icon */}
@@ -192,7 +225,16 @@ export function ToolCallDisplay({ content, status = "success" }: ToolCallDisplay
               </pre>
             )}
 
-            {toolData.diff && (
+            {hasEditDiff && editStrings && (
+              <DiffViewer
+                oldString={editStrings.oldString}
+                newString={editStrings.newString}
+                filePath={editStrings.filePath}
+                className="overflow-x-auto rounded bg-background/50 text-xxs"
+              />
+            )}
+
+            {toolData.diff && !hasEditDiff && (
               <pre className="overflow-x-auto rounded bg-background/50 p-2 font-mono text-xxs leading-[1.6]">
                 {toolData.diff.split("\n").map((line, i) => (
                   <div
@@ -211,7 +253,7 @@ export function ToolCallDisplay({ content, status = "success" }: ToolCallDisplay
               </pre>
             )}
 
-            {toolData.input && !toolData.command && !toolData.diff && (
+            {toolData.input && !toolData.command && !toolData.diff && !hasEditDiff && (
               <pre className="overflow-x-auto rounded bg-background/50 p-2 font-mono text-xxs leading-[1.6] text-muted-foreground">
                 {JSON.stringify(toolData.input, null, 2)}
               </pre>
