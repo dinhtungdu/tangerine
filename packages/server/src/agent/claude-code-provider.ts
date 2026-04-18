@@ -36,29 +36,29 @@ const CLAUDE_CODE_KNOWN_MODELS = [
   { id: "claude-3-5-haiku-20241022", name: "Claude 3.5 Haiku",    provider: "anthropic", providerName: "Anthropic", contextWindow: 200_000 },
 ]
 
-// Canonical model ID patterns, ordered most-specific first.
+// Maps API ID patterns to canonical short IDs, ordered most-specific first.
 // Used to map versioned API IDs (e.g. "claude-opus-4-6-20250514") to our short IDs.
-const CANONICAL_PATTERNS = [
-  "claude-opus-4-7",
-  "claude-opus-4-6",
-  "claude-opus-4-5",
-  "claude-opus-4-1",
-  "claude-opus-4",
-  "claude-sonnet-4-6",
-  "claude-sonnet-4-5",
-  "claude-sonnet-4",
-  "claude-haiku-4-5",
-  "claude-3-7-sonnet",
-  "claude-3-5-sonnet",
-  "claude-3-5-haiku",
-  "claude-3-opus",
-] as const
+const CANONICAL_PATTERNS: Array<[pattern: string, canonical: string]> = [
+  ["opus-4-7", "opus-4-7"],
+  ["opus-4-6", "opus-4-6"],
+  ["opus-4-5", "opus-4-5"],
+  ["opus-4-1", "opus-4-1"],
+  ["opus-4", "opus-4"],
+  ["sonnet-4-6", "sonnet-4-6"],
+  ["sonnet-4-5", "sonnet-4-5"],
+  ["sonnet-4", "sonnet-4"],
+  ["haiku-4-5", "haiku-4-5"],
+  ["3-7-sonnet", "sonnet-3-7"],
+  ["3-5-sonnet", "sonnet-3-5"],
+  ["3-5-haiku", "haiku-3-5"],
+  ["3-opus", "opus-3"],
+]
 
 /** Strip date/provider suffixes from an API model ID to get the canonical short ID. */
 export function toCanonicalId(apiId: string): string {
   const lower = apiId.toLowerCase()
-  for (const pattern of CANONICAL_PATTERNS) {
-    if (lower.includes(pattern)) return pattern
+  for (const [pattern, canonical] of CANONICAL_PATTERNS) {
+    if (lower.includes(pattern)) return canonical
   }
   return apiId
 }
