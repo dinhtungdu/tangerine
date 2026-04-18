@@ -42,10 +42,18 @@ export function TerminalPane(props: TerminalPaneProps) {
 
     const protocol = window.location.protocol === "https:" ? "wss:" : "ws:"
     const url = `${protocol}//${window.location.host}${wsPath}`
+    if (process.env.NODE_ENV !== "production") {
+      console.log("[TerminalPane] Connecting to", url)
+    }
     const ws = new WebSocket(url)
     wsRef.current = ws
 
+    let connectedTimeout: ReturnType<typeof setTimeout> | null = null
+
     ws.onopen = () => {
+      if (process.env.NODE_ENV !== "production") {
+        console.log("[TerminalPane] WebSocket opened")
+      }
       backoffRef.current = 1000
       consecutiveFailsRef.current = 0
       setConnError(null)
@@ -61,12 +69,27 @@ export function TerminalPane(props: TerminalPaneProps) {
           ws.send(JSON.stringify({ type: "resize", cols: term.cols, rows: term.rows }))
         }
       })
+      // Timeout if "connected" message not received within 10s
+      connectedTimeout = setTimeout(() => {
+        if (process.env.NODE_ENV !== "production") {
+          console.log("[TerminalPane] Connection timeout - no 'connected' message received")
+        }
+        setConnError(`Server did not respond within 10s. URL: ${url}`)
+        setConnState("connection_failed")
+      }, 10000)
     }
 
     ws.onmessage = (event) => {
       try {
         const msg = JSON.parse(event.data as string)
         if (msg.type === "connected") {
+          if (connectedTimeout) {
+            clearTimeout(connectedTimeout)
+            connectedTimeout = null
+          }
+          if (process.env.NODE_ENV !== "production") {
+            console.log("[TerminalPane] Terminal connected")
+          }
           everConnectedRef.current = true
           setConnState("connected")
           // Send resize immediately so dtach gets the right size
@@ -84,6 +107,9 @@ export function TerminalPane(props: TerminalPaneProps) {
         } else if (msg.type === "exit") {
           term.writeln(`\r\n[Process exited with code ${msg.code}]`)
         } else if (msg.type === "error") {
+          if (process.env.NODE_ENV !== "production") {
+            console.log("[TerminalPane] Error from server:", msg.message)
+          }
           hadErrorRef.current = true
           if (msg.message === "Unauthorized") emitAuthFailure()
           setConnState("error")
@@ -94,7 +120,14 @@ export function TerminalPane(props: TerminalPaneProps) {
       }
     }
 
-    ws.onclose = () => {
+    ws.onclose = (event) => {
+      if (connectedTimeout) {
+        clearTimeout(connectedTimeout)
+        connectedTimeout = null
+      }
+      if (process.env.NODE_ENV !== "production") {
+        console.log("[TerminalPane] WebSocket closed", { code: event.code, reason: event.reason })
+      }
       // Only handle reconnect if this is still the active WebSocket
       if (wsRef.current !== ws) return
       wsRef.current = null
