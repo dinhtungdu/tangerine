@@ -13,6 +13,12 @@ export function getCapabilitiesForType(type: TaskType): TaskCapability[] {
   if (type === "reviewer") return ["resolve", "predefined-prompts", "diff", "pr-track"]
   return ["resolve", "predefined-prompts", "diff", "continue", "pr-track", "pr-create"]
 }
+export interface TaskWriteResponse {
+  id: string
+  title: string
+  status: TaskStatus
+}
+
 export interface Task {
   id: string
   projectId: string

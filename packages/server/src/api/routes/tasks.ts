@@ -1,6 +1,7 @@
 import { Effect } from "effect"
 import { Hono } from "hono"
 import { SUPPORTED_PROVIDERS } from "@tangerine/shared"
+import type { TaskWriteResponse } from "@tangerine/shared"
 import type { AppDeps } from "../app"
 import { mapTaskRow } from "../helpers"
 import { runEffect, runEffectVoid } from "../effect-helpers"
@@ -14,6 +15,9 @@ import { isValidReasoningEffort, getValidReasoningEfforts } from "../../agent/me
 
 const VALID_PROVIDERS = new Set<string>(SUPPORTED_PROVIDERS)
 const PROVIDER_LIST = SUPPORTED_PROVIDERS.join(", ")
+
+const toWriteResponse = (row: { id: string; title: string; status: string }): TaskWriteResponse =>
+  ({ id: row.id, title: row.title, status: row.status as TaskWriteResponse["status"] })
 
 export function taskRoutes(deps: AppDeps): Hono {
   const app = new Hono()
@@ -116,7 +120,7 @@ export function taskRoutes(deps: AppDeps): Hono {
 
     return runEffect(c,
       deps.taskManager.createTask({ source, projectId, title: body.title, type: body.type, description: body.description, provider: body.provider, model: body.model, reasoningEffort: body.reasoningEffort, sourceId, sourceUrl, branch, parentTaskId: body.parentTaskId, images: body.images }).pipe(
-        Effect.map((row) => ({ id: row.id, title: row.title, status: row.status }))
+        Effect.map(toWriteResponse)
       ),
       { status: 201 }
     )
@@ -169,7 +173,7 @@ export function taskRoutes(deps: AppDeps): Hono {
                 parentTaskId: task.parent_task_id ?? undefined,
               }).pipe(Effect.mapError((e) => new Error(String(e))))
             ),
-            Effect.map((row) => ({ id: row.id, title: row.title, status: row.status })),
+            Effect.map(toWriteResponse),
           )
         }),
       ),
@@ -210,7 +214,7 @@ export function taskRoutes(deps: AppDeps): Hono {
         if ("prUrl" in body) fields.pr_url = body.prUrl ?? null
         const updated = yield* updateTask(deps.db, taskId, fields)
         if (!updated) return yield* Effect.fail(new TaskNotFoundError({ taskId }))
-        return { id: updated.id, title: updated.title, status: updated.status }
+        return toWriteResponse(updated)
       })
     )
   })
@@ -266,7 +270,7 @@ export function taskRoutes(deps: AppDeps): Hono {
           }))
         }
         if (oldBranch === newBranch) {
-          return { id: task.id, title: task.title, status: task.status }
+          return toWriteResponse(task)
         }
 
         const cwd = task.worktree_path
@@ -283,7 +287,7 @@ export function taskRoutes(deps: AppDeps): Hono {
         // Update DB
         const updated = yield* updateTask(deps.db, taskId, { branch: newBranch })
         if (!updated) return yield* Effect.fail(new TaskNotFoundError({ taskId }))
-        return { id: updated.id, title: updated.title, status: updated.status }
+        return toWriteResponse(updated)
       })
     )
   })

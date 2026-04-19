@@ -6,6 +6,7 @@ export {
   type TaskType,
   type TaskCapability,
   type Task,
+  type TaskWriteResponse,
   type Cron,
   type ProviderType,
   type ActivityType,

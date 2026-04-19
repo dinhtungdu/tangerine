@@ -1,4 +1,4 @@
-import type { Task, ProjectConfig, SystemLogEntry, ActivityEntry, ActionCombo, ShortcutConfig, SystemCapabilities } from "@tangerine/shared"
+import type { Task, TaskWriteResponse, ProjectConfig, SystemLogEntry, ActivityEntry, ActionCombo, ShortcutConfig, SystemCapabilities } from "@tangerine/shared"
 import { buildAuthHeaders, emitAuthFailure } from "./auth"
 
 const BASE = ""
@@ -132,8 +132,8 @@ export async function createTask(data: {
   parentTaskId?: string
   type?: string
   images?: import("@tangerine/shared").PromptImage[]
-}): Promise<{ id: string; title: string; status: string }> {
-  return request<{ id: string; title: string; status: string }>("/api/tasks", {
+}): Promise<TaskWriteResponse> {
+  return request<TaskWriteResponse>("/api/tasks", {
     method: "POST",
     body: JSON.stringify(data),
   })
@@ -242,8 +242,8 @@ export async function markTaskSeen(id: string): Promise<void> {
   return request<void>(`/api/tasks/${id}/seen`, { method: "POST" })
 }
 
-export async function retryTask(id: string): Promise<{ id: string; title: string; status: string }> {
-  return request<{ id: string; title: string; status: string }>(`/api/tasks/${id}/retry`, { method: "POST" })
+export async function retryTask(id: string): Promise<TaskWriteResponse> {
+  return request<TaskWriteResponse>(`/api/tasks/${id}/retry`, { method: "POST" })
 }
 
 export async function deleteTask(id: string): Promise<void> {
