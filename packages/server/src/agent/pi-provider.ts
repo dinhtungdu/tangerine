@@ -144,10 +144,12 @@ export function createPiEventMapper(): (data: Record<string, unknown>) => AgentE
       case "tool_execution_start": {
         const toolName = typeof data.toolName === "string" ? data.toolName : "unknown"
         const args = data.args
+        const isEditTool = toolName === "Edit"
+        const inputJson = args ? JSON.stringify(args) : undefined
         return [{
           kind: "tool.start",
           toolName,
-          toolInput: args ? truncate(JSON.stringify(args), 500) : undefined,
+          toolInput: inputJson ? (isEditTool ? inputJson : truncate(inputJson, 500)) : undefined,
         }]
       }
 
