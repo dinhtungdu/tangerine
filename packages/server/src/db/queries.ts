@@ -53,6 +53,45 @@ export function getTask(db: Database, id: string): Effect.Effect<TaskRow | null,
   })
 }
 
+/**
+ * List tasks keeping only the top N rows per project (by the same ordering
+ * as `listTasks`). Used by the task-list WebSocket snapshot so a connection
+ * doesn't dump every row for projects with long histories — mirrors the
+ * REST pagination that keeps ~PAGE_SIZE rows per project.
+ */
+export function listTasksPerProjectCapped(db: Database, filter: { status?: string; projectId?: string; search?: string; perProjectLimit: number }): Effect.Effect<TaskRow[], DbError> {
+  return dbTry(() => {
+    const conditions: string[] = []
+    const params: Record<string, string | number> = { $limit: Math.max(1, Math.floor(filter.perProjectLimit)) }
+    if (filter.status) {
+      conditions.push("status = $status")
+      params.$status = filter.status
+    }
+    if (filter.projectId) {
+      conditions.push("project_id = $project_id")
+      params.$project_id = filter.projectId
+    }
+    if (filter.search) {
+      const searchNormalized = filter.search.startsWith("#") ? filter.search.slice(1) : filter.search
+      conditions.push("(title LIKE $search OR description LIKE $search OR branch LIKE $search OR pr_url LIKE $search)")
+      params.$search = `%${searchNormalized}%`
+    }
+    const where = conditions.length > 0 ? ` WHERE ${conditions.join(" AND ")}` : ""
+    // ROW_NUMBER over partition caps rows per project_id while preserving
+    // the same ordering as listTasks.
+    return db.prepare(`
+      SELECT * FROM (
+        SELECT *, ROW_NUMBER() OVER (
+          PARTITION BY project_id
+          ORDER BY CASE WHEN status IN ('created', 'provisioning', 'running') THEN 0 ELSE 1 END, created_at DESC
+        ) AS _rn
+        FROM tasks${where}
+      ) WHERE _rn <= $limit
+      ORDER BY CASE WHEN status IN ('created', 'provisioning', 'running') THEN 0 ELSE 1 END, created_at DESC
+    `).all(params) as TaskRow[]
+  })
+}
+
 export function listTasks(db: Database, filter?: { status?: string; projectId?: string; search?: string; limit?: number; offset?: number }): Effect.Effect<TaskRow[], DbError> {
   return dbTry(() => {
     const conditions: string[] = []
