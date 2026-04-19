@@ -1,0 +1,1 @@
+[     136ms] [WARNING] WebSocket connection to 'ws://localhost:5175/api/tasks/0d895078-e6cc-4759-991e-f9d1bed58450/ws' failed: WebSocket is closed before the connection is established. @ http://localhost:5175/src/hooks/useWebSocket.ts:9

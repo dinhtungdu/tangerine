@@ -2,6 +2,7 @@ import { describe, test, expect, afterEach, beforeEach, mock } from "bun:test"
 import { render, screen, cleanup, fireEvent, act } from "@testing-library/react"
 
 import React from "react"
+import { ChangesPanel } from "../components/ChangesPanel"
 
 // base-ui Portal components don't render in happy-dom, so mock them to render inline
 type Props = Record<string, unknown> & { children?: React.ReactNode; className?: string; render?: unknown; placeholder?: string }
@@ -1408,5 +1409,117 @@ describe("ChatInput quote chip", () => {
     const textarea = screen.getByRole("textbox")
     fireEvent.keyDown(textarea, { key: "Enter" })
     expect(sent).toBe("> just quote")
+  })
+})
+
+describe("ChangesPanel", () => {
+  const mockFiles = [{ path: "src/test.ts", diff: "+added\n-removed" }]
+  const mockComments = [
+    { id: "c1", filePath: "src/test.ts", lineRef: "R5", side: "right" as const, text: "Initial comment" }
+  ]
+
+  test("shows edit button only when onUpdateComment is provided", () => {
+    const { rerender } = render(
+      <ChangesPanel files={mockFiles} comments={mockComments} onRemoveComment={() => {}} />
+    )
+    expect(screen.queryByTitle("Edit comment")).toBeNull()
+
+    rerender(
+      <ChangesPanel files={mockFiles} comments={mockComments} onRemoveComment={() => {}} onUpdateComment={() => {}} />
+    )
+    expect(screen.getByTitle("Edit comment")).toBeTruthy()
+  })
+
+  test("edit button enters edit mode with comment text", () => {
+    render(
+      <ChangesPanel files={mockFiles} comments={mockComments} onUpdateComment={() => {}} />
+    )
+    fireEvent.click(screen.getByTitle("Edit comment"))
+    const textarea = screen.getByRole("textbox")
+    expect(textarea).toBeTruthy()
+    expect((textarea as HTMLTextAreaElement).value).toBe("Initial comment")
+  })
+
+  test("save button calls onUpdateComment and exits edit mode", () => {
+    let updated = { id: "", text: "" }
+    render(
+      <ChangesPanel
+        files={mockFiles}
+        comments={mockComments}
+        onUpdateComment={(id, text) => { updated = { id, text } }}
+      />
+    )
+    fireEvent.click(screen.getByTitle("Edit comment"))
+    const textarea = screen.getByRole("textbox")
+    fireEvent.change(textarea, { target: { value: "Updated text" } })
+    fireEvent.click(screen.getByText("Save"))
+    expect(updated).toEqual({ id: "c1", text: "Updated text" })
+    expect(screen.queryByRole("textbox")).toBeNull()
+  })
+
+  test("cancel button exits edit mode without saving", () => {
+    let updateCalled = false
+    render(
+      <ChangesPanel
+        files={mockFiles}
+        comments={mockComments}
+        onUpdateComment={() => { updateCalled = true }}
+      />
+    )
+    fireEvent.click(screen.getByTitle("Edit comment"))
+    fireEvent.change(screen.getByRole("textbox"), { target: { value: "Changed" } })
+    fireEvent.click(screen.getByText("Cancel"))
+    expect(updateCalled).toBe(false)
+    expect(screen.queryByRole("textbox")).toBeNull()
+  })
+
+  test("send all saves in-progress edit first", () => {
+    let updated = { id: "", text: "" }
+    let sentComments: typeof mockComments = []
+    render(
+      <ChangesPanel
+        files={mockFiles}
+        comments={mockComments}
+        onUpdateComment={(id, text) => { updated = { id, text } }}
+        onSendComments={(c) => { sentComments = c }}
+      />
+    )
+    fireEvent.click(screen.getByTitle("Edit comment"))
+    fireEvent.change(screen.getByRole("textbox"), { target: { value: "Edited before send" } })
+    fireEvent.click(screen.getByText("Send All to Chat"))
+    expect(updated).toEqual({ id: "c1", text: "Edited before send" })
+    expect(sentComments[0]?.text).toBe("Edited before send")
+  })
+
+  test("send all with blank edit cancels edit and sends original", () => {
+    let updateCalled = false
+    let sentComments: typeof mockComments = []
+    render(
+      <ChangesPanel
+        files={mockFiles}
+        comments={mockComments}
+        onUpdateComment={() => { updateCalled = true }}
+        onSendComments={(c) => { sentComments = c }}
+      />
+    )
+    fireEvent.click(screen.getByTitle("Edit comment"))
+    fireEvent.change(screen.getByRole("textbox"), { target: { value: "   " } })
+    fireEvent.click(screen.getByText("Send All to Chat"))
+    expect(updateCalled).toBe(false)
+    expect(sentComments[0]?.text).toBe("Initial comment")
+    expect(screen.queryByRole("textbox")).toBeNull()
+  })
+
+  test("delete button calls onRemoveComment", () => {
+    let removedId = ""
+    render(
+      <ChangesPanel
+        files={mockFiles}
+        comments={mockComments}
+        onRemoveComment={(id) => { removedId = id }}
+      />
+    )
+    fireEvent.click(screen.getByTitle("Delete comment"))
+    expect(removedId).toBe("c1")
   })
 })
