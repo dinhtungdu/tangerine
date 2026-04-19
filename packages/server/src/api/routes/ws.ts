@@ -5,7 +5,7 @@ import type { AppDeps } from "../app"
 import { createWebSocketHeartbeat, type WebSocketHeartbeat } from "../ws-heartbeat"
 import { isAuthEnabled, isRequestAuthenticated, isValidAuthToken } from "../../auth"
 import { getTask } from "../../db/queries"
-import { getAgentWorkingState } from "../../tasks/events"
+import { getAgentWorkingState, onAgentStatusChange } from "../../tasks/events"
 import type { WsClientMessage, WsServerMessage, TaskStatus } from "@tangerine/shared"
 
 /**
@@ -172,6 +172,53 @@ export function wsRoutes(deps: AppDeps, upgradeWebSocket: UpgradeWebSocket): Hon
           heartbeat?.stop()
           unsubEvent?.()
           unsubStatus?.()
+        },
+      }
+    })
+  )
+
+  // Global agent-status broadcast for task-list live updates
+  app.get(
+    "/agent-status/ws",
+    upgradeWebSocket((c) => {
+      const authEnabled = isAuthEnabled(deps.config)
+      const requestAuthenticated = isRequestAuthenticated(c, deps.config)
+      let authenticated = !authEnabled || requestAuthenticated
+      let unsub: (() => void) | null = null
+      let authTimer: ReturnType<typeof setTimeout> | null = null
+
+      const startStreaming = (ws: { send(data: string): void }) => {
+        const connected: WsServerMessage = { type: "connected" }
+        ws.send(JSON.stringify(connected))
+        unsub = onAgentStatusChange((ev) => {
+          const msg: WsServerMessage = { type: "task_agent_status", taskId: ev.taskId, agentStatus: ev.agentStatus }
+          try { ws.send(JSON.stringify(msg)) } catch { /* disconnected */ }
+        })
+      }
+
+      return {
+        onOpen(_event, ws) {
+          if (authenticated) { startStreaming(ws); return }
+          authTimer = setTimeout(() => {
+            try { ws.send(JSON.stringify({ type: "error", message: "Unauthorized" })); ws.close(1008, "Unauthorized") } catch { /* gone */ }
+          }, 5000)
+        },
+        onMessage(event, ws) {
+          try {
+            const msg = JSON.parse(typeof event.data === "string" ? event.data : event.data.toString()) as WsClientMessage
+            if (msg.type === "auth" && !authenticated) {
+              if (!isValidAuthToken(deps.config.credentials.tangerineAuthToken!, msg.token)) {
+                ws.send(JSON.stringify({ type: "error", message: "Unauthorized" })); ws.close(1008, "Unauthorized"); return
+              }
+              authenticated = true
+              if (authTimer) { clearTimeout(authTimer); authTimer = null }
+              startStreaming(ws)
+            }
+          } catch { /* ignore */ }
+        },
+        onClose() {
+          if (authTimer) clearTimeout(authTimer)
+          unsub?.()
         },
       }
     })

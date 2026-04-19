@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback, useRef } from "react"
-import type { Task } from "@tangerine/shared"
+import type { Task, WsServerMessage } from "@tangerine/shared"
 import { fetchTasks, fetchTaskCounts } from "../lib/api"
+import { getAuthToken } from "../lib/auth"
 
 const POLL_INTERVAL = 5000
 const PAGE_SIZE = 50
@@ -104,6 +105,58 @@ export function useTasks(filter?: { status?: string; project?: string; search?: 
     document.addEventListener("visibilitychange", onVisibilityChange)
     return () => { clearInterval(interval); document.removeEventListener("visibilitychange", onVisibilityChange) }
   }, [filter?.status, filter?.project, filter?.search, refetch])
+
+  // Subscribe to agent status updates via WS for instant UI refresh
+  useEffect(() => {
+    let ws: WebSocket | null = null
+    let backoff = 1000
+    let reconnectTimer: ReturnType<typeof setTimeout> | null = null
+    let unmounted = false
+
+    function connect() {
+      if (unmounted) return
+      const protocol = window.location.protocol === "https:" ? "wss:" : "ws:"
+      ws = new WebSocket(`${protocol}//${window.location.host}/api/tasks/agent-status/ws`)
+
+      ws.onopen = () => {
+        backoff = 1000
+        const token = getAuthToken()
+        if (token) ws?.send(JSON.stringify({ type: "auth", token }))
+      }
+
+      ws.onmessage = (event) => {
+        try {
+          const msg = JSON.parse(event.data as string) as WsServerMessage
+          if (msg.type === "task_agent_status") {
+            setTasksByProject((prev) => {
+              let found = false
+              const next: Record<string, Task[]> = {}
+              for (const [pid, tasks] of Object.entries(prev)) {
+                next[pid] = tasks.map((t) => {
+                  if (t.id === msg.taskId) { found = true; return { ...t, agentStatus: msg.agentStatus } }
+                  return t
+                })
+              }
+              return found ? next : prev
+            })
+          }
+        } catch { /* ignore */ }
+      }
+
+      ws.onclose = () => {
+        if (unmounted) return
+        reconnectTimer = setTimeout(() => { backoff = Math.min(backoff * 2, 30000); connect() }, backoff)
+      }
+      ws.onerror = () => ws?.close()
+    }
+
+    connect()
+    return () => {
+      unmounted = true
+      if (reconnectTimer) clearTimeout(reconnectTimer)
+      ws?.close()
+    }
+  }, [])
 
   const tasks = Object.values(tasksByProject).flat()
   const loadedCounts: Record<string, number> = {}
