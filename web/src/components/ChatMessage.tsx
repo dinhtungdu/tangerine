@@ -197,6 +197,8 @@ function ThinkingMessage({ message, isActive, duration }: {
   const elapsed = useElapsedTime(message.timestamp, isActive)
   const displayDuration = duration ?? elapsed
 
+  if (!isActive && !message.content.trim()) return null
+
   return (
     <div className="animate-fade-in flex flex-col gap-1">
       <div className="flex items-center gap-2">
