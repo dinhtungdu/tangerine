@@ -10,3 +10,6 @@ data/
 
 # Playwright CLI artifacts
 .playwright-cli/
+
+# Screenshots
+*.png

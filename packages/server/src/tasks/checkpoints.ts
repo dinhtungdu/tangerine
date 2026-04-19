@@ -2,6 +2,7 @@
 
 import { Effect, Duration } from "effect"
 import crypto from "node:crypto"
+import { statSync } from "node:fs"
 import type { Database } from "bun:sqlite"
 import { createLogger } from "../logger"
 import {
@@ -9,22 +10,52 @@ import {
   listCheckpoints,
   deleteCheckpointsForTask,
   getLastAssistantSessionLogId,
+  checkpointExistsForSessionLog,
+  getMaxCheckpointTurnIndex,
 } from "../db/queries"
 import { localExec } from "./worktree-pool"
 
 const log = createLogger("checkpoints")
 
-/**
- * Snapshot the worktree at the current agent idle point.
- * Auto-commits if dirty, records a detached ref and a DB row.
- * Non-fatal: swallows all errors so it never disrupts the event pipeline.
- */
+const SAFE_PATH_RE = /^[\w\-./]+$/
+const MAX_FILE_SIZE = 10 * 1024 * 1024 // 10 MiB
+const MAX_DIR_FILES = 200
+const IGNORED_DIRS = new Set([
+  "node_modules", ".venv", "venv", "dist", "build", ".cache", "__pycache__", ".pytest_cache"
+])
+
+/** Filter untracked files: skip large files, skip files in large/ignored dirs */
+function filterUntrackedFiles(files: string[], worktreePath: string): string[] {
+  const dirFileCounts = new Map<string, number>()
+  for (const f of files) {
+    const dir = f.split("/").slice(0, -1).join("/") || "."
+    dirFileCounts.set(dir, (dirFileCounts.get(dir) ?? 0) + 1)
+  }
+
+  return files.filter(f => {
+    const parts = f.split("/")
+    if (parts.some(p => IGNORED_DIRS.has(p))) return false
+    const dir = parts.slice(0, -1).join("/") || "."
+    if ((dirFileCounts.get(dir) ?? 0) > MAX_DIR_FILES) return false
+    try {
+      const { size } = statSync(`${worktreePath}/${f}`)
+      if (size > MAX_FILE_SIZE) return false
+    } catch { return false }
+    return true
+  })
+}
+
 export function snapshotCheckpoint(
   db: Database,
   taskId: string,
   worktreePath: string,
 ): Effect.Effect<void, never> {
   return Effect.gen(function* () {
+    if (!SAFE_PATH_RE.test(worktreePath)) {
+      log.warn("Skipping checkpoint: unsafe worktree path", { taskId, worktreePath })
+      return
+    }
+
     // Yield to let any in-flight session log writes (fire-and-forget Effect.runPromise
     // calls in the message handler) complete before we query the DB.
     yield* Effect.sleep(Duration.millis(50))
@@ -33,10 +64,11 @@ export function snapshotCheckpoint(
     if (sessionLogId === null) return // No assistant turn yet
 
     // Deduplicate: skip if we already have a checkpoint for this session log entry
-    const existing = yield* listCheckpoints(db, taskId)
-    if (existing.some(cp => cp.session_log_id === sessionLogId)) return
+    const exists = yield* checkpointExistsForSessionLog(db, taskId, sessionLogId)
+    if (exists) return
 
-    const turnIndex = existing.length
+    const maxIdx = yield* getMaxCheckpointTurnIndex(db, taskId)
+    const turnIndex = maxIdx + 1
 
     // Build a commit object for the current worktree state without moving HEAD.
     // Using plumbing (write-tree + commit-tree) keeps the checkpoint commit off the
@@ -46,12 +78,31 @@ export function snapshotCheckpoint(
 
     let commitSha: string
     if (isDirty) {
-      // Stage everything, snapshot the tree, then restore the index — branch tip unchanged.
-      const { stdout: treeOut } = yield* localExec(
-        `cd "${worktreePath}" && git add -A && git write-tree`
+      // Use a temporary index so we don't clobber any partially-staged files in the real worktree.
+      // Store in /tmp, not .git — in linked worktrees .git is a file, not a directory.
+      const tmpIndex = `/tmp/tangerine-checkpoint-${taskId}-${turnIndex}`
+      const env = `GIT_INDEX_FILE="${tmpIndex}"`
+
+      // Seed temp index from HEAD, then add tracked changes
+      yield* localExec(`cd "${worktreePath}" && ${env} git read-tree HEAD && ${env} git add -u`)
+
+      // Get untracked files, filter out large files and ignored dirs, add safe ones
+      const { stdout: untrackedOut } = yield* localExec(
+        `cd "${worktreePath}" && git ls-files --others --exclude-standard`
       )
+      const untracked = untrackedOut.trim().split("\n").filter(Boolean)
+      const safeFiles = filterUntrackedFiles(untracked, worktreePath)
+      if (safeFiles.length > 0) {
+        // Add in batches to avoid arg length limits
+        for (let i = 0; i < safeFiles.length; i += 100) {
+          const batch = safeFiles.slice(i, i + 100).map(f => `"${f}"`).join(" ")
+          yield* localExec(`cd "${worktreePath}" && ${env} git add -- ${batch}`)
+        }
+      }
+
+      const { stdout: treeOut } = yield* localExec(`cd "${worktreePath}" && ${env} git write-tree`)
       const treeSha = treeOut.trim()
-      yield* localExec(`cd "${worktreePath}" && git reset HEAD --quiet`)
+      yield* localExec(`rm -f "${tmpIndex}"`)
 
       const { stdout: commitOut } = yield* localExec(
         `cd "${worktreePath}" && git commit-tree ${treeSha} -p HEAD -m "checkpoint: turn ${turnIndex}"`
@@ -94,13 +145,14 @@ export function cleanupTaskCheckpoints(
     const checkpoints = yield* listCheckpoints(db, taskId)
     if (checkpoints.length === 0) return
 
-    // Delete git refs if we still have access to the worktree
-    if (worktreePath) {
-      for (const cp of checkpoints) {
-        yield* localExec(
-          `cd "${worktreePath}" && git update-ref -d refs/checkpoints/${taskId}/${cp.turn_index} 2>/dev/null || true`
-        )
-      }
+    // Delete git refs in a single batch if we still have access to the worktree
+    if (worktreePath && SAFE_PATH_RE.test(worktreePath)) {
+      const deleteCommands = checkpoints
+        .map(cp => `delete refs/checkpoints/${taskId}/${cp.turn_index}`)
+        .join("\n")
+      yield* localExec(
+        `cd "${worktreePath}" && echo "${deleteCommands}" | git update-ref --stdin 2>/dev/null || true`
+      )
     }
 
     yield* deleteCheckpointsForTask(db, taskId)

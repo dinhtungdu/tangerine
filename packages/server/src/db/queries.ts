@@ -276,6 +276,20 @@ export function listCheckpoints(db: Database, taskId: string): Effect.Effect<Che
   })
 }
 
+export function checkpointExistsForSessionLog(db: Database, taskId: string, sessionLogId: number): Effect.Effect<boolean, DbError> {
+  return dbTry(() => {
+    const row = db.prepare("SELECT 1 FROM checkpoints WHERE task_id = ? AND session_log_id = ? LIMIT 1").get(taskId, sessionLogId)
+    return row != null
+  })
+}
+
+export function getMaxCheckpointTurnIndex(db: Database, taskId: string): Effect.Effect<number, DbError> {
+  return dbTry(() => {
+    const row = db.prepare("SELECT MAX(turn_index) as max_idx FROM checkpoints WHERE task_id = ?").get(taskId) as { max_idx: number | null }
+    return row.max_idx ?? -1
+  })
+}
+
 export function deleteCheckpointsForTask(db: Database, taskId: string): Effect.Effect<void, DbError> {
   return dbTry(() => {
     db.prepare("DELETE FROM checkpoints WHERE task_id = ?").run(taskId)
