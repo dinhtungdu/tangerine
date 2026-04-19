@@ -148,19 +148,18 @@ export function ChatPanel({
   // Auto-scroll only when user is already at the bottom
   const prevCountRef = useRef({ messages: 0, activities: 0 })
   useEffect(() => {
-    const countChanged =
-      messages.length > prevCountRef.current.messages ||
-      activities.length > prevCountRef.current.activities
-    if (countChanged && isAtBottom) {
-      // Skip auto-scroll when input is focused — on mobile, scrollIntoView pushes
-      // the focused input below the virtual keyboard
+    const messagesGrew = messages.length > prevCountRef.current.messages
+    const activitiesGrew = activities.length > prevCountRef.current.activities
+    if ((messagesGrew || activitiesGrew) && isAtBottom) {
       const tag = document.activeElement?.tagName
-      if (tag === "TEXTAREA" || tag === "INPUT") {
-        prevCountRef.current = { messages: messages.length, activities: activities.length }
-        return
+      const inputFocused = tag === "TEXTAREA" || tag === "INPUT"
+      // Always scroll when user sends a message; for agent messages, skip when
+      // input is focused — on mobile, scrollIntoView pushes the input below the keyboard
+      const lastMessageIsUser = messagesGrew && messages[messages.length - 1]?.role === "user"
+      if (!inputFocused || lastMessageIsUser) {
+        const el = contentRef.current
+        if (el) el.scrollIntoView({ block: "end" })
       }
-      const el = contentRef.current
-      if (el) el.scrollIntoView({ block: "end" })
     }
     prevCountRef.current = { messages: messages.length, activities: activities.length }
   }, [messages.length, activities.length, isAtBottom])
