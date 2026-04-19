@@ -170,17 +170,19 @@ function deriveToolStatus(
   return "success"
 }
 
-function AssistantGroup({
-  group,
-  tasks,
-  onReply,
-  isStreaming,
-}: {
+interface AssistantGroupProps {
   group: MessageGroup
   tasks?: ReadonlyArray<{ id: string }>
   onReply?: (content: string) => void
   isStreaming: boolean
-}) {
+}
+
+const AssistantGroup = memo(function AssistantGroup({
+  group,
+  tasks,
+  onReply,
+  isStreaming,
+}: AssistantGroupProps) {
   const [expanded, setExpanded] = useState(() => group.hasError)
 
   useEffect(() => {
@@ -327,7 +329,15 @@ function AssistantGroup({
       )}
     </div>
   )
-}
+}, (prev, next) =>
+  prev.group.id === next.group.id &&
+  prev.group.items.length === next.group.items.length &&
+  prev.group.toolCount === next.group.toolCount &&
+  prev.group.hasError === next.group.hasError &&
+  prev.isStreaming === next.isStreaming &&
+  prev.tasks === next.tasks &&
+  prev.onReply === next.onReply
+)
 
 export const AssistantMessageGroups = memo(function AssistantMessageGroups({
   messages,
