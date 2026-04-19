@@ -174,6 +174,10 @@ export function TaskDetail() {
     setDiffCommentsAndPersist((prev) => prev.filter((c) => c.id !== commentId))
   }, [setDiffCommentsAndPersist])
 
+  const handleUpdateComment = useCallback((commentId: string, text: string) => {
+    setDiffCommentsAndPersist((prev) => prev.map((c) => c.id === commentId ? { ...c, text } : c))
+  }, [setDiffCommentsAndPersist])
+
   const handleScrollToFile = useCallback((path: string) => {
     const el = document.getElementById(`diff-file-${path}`)
     el?.scrollIntoView({ behavior: "smooth", block: "start" })
@@ -620,6 +624,7 @@ export function TaskDetail() {
                     comments={diffComments}
                     onScrollToFile={handleScrollToFile}
                     onRemoveComment={handleRemoveComment}
+                    onUpdateComment={handleUpdateComment}
                     onSendComments={handleSendComments}
                   />
                 )}
