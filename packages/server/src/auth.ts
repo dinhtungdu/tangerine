@@ -9,6 +9,7 @@ const PUBLIC_API_PATTERNS = [
   /^\/api\/auth\/session$/,
   /^\/api\/tasks\/[^/]+\/ws$/,
   /^\/api\/tasks\/[^/]+\/terminal$/,
+  /^\/api\/ws\/tasks$/,
 ]
 
 export function isAuthEnabled(config: AppConfig): boolean {

@@ -3,6 +3,7 @@ import type { Database } from "bun:sqlite"
 import { DEFAULT_PROVIDER } from "@tangerine/shared"
 import type { TaskRow, CronRow, SessionLogRow } from "./types"
 import { DbError } from "../errors"
+import { emitTaskListEvent } from "../tasks/events"
 
 function dbTry<T>(op: () => T): Effect.Effect<T, DbError> {
   return Effect.try({
@@ -40,7 +41,9 @@ export function createTask(
       $parent_task_id: task.parent_task_id ?? null,
       $capabilities: task.capabilities ?? null,
     })
-    return db.prepare("SELECT * FROM tasks WHERE id = ?").get(task.id) as TaskRow
+    const row = db.prepare("SELECT * FROM tasks WHERE id = ?").get(task.id) as TaskRow
+    emitTaskListEvent({ kind: "created", task: row })
+    return row
   })
 }
 
@@ -96,7 +99,9 @@ export function updateTask(
 
     const updatedAtClause = opts?.skipUpdatedAt ? "" : ", updated_at = datetime('now')"
     db.prepare(`UPDATE tasks SET ${sets}${updatedAtClause} WHERE id = $id`).run(params)
-    return db.prepare("SELECT * FROM tasks WHERE id = ?").get(id) as TaskRow | null
+    const row = db.prepare("SELECT * FROM tasks WHERE id = ?").get(id) as TaskRow | null
+    if (row) emitTaskListEvent({ kind: "updated", task: row })
+    return row
   })
 }
 
@@ -253,7 +258,7 @@ const TERMINAL_STATUSES = new Set(["done", "failed", "cancelled"])
 
 export function deleteTask(db: Database, id: string): Effect.Effect<void, DbError> {
   return dbTry(() => {
-    const task = db.prepare("SELECT status FROM tasks WHERE id = ?").get(id) as { status: string } | null
+    const task = db.prepare("SELECT status, project_id FROM tasks WHERE id = ?").get(id) as { status: string; project_id: string } | null
     if (!task) throw new Error(`Task ${id} not found`)
     if (!TERMINAL_STATUSES.has(task.status)) {
       throw new Error(`Task ${id} is not terminal (status: ${task.status})`)
@@ -261,5 +266,6 @@ export function deleteTask(db: Database, id: string): Effect.Effect<void, DbErro
     db.prepare("DELETE FROM activity_log WHERE task_id = ?").run(id)
     db.prepare("DELETE FROM session_logs WHERE task_id = ?").run(id)
     db.prepare("DELETE FROM tasks WHERE id = ?").run(id)
+    emitTaskListEvent({ kind: "deleted", taskId: id, projectId: task.project_id })
   })
 }

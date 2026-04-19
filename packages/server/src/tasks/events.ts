@@ -1,11 +1,21 @@
 // Singleton event emitter for task events.
 // WebSocket routes subscribe per-task; the task manager emits on status transitions.
 
+import type { TaskRow } from "../db/types"
+
 type TaskEventHandler = (data: unknown) => void
 type StatusChangeHandler = (status: string) => void
 
+export type TaskListEvent =
+  | { kind: "created"; task: TaskRow }
+  | { kind: "updated"; task: TaskRow }
+  | { kind: "deleted"; taskId: string; projectId: string }
+
+type TaskListHandler = (event: TaskListEvent) => void
+
 const taskEventListeners = new Map<string, Set<TaskEventHandler>>()
 const statusChangeListeners = new Map<string, Set<StatusChangeHandler>>()
+const taskListListeners = new Set<TaskListHandler>()
 
 // Track whether each task's agent is currently working or idle.
 // This is separate from task status ("running" = task is open, agent may be idle).
@@ -62,6 +72,25 @@ export function setAgentWorkingState(taskId: string, state: "idle" | "working"):
 /** Clean up agent working state when a task is terminal. */
 export function clearAgentWorkingState(taskId: string): void {
   agentWorkingState.delete(taskId)
+}
+
+/** Emit a task-list level event (create/update/delete) to all listeners. */
+export function emitTaskListEvent(event: TaskListEvent): void {
+  for (const handler of taskListListeners) {
+    try {
+      handler(event)
+    } catch {
+      // Swallow listener errors — one broken subscriber should not break others.
+    }
+  }
+}
+
+/** Subscribe to task list events (create/update/delete across all tasks). */
+export function onTaskListEvent(handler: TaskListHandler): () => void {
+  taskListListeners.add(handler)
+  return () => {
+    taskListListeners.delete(handler)
+  }
 }
 
 /** Subscribe to status changes. Returns an unsubscribe function. */

@@ -20,7 +20,7 @@ import { sessionRoutes } from "./routes/sessions"
 import { systemRoutes } from "./routes/system"
 import { projectRoutes } from "./routes/project"
 import { testRoutes } from "./routes/test"
-import { wsRoutes } from "./routes/ws"
+import { wsRoutes, taskListWsRoutes } from "./routes/ws"
 import { terminalWsRoutes } from "./routes/terminal-ws"
 import type { AgentFactories } from "../agent/factories"
 import type { SystemCapabilities } from "@tangerine/shared"
@@ -93,6 +93,7 @@ export function createApp(deps: AppDeps): { app: Hono; websocket: ReturnType<typ
 
   app.route("/api/tasks", wsRoutes(deps, upgradeWebSocket))
   app.route("/api/tasks", terminalWsRoutes(deps, upgradeWebSocket))
+  app.route("/api/ws", taskListWsRoutes(deps, upgradeWebSocket))
 
   // Webhook endpoint — verifies signature, matches project by repo, creates tasks for issue events
   app.post("/webhooks/github", async (c) => {
