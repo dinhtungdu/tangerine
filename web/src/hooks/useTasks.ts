@@ -116,6 +116,13 @@ export function useTasks(filter?: { status?: string; project?: string; search?: 
       onConnect: () => setWsConnected(true),
       onDisconnect: () => setWsConnected(false),
       onVisible: () => { void refetchRef.current() },
+      getLimit: () => {
+        // Request enough rows to cover the largest paginated project so a
+        // reconnect-triggered snapshot doesn't silently drop pages the user
+        // already loaded via `loadMore`.
+        const limits = Object.values(loadedLimitsRef.current)
+        return limits.length > 0 ? Math.max(PAGE_SIZE, ...limits) : undefined
+      },
       onSnapshot: (tasks, newCounts) => {
         const grouped: Record<string, Task[]> = {}
         for (const t of tasks) {

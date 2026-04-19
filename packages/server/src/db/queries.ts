@@ -4,6 +4,7 @@ import { DEFAULT_PROVIDER } from "@tangerine/shared"
 import type { TaskRow, CronRow, SessionLogRow } from "./types"
 import { DbError } from "../errors"
 import { emitTaskListEvent } from "../tasks/events"
+import { normalizeSearchQuery } from "../api/helpers"
 
 function dbTry<T>(op: () => T): Effect.Effect<T, DbError> {
   return Effect.try({
@@ -72,9 +73,8 @@ export function listTasksPerProjectCapped(db: Database, filter: { status?: strin
       params.$project_id = filter.projectId
     }
     if (filter.search) {
-      const searchNormalized = filter.search.startsWith("#") ? filter.search.slice(1) : filter.search
       conditions.push("(title LIKE $search OR description LIKE $search OR branch LIKE $search OR pr_url LIKE $search)")
-      params.$search = `%${searchNormalized}%`
+      params.$search = `%${normalizeSearchQuery(filter.search)}%`
     }
     const where = conditions.length > 0 ? ` WHERE ${conditions.join(" AND ")}` : ""
     // ROW_NUMBER over partition caps rows per project_id while preserving
@@ -87,7 +87,7 @@ export function listTasksPerProjectCapped(db: Database, filter: { status?: strin
         ) AS _rn
         FROM tasks${where}
       ) WHERE _rn <= $limit
-      ORDER BY CASE WHEN status IN ('created', 'provisioning', 'running') THEN 0 ELSE 1 END, created_at DESC
+      ORDER BY project_id, CASE WHEN status IN ('created', 'provisioning', 'running') THEN 0 ELSE 1 END, created_at DESC
     `).all(params) as TaskRow[]
   })
 }
@@ -106,9 +106,8 @@ export function listTasks(db: Database, filter?: { status?: string; projectId?: 
     }
     if (filter?.search) {
       // Strip leading "#" so that "#123" matches pr_url paths like "/pull/123"
-      const searchNormalized = filter.search.startsWith("#") ? filter.search.slice(1) : filter.search
       conditions.push("(title LIKE $search OR description LIKE $search OR branch LIKE $search OR pr_url LIKE $search)")
-      params.$search = `%${searchNormalized}%`
+      params.$search = `%${normalizeSearchQuery(filter.search)}%`
     }
     const where = conditions.length > 0 ? ` WHERE ${conditions.join(" AND ")}` : ""
     // OFFSET requires LIMIT in SQLite — only apply offset when limit is also set
@@ -173,9 +172,8 @@ export function countTasksByProject(db: Database, filter?: { status?: string; se
       params.$status = filter.status
     }
     if (filter?.search) {
-      const searchNormalized = filter.search.startsWith("#") ? filter.search.slice(1) : filter.search
       conditions.push("(title LIKE $search OR description LIKE $search OR branch LIKE $search OR pr_url LIKE $search)")
-      params.$search = `%${searchNormalized}%`
+      params.$search = `%${normalizeSearchQuery(filter.search)}%`
     }
     const where = conditions.length > 0 ? ` WHERE ${conditions.join(" AND ")}` : ""
     const rows = db.prepare(`SELECT project_id, COUNT(*) as count FROM tasks${where} GROUP BY project_id`).all(params) as { project_id: string; count: number }[]

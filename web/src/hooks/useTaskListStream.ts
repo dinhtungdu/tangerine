@@ -16,6 +16,13 @@ export interface TaskListStreamHandlers {
   onConnect?(): void
   /** Called when the visibility:visible event fires, whether or not WS is connected. */
   onVisible?(): void
+  /**
+   * Optional per-connection row cap override, evaluated each time the
+   * socket opens. Lets callers preserve "load more" pagination across
+   * reconnects without putting the limit in useEffect deps (which would
+   * force a reconnect on every page click).
+   */
+  getLimit?(): number | undefined
 }
 
 export interface TaskListStreamFilter {
@@ -48,6 +55,8 @@ export function useTaskListStream(filter: TaskListStreamFilter, handlers: TaskLi
       if (filter.status) params.set("status", filter.status)
       if (filter.search) params.set("search", filter.search)
       if (filter.project) params.set("project", filter.project)
+      const limit = handlersRef.current.getLimit?.()
+      if (limit && limit > 0) params.set("limit", String(limit))
       const qs = params.toString() ? `?${params}` : ""
       const protocol = window.location.protocol === "https:" ? "wss:" : "ws:"
       const url = `${protocol}//${window.location.host}/api/ws/tasks${qs}`

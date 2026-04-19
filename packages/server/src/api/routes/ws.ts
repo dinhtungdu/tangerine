@@ -2,7 +2,7 @@ import { Effect } from "effect"
 import { Hono } from "hono"
 import type { UpgradeWebSocket } from "hono/ws"
 import type { AppDeps } from "../app"
-import { mapTaskRow } from "../helpers"
+import { mapTaskRow, taskMatchesFilter } from "../helpers"
 import { createWebSocketHeartbeat, type WebSocketHeartbeat } from "../ws-heartbeat"
 import { isAuthEnabled, isRequestAuthenticated, isValidAuthToken } from "../../auth"
 import { getTask, listTasksPerProjectCapped, countTasksByProject } from "../../db/queries"
@@ -217,29 +217,15 @@ export function taskListWsRoutes(deps: AppDeps, upgradeWebSocket: UpgradeWebSock
       let authTimer: ReturnType<typeof setTimeout> | null = null
       let started = false
 
-      const searchNormalized = search?.startsWith("#") ? search.slice(1) : search
       const countsFilter = { status, search }
       const listFilter = { status, search, projectId: project, perProjectLimit }
+      const memoryFilter = { status, project, search }
 
       // Track which task ids are currently "in scope" for this connection so
       // updates that enter or leave the filter window turn into create/delete
       // messages (with refreshed counts), not silent no-ops that would let the
       // list and the count badge diverge.
       const inScope = new Set<string>()
-
-      // Match the same filters the REST /api/tasks endpoint applies.
-      const matchesFilter = (task: Task) => {
-        if (project && task.projectId !== project) return false
-        if (status && task.status !== status) return false
-        if (searchNormalized) {
-          const needle = searchNormalized.toLowerCase()
-          const hay = [task.title, task.description, task.branch, task.prUrl]
-            .filter((v): v is string => typeof v === "string")
-            .map((v) => v.toLowerCase())
-          if (!hay.some((v) => v.includes(needle))) return false
-        }
-        return true
-      }
 
       // Mirror the augmentation done by GET /api/tasks so the WS payload
       // carries the same agentStatus information as the REST response.
@@ -260,22 +246,36 @@ export function taskListWsRoutes(deps: AppDeps, upgradeWebSocket: UpgradeWebSock
         | { kind: "deleted"; taskId: string; projectId: string }
       const countsQueue: PendingMsg[] = []
       let countsFlushTimer: ReturnType<typeof setTimeout> | null = null
+      // Guards against a second COUNT running while the first is still in
+      // flight: events arriving mid-query queue up and fire one more flush
+      // when the in-flight query resolves, rather than kicking off a
+      // concurrent SQL query.
+      let countsFlushing = false
 
       const flushCounts = (ws: SocketLike) => {
         countsFlushTimer = null
-        if (countsQueue.length === 0) return
+        if (countsFlushing || countsQueue.length === 0) return
         const batch = countsQueue.splice(0, countsQueue.length)
-        Effect.runPromise(countTasksByProject(deps.db, countsFilter)).then((c) => {
-          for (const m of batch) {
-            if (m.kind === "created") sendSafe(ws, { type: "task_created", task: m.task, counts: c })
-            else sendSafe(ws, { type: "task_deleted", taskId: m.taskId, projectId: m.projectId, counts: c })
-          }
-        }).catch(() => { /* ignore count errors */ })
+        countsFlushing = true
+        Effect.runPromise(countTasksByProject(deps.db, countsFilter))
+          .then((c) => {
+            for (const m of batch) {
+              if (m.kind === "created") sendSafe(ws, { type: "task_created", task: m.task, counts: c })
+              else sendSafe(ws, { type: "task_deleted", taskId: m.taskId, projectId: m.projectId, counts: c })
+            }
+          })
+          .catch(() => { /* ignore count errors */ })
+          .finally(() => {
+            countsFlushing = false
+            if (countsQueue.length > 0 && !countsFlushTimer) {
+              countsFlushTimer = setTimeout(() => flushCounts(ws), COUNTS_FLUSH_MS)
+            }
+          })
       }
 
       const queueWithCounts = (ws: SocketLike, msg: PendingMsg) => {
         countsQueue.push(msg)
-        if (countsFlushTimer) return
+        if (countsFlushTimer || countsFlushing) return
         countsFlushTimer = setTimeout(() => flushCounts(ws), COUNTS_FLUSH_MS)
       }
 
@@ -292,7 +292,7 @@ export function taskListWsRoutes(deps: AppDeps, upgradeWebSocket: UpgradeWebSock
           }
 
           const task = withAgentStatus(mapTaskRow(event.task))
-          const matches = matchesFilter(task)
+          const matches = taskMatchesFilter(task, memoryFilter)
           const wasInScope = inScope.has(task.id)
 
           if (!matches) {

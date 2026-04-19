@@ -102,6 +102,32 @@ export function taskHasCapability(type: string, storedCapabilities: string | nul
   return parsed.includes(cap)
 }
 
+/**
+ * Strip a leading "#" from a search query so "#123" matches pr_url paths
+ * like "/pull/123". Single source of truth for both SQL LIKE params and
+ * in-memory filtering.
+ */
+export function normalizeSearchQuery(search: string | undefined | null): string | undefined {
+  if (!search) return undefined
+  return search.startsWith("#") ? search.slice(1) : search
+}
+
+/**
+ * Apply the same filter semantics the `listTasks` SQL query uses, but
+ * against an already-materialized Task object. Used by the task-list
+ * WebSocket to decide whether an incremental event should be delivered.
+ */
+export function taskMatchesFilter(task: Task, filter: { status?: string; project?: string; search?: string }): boolean {
+  if (filter.project && task.projectId !== filter.project) return false
+  if (filter.status && task.status !== filter.status) return false
+  const needle = normalizeSearchQuery(filter.search)?.toLowerCase()
+  if (needle) {
+    const fields: Array<string | null | undefined> = [task.title, task.description, task.branch, task.prUrl]
+    if (!fields.some((v) => typeof v === "string" && v.toLowerCase().includes(needle))) return false
+  }
+  return true
+}
+
 /** Generates a unique ID using the built-in crypto API */
 export function generateId(): string {
   return crypto.randomUUID()
