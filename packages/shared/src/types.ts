@@ -84,6 +84,7 @@ export type WsServerMessage =
   | { type: "activity"; entry: ActivityEntry }
   | { type: "status"; status: TaskStatus }
   | { type: "agent_status"; agentStatus: "idle" | "working" }
+  | { type: "task_agent_status"; taskId: string; agentStatus: "idle" | "working" }
   | { type: "error"; message: string }
   | { type: "ping" }
 

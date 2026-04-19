@@ -11,6 +11,10 @@ const statusChangeListeners = new Map<string, Set<StatusChangeHandler>>()
 // This is separate from task status ("running" = task is open, agent may be idle).
 const agentWorkingState = new Map<string, "idle" | "working">()
 
+// Global listeners for agent_status broadcasts (used by task-list WS)
+type AgentStatusHandler = (event: { taskId: string; agentStatus: "idle" | "working" }) => void
+const agentStatusListeners = new Set<AgentStatusHandler>()
+
 export function emitTaskEvent(taskId: string, data: unknown): void {
   const handlers = taskEventListeners.get(taskId)
   if (!handlers) return
@@ -54,9 +58,12 @@ export function hasAgentWorkingState(taskId: string): boolean {
   return agentWorkingState.has(taskId)
 }
 
-/** Update the agent working state for a task. */
+/** Update the agent working state for a task and broadcast to global listeners. */
 export function setAgentWorkingState(taskId: string, state: "idle" | "working"): void {
   agentWorkingState.set(taskId, state)
+  for (const handler of agentStatusListeners) {
+    handler({ taskId, agentStatus: state })
+  }
 }
 
 /** Clean up agent working state when a task is terminal. */
@@ -79,4 +86,10 @@ export function onStatusChange(taskId: string, handler: StatusChangeHandler): ()
       statusChangeListeners.delete(taskId)
     }
   }
+}
+
+/** Subscribe to global agent_status events (all tasks). Returns unsubscribe function. */
+export function onAgentStatusChange(handler: AgentStatusHandler): () => void {
+  agentStatusListeners.add(handler)
+  return () => { agentStatusListeners.delete(handler) }
 }
