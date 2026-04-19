@@ -102,15 +102,8 @@ export function taskHasCapability(type: string, storedCapabilities: string | nul
   return parsed.includes(cap)
 }
 
-/**
- * Strip a leading "#" from a search query so "#123" matches pr_url paths
- * like "/pull/123". Single source of truth for both SQL LIKE params and
- * in-memory filtering.
- */
-export function normalizeSearchQuery(search: string | undefined | null): string | undefined {
-  if (!search) return undefined
-  return search.startsWith("#") ? search.slice(1) : search
-}
+import { normalizeSearchQuery } from "../db/search"
+export { normalizeSearchQuery } from "../db/search"
 
 /**
  * Apply the same filter semantics the `listTasks` SQL query uses, but

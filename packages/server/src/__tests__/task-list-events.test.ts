@@ -1,4 +1,4 @@
-import { describe, test, expect, beforeEach } from "bun:test"
+import { describe, test, expect, beforeEach, afterEach } from "bun:test"
 import { Effect } from "effect"
 import type { Database } from "bun:sqlite"
 import { createTestDb } from "./helpers"
@@ -16,6 +16,13 @@ describe("task-list events", () => {
     unsub = onTaskListEvent((e) => events.push(e))
   })
 
+  afterEach(() => {
+    // Guarantee listener cleanup even if a test fails mid-way — the emitter
+    // is a module-level singleton, so a leaked listener would bleed into
+    // later tests.
+    unsub?.()
+  })
+
   test("createTask emits a 'created' event with the new row", () => {
     const id = crypto.randomUUID()
     Effect.runSync(createTask(db, { id, project_id: "p", source: "manual", title: "hi" }))
@@ -27,7 +34,6 @@ describe("task-list events", () => {
       expect(created.task.project_id).toBe("p")
     }
 
-    unsub()
   })
 
   test("updateTask emits an 'updated' event with the new row", () => {
@@ -44,7 +50,6 @@ describe("task-list events", () => {
       expect(updated.task.status).toBe("running")
     }
 
-    unsub()
   })
 
   test("deleteTask emits a 'deleted' event with projectId", () => {
@@ -64,7 +69,6 @@ describe("task-list events", () => {
       expect(e.projectId).toBe("p")
     }
 
-    unsub()
   })
 
   test("setAgentWorkingState emits 'agent_status' only on transitions", () => {
@@ -77,6 +81,5 @@ describe("task-list events", () => {
     if (statusEvents[0]?.kind === "agent_status") expect(statusEvents[0].agentStatus).toBe("working")
     if (statusEvents[1]?.kind === "agent_status") expect(statusEvents[1].agentStatus).toBe("idle")
 
-    unsub()
   })
 })

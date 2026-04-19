@@ -4,7 +4,7 @@ import { DEFAULT_PROVIDER } from "@tangerine/shared"
 import type { TaskRow, CronRow, SessionLogRow } from "./types"
 import { DbError } from "../errors"
 import { emitTaskListEvent } from "../tasks/events"
-import { normalizeSearchQuery } from "../api/helpers"
+import { normalizeSearchQuery, escapeLikePattern } from "./search"
 
 function dbTry<T>(op: () => T): Effect.Effect<T, DbError> {
   return Effect.try({
@@ -73,8 +73,8 @@ export function listTasksPerProjectCapped(db: Database, filter: { status?: strin
       params.$project_id = filter.projectId
     }
     if (filter.search) {
-      conditions.push("(title LIKE $search OR description LIKE $search OR branch LIKE $search OR pr_url LIKE $search)")
-      params.$search = `%${normalizeSearchQuery(filter.search)}%`
+      conditions.push("(title LIKE $search ESCAPE '\\' OR description LIKE $search ESCAPE '\\' OR branch LIKE $search ESCAPE '\\' OR pr_url LIKE $search ESCAPE '\\')")
+      params.$search = `%${escapeLikePattern(normalizeSearchQuery(filter.search) ?? "")}%`
     }
     const where = conditions.length > 0 ? ` WHERE ${conditions.join(" AND ")}` : ""
     // ROW_NUMBER over partition caps rows per project_id while preserving
@@ -106,8 +106,8 @@ export function listTasks(db: Database, filter?: { status?: string; projectId?: 
     }
     if (filter?.search) {
       // Strip leading "#" so that "#123" matches pr_url paths like "/pull/123"
-      conditions.push("(title LIKE $search OR description LIKE $search OR branch LIKE $search OR pr_url LIKE $search)")
-      params.$search = `%${normalizeSearchQuery(filter.search)}%`
+      conditions.push("(title LIKE $search ESCAPE '\\' OR description LIKE $search ESCAPE '\\' OR branch LIKE $search ESCAPE '\\' OR pr_url LIKE $search ESCAPE '\\')")
+      params.$search = `%${escapeLikePattern(normalizeSearchQuery(filter.search) ?? "")}%`
     }
     const where = conditions.length > 0 ? ` WHERE ${conditions.join(" AND ")}` : ""
     // OFFSET requires LIMIT in SQLite — only apply offset when limit is also set
@@ -135,10 +135,16 @@ export function updateTask(
       params[`$${k}`] = val === undefined ? null : (val as string | number | null)
     }
 
+    // Capture the pre-update row so listeners can tell whether the update
+    // changed the row's filter-match state (e.g. status transition into a
+    // filtered value vs. a metadata-only write). Without this, the
+    // task-list WebSocket can't distinguish "entering filter" from an
+    // off-page markTaskSeen/markTaskResult.
+    const prevTask = db.prepare("SELECT * FROM tasks WHERE id = ?").get(id) as TaskRow | null
     const updatedAtClause = opts?.skipUpdatedAt ? "" : ", updated_at = datetime('now')"
     db.prepare(`UPDATE tasks SET ${sets}${updatedAtClause} WHERE id = $id`).run(params)
     const row = db.prepare("SELECT * FROM tasks WHERE id = ?").get(id) as TaskRow | null
-    if (row) emitTaskListEvent({ kind: "updated", task: row })
+    if (row) emitTaskListEvent({ kind: "updated", task: row, prevTask })
     return row
   })
 }
@@ -172,8 +178,8 @@ export function countTasksByProject(db: Database, filter?: { status?: string; se
       params.$status = filter.status
     }
     if (filter?.search) {
-      conditions.push("(title LIKE $search OR description LIKE $search OR branch LIKE $search OR pr_url LIKE $search)")
-      params.$search = `%${normalizeSearchQuery(filter.search)}%`
+      conditions.push("(title LIKE $search ESCAPE '\\' OR description LIKE $search ESCAPE '\\' OR branch LIKE $search ESCAPE '\\' OR pr_url LIKE $search ESCAPE '\\')")
+      params.$search = `%${escapeLikePattern(normalizeSearchQuery(filter.search) ?? "")}%`
     }
     const where = conditions.length > 0 ? ` WHERE ${conditions.join(" AND ")}` : ""
     const rows = db.prepare(`SELECT project_id, COUNT(*) as count FROM tasks${where} GROUP BY project_id`).all(params) as { project_id: string; count: number }[]

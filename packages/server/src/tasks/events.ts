@@ -8,7 +8,7 @@ type StatusChangeHandler = (status: string) => void
 
 export type TaskListEvent =
   | { kind: "created"; task: TaskRow }
-  | { kind: "updated"; task: TaskRow }
+  | { kind: "updated"; task: TaskRow; prevTask: TaskRow | null }
   | { kind: "deleted"; taskId: string; projectId: string }
   | { kind: "agent_status"; taskId: string; agentStatus: "idle" | "working" }
 

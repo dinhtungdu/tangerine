@@ -198,6 +198,9 @@ export function taskListWsRoutes(deps: AppDeps, upgradeWebSocket: UpgradeWebSock
   const COUNTS_FLUSH_MS = 20
   // Mirrors the REST pagination: PAGE_SIZE per project in the snapshot.
   const DEFAULT_PER_PROJECT_LIMIT = 50
+  // Hard cap on the ?limit= override so a client can't force a multi-thousand
+  // row snapshot that would defeat the point of paginating the WS stream.
+  const MAX_PER_PROJECT_LIMIT = 500
 
   app.get(
     "/tasks",
@@ -207,7 +210,9 @@ export function taskListWsRoutes(deps: AppDeps, upgradeWebSocket: UpgradeWebSock
       const project = c.req.query("project") || undefined
       const limitRaw = c.req.query("limit")
       const parsedLimit = limitRaw ? parseInt(limitRaw, 10) : NaN
-      const perProjectLimit = !isNaN(parsedLimit) && parsedLimit > 0 ? parsedLimit : DEFAULT_PER_PROJECT_LIMIT
+      const perProjectLimit = !isNaN(parsedLimit) && parsedLimit > 0
+        ? Math.min(parsedLimit, MAX_PER_PROJECT_LIMIT)
+        : DEFAULT_PER_PROJECT_LIMIT
       const authEnabled = isAuthEnabled(deps.config)
       const requestAuthenticated = isRequestAuthenticated(c, deps.config)
 
@@ -228,20 +233,42 @@ export function taskListWsRoutes(deps: AppDeps, upgradeWebSocket: UpgradeWebSock
       // grouped by projectId so we know whether a project has room in the
       // top-N window for a newly-matching update.
       const inScope = new Set<string>()
-      const inScopeByProject = new Map<string, number>()
+      // Ordered per-project list of tracked ids (rank 1 at index 0). Lets us
+      // evict the lowest-ranked id when a new arrival would push the project
+      // past perProjectLimit, keeping inScope bounded for the lifetime of the
+      // connection.
+      const inScopeByProject = new Map<string, string[]>()
       const backfillPending = new Set<string>()
 
-      const addToScope = (task: Task) => {
+      const scopeCount = (projectId: string) => inScopeByProject.get(projectId)?.length ?? 0
+
+      const addToScope = (task: Task, position: "top" | "bottom" = "bottom") => {
         if (inScope.has(task.id)) return
         inScope.add(task.id)
-        inScopeByProject.set(task.projectId, (inScopeByProject.get(task.projectId) ?? 0) + 1)
+        const list = inScopeByProject.get(task.projectId) ?? []
+        if (position === "top") list.unshift(task.id)
+        else list.push(task.id)
+        inScopeByProject.set(task.projectId, list)
       }
       const removeFromScope = (taskId: string, projectId: string): boolean => {
         if (!inScope.delete(taskId)) return false
-        const n = inScopeByProject.get(projectId) ?? 0
-        if (n <= 1) inScopeByProject.delete(projectId)
-        else inScopeByProject.set(projectId, n - 1)
+        const list = inScopeByProject.get(projectId)
+        if (list) {
+          const i = list.indexOf(taskId)
+          if (i >= 0) list.splice(i, 1)
+          if (list.length === 0) inScopeByProject.delete(projectId)
+        }
         return true
+      }
+      // When the project window is full and a new higher-ranked task arrives,
+      // the tail id gets displaced. Returns the evicted id (or null).
+      const evictTail = (projectId: string): string | null => {
+        const list = inScopeByProject.get(projectId)
+        if (!list || list.length === 0) return null
+        const evicted = list[list.length - 1]
+        if (!evicted) return null
+        removeFromScope(evicted, projectId)
+        return evicted
       }
 
       // Mirror the augmentation done by GET /api/tasks so the WS payload
@@ -302,7 +329,7 @@ export function taskListWsRoutes(deps: AppDeps, upgradeWebSocket: UpgradeWebSock
       // filter exits until the user manually refreshes.
       const scheduleBackfill = (ws: SocketLike, projectId: string) => {
         if (backfillPending.has(projectId)) return
-        const currentCount = inScopeByProject.get(projectId) ?? 0
+        const currentCount = scopeCount(projectId)
         if (currentCount >= perProjectLimit) return
         backfillPending.add(projectId)
         Effect.runPromise(
@@ -315,6 +342,12 @@ export function taskListWsRoutes(deps: AppDeps, upgradeWebSocket: UpgradeWebSock
             const task = withAgentStatus(mapTaskRow(row))
             addToScope(task)
             queueWithCounts(ws, { kind: "created", task })
+            // More rows may have dropped out while the query was in flight;
+            // each queued another scheduleBackfill that was short-circuited
+            // by backfillPending. Re-check now that the flag is cleared.
+            if (scopeCount(projectId) < perProjectLimit) {
+              scheduleBackfill(ws, projectId)
+            }
           })
           .catch(() => { backfillPending.delete(projectId) })
       }
@@ -335,11 +368,22 @@ export function taskListWsRoutes(deps: AppDeps, upgradeWebSocket: UpgradeWebSock
           const task = withAgentStatus(mapTaskRow(event.task))
           const matches = taskMatchesFilter(task, memoryFilter)
           const wasInScope = inScope.has(task.id)
+          // For update events, look at the pre-update row so we can tell
+          // whether the row's filter-match state actually changed. Without
+          // this distinction, every metadata write on an off-page row (e.g.
+          // markTaskSeen) would look identical to a "this row just entered
+          // the filter" transition.
+          const matchedBefore = event.kind === "updated" && event.prevTask
+            ? taskMatchesFilter(mapTaskRow(event.prevTask), memoryFilter)
+            : false
 
+          // The streamed view is best-effort: we don't know every row's
+          // absolute rank (that would need a per-event re-query), so we
+          // handle the precise cases inline and let the client's visibility
+          // refetch + reconnect reconcile anything ambiguous.
           if (!matches) {
-            // Dropped out of scope — synthesize a delete only if we had been
-            // tracking this id, and try to backfill the freed slot.
-            if (wasInScope) {
+            // Clean exit from the filter / deletion of a tracked row.
+            if (wasInScope || matchedBefore) {
               removeFromScope(task.id, task.projectId)
               queueWithCounts(ws, { kind: "deleted", taskId: task.id, projectId: task.projectId })
               scheduleBackfill(ws, task.projectId)
@@ -348,19 +392,36 @@ export function taskListWsRoutes(deps: AppDeps, upgradeWebSocket: UpgradeWebSock
           }
 
           if (wasInScope) {
+            // In-place update of a tracked row — status changes land here
+            // too. We deliberately don't try to re-rank on bucket flips
+            // because doing so correctly requires knowing the total
+            // matching row count for the project; the visibility refetch
+            // catches the rare drift.
             sendSafe(ws, { type: "task_updated", task })
             return
           }
 
-          // New arrival in scope. Admit it only when there's actually room in
-          // the top-N window for this project — otherwise an update for an
-          // off-page row (e.g. markTaskSeen on a row ranked 51+) would
-          // incorrectly surface as a "created" and prepend to the sidebar.
-          // A genuine `created` event always goes in (new rows sort to the
-          // top, displacing the oldest tracked row via the client-side cap).
-          const projectCount = inScopeByProject.get(task.projectId) ?? 0
-          if (event.kind === "created" || projectCount < perProjectLimit) {
-            addToScope(task)
+          // Not currently tracked. We admit:
+          //  - a brand-new row (newest created_at always sorts to the head,
+          //    so it belongs in top-N even when the window is full — the
+          //    previous tail is displaced).
+          //  - any update whose prev row didn't match the filter *while the
+          //    project still has room under the cap*. Without the cap room
+          //    guard we can't tell whether an older row's rank-change puts
+          //    it above or below the current tail.
+          // Everything else (off-page metadata writes, terminal→active on a
+          // full project, etc.) is dropped here and reconciled on the next
+          // visibility refetch or reconnect.
+          const projectCount = scopeCount(task.projectId)
+          if (event.kind === "created") {
+            if (projectCount >= perProjectLimit) {
+              const evicted = evictTail(task.projectId)
+              if (evicted) queueWithCounts(ws, { kind: "deleted", taskId: evicted, projectId: task.projectId })
+            }
+            addToScope(task, "top")
+            queueWithCounts(ws, { kind: "created", task })
+          } else if (!matchedBefore && projectCount < perProjectLimit) {
+            addToScope(task, "bottom")
             queueWithCounts(ws, { kind: "created", task })
           }
         } catch {

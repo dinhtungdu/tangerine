@@ -66,9 +66,25 @@ export function useTaskListStream(filter: TaskListStreamFilter, handlers: TaskLi
         socket = new WebSocket(url)
       } catch {
         handlersRef.current.onDisconnect?.()
+        if (reconnectTimer) clearTimeout(reconnectTimer)
+        const delay = backoff
+        backoff = Math.min(delay * 2, MAX_BACKOFF)
+        reconnectTimer = setTimeout(connect, delay)
         return
       }
       ws = socket
+      // Don't treat the socket as "connected" (and disable polling fallback)
+      // until the server has accepted our auth and delivered a real message.
+      // A bare TCP upgrade with an expired token would otherwise look healthy
+      // to useTasks while the server is about to close the socket for auth
+      // failure, leaving the list frozen.
+      let handshakeCompleted = false
+      const onServerHandshake = () => {
+        if (handshakeCompleted) return
+        handshakeCompleted = true
+        backoff = 1000
+        handlersRef.current.onConnect?.()
+      }
 
       socket.onopen = () => {
         if (unmounted) return
@@ -77,8 +93,6 @@ export function useTaskListStream(filter: TaskListStreamFilter, handlers: TaskLi
           const msg: WsClientMessage = { type: "auth", token }
           socket.send(JSON.stringify(msg))
         }
-        backoff = 1000
-        handlersRef.current.onConnect?.()
       }
 
       socket.onmessage = (event) => {
@@ -99,7 +113,11 @@ export function useTaskListStream(filter: TaskListStreamFilter, handlers: TaskLi
           case "error":
             if (msg.message === "Unauthorized") emitAuthFailure()
             return
+          case "connected":
+            onServerHandshake()
+            return
           case "tasks_snapshot":
+            onServerHandshake()
             handlersRef.current.onSnapshot(msg.tasks, msg.counts)
             return
           case "task_created":

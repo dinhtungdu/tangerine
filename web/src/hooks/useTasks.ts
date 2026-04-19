@@ -29,6 +29,9 @@ export function useTasks(filter?: { status?: string; project?: string; search?: 
   const loadedLimitsRef = useRef<Record<string, number>>({})
   // Track in-flight loads to prevent double-clicks
   const loadingRef = useRef<Set<string>>(new Set())
+  // Set by the WS snapshot handler so a racing REST refetch can't overwrite
+  // the live-stream state with older REST data on initial load.
+  const wsSnapshotReceivedRef = useRef(false)
 
   const refetch = useCallback(async () => {
     try {
@@ -36,7 +39,6 @@ export function useTasks(filter?: { status?: string; project?: string; search?: 
         status: filterRef.current?.status,
         search: filterRef.current?.search,
       })
-      setCounts(countsData)
 
       const projectIds = Object.keys(countsData)
       const fetchPromises = projectIds.map(async (projectId) => {
@@ -50,11 +52,17 @@ export function useTasks(filter?: { status?: string; project?: string; search?: 
       })
 
       const results = await Promise.all(fetchPromises)
+      // WS snapshot beat us — don't clobber newer state with stale REST data.
+      if (wsSnapshotReceivedRef.current) {
+        setError(null)
+        return
+      }
       const grouped: Record<string, Task[]> = {}
       for (const { projectId, tasks } of results) {
         grouped[projectId] = tasks
       }
       setTasksByProject(grouped)
+      setCounts(countsData)
       setError(null)
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to fetch tasks")
@@ -97,6 +105,10 @@ export function useTasks(filter?: { status?: string; project?: string; search?: 
   // Kick off the initial REST fetch so UI shows data even before the WS snapshot arrives.
   useEffect(() => {
     setLoading(true)
+    // Filter changed — a new WS snapshot is inbound, so clear the guard
+    // until it arrives. Otherwise the REST refetch for the new filter would
+    // be suppressed by a stale snapshot flag from the previous filter.
+    wsSnapshotReceivedRef.current = false
     void refetchRef.current()
   }, [filter?.status, filter?.project, filter?.search])
 
@@ -114,7 +126,13 @@ export function useTasks(filter?: { status?: string; project?: string; search?: 
     { status: filter?.status, search: filter?.search, project: filter?.project },
     {
       onConnect: () => setWsConnected(true),
-      onDisconnect: () => setWsConnected(false),
+      onDisconnect: () => {
+        setWsConnected(false)
+        // Polling fallback takes over while disconnected — allow its REST
+        // refetches to write state again. A new snapshot will re-latch the
+        // guard once the socket reconnects.
+        wsSnapshotReceivedRef.current = false
+      },
       onVisible: () => { void refetchRef.current() },
       getLimit: () => {
         // Request enough rows to cover the largest paginated project so a
@@ -124,6 +142,7 @@ export function useTasks(filter?: { status?: string; project?: string; search?: 
         return limits.length > 0 ? Math.max(PAGE_SIZE, ...limits) : undefined
       },
       onSnapshot: (tasks, newCounts) => {
+        wsSnapshotReceivedRef.current = true
         const grouped: Record<string, Task[]> = {}
         for (const t of tasks) {
           const bucket = grouped[t.projectId] ?? []
@@ -139,7 +158,12 @@ export function useTasks(filter?: { status?: string; project?: string; search?: 
         setTasksByProject((prev) => {
           const existing = prev[task.projectId] ?? []
           if (existing.some((t) => t.id === task.id)) return prev
-          return { ...prev, [task.projectId]: [task, ...existing] }
+          const next = [task, ...existing]
+          // Keep loadedLimitsRef in sync with what's actually on screen —
+          // otherwise a later refetch or reconnect would request fewer rows
+          // than we're already displaying and silently drop them.
+          loadedLimitsRef.current[task.projectId] = next.length
+          return { ...prev, [task.projectId]: next }
         })
         setCounts(newCounts)
       },
@@ -149,7 +173,11 @@ export function useTasks(filter?: { status?: string; project?: string; search?: 
           const idx = existing.findIndex((t) => t.id === task.id)
           if (idx === -1) return { ...prev, [task.projectId]: [task, ...existing] }
           const next = existing.slice()
-          next[idx] = { ...next[idx], ...task }
+          // Replace the row wholesale — merging would preserve stale
+          // agentStatus after a task leaves "running" or flips back to
+          // working, since the server intentionally omits agentStatus when
+          // it no longer applies.
+          next[idx] = task
           return { ...prev, [task.projectId]: next }
         })
       },
@@ -163,11 +191,15 @@ export function useTasks(filter?: { status?: string; project?: string; search?: 
             const next: Record<string, Task[]> = {}
             for (const [pid, list] of Object.entries(prev)) {
               const f = list.filter((t) => t.id !== taskId)
-              if (f.length !== list.length) changed = true
+              if (f.length !== list.length) {
+                changed = true
+                loadedLimitsRef.current[pid] = f.length
+              }
               next[pid] = f
             }
             return changed ? next : prev
           }
+          loadedLimitsRef.current[projectId] = filtered.length
           return { ...prev, [projectId]: filtered }
         })
         setCounts(newCounts)
