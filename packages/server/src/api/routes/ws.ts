@@ -5,7 +5,7 @@ import type { AppDeps } from "../app"
 import { mapTaskRow, taskMatchesFilter } from "../helpers"
 import { createWebSocketHeartbeat, type WebSocketHeartbeat } from "../ws-heartbeat"
 import { isAuthEnabled, isRequestAuthenticated, isValidAuthToken } from "../../auth"
-import { getTask, listTasksPerProjectCapped, countTasksByProject } from "../../db/queries"
+import { getTask, listTasks, listTasksPerProjectCapped, countTasksByProject } from "../../db/queries"
 import { getAgentWorkingState, hasAgentWorkingState, onTaskListEvent, type TaskListEvent } from "../../tasks/events"
 import type { WsClientMessage, WsServerMessage, TaskStatus, Task } from "@tangerine/shared"
 
@@ -224,8 +224,25 @@ export function taskListWsRoutes(deps: AppDeps, upgradeWebSocket: UpgradeWebSock
       // Track which task ids are currently "in scope" for this connection so
       // updates that enter or leave the filter window turn into create/delete
       // messages (with refreshed counts), not silent no-ops that would let the
-      // list and the count badge diverge.
+      // list and the count badge diverge. inScopeByProject mirrors inScope
+      // grouped by projectId so we know whether a project has room in the
+      // top-N window for a newly-matching update.
       const inScope = new Set<string>()
+      const inScopeByProject = new Map<string, number>()
+      const backfillPending = new Set<string>()
+
+      const addToScope = (task: Task) => {
+        if (inScope.has(task.id)) return
+        inScope.add(task.id)
+        inScopeByProject.set(task.projectId, (inScopeByProject.get(task.projectId) ?? 0) + 1)
+      }
+      const removeFromScope = (taskId: string, projectId: string): boolean => {
+        if (!inScope.delete(taskId)) return false
+        const n = inScopeByProject.get(projectId) ?? 0
+        if (n <= 1) inScopeByProject.delete(projectId)
+        else inScopeByProject.set(projectId, n - 1)
+        return true
+      }
 
       // Mirror the augmentation done by GET /api/tasks so the WS payload
       // carries the same agentStatus information as the REST response.
@@ -279,6 +296,29 @@ export function taskListWsRoutes(deps: AppDeps, upgradeWebSocket: UpgradeWebSock
         countsFlushTimer = setTimeout(() => flushCounts(ws), COUNTS_FLUSH_MS)
       }
 
+      // After removing a row from the top-N window, ask the DB for the row
+      // that should slide up into the freed slot. Without this, a client with
+      // WebSocket polling disabled stays under-filled after deletions or
+      // filter exits until the user manually refreshes.
+      const scheduleBackfill = (ws: SocketLike, projectId: string) => {
+        if (backfillPending.has(projectId)) return
+        const currentCount = inScopeByProject.get(projectId) ?? 0
+        if (currentCount >= perProjectLimit) return
+        backfillPending.add(projectId)
+        Effect.runPromise(
+          listTasks(deps.db, { status, search, projectId, limit: 1, offset: currentCount }),
+        )
+          .then((rows) => {
+            backfillPending.delete(projectId)
+            const row = rows[0]
+            if (!row || inScope.has(row.id)) return
+            const task = withAgentStatus(mapTaskRow(row))
+            addToScope(task)
+            queueWithCounts(ws, { kind: "created", task })
+          })
+          .catch(() => { backfillPending.delete(projectId) })
+      }
+
       const handleEvent = (ws: SocketLike, event: TaskListEvent) => {
         try {
           if (event.kind === "agent_status") {
@@ -286,8 +326,9 @@ export function taskListWsRoutes(deps: AppDeps, upgradeWebSocket: UpgradeWebSock
             return
           }
           if (event.kind === "deleted") {
-            if (!inScope.delete(event.taskId)) return
+            if (!removeFromScope(event.taskId, event.projectId)) return
             queueWithCounts(ws, { kind: "deleted", taskId: event.taskId, projectId: event.projectId })
+            scheduleBackfill(ws, event.projectId)
             return
           }
 
@@ -297,23 +338,30 @@ export function taskListWsRoutes(deps: AppDeps, upgradeWebSocket: UpgradeWebSock
 
           if (!matches) {
             // Dropped out of scope — synthesize a delete only if we had been
-            // tracking this id. Otherwise clients never saw it, so do nothing.
+            // tracking this id, and try to backfill the freed slot.
             if (wasInScope) {
-              inScope.delete(task.id)
+              removeFromScope(task.id, task.projectId)
               queueWithCounts(ws, { kind: "deleted", taskId: task.id, projectId: task.projectId })
+              scheduleBackfill(ws, task.projectId)
             }
             return
           }
 
-          // Matches the filter.
-          if (event.kind === "created" || !wasInScope) {
-            // Either genuinely new, or an update that brought the task into
-            // scope for the first time (e.g. created → running under a status
-            // filter). Treat both as created so counts get refreshed.
-            inScope.add(task.id)
-            queueWithCounts(ws, { kind: "created", task })
-          } else {
+          if (wasInScope) {
             sendSafe(ws, { type: "task_updated", task })
+            return
+          }
+
+          // New arrival in scope. Admit it only when there's actually room in
+          // the top-N window for this project — otherwise an update for an
+          // off-page row (e.g. markTaskSeen on a row ranked 51+) would
+          // incorrectly surface as a "created" and prepend to the sidebar.
+          // A genuine `created` event always goes in (new rows sort to the
+          // top, displacing the oldest tracked row via the client-side cap).
+          const projectCount = inScopeByProject.get(task.projectId) ?? 0
+          if (event.kind === "created" || projectCount < perProjectLimit) {
+            addToScope(task)
+            queueWithCounts(ws, { kind: "created", task })
           }
         } catch {
           // Never let a listener crash propagate
@@ -347,7 +395,7 @@ export function taskListWsRoutes(deps: AppDeps, upgradeWebSocket: UpgradeWebSock
         ).then(
           ({ rows, counts }) => {
             const tasks: Task[] = rows.map((row) => withAgentStatus(mapTaskRow(row)))
-            for (const t of tasks) inScope.add(t.id)
+            for (const t of tasks) addToScope(t)
             sendSafe(ws, { type: "connected" })
             sendSafe(ws, { type: "tasks_snapshot", tasks, counts })
             snapshotSent = true
@@ -422,6 +470,9 @@ export function taskListWsRoutes(deps: AppDeps, upgradeWebSocket: UpgradeWebSock
             countsFlushTimer = null
           }
           countsQueue.length = 0
+          backfillPending.clear()
+          inScope.clear()
+          inScopeByProject.clear()
           heartbeat?.stop()
           unsub?.()
         },
