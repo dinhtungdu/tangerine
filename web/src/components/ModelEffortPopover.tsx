@@ -64,7 +64,7 @@ export function ModelEffortPopover({
         side="top"
         align="start"
         sideOffset={6}
-        className="w-auto max-w-[calc(100vw-16px)] overflow-hidden p-0"
+        className="w-auto max-w-lg max-w-[calc(100vw-16px)] overflow-hidden p-0"
       >
         <div className="flex flex-wrap">
           {/* Model column */}
