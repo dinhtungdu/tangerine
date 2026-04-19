@@ -12,6 +12,10 @@ import {
   updateTaskStatus,
   insertSessionLog,
   getSessionLogs,
+  insertCheckpoint,
+  listCheckpoints,
+  deleteCheckpointsForTask,
+  getLastAssistantSessionLogId,
 } from "../queries"
 
 function freshDb(): Database {
@@ -242,6 +246,15 @@ describe("auto-migration", () => {
     db.close()
   })
 
+  test("checkpoints table exists in schema", () => {
+    const db = new Database(":memory:")
+    db.run("PRAGMA foreign_keys = ON")
+    db.exec(SCHEMA)
+    const tables = (db.prepare("SELECT name FROM sqlite_master WHERE type='table'").all() as { name: string }[]).map(r => r.name)
+    expect(tables).toContain("checkpoints")
+    db.close()
+  })
+
   test("schema uses shared default provider", () => {
     const db = new Database(":memory:")
     db.run("PRAGMA foreign_keys = ON")
@@ -254,5 +267,95 @@ describe("auto-migration", () => {
     expect(row.provider).toBe(DEFAULT_PROVIDER)
 
     db.close()
+  })
+})
+
+describe("checkpoints", () => {
+  let db: Database
+
+  beforeEach(() => {
+    db = freshDb()
+    // Seed a task and a session log for FK constraints
+    Effect.runSync(createTask(db, { id: "task-cp", project_id: "proj", source: "manual", title: "CP task" }))
+    Effect.runSync(insertSessionLog(db, { task_id: "task-cp", role: "assistant", content: "done" }))
+  })
+
+  function seedCheckpoint(overrides?: { turn_index?: number; session_log_id?: number }) {
+    // Each checkpoint must have a unique session_log_id — insert a fresh log unless overridden
+    let logId: number
+    if (overrides?.session_log_id !== undefined) {
+      logId = overrides.session_log_id
+    } else {
+      const log = Effect.runSync(insertSessionLog(db, { task_id: "task-cp", role: "assistant", content: `turn ${overrides?.turn_index ?? 0}` }))
+      logId = log.id
+    }
+    return Effect.runSync(insertCheckpoint(db, {
+      id: crypto.randomUUID(),
+      task_id: "task-cp",
+      session_log_id: logId,
+      commit_sha: "abc123",
+      turn_index: overrides?.turn_index ?? 0,
+    }))
+  }
+
+  test("insert and list checkpoints", () => {
+    seedCheckpoint({ turn_index: 0 })
+    seedCheckpoint({ turn_index: 1 })
+
+    const checkpoints = Effect.runSync(listCheckpoints(db, "task-cp"))
+    expect(checkpoints).toHaveLength(2)
+    expect(checkpoints[0]!.turn_index).toBe(0)
+    expect(checkpoints[1]!.turn_index).toBe(1)
+    expect(checkpoints[0]!.task_id).toBe("task-cp")
+    expect(checkpoints[0]!.commit_sha).toBe("abc123")
+  })
+
+  test("listCheckpoints returns empty array for unknown task", () => {
+    const checkpoints = Effect.runSync(listCheckpoints(db, "no-such-task"))
+    expect(checkpoints).toHaveLength(0)
+  })
+
+  test("deleteCheckpointsForTask removes all rows for task", () => {
+    seedCheckpoint({ turn_index: 0 })
+    seedCheckpoint({ turn_index: 1 })
+
+    Effect.runSync(deleteCheckpointsForTask(db, "task-cp"))
+
+    const checkpoints = Effect.runSync(listCheckpoints(db, "task-cp"))
+    expect(checkpoints).toHaveLength(0)
+  })
+
+  test("getLastAssistantSessionLogId returns null when no assistant logs", () => {
+    // Create a fresh task with only a user message
+    Effect.runSync(createTask(db, { id: "task-user-only", project_id: "proj", source: "manual", title: "User only" }))
+    Effect.runSync(insertSessionLog(db, { task_id: "task-user-only", role: "user", content: "hello" }))
+
+    const id = Effect.runSync(getLastAssistantSessionLogId(db, "task-user-only"))
+    expect(id).toBeNull()
+  })
+
+  test("getLastAssistantSessionLogId returns id of latest assistant log", () => {
+    Effect.runSync(insertSessionLog(db, { task_id: "task-cp", role: "assistant", content: "second" }))
+
+    const allLogs = Effect.runSync(getSessionLogs(db, "task-cp"))
+    const assistantLogs = allLogs.filter(l => l.role === "assistant")
+    const lastId = assistantLogs[assistantLogs.length - 1]!.id
+
+    const result = Effect.runSync(getLastAssistantSessionLogId(db, "task-cp"))
+    expect(result).toBe(lastId)
+  })
+
+  test("deleteCheckpointsForTask does not affect other tasks", () => {
+    Effect.runSync(createTask(db, { id: "task-other", project_id: "proj", source: "manual", title: "other" }))
+    const logId = (db.prepare("SELECT id FROM session_logs WHERE task_id = 'task-cp' LIMIT 1").get() as { id: number }).id
+    Effect.runSync(insertCheckpoint(db, { id: crypto.randomUUID(), task_id: "task-cp", session_log_id: logId, commit_sha: "sha1", turn_index: 0 }))
+    Effect.runSync(insertSessionLog(db, { task_id: "task-other", role: "assistant", content: "other" }))
+    const otherLogId = (db.prepare("SELECT id FROM session_logs WHERE task_id = 'task-other' LIMIT 1").get() as { id: number }).id
+    Effect.runSync(insertCheckpoint(db, { id: crypto.randomUUID(), task_id: "task-other", session_log_id: otherLogId, commit_sha: "sha2", turn_index: 0 }))
+
+    Effect.runSync(deleteCheckpointsForTask(db, "task-cp"))
+
+    expect(Effect.runSync(listCheckpoints(db, "task-cp"))).toHaveLength(0)
+    expect(Effect.runSync(listCheckpoints(db, "task-other"))).toHaveLength(1)
   })
 })

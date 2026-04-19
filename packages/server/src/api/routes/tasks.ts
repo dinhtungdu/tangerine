@@ -3,9 +3,9 @@ import { Hono } from "hono"
 import { SUPPORTED_PROVIDERS } from "@tangerine/shared"
 import type { TaskWriteResponse } from "@tangerine/shared"
 import type { AppDeps } from "../app"
-import { mapTaskRow } from "../helpers"
+import { mapTaskRow, mapCheckpointRow } from "../helpers"
 import { runEffect, runEffectVoid } from "../effect-helpers"
-import { getTask, listTasks, updateTask, deleteTask, markTaskSeen, getChildTasks, countTasksByProject } from "../../db/queries"
+import { getTask, listTasks, updateTask, deleteTask, markTaskSeen, getChildTasks, countTasksByProject, listCheckpoints } from "../../db/queries"
 import { TaskNotFoundError, TaskNotTerminalError, PrCapabilityError, BranchRenameError } from "../../errors"
 import { getAgentWorkingState, hasAgentWorkingState } from "../../tasks/events"
 import { getRepoDir } from "../../config"
@@ -131,6 +131,18 @@ export function taskRoutes(deps: AppDeps): Hono {
       getChildTasks(deps.db, c.req.param("id")).pipe(
         Effect.map(rows => rows.map(mapTaskRow))
       )
+    )
+  })
+
+  app.get("/:id/checkpoints", (c) => {
+    const taskId = c.req.param("id")
+    return runEffect(c,
+      Effect.gen(function* () {
+        const row = yield* getTask(deps.db, taskId)
+        if (!row) return yield* Effect.fail(new TaskNotFoundError({ taskId }))
+        const checkpoints = yield* listCheckpoints(deps.db, taskId)
+        return checkpoints.map(mapCheckpointRow)
+      })
     )
   })
 

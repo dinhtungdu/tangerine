@@ -102,4 +102,18 @@ export const SCHEMA = `
   );
 
   CREATE INDEX IF NOT EXISTS idx_worktree_slots_project_status ON worktree_slots(project_id, status);
+
+  CREATE TABLE IF NOT EXISTS checkpoints (
+    id TEXT PRIMARY KEY,
+    task_id TEXT NOT NULL,
+    session_log_id INTEGER NOT NULL,
+    commit_sha TEXT NOT NULL,
+    turn_index INTEGER NOT NULL,
+    created_at TEXT NOT NULL DEFAULT (datetime('now')),
+    FOREIGN KEY (task_id) REFERENCES tasks(id),
+    FOREIGN KEY (session_log_id) REFERENCES session_logs(id),
+    UNIQUE(task_id, session_log_id)
+  );
+
+  CREATE INDEX IF NOT EXISTS idx_checkpoints_task_id ON checkpoints(task_id);
 `
