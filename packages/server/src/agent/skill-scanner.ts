@@ -39,9 +39,10 @@ export function scanCodexSkills(): string[] {
   const base = join(homedir(), ".codex", "skills")
   // User-installed skills sit directly under base; system skills live under .system/.
   // We surface both so built-in codex skills (imagegen, openai-docs, etc.) are discoverable.
-  return [
+  // Deduplicate in case the same skill name appears in both directories.
+  return [...new Set([
     ...scanSkillsDir(base),
     ...scanSkillsDir(join(base, ".system")),
-  ]
+  ])]
 }
 
