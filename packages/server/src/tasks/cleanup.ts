@@ -7,7 +7,7 @@ import { createLogger } from "../logger"
 import { SessionCleanupError } from "../errors"
 import type { TaskRow } from "../db/types"
 import { releaseSlot, localExec } from "./worktree-pool"
-import { dtachSocketPath, clearScrollback } from "../api/routes/terminal-ws"
+import { clearTerminalSession } from "../api/routes/terminal-ws"
 
 const log = createLogger("cleanup")
 
@@ -59,18 +59,9 @@ export function cleanupSession(
       )
     }
 
-    // 2. Kill dtach session for this task's terminal.
-    // Removing the socket orphans the shell, so find its PID first via lsof.
-    const socketPath = dtachSocketPath(task.id)
-    yield* localExec(
-      `lsof -t ${socketPath} 2>/dev/null | xargs -r kill 2>/dev/null; rm -f ${socketPath}`
-    ).pipe(
-      Effect.tap(() => Effect.sync(() => taskLog.debug("dtach session killed", { socketPath }))),
-      Effect.catchAll(() => Effect.void),
-    )
-
-    // 2b. Clear terminal scrollback buffer
-    clearScrollback(task.id)
+    // 2. Kill terminal shell and delete persisted history.
+    clearTerminalSession(task.id)
+    taskLog.debug("Terminal session cleared")
 
     // 3. Release worktree slot back to pool.
     // Always attempt release — releaseSlot looks up by task_id and is a no-op if no slot is bound.

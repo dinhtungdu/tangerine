@@ -40,7 +40,6 @@ export function checkSystemTools(options: {
   const capabilities: SystemCapabilities = {
     git: { available: true },
     gh: { available: false, authenticated: false },
-    dtach: { available: false },
     providers: {},
   }
 
@@ -74,13 +73,6 @@ export function checkSystemTools(options: {
     }
   } else if (options.hasGithubProject) {
     warnings.push("gh CLI is not installed — PR capture and auto-complete will not work. Install from https://cli.github.com/")
-  }
-
-  // dtach — needed for persistent terminal sessions
-  if (cmdExists("dtach")) {
-    capabilities.dtach.available = true
-  } else {
-    warnings.push("dtach is not installed — terminal sessions will not work.")
   }
 
   // Agent provider CLIs

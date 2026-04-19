@@ -96,7 +96,6 @@ export type WsClientMessage =
 export interface SystemCapabilities {
   git: { available: boolean }
   gh: { available: boolean; authenticated: boolean }
-  dtach: { available: boolean }
   providers: Record<string, { available: boolean; cliCommand: string }>
 }
 

@@ -43,7 +43,7 @@ export function TaskDetail() {
   })
   const [mobilePane, setMobilePane] = useState<PaneId>("chat")
 
-  const { current, modelsByProvider, contextWindowByModel, systemCapabilities, sshHost, sshUser, editor } = useProject()
+  const { current, modelsByProvider, contextWindowByModel, sshHost, sshUser, editor } = useProject()
   const { showToast } = useToast()
 
   // When viewing a task from a different project, show that project's orchestrator chat
@@ -392,9 +392,8 @@ export function TaskDetail() {
 
   // Desktop: multi-pane from visiblePanes set. Mobile: single pane from mobilePane.
   // Both states are tracked; CSS breakpoints control which layout renders.
-  const dtachAvailable = systemCapabilities?.dtach.available !== false
   const PANE_ORDER: PaneId[] = ["chat", "diff", "terminal", "activity"]
-  const orderedVisible = PANE_ORDER.filter((p) => visiblePanes.has(p) && (p !== "diff" || hasDiff) && (p !== "terminal" || dtachAvailable))
+  const orderedVisible = PANE_ORDER.filter((p) => visiblePanes.has(p) && (p !== "diff" || hasDiff))
   const desktopIsSolo = orderedVisible.length === 1
   const firstVisiblePane = orderedVisible[0]
   orderedVisibleRef.current = orderedVisible
@@ -491,13 +490,8 @@ export function TaskDetail() {
                 <PaneToggle
                   desktopActive={visiblePanes.has("terminal")}
                   mobileActive={mobilePane === "terminal"}
-                  onClick={() => {
-                    // When dtach is missing, allow closing an already-open terminal pane but prevent opening
-                    if (systemCapabilities?.dtach.available === false && !visiblePanes.has("terminal")) return
-                    togglePane("terminal")
-                  }}
-                  label={systemCapabilities?.dtach.available === false ? "Terminal (requires dtach)" : "Terminal"}
-                  disabled={systemCapabilities?.dtach.available === false && !visiblePanes.has("terminal")}
+                  onClick={() => togglePane("terminal")}
+                  label="Terminal"
                 >
                   <svg className="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                     <path strokeLinecap="round" strokeLinejoin="round" d="m6.75 7.5 3 2.25-3 2.25m4.5 0h3" />
@@ -634,10 +628,10 @@ export function TaskDetail() {
           )}
 
           {/* Terminal pane */}
-          {orderedVisible.indexOf("terminal") > 0 && systemCapabilities?.dtach.available !== false && (
+          {orderedVisible.indexOf("terminal") > 0 && (
             <ResizeHandle className="hidden md:flex" onPointerDown={resizeHandlers.terminal!} />
           )}
-          {(mobilePane === "terminal" || visiblePanes.has("terminal")) && systemCapabilities?.dtach.available !== false && (
+          {(mobilePane === "terminal" || visiblePanes.has("terminal")) && (
             <div
               className={[
                 "flex min-h-0 min-w-0 flex-col",
