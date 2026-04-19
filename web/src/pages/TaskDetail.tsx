@@ -36,8 +36,10 @@ function loadPaneState(taskId: string | undefined): ResponsivePaneState {
   try {
     const saved = localStorage.getItem(`tangerine:panes:${taskId}`)
     if (saved) {
+      const parsed = new Set(JSON.parse(saved) as PaneId[])
+      if (parsed.size === 0) parsed.add("chat")
       return {
-        visiblePanes: new Set(JSON.parse(saved) as PaneId[]),
+        visiblePanes: parsed,
         mobilePane: "chat",
         desktopSyncPane: null,
       }
@@ -195,8 +197,8 @@ export function TaskDetail() {
   }, [persistVisiblePanes])
 
   const togglePaneFromAction = useCallback((pane: PaneId) => {
-    const isDesktopLayout = desktopPaneProbeRef.current?.offsetParent !== null
-    const isMobileLayout = mobilePaneProbeRef.current?.offsetParent !== null
+    const isDesktopLayout = desktopPaneProbeRef.current != null && desktopPaneProbeRef.current.offsetParent !== null
+    const isMobileLayout = mobilePaneProbeRef.current != null && mobilePaneProbeRef.current.offsetParent !== null
     if (isDesktopLayout || !isMobileLayout) {
       setPaneState((prev) => {
         const next = toggleDesktopPaneState(prev, pane)
@@ -298,8 +300,8 @@ export function TaskDetail() {
     try { localStorage.removeItem(diffCommentsKey) } catch { /* ignore */ }
     setDiffComments([])
 
-    const isDesktopLayout = desktopPaneProbeRef.current?.offsetParent !== null
-    const isMobileLayout = mobilePaneProbeRef.current?.offsetParent !== null
+    const isDesktopLayout = desktopPaneProbeRef.current != null && desktopPaneProbeRef.current.offsetParent !== null
+    const isMobileLayout = mobilePaneProbeRef.current != null && mobilePaneProbeRef.current.offsetParent !== null
     setPaneState((prev) => ({
       ...prev,
       mobilePane: "chat",
@@ -425,8 +427,8 @@ export function TaskDetail() {
     }
   }, [session.taskStatus, id, isCrossProject])
 
-  // Desktop shows the persisted pane set plus the pane currently selected on
-  // mobile, so rotating or resizing does not drop the pane the user is viewing.
+  // Desktop shows the persisted pane set plus any temporarily synced pane
+  // (desktopSyncPane), so rotating from mobile does not drop the pane the user was viewing.
   const responsiveVisiblePanes = useMemo(
     () => getResponsiveVisiblePanes(visiblePanes, desktopSyncPane),
     [desktopSyncPane, visiblePanes],

@@ -18,9 +18,9 @@ export function toggleDesktopVisiblePanes(
   return next
 }
 
-export function getResponsiveVisiblePanes(visiblePanes: ReadonlySet<PaneId>, mobilePane: PaneId | null): Set<PaneId> {
+export function getResponsiveVisiblePanes(visiblePanes: ReadonlySet<PaneId>, syncPane: PaneId | null): Set<PaneId> {
   const next = new Set(visiblePanes)
-  if (mobilePane) next.add(mobilePane)
+  if (syncPane) next.add(syncPane)
   return next
 }
 
