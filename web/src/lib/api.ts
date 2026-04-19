@@ -132,8 +132,8 @@ export async function createTask(data: {
   parentTaskId?: string
   type?: string
   images?: import("@tangerine/shared").PromptImage[]
-}): Promise<Task> {
-  return request<Task>("/api/tasks", {
+}): Promise<{ id: string; title: string; status: string }> {
+  return request<{ id: string; title: string; status: string }>("/api/tasks", {
     method: "POST",
     body: JSON.stringify(data),
   })
@@ -242,8 +242,8 @@ export async function markTaskSeen(id: string): Promise<void> {
   return request<void>(`/api/tasks/${id}/seen`, { method: "POST" })
 }
 
-export async function retryTask(id: string): Promise<Task> {
-  return request<Task>(`/api/tasks/${id}/retry`, { method: "POST" })
+export async function retryTask(id: string): Promise<{ id: string; title: string; status: string }> {
+  return request<{ id: string; title: string; status: string }>(`/api/tasks/${id}/retry`, { method: "POST" })
 }
 
 export async function deleteTask(id: string): Promise<void> {
