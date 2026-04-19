@@ -50,7 +50,25 @@ export function TerminalPane(props: TerminalPaneProps) {
     const heartbeat = createHeartbeatMonitor(() => {
       if (disposedRef.current || wsRef.current !== ws) return
       if (ws.readyState < WebSocket.CLOSING) {
-        ws.close()
+        // iOS Safari may not fire onclose when close() is called on a CONNECTING
+        // socket, leaving the terminal stuck. Null handlers and manually trigger
+        // the reconnect loop instead of relying on onclose.
+        if (ws.readyState === WebSocket.CONNECTING) {
+          ws.onopen = null
+          ws.onmessage = null
+          ws.onerror = null
+          ws.onclose = null
+          ws.close()
+          wsRef.current = null
+          if (!disposedRef.current) {
+            const delay = backoffRef.current
+            backoffRef.current = Math.min(delay * 2, 5000)
+            setConnState(everConnectedRef.current ? "reconnecting" : "connecting")
+            reconnectTimerRef.current = setTimeout(connect, delay)
+          }
+        } else {
+          ws.close()
+        }
       }
     })
     heartbeatRef.current = heartbeat
@@ -214,13 +232,26 @@ export function TerminalPane(props: TerminalPaneProps) {
     // Reconnect immediately when returning from background (iOS Safari)
     function onVisibilityChange() {
       if (document.visibilityState !== "visible") return
-      if (!wsRef.current || wsRef.current.readyState >= WebSocket.CLOSING) {
+      const ws = wsRef.current
+      // Reconnect unless there's already an open connection. Also handles
+      // sockets stuck in CONNECTING state, which iOS Safari can drop silently.
+      if (!ws || ws.readyState !== WebSocket.OPEN) {
         if (reconnectTimerRef.current) {
           clearTimeout(reconnectTimerRef.current)
           reconnectTimerRef.current = null
         }
         backoffRef.current = 1000
         setConnState(everConnectedRef.current ? "reconnecting" : "connecting")
+        // Null handlers on a stuck CONNECTING socket before closing so its
+        // onclose (if it ever fires) doesn't schedule a duplicate reconnect.
+        if (ws && ws.readyState === WebSocket.CONNECTING) {
+          ws.onopen = null
+          ws.onmessage = null
+          ws.onerror = null
+          ws.onclose = null
+          ws.close()
+          wsRef.current = null
+        }
         connect()
       }
     }
