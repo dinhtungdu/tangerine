@@ -36,31 +36,11 @@ export function TerminalPane(props: TerminalPaneProps) {
     }
   }, [])
 
-  const connect = useCallback(async () => {
+  const connect = useCallback(() => {
     const term = termRef.current
     if (!term || disposedRef.current) return
     if (permanentErrorRef.current) return
     hadErrorRef.current = false
-
-    // Pre-flight HTTP check: if the task has no worktree, the server returns
-    // 400 {error:"no_worktree"} before upgrading to WebSocket. Detect this so
-    // we can show "Terminal not available" and stop retrying permanently.
-    const httpUrl = `${window.location.origin}${wsPath}`
-    try {
-      const probe = await fetch(httpUrl)
-      if (probe.status === 400) {
-        const body = await probe.json().catch(() => ({}))
-        if ((body as { error?: string }).error === "no_worktree") {
-          permanentErrorRef.current = true
-          setConnState("unavailable")
-          return
-        }
-      }
-    } catch {
-      // Server unreachable — proceed with WebSocket anyway; it will retry normally.
-    }
-
-    if (disposedRef.current) return
 
     const protocol = window.location.protocol === "https:" ? "wss:" : "ws:"
     const url = `${protocol}//${window.location.host}${wsPath}`
@@ -137,10 +117,15 @@ export function TerminalPane(props: TerminalPaneProps) {
         } else if (msg.type === "exit") {
           term.writeln(`\r\n[Process exited with code ${msg.code}]`)
         } else if (msg.type === "error") {
-          hadErrorRef.current = true
-          if (msg.message === "Unauthorized") emitAuthFailure()
-          setConnState("error")
-          term.writeln(`\r\n[Error: ${msg.message}]`)
+          if (msg.message?.includes("no worktree")) {
+            permanentErrorRef.current = true
+            setConnState("unavailable")
+          } else {
+            hadErrorRef.current = true
+            if (msg.message === "Unauthorized") emitAuthFailure()
+            setConnState("error")
+            term.writeln(`\r\n[Error: ${msg.message}]`)
+          }
         }
       } catch {
         // Ignore unparseable
