@@ -64,12 +64,12 @@ export function ModelEffortPopover({
         side="top"
         align="start"
         sideOffset={6}
-        className="w-auto max-w-lg max-w-[calc(100vw-16px)] overflow-hidden p-0"
+        className="w-lg max-w-[calc(100vw-24px)] overflow-hidden p-0"
       >
         <div className="flex flex-wrap">
           {/* Model column */}
           {resolvedModel && (
-            <div className="flex min-w-[140px] flex-1 flex-col">
+            <div className="flex min-w-35 flex-1 flex-col">
               <div className="border-b border-border px-3 py-2 text-2xs font-medium uppercase tracking-wide text-muted-foreground">
                 Model
               </div>
@@ -105,7 +105,7 @@ export function ModelEffortPopover({
           {showEffort && (
             <>
               {resolvedModel && <Separator orientation="vertical" />}
-              <div className="flex min-w-[140px] flex-1 flex-col">
+              <div className="flex min-w-35 flex-1 flex-col">
                 <div className="border-b border-border px-3 py-2 text-2xs font-medium uppercase tracking-wide text-muted-foreground">
                   Effort
                 </div>
