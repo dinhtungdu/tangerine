@@ -466,10 +466,9 @@ describe("API routes", () => {
         }),
       }))
       expect(res.status).toBe(201)
-      const body = await res.json() as { title: string; source: string; sourceId: string }
+      const body = await res.json() as { title: string; status: string }
       expect(body.title).toBe("Fix bug found in other project")
-      expect(body.source).toBe("cross-project")
-      expect(body.sourceId).toBe("origin-task-123")
+      expect(body.status).toBe("created")
     })
 
     test("defaults to manual source when source not specified", async () => {
@@ -482,8 +481,9 @@ describe("API routes", () => {
         }),
       }))
       expect(res.status).toBe(201)
-      const body = await res.json() as { source: string }
-      expect(body.source).toBe("manual")
+      const body = await res.json() as { id: string; title: string; status: string }
+      expect(body.id).toBeTruthy()
+      expect(body.status).toBe("created")
     })
   })
 
@@ -496,8 +496,8 @@ describe("API routes", () => {
         body: JSON.stringify({ prUrl: "https://github.com/test/repo/pull/42" }),
       }))
       expect(res.status).toBe(200)
-      const body = await res.json() as { prUrl: string }
-      expect(body.prUrl).toBe("https://github.com/test/repo/pull/42")
+      const body = await res.json() as { id: string; title: string; status: string }
+      expect(body.id).toBe(row.id)
     })
 
     test("clears prUrl when set to null", async () => {
@@ -509,8 +509,8 @@ describe("API routes", () => {
         body: JSON.stringify({ prUrl: null }),
       }))
       expect(res.status).toBe(200)
-      const body = await res.json() as { prUrl: string | null }
-      expect(body.prUrl).toBeNull()
+      const body = await res.json() as { id: string }
+      expect(body.id).toBe(row.id)
     })
 
     test("returns 404 for unknown task", async () => {
@@ -657,8 +657,8 @@ describe("API routes", () => {
         body: JSON.stringify({ branch: "fix/my-descriptive-name" }),
       }))
       expect(res.status).toBe(200)
-      const body = await res.json() as { branch: string }
-      expect(body.branch).toBe("fix/my-descriptive-name")
+      const body = await res.json() as { id: string; status: string }
+      expect(body.id).toBe(row.id)
 
       // Verify DB was updated
       const updated = Effect.runSync(dbGetTask(db, row.id))

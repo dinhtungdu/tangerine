@@ -116,7 +116,7 @@ export function taskRoutes(deps: AppDeps): Hono {
 
     return runEffect(c,
       deps.taskManager.createTask({ source, projectId, title: body.title, type: body.type, description: body.description, provider: body.provider, model: body.model, reasoningEffort: body.reasoningEffort, sourceId, sourceUrl, branch, parentTaskId: body.parentTaskId, images: body.images }).pipe(
-        Effect.map(mapTaskRow)
+        Effect.map((row) => ({ id: row.id, title: row.title, status: row.status }))
       ),
       { status: 201 }
     )
@@ -169,7 +169,7 @@ export function taskRoutes(deps: AppDeps): Hono {
                 parentTaskId: task.parent_task_id ?? undefined,
               }).pipe(Effect.mapError((e) => new Error(String(e))))
             ),
-            Effect.map(mapTaskRow),
+            Effect.map((row) => ({ id: row.id, title: row.title, status: row.status })),
           )
         }),
       ),
@@ -210,7 +210,7 @@ export function taskRoutes(deps: AppDeps): Hono {
         if ("prUrl" in body) fields.pr_url = body.prUrl ?? null
         const updated = yield* updateTask(deps.db, taskId, fields)
         if (!updated) return yield* Effect.fail(new TaskNotFoundError({ taskId }))
-        return mapTaskRow(updated)
+        return { id: updated.id, title: updated.title, status: updated.status }
       })
     )
   })
@@ -266,7 +266,7 @@ export function taskRoutes(deps: AppDeps): Hono {
           }))
         }
         if (oldBranch === newBranch) {
-          return mapTaskRow(task)
+          return { id: task.id, title: task.title, status: task.status }
         }
 
         const cwd = task.worktree_path
@@ -283,7 +283,7 @@ export function taskRoutes(deps: AppDeps): Hono {
         // Update DB
         const updated = yield* updateTask(deps.db, taskId, { branch: newBranch })
         if (!updated) return yield* Effect.fail(new TaskNotFoundError({ taskId }))
-        return mapTaskRow(updated)
+        return { id: updated.id, title: updated.title, status: updated.status }
       })
     )
   })
