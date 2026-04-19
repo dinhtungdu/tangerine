@@ -50,6 +50,10 @@ function historyPath(taskId: string): string {
   return join(tmpdir(), `tng-${taskId.slice(0, 8)}.hist`)
 }
 
+function pidPath(taskId: string): string {
+  return join(tmpdir(), `tng-${taskId.slice(0, 8)}.pid`)
+}
+
 function loadHistorySync(histPath: string): string {
   try {
     if (existsSync(histPath)) {
@@ -165,6 +169,9 @@ function getOrCreateSession(taskId: string, worktree: string): TerminalSession {
   const session: TerminalSession = { pty, scrollback, writeTimer: null, histPath }
   sessions.set(taskId, session)
 
+  // Persist PID so cleanup can kill the process after a server restart
+  try { writeFileSync(pidPath(taskId), String(pty.pid)) } catch { /* non-fatal */ }
+
   pty.onData((data) => {
     appendScrollback(session, data)
     schedulePersist(session)
@@ -177,6 +184,7 @@ function getOrCreateSession(taskId: string, worktree: string): TerminalSession {
       flushPersistSync(session)
       sessions.delete(taskId)
     }
+    try { unlinkSync(pidPath(taskId)) } catch { /* already gone */ }
     broadcastTerminalExit(taskId, exitCode)
   })
 
@@ -196,8 +204,15 @@ export function clearTerminalSession(taskId: string): void {
     }
     try { session.pty.kill() } catch { /* already dead */ }
     try { unlinkSync(session.histPath) } catch { /* no file */ }
+    try { unlinkSync(pidPath(taskId)) } catch { /* no file */ }
   } else {
-    // Server may have restarted — still clean up any orphaned history file
+    // Server may have restarted — recover shell PID from disk and kill it
+    const pp = pidPath(taskId)
+    try {
+      const pid = parseInt(readFileSync(pp, "utf-8").trim(), 10)
+      if (!isNaN(pid)) process.kill(pid, "SIGTERM")
+    } catch { /* process already gone or no PID file */ }
+    try { unlinkSync(pp) } catch { /* no file */ }
     try { unlinkSync(historyPath(taskId)) } catch { /* no file */ }
   }
 }
