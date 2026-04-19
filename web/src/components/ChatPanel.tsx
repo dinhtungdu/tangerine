@@ -152,6 +152,13 @@ export function ChatPanel({
       messages.length > prevCountRef.current.messages ||
       activities.length > prevCountRef.current.activities
     if (countChanged && isAtBottom) {
+      // Skip auto-scroll when input is focused — on mobile, scrollIntoView pushes
+      // the focused input below the virtual keyboard
+      const tag = document.activeElement?.tagName
+      if (tag === "TEXTAREA" || tag === "INPUT") {
+        prevCountRef.current = { messages: messages.length, activities: activities.length }
+        return
+      }
       const el = contentRef.current
       if (el) el.scrollIntoView({ block: "end" })
     }
