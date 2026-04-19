@@ -859,7 +859,6 @@ describe("isProviderAvailable", () => {
   const caps: SystemCapabilities = {
     git: { available: true },
     gh: { available: true, authenticated: true },
-    dtach: { available: true },
     providers: {
       "claude-code": { available: true, cliCommand: "claude" },
       codex: { available: false, cliCommand: "codex" },

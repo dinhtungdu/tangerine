@@ -201,7 +201,6 @@ export async function start(): Promise<void> {
     let systemCapabilities: import("@tangerine/shared").SystemCapabilities = {
       git: { available: true },
       gh: { available: false, authenticated: false },
-      dtach: { available: false },
       providers: {},
     }
 
@@ -229,7 +228,6 @@ export async function start(): Promise<void> {
     } else {
       // In test mode, assume all tools available
       systemCapabilities.gh = { available: true, authenticated: true }
-      systemCapabilities.dtach = { available: true }
       for (const [provider, factory] of Object.entries(factories)) {
         systemCapabilities.providers[provider] = { available: true, cliCommand: factory.metadata.cliCommand }
       }

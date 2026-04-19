@@ -89,7 +89,6 @@ function createMockDeps(db: Database, configOverrides?: Partial<AppDeps["config"
     systemCapabilities: {
       git: { available: true },
       gh: { available: true, authenticated: true },
-      dtach: { available: true },
       providers: {
         opencode: { available: true, cliCommand: "opencode" },
         "claude-code": { available: true, cliCommand: "claude" },
