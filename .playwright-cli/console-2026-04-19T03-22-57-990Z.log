@@ -1,5 +1,0 @@
-[      75ms] [ERROR] Failed to load resource: the server responded with a status of 500 (Internal Server Error) @ http://localhost:5175/api/auth/session:0
-[      77ms] [ERROR] Failed to load resource: the server responded with a status of 500 (Internal Server Error) @ http://localhost:5175/api/auth/session:0
-[   24394ms] [ERROR] WebSocket connection to 'ws://localhost:5175/?token=e7Wmij63hbKE' failed:  @ http://localhost:5175/@vite/client:801
-[   24420ms] [ERROR] WebSocket connection to 'ws://localhost:5175/' failed: Error during WebSocket handshake: net::ERR_CONNECTION_RESET @ http://localhost:5175/@vite/client:1034
-[   26011ms] [WARNING] WebSocket connection to 'ws://localhost:5175/api/tasks/0d895078-e6cc-4759-991e-f9d1bed58450/ws' failed: WebSocket is closed before the connection is established. @ http://localhost:5175/src/hooks/useWebSocket.ts:9

@@ -1,7 +1,0 @@
-- generic [ref=e4]:
-  - generic [ref=e5]:
-    - generic [ref=e6]: Connection failed
-    - generic [ref=e7]: Could not confirm Tangerine access.
-  - generic [ref=e8]:
-    - paragraph [ref=e9]: "500:"
-    - button "Retry" [ref=e10]
