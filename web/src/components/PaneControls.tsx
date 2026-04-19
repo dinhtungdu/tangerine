@@ -1,4 +1,4 @@
-import type { PointerEvent, ReactNode } from "react"
+import type { PointerEvent, ReactNode, Ref } from "react"
 
 export function ResizeHandle({ onPointerDown, className }: { onPointerDown: (e: PointerEvent<HTMLDivElement>) => void; className?: string }) {
   return (
@@ -14,12 +14,25 @@ export function ResizeHandle({ onPointerDown, className }: { onPointerDown: (e: 
   )
 }
 
-export function PaneToggle({ desktopActive, mobileActive, onClick, label, disabled, children }: {
+export function PaneToggle({
+  desktopActive,
+  mobileActive,
+  onDesktopClick,
+  onMobileClick,
+  label,
+  disabled,
+  desktopButtonRef,
+  mobileButtonRef,
+  children,
+}: {
   desktopActive: boolean
   mobileActive: boolean
-  onClick: () => void
+  onDesktopClick: () => void
+  onMobileClick: () => void
   label: string
   disabled?: boolean
+  desktopButtonRef?: Ref<HTMLButtonElement>
+  mobileButtonRef?: Ref<HTMLButtonElement>
   children: ReactNode
 }) {
   const activeClass = "border border-border bg-muted text-foreground shadow-sm"
@@ -29,7 +42,8 @@ export function PaneToggle({ desktopActive, mobileActive, onClick, label, disabl
   return (
     <>
       <button
-        onClick={disabled ? undefined : onClick}
+        ref={desktopButtonRef}
+        onClick={disabled ? undefined : onDesktopClick}
         disabled={disabled}
         aria-label={label}
         title={label}
@@ -38,7 +52,8 @@ export function PaneToggle({ desktopActive, mobileActive, onClick, label, disabl
         {children}
       </button>
       <button
-        onClick={disabled ? undefined : onClick}
+        ref={mobileButtonRef}
+        onClick={disabled ? undefined : onMobileClick}
         disabled={disabled}
         aria-label={label}
         title={label}

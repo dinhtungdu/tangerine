@@ -15,6 +15,15 @@ import { copyToClipboard } from "../lib/clipboard"
 import { buildSshEditorUri } from "../lib/ssh-editor"
 import { getMostRecentTask, getRecentTasks } from "../lib/task-recency"
 import {
+  getResponsiveVisiblePanes,
+  removePaneCapability,
+  selectMobilePane,
+  toggleDesktopPaneState,
+  toggleDesktopVisiblePanes,
+  toggleMobilePaneActionState,
+  type ResponsivePaneState,
+} from "../lib/panes"
+import {
   registerActions,
   registerActionCombos,
   patchActionShortcut,
@@ -879,6 +888,115 @@ describe("isProviderAvailable", () => {
 
   test("returns true for unknown provider (not in capabilities)", () => {
     expect(isProviderAvailable(caps, "opencode")).toBe(true)
+  })
+})
+
+describe("toggleDesktopVisiblePanes", () => {
+  test("adds a pane when it is currently hidden", () => {
+    const next = toggleDesktopVisiblePanes(new Set(["chat", "activity"]), "terminal")
+    expect([...next]).toEqual(["chat", "activity", "terminal"])
+  })
+
+  test("removes a pane when it is currently visible", () => {
+    const next = toggleDesktopVisiblePanes(new Set(["chat", "terminal"]), "terminal")
+    expect([...next]).toEqual(["chat"])
+  })
+
+  test("keeps chat visible when toggling off the last pane", () => {
+    const next = toggleDesktopVisiblePanes(new Set(["chat"]), "chat")
+    expect([...next]).toEqual(["chat"])
+  })
+
+  test("can allow an empty persisted set when another pane stays synced", () => {
+    const next = toggleDesktopVisiblePanes(new Set(["chat"]), "chat", null)
+    expect([...next]).toEqual([])
+  })
+
+  test("does not mutate the previous set", () => {
+    const prev = new Set(["chat", "activity"])
+    toggleDesktopVisiblePanes(prev, "terminal")
+    expect([...prev]).toEqual(["chat", "activity"])
+  })
+})
+
+describe("getResponsiveVisiblePanes", () => {
+  test("includes the current mobile pane in desktop rendering", () => {
+    const next = getResponsiveVisiblePanes(new Set(["chat", "activity"]), "terminal")
+    expect([...next]).toEqual(["chat", "activity", "terminal"])
+  })
+
+  test("preserves the saved desktop layout when there is no mobile sync pane", () => {
+    const next = getResponsiveVisiblePanes(new Set(["terminal", "activity"]), null)
+    expect([...next]).toEqual(["terminal", "activity"])
+  })
+
+  test("does not mutate the persisted desktop pane set", () => {
+    const prev = new Set(["chat", "activity"])
+    getResponsiveVisiblePanes(prev, "terminal")
+    expect([...prev]).toEqual(["chat", "activity"])
+  })
+})
+
+function makeResponsivePaneState(overrides: Partial<ResponsivePaneState> = {}): ResponsivePaneState {
+  return {
+    visiblePanes: new Set(["chat", "activity"]),
+    mobilePane: "chat",
+    desktopSyncPane: null,
+    ...overrides,
+  }
+}
+
+describe("selectMobilePane", () => {
+  test("tracks the selected mobile pane as a temporary desktop sync pane", () => {
+    const next = selectMobilePane(makeResponsivePaneState(), "terminal")
+    expect(next.mobilePane).toBe("terminal")
+    expect(next.desktopSyncPane).toBe("terminal")
+    expect([...next.visiblePanes]).toEqual(["chat", "activity"])
+  })
+})
+
+describe("toggleMobilePaneActionState", () => {
+  test("keeps mobile selection while toggling the persisted desktop set", () => {
+    const next = toggleMobilePaneActionState(makeResponsivePaneState(), "terminal")
+    expect(next.mobilePane).toBe("terminal")
+    expect(next.desktopSyncPane).toBe("terminal")
+    expect([...next.visiblePanes]).toEqual(["chat", "activity", "terminal"])
+  })
+})
+
+describe("toggleDesktopPaneState", () => {
+  test("hides the temporary synced pane without persisting it", () => {
+    const next = toggleDesktopPaneState(makeResponsivePaneState({ desktopSyncPane: "terminal" }), "terminal")
+    expect(next.desktopSyncPane).toBeNull()
+    expect([...next.visiblePanes]).toEqual(["chat", "activity"])
+  })
+
+  test("preserves the synced pane when toggling another desktop pane", () => {
+    const next = toggleDesktopPaneState(makeResponsivePaneState({ desktopSyncPane: "terminal" }), "activity")
+    expect(next.desktopSyncPane).toBe("terminal")
+    expect([...next.visiblePanes]).toEqual(["chat"])
+  })
+
+  test("promotes the synced pane into the persisted desktop layout when it becomes the only visible pane", () => {
+    const next = toggleDesktopPaneState(makeResponsivePaneState({ visiblePanes: new Set(["chat"]), desktopSyncPane: "terminal" }), "chat")
+    expect(next.desktopSyncPane).toBe("terminal")
+    expect([...next.visiblePanes]).toEqual(["terminal"])
+  })
+})
+
+describe("removePaneCapability", () => {
+  test("drops the pane from all responsive pane state", () => {
+    const next = removePaneCapability(
+      makeResponsivePaneState({
+        visiblePanes: new Set(["chat", "diff"]),
+        mobilePane: "diff",
+        desktopSyncPane: "diff",
+      }),
+      "diff",
+    )
+    expect([...next.visiblePanes]).toEqual(["chat"])
+    expect(next.mobilePane).toBe("chat")
+    expect(next.desktopSyncPane).toBeNull()
   })
 })
 

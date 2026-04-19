@@ -17,13 +17,39 @@ import { ChangesPanel as DiffSidebar, type DiffComment } from "../components/Cha
 import { ResizeHandle, PaneToggle } from "../components/PaneControls"
 import { TerminalPane } from "../components/TerminalPane"
 import { formatPrNumber, formatTaskTitle } from "../lib/format"
+import {
+  getResponsiveVisiblePanes,
+  removePaneCapability,
+  selectMobilePane,
+  toggleDesktopPaneState,
+  toggleMobilePaneActionState,
+  type PaneId,
+  type ResponsivePaneState,
+} from "../lib/panes"
 import { copyToClipboard } from "../lib/clipboard"
 import { TaskOverflowMenu } from "../components/TaskListItem"
 import { useTaskActions } from "../hooks/useTaskActions"
 import { usePanelActions } from "../hooks/usePanelActions"
 import { useToast } from "../context/ToastContext"
 
-type PaneId = "chat" | "diff" | "terminal" | "activity"
+function loadPaneState(taskId: string | undefined): ResponsivePaneState {
+  try {
+    const saved = localStorage.getItem(`tangerine:panes:${taskId}`)
+    if (saved) {
+      return {
+        visiblePanes: new Set(JSON.parse(saved) as PaneId[]),
+        mobilePane: "chat",
+        desktopSyncPane: null,
+      }
+    }
+  } catch { /* ignore */ }
+
+  return {
+    visiblePanes: new Set<PaneId>(["chat", "activity"]),
+    mobilePane: "chat",
+    desktopSyncPane: null,
+  }
+}
 
 export function TaskDetail() {
   const { id } = useParams<{ id: string }>()
@@ -34,14 +60,8 @@ export function TaskDetail() {
   const [parentTask, setParentTask] = useState<Task | null>(null)
   const [childTasks, setChildTasks] = useState<Task[]>([])
   const [loading, setLoading] = useState(true)
-  const [visiblePanes, setVisiblePanes] = useState<Set<PaneId>>(() => {
-    try {
-      const saved = localStorage.getItem(`tangerine:panes:${id}`)
-      if (saved) return new Set(JSON.parse(saved) as PaneId[])
-    } catch { /* ignore */ }
-    return new Set<PaneId>(["chat", "activity"])
-  })
-  const [mobilePane, setMobilePane] = useState<PaneId>("chat")
+  const [paneState, setPaneState] = useState<ResponsivePaneState>(() => loadPaneState(id))
+  const { visiblePanes, mobilePane, desktopSyncPane } = paneState
 
   const { current, modelsByProvider, contextWindowByModel, sshHost, sshUser, editor } = useProject()
   const { showToast } = useToast()
@@ -113,6 +133,8 @@ export function TaskDetail() {
   // visible panes so the resize callback can adjust both adjacent panes.
   const dragPaneRef = useRef<PaneId | null>(null)
   const orderedVisibleRef = useRef<PaneId[]>([])
+  const desktopPaneProbeRef = useRef<HTMLButtonElement>(null)
+  const mobilePaneProbeRef = useRef<HTMLButtonElement>(null)
 
   const widthSetters: Record<string, (v: number) => void> = useMemo(() => ({
     diff: (v: number) => { dimsRef.current.diff = v; setDiffWidth(v) },
@@ -154,17 +176,42 @@ export function TaskDetail() {
     }, [saveDims, widthSetters]),
   })
 
-  const togglePane = useCallback((pane: PaneId) => {
-    setMobilePane(pane)
-    setVisiblePanes((prev) => {
-      const next = new Set(prev)
-      if (next.has(pane)) next.delete(pane)
-      else next.add(pane)
-      if (next.size === 0) next.add("chat")
-      try { localStorage.setItem(`tangerine:panes:${id}`, JSON.stringify([...next])) } catch { /* ignore */ }
+  const persistVisiblePanes = useCallback((next: ReadonlySet<PaneId>) => {
+    try { localStorage.setItem(`tangerine:panes:${id}`, JSON.stringify([...next])) } catch { /* ignore */ }
+  }, [id])
+
+  // Keep mobile pane switches separate from desktop toggles so hidden mobile
+  // panes unmount instead of staying connected off-screen.
+  const showMobilePane = useCallback((pane: PaneId) => {
+    setPaneState((prev) => selectMobilePane(prev, pane))
+  }, [])
+
+  const toggleDesktopPane = useCallback((pane: PaneId) => {
+    setPaneState((prev) => {
+      const next = toggleDesktopPaneState(prev, pane)
+      persistVisiblePanes(next.visiblePanes)
       return next
     })
-  }, [id])
+  }, [persistVisiblePanes])
+
+  const togglePaneFromAction = useCallback((pane: PaneId) => {
+    const isDesktopLayout = desktopPaneProbeRef.current?.offsetParent !== null
+    const isMobileLayout = mobilePaneProbeRef.current?.offsetParent !== null
+    if (isDesktopLayout || !isMobileLayout) {
+      setPaneState((prev) => {
+        const next = toggleDesktopPaneState(prev, pane)
+        persistVisiblePanes(next.visiblePanes)
+        return next
+      })
+      return
+    }
+
+    setPaneState((prev) => {
+      const next = toggleMobilePaneActionState(prev, pane)
+      persistVisiblePanes(next.visiblePanes)
+      return next
+    })
+  }, [persistVisiblePanes])
 
   const handleAddComment = useCallback((comment: DiffComment) => {
     setDiffCommentsAndPersist((prev) => [...prev, comment])
@@ -250,7 +297,16 @@ export function TaskDetail() {
     sendPromptRef.current(text)
     try { localStorage.removeItem(diffCommentsKey) } catch { /* ignore */ }
     setDiffComments([])
-    setMobilePane("chat")
+
+    const isDesktopLayout = desktopPaneProbeRef.current?.offsetParent !== null
+    const isMobileLayout = mobilePaneProbeRef.current?.offsetParent !== null
+    setPaneState((prev) => ({
+      ...prev,
+      mobilePane: "chat",
+      desktopSyncPane: isDesktopLayout || !isMobileLayout
+        ? prev.desktopSyncPane
+        : prev.desktopSyncPane ? "chat" : prev.desktopSyncPane,
+    }))
   }, [diffCommentsKey])
 
   const handleRefetch = useCallback(async () => {
@@ -267,7 +323,7 @@ export function TaskDetail() {
   // Register task-contextual actions in the command palette
   useTaskActions(task, handleRefetch)
   // Register panel toggle actions colocated with the pane state they control
-  usePanelActions(task, togglePane)
+  usePanelActions(task, togglePaneFromAction)
 
   // Start the task on first prompt if it's still in "created" status
   const handleSend = useCallback(
@@ -337,6 +393,10 @@ export function TaskDetail() {
     }
   }, [id])
 
+  useEffect(() => {
+    setPaneState(loadPaneState(id))
+  }, [id])
+
   // Mark task as seen on view, whenever it updates while viewing, and on leave
   useEffect(() => {
     if (id) markTaskSeen(id).catch(() => {})
@@ -350,14 +410,7 @@ export function TaskDetail() {
   useEffect(() => {
     if (!task) return
     if (!task.capabilities.includes("diff")) {
-      setVisiblePanes((prev) => {
-        if (!prev.has("diff")) return prev
-        const next = new Set(prev)
-        next.delete("diff")
-        if (next.size === 0) next.add("chat")
-        return next
-      })
-      setMobilePane((prev) => prev === "diff" ? "chat" : prev)
+      setPaneState((prev) => removePaneCapability(prev, "diff"))
     }
   }, [task?.id, task?.capabilities])
 
@@ -371,6 +424,24 @@ export function TaskDetail() {
       setTask((prev) => (prev ? { ...prev, status: session.taskStatus! } : prev))
     }
   }, [session.taskStatus, id, isCrossProject])
+
+  // Desktop shows the persisted pane set plus the pane currently selected on
+  // mobile, so rotating or resizing does not drop the pane the user is viewing.
+  const responsiveVisiblePanes = useMemo(
+    () => getResponsiveVisiblePanes(visiblePanes, desktopSyncPane),
+    [desktopSyncPane, visiblePanes],
+  )
+  const PANE_ORDER: PaneId[] = ["chat", "diff", "terminal", "activity"]
+  const orderedVisible = PANE_ORDER.filter((p) => responsiveVisiblePanes.has(p) && (p !== "diff" || hasDiff))
+  const desktopIsSolo = orderedVisible.length === 1
+  const firstVisiblePane = orderedVisible[0]
+  orderedVisibleRef.current = orderedVisible
+
+  const resizeHandlers: Record<string, (e: React.PointerEvent<HTMLDivElement>) => void> = {
+    diff: (e) => { dragPaneRef.current = "diff"; resize.onPointerDown(e) },
+    terminal: (e) => { dragPaneRef.current = "terminal"; resize.onPointerDown(e) },
+    activity: (e) => { dragPaneRef.current = "activity"; resize.onPointerDown(e) },
+  }
 
   if (loading) {
     return (
@@ -393,20 +464,6 @@ export function TaskDetail() {
 
   const tokenModel = sessionTask?.model ?? task.model
   const ctxMax = tokenModel ? contextWindowByModel[tokenModel] : undefined
-
-  // Desktop: multi-pane from visiblePanes set. Mobile: single pane from mobilePane.
-  // Both states are tracked; CSS breakpoints control which layout renders.
-  const PANE_ORDER: PaneId[] = ["chat", "diff", "terminal", "activity"]
-  const orderedVisible = PANE_ORDER.filter((p) => visiblePanes.has(p) && (p !== "diff" || hasDiff))
-  const desktopIsSolo = orderedVisible.length === 1
-  const firstVisiblePane = orderedVisible[0]
-  orderedVisibleRef.current = orderedVisible
-
-  const resizeHandlers: Record<string, (e: React.PointerEvent<HTMLDivElement>) => void> = {
-    diff: (e) => { dragPaneRef.current = "diff"; resize.onPointerDown(e) },
-    terminal: (e) => { dragPaneRef.current = "terminal"; resize.onPointerDown(e) },
-    activity: (e) => { dragPaneRef.current = "activity"; resize.onPointerDown(e) },
-  }
 
   return (
     <div className="flex h-full">
@@ -478,13 +535,27 @@ export function TaskDetail() {
             </span>
             <div className="ml-auto flex items-center gap-2">
               <div className="flex items-center gap-0.5 rounded-lg bg-muted p-[3px]">
-                <PaneToggle desktopActive={visiblePanes.has("chat")} mobileActive={mobilePane === "chat"} onClick={() => togglePane("chat")} label="Chat">
+                <PaneToggle
+                  desktopActive={responsiveVisiblePanes.has("chat")}
+                  mobileActive={mobilePane === "chat"}
+                  onDesktopClick={() => toggleDesktopPane("chat")}
+                  onMobileClick={() => showMobilePane("chat")}
+                  desktopButtonRef={desktopPaneProbeRef}
+                  mobileButtonRef={mobilePaneProbeRef}
+                  label="Chat"
+                >
                   <svg className="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                     <path strokeLinecap="round" strokeLinejoin="round" d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" />
                   </svg>
                 </PaneToggle>
                 {hasDiff && (
-                  <PaneToggle desktopActive={visiblePanes.has("diff")} mobileActive={mobilePane === "diff"} onClick={() => togglePane("diff")} label="Diff">
+                  <PaneToggle
+                    desktopActive={responsiveVisiblePanes.has("diff")}
+                    mobileActive={mobilePane === "diff"}
+                    onDesktopClick={() => toggleDesktopPane("diff")}
+                    onMobileClick={() => showMobilePane("diff")}
+                    label="Diff"
+                  >
                     <svg className="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                       <circle cx="18" cy="18" r="3" /><circle cx="6" cy="6" r="3" />
                       <path d="M13 6h3a2 2 0 0 1 2 2v7M11 18H8a2 2 0 0 1-2-2V9" />
@@ -492,9 +563,10 @@ export function TaskDetail() {
                   </PaneToggle>
                 )}
                 <PaneToggle
-                  desktopActive={visiblePanes.has("terminal")}
+                  desktopActive={responsiveVisiblePanes.has("terminal")}
                   mobileActive={mobilePane === "terminal"}
-                  onClick={() => togglePane("terminal")}
+                  onDesktopClick={() => toggleDesktopPane("terminal")}
+                  onMobileClick={() => showMobilePane("terminal")}
                   label="Terminal"
                 >
                   <svg className="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
@@ -502,7 +574,13 @@ export function TaskDetail() {
                     <rect x="2" y="3" width="20" height="18" rx="2" />
                   </svg>
                 </PaneToggle>
-                <PaneToggle desktopActive={visiblePanes.has("activity")} mobileActive={mobilePane === "activity"} onClick={() => togglePane("activity")} label="Activity">
+                <PaneToggle
+                  desktopActive={responsiveVisiblePanes.has("activity")}
+                  mobileActive={mobilePane === "activity"}
+                  onDesktopClick={() => toggleDesktopPane("activity")}
+                  onMobileClick={() => showMobilePane("activity")}
+                  label="Activity"
+                >
                   <svg className="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                     <path d="M22 12h-4l-3 9L9 3l-3 9H2" />
                   </svg>
@@ -557,11 +635,11 @@ export function TaskDetail() {
         <div ref={containerRef} className="flex min-h-0 flex-1 flex-col md:flex-row">
           {/* Chat pane — single instance for both breakpoints.
                Unmount when hidden at both breakpoints to avoid focusing an invisible input. */}
-          {chatTask && (mobilePane === "chat" || visiblePanes.has("chat")) && (
+          {chatTask && (mobilePane === "chat" || responsiveVisiblePanes.has("chat")) && (
             <div className={[
               "flex min-h-0 min-w-0 flex-col",
               mobilePane === "chat" ? "flex-1" : "hidden",
-              visiblePanes.has("chat") ? "md:flex md:flex-1" : "md:hidden",
+              responsiveVisiblePanes.has("chat") ? "md:flex md:flex-1" : "md:hidden",
             ].join(" ")}>
               <ChatPanel
                 messages={session.messages}
@@ -597,16 +675,16 @@ export function TaskDetail() {
           {orderedVisible.indexOf("diff") > 0 && (
             <ResizeHandle className="hidden md:flex" onPointerDown={resizeHandlers.diff!} />
           )}
-          {hasDiff && (mobilePane === "diff" || visiblePanes.has("diff")) && (
+          {hasDiff && (mobilePane === "diff" || responsiveVisiblePanes.has("diff")) && (
             <div
               className={[
                 "@container/diff flex min-h-0 min-w-0 flex-col",
                 mobilePane === "diff" ? "flex-1" : "hidden",
-                visiblePanes.has("diff")
+                responsiveVisiblePanes.has("diff")
                   ? `md:flex${desktopIsSolo || firstVisiblePane === "diff" ? " md:flex-1" : " md:flex-none md:[width:var(--pane-w)] md:max-w-full"}`
                   : "md:hidden",
               ].join(" ")}
-              style={visiblePanes.has("diff") && !desktopIsSolo && firstVisiblePane !== "diff" ? { "--pane-w": `${diffWidth}px` } as React.CSSProperties : undefined}
+              style={responsiveVisiblePanes.has("diff") && !desktopIsSolo && firstVisiblePane !== "diff" ? { "--pane-w": `${diffWidth}px` } as React.CSSProperties : undefined}
             >
               <div className="flex min-h-0 flex-1 flex-col @min-[700px]/diff:flex-row">
                 <div className="min-w-0 flex-1 overflow-y-auto">
@@ -636,16 +714,16 @@ export function TaskDetail() {
           {orderedVisible.indexOf("terminal") > 0 && (
             <ResizeHandle className="hidden md:flex" onPointerDown={resizeHandlers.terminal!} />
           )}
-          {(mobilePane === "terminal" || visiblePanes.has("terminal")) && (
+          {(mobilePane === "terminal" || responsiveVisiblePanes.has("terminal")) && (
             <div
               className={[
                 "flex min-h-0 min-w-0 flex-col",
                 mobilePane === "terminal" ? "flex-1" : "hidden",
-                visiblePanes.has("terminal")
+                responsiveVisiblePanes.has("terminal")
                   ? `md:flex${desktopIsSolo || firstVisiblePane === "terminal" ? " md:flex-1" : " md:flex-none md:[width:var(--pane-w)] md:max-w-full"}`
                   : "md:hidden",
               ].join(" ")}
-              style={visiblePanes.has("terminal") && !desktopIsSolo && firstVisiblePane !== "terminal" ? { "--pane-w": `${terminalWidth}px` } as React.CSSProperties : undefined}
+              style={responsiveVisiblePanes.has("terminal") && !desktopIsSolo && firstVisiblePane !== "terminal" ? { "--pane-w": `${terminalWidth}px` } as React.CSSProperties : undefined}
             >
               <TerminalPane taskId={id!} />
             </div>
@@ -655,16 +733,16 @@ export function TaskDetail() {
           {orderedVisible.indexOf("activity") > 0 && (
             <ResizeHandle className="hidden md:flex" onPointerDown={resizeHandlers.activity!} />
           )}
-          {(mobilePane === "activity" || visiblePanes.has("activity")) && (
+          {(mobilePane === "activity" || responsiveVisiblePanes.has("activity")) && (
             <div
               className={[
                 "flex min-h-0 min-w-0 flex-col bg-muted",
                 mobilePane === "activity" ? "flex-1" : "hidden",
-                visiblePanes.has("activity")
+                responsiveVisiblePanes.has("activity")
                   ? `md:flex${desktopIsSolo || firstVisiblePane === "activity" ? " md:flex-1" : " md:flex-none md:[width:var(--pane-w)] md:max-w-full"}`
                   : "md:hidden",
               ].join(" ")}
-              style={visiblePanes.has("activity") && !desktopIsSolo && firstVisiblePane !== "activity" ? { "--pane-w": `${activityWidth}px` } as React.CSSProperties : undefined}
+              style={responsiveVisiblePanes.has("activity") && !desktopIsSolo && firstVisiblePane !== "activity" ? { "--pane-w": `${activityWidth}px` } as React.CSSProperties : undefined}
             >
               <div className="min-h-0 flex-1 overflow-y-auto pt-3">
                 <ActivityList activities={session.activities} variant="compact" />
