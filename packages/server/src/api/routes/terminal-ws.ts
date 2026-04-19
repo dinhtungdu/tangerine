@@ -47,11 +47,11 @@ const sessions = new Map<string, TerminalSession>()
 const terminalClients = new Map<string, Set<BufferedTerminalClient>>()
 
 function historyPath(taskId: string): string {
-  return join(tmpdir(), `tng-${taskId.slice(0, 8)}.hist`)
+  return join(tmpdir(), `tng-${taskId}.hist`)
 }
 
 function pidPath(taskId: string): string {
-  return join(tmpdir(), `tng-${taskId.slice(0, 8)}.pid`)
+  return join(tmpdir(), `tng-${taskId}.pid`)
 }
 
 function loadHistorySync(histPath: string): string {
@@ -71,7 +71,7 @@ function appendScrollback(session: TerminalSession, data: string): void {
 }
 
 function schedulePersist(session: TerminalSession): void {
-  if (session.writeTimer) return
+  if (session.writeTimer) clearTimeout(session.writeTimer)
   session.writeTimer = setTimeout(() => {
     session.writeTimer = null
     Bun.write(session.histPath, session.scrollback).catch(() => {})
@@ -206,12 +206,20 @@ export function clearTerminalSession(taskId: string): void {
     try { unlinkSync(session.histPath) } catch { /* no file */ }
     try { unlinkSync(pidPath(taskId)) } catch { /* no file */ }
   } else {
-    // Server may have restarted — recover shell PID from disk and kill it
+    // Server may have restarted — recover shell PID from disk and kill it.
+    // Validate via /proc/<pid>/cmdline before killing to avoid hitting a
+    // reused PID that belongs to an unrelated process.
     const pp = pidPath(taskId)
     try {
       const pid = parseInt(readFileSync(pp, "utf-8").trim(), 10)
-      if (!isNaN(pid)) process.kill(pid, "SIGKILL")
-    } catch { /* process already gone or no PID file */ }
+      if (!isNaN(pid)) {
+        process.kill(pid, 0) // throws ESRCH if process is gone
+        const cmdline = readFileSync(`/proc/${pid}/cmdline`, "utf-8")
+        if (cmdline.includes("bash") || cmdline.includes("sh")) {
+          process.kill(pid, "SIGKILL")
+        }
+      }
+    } catch { /* process gone, /proc unavailable, or not a shell — skip */ }
     try { unlinkSync(pp) } catch { /* no file */ }
     try { unlinkSync(historyPath(taskId)) } catch { /* no file */ }
   }

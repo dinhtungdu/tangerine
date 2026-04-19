@@ -25,7 +25,7 @@ History + PID files (tmpdir, per-task)
 ## Scrollback persistence
 
 - Scrollback stored in memory (`session.scrollback: string`) and persisted to disk at `os.tmpdir()/tng-<taskId8>.hist`.
-- Disk writes are debounced (40ms) to avoid thrashing on high-output commands.
+- Disk writes are debounced: each new output chunk resets the 40ms timer, so the write fires 40ms after output goes quiet.
 - Limit: 500KB (ring buffer, oldest bytes trimmed).
 - On session creation, existing history is loaded from disk synchronously (one-time, at connect time).
 - History survives server restarts (tmpdir persists across process restarts but not OS reboots).
@@ -35,7 +35,7 @@ History + PID files (tmpdir, per-task)
 
 - Shell PID is written to `os.tmpdir()/tng-<taskId8>.pid` on session creation.
 - Deleted on natural shell exit.
-- `clearTerminalSession` reads the PID file and sends SIGKILL when no live session is found (i.e. after a server restart), preventing orphaned bash processes from outliving the task.
+- `clearTerminalSession` reads the PID file when no live session is found (e.g. after a server restart). Before sending SIGKILL it validates via `/proc/<pid>/cmdline` that the PID still belongs to a shell process, guarding against PID reuse killing an unrelated process. If validation fails or `/proc` is unavailable, the kill is skipped (best-effort).
 
 ## WebSocket message protocol
 
