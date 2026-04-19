@@ -46,8 +46,7 @@ export function RunsPage() {
   const handleSubmit = useCallback(async (data: { projectId: string; title: string; description?: string; branch?: string; provider?: string; model?: string; reasoningEffort?: string; parentTaskId?: string; type?: string; images?: import("@tangerine/shared").PromptImage[] }) => {
     try {
       const task = await createTask(data)
-      // Navigate with the task's own projectId so cross-project submits open correctly.
-      navigate(`/tasks/${task.id}?project=${encodeURIComponent(task.projectId)}`)
+      navigate(`/tasks/${task.id}?project=${encodeURIComponent(data.projectId)}`)
     } catch {
       showToast("Failed to create task")
     }
