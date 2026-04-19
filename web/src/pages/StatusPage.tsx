@@ -1,9 +1,7 @@
-import { useCallback, useMemo } from "react"
-import { useOutletContext } from "react-router-dom"
+import { useCallback } from "react"
 import { useProject } from "../context/ProjectContext"
 import { useToast } from "../context/ToastContext"
 import { resolveTaskTypeConfig } from "@tangerine/shared"
-import type { SidebarContext } from "../components/Layout"
 import { ActiveRunsCard, SystemLog, ProjectUpdateCard } from "../components/StatusWidgets"
 import { PredefinedPromptsEditor } from "../components/PredefinedPromptsEditor"
 import { SystemPromptEditor } from "../components/SystemPromptEditor"
@@ -14,12 +12,6 @@ import { Button } from "@/components/ui/button"
 export function StatusPage() {
   const { current, projects, switchProject, refreshProjects } = useProject()
   const { showToast } = useToast()
-  const outletCtx = useOutletContext<SidebarContext | null>()
-  const allTasks = outletCtx?.tasks ?? []
-  const tasks = useMemo(
-    () => current ? allTasks.filter((t) => t.projectId === current.name) : allTasks,
-    [allTasks, current],
-  )
 
   const handleArchive = useCallback(async () => {
     if (!current) return
@@ -66,7 +58,7 @@ export function StatusPage() {
           {/* Project update + Active runs */}
           <div className="flex flex-col gap-4 md:flex-row md:gap-6">
             <ProjectUpdateCard project={current?.name} />
-            <ActiveRunsCard tasks={tasks} />
+            <ActiveRunsCard project={current?.name} />
           </div>
 
           {/* Per-task-type config */}

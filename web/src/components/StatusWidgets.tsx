@@ -1,28 +1,40 @@
 import { useState, useEffect, useCallback, useRef } from "react"
-import type { Task, SystemLogEntry } from "@tangerine/shared"
-import { fetchSystemLogs, fetchOrphans, cleanupOrphans as apiCleanupOrphans, fetchUpdateStatus, updateProjectRepo, fetchHealth, type ProjectUpdateStatus } from "../lib/api"
+import type { SystemLogEntry } from "@tangerine/shared"
+import { fetchSystemLogs, fetchOrphans, cleanupOrphans as apiCleanupOrphans, fetchUpdateStatus, updateProjectRepo, fetchHealth, fetchTaskCounts, type ProjectUpdateStatus } from "../lib/api"
 import { formatRelativeTime, formatTimestamp } from "../lib/format"
 import { Button } from "@/components/ui/button"
 
 /* ── Cards ── */
 
-export function ActiveRunsCard({ tasks }: { tasks: Task[] }) {
-  const running = tasks.filter((t) => t.status === "running").length
-  const queued = tasks.filter((t) => t.status === "created" || t.status === "provisioning").length
-  const done = tasks.filter((t) => t.status === "done").length
+export function ActiveRunsCard({ project }: { project?: string }) {
+  const [running, setRunning] = useState(0)
+  const [queued, setQueued] = useState(0)
+  const [done, setDone] = useState(0)
   const [orphanCount, setOrphanCount] = useState(0)
   const [cleaning, setCleaning] = useState(false)
 
   useEffect(() => {
     let cancelled = false
     async function poll() {
-      const orphans = await fetchOrphans().catch(() => [])
-      if (!cancelled) setOrphanCount(orphans.length)
+      const [runningCounts, createdCounts, provisioningCounts, doneCounts, orphans] = await Promise.all([
+        fetchTaskCounts({ status: "running" }).catch(() => ({} as Record<string, number>)),
+        fetchTaskCounts({ status: "created" }).catch(() => ({} as Record<string, number>)),
+        fetchTaskCounts({ status: "provisioning" }).catch(() => ({} as Record<string, number>)),
+        fetchTaskCounts({ status: "done" }).catch(() => ({} as Record<string, number>)),
+        fetchOrphans().catch(() => []),
+      ])
+      if (cancelled) return
+      const sum = (counts: Record<string, number>) =>
+        project ? (counts[project] ?? 0) : Object.values(counts).reduce((a, b) => a + b, 0)
+      setRunning(sum(runningCounts))
+      setQueued(sum(createdCounts) + sum(provisioningCounts))
+      setDone(sum(doneCounts))
+      setOrphanCount(orphans.length)
     }
     poll()
     const interval = setInterval(poll, 10000)
     return () => { cancelled = true; clearInterval(interval) }
-  }, [])
+  }, [project])
 
   const handleCleanup = useCallback(async () => {
     setCleaning(true)
