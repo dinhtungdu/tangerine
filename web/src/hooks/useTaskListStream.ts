@@ -48,6 +48,10 @@ export function useTaskListStream(filter: TaskListStreamFilter, handlers: TaskLi
     let reconnectTimer: ReturnType<typeof setTimeout> | null = null
     let backoff = 1000
     let unmounted = false
+    // Set when the server closes us with "Unauthorized" so we stop the
+    // reconnect loop instead of hammering the endpoint until the user
+    // reloads or the token is refreshed elsewhere.
+    let authFailed = false
 
     const connect = () => {
       if (unmounted) return
@@ -111,7 +115,10 @@ export function useTaskListStream(filter: TaskListStreamFilter, handlers: TaskLi
             return
           }
           case "error":
-            if (msg.message === "Unauthorized") emitAuthFailure()
+            if (msg.message === "Unauthorized") {
+              authFailed = true
+              emitAuthFailure()
+            }
             return
           case "connected":
             onServerHandshake()
@@ -145,6 +152,10 @@ export function useTaskListStream(filter: TaskListStreamFilter, handlers: TaskLi
         if (unmounted) return
         if (ws === socket) ws = null
         handlersRef.current.onDisconnect?.()
+        // Stop reconnecting on auth failure — the token isn't going to
+        // get better by itself, and tight-looping here just spams the
+        // endpoint and the auth-failure handler.
+        if (authFailed) return
         const delay = backoff
         backoff = Math.min(delay * 2, MAX_BACKOFF)
         reconnectTimer = setTimeout(connect, delay)
@@ -162,6 +173,8 @@ export function useTaskListStream(filter: TaskListStreamFilter, handlers: TaskLi
           reconnectTimer = null
         }
         backoff = 1000
+        // Tab re-focus — retry auth in case the token was refreshed elsewhere.
+        authFailed = false
         connect()
       }
     }

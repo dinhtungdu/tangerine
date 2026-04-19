@@ -7,6 +7,13 @@ import { useTaskListStream } from "./useTaskListStream"
 const FALLBACK_POLL_INTERVAL = 5000
 const PAGE_SIZE = 50
 
+// Mirrors ORDER BY in listTasksPerProjectCapped.
+const ACTIVE = new Set(["created", "provisioning", "running"])
+function compareTasks(a: Task, b: Task): number {
+  const rank = (ACTIVE.has(a.status) ? 0 : 1) - (ACTIVE.has(b.status) ? 0 : 1)
+  return rank !== 0 ? rank : b.createdAt.localeCompare(a.createdAt)
+}
+
 interface UseTasksResult {
   tasks: Task[]
   loading: boolean
@@ -171,13 +178,10 @@ export function useTasks(filter?: { status?: string; project?: string; search?: 
         setTasksByProject((prev) => {
           const existing = prev[task.projectId] ?? []
           const idx = existing.findIndex((t) => t.id === task.id)
-          if (idx === -1) return { ...prev, [task.projectId]: [task, ...existing] }
-          const next = existing.slice()
-          // Replace the row wholesale — merging would preserve stale
-          // agentStatus after a task leaves "running" or flips back to
-          // working, since the server intentionally omits agentStatus when
-          // it no longer applies.
-          next[idx] = task
+          // Replace wholesale (not merge) — server omits agentStatus when
+          // it no longer applies, and status flips can change sort bucket.
+          const next = idx === -1 ? [task, ...existing] : existing.with(idx, task)
+          next.sort(compareTasks)
           return { ...prev, [task.projectId]: next }
         })
       },
