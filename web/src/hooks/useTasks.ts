@@ -256,6 +256,21 @@ export function useTasks(filter?: { status?: string; project?: string; search?: 
           applyDelete(msg.taskId, msg.projectId, msg.counts)
           return
         }
+        if (msg.type === "task_agent_status") {
+          setTasksByProject((prev) => {
+            for (const [pid, list] of Object.entries(prev)) {
+              const idx = list.findIndex((t) => t.id === msg.taskId)
+              if (idx === -1) continue
+              const target = list[idx]
+              if (!target) continue
+              const next = list.slice()
+              next[idx] = { ...target, agentStatus: msg.agentStatus }
+              return { ...prev, [pid]: next }
+            }
+            return prev
+          })
+          return
+        }
       }
 
       socket.onerror = () => {

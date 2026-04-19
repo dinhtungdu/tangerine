@@ -10,6 +10,7 @@ export type TaskListEvent =
   | { kind: "created"; task: TaskRow }
   | { kind: "updated"; task: TaskRow }
   | { kind: "deleted"; taskId: string; projectId: string }
+  | { kind: "agent_status"; taskId: string; agentStatus: "idle" | "working" }
 
 type TaskListHandler = (event: TaskListEvent) => void
 
@@ -66,7 +67,11 @@ export function hasAgentWorkingState(taskId: string): boolean {
 
 /** Update the agent working state for a task. */
 export function setAgentWorkingState(taskId: string, state: "idle" | "working"): void {
+  const prev = agentWorkingState.get(taskId)
   agentWorkingState.set(taskId, state)
+  if (prev !== state) {
+    emitTaskListEvent({ kind: "agent_status", taskId, agentStatus: state })
+  }
 }
 
 /** Clean up agent working state when a task is terminal. */

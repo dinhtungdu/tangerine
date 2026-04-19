@@ -85,6 +85,7 @@ export type WsServerMessage =
   | { type: "task_created"; task: Task; counts: Record<string, number> }
   | { type: "task_updated"; task: Task }
   | { type: "task_deleted"; taskId: string; projectId: string; counts: Record<string, number> }
+  | { type: "task_agent_status"; taskId: string; agentStatus: "idle" | "working" }
 
 export interface PromptImage {
   mediaType: "image/png" | "image/jpeg" | "image/gif" | "image/webp"

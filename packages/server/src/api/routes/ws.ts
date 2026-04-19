@@ -6,7 +6,7 @@ import { mapTaskRow } from "../helpers"
 import { createWebSocketHeartbeat, type WebSocketHeartbeat } from "../ws-heartbeat"
 import { isAuthEnabled, isRequestAuthenticated, isValidAuthToken } from "../../auth"
 import { getTask, listTasks, countTasksByProject } from "../../db/queries"
-import { getAgentWorkingState, onTaskListEvent, type TaskListEvent } from "../../tasks/events"
+import { getAgentWorkingState, hasAgentWorkingState, onTaskListEvent, type TaskListEvent } from "../../tasks/events"
 import type { WsClientMessage, WsServerMessage, TaskStatus, Task } from "@tangerine/shared"
 
 /**
@@ -220,11 +220,74 @@ export function taskListWsRoutes(deps: AppDeps, upgradeWebSocket: UpgradeWebSock
         return true
       }
 
+      // Mirror the augmentation done by GET /api/tasks so the WS payload
+      // carries the same agentStatus information as the REST response.
+      const withAgentStatus = (task: Task): Task => {
+        if (task.status !== "running") return task
+        if (task.suspended) return { ...task, agentStatus: "idle" }
+        if (hasAgentWorkingState(task.id)) return { ...task, agentStatus: getAgentWorkingState(task.id) }
+        return task
+      }
+
+      const sendSafe = (ws: SocketLike, msg: WsServerMessage) => {
+        try { ws.send(JSON.stringify(msg)) } catch { /* client gone */ }
+      }
+
+      const handleEvent = (ws: SocketLike, event: TaskListEvent) => {
+        try {
+          if (event.kind === "agent_status") {
+            sendSafe(ws, { type: "task_agent_status", taskId: event.taskId, agentStatus: event.agentStatus })
+            return
+          }
+          if (event.kind === "deleted") {
+            Effect.runPromise(countTasksByProject(deps.db, { status, search })).then((c) => {
+              sendSafe(ws, { type: "task_deleted", taskId: event.taskId, projectId: event.projectId, counts: c })
+            }).catch(() => { /* ignore */ })
+            return
+          }
+
+          const task = withAgentStatus(mapTaskRow(event.task))
+          if (!matchesFilter(task)) {
+            // Task no longer matches filter — drop it as a delete so clients
+            // that were tracking it clean up. Clients tolerate unknown ids.
+            if (event.kind === "updated") {
+              Effect.runPromise(countTasksByProject(deps.db, { status, search })).then((c) => {
+                sendSafe(ws, { type: "task_deleted", taskId: task.id, projectId: task.projectId, counts: c })
+              }).catch(() => { /* ignore */ })
+            }
+            return
+          }
+
+          if (event.kind === "created") {
+            Effect.runPromise(countTasksByProject(deps.db, { status, search })).then((c) => {
+              sendSafe(ws, { type: "task_created", task, counts: c })
+            }).catch(() => { /* ignore */ })
+          } else {
+            sendSafe(ws, { type: "task_updated", task })
+          }
+        } catch {
+          // Never let a listener crash propagate
+        }
+      }
+
       const startStreaming = (ws: SocketLike) => {
         if (started) return
         started = true
         heartbeat = createWebSocketHeartbeat(ws)
         heartbeat.start()
+
+        // Subscribe BEFORE loading the snapshot so no events are lost in the gap
+        // between "read task rows" and "register subscription". Events that land
+        // while the snapshot is loading are buffered, then flushed in order.
+        let snapshotSent = false
+        const buffered: TaskListEvent[] = []
+        unsub = onTaskListEvent((event: TaskListEvent) => {
+          if (!snapshotSent) {
+            buffered.push(event)
+            return
+          }
+          handleEvent(ws, event)
+        })
 
         Effect.runPromise(
           Effect.all({
@@ -233,52 +296,16 @@ export function taskListWsRoutes(deps: AppDeps, upgradeWebSocket: UpgradeWebSock
           })
         ).then(
           ({ rows, counts }) => {
-            const tasks: Task[] = rows.map(mapTaskRow)
-            const connected: WsServerMessage = { type: "connected" }
-            ws.send(JSON.stringify(connected))
-            const snapshot: WsServerMessage = { type: "tasks_snapshot", tasks, counts }
-            ws.send(JSON.stringify(snapshot))
-
-            unsub = onTaskListEvent((event: TaskListEvent) => {
-              try {
-                if (event.kind === "deleted") {
-                  Effect.runPromise(countTasksByProject(deps.db, { status, search })).then((c) => {
-                    const msg: WsServerMessage = { type: "task_deleted", taskId: event.taskId, projectId: event.projectId, counts: c }
-                    try { ws.send(JSON.stringify(msg)) } catch { /* client gone */ }
-                  }).catch(() => { /* ignore count errors */ })
-                  return
-                }
-
-                const task = mapTaskRow(event.task)
-                if (!matchesFilter(task)) {
-                  // Task no longer matches filter — treat as delete if it was previously in scope.
-                  // Client handles unknown ids gracefully.
-                  if (event.kind === "updated") {
-                    Effect.runPromise(countTasksByProject(deps.db, { status, search })).then((c) => {
-                      const msg: WsServerMessage = { type: "task_deleted", taskId: task.id, projectId: task.projectId, counts: c }
-                      try { ws.send(JSON.stringify(msg)) } catch { /* client gone */ }
-                    }).catch(() => { /* ignore */ })
-                  }
-                  return
-                }
-
-                if (event.kind === "created") {
-                  Effect.runPromise(countTasksByProject(deps.db, { status, search })).then((c) => {
-                    const msg: WsServerMessage = { type: "task_created", task, counts: c }
-                    try { ws.send(JSON.stringify(msg)) } catch { /* client gone */ }
-                  }).catch(() => { /* ignore */ })
-                } else {
-                  const msg: WsServerMessage = { type: "task_updated", task }
-                  try { ws.send(JSON.stringify(msg)) } catch { /* client gone */ }
-                }
-              } catch {
-                // Never let a listener crash propagate
-              }
-            })
+            const tasks: Task[] = rows.map((row) => withAgentStatus(mapTaskRow(row)))
+            sendSafe(ws, { type: "connected" })
+            sendSafe(ws, { type: "tasks_snapshot", tasks, counts })
+            snapshotSent = true
+            // Flush any events that arrived during the snapshot load.
+            for (const event of buffered) handleEvent(ws, event)
+            buffered.length = 0
           },
           () => {
-            const msg: WsServerMessage = { type: "error", message: "Failed to load tasks" }
-            try { ws.send(JSON.stringify(msg)) } catch { /* client gone */ }
+            sendSafe(ws, { type: "error", message: "Failed to load tasks" })
             ws.close(1011, "Snapshot failed")
           },
         )
