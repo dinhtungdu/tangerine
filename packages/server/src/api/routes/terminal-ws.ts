@@ -228,6 +228,18 @@ export function clearTerminalSession(taskId: string): void {
 export function terminalWsRoutes(deps: AppDeps, upgradeWebSocket: UpgradeWebSocket): Hono {
   const app = new Hono()
 
+  // Reject before WebSocket upgrade when the task has no worktree so the
+  // client gets an HTTP 400 (not a 101 that immediately drops) and can show
+  // "Terminal not available" without retrying.
+  app.use("/:id/terminal", async (c, next) => {
+    const taskId = c.req.param("id")!
+    const task = await Effect.runPromise(getTask(deps.db, taskId))
+    if (!task?.worktree_path) {
+      return c.json({ error: "no_worktree", message: "Task has no worktree" }, 400)
+    }
+    return next()
+  })
+
   app.get(
     "/:id/terminal",
     upgradeWebSocket((c) => {
