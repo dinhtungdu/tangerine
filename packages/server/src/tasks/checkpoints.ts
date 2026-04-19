@@ -9,6 +9,8 @@ import {
   listCheckpoints,
   deleteCheckpointsForTask,
   getLastAssistantSessionLogId,
+  checkpointExistsForSessionLog,
+  getMaxCheckpointTurnIndex,
 } from "../db/queries"
 import { localExec } from "./worktree-pool"
 
@@ -19,12 +21,19 @@ const log = createLogger("checkpoints")
  * Auto-commits if dirty, records a detached ref and a DB row.
  * Non-fatal: swallows all errors so it never disrupts the event pipeline.
  */
+const SAFE_PATH_RE = /^[\w\-./]+$/
+
 export function snapshotCheckpoint(
   db: Database,
   taskId: string,
   worktreePath: string,
 ): Effect.Effect<void, never> {
   return Effect.gen(function* () {
+    if (!SAFE_PATH_RE.test(worktreePath)) {
+      log.warn("Skipping checkpoint: unsafe worktree path", { taskId, worktreePath })
+      return
+    }
+
     // Yield to let any in-flight session log writes (fire-and-forget Effect.runPromise
     // calls in the message handler) complete before we query the DB.
     yield* Effect.sleep(Duration.millis(50))
@@ -33,10 +42,11 @@ export function snapshotCheckpoint(
     if (sessionLogId === null) return // No assistant turn yet
 
     // Deduplicate: skip if we already have a checkpoint for this session log entry
-    const existing = yield* listCheckpoints(db, taskId)
-    if (existing.some(cp => cp.session_log_id === sessionLogId)) return
+    const exists = yield* checkpointExistsForSessionLog(db, taskId, sessionLogId)
+    if (exists) return
 
-    const turnIndex = existing.length
+    const maxIdx = yield* getMaxCheckpointTurnIndex(db, taskId)
+    const turnIndex = maxIdx + 1
 
     // Build a commit object for the current worktree state without moving HEAD.
     // Using plumbing (write-tree + commit-tree) keeps the checkpoint commit off the
@@ -46,12 +56,15 @@ export function snapshotCheckpoint(
 
     let commitSha: string
     if (isDirty) {
-      // Stage everything, snapshot the tree, then restore the index — branch tip unchanged.
+      // Use a temporary index so we don't clobber any partially-staged files in the real worktree.
+      // GIT_INDEX_FILE redirects git add/write-tree to a separate index, leaving the task's
+      // staging area untouched.
+      const tmpIndex = `${worktreePath}/.git/checkpoint-index-${turnIndex}`
       const { stdout: treeOut } = yield* localExec(
-        `cd "${worktreePath}" && git add -A && git write-tree`
+        `cd "${worktreePath}" && GIT_INDEX_FILE="${tmpIndex}" git add -A && GIT_INDEX_FILE="${tmpIndex}" git write-tree`
       )
       const treeSha = treeOut.trim()
-      yield* localExec(`cd "${worktreePath}" && git reset HEAD --quiet`)
+      yield* localExec(`rm -f "${tmpIndex}"`)
 
       const { stdout: commitOut } = yield* localExec(
         `cd "${worktreePath}" && git commit-tree ${treeSha} -p HEAD -m "checkpoint: turn ${turnIndex}"`
@@ -94,13 +107,14 @@ export function cleanupTaskCheckpoints(
     const checkpoints = yield* listCheckpoints(db, taskId)
     if (checkpoints.length === 0) return
 
-    // Delete git refs if we still have access to the worktree
-    if (worktreePath) {
-      for (const cp of checkpoints) {
-        yield* localExec(
-          `cd "${worktreePath}" && git update-ref -d refs/checkpoints/${taskId}/${cp.turn_index} 2>/dev/null || true`
-        )
-      }
+    // Delete git refs in a single batch if we still have access to the worktree
+    if (worktreePath && SAFE_PATH_RE.test(worktreePath)) {
+      const deleteCommands = checkpoints
+        .map(cp => `delete refs/checkpoints/${taskId}/${cp.turn_index}`)
+        .join("\n")
+      yield* localExec(
+        `cd "${worktreePath}" && echo "${deleteCommands}" | git update-ref --stdin 2>/dev/null || true`
+      )
     }
 
     yield* deleteCheckpointsForTask(db, taskId)
