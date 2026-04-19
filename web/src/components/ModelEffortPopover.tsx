@@ -57,14 +57,14 @@ export function ModelEffortPopover({
           />
         }
       >
-        <span className="max-w-[140px] truncate">{formatModelName(resolvedModel)}</span>
+        <span className="max-w-35 truncate">{formatModelName(resolvedModel)}</span>
         <ChevronDown data-icon="inline-end" />
       </PopoverTrigger>
       <PopoverContent
         side="top"
         align="start"
         sideOffset={6}
-        className="w-lg max-w-[calc(100vw-24px)] overflow-hidden p-0"
+        className="w-lg max-w-[calc(100vw-16px)] overflow-hidden p-0"
       >
         <div className="flex flex-wrap">
           {/* Model column */}
