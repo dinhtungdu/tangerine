@@ -11,7 +11,7 @@ Hono WS route (terminal-ws.ts)
   ↕ bun-pty
 Shell process (bash --login, cwd = worktree)
   ↕ disk
-History file (~/.cache or tmpdir, per-task)
+History + PID files (tmpdir, per-task)
 ```
 
 ## Session lifecycle
@@ -30,6 +30,12 @@ History file (~/.cache or tmpdir, per-task)
 - On session creation, existing history is loaded from disk synchronously (one-time, at connect time).
 - History survives server restarts (tmpdir persists across process restarts but not OS reboots).
 - History is deleted by `clearTerminalSession` when a task is cleaned up.
+
+## Orphan prevention
+
+- Shell PID is written to `os.tmpdir()/tng-<taskId8>.pid` on session creation.
+- Deleted on natural shell exit.
+- `clearTerminalSession` reads the PID file and sends SIGKILL when no live session is found (i.e. after a server restart), preventing orphaned bash processes from outliving the task.
 
 ## WebSocket message protocol
 

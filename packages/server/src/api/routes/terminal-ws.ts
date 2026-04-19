@@ -210,7 +210,7 @@ export function clearTerminalSession(taskId: string): void {
     const pp = pidPath(taskId)
     try {
       const pid = parseInt(readFileSync(pp, "utf-8").trim(), 10)
-      if (!isNaN(pid)) process.kill(pid, "SIGTERM")
+      if (!isNaN(pid)) process.kill(pid, "SIGKILL")
     } catch { /* process already gone or no PID file */ }
     try { unlinkSync(pp) } catch { /* no file */ }
     try { unlinkSync(historyPath(taskId)) } catch { /* no file */ }
