@@ -153,10 +153,11 @@ export function ChatPanel({
     if ((messagesGrew || activitiesGrew) && isAtBottom) {
       const tag = document.activeElement?.tagName
       const inputFocused = tag === "TEXTAREA" || tag === "INPUT"
-      // Always scroll when user sends a message; for agent messages, skip when
-      // input is focused — on mobile, scrollIntoView pushes the input below the keyboard
+      // On mobile, scrollIntoView with a focused input pushes it below the virtual keyboard.
+      // maxTouchPoints > 0 targets touch devices (phones/tablets/touchscreen laptops).
+      const isMobile = navigator.maxTouchPoints > 0
       const lastMessageIsUser = messagesGrew && messages[messages.length - 1]?.role === "user"
-      if (!inputFocused || lastMessageIsUser) {
+      if (!(inputFocused && isMobile) || lastMessageIsUser) {
         const el = contentRef.current
         if (el) el.scrollIntoView({ block: "end" })
       }
