@@ -20,11 +20,11 @@ const log = createLogger("project-routes")
 const FORK_CACHE_TTL_MS = 5 * 60 * 1000 // 5 minutes
 const forkInfoCache = new Map<string, { info: { isFork: boolean; parentSlug: string | null }; expiresAt: number }>()
 
-async function getCachedForkInfo(slug: string): Promise<{ isFork: boolean; parentSlug: string | null }> {
+async function getCachedForkInfo(slug: string, repoUrl?: string): Promise<{ isFork: boolean; parentSlug: string | null }> {
   const cached = forkInfoCache.get(slug)
   if (cached && Date.now() < cached.expiresAt) return cached.info
   try {
-    const info = await getRepoForkInfo(slug)
+    const info = await getRepoForkInfo(slug, repoUrl)
     forkInfoCache.set(slug, { info, expiresAt: Date.now() + FORK_CACHE_TTL_MS })
     return info
   } catch {
@@ -252,7 +252,7 @@ export function projectRoutes(deps: AppDeps): Hono {
     const slug = resolveGithubSlug(project.repo)
     const [status, forkInfo] = await Promise.all([
       Effect.runPromise(checkForUpdate(repoDir, defaultBranch)),
-      slug ? getCachedForkInfo(slug) : Promise.resolve({ isFork: false, parentSlug: null }),
+      slug ? getCachedForkInfo(slug, project.repo) : Promise.resolve({ isFork: false, parentSlug: null }),
     ])
 
     return c.json({ ...status, ...forkInfo })
@@ -279,14 +279,14 @@ export function projectRoutes(deps: AppDeps): Hono {
         const slug = resolveGithubSlug(project.repo)
         if (slug) {
           const forkInfo = yield* Effect.tryPromise({
-            try: () => getRepoForkInfo(slug),
+            try: () => getRepoForkInfo(slug, project.repo),
             catch: () => new Error("Failed to check fork status"),
           }).pipe(Effect.catchAll(() => Effect.succeed({ isFork: false, parentSlug: null })))
 
           if (forkInfo.isFork) {
             log.info("Syncing fork from upstream before pull", { name, slug })
             yield* Effect.tryPromise({
-              try: () => syncForkRepo(slug),
+              try: () => syncForkRepo(slug, project.repo),
               catch: (e) => e instanceof Error ? e : new Error(String(e)),
             }).pipe(Effect.catchAll((e) => {
               log.warn("Fork sync failed, continuing with normal pull", { name, error: e.message })
@@ -351,7 +351,7 @@ export function projectRoutes(deps: AppDeps): Hono {
     if (!slug) return c.json({ isFork: false, parentSlug: null })
 
     try {
-      const info = await getRepoForkInfo(slug)
+      const info = await getRepoForkInfo(slug, project.repo)
       return c.json(info)
     } catch {
       return c.json({ isFork: false, parentSlug: null })
@@ -370,7 +370,7 @@ export function projectRoutes(deps: AppDeps): Hono {
         if (!slug) return yield* Effect.fail(new Error("Could not extract GitHub slug from repo URL"))
 
         const forkInfo = yield* Effect.tryPromise({
-          try: () => getRepoForkInfo(slug),
+          try: () => getRepoForkInfo(slug, project.repo),
           catch: (e) => e instanceof Error ? e : new Error(String(e)),
         })
 
@@ -381,7 +381,7 @@ export function projectRoutes(deps: AppDeps): Hono {
         log.info("Syncing fork from upstream", { name, slug, upstream: forkInfo.parentSlug })
 
         yield* Effect.tryPromise({
-          try: () => syncForkRepo(slug),
+          try: () => syncForkRepo(slug, project.repo),
           catch: (e) => e instanceof Error ? e : new Error(String(e)),
         })
 

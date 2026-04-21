@@ -639,7 +639,7 @@ export async function start(): Promise<void> {
                         const slug = resolveGithubSlug(projConfig.repo)
                         if (slug) {
                           try {
-                            const forkInfo = await getRepoForkInfo(slug)
+                            const forkInfo = await getRepoForkInfo(slug, projConfig.repo)
                             if (forkInfo.isFork && forkInfo.parentSlug) {
                               nudgeUpstreamSlug = forkInfo.parentSlug
                             }

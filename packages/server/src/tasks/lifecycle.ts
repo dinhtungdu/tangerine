@@ -287,7 +287,7 @@ export function startSession(
       const slug = resolveGithubSlug(config.repo)
       if (slug) {
         const forkInfo = yield* Effect.tryPromise({
-          try: () => getRepoForkInfo(slug),
+          try: () => getRepoForkInfo(slug, config.repo),
           catch: () => ({ isFork: false, parentSlug: null }),
         }).pipe(Effect.catchAll(() => Effect.succeed({ isFork: false, parentSlug: null })))
         if (forkInfo.isFork && forkInfo.parentSlug) {
@@ -413,7 +413,7 @@ export function reconnectSession(
       const slug = resolveGithubSlug(project.repo)
       if (slug) {
         const forkInfo = yield* Effect.tryPromise({
-          try: () => getRepoForkInfo(slug),
+          try: () => getRepoForkInfo(slug, project.repo),
           catch: () => ({ isFork: false, parentSlug: null }),
         }).pipe(Effect.catchAll(() => Effect.succeed({ isFork: false, parentSlug: null })))
         if (forkInfo.isFork && forkInfo.parentSlug) {
