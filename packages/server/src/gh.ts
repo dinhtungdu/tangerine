@@ -34,6 +34,34 @@ export function ghSpawnEnv(extra?: Record<string, unknown>): Record<string, unkn
 }
 
 /**
+ * Build spawn env for `gh` commands targeting a specific repo slug.
+ * Explicitly sets GH_HOST so the `gh` CLI doesn't fall back to the default
+ * active account host (e.g. GHE) when the slug targets github.com.
+ *
+ * Bare "owner/repo" slugs → GH_HOST=github.com
+ * Host-qualified "host/owner/repo" slugs → GH_HOST=host
+ */
+export function ghSpawnEnvForSlug(repoSlug: string): Record<string, unknown> {
+  const parts = repoSlug.split("/")
+  const ghHost = parts.length >= 3 ? (parts[0] ?? "github.com") : "github.com"
+  const proxy = process.env.GHE_PROXY
+  return {
+    stdout: "pipe" as const,
+    stderr: "pipe" as const,
+    env: {
+      ...process.env,
+      GH_HOST: ghHost,
+      ...(proxy ? {
+        HTTPS_PROXY: proxy,
+        HTTP_PROXY: proxy,
+        NO_PROXY: "localhost,127.0.0.1,host.lima.internal,github.com,api.github.com",
+        no_proxy: "localhost,127.0.0.1,host.lima.internal,github.com,api.github.com",
+      } : {}),
+    },
+  }
+}
+
+/**
  * Match a PR URL from any GitHub host (github.com, github.example.com, etc).
  * Captures: host, owner, repo, PR number.
  */
@@ -83,7 +111,7 @@ export function resolveGithubSlug(repo: string): string | null {
 export async function getRepoForkInfo(repoSlug: string): Promise<RepoForkInfo> {
   const proc = Bun.spawn(
     ["gh", "repo", "view", repoSlug, "--json", "isFork,parent", "--jq", "[.isFork, .parent.nameWithOwner] | @tsv"],
-    ghSpawnEnv(),
+    ghSpawnEnvForSlug(repoSlug),
   )
   const [stdout, stderr] = await Promise.all([
     new Response(proc.stdout).text(),
@@ -106,7 +134,7 @@ export async function getRepoForkInfo(repoSlug: string): Promise<RepoForkInfo> {
 export async function syncForkRepo(repoSlug: string): Promise<string> {
   const proc = Bun.spawn(
     ["gh", "repo", "sync", repoSlug],
-    ghSpawnEnv(),
+    ghSpawnEnvForSlug(repoSlug),
   )
   const [stdout, stderr] = await Promise.all([
     new Response(proc.stdout).text(),

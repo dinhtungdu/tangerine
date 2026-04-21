@@ -47,6 +47,7 @@ function createMockDeps(db: Database, configOverrides?: Partial<AppDeps["config"
           source_url: params.sourceUrl ?? null,
           title: params.title,
           description: params.description ?? null,
+          pr_url: params.prUrl ?? null,
         }))
         return Effect.succeed(row)
       },
@@ -449,6 +450,51 @@ describe("API routes", () => {
       expect(res.status).toBe(400)
       const body = await res.json() as { error: string }
       expect(body.error).toContain("xhigh")
+    })
+
+    test("accepts prUrl for worker tasks", async () => {
+      let capturedPrUrl: string | undefined
+      const original = deps.taskManager.createTask
+      deps.taskManager.createTask = (params) => { capturedPrUrl = params.prUrl; return original(params) }
+
+      const res = await app.fetch(new Request("http://localhost/api/tasks", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ projectId: "test-project", title: "Task", type: "worker", prUrl: "https://github.com/test/repo/pull/42" }),
+      }))
+      expect(res.status).toBe(201)
+      expect(capturedPrUrl).toBe("https://github.com/test/repo/pull/42")
+    })
+
+    test("accepts prUrl for reviewer tasks", async () => {
+      const res = await app.fetch(new Request("http://localhost/api/tasks", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ projectId: "test-project", title: "Task", type: "reviewer", prUrl: "https://github.com/test/repo/pull/42" }),
+      }))
+      expect(res.status).toBe(201)
+    })
+
+    test("rejects prUrl for orchestrator tasks", async () => {
+      const res = await app.fetch(new Request("http://localhost/api/tasks", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ projectId: "test-project", title: "Task", type: "orchestrator", prUrl: "https://github.com/test/repo/pull/42" }),
+      }))
+      expect(res.status).toBe(400)
+      const body = await res.json() as { error: string }
+      expect(body.error).toContain("pr-track")
+    })
+
+    test("rejects prUrl for runner tasks", async () => {
+      const res = await app.fetch(new Request("http://localhost/api/tasks", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ projectId: "test-project", title: "Task", type: "runner", prUrl: "https://github.com/test/repo/pull/42" }),
+      }))
+      expect(res.status).toBe(400)
+      const body = await res.json() as { error: string }
+      expect(body.error).toContain("pr-track")
     })
   })
 
