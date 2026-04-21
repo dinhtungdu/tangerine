@@ -34,16 +34,20 @@ export function ghSpawnEnv(extra?: Record<string, unknown>): Record<string, unkn
 }
 
 /**
- * Build spawn env for `gh` commands targeting a specific repo slug.
- * Explicitly sets GH_HOST so the `gh` CLI doesn't fall back to the default
- * active account host (e.g. GHE) when the slug targets github.com.
- *
- * Bare "owner/repo" slugs → GH_HOST=github.com
- * Host-qualified "host/owner/repo" slugs → GH_HOST=host
+ * Extract the GitHub host from a repo URL (github.com, github.example.com, etc).
+ * Returns null if the URL is not a recognisable GitHub URL.
  */
-export function ghSpawnEnvForSlug(repoSlug: string): Record<string, unknown> {
-  const parts = repoSlug.split("/")
-  const ghHost = parts.length >= 3 ? (parts[0] ?? "github.com") : "github.com"
+export function extractGithubHost(repoUrl: string): string | null {
+  const match = repoUrl.match(/(github(?:\.[a-z0-9-]+)*\.[a-z]+)[/:]/)
+  return match ? (match[1] ?? null) : null
+}
+
+/**
+ * Build spawn env for `gh` commands targeting a specific GitHub host.
+ * Explicitly sets GH_HOST so the CLI doesn't fall back to the active account's
+ * host (e.g. GHE) when the target is github.com.
+ */
+export function ghSpawnEnvForHost(ghHost: string): Record<string, unknown> {
   const proxy = process.env.GHE_PROXY
   return {
     stdout: "pipe" as const,
@@ -108,10 +112,11 @@ export function resolveGithubSlug(repo: string): string | null {
  * Throws on gh CLI failure (auth/network) so callers can distinguish
  * "not a fork" from "couldn't check".
  */
-export async function getRepoForkInfo(repoSlug: string): Promise<RepoForkInfo> {
+export async function getRepoForkInfo(repoSlug: string, repoUrl?: string): Promise<RepoForkInfo> {
+  const host = (repoUrl ? extractGithubHost(repoUrl) : null) ?? "github.com"
   const proc = Bun.spawn(
     ["gh", "repo", "view", repoSlug, "--json", "isFork,parent", "--jq", "[.isFork, .parent.nameWithOwner] | @tsv"],
-    ghSpawnEnvForSlug(repoSlug),
+    ghSpawnEnvForHost(host),
   )
   const [stdout, stderr] = await Promise.all([
     new Response(proc.stdout).text(),
@@ -131,10 +136,11 @@ export async function getRepoForkInfo(repoSlug: string): Promise<RepoForkInfo> {
  * Sync a forked repo from its upstream using `gh repo sync`.
  * Returns stdout on success, throws on failure.
  */
-export async function syncForkRepo(repoSlug: string): Promise<string> {
+export async function syncForkRepo(repoSlug: string, repoUrl?: string): Promise<string> {
+  const host = (repoUrl ? extractGithubHost(repoUrl) : null) ?? "github.com"
   const proc = Bun.spawn(
     ["gh", "repo", "sync", repoSlug],
-    ghSpawnEnvForSlug(repoSlug),
+    ghSpawnEnvForHost(host),
   )
   const [stdout, stderr] = await Promise.all([
     new Response(proc.stdout).text(),

@@ -16,7 +16,7 @@ import { emitStatusChange, clearAgentWorkingState } from "./events"
 import { clearQueue } from "../agent/prompt-queue"
 import { clearTaskState } from "./task-state"
 import { taskHasCapability } from "../api/helpers"
-import { ghSpawnEnv, ghSpawnEnvForSlug, extractPrUrl, extractGithubSlug } from "../gh"
+import { ghSpawnEnv, ghSpawnEnvForHost, extractPrUrl, extractGithubSlug, extractGithubHost } from "../gh"
 import { AUTH_CURL_FLAG } from "./api-auth"
 
 export { extractPrUrl, extractGithubSlug }
@@ -121,10 +121,10 @@ export function getPrLookupTargets(repoSlug: string, repoView?: RepoViewResult |
     : [{ repoSlug }]
 }
 
-async function getRepoView(repoSlug: string): Promise<RepoViewResult | null> {
+async function getRepoView(repoSlug: string, ghHost: string): Promise<RepoViewResult | null> {
   const proc = Bun.spawn(
     ["gh", "repo", "view", repoSlug, "--json", "nameWithOwner,isFork,parent"],
-    ghSpawnEnvForSlug(repoSlug),
+    ghSpawnEnvForHost(ghHost),
   )
   const [text, stderr] = await Promise.all([
     new Response(proc.stdout).text(),
@@ -144,13 +144,13 @@ async function getRepoView(repoSlug: string): Promise<RepoViewResult | null> {
   }
 }
 
-async function listPrUrl(repoSlug: string, branch: string, expectedHeadOwner?: string): Promise<string | null> {
+async function listPrUrl(repoSlug: string, branch: string, ghHost: string, expectedHeadOwner?: string): Promise<string | null> {
   // Use --state open only: we must never discover a closed/merged PR for an active task.
   // Assigning a closed PR would cause Phase 2 to immediately cancel the task.
   // Phase 2 already handles state changes for PRs that were open when discovered.
   const proc = Bun.spawn(
     ["gh", "pr", "list", "--head", branch, "--repo", repoSlug, "--state", "open", "--json", "url,headRefName,headRepositoryOwner"],
-    ghSpawnEnvForSlug(repoSlug),
+    ghSpawnEnvForHost(ghHost),
   )
   const [text, stderr] = await Promise.all([
     new Response(proc.stdout).text(),
@@ -183,12 +183,13 @@ async function listPrUrl(repoSlug: string, branch: string, expectedHeadOwner?: s
 export function lookupPrByBranch(repoUrl: string, branch: string): Effect.Effect<string | null, never> {
   const repoSlug = extractGithubSlug(repoUrl)
   if (!repoSlug) return Effect.succeed(null)
+  const ghHost = extractGithubHost(repoUrl) ?? "github.com"
 
   return Effect.tryPromise({
     try: async () => {
-      const repoView = await getRepoView(repoSlug)
+      const repoView = await getRepoView(repoSlug, ghHost)
       for (const target of getPrLookupTargets(repoSlug, repoView)) {
-        const prUrl = await listPrUrl(target.repoSlug, branch, target.expectedHeadOwner)
+        const prUrl = await listPrUrl(target.repoSlug, branch, ghHost, target.expectedHeadOwner)
         if (prUrl) return prUrl
       }
       return null
