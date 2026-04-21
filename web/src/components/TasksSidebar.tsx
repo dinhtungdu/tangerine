@@ -299,7 +299,7 @@ export function TasksSidebar({ tasks, projects, searchQuery, onSearchChange, onN
   }, [onLoadMore])
 
   return (
-    <div className="flex h-full w-full shrink-0 flex-col border-r border-border bg-background md:w-[240px]">
+    <div className="flex h-full w-full shrink-0 flex-col md:border-r border-border bg-background md:w-[240px]">
       {/* Top section */}
       <div className="flex flex-col gap-2 px-4 pt-5 pb-3">
         <Button
