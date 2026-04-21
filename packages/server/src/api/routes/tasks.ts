@@ -1,7 +1,7 @@
 import { Effect } from "effect"
 import { Hono } from "hono"
-import { SUPPORTED_PROVIDERS } from "@tangerine/shared"
-import type { TaskWriteResponse } from "@tangerine/shared"
+import { SUPPORTED_PROVIDERS, getCapabilitiesForType } from "@tangerine/shared"
+import type { TaskWriteResponse, TaskType } from "@tangerine/shared"
 import type { AppDeps } from "../app"
 import { mapTaskRow } from "../helpers"
 import { runEffect, runEffectVoid } from "../effect-helpers"
@@ -100,6 +100,10 @@ export function taskRoutes(deps: AppDeps): Hono {
       return c.json({ error: `Invalid type: ${body.type}. Must be worker, orchestrator, reviewer, or runner` }, 400)
     }
     const source = body.source === "cross-project" ? "cross-project" : "manual"
+
+    if (body.prUrl && !getCapabilitiesForType((body.type ?? "worker") as TaskType).includes("pr-track")) {
+      return c.json({ error: `prUrl is not allowed for task type "${body.type ?? "worker"}" — only pr-track capable types (worker, reviewer) support PR tracking` }, 400)
+    }
 
     // Resolve branch from PR URL or direct branch name
     let branch = body.branch
