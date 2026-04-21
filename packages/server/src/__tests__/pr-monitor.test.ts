@@ -513,10 +513,36 @@ describe("pollPrStatuses", () => {
     expect(prUpdate!.updates.pr_url).toBe(prUrl)
   })
 
-  test("skips task when getProjectRepoUrl returns undefined", async () => {
-    const task = makeTaskRow({ pr_url: null, branch: "tangerine/abc123" })
+  test("skips task when getProjectRepoUrl returns undefined and no worktree path", async () => {
+    const task = makeTaskRow({ pr_url: null, branch: "tangerine/abc123", worktree_path: null })
     const deps = makeDeps([task], {}, { "tangerine/abc123": "https://github.com/test/repo/pull/51" })
     deps.getProjectRepoUrl = () => undefined
+    deps.readWorktreeRemoteUrl = (_path) => Effect.succeed(null)
+
+    await Effect.runPromise(pollPrStatuses(deps))
+
+    expect(deps.updates).toHaveLength(0)
+  })
+
+  test("falls back to worktree remote URL when getProjectRepoUrl returns undefined", async () => {
+    const prUrl = "https://github.com/woocommerce/woocommerce/pull/64211"
+    const task = makeTaskRow({ pr_url: null, branch: "fix/product-title-centering", worktree_path: "/workspace/worktrees/slot-0" })
+    const deps = makeDeps([task], { [prUrl]: "open" }, { "fix/product-title-centering": prUrl })
+    deps.getProjectRepoUrl = () => undefined
+    deps.readWorktreeRemoteUrl = (_path) => Effect.succeed("https://github.com/woocommerce/woocommerce.git")
+
+    await Effect.runPromise(pollPrStatuses(deps))
+
+    const prUpdate = deps.updates.find((u) => u.updates.pr_url)
+    expect(prUpdate).toBeDefined()
+    expect(prUpdate!.updates.pr_url).toBe(prUrl)
+  })
+
+  test("skips task when both getProjectRepoUrl and worktree remote return nothing", async () => {
+    const task = makeTaskRow({ pr_url: null, branch: "fix/product-title-centering", worktree_path: "/workspace/worktrees/slot-0" })
+    const deps = makeDeps([task], {}, { "fix/product-title-centering": "https://github.com/woocommerce/woocommerce/pull/64211" })
+    deps.getProjectRepoUrl = () => undefined
+    deps.readWorktreeRemoteUrl = (_path) => Effect.succeed(null)
 
     await Effect.runPromise(pollPrStatuses(deps))
 
