@@ -161,12 +161,13 @@ export function ChatPanel({
     if ((messagesGrew || activitiesGrew) && isAtBottom) {
       const tag = document.activeElement?.tagName
       const inputFocused = tag === "TEXTAREA" || tag === "INPUT"
-      // Suppress scroll when virtual keyboard is open (or assumed open on touch devices without visualViewport).
-      const keyboardOpen = window.visualViewport
-        ? window.innerHeight - window.visualViewport.height > 100
-        : (navigator.maxTouchPoints > 0 && inputFocused)
+      // On touch devices, skip scroll when input is focused — the virtual keyboard is almost
+      // certainly open, and scrollIntoView would push the input below it or dismiss the keyboard.
+      // Using maxTouchPoints instead of visualViewport height diff, which can be < 100px on some
+      // devices or lag behind the actual keyboard state.
+      const isMobile = navigator.maxTouchPoints > 0
       const lastMessageIsUser = messagesGrew && messages[messages.length - 1]?.role === "user"
-      if (!(inputFocused && keyboardOpen) || lastMessageIsUser) {
+      if (!(inputFocused && isMobile) || lastMessageIsUser) {
         const el = contentRef.current
         if (el) el.scrollIntoView({ block: "end" })
       }
