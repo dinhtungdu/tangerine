@@ -1,4 +1,4 @@
-import { useState } from "react"
+import { useState, useEffect, useRef } from "react"
 import { Link, Outlet, useLocation } from "react-router-dom"
 import type { Task } from "@tangerine/shared"
 import { Topbar } from "./Topbar"
@@ -27,6 +27,32 @@ export function Layout() {
   // Register all app-wide actions + activate global shortcuts
   useAppActions()
 
+  // iOS Safari: force reflow when mobile keyboard dismisses.
+  // dvh units don't reliably restore after keyboard close; this explicit
+  // height toggle triggers browser recalculation.
+  const rootRef = useRef<HTMLDivElement>(null)
+  useEffect(() => {
+    const vv = window.visualViewport
+    if (!vv) return
+
+    let keyboardWasOpen = false
+
+    function onResize() {
+      const keyboardOpen = window.innerHeight - vv!.height > 100
+      if (keyboardWasOpen && !keyboardOpen) {
+        const el = rootRef.current
+        if (el) {
+          el.style.height = "100.001dvh"
+          requestAnimationFrame(() => { el.style.height = "" })
+        }
+      }
+      keyboardWasOpen = keyboardOpen
+    }
+
+    vv.addEventListener("resize", onResize)
+    return () => vv.removeEventListener("resize", onResize)
+  }, [])
+
   const isTaskDetail = location.pathname.startsWith("/tasks/")
   const isRoot = location.pathname === "/"
   const isRuns = isRoot || location.pathname.startsWith("/tasks")
@@ -38,7 +64,7 @@ export function Layout() {
 
   return (
     <ToastProvider>
-    <div className={`flex flex-col bg-background md:h-screen md:overflow-hidden ${isRoot ? "min-h-[100dvh]" : "h-[100dvh]"}`}>
+    <div ref={rootRef} className={`flex flex-col bg-background md:h-screen md:overflow-hidden ${isRoot ? "min-h-[100dvh]" : "h-[100dvh]"}`}>
       {/* Desktop topbar */}
       <div className="hidden shrink-0 md:block">
         <Topbar sidebarOpen={sidebarOpen} onToggleSidebar={hasSidebar ? () => setSidebarOpen((o) => !o) : undefined} />
