@@ -133,6 +133,14 @@ export function ChatPanel({
   // Track whether user is near the bottom to show/hide scroll button
   const [isAtBottom, setIsAtBottom] = useState(true)
 
+  // Scroll to bottom when switching tasks (clicking on a different chat)
+  useEffect(() => {
+    if (!taskId) return
+    const el = contentRef.current
+    if (el) el.scrollIntoView({ block: "end" })
+    setIsAtBottom(true)
+  }, [taskId])
+
   const handleScroll = useCallback(() => {
     const el = scrollRef.current
     if (!el) return
@@ -153,11 +161,12 @@ export function ChatPanel({
     if ((messagesGrew || activitiesGrew) && isAtBottom) {
       const tag = document.activeElement?.tagName
       const inputFocused = tag === "TEXTAREA" || tag === "INPUT"
-      // On mobile, scrollIntoView with a focused input pushes it below the virtual keyboard.
-      // maxTouchPoints > 0 targets touch devices (phones/tablets/touchscreen laptops).
-      const isMobile = navigator.maxTouchPoints > 0
+      // Suppress scroll when virtual keyboard is open (or assumed open on touch devices without visualViewport).
+      const keyboardOpen = window.visualViewport
+        ? window.innerHeight - window.visualViewport.height > 100
+        : (navigator.maxTouchPoints > 0 && inputFocused)
       const lastMessageIsUser = messagesGrew && messages[messages.length - 1]?.role === "user"
-      if (!(inputFocused && isMobile) || lastMessageIsUser) {
+      if (!(inputFocused && keyboardOpen) || lastMessageIsUser) {
         const el = contentRef.current
         if (el) el.scrollIntoView({ block: "end" })
       }
