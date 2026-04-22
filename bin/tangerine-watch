@@ -9,6 +9,14 @@
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 CONFIG_FILE="${TANGERINE_CONFIG:-$HOME/tangerine/config.json}"
+RESTART_FLAG="$(mktemp -t tangerine-watch-restart.XXXXXX)"
+rm -f "$RESTART_FLAG"
+
+cleanup() {
+  rm -f "$RESTART_FLAG"
+}
+
+trap cleanup EXIT
 
 echo "[tangerine-watch] Starting..."
 
@@ -31,6 +39,7 @@ watch_config() {
     done
   fi
   echo "[tangerine-watch] Config changed, restarting server..."
+  : >"$RESTART_FLAG"
   kill "$SERVER_PID" 2>/dev/null
 }
 
@@ -46,11 +55,17 @@ while true; do
 
   wait "$SERVER_PID"
   EXIT_CODE=$?
+  SHOULD_RESTART=0
+  [ -f "$RESTART_FLAG" ] && SHOULD_RESTART=1
 
   kill "$WATCHER_PID" 2>/dev/null
   wait "$WATCHER_PID" 2>/dev/null
 
-  if [ "$EXIT_CODE" -eq 0 ] || [ "$EXIT_CODE" -eq 75 ]; then
+  if [ "$SHOULD_RESTART" -eq 1 ]; then
+    rm -f "$RESTART_FLAG"
+    echo "[tangerine-watch] Server restart requested, restarting in 2s..."
+    sleep 2
+  elif [ "$EXIT_CODE" -eq 0 ] || [ "$EXIT_CODE" -eq 75 ]; then
     echo "[tangerine-watch] Server exited (code $EXIT_CODE), restarting in 2s..."
     sleep 2
   else
