@@ -153,6 +153,17 @@ export function ChatPanel({
     if (el) el.scrollIntoView({ block: "end", behavior: "smooth" })
   }, [])
 
+  // Track virtual keyboard state via visualViewport resize events so the auto-scroll
+  // effect always reads current state rather than a stale snapshot at effect-fire time.
+  const keyboardOpenRef = useRef(false)
+  useEffect(() => {
+    const vv = window.visualViewport
+    if (!vv) return
+    const onResize = () => { keyboardOpenRef.current = window.innerHeight - vv.height > 100 }
+    vv.addEventListener("resize", onResize)
+    return () => vv.removeEventListener("resize", onResize)
+  }, [])
+
   // Auto-scroll only when user is already at the bottom
   const prevCountRef = useRef({ messages: 0, activities: 0 })
   useEffect(() => {
@@ -161,13 +172,14 @@ export function ChatPanel({
     if ((messagesGrew || activitiesGrew) && isAtBottom) {
       const tag = document.activeElement?.tagName
       const inputFocused = tag === "TEXTAREA" || tag === "INPUT"
-      // On touch devices, skip scroll when input is focused — the virtual keyboard is almost
-      // certainly open, and scrollIntoView would push the input below it or dismiss the keyboard.
-      // Using maxTouchPoints instead of visualViewport height diff, which can be < 100px on some
-      // devices or lag behind the actual keyboard state.
-      const isMobile = navigator.maxTouchPoints > 0
+      // Suppress scroll when virtual keyboard is open to prevent pushing the input below it.
+      // Use a ref updated by visualViewport resize events (avoids stale snapshot at effect time).
+      // Fall back to maxTouchPoints when visualViewport is unavailable (rare legacy browsers).
+      const keyboardOpen = window.visualViewport
+        ? keyboardOpenRef.current
+        : (navigator.maxTouchPoints > 0 && inputFocused)
       const lastMessageIsUser = messagesGrew && messages[messages.length - 1]?.role === "user"
-      if (!(inputFocused && isMobile) || lastMessageIsUser) {
+      if (!(inputFocused && keyboardOpen) || lastMessageIsUser) {
         const el = contentRef.current
         if (el) el.scrollIntoView({ block: "end" })
       }
