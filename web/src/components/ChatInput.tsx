@@ -461,7 +461,7 @@ export function ChatInput({ onSend, disabled, queueLength, taskId, isWorking, on
             placeholder={isWorking ? "Agent is working... (messages will be queued)" : "Message agent..."}
             disabled={disabled}
             rows={1}
-            className="min-h-9 max-h-36 resize-none rounded-none border-0 bg-transparent px-3 shadow-none ring-0 focus-visible:border-transparent focus-visible:ring-0 placeholder:text-muted-foreground/50 md:px-3.5"
+            className="min-h-[4.5rem] max-h-36 resize-none rounded-none border-0 bg-transparent px-3 shadow-none ring-0 focus-visible:border-transparent focus-visible:ring-0 placeholder:text-muted-foreground/50 md:min-h-9 md:px-3.5"
           />
           {/* Bottom toolbar: model/effort on left, queue badge + send on right */}
           <div
