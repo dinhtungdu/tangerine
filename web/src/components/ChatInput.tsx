@@ -63,6 +63,8 @@ export function ChatInput({ onSend, disabled, queueLength, taskId, isWorking, on
   const [pendingImages, setPendingImages] = useState<PendingImage[]>(() => draftKey ? (loadChatDraft(draftKey).pendingImages ?? []) : [])
   const textareaRef = useRef<HTMLTextAreaElement>(null)
   const fileInputRef = useRef<HTMLInputElement>(null)
+  // Touch devices use the send button; Enter = newline (can't Shift+Enter on mobile keyboards)
+  const isTouchDevice = useRef(typeof navigator !== "undefined" && navigator.maxTouchPoints > 0)
 
   const { tasks: allTasks } = useTasks()
   const mention = useMentionPicker(allTasks)
@@ -211,7 +213,7 @@ export function ChatInput({ onSend, disabled, queueLength, taskId, isWorking, on
           }
         }
       }
-      if (e.key === "Enter" && !e.shiftKey && !e.metaKey && !e.ctrlKey) {
+      if (e.key === "Enter" && !e.shiftKey && !e.metaKey && !e.ctrlKey && !isTouchDevice.current) {
         e.preventDefault()
         handleSend()
       }
