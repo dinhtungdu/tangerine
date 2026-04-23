@@ -293,6 +293,7 @@ function AssistantGroup({
                   />
                 )
               }
+              if (item.data.role === "assistant") return null
               const isLastThinking =
                 item.data.role === "thinking" && isStreaming && idx === filteredItems.length - 1
               return (
@@ -318,7 +319,7 @@ function AssistantGroup({
         </>
       )}
 
-      {!expanded && textMessages.length > 0 && (
+      {textMessages.length > 0 && (
         <div className="flex flex-col gap-6">
           {textMessages.map((item) => (
             <ChatMessage key={item.data.id} message={item.data} tasks={tasks} onReply={onReply} />
