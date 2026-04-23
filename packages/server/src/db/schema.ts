@@ -30,7 +30,8 @@ export const SCHEMA = `
     last_seen_at TEXT,
     last_result_at TEXT,
     capabilities TEXT,
-    context_tokens INTEGER NOT NULL DEFAULT 0
+    context_tokens INTEGER NOT NULL DEFAULT 0,
+    branched_from_checkpoint_id TEXT REFERENCES checkpoints(id)
   );
 
   CREATE INDEX IF NOT EXISTS idx_tasks_status ON tasks(status);

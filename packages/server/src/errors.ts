@@ -23,3 +23,7 @@ export class CronNotFoundError extends Data.TaggedError("CronNotFoundError")<{ c
 }
 export class CronValidationError extends Data.TaggedError("CronValidationError")<{ message: string }> {}
 export class BranchRenameError extends Data.TaggedError("BranchRenameError")<{ message: string; taskId: string; cause?: unknown }> {}
+export class CheckpointNotFoundError extends Data.TaggedError("CheckpointNotFoundError")<{ checkpointId: string }> {
+  get message() { return `Checkpoint ${this.checkpointId} not found` }
+}
+export class BranchError extends Data.TaggedError("BranchError")<{ message: string; taskId?: string; checkpointId?: string }> {}

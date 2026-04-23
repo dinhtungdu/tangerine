@@ -50,6 +50,7 @@ export interface Task {
   capabilities: TaskCapability[]
   agentStatus?: "idle" | "working"
   contextTokens: number
+  branchedFromCheckpointId: string | null
 }
 
 export interface Cron {
