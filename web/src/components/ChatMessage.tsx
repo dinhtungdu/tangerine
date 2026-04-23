@@ -196,22 +196,12 @@ function ThinkingMessage({ message, isActive, duration }: {
 }) {
   const elapsed = useElapsedTime(message.timestamp, isActive)
   const displayDuration = duration ?? elapsed
-  const [expanded, setExpanded] = useState(true)
-
-  useEffect(() => {
-    if (isActive) setExpanded(true)
-  }, [isActive])
 
   if (!isActive && !message.content.trim()) return null
 
   return (
     <div className="animate-fade-in overflow-hidden flex flex-col gap-1">
-      <button
-        onClick={() => setExpanded((v) => !v)}
-        aria-expanded={expanded}
-        aria-label={expanded ? "Collapse thought" : "Expand thought"}
-        className="flex items-center gap-2 text-left outline-none focus-visible:ring-1 focus-visible:ring-ring/50 rounded"
-      >
+      <div className="flex items-center gap-2">
         <div className="flex h-5 w-5 items-center justify-center rounded-[10px] bg-amber-500/15">
           {isActive ? (
             <svg className="h-2.5 w-2.5 animate-spin text-amber-500" viewBox="0 0 24 24" fill="none">
@@ -231,24 +221,9 @@ function ThinkingMessage({ message, isActive, duration }: {
           {isActive ? `${formatElapsed(elapsed)}` : formatElapsed(displayDuration)}
         </span>
         <span className="text-2xs text-muted-foreground/50">{formatTimestamp(message.timestamp)}</span>
-        {!isActive && (
-          <svg
-            className={`ml-auto h-3 w-3 text-amber-500/50 transition-transform ${expanded ? "rotate-90" : ""}`}
-            fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}
-          >
-            <path strokeLinecap="round" strokeLinejoin="round" d="M9 5l7 7-7 7" />
-          </svg>
-        )}
-      </button>
-      <div
-        className="grid transition-[grid-template-rows] duration-200 ease-out"
-        style={{ gridTemplateRows: expanded ? "1fr" : "0fr" }}
-      >
-        <div className="overflow-hidden">
-          <div className="rounded-lg border border-amber-500/10 bg-amber-500/5 px-3 py-2 text-xs italic leading-[1.6] text-muted-foreground break-words">
-            {message.content}
-          </div>
-        </div>
+      </div>
+      <div className="rounded-lg border border-amber-500/10 bg-amber-500/5 px-3 py-2 text-xs italic leading-[1.6] text-muted-foreground break-words">
+        {message.content}
       </div>
     </div>
   )
