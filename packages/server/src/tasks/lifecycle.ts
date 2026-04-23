@@ -209,7 +209,7 @@ export function startSession(
           }))
         }
         yield* localExec(
-          `cd ${worktreePath} && git checkout -b ${branch} ${checkpoint.commit_sha}`,
+          `cd ${worktreePath} && git checkout -B ${branch} ${checkpoint.commit_sha}`,
         ).pipe(
           Effect.tap(() => activity("worktree.ready",
             `Branched from checkpoint at turn ${checkpoint.turn_index}`,
@@ -331,10 +331,16 @@ export function startSession(
     let conversationPrefix = ""
     if (task.branched_from_checkpoint_id) {
       const checkpoint = yield* getCheckpoint(deps.db, task.branched_from_checkpoint_id).pipe(
+        Effect.tapError((e) => Effect.sync(() =>
+          taskLog.error("Failed to load checkpoint for conversation prefix", { checkpointId: task.branched_from_checkpoint_id, error: String(e) })
+        )),
         Effect.catchAll(() => Effect.succeed(null))
       )
       if (checkpoint) {
         const sessionLogs = yield* getSessionLogsUpTo(deps.db, checkpoint.task_id, checkpoint.session_log_id).pipe(
+          Effect.tapError((e) => Effect.sync(() =>
+            taskLog.error("Failed to load session logs for conversation prefix", { checkpointId: task.branched_from_checkpoint_id, error: String(e) })
+          )),
           Effect.catchAll(() => Effect.succeed([]))
         )
         const messages = sessionLogs

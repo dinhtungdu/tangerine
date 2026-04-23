@@ -65,8 +65,6 @@ export function createTask(
     prUrl?: string
     parentTaskId?: string
     branchedFromCheckpointId?: string
-    /** For branched tasks: system notes to prepend (conversation prefix). */
-    conversationPrefix?: string
   },
 ): Effect.Effect<TaskRow, Error> {
   return Effect.gen(function* () {

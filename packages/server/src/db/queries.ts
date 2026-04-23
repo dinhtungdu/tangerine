@@ -287,7 +287,7 @@ export function getCheckpoint(db: Database, checkpointId: string): Effect.Effect
 /** Get session logs up to and including a specific session log ID (for building conversation prefix on branch) */
 export function getSessionLogsUpTo(db: Database, taskId: string, sessionLogId: number): Effect.Effect<SessionLogRow[], DbError> {
   return dbTry(() => {
-    return db.prepare("SELECT * FROM session_logs WHERE task_id = ? AND id <= ? ORDER BY timestamp ASC").all(taskId, sessionLogId) as SessionLogRow[]
+    return db.prepare("SELECT * FROM session_logs WHERE task_id = ? AND id <= ? ORDER BY id ASC").all(taskId, sessionLogId) as SessionLogRow[]
   })
 }
 

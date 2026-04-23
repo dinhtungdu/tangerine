@@ -160,7 +160,6 @@ export function taskRoutes(deps: AppDeps): Hono {
       provider?: string
       model?: string
       reasoningEffort?: string
-      prompt?: string
     }>()
 
     if (!body.checkpoint_id) {
