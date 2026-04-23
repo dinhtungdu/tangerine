@@ -231,9 +231,14 @@ function ThinkingMessage({ message, isActive, duration }: {
           {isActive ? `${formatElapsed(elapsed)}` : formatElapsed(displayDuration)}
         </span>
         <span className="text-2xs text-muted-foreground/50">{formatTimestamp(message.timestamp)}</span>
+        {!isActive && !expanded && (
+          <span className="text-2xs text-muted-foreground/40 truncate max-w-[40ch] italic">
+            {message.content.trim().replace(/\s+/g, " ")}
+          </span>
+        )}
         {!isActive && (
           <svg
-            className={`ml-auto h-3 w-3 text-amber-500/50 transition-transform ${expanded ? "rotate-90" : ""}`}
+            className={`ml-auto h-3 w-3 text-amber-500/50 transition-transform flex-shrink-0 ${expanded ? "rotate-90" : ""}`}
             fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}
           >
             <path strokeLinecap="round" strokeLinejoin="round" d="M9 5l7 7-7 7" />
