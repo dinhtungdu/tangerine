@@ -8,7 +8,6 @@ import { SessionCleanupError } from "../errors"
 import type { TaskRow } from "../db/types"
 import { releaseSlot, localExec } from "./worktree-pool"
 import { clearTerminalSession } from "../api/routes/terminal-ws"
-import { cleanupTaskCheckpoints } from "./checkpoints"
 
 const log = createLogger("cleanup")
 
@@ -73,10 +72,10 @@ export function cleanupSession(
       Effect.ignoreLogged,
     )
 
-    // 4. Delete checkpoint git refs and DB rows.
-    // Phase 4 will add a TTL-based scheduler so checkpoints survive task completion for
-    // the branching window. For now, clean up eagerly when the worktree is torn down.
-    yield* cleanupTaskCheckpoints(deps.db, task.id, task.worktree_path)
+    // 4. Checkpoint cleanup deferred — keep checkpoints for branching.
+    // Spec: keep checkpoints for 24 hours to allow late branching from completed tasks.
+    // Phase 4 will add TTL-based garbage collection. For now, checkpoints persist
+    // indefinitely (git refs orphaned when worktree removed, DB rows kept).
 
     // 5. Clear worktree_path so task isn't flagged as orphaned
     if (task.worktree_path) {
