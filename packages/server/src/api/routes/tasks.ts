@@ -1,11 +1,11 @@
 import { Effect } from "effect"
 import { Hono } from "hono"
 import { SUPPORTED_PROVIDERS, getCapabilitiesForType } from "@tangerine/shared"
-import type { TaskWriteResponse, TaskType } from "@tangerine/shared"
+import type { TaskWriteResponse, TaskType, TaskTreeNode, TaskTreeTurn, TaskStatus, ProviderType } from "@tangerine/shared"
 import type { AppDeps } from "../app"
 import { mapTaskRow, mapCheckpointRow } from "../helpers"
 import { runEffect, runEffectVoid } from "../effect-helpers"
-import { getTask, listTasks, updateTask, deleteTask, markTaskSeen, getChildTasks, countTasksByProject, listCheckpoints, getCheckpoint } from "../../db/queries"
+import { getTask, listTasks, updateTask, deleteTask, markTaskSeen, getChildTasks, countTasksByProject, listCheckpoints, getCheckpoint, getAllFamilyTaskIds, getTasksByIds, getCheckpointsWithPreviewForTasks } from "../../db/queries"
 import { TaskNotFoundError, TaskNotTerminalError, PrCapabilityError, BranchRenameError, CheckpointNotFoundError, BranchError } from "../../errors"
 import { getAgentWorkingState, hasAgentWorkingState } from "../../tasks/events"
 import { getRepoDir } from "../../config"
@@ -146,6 +146,70 @@ export function taskRoutes(deps: AppDeps): Hono {
         if (!row) return yield* Effect.fail(new TaskNotFoundError({ taskId }))
         const checkpoints = yield* listCheckpoints(deps.db, taskId)
         return checkpoints.map(mapCheckpointRow)
+      })
+    )
+  })
+
+  app.get("/:id/tree", (c) => {
+    const taskId = c.req.param("id")
+    return runEffect(c,
+      Effect.gen(function* () {
+        // Verify the task exists
+        const task = yield* getTask(deps.db, taskId)
+        if (!task) return yield* Effect.fail(new TaskNotFoundError({ taskId }))
+
+        // Collect all task IDs in the family (walks up to root, down to all descendants)
+        const familyIds = yield* getAllFamilyTaskIds(deps.db, taskId)
+
+        // Fetch all task rows and checkpoints with message previews
+        const [taskRows, checkpointsWithPreview] = yield* Effect.all([
+          getTasksByIds(deps.db, familyIds),
+          getCheckpointsWithPreviewForTasks(deps.db, familyIds),
+        ])
+
+        const allTasks = new Map(taskRows.map((t) => [t.id, t]))
+        const checkpointsByTask = new Map<string, typeof checkpointsWithPreview>()
+        for (const cp of checkpointsWithPreview) {
+          if (!checkpointsByTask.has(cp.task_id)) checkpointsByTask.set(cp.task_id, [])
+          checkpointsByTask.get(cp.task_id)!.push(cp)
+        }
+        const tasksByCheckpointId = new Map<string, string>()
+        for (const row of taskRows) {
+          if (row.branched_from_checkpoint_id) {
+            tasksByCheckpointId.set(row.branched_from_checkpoint_id, row.id)
+          }
+        }
+
+        const buildNode = (nodeTaskId: string): TaskTreeNode => {
+          const t = allTasks.get(nodeTaskId)!
+          const cps = checkpointsByTask.get(nodeTaskId) ?? []
+          const turns: TaskTreeTurn[] = cps.map((cp) => {
+            const branchTaskId = tasksByCheckpointId.get(cp.id)
+            const branches: TaskTreeNode[] = branchTaskId ? [buildNode(branchTaskId)] : []
+            return {
+              turnIndex: cp.turn_index,
+              checkpointId: cp.id,
+              lastMessage: cp.preview,
+              createdAt: cp.created_at,
+              branches,
+            }
+          })
+          return {
+            taskId: t.id,
+            title: t.title,
+            status: t.status as TaskStatus,
+            provider: t.provider as ProviderType,
+            model: t.model,
+            branchedFromCheckpointId: t.branched_from_checkpoint_id,
+            turns,
+          }
+        }
+
+        // Root = task in the family with no parent (or whose parent is outside the family)
+        const root = taskRows.find((t) => !t.parent_task_id || !allTasks.has(t.parent_task_id))
+        if (!root) return yield* Effect.fail(new TaskNotFoundError({ taskId }))
+
+        return buildNode(root.id)
       })
     )
   })

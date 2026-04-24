@@ -311,6 +311,62 @@ export function deleteCheckpointsForTask(db: Database, taskId: string): Effect.E
   })
 }
 
+export function getAllFamilyTaskIds(db: Database, taskId: string): Effect.Effect<string[], DbError> {
+  return dbTry(() => {
+    // Walk up to root unconditionally, then walk down collecting only branched descendants.
+    // Non-branched continuation tasks (parent_task_id set, branched_from_checkpoint_id null)
+    // are excluded — the tree visualises branching structure, not task continuation chains.
+    const rows = db.prepare(`
+      WITH RECURSIVE
+        ancestors(id, parent_task_id) AS (
+          SELECT id, parent_task_id FROM tasks WHERE id = ?
+          UNION ALL
+          SELECT t.id, t.parent_task_id FROM tasks t
+          JOIN ancestors a ON t.id = a.parent_task_id
+        ),
+        root AS (
+          SELECT id FROM ancestors WHERE parent_task_id IS NULL LIMIT 1
+          UNION ALL
+          SELECT ? WHERE NOT EXISTS (SELECT 1 FROM ancestors WHERE parent_task_id IS NULL)
+        ),
+        family(id) AS (
+          SELECT id FROM root
+          UNION ALL
+          SELECT t.id FROM tasks t
+          JOIN family f ON t.parent_task_id = f.id
+          WHERE t.branched_from_checkpoint_id IS NOT NULL
+        )
+      SELECT DISTINCT id FROM family
+    `).all(taskId, taskId) as { id: string }[]
+    return rows.map((r) => r.id)
+  })
+}
+
+export function getTasksByIds(db: Database, ids: string[]): Effect.Effect<TaskRow[], DbError> {
+  return dbTry(() => {
+    if (ids.length === 0) return []
+    const placeholders = ids.map(() => "?").join(",")
+    return db.prepare(`SELECT * FROM tasks WHERE id IN (${placeholders})`).all(...ids) as TaskRow[]
+  })
+}
+
+export function getCheckpointsWithPreviewForTasks(
+  db: Database,
+  taskIds: string[],
+): Effect.Effect<Array<CheckpointRow & { preview: string }>, DbError> {
+  return dbTry(() => {
+    if (taskIds.length === 0) return []
+    const placeholders = taskIds.map(() => "?").join(",")
+    return db.prepare(`
+      SELECT c.*, COALESCE(SUBSTR(sl.content, 1, 150), '') as preview
+      FROM checkpoints c
+      LEFT JOIN session_logs sl ON c.session_log_id = sl.id
+      WHERE c.task_id IN (${placeholders})
+      ORDER BY c.task_id, c.turn_index ASC
+    `).all(...taskIds) as Array<CheckpointRow & { preview: string }>
+  })
+}
+
 export function getLastAssistantSessionLogId(db: Database, taskId: string): Effect.Effect<number | null, DbError> {
   return dbTry(() => {
     const row = db.prepare(

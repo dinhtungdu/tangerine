@@ -122,6 +122,33 @@ export interface Checkpoint {
   createdAt: string
 }
 
+export interface BranchRequest {
+  checkpointId: string
+  title: string
+  description?: string
+  provider?: ProviderType
+  model?: string
+  reasoningEffort?: string
+}
+
+export interface TaskTreeTurn {
+  turnIndex: number
+  checkpointId: string
+  lastMessage: string
+  createdAt: string
+  branches: TaskTreeNode[]
+}
+
+export interface TaskTreeNode {
+  taskId: string
+  title: string
+  status: TaskStatus
+  provider: ProviderType
+  model: string | null
+  branchedFromCheckpointId: string | null
+  turns: TaskTreeTurn[]
+}
+
 // System logs
 export type LogLevel = "debug" | "info" | "warn" | "error"
 

@@ -18,6 +18,9 @@ export {
   type SystemLogEntry,
   type SystemCapabilities,
   type Checkpoint,
+  type BranchRequest,
+  type TaskTreeTurn,
+  type TaskTreeNode,
 } from "./types"
 
 export {
