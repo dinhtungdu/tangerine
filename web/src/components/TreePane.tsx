@@ -52,7 +52,7 @@ const TreeNode = memo(function TreeNode({ node, currentTaskId, depth }: TreeNode
         onClick={handleNodeClick}
         role="button"
         tabIndex={0}
-        onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") handleNodeClick() }}
+        onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); handleNodeClick() } }}
         title={node.title}
       >
         {hasBranches && (

@@ -313,6 +313,9 @@ export function deleteCheckpointsForTask(db: Database, taskId: string): Effect.E
 
 export function getAllFamilyTaskIds(db: Database, taskId: string): Effect.Effect<string[], DbError> {
   return dbTry(() => {
+    // Walk up to root unconditionally, then walk down collecting only branched descendants.
+    // Non-branched continuation tasks (parent_task_id set, branched_from_checkpoint_id null)
+    // are excluded — the tree visualises branching structure, not task continuation chains.
     const rows = db.prepare(`
       WITH RECURSIVE
         ancestors(id, parent_task_id) AS (
@@ -323,15 +326,18 @@ export function getAllFamilyTaskIds(db: Database, taskId: string): Effect.Effect
         ),
         root AS (
           SELECT id FROM ancestors WHERE parent_task_id IS NULL LIMIT 1
+          UNION ALL
+          SELECT ? WHERE NOT EXISTS (SELECT 1 FROM ancestors WHERE parent_task_id IS NULL)
         ),
         family(id) AS (
           SELECT id FROM root
           UNION ALL
           SELECT t.id FROM tasks t
           JOIN family f ON t.parent_task_id = f.id
+          WHERE t.branched_from_checkpoint_id IS NOT NULL
         )
       SELECT DISTINCT id FROM family
-    `).all(taskId) as { id: string }[]
+    `).all(taskId, taskId) as { id: string }[]
     return rows.map((r) => r.id)
   })
 }

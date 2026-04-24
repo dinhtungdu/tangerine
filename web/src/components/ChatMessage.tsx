@@ -27,7 +27,7 @@ interface ChatMessageProps {
   tasks?: ReadonlyArray<{ id: string }>
   onReply?: (content: string) => void
   onBranch?: (checkpoint: Checkpoint) => void
-  checkpoints?: Checkpoint[]
+  checkpoint?: Checkpoint | null
   isThinkingActive?: boolean
   thinkingDuration?: number
 }
@@ -232,7 +232,7 @@ function ThinkingMessage({ message, isActive, duration }: {
   )
 }
 
-export const ChatMessage = memo(function ChatMessage({ message, tasks, onReply, onBranch, checkpoints, isThinkingActive = false, thinkingDuration }: ChatMessageProps) {
+export const ChatMessage = memo(function ChatMessage({ message, tasks, onReply, onBranch, checkpoint, isThinkingActive = false, thinkingDuration }: ChatMessageProps) {
   const navigate = useNavigate()
   const [lightboxIndex, setLightboxIndex] = useState<number | null>(null)
   const handleLinkClick = useCallback(
@@ -278,13 +278,7 @@ export const ChatMessage = memo(function ChatMessage({ message, tasks, onReply, 
     })
   }, [message.content])
 
-  // Find matching checkpoint for this message (assistant messages only)
-  const messageCheckpoint = useMemo(() => {
-    if (!checkpoints || !message.content) return null
-    const sessionLogId = parseInt(message.id, 10)
-    if (isNaN(sessionLogId)) return null
-    return checkpoints.find((cp) => cp.sessionLogId === sessionLogId) ?? null
-  }, [checkpoints, message.id, message.content])
+  const messageCheckpoint = checkpoint ?? null
 
   const messageActions: MessageAction[] = message.content ? [
     {

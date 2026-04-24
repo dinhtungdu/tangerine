@@ -64,6 +64,8 @@ export function TaskDetail() {
   const [parentTask, setParentTask] = useState<Task | null>(null)
   const [childTasks, setChildTasks] = useState<Task[]>([])
   const [checkpoints, setCheckpoints] = useState<Checkpoint[]>([])
+  const [parentCheckpoints, setParentCheckpoints] = useState<Checkpoint[]>([])
+  const [relatedLoaded, setRelatedLoaded] = useState(false)
   const [tree, setTree] = useState<TaskTreeNode | null>(null)
   const [treeLoading, setTreeLoading] = useState(false)
   const [branchCheckpoint, setBranchCheckpoint] = useState<Checkpoint | null>(null)
@@ -365,6 +367,7 @@ export function TaskDetail() {
   useEffect(() => {
     if (!id) return
     let cancelled = false
+    setRelatedLoaded(false)
     async function loadRelated() {
       try {
         const [data, children, cps] = await Promise.all([
@@ -376,11 +379,20 @@ export function TaskDetail() {
         setChildTasks(children)
         setCheckpoints(cps)
         if (data.parentTaskId) {
-          fetchTask(data.parentTaskId).then((p) => { if (!cancelled) setParentTask(p) }).catch(() => {})
+          const [p, parentCps] = await Promise.all([
+            fetchTask(data.parentTaskId),
+            data.branchedFromCheckpointId ? fetchCheckpoints(data.parentTaskId) : Promise.resolve([]),
+          ])
+          if (!cancelled) {
+            setParentTask(p)
+            setParentCheckpoints(parentCps)
+          }
         } else {
           setParentTask(null)
+          setParentCheckpoints([])
         }
       } catch { /* ignore */ }
+      finally { if (!cancelled) setRelatedLoaded(true) }
     }
     loadRelated()
     return () => { cancelled = true }
@@ -401,11 +413,12 @@ export function TaskDetail() {
   useEffect(() => {
     if (!id || !treeIsVisible) return
     let cancelled = false
+    setTree(null)
     setTreeLoading(true)
     fetchTaskTree(id).then((t) => {
       if (!cancelled) { setTree(t); setTreeLoading(false) }
     }).catch(() => {
-      if (!cancelled) setTreeLoading(false)
+      if (!cancelled) { setTree(null); setTreeLoading(false) }
     })
     return () => { cancelled = true }
   }, [id, treeIsVisible])
@@ -461,13 +474,13 @@ export function TaskDetail() {
     }
   }, [task?.id, task?.capabilities])
 
-  // Remove "tree" pane when task has no checkpoints and is not part of a family
+  // Remove "tree" pane only after related data has loaded and task truly has no family
   useEffect(() => {
-    if (!task) return
+    if (!task || !relatedLoaded) return
     if (checkpoints.length === 0 && !task.parentTaskId && childTasks.length === 0) {
       setPaneState((prev) => removePaneCapability(prev, "tree"))
     }
-  }, [task?.id, task?.parentTaskId, checkpoints.length, childTasks.length])
+  }, [task?.id, task?.parentTaskId, checkpoints.length, childTasks.length, relatedLoaded])
 
   useEffect(() => {
     if (!session.taskStatus || isCrossProject) return
@@ -667,7 +680,7 @@ export function TaskDetail() {
             {parentTask && (() => {
               const isBranch = task?.source === "branch" || !!task?.branchedFromCheckpointId
               const branchTurn = isBranch && task?.branchedFromCheckpointId
-                ? checkpoints.find((cp) => cp.id === task?.branchedFromCheckpointId)?.turnIndex
+                ? parentCheckpoints.find((cp) => cp.id === task?.branchedFromCheckpointId)?.turnIndex
                 : undefined
               return (
                 <Link
