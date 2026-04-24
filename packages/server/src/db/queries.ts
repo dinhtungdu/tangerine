@@ -333,28 +333,38 @@ export function getTasksWithExpiredCheckpoints(
 
 export function getAllFamilyTaskIds(db: Database, taskId: string): Effect.Effect<string[], DbError> {
   return dbTry(() => {
-    // Walk up to root unconditionally, then walk down collecting only branched descendants.
-    // Non-branched continuation tasks (parent_task_id set, branched_from_checkpoint_id null)
-    // are excluded — the tree visualises branching structure, not task continuation chains.
+    // Walk up to find the branch family root, stopping before orchestrators.
+    // This ensures orchestrator→worker relationships are not followed, but
+    // continuation tasks (parent set, no branched_from_checkpoint_id) within
+    // a branch family still resolve to the shared root.
+    // Track depth to pick the FURTHEST non-branched ancestor as root.
+    // Walk down collecting only branched descendants.
     const rows = db.prepare(`
       WITH RECURSIVE
-        ancestors(id, parent_task_id) AS (
-          SELECT id, parent_task_id FROM tasks WHERE id = ?
+        ancestors(id, parent_task_id, branched_from_checkpoint_id, depth) AS (
+          SELECT id, parent_task_id, branched_from_checkpoint_id, 0 FROM tasks WHERE id = ?
           UNION ALL
-          SELECT t.id, t.parent_task_id FROM tasks t
+          SELECT t.id, t.parent_task_id, t.branched_from_checkpoint_id, a.depth + 1 FROM tasks t
           JOIN ancestors a ON t.id = a.parent_task_id
+          WHERE t.type != 'orchestrator'
         ),
         root AS (
-          SELECT id FROM (SELECT id FROM ancestors WHERE parent_task_id IS NULL LIMIT 1)
+          SELECT id FROM (
+            SELECT id FROM ancestors
+            WHERE branched_from_checkpoint_id IS NULL
+            ORDER BY depth DESC
+            LIMIT 1
+          )
           UNION ALL
-          SELECT ? WHERE NOT EXISTS (SELECT 1 FROM ancestors WHERE parent_task_id IS NULL)
+          SELECT ? WHERE NOT EXISTS (SELECT 1 FROM ancestors WHERE branched_from_checkpoint_id IS NULL)
         ),
         family(id) AS (
           SELECT id FROM root
           UNION ALL
           SELECT t.id FROM tasks t
           JOIN family f ON t.parent_task_id = f.id
-          WHERE t.branched_from_checkpoint_id IS NOT NULL
+          JOIN tasks p ON p.id = f.id
+          WHERE p.type != 'orchestrator'
         )
       SELECT DISTINCT id FROM family
     `).all(taskId, taskId) as { id: string }[]
