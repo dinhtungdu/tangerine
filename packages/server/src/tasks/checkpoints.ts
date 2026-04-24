@@ -157,16 +157,22 @@ export function runCheckpointGc(
         const checkpoints = yield* listCheckpoints(db, taskId)
         if (checkpoints.length === 0) return
 
-        // Delete refs from the main repo dir (linked worktrees share the same object store)
+        // Delete refs from the main repo dir (linked worktrees share the same object store).
+        // Skip DB deletion if we can't reach the repo dir — leaves the task retryable on
+        // the next GC run rather than orphaning refs with no pointer to delete them.
         const repoDir = getRepoDir(tangerineConfig, projectId)
-        if (repoDir && SAFE_PATH_RE.test(repoDir)) {
-          const deleteCommands = checkpoints
-            .map((cp) => `delete refs/checkpoints/${taskId}/${cp.turn_index}`)
-            .join("\n")
-          yield* localExec(
-            `cd "${repoDir}" && printf '%s\\n' "${deleteCommands.replace(/"/g, '\\"')}" | git update-ref --stdin 2>/dev/null || true`
-          )
+        if (!repoDir || !SAFE_PATH_RE.test(repoDir)) {
+          log.warn("Checkpoint GC: skipping task — repo dir unavailable or unsafe", { taskId, projectId, repoDir })
+          return
         }
+
+        // taskId is a UUID and turn_index is an integer, so interpolation is safe here.
+        const deleteCommands = checkpoints
+          .map((cp) => `delete refs/checkpoints/${taskId}/${cp.turn_index}`)
+          .join("\n")
+        yield* localExec(
+          `cd "${repoDir}" && printf '%s\\n' "${deleteCommands.replace(/"/g, '\\"')}" | git update-ref --stdin 2>/dev/null || true`
+        )
 
         yield* deleteCheckpointsForTask(db, taskId)
         log.info("Checkpoint GC: cleaned task", { taskId, count: checkpoints.length })

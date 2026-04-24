@@ -1177,11 +1177,21 @@ export async function start(): Promise<void> {
     const scheduler = startScheduler(schedulerDeps)
     log.info("Scheduler started")
 
-    // Start checkpoint GC loop (hourly) — cleans up refs + DB rows past TTL
+    // Start checkpoint GC loop (hourly) — cleans up refs + DB rows past TTL.
+    // In-progress guard prevents concurrent runs if a GC cycle takes longer than the interval.
     const CHECKPOINT_GC_INTERVAL_MS = 60 * 60 * 1_000 // 1 hour
-    const runGc = () => Effect.runPromise(runCheckpointGc(db, config.config).pipe(Effect.catchAll(() => Effect.void)))
-    runGc() // run immediately on startup
-    const checkpointGcTimer = setInterval(runGc, CHECKPOINT_GC_INTERVAL_MS)
+    let checkpointGcRunning = false
+    const runGc = async () => {
+      if (checkpointGcRunning) return
+      checkpointGcRunning = true
+      try {
+        await Effect.runPromise(runCheckpointGc(db, config.config).pipe(Effect.catchAll(() => Effect.void)))
+      } finally {
+        checkpointGcRunning = false
+      }
+    }
+    void runGc() // run immediately on startup
+    const checkpointGcTimer = setInterval(() => { void runGc() }, CHECKPOINT_GC_INTERVAL_MS)
 
     const shutdown = async (signal: string) => {
       log.info("Shutdown signal received", { signal })
