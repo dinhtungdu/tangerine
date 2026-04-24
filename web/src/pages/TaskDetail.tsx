@@ -766,8 +766,8 @@ export function TaskDetail() {
                 autoFocusKey={chatTaskId}
                 contextTokens={session.contextTokens || undefined}
                 contextWindowMax={ctxMax}
-                checkpoints={checkpoints.length > 0 ? checkpoints : undefined}
-                onBranch={checkpoints.length > 0 ? handleBranch : undefined}
+                checkpoints={hasTreeCapability && checkpoints.length > 0 ? checkpoints : undefined}
+                onBranch={hasTreeCapability && checkpoints.length > 0 ? handleBranch : undefined}
               />
             </div>
           )}
