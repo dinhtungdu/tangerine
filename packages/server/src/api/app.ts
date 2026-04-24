@@ -10,7 +10,7 @@ import type { AppConfig } from "../config"
 import { buildUnauthorizedResponse, isPublicApiPath, isRequestAuthenticated } from "../auth"
 import type { Database } from "bun:sqlite"
 import type { TaskRow } from "../db/types"
-import type { TaskSource } from "../tasks/manager"
+import type { TaskSource, SystemCapabilities } from "@tangerine/shared"
 import { verifyWebhookSignature, processWebhookPayload } from "../integrations/github"
 import type { WebhookIssuePayload } from "../integrations/github"
 import { authRoutes } from "./routes/auth"
@@ -23,7 +23,6 @@ import { testRoutes } from "./routes/test"
 import { wsRoutes } from "./routes/ws"
 import { terminalWsRoutes } from "./routes/terminal-ws"
 import type { AgentFactories } from "../agent/factories"
-import type { SystemCapabilities } from "@tangerine/shared"
 
 const log = createLogger("api")
 

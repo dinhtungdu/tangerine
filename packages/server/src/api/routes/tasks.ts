@@ -1,7 +1,7 @@
 import { Effect } from "effect"
 import { Hono } from "hono"
 import { SUPPORTED_PROVIDERS, getCapabilitiesForType } from "@tangerine/shared"
-import type { TaskWriteResponse, TaskType, TaskTreeNode, TaskTreeTurn, TaskStatus, ProviderType } from "@tangerine/shared"
+import type { TaskWriteResponse, TaskType, TaskSource, TaskTreeNode, TaskTreeTurn, TaskStatus, ProviderType } from "@tangerine/shared"
 import type { AppDeps } from "../app"
 import { mapTaskRow, mapCheckpointRow } from "../helpers"
 import { runEffect, runEffectVoid } from "../effect-helpers"
@@ -329,7 +329,7 @@ export function taskRoutes(deps: AppDeps): Hono {
             Effect.flatMap(() => updateTask(deps.db, taskId, { status: "cancelled" })),
             Effect.flatMap(() =>
               deps.taskManager.createTask({
-                source: task.source as "manual" | "github" | "api" | "cross-project",
+                source: task.source as TaskSource,
                 projectId: task.project_id,
                 title: task.title,
                 type: (task.type ?? "worker") as "worker" | "orchestrator" | "reviewer" | "runner",

@@ -3,7 +3,7 @@
 
 import { Effect } from "effect"
 import { createLogger } from "../logger"
-import { type ActivityType, type TaskType, type TaskCapability, DEFAULT_PROVIDER, ORCHESTRATOR_TASK_NAME, TERMINAL_STATUSES, getCapabilitiesForType } from "@tangerine/shared"
+import { type ActivityType, type TaskType, type TaskCapability, type TaskSource, DEFAULT_PROVIDER, ORCHESTRATOR_TASK_NAME, TERMINAL_STATUSES, getCapabilitiesForType } from "@tangerine/shared"
 import {
   TaskNotFoundError,
   TaskNotTerminalError,
@@ -30,8 +30,6 @@ function depsForProvider(deps: TaskManagerDeps, provider: string): LifecycleDeps
   if (!deps.getAgentFactory) return deps.lifecycleDeps
   return { ...deps.lifecycleDeps, agentFactory: deps.getAgentFactory(provider) }
 }
-
-export type TaskSource = "github" | "manual" | "api" | "cross-project" | "cron" | "branch"
 
 export interface TaskManagerDeps {
   insertTask(task: Pick<TaskRow, "id" | "project_id" | "source" | "title"> & Partial<Pick<TaskRow, "source_id" | "source_url" | "type" | "description" | "user_id" | "branch" | "pr_url" | "provider" | "model" | "reasoning_effort" | "parent_task_id" | "capabilities" | "branched_from_checkpoint_id">>): Effect.Effect<TaskRow, Error>

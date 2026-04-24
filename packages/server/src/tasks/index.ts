@@ -4,7 +4,8 @@ export {
   completeTask,
   abortAgent,
 } from "./manager"
-export type { TaskManagerDeps, TaskSource } from "./manager"
+export type { TaskManagerDeps } from "./manager"
+export type { TaskSource } from "@tangerine/shared"
 
 export { startSession } from "./lifecycle"
 export type { SessionInfo, LifecycleDeps, ProjectConfig } from "./lifecycle"

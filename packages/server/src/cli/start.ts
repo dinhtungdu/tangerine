@@ -765,7 +765,7 @@ export async function start(): Promise<void> {
       db,
       taskManager: {
         createTask: ({ images, source, ...rest }) =>
-          taskManager.createTask(tmDeps, { ...rest, source: source as taskManager.TaskSource }).pipe(
+          taskManager.createTask(tmDeps, { ...rest, source }).pipe(
             Effect.tap((task) => {
               // Save initial images to disk so onSessionReady can include them
               if (!images?.length) return Effect.void
