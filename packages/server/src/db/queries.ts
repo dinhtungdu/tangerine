@@ -345,7 +345,7 @@ export function getAllFamilyTaskIds(db: Database, taskId: string): Effect.Effect
           JOIN ancestors a ON t.id = a.parent_task_id
         ),
         root AS (
-          SELECT id FROM ancestors WHERE parent_task_id IS NULL LIMIT 1
+          SELECT id FROM (SELECT id FROM ancestors WHERE parent_task_id IS NULL LIMIT 1)
           UNION ALL
           SELECT ? WHERE NOT EXISTS (SELECT 1 FROM ancestors WHERE parent_task_id IS NULL)
         ),
