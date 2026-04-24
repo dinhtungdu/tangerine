@@ -11,15 +11,21 @@ export function estimateTokens(text: string): number {
 
 /**
  * Return the context window size for a model based on its ID.
- * Conservative defaults when the model is unknown.
+ * Values mirror the fallback tables in claude-code-provider.ts and codex-provider.ts
+ * so that truncation decisions are consistent with what each provider actually supports.
  */
 export function guessContextWindow(model?: string | null): number {
   if (!model) return 200_000
   const m = model.toLowerCase()
+  // Anthropic
   if (m.includes("opus-4-7") || m.includes("opus-4-6")) return 1_000_000
-  if (m.includes("opus")) return 200_000
-  if (m.includes("gpt-5") || m.includes("o3") || m.includes("o4")) return 200_000
-  if (m.includes("gpt-4")) return 128_000
+  if (m.includes("claude")) return 200_000
+  // OpenAI / Codex — keep in sync with codex-provider.ts CONTEXT_WINDOW_FALLBACKS
+  if (m.includes("o4-mini") || m.includes("o3")) return 200_000
+  if (m.includes("o1-mini")) return 128_000
+  if (m.includes("gpt-5") || m.includes("gpt-4o")) return 128_000
+  if (m.includes("gpt-4-turbo")) return 128_000
+  if (m.includes("gpt-4")) return 8_192   // base gpt-4 is 8 K
   return 200_000
 }
 
