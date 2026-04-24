@@ -1,5 +1,5 @@
 import { memo, useState, useCallback, useMemo, useEffect } from "react"
-import type { ActivityEntry } from "@tangerine/shared"
+import type { ActivityEntry, Checkpoint } from "@tangerine/shared"
 import type { ChatMessage as ChatMessageType } from "../hooks/useSession"
 import { ChatMessage } from "./ChatMessage"
 import { ToolCallDisplay } from "./ToolCallDisplay"
@@ -11,6 +11,8 @@ interface AssistantMessageGroupsProps {
   activities: ActivityEntry[]
   tasks?: ReadonlyArray<{ id: string }>
   onReply?: (content: string) => void
+  onBranch?: (checkpoint: Checkpoint) => void
+  checkpoints?: Checkpoint[]
   isLastGroupStreaming: boolean
 }
 
@@ -174,11 +176,15 @@ function AssistantGroup({
   group,
   tasks,
   onReply,
+  onBranch,
+  checkpoints,
   isStreaming,
 }: {
   group: MessageGroup
   tasks?: ReadonlyArray<{ id: string }>
   onReply?: (content: string) => void
+  onBranch?: (checkpoint: Checkpoint) => void
+  checkpoints?: Checkpoint[]
   isStreaming: boolean
 }) {
   const [expanded, setExpanded] = useState(() => group.hasError)
@@ -259,7 +265,7 @@ function AssistantGroup({
           }
           return (
             <div key={item.data.id} className="pb-6">
-              <ChatMessage message={item.data} tasks={tasks} onReply={onReply} />
+              <ChatMessage message={item.data} tasks={tasks} onReply={onReply} onBranch={onBranch} checkpoints={checkpoints} />
             </div>
           )
         })}
@@ -302,6 +308,8 @@ function AssistantGroup({
                   message={item.data}
                   tasks={tasks}
                   onReply={onReply}
+                  onBranch={onBranch}
+                  checkpoints={checkpoints}
                   isThinkingActive={isLastThinking}
                 />
               )
@@ -322,7 +330,7 @@ function AssistantGroup({
       {textMessages.length > 0 && (
         <div className="flex flex-col gap-6">
           {textMessages.map((item) => (
-            <ChatMessage key={item.data.id} message={item.data} tasks={tasks} onReply={onReply} />
+            <ChatMessage key={item.data.id} message={item.data} tasks={tasks} onReply={onReply} onBranch={onBranch} checkpoints={checkpoints} />
           ))}
         </div>
       )}
@@ -335,6 +343,8 @@ export const AssistantMessageGroups = memo(function AssistantMessageGroups({
   activities,
   tasks,
   onReply,
+  onBranch,
+  checkpoints,
   isLastGroupStreaming,
 }: AssistantMessageGroupsProps) {
   const groups = useMemo(() => {
@@ -368,6 +378,8 @@ export const AssistantMessageGroups = memo(function AssistantMessageGroups({
               group={group}
               tasks={tasks}
               onReply={onReply}
+              onBranch={onBranch}
+              checkpoints={checkpoints}
               isStreaming={isStreaming}
             />
           </div>

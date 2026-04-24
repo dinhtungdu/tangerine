@@ -6,6 +6,7 @@ import remarkGfm from "remark-gfm"
 import remarkBreaks from "remark-breaks"
 import { visit } from "unist-util-visit"
 import type { Root, Text, Parent, Link } from "mdast"
+import type { Checkpoint } from "@tangerine/shared"
 import type { ChatMessage as ChatMessageType } from "../hooks/useSession"
 import { formatTimestamp } from "../lib/format"
 import { useNavigate } from "react-router-dom"
@@ -25,6 +26,8 @@ interface ChatMessageProps {
   message: ChatMessageType
   tasks?: ReadonlyArray<{ id: string }>
   onReply?: (content: string) => void
+  onBranch?: (checkpoint: Checkpoint) => void
+  checkpoints?: Checkpoint[]
   isThinkingActive?: boolean
   thinkingDuration?: number
 }
@@ -229,7 +232,7 @@ function ThinkingMessage({ message, isActive, duration }: {
   )
 }
 
-export const ChatMessage = memo(function ChatMessage({ message, tasks, onReply, isThinkingActive = false, thinkingDuration }: ChatMessageProps) {
+export const ChatMessage = memo(function ChatMessage({ message, tasks, onReply, onBranch, checkpoints, isThinkingActive = false, thinkingDuration }: ChatMessageProps) {
   const navigate = useNavigate()
   const [lightboxIndex, setLightboxIndex] = useState<number | null>(null)
   const handleLinkClick = useCallback(
@@ -275,6 +278,14 @@ export const ChatMessage = memo(function ChatMessage({ message, tasks, onReply, 
     })
   }, [message.content])
 
+  // Find matching checkpoint for this message (assistant messages only)
+  const messageCheckpoint = useMemo(() => {
+    if (!checkpoints || !message.content) return null
+    const sessionLogId = parseInt(message.id, 10)
+    if (isNaN(sessionLogId)) return null
+    return checkpoints.find((cp) => cp.sessionLogId === sessionLogId) ?? null
+  }, [checkpoints, message.id, message.content])
+
   const messageActions: MessageAction[] = message.content ? [
     {
       key: "copy",
@@ -299,6 +310,16 @@ export const ChatMessage = memo(function ChatMessage({ message, tasks, onReply, 
         </svg>
       ),
       onClick: () => onReply(message.content),
+    }] : []),
+    ...(onBranch && messageCheckpoint ? [{
+      key: "branch",
+      label: "Branch",
+      icon: (
+        <svg className="h-3 w-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+          <path strokeLinecap="round" strokeLinejoin="round" d="M6 3v12m0 0a3 3 0 1 0 3 3m-3-3a3 3 0 0 1 3 3m0 0h6a3 3 0 0 0 3-3V9m0 0a3 3 0 1 0 0-6 3 3 0 0 0 0 6Z" />
+        </svg>
+      ),
+      onClick: () => onBranch(messageCheckpoint),
     }] : []),
   ] : []
 
@@ -424,6 +445,17 @@ export const ChatMessage = memo(function ChatMessage({ message, tasks, onReply, 
         </div>
         <span className="text-xs font-semibold text-foreground">Agent</span>
         <span className="text-2xs text-muted-foreground/50">{formatTimestamp(message.timestamp)}</span>
+        {messageCheckpoint && (
+          <span
+            className="flex items-center gap-0.5 text-2xs text-muted-foreground/40"
+            title={`Checkpoint — Turn ${messageCheckpoint.turnIndex + 1}`}
+          >
+            <svg className="h-2.5 w-2.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+              <circle cx="12" cy="12" r="3" />
+              <path strokeLinecap="round" strokeLinejoin="round" d="M12 2v3m0 14v3M2 12h3m14 0h3" />
+            </svg>
+          </span>
+        )}
       </div>
       <div className="text-sm leading-[1.6] text-foreground break-words" onClick={handleLinkClick}>
         <ReactMarkdown remarkPlugins={remarkPlugins} components={markdownComponents}>

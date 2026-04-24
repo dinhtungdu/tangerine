@@ -1,8 +1,7 @@
 import { useEffect } from "react"
 import type { Task } from "@tangerine/shared"
 import { registerActions, type Action } from "../lib/actions"
-
-type PaneId = "chat" | "diff" | "terminal" | "activity"
+import type { PaneId } from "../lib/panes"
 
 /**
  * Registers panel toggle actions in the command palette, colocated with the
@@ -12,6 +11,7 @@ type PaneId = "chat" | "diff" | "terminal" | "activity"
 export function usePanelActions(
   task: Task | null,
   togglePane: (pane: PaneId) => void,
+  hasTree?: boolean,
 ) {
   useEffect(() => {
     const hasDiff = task?.capabilities.includes("diff") ?? false
@@ -46,6 +46,15 @@ export function usePanelActions(
       })
     }
 
+    if (hasTree) {
+      defs.push({
+        id: "panel.toggle-tree",
+        label: "Toggle conversation tree panel",
+        section: "Panels",
+        handler: () => togglePane("tree"),
+      })
+    }
+
     return registerActions(defs)
-  }, [task?.capabilities, togglePane])
+  }, [task?.capabilities, togglePane, hasTree])
 }
