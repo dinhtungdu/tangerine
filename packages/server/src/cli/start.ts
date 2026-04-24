@@ -37,7 +37,7 @@ import { createAgentFactories } from "../agent/factories"
 import { enqueue as enqueuePrompt, drainAll as drainQueuedPrompts, clearQueue } from "../agent/prompt-queue"
 import { buildSystemNotes, buildEscalationBlock, buildPrWorkflowNote } from "../tasks/prompts"
 import { getTaskState, clearTaskState } from "../tasks/task-state"
-import { snapshotCheckpoint } from "../tasks/checkpoints"
+import { snapshotCheckpoint, runCheckpointGc } from "../tasks/checkpoints"
 const log = createLogger("cli")
 
 /** Resolve custom system prompt for a task type from project config. */
@@ -1177,9 +1177,16 @@ export async function start(): Promise<void> {
     const scheduler = startScheduler(schedulerDeps)
     log.info("Scheduler started")
 
+    // Start checkpoint GC loop (hourly) — cleans up refs + DB rows past TTL
+    const CHECKPOINT_GC_INTERVAL_MS = 60 * 60 * 1_000 // 1 hour
+    const runGc = () => Effect.runPromise(runCheckpointGc(db, config.config).pipe(Effect.catchAll(() => Effect.void)))
+    runGc() // run immediately on startup
+    const checkpointGcTimer = setInterval(runGc, CHECKPOINT_GC_INTERVAL_MS)
+
     const shutdown = async (signal: string) => {
       log.info("Shutdown signal received", { signal })
       scheduler.stop()
+      clearInterval(checkpointGcTimer)
       process.exit(0)
     }
 

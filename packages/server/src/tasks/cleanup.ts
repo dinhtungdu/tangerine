@@ -72,10 +72,10 @@ export function cleanupSession(
       Effect.ignoreLogged,
     )
 
-    // 4. Checkpoint cleanup deferred — keep checkpoints for branching.
-    // Spec: keep checkpoints for 24 hours to allow late branching from completed tasks.
-    // Phase 4 will add TTL-based garbage collection. For now, checkpoints persist
-    // indefinitely (git refs orphaned when worktree removed, DB rows kept).
+    // 4. Checkpoint cleanup is TTL-based (runCheckpointGc runs hourly in start.ts).
+    // Checkpoints survive task completion to allow late branching within the TTL window.
+    // The GC job deletes refs from the main repo dir (not the worktree) so they remain
+    // reachable even after the worktree slot is released here.
 
     // 5. Clear worktree_path so task isn't flagged as orphaned
     if (task.worktree_path) {

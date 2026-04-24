@@ -103,6 +103,10 @@ export const tangerineConfigSchema = z.object({
   shortcuts: z.record(shortcutSchema).optional(),
   port: z.number().int().positive().optional(),
   ssl: sslConfigSchema.optional(),
+  /** Fraction of provider context window reserved for conversation prefix in branched tasks (0–1). */
+  checkpointTokenBudgetFraction: z.number().min(0.1).max(1).default(0.5),
+  /** Hours to keep checkpoints after a task reaches a terminal state before GC deletes them. */
+  checkpointTtlHours: z.number().int().positive().default(24),
 })
 
 export type PredefinedPrompt = z.infer<typeof predefinedPromptSchema>

@@ -12,6 +12,7 @@ import { resolveTaskTypeConfig, type TangerineConfig } from "@tangerine/shared"
 import type { TaskRow } from "../db/types"
 import { initPool, acquireSlot, acquireOrchestratorSlot } from "./worktree-pool"
 import { buildSystemNotes, buildConversationPrefix } from "./prompts"
+import { guessContextWindow, truncateMessagesToTokenBudget } from "./token-utils"
 import { getCheckpoint, getSessionLogsUpTo } from "../db/queries"
 import { killProcessTree } from "../agent/process-tree"
 import { resolveGithubSlug, getRepoForkInfo } from "../gh"
@@ -343,12 +344,23 @@ export function startSession(
           )),
           Effect.catchAll(() => Effect.succeed([]))
         )
-        const messages = sessionLogs
+        const allMessages = sessionLogs
           .filter((log) => log.role === "user" || log.role === "assistant")
           .map((log) => ({
             role: log.role as "user" | "assistant",
             content: log.content,
           }))
+        const budgetFraction = deps.tangerineConfig.checkpointTokenBudgetFraction ?? 0.5
+        const contextWindow = guessContextWindow(task.model)
+        const tokenBudget = Math.floor(contextWindow * budgetFraction)
+        const messages = truncateMessagesToTokenBudget(allMessages, tokenBudget)
+        if (messages.length < allMessages.length) {
+          taskLog.info("Conversation prefix truncated to fit token budget", {
+            original: allMessages.length,
+            kept: messages.length,
+            tokenBudget,
+          })
+        }
         conversationPrefix = buildConversationPrefix(checkpoint.task_id, checkpoint.turn_index, messages)
       }
     }

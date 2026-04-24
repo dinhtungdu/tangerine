@@ -311,6 +311,26 @@ export function deleteCheckpointsForTask(db: Database, taskId: string): Effect.E
   })
 }
 
+/**
+ * Return tasks in terminal status whose checkpoints have exceeded the TTL.
+ * Uses updated_at as the proxy for when the task reached terminal state.
+ */
+export function getTasksWithExpiredCheckpoints(
+  db: Database,
+  ttlHours: number,
+): Effect.Effect<Array<{ taskId: string; projectId: string }>, DbError> {
+  return dbTry(() => {
+    const rows = db.prepare(`
+      SELECT DISTINCT t.id as task_id, t.project_id
+      FROM tasks t
+      INNER JOIN checkpoints c ON c.task_id = t.id
+      WHERE t.status IN ('done', 'failed', 'cancelled')
+        AND t.updated_at <= datetime('now', '-' || ? || ' hours')
+    `).all(ttlHours) as Array<{ task_id: string; project_id: string }>
+    return rows.map((r) => ({ taskId: r.task_id, projectId: r.project_id }))
+  })
+}
+
 export function getAllFamilyTaskIds(db: Database, taskId: string): Effect.Effect<string[], DbError> {
   return dbTry(() => {
     // Walk up to root unconditionally, then walk down collecting only branched descendants.

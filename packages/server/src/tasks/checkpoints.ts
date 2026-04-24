@@ -12,8 +12,11 @@ import {
   getLastAssistantSessionLogId,
   checkpointExistsForSessionLog,
   getMaxCheckpointTurnIndex,
+  getTasksWithExpiredCheckpoints,
 } from "../db/queries"
 import { localExec } from "./worktree-pool"
+import type { TangerineConfig } from "@tangerine/shared"
+import { getRepoDir } from "../config"
 
 const log = createLogger("checkpoints")
 
@@ -132,9 +135,57 @@ export function snapshotCheckpoint(
 }
 
 /**
+ * Periodic garbage collector: delete checkpoint refs and DB rows for tasks
+ * whose checkpoints have exceeded the configured TTL.
+ *
+ * Checkpoint commits stored under refs/checkpoints/{taskId}/{turnIndex} in the
+ * main repo. Deleting the ref makes the commit unreachable; git gc picks it up.
+ */
+export function runCheckpointGc(
+  db: Database,
+  tangerineConfig: TangerineConfig,
+): Effect.Effect<void, never> {
+  return Effect.gen(function* () {
+    const ttlHours = tangerineConfig.checkpointTtlHours ?? 24
+    const expired = yield* getTasksWithExpiredCheckpoints(db, ttlHours)
+    if (expired.length === 0) return
+
+    log.info("Checkpoint GC: found expired tasks", { count: expired.length, ttlHours })
+
+    for (const { taskId, projectId } of expired) {
+      yield* Effect.gen(function* () {
+        const checkpoints = yield* listCheckpoints(db, taskId)
+        if (checkpoints.length === 0) return
+
+        // Delete refs from the main repo dir (linked worktrees share the same object store)
+        const repoDir = getRepoDir(tangerineConfig, projectId)
+        if (repoDir && SAFE_PATH_RE.test(repoDir)) {
+          const deleteCommands = checkpoints
+            .map((cp) => `delete refs/checkpoints/${taskId}/${cp.turn_index}`)
+            .join("\n")
+          yield* localExec(
+            `cd "${repoDir}" && printf '%s\\n' "${deleteCommands.replace(/"/g, '\\"')}" | git update-ref --stdin 2>/dev/null || true`
+          )
+        }
+
+        yield* deleteCheckpointsForTask(db, taskId)
+        log.info("Checkpoint GC: cleaned task", { taskId, count: checkpoints.length })
+      }).pipe(
+        Effect.catchAll((e) =>
+          Effect.sync(() => log.warn("Checkpoint GC: failed for task (non-fatal)", { taskId, error: String(e) }))
+        )
+      )
+    }
+  }).pipe(
+    Effect.catchAll((e) =>
+      Effect.sync(() => log.warn("Checkpoint GC failed (non-fatal)", { error: String(e) }))
+    )
+  )
+}
+
+/**
  * Delete checkpoint refs and DB rows for a task.
- * Called when the worktree is torn down. Phase 4 will add a TTL-based scheduler
- * so checkpoints survive long enough for the branching window before cleanup.
+ * Called when the worktree is torn down.
  */
 export function cleanupTaskCheckpoints(
   db: Database,
