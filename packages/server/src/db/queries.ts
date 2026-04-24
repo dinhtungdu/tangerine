@@ -325,7 +325,7 @@ export function getTasksWithExpiredCheckpoints(
       FROM tasks t
       INNER JOIN checkpoints c ON c.task_id = t.id
       WHERE t.status IN ('done', 'failed', 'cancelled')
-        AND t.completed_at <= datetime('now', '-' || ? || ' hours')
+        AND COALESCE(t.completed_at, t.updated_at) <= datetime('now', '-' || ? || ' hours')
     `).all(ttlHours) as Array<{ task_id: string; project_id: string }>
     return rows.map((r) => ({ taskId: r.task_id, projectId: r.project_id }))
   })
