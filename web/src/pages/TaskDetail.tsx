@@ -386,6 +386,16 @@ export function TaskDetail() {
     return () => { cancelled = true }
   }, [id])
 
+  // Refresh checkpoints when agent becomes idle (server creates a checkpoint after each turn)
+  const prevAgentStatusRef = useRef<string | null>(null)
+  useEffect(() => {
+    const prev = prevAgentStatusRef.current
+    prevAgentStatusRef.current = session.agentStatus
+    if (prev === "working" && session.agentStatus === "idle" && id) {
+      fetchCheckpoints(id).then(setCheckpoints).catch(() => {})
+    }
+  }, [session.agentStatus, id])
+
   // Fetch tree when tree pane becomes visible (use raw pane state to avoid ordering issues)
   const treeIsVisible = visiblePanes.has("tree") || mobilePane === "tree"
   useEffect(() => {
