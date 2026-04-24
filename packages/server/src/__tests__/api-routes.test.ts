@@ -366,6 +366,93 @@ describe("API routes", () => {
     })
   })
 
+  describe("POST /api/tasks/:id/branch", () => {
+    test("creates branched task from checkpoint", async () => {
+      const sourceTask = seedTask(db)
+      const logId = (db.prepare("INSERT INTO session_logs (task_id, role, content) VALUES (?, 'assistant', 'response') RETURNING id").get(sourceTask.id) as { id: number }).id
+      const checkpointId = crypto.randomUUID()
+      db.prepare("INSERT INTO checkpoints (id, task_id, session_log_id, commit_sha, turn_index) VALUES (?, ?, ?, ?, ?)").run(checkpointId, sourceTask.id, logId, "abc123", 0)
+
+      const res = await app.fetch(new Request(`http://localhost/api/tasks/${sourceTask.id}/branch`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ checkpoint_id: checkpointId, title: "Branched task" }),
+      }))
+      expect(res.status).toBe(201)
+      const body = await res.json() as { title: string; status: string }
+      expect(body.title).toBe("Branched task")
+      expect(body.status).toBe("created")
+    })
+
+    test("returns 404 for unknown source task", async () => {
+      const res = await app.fetch(new Request("http://localhost/api/tasks/no-such-task/branch", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ checkpoint_id: "any", title: "Branched" }),
+      }))
+      expect(res.status).toBe(404)
+    })
+
+    test("returns 404 for unknown checkpoint", async () => {
+      const sourceTask = seedTask(db)
+      const res = await app.fetch(new Request(`http://localhost/api/tasks/${sourceTask.id}/branch`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ checkpoint_id: "nonexistent", title: "Branched" }),
+      }))
+      expect(res.status).toBe(404)
+    })
+
+    test("returns 400 for checkpoint belonging to different task", async () => {
+      const sourceTask = seedTask(db)
+      const otherTask = seedTask(db, { title: "Other task" })
+      const logId = (db.prepare("INSERT INTO session_logs (task_id, role, content) VALUES (?, 'assistant', 'response') RETURNING id").get(otherTask.id) as { id: number }).id
+      const checkpointId = crypto.randomUUID()
+      db.prepare("INSERT INTO checkpoints (id, task_id, session_log_id, commit_sha, turn_index) VALUES (?, ?, ?, ?, ?)").run(checkpointId, otherTask.id, logId, "abc123", 0)
+
+      const res = await app.fetch(new Request(`http://localhost/api/tasks/${sourceTask.id}/branch`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ checkpoint_id: checkpointId, title: "Branched" }),
+      }))
+      expect(res.status).toBe(400)
+    })
+
+    test("returns 400 without checkpoint_id", async () => {
+      const sourceTask = seedTask(db)
+      const res = await app.fetch(new Request(`http://localhost/api/tasks/${sourceTask.id}/branch`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ title: "Branched" }),
+      }))
+      expect(res.status).toBe(400)
+    })
+
+    test("returns 400 without title", async () => {
+      const sourceTask = seedTask(db)
+      const res = await app.fetch(new Request(`http://localhost/api/tasks/${sourceTask.id}/branch`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ checkpoint_id: "any" }),
+      }))
+      expect(res.status).toBe(400)
+    })
+
+    test("returns 400 for invalid provider", async () => {
+      const sourceTask = seedTask(db)
+      const logId = (db.prepare("INSERT INTO session_logs (task_id, role, content) VALUES (?, 'assistant', 'response') RETURNING id").get(sourceTask.id) as { id: number }).id
+      const checkpointId = crypto.randomUUID()
+      db.prepare("INSERT INTO checkpoints (id, task_id, session_log_id, commit_sha, turn_index) VALUES (?, ?, ?, ?, ?)").run(checkpointId, sourceTask.id, logId, "abc123", 0)
+
+      const res = await app.fetch(new Request(`http://localhost/api/tasks/${sourceTask.id}/branch`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ checkpoint_id: checkpointId, title: "Branched", provider: "invalid-provider" }),
+      }))
+      expect(res.status).toBe(400)
+    })
+  })
+
   describe("POST /api/tasks", () => {
     test("creates a task", async () => {
       const res = await app.fetch(new Request("http://localhost/api/tasks", {

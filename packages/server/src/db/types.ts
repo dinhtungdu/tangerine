@@ -28,6 +28,7 @@ export interface TaskRow {
   last_result_at: string | null
   capabilities: string | null
   context_tokens: number
+  branched_from_checkpoint_id: string | null
 }
 
 export interface CronRow {

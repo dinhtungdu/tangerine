@@ -52,6 +52,7 @@ function makeTask(overrides?: Partial<TaskRow>): TaskRow {
     last_result_at: null,
     capabilities: null,
     context_tokens: 0,
+    branched_from_checkpoint_id: null,
     ...overrides,
   }
 }

@@ -114,6 +114,37 @@ export function buildSystemNotes(taskId: string, info: SystemNotesInfo, port = a
   ]
 }
 
+export interface ConversationMessage {
+  role: "user" | "assistant"
+  content: string
+}
+
+/**
+ * Build conversation prefix for a branched task.
+ * Injects prior conversation history as a system note block so the agent has context.
+ */
+export function buildConversationPrefix(
+  sourceTaskId: string,
+  turnIndex: number,
+  messages: ConversationMessage[],
+): string {
+  if (messages.length === 0) return ""
+
+  const transcript = messages
+    .map((m) => `${m.role === "user" ? "User" : "Assistant"}: ${m.content}`)
+    .join("\n\n")
+
+  return [
+    `[CONTEXT: This task was branched from task ${sourceTaskId} at turn ${turnIndex}.`,
+    `The conversation up to that point is provided below for context.`,
+    `You are starting fresh from that point — the files match the state at turn ${turnIndex}.]`,
+    "",
+    "<prior-conversation>",
+    transcript,
+    "</prior-conversation>",
+  ].join("\n")
+}
+
 /** Build the escalation block appended to the initial prompt for worker tasks. */
 export function buildEscalationBlock(orchestratorId: string, port = apiPort()): string {
   return [

@@ -16,12 +16,12 @@ function dbTry<T>(op: () => T): Effect.Effect<T, DbError> {
 export function createTask(
   db: Database,
   task: Pick<TaskRow, "id" | "project_id" | "source" | "title"> &
-    Partial<Pick<TaskRow, "source_id" | "source_url" | "type" | "description" | "user_id" | "branch" | "pr_url" | "provider" | "model" | "reasoning_effort" | "parent_task_id" | "capabilities">>
+    Partial<Pick<TaskRow, "source_id" | "source_url" | "type" | "description" | "user_id" | "branch" | "pr_url" | "provider" | "model" | "reasoning_effort" | "parent_task_id" | "capabilities" | "branched_from_checkpoint_id">>
 ): Effect.Effect<TaskRow, DbError> {
   return dbTry(() => {
     const stmt = db.prepare(`
-      INSERT INTO tasks (id, project_id, source, source_id, source_url, title, type, description, user_id, branch, pr_url, provider, model, reasoning_effort, parent_task_id, capabilities)
-      VALUES ($id, $project_id, $source, $source_id, $source_url, $title, $type, $description, $user_id, $branch, $pr_url, $provider, $model, $reasoning_effort, $parent_task_id, $capabilities)
+      INSERT INTO tasks (id, project_id, source, source_id, source_url, title, type, description, user_id, branch, pr_url, provider, model, reasoning_effort, parent_task_id, capabilities, branched_from_checkpoint_id)
+      VALUES ($id, $project_id, $source, $source_id, $source_url, $title, $type, $description, $user_id, $branch, $pr_url, $provider, $model, $reasoning_effort, $parent_task_id, $capabilities, $branched_from_checkpoint_id)
     `)
     stmt.run({
       $id: task.id,
@@ -40,6 +40,7 @@ export function createTask(
       $reasoning_effort: task.reasoning_effort ?? null,
       $parent_task_id: task.parent_task_id ?? null,
       $capabilities: task.capabilities ?? null,
+      $branched_from_checkpoint_id: task.branched_from_checkpoint_id ?? null,
     })
     return db.prepare("SELECT * FROM tasks WHERE id = ?").get(task.id) as TaskRow
   })
@@ -274,6 +275,19 @@ export function insertCheckpoint(
 export function listCheckpoints(db: Database, taskId: string): Effect.Effect<CheckpointRow[], DbError> {
   return dbTry(() => {
     return db.prepare("SELECT * FROM checkpoints WHERE task_id = ? ORDER BY turn_index ASC").all(taskId) as CheckpointRow[]
+  })
+}
+
+export function getCheckpoint(db: Database, checkpointId: string): Effect.Effect<CheckpointRow | null, DbError> {
+  return dbTry(() => {
+    return db.prepare("SELECT * FROM checkpoints WHERE id = ?").get(checkpointId) as CheckpointRow | null
+  })
+}
+
+/** Get session logs up to and including a specific session log ID (for building conversation prefix on branch) */
+export function getSessionLogsUpTo(db: Database, taskId: string, sessionLogId: number): Effect.Effect<SessionLogRow[], DbError> {
+  return dbTry(() => {
+    return db.prepare("SELECT * FROM session_logs WHERE task_id = ? AND id <= ? ORDER BY id ASC").all(taskId, sessionLogId) as SessionLogRow[]
   })
 }
 

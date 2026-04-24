@@ -5,8 +5,8 @@ import type { TaskWriteResponse, TaskType } from "@tangerine/shared"
 import type { AppDeps } from "../app"
 import { mapTaskRow, mapCheckpointRow } from "../helpers"
 import { runEffect, runEffectVoid } from "../effect-helpers"
-import { getTask, listTasks, updateTask, deleteTask, markTaskSeen, getChildTasks, countTasksByProject, listCheckpoints } from "../../db/queries"
-import { TaskNotFoundError, TaskNotTerminalError, PrCapabilityError, BranchRenameError } from "../../errors"
+import { getTask, listTasks, updateTask, deleteTask, markTaskSeen, getChildTasks, countTasksByProject, listCheckpoints, getCheckpoint } from "../../db/queries"
+import { TaskNotFoundError, TaskNotTerminalError, PrCapabilityError, BranchRenameError, CheckpointNotFoundError, BranchError } from "../../errors"
 import { getAgentWorkingState, hasAgentWorkingState } from "../../tasks/events"
 import { getRepoDir } from "../../config"
 import { ghSpawnEnv } from "../../gh"
@@ -147,6 +147,95 @@ export function taskRoutes(deps: AppDeps): Hono {
         const checkpoints = yield* listCheckpoints(deps.db, taskId)
         return checkpoints.map(mapCheckpointRow)
       })
+    )
+  })
+
+  // Branch from a checkpoint — create a new task starting from a specific point in history
+  app.post("/:id/branch", async (c) => {
+    const sourceTaskId = c.req.param("id")
+    const body = await c.req.json<{
+      checkpoint_id: string
+      title: string
+      description?: string
+      provider?: string
+      model?: string
+      reasoningEffort?: string
+    }>()
+
+    if (!body.checkpoint_id) {
+      return c.json({ error: "checkpoint_id is required" }, 400)
+    }
+    if (!body.title) {
+      return c.json({ error: "title is required" }, 400)
+    }
+    if (body.provider !== undefined && !VALID_PROVIDERS.has(body.provider)) {
+      return c.json({ error: `Invalid provider: ${body.provider}. Must be ${PROVIDER_LIST}` }, 400)
+    }
+
+    return runEffect(c,
+      Effect.gen(function* () {
+        // Validate source task exists
+        const sourceTask = yield* getTask(deps.db, sourceTaskId)
+        if (!sourceTask) return yield* Effect.fail(new TaskNotFoundError({ taskId: sourceTaskId }))
+
+        // Validate checkpoint exists and belongs to source task
+        const checkpoint = yield* getCheckpoint(deps.db, body.checkpoint_id)
+        if (!checkpoint) return yield* Effect.fail(new CheckpointNotFoundError({ checkpointId: body.checkpoint_id }))
+        if (checkpoint.task_id !== sourceTaskId) {
+          return yield* Effect.fail(new BranchError({
+            message: `Checkpoint ${body.checkpoint_id} does not belong to task ${sourceTaskId}`,
+            taskId: sourceTaskId,
+            checkpointId: body.checkpoint_id,
+          }))
+        }
+
+        // Get project config
+        const projectId = sourceTask.project_id
+        const project = deps.config.config.projects.find((p) => p.name === projectId)
+        if (!project) {
+          return yield* Effect.fail(new BranchError({
+            message: `Unknown project: ${projectId}`,
+            taskId: sourceTaskId,
+          }))
+        }
+        if (project.archived) {
+          return yield* Effect.fail(new BranchError({
+            message: `Project "${projectId}" is archived — unarchive it before creating tasks`,
+            taskId: sourceTaskId,
+          }))
+        }
+
+        // Validate reasoning effort if provided
+        if (body.reasoningEffort !== undefined) {
+          const effectiveProvider = body.provider ?? sourceTask.provider
+          if (!isValidReasoningEffort(effectiveProvider, body.reasoningEffort)) {
+            const valid = getValidReasoningEfforts(effectiveProvider).join(", ")
+            return yield* Effect.fail(new BranchError({
+              message: `Invalid reasoningEffort "${body.reasoningEffort}" for provider "${effectiveProvider}". Must be one of: ${valid}`,
+              taskId: sourceTaskId,
+            }))
+          }
+        }
+
+        // Create new task with branched_from_checkpoint_id
+        const newTask = yield* deps.taskManager.createTask({
+          source: "branch",
+          projectId,
+          title: body.title,
+          type: "worker",
+          description: body.description,
+          provider: body.provider ?? sourceTask.provider,
+          model: body.model ?? sourceTask.model ?? undefined,
+          reasoningEffort: body.reasoningEffort ?? sourceTask.reasoning_effort ?? undefined,
+          parentTaskId: sourceTaskId,
+          branchedFromCheckpointId: body.checkpoint_id,
+        }).pipe(
+          Effect.mapError((e) => new BranchError({ message: String(e), taskId: sourceTaskId, checkpointId: body.checkpoint_id }))
+        )
+
+        return toWriteResponse(newTask)
+      }),
+      { status: 201 }
     )
   })
 
