@@ -124,9 +124,9 @@ const TreeNode = memo(function TreeNode({
       {/* Task header row */}
       <div
         ref={setRef}
-        className={`group flex cursor-pointer items-center gap-1.5 rounded px-2 py-1.5 text-xs transition-colors hover:bg-muted active:bg-muted touch-manipulation ${isCurrent ? "bg-muted font-medium text-foreground" : "text-muted-foreground"} ${isFocused ? "ring-1 ring-ring" : ""} ${!taskVisible ? "opacity-40" : ""}`}
+        className={`group flex items-center gap-1.5 rounded px-2 py-1.5 text-xs transition-colors ${isCurrent ? "cursor-default bg-muted font-medium text-foreground" : "cursor-pointer touch-manipulation hover:bg-muted active:bg-muted text-muted-foreground"} ${isFocused ? "ring-1 ring-ring" : ""} ${!taskVisible ? "opacity-40" : ""}`}
         style={{ paddingLeft: `${8 + depth * 16}px` }}
-        onClick={handleNodeClick}
+        onClick={isCurrent ? undefined : handleNodeClick}
         onFocus={() => onFocus(taskNodeId)}
         role="treeitem"
         aria-expanded={hasBranches ? !isCollapsed : undefined}
@@ -167,15 +167,24 @@ const TreeNode = memo(function TreeNode({
           else nodeRefs.current.delete(turnNodeId)
         }
 
+        // Turns under the current task navigate to the same URL — no-op.
+        // Render as a non-interactive div; only turns under other tasks are links.
+        const TurnEl = isCurrent ? "div" : "a"
+        const turnLinkProps = isCurrent
+          ? {}
+          : {
+              href: link(`/tasks/${node.taskId}`),
+              onClick: (e: React.MouseEvent) => { e.preventDefault(); navigate(`/tasks/${node.taskId}`) },
+            }
+
         return (
           <div key={turn.checkpointId}>
             {/* Turn row */}
-            <a
-              ref={setTurnRef}
-              href={link(`/tasks/${node.taskId}`)}
-              onClick={(e) => { e.preventDefault(); navigate(`/tasks/${node.taskId}`) }}
+            <TurnEl
+              ref={setTurnRef as React.Ref<HTMLAnchorElement & HTMLDivElement>}
+              {...turnLinkProps}
               onFocus={() => onFocus(turnNodeId)}
-              className={`flex items-center gap-1.5 rounded px-2 py-1 text-2xs transition-colors hover:bg-muted/60 active:bg-muted/60 touch-manipulation ${isCurrent ? "text-foreground/70" : "text-muted-foreground/60"} ${isTurnFocused ? "ring-1 ring-ring" : ""} ${!turnVisible ? "opacity-30" : ""}`}
+              className={`flex items-center gap-1.5 rounded px-2 py-1 text-2xs transition-colors ${isCurrent ? "text-foreground/70" : "cursor-pointer touch-manipulation hover:bg-muted/60 active:bg-muted/60 text-muted-foreground/60"} ${isTurnFocused ? "ring-1 ring-ring" : ""} ${!turnVisible ? "opacity-30" : ""}`}
               style={{ paddingLeft: `${8 + (depth + 1) * 16}px` }}
               tabIndex={isTurnFocused ? 0 : -1}
               role="treeitem"
@@ -190,7 +199,7 @@ const TreeNode = memo(function TreeNode({
                   : `Turn ${turn.turnIndex + 1}`}
               </span>
               <span className="shrink-0 text-muted-foreground/40">{formatTimestamp(turn.createdAt)}</span>
-            </a>
+            </TurnEl>
 
             {/* Branches off this turn */}
             {turn.branches.length > 0 && (
@@ -340,7 +349,7 @@ export function TreePane({ taskId, tree, loading }: TreePaneProps) {
         case "Enter": {
           e.preventDefault()
           const cur = flatNodes[currentIndex]
-          if (cur) navigate(`/tasks/${cur.taskId}`)
+          if (cur && cur.taskId !== taskId) navigate(`/tasks/${cur.taskId}`)
           break
         }
         case "/": {
@@ -350,7 +359,7 @@ export function TreePane({ taskId, tree, loading }: TreePaneProps) {
         }
       }
     },
-    [flatNodes, focusedId, collapsed, navigate],
+    [flatNodes, focusedId, collapsed, navigate, taskId],
   )
 
   if (loading) {
