@@ -14,7 +14,7 @@ import { ChatPanel } from "../components/ChatPanel"
 import { DiffView } from "../components/DiffView"
 import { ActivityList } from "../components/ActivityList"
 import { ChangesPanel as DiffSidebar, type DiffComment } from "../components/ChangesPanel"
-import { ResizeHandle, PaneToggle } from "../components/PaneControls"
+import { ResizeHandle, PaneToggle, MobileTabBar } from "../components/PaneControls"
 import { TerminalPane } from "../components/TerminalPane"
 import { TreePane } from "../components/TreePane"
 import { BranchModal } from "../components/BranchModal"
@@ -503,6 +503,7 @@ export function TaskDetail() {
   )
   const PANE_ORDER: PaneId[] = ["chat", "diff", "terminal", "tree", "activity"]
   const orderedVisible = PANE_ORDER.filter((p) => responsiveVisiblePanes.has(p) && (p !== "diff" || hasDiff) && (p !== "tree" || hasTree))
+  const mobilePanes = PANE_ORDER.filter((p) => (p !== "diff" || hasDiff) && (p !== "tree" || hasTree))
   const desktopIsSolo = orderedVisible.length === 1
   const firstVisiblePane = orderedVisible[0]
   orderedVisibleRef.current = orderedVisible
@@ -605,7 +606,7 @@ export function TaskDetail() {
               {statusLabel}
             </span>
             <div className="ml-auto flex items-center gap-2">
-              <div className="flex items-center gap-0.5 rounded-lg bg-muted p-[3px]">
+              <div className="hidden items-center gap-0.5 rounded-lg bg-muted p-[3px] md:flex">
                 <PaneToggle
                   desktopActive={responsiveVisiblePanes.has("chat")}
                   mobileActive={mobilePane === "chat"}
@@ -870,6 +871,8 @@ export function TaskDetail() {
             </div>
           )}
         </div>
+
+        <MobileTabBar panes={mobilePanes} activePane={mobilePane} onSelect={showMobilePane} probeRef={mobilePaneProbeRef} />
       </div>
 
       {branchCheckpoint && id && (
