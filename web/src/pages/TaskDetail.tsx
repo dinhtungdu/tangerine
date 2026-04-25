@@ -845,7 +845,7 @@ export function TaskDetail() {
               ].join(" ")}
               style={responsiveVisiblePanes.has("tree") && !desktopIsSolo && firstVisiblePane !== "tree" ? { "--pane-w": `${treeWidth}px` } as React.CSSProperties : undefined}
             >
-              <TreePane taskId={id!} tree={tree} loading={treeLoading} />
+              <TreePane taskId={id!} tree={tree} loading={treeLoading} checkpoints={checkpoints} onBranch={handleBranch} />
             </div>
           )}
 

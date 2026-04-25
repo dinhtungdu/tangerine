@@ -1,5 +1,5 @@
 import { memo, useState, useCallback, useRef, useEffect, useMemo } from "react"
-import type { TaskTreeNode } from "@tangerine/shared"
+import type { TaskTreeNode, Checkpoint } from "@tangerine/shared"
 import { getStatusConfig } from "../lib/status"
 import { useProjectNav } from "../hooks/useProjectNav"
 import { formatTimestamp } from "../lib/format"
@@ -8,6 +8,8 @@ interface TreePaneProps {
   taskId: string
   tree: TaskTreeNode | null
   loading: boolean
+  checkpoints?: Checkpoint[]
+  onBranch?: (checkpoint: Checkpoint) => void
 }
 
 // ---------------------------------------------------------------------------
@@ -73,6 +75,8 @@ interface TreeNodeProps {
   nodeRefs: React.MutableRefObject<Map<string, HTMLElement>>
   tree: TaskTreeNode
   search: string
+  checkpoints?: Checkpoint[]
+  onBranch?: (checkpoint: Checkpoint) => void
 }
 
 const TreeNode = memo(function TreeNode({
@@ -86,6 +90,8 @@ const TreeNode = memo(function TreeNode({
   nodeRefs,
   tree,
   search,
+  checkpoints,
+  onBranch,
 }: TreeNodeProps) {
   const { link, navigate } = useProjectNav()
   const isCurrent = node.taskId === currentTaskId
@@ -177,6 +183,11 @@ const TreeNode = memo(function TreeNode({
               onClick: (e: React.MouseEvent) => { e.preventDefault(); navigate(`/tasks/${node.taskId}`) },
             }
 
+        // Find checkpoint for this turn to enable branching
+        const checkpoint = isCurrent && onBranch
+          ? checkpoints?.find((cp) => cp.id === turn.checkpointId)
+          : undefined
+
         return (
           <div key={turn.checkpointId}>
             {/* Turn row */}
@@ -184,7 +195,7 @@ const TreeNode = memo(function TreeNode({
               ref={setTurnRef as React.Ref<HTMLAnchorElement & HTMLDivElement>}
               {...turnLinkProps}
               onFocus={() => onFocus(turnNodeId)}
-              className={`flex items-center gap-1.5 rounded px-2 py-1 text-2xs transition-colors ${isCurrent ? "text-foreground/70" : "cursor-pointer touch-manipulation hover:bg-muted/60 active:bg-muted/60 text-muted-foreground/60"} ${isTurnFocused ? "ring-1 ring-ring" : ""} ${!turnVisible ? "opacity-30" : ""}`}
+              className={`group/turn flex items-center gap-1.5 rounded px-2 py-1 text-2xs transition-colors ${isCurrent ? "text-foreground/70 hover:bg-muted/40" : "cursor-pointer touch-manipulation hover:bg-muted/60 active:bg-muted/60 text-muted-foreground/60"} ${isTurnFocused ? "ring-1 ring-ring" : ""} ${!turnVisible ? "opacity-30" : ""}`}
               style={{ paddingLeft: `${8 + (depth + 1) * 16}px` }}
               tabIndex={isTurnFocused ? 0 : -1}
               role="treeitem"
@@ -198,7 +209,19 @@ const TreeNode = memo(function TreeNode({
                   ? turn.lastMessage.slice(0, 60) + (turn.lastMessage.length > 60 ? "…" : "")
                   : `Turn ${turn.turnIndex + 1}`}
               </span>
-              <span className="shrink-0 text-muted-foreground/40">{formatTimestamp(turn.createdAt)}</span>
+              {checkpoint && (
+                <button
+                  onClick={(e) => { e.stopPropagation(); onBranch!(checkpoint) }}
+                  className="shrink-0 rounded px-1.5 py-0.5 text-2xs text-muted-foreground opacity-0 transition-opacity hover:bg-muted hover:text-foreground focus:opacity-100 group-hover/turn:opacity-100 md:group-hover/turn:opacity-100"
+                  title="Branch from this turn"
+                  tabIndex={-1}
+                >
+                  <svg className="h-3 w-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M6 3v12m0 0a3 3 0 1 0 3 3m-3-3a3 3 0 0 1 3 3m0 0h6a3 3 0 0 0 3-3V9m0 0a3 3 0 1 0 0-6 3 3 0 0 0 0 6Z" />
+                  </svg>
+                </button>
+              )}
+              <span className={`shrink-0 text-muted-foreground/40 ${checkpoint ? "group-hover/turn:hidden" : ""}`}>{formatTimestamp(turn.createdAt)}</span>
             </TurnEl>
 
             {/* Branches off this turn */}
@@ -227,6 +250,8 @@ const TreeNode = memo(function TreeNode({
                     nodeRefs={nodeRefs}
                     tree={tree}
                     search={search}
+                    checkpoints={checkpoints}
+                    onBranch={onBranch}
                   />
                 ))}
               </div>
@@ -242,7 +267,7 @@ const TreeNode = memo(function TreeNode({
 // Main pane
 // ---------------------------------------------------------------------------
 
-export function TreePane({ taskId, tree, loading }: TreePaneProps) {
+export function TreePane({ taskId, tree, loading, checkpoints, onBranch }: TreePaneProps) {
   const { navigate } = useProjectNav()
   const [collapsed, setCollapsed] = useState<Set<string>>(new Set())
   const [focusedId, setFocusedId] = useState<string | null>(null)
@@ -428,6 +453,8 @@ export function TreePane({ taskId, tree, loading }: TreePaneProps) {
           nodeRefs={nodeRefs}
           tree={tree}
           search={search}
+          checkpoints={checkpoints}
+          onBranch={onBranch}
         />
       </div>
 
