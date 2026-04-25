@@ -173,10 +173,12 @@ export function taskRoutes(deps: AppDeps): Hono {
           if (!checkpointsByTask.has(cp.task_id)) checkpointsByTask.set(cp.task_id, [])
           checkpointsByTask.get(cp.task_id)!.push(cp)
         }
-        const tasksByCheckpointId = new Map<string, string>()
+        const tasksByCheckpointId = new Map<string, string[]>()
         for (const row of taskRows) {
           if (row.branched_from_checkpoint_id) {
-            tasksByCheckpointId.set(row.branched_from_checkpoint_id, row.id)
+            const existing = tasksByCheckpointId.get(row.branched_from_checkpoint_id) ?? []
+            existing.push(row.id)
+            tasksByCheckpointId.set(row.branched_from_checkpoint_id, existing)
           }
         }
 
@@ -184,8 +186,8 @@ export function taskRoutes(deps: AppDeps): Hono {
           const t = allTasks.get(nodeTaskId)!
           const cps = checkpointsByTask.get(nodeTaskId) ?? []
           const turns: TaskTreeTurn[] = cps.map((cp) => {
-            const branchTaskId = tasksByCheckpointId.get(cp.id)
-            const branches: TaskTreeNode[] = branchTaskId ? [buildNode(branchTaskId)] : []
+            const branchTaskIds = tasksByCheckpointId.get(cp.id) ?? []
+            const branches: TaskTreeNode[] = branchTaskIds.map((id) => buildNode(id))
             return {
               turnIndex: cp.turn_index,
               checkpointId: cp.id,
