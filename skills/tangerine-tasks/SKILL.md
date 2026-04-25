@@ -276,9 +276,10 @@ Use polling to wait for PR reviews, CI completion, child task results, or extern
 | Goal | Endpoint | Field to watch |
 |------|----------|---------------|
 | Task status | `GET /api/tasks/<id>` | `.status` → `done` / `failed` / `cancelled` |
-| PR merged | `GET /api/tasks/<id>` | `.status === "done"` after merge re-prompt |
 | Child tasks done | `GET /api/tasks/<id>/children` | all `.status` → `done` |
 | PR CI status | `gh pr checks <pr-url>` | exit code 0 = all pass |
+
+> **PR merges — do NOT poll for these.** When a PR is merged, Tangerine sends you a re-prompt automatically (`pr-monitor.ts` keeps your task `running` and injects a post-merge message). You will receive the prompt; you don't need to poll. Only non-running tasks get auto-completed to `done` by the monitor.
 
 ### Provider-agnostic shell loop
 
@@ -302,6 +303,11 @@ while [ $ATTEMPTS -lt $MAX ]; do
   ATTEMPTS=$((ATTEMPTS + 1))
   sleep $INTERVAL
 done
+
+# Fail explicitly on timeout — do not silently continue
+if [ $ATTEMPTS -ge $MAX ]; then
+  echo "Timed out after $((MAX * INTERVAL))s waiting for task $TASK_ID"; exit 1
+fi
 ```
 
 ### claude-code: use ScheduleWakeup for long waits
