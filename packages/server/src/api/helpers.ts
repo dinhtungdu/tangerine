@@ -19,15 +19,11 @@ function canonicalCapabilities(type: string): TaskCapability[] {
   return getCapabilitiesForType(type as TaskType)
 }
 
-// Merge stored capabilities with canonical ones so that:
-// - New capabilities added to the canonical set appear on existing rows
-// - Custom per-task capabilities stored in the DB are preserved
-function mergeCapabilities(stored: string | null, type: string): TaskCapability[] {
-  const canonical = canonicalCapabilities(type)
-  if (!stored) return canonical
-  const parsed: TaskCapability[] = JSON.parse(stored)
-  const merged = new Set([...canonical, ...parsed])
-  return [...merged]
+// Return canonical capabilities for the task type.
+// Stored capabilities are ignored — canonical is the source of truth.
+// This ensures removing a capability from getCapabilitiesForType() takes effect immediately.
+function mergeCapabilities(_stored: string | null, type: string): TaskCapability[] {
+  return canonicalCapabilities(type)
 }
 
 /** Maps a snake_case TaskRow from SQLite to a camelCase Task for API responses */

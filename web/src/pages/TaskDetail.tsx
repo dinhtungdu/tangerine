@@ -645,17 +645,6 @@ export function TaskDetail() {
                     <rect x="2" y="3" width="20" height="18" rx="2" />
                   </svg>
                 </PaneToggle>
-                <PaneToggle
-                  desktopActive={responsiveVisiblePanes.has("activity")}
-                  mobileActive={mobilePane === "activity"}
-                  onDesktopClick={() => toggleDesktopPane("activity")}
-                  onMobileClick={() => showMobilePane("activity")}
-                  label="Activity"
-                >
-                  <svg className="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                    <path d="M22 12h-4l-3 9L9 3l-3 9H2" />
-                  </svg>
-                </PaneToggle>
                 {hasTree && (
                   <PaneToggle
                     desktopActive={responsiveVisiblePanes.has("tree")}
@@ -669,6 +658,17 @@ export function TaskDetail() {
                     </svg>
                   </PaneToggle>
                 )}
+                <PaneToggle
+                  desktopActive={responsiveVisiblePanes.has("activity")}
+                  mobileActive={mobilePane === "activity"}
+                  onDesktopClick={() => toggleDesktopPane("activity")}
+                  onMobileClick={() => showMobilePane("activity")}
+                  label="Activity"
+                >
+                  <svg className="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                    <path d="M22 12h-4l-3 9L9 3l-3 9H2" />
+                  </svg>
+                </PaneToggle>
               </div>
               <div className="h-5 w-px bg-border" />
               <TaskOverflowMenu task={task} onRefetch={handleRefetch} size="md" />
