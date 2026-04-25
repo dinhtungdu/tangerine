@@ -310,6 +310,22 @@ if [ $ATTEMPTS -ge $MAX ]; then
 fi
 ```
 
+### General-purpose wait (any reason)
+
+Use this when you need to pause for a duration regardless of what you're waiting for — no specific endpoint to poll, just "wait N seconds then continue".
+
+**claude-code** — use `ScheduleWakeup` (suspends agent, no blocked process, cache-aware):
+
+```
+ScheduleWakeup(delaySeconds=300, reason="waiting 5 min before retrying deploy", prompt="<resume instructions>")
+```
+
+**codex / opencode / pi** — use shell sleep:
+
+```bash
+echo "Waiting 300s..."; sleep 300; echo "Resuming."
+```
+
 ### claude-code: use ScheduleWakeup for long waits
 
 On claude-code, prefer `ScheduleWakeup` over shell `sleep` for waits longer than ~2 minutes — it suspends the agent without burning context or blocking the process. Shell sleep is fine for short polls (≤60s).
