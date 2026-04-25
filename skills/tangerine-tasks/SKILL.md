@@ -3,7 +3,7 @@ name: tangerine-tasks
 description: Reference for agents running inside a Tangerine task — API endpoints, env vars, and common workflows.
 metadata:
   author: tung
-  version: "1.5.0"
+  version: "1.6.0"
 ---
 
 # Tangerine Agent Reference
@@ -266,6 +266,122 @@ curl "$API/api/tasks/$TANGERINE_TASK_ID" | jq '{id, type, status, provider, bran
 PARENT=$(curl -s "$API/api/tasks/$TANGERINE_TASK_ID" | jq -r '.parentTaskId')
 test "$PARENT" != "null" && curl "$API/api/tasks/$PARENT/messages"
 ```
+
+## Polling for Async Events
+
+Use polling to wait for PR reviews, CI completion, child task results, or external API responses. Tangerine has no push mechanism to agents — polling is the primary pattern.
+
+### Which fields to poll
+
+| Goal | Endpoint | Field to watch |
+|------|----------|---------------|
+| Task status | `GET /api/tasks/<id>` | `.status` → `done` / `failed` / `cancelled` |
+| Child tasks done | `GET /api/tasks/<id>/children` | all `.status` → `done` |
+| PR CI status | `gh pr checks <pr-url>` | exit code 0 = all pass |
+
+> **PR merges — do NOT poll for these.** When a PR is merged, Tangerine sends you a re-prompt automatically (`pr-monitor.ts` keeps your task `running` and injects a post-merge message). You will receive the prompt; you don't need to poll. Only non-running tasks get auto-completed to `done` by the monitor.
+
+### Provider-agnostic shell loop
+
+Works on all providers (claude-code, codex, opencode, pi):
+
+```bash
+# Poll until task done (max 30 attempts, 60s interval = 30 min max)
+TASK_ID="<target-task-id>"
+ATTEMPTS=0
+MAX=30
+INTERVAL=60
+
+while [ $ATTEMPTS -lt $MAX ]; do
+  STATUS=$(curl -s $AUTH_HEADER "$API/api/tasks/$TASK_ID" | jq -r '.status')
+  echo "[$ATTEMPTS] status=$STATUS"
+  case "$STATUS" in
+    done)      echo "Task complete."; break ;;
+    failed)    echo "Task failed."; exit 1 ;;
+    cancelled) echo "Task cancelled."; exit 1 ;;
+  esac
+  ATTEMPTS=$((ATTEMPTS + 1))
+  sleep $INTERVAL
+done
+
+# Fail explicitly on timeout — do not silently continue
+if [ $ATTEMPTS -ge $MAX ]; then
+  echo "Timed out after $((MAX * INTERVAL))s waiting for task $TASK_ID"; exit 1
+fi
+```
+
+### General-purpose wait (any reason)
+
+Use this when you need to pause for a duration regardless of what you're waiting for — no specific endpoint to poll, just "wait N seconds then continue".
+
+**claude-code** — use `ScheduleWakeup` (suspends agent, no blocked process, cache-aware):
+
+```
+ScheduleWakeup(delaySeconds=300, reason="waiting 5 min before retrying deploy", prompt="<resume instructions>")
+```
+
+**codex / opencode / pi** — use shell sleep:
+
+```bash
+echo "Waiting 300s..."; sleep 300; echo "Resuming."
+```
+
+### claude-code: use ScheduleWakeup for long waits
+
+On claude-code, prefer `ScheduleWakeup` over shell `sleep` for waits longer than ~2 minutes — it suspends the agent without burning context or blocking the process. Shell sleep is fine for short polls (≤60s).
+
+```
+# In claude-code: if wait > 2 min, call ScheduleWakeup instead of sleeping
+ScheduleWakeup(delaySeconds=270, reason="waiting for CI on PR #123", prompt="...")
+```
+
+Resume the same task after wake with the polling loop above. Use `delaySeconds=270` (just under 5 min cache TTL) for CI; use `1200` for PR review waits.
+
+For codex, opencode, and pi — use the shell loop; these providers do not have ScheduleWakeup.
+
+### Recommended intervals
+
+| Scenario | Interval | Max wait |
+|----------|----------|---------|
+| CI checks (fast repo) | 60s | 15–20 min |
+| CI checks (slow repo) | 270s | 60 min |
+| PR review by another agent | 120s | 30 min |
+| External API / long job | 300s | hours |
+| Child task completion | 60–120s | task-dependent |
+
+### Exponential backoff for flaky endpoints
+
+```bash
+DELAY=30
+STATUS=""
+for i in 1 2 3 4 5; do
+  RESULT=$(curl -s $AUTH_HEADER "$API/api/tasks/$TASK_ID")
+  STATUS=$(echo "$RESULT" | jq -r '.status')
+  case "$STATUS" in
+    done)      break ;;
+    failed)    echo "Task failed."; exit 1 ;;
+    cancelled) echo "Task cancelled."; exit 1 ;;
+  esac
+  sleep $DELAY
+  DELAY=$((DELAY * 2))  # 30 → 60 → 120 → 240 → 480
+done
+if [ "$STATUS" != "done" ]; then echo "Timed out."; exit 1; fi
+```
+
+Use backoff when hitting external APIs or GitHub (rate-limited) rather than flat intervals.
+
+### Polling vs webhooks
+
+**Poll** (always available):
+- Waiting for a Tangerine task to finish
+- Checking PR/CI status via `gh pr checks`
+- Any scenario where you need a result before proceeding
+
+**Webhooks** (Tangerine handles these automatically — you do not need to poll):
+- PR merged → Tangerine re-prompts the worker automatically
+- Post-merge re-prompt → call `/done` when finished
+
+In practice: agents always poll. Tangerine's webhook integration handles GitHub events and triggers re-prompts — agents just respond to those re-prompts rather than polling for merge events themselves.
 
 ## PR Mode
 
