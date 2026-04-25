@@ -232,16 +232,6 @@ const TreeNode = memo(function TreeNode({
             {/* Branches off this turn */}
             {turn.branches.length > 0 && (
               <div className="flex flex-col">
-                {/* Fork indicator */}
-                <div
-                  className="flex items-center gap-1.5 py-0.5 text-2xs text-muted-foreground/40"
-                  style={{ paddingLeft: `${8 + (depth + 1) * 16}px` }}
-                >
-                  <svg className="h-3 w-3 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
-                    <path strokeLinecap="round" strokeLinejoin="round" d="M6 3v12m0 0a3 3 0 1 0 3 3m-3-3a3 3 0 0 1 3 3m0 0h6a3 3 0 0 0 3-3V9m0 0a3 3 0 1 0 0-6 3 3 0 0 0 0 6Z" />
-                  </svg>
-                  <span>{turn.branches.length === 1 ? "1 branch" : `${turn.branches.length} branches`}</span>
-                </div>
                 {turn.branches.map((branch) => (
                   <TreeNode
                     key={branch.taskId}
