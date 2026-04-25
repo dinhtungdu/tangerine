@@ -353,13 +353,19 @@ For codex, opencode, and pi — use the shell loop; these providers do not have 
 
 ```bash
 DELAY=30
+STATUS=""
 for i in 1 2 3 4 5; do
   RESULT=$(curl -s $AUTH_HEADER "$API/api/tasks/$TASK_ID")
   STATUS=$(echo "$RESULT" | jq -r '.status')
-  [ "$STATUS" = "done" ] && break
+  case "$STATUS" in
+    done)      break ;;
+    failed)    echo "Task failed."; exit 1 ;;
+    cancelled) echo "Task cancelled."; exit 1 ;;
+  esac
   sleep $DELAY
   DELAY=$((DELAY * 2))  # 30 → 60 → 120 → 240 → 480
 done
+if [ "$STATUS" != "done" ]; then echo "Timed out."; exit 1; fi
 ```
 
 Use backoff when hitting external APIs or GitHub (rate-limited) rather than flat intervals.
