@@ -57,7 +57,7 @@ export function PaneToggle({
         disabled={disabled}
         aria-label={label}
         title={label}
-        className={`flex h-7 w-8 items-center justify-center rounded-md outline-none focus-visible:ring-1 focus-visible:ring-ring/50 md:hidden ${disabled ? disabledClass : mobileActive ? activeClass : inactiveClass}`}
+        className={`flex h-11 w-11 items-center justify-center rounded-md outline-none focus-visible:ring-1 focus-visible:ring-ring/50 md:hidden ${disabled ? disabledClass : mobileActive ? activeClass : inactiveClass}`}
       >
         {children}
       </button>
