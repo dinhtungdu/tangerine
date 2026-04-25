@@ -124,7 +124,7 @@ const TreeNode = memo(function TreeNode({
       {/* Task header row */}
       <div
         ref={setRef}
-        className={`group flex cursor-pointer items-center gap-1.5 rounded px-2 py-1.5 text-xs transition-colors hover:bg-muted ${isCurrent ? "bg-muted font-medium text-foreground" : "text-muted-foreground"} ${isFocused ? "ring-1 ring-ring" : ""} ${!taskVisible ? "opacity-40" : ""}`}
+        className={`group flex cursor-pointer items-center gap-1.5 rounded px-2 py-1.5 text-xs transition-colors hover:bg-muted active:bg-muted touch-manipulation ${isCurrent ? "bg-muted font-medium text-foreground" : "text-muted-foreground"} ${isFocused ? "ring-1 ring-ring" : ""} ${!taskVisible ? "opacity-40" : ""}`}
         style={{ paddingLeft: `${8 + depth * 16}px` }}
         onClick={handleNodeClick}
         onFocus={() => onFocus(taskNodeId)}
@@ -175,7 +175,7 @@ const TreeNode = memo(function TreeNode({
               href={link(`/tasks/${node.taskId}`)}
               onClick={(e) => { e.preventDefault(); navigate(`/tasks/${node.taskId}`) }}
               onFocus={() => onFocus(turnNodeId)}
-              className={`flex items-center gap-1.5 rounded px-2 py-1 text-2xs transition-colors hover:bg-muted/60 ${isCurrent ? "text-foreground/70" : "text-muted-foreground/60"} ${isTurnFocused ? "ring-1 ring-ring" : ""} ${!turnVisible ? "opacity-30" : ""}`}
+              className={`flex items-center gap-1.5 rounded px-2 py-1 text-2xs transition-colors hover:bg-muted/60 active:bg-muted/60 touch-manipulation ${isCurrent ? "text-foreground/70" : "text-muted-foreground/60"} ${isTurnFocused ? "ring-1 ring-ring" : ""} ${!turnVisible ? "opacity-30" : ""}`}
               style={{ paddingLeft: `${8 + (depth + 1) * 16}px` }}
               tabIndex={isTurnFocused ? 0 : -1}
               role="treeitem"
@@ -407,7 +407,7 @@ export function TreePane({ taskId, tree, loading }: TreePaneProps) {
       </div>
 
       {/* Tree */}
-      <div className="flex-1 overflow-y-auto py-1">
+      <div className="flex-1 touch-pan-y overflow-y-auto py-1">
         <TreeNode
           node={tree}
           currentTaskId={taskId}
