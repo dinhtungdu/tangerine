@@ -501,7 +501,7 @@ export function TaskDetail() {
     () => getResponsiveVisiblePanes(visiblePanes, desktopSyncPane),
     [desktopSyncPane, visiblePanes],
   )
-  const PANE_ORDER: PaneId[] = ["chat", "diff", "terminal", "activity", "tree"]
+  const PANE_ORDER: PaneId[] = ["chat", "diff", "terminal", "tree", "activity"]
   const orderedVisible = PANE_ORDER.filter((p) => responsiveVisiblePanes.has(p) && (p !== "diff" || hasDiff) && (p !== "tree" || hasTree))
   const desktopIsSolo = orderedVisible.length === 1
   const firstVisiblePane = orderedVisible[0]
@@ -830,6 +830,25 @@ export function TaskDetail() {
             </div>
           )}
 
+          {/* Tree pane */}
+          {orderedVisible.indexOf("tree") > 0 && (
+            <ResizeHandle className="hidden md:flex" onPointerDown={resizeHandlers.tree!} />
+          )}
+          {hasTree && (mobilePane === "tree" || responsiveVisiblePanes.has("tree")) && (
+            <div
+              className={[
+                "flex min-h-0 min-w-0 flex-col",
+                mobilePane === "tree" ? "flex-1" : "hidden",
+                responsiveVisiblePanes.has("tree")
+                  ? `md:flex${desktopIsSolo || firstVisiblePane === "tree" ? " md:flex-1" : " md:flex-none md:[width:var(--pane-w)] md:max-w-full"}`
+                  : "md:hidden",
+              ].join(" ")}
+              style={responsiveVisiblePanes.has("tree") && !desktopIsSolo && firstVisiblePane !== "tree" ? { "--pane-w": `${treeWidth}px` } as React.CSSProperties : undefined}
+            >
+              <TreePane taskId={id!} tree={tree} loading={treeLoading} />
+            </div>
+          )}
+
           {/* Activity pane */}
           {orderedVisible.indexOf("activity") > 0 && (
             <ResizeHandle className="hidden md:flex" onPointerDown={resizeHandlers.activity!} />
@@ -848,25 +867,6 @@ export function TaskDetail() {
               <div className="min-h-0 flex-1 overflow-y-auto pt-3">
                 <ActivityList activities={session.activities} variant="compact" />
               </div>
-            </div>
-          )}
-
-          {/* Tree pane */}
-          {orderedVisible.indexOf("tree") > 0 && (
-            <ResizeHandle className="hidden md:flex" onPointerDown={resizeHandlers.tree!} />
-          )}
-          {hasTree && (mobilePane === "tree" || responsiveVisiblePanes.has("tree")) && (
-            <div
-              className={[
-                "flex min-h-0 min-w-0 flex-col",
-                mobilePane === "tree" ? "flex-1" : "hidden",
-                responsiveVisiblePanes.has("tree")
-                  ? `md:flex${desktopIsSolo || firstVisiblePane === "tree" ? " md:flex-1" : " md:flex-none md:[width:var(--pane-w)] md:max-w-full"}`
-                  : "md:hidden",
-              ].join(" ")}
-              style={responsiveVisiblePanes.has("tree") && !desktopIsSolo && firstVisiblePane !== "tree" ? { "--pane-w": `${treeWidth}px` } as React.CSSProperties : undefined}
-            >
-              <TreePane taskId={id!} tree={tree} loading={treeLoading} />
             </div>
           )}
         </div>
