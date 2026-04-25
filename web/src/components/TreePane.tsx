@@ -212,16 +212,15 @@ const TreeNode = memo(function TreeNode({
               {checkpoint && (
                 <button
                   onClick={(e) => { e.stopPropagation(); onBranch!(checkpoint) }}
-                  className="shrink-0 rounded px-1.5 py-0.5 text-2xs text-muted-foreground opacity-0 transition-opacity hover:bg-muted hover:text-foreground focus:opacity-100 group-hover/turn:opacity-100 md:group-hover/turn:opacity-100"
+                  className="shrink-0 rounded px-1.5 py-0.5 text-2xs text-muted-foreground md:opacity-0 transition-opacity hover:bg-muted hover:text-foreground focus:opacity-100 focus-visible:ring-1 focus-visible:ring-ring md:group-hover/turn:opacity-100"
                   title="Branch from this turn"
-                  tabIndex={-1}
                 >
                   <svg className="h-3 w-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                     <path strokeLinecap="round" strokeLinejoin="round" d="M6 3v12m0 0a3 3 0 1 0 3 3m-3-3a3 3 0 0 1 3 3m0 0h6a3 3 0 0 0 3-3V9m0 0a3 3 0 1 0 0-6 3 3 0 0 0 0 6Z" />
                   </svg>
                 </button>
               )}
-              <span className={`shrink-0 text-muted-foreground/40 ${checkpoint ? "group-hover/turn:hidden" : ""}`}>{formatTimestamp(turn.createdAt)}</span>
+              <span className={`shrink-0 text-muted-foreground/40 ${checkpoint ? "hidden md:inline md:group-hover/turn:hidden" : ""}`}>{formatTimestamp(turn.createdAt)}</span>
             </TurnEl>
 
             {/* Branches off this turn */}
