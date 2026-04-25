@@ -95,6 +95,10 @@ const TreeNode = memo(function TreeNode({
 }: TreeNodeProps) {
   const { link, navigate } = useProjectNav()
   const isCurrent = node.taskId === currentTaskId
+  const checkpointMap = useMemo(
+    () => new Map(checkpoints?.map((cp) => [cp.id, cp]) ?? []),
+    [checkpoints],
+  )
   const hasBranches = node.turns.some((t) => t.branches.length > 0)
   const isRunning = node.status === "running"
   const isCollapsed = collapsed.has(node.taskId)
@@ -133,7 +137,7 @@ const TreeNode = memo(function TreeNode({
         className={`group flex items-center gap-1.5 rounded px-2 py-1.5 text-xs transition-colors ${isCurrent ? "cursor-default bg-muted font-medium text-foreground" : "cursor-pointer touch-manipulation hover:bg-muted active:bg-muted text-muted-foreground"} ${isFocused ? "ring-1 ring-ring" : ""} ${!taskVisible ? "opacity-40" : ""}`}
         style={{ paddingLeft: `${8 + depth * 16}px` }}
         onClick={isCurrent ? undefined : handleNodeClick}
-        onFocus={() => onFocus(taskNodeId)}
+        onFocus={(e) => { if (e.target === e.currentTarget) onFocus(taskNodeId) }}
         role="treeitem"
         aria-expanded={hasBranches ? !isCollapsed : undefined}
         tabIndex={isFocused ? 0 : -1}
@@ -183,18 +187,18 @@ const TreeNode = memo(function TreeNode({
               onClick: (e: React.MouseEvent) => { e.preventDefault(); navigate(`/tasks/${node.taskId}`) },
             }
 
-        // Find checkpoint for this turn to enable branching
+        // Find checkpoint for this turn to enable branching (O(1) via Map)
         const checkpoint = isCurrent && onBranch
-          ? checkpoints?.find((cp) => cp.id === turn.checkpointId)
+          ? checkpointMap.get(turn.checkpointId)
           : undefined
 
         return (
           <div key={turn.checkpointId}>
             {/* Turn row */}
             <TurnEl
-              ref={setTurnRef as React.Ref<HTMLAnchorElement & HTMLDivElement>}
+              ref={setTurnRef as React.RefCallback<HTMLElement>}
               {...turnLinkProps}
-              onFocus={() => onFocus(turnNodeId)}
+              onFocus={(e) => { if (e.target === e.currentTarget) onFocus(turnNodeId) }}
               className={`group/turn flex items-center gap-1.5 rounded px-2 py-1 text-2xs transition-colors ${isCurrent ? "text-foreground/70 hover:bg-muted/40" : "cursor-pointer touch-manipulation hover:bg-muted/60 active:bg-muted/60 text-muted-foreground/60"} ${isTurnFocused ? "ring-1 ring-ring" : ""} ${!turnVisible ? "opacity-30" : ""}`}
               style={{ paddingLeft: `${8 + (depth + 1) * 16}px` }}
               tabIndex={isTurnFocused ? 0 : -1}
@@ -211,9 +215,11 @@ const TreeNode = memo(function TreeNode({
               </span>
               {checkpoint && (
                 <button
+                  type="button"
                   onClick={(e) => { e.stopPropagation(); onBranch!(checkpoint) }}
                   className="shrink-0 rounded px-1.5 py-0.5 text-2xs text-muted-foreground md:opacity-0 transition-opacity hover:bg-muted hover:text-foreground focus:opacity-100 focus-visible:ring-1 focus-visible:ring-ring md:group-hover/turn:opacity-100"
                   title="Branch from this turn"
+                  aria-label="Branch from this turn"
                 >
                   <svg className="h-3 w-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                     <path strokeLinecap="round" strokeLinejoin="round" d="M6 3v12m0 0a3 3 0 1 0 3 3m-3-3a3 3 0 0 1 3 3m0 0h6a3 3 0 0 0 3-3V9m0 0a3 3 0 1 0 0-6 3 3 0 0 0 0 6Z" />
