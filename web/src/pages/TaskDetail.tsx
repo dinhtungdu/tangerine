@@ -146,7 +146,6 @@ export function TaskDetail() {
   const orderedVisibleRef = useRef<PaneId[]>([])
   const desktopPaneProbeRef = useRef<HTMLButtonElement>(null)
   const mobilePaneProbeRef = useRef<HTMLButtonElement>(null)
-  const touchStartRef = useRef<{ x: number; y: number } | null>(null)
 
   const widthSetters: Record<string, (v: number) => void> = useMemo(() => ({
     diff: (v: number) => { dimsRef.current.diff = v; setDiffWidth(v) },
@@ -504,7 +503,6 @@ export function TaskDetail() {
   )
   const PANE_ORDER: PaneId[] = ["chat", "diff", "terminal", "tree", "activity"]
   const orderedVisible = PANE_ORDER.filter((p) => responsiveVisiblePanes.has(p) && (p !== "diff" || hasDiff) && (p !== "tree" || hasTree))
-  const mobilePanes = useMemo(() => PANE_ORDER.filter((p) => (p !== "diff" || hasDiff) && (p !== "tree" || hasTree)), [hasDiff, hasTree])
   const desktopIsSolo = orderedVisible.length === 1
   const firstVisiblePane = orderedVisible[0]
   orderedVisibleRef.current = orderedVisible
@@ -733,28 +731,7 @@ export function TaskDetail() {
              Mobile (flex-col): one pane at a time via mobilePane.
              Desktop (md:flex-row): multi-pane with resize handles via visiblePanes.
              ChatPanel is rendered ONCE to avoid duplicate ChatInput draft saves. */}
-        <div
-          ref={containerRef}
-          className="flex min-h-0 flex-1 flex-col md:flex-row"
-          onTouchStart={(e) => {
-            const isMobile = mobilePaneProbeRef.current?.offsetParent !== null
-            const touch = e.touches[0]
-            if (!isMobile || !touch) return
-            touchStartRef.current = { x: touch.clientX, y: touch.clientY }
-          }}
-          onTouchEnd={(e) => {
-            const touch = e.changedTouches[0]
-            if (!touchStartRef.current || !touch) return
-            const dx = touch.clientX - touchStartRef.current.x
-            const dy = touch.clientY - touchStartRef.current.y
-            touchStartRef.current = null
-            if (Math.abs(dx) < 50 || Math.abs(dy) > Math.abs(dx)) return
-            const idx = mobilePanes.indexOf(mobilePane)
-            if (idx === -1) return
-            const next = dx < 0 ? mobilePanes[idx + 1] : mobilePanes[idx - 1]
-            if (next) showMobilePane(next)
-          }}
-        >
+        <div ref={containerRef} className="flex min-h-0 flex-1 flex-col md:flex-row">
           {/* Chat pane — single instance for both breakpoints.
                Unmount when hidden at both breakpoints to avoid focusing an invisible input. */}
           {chatTask && (mobilePane === "chat" || responsiveVisiblePanes.has("chat")) && (
