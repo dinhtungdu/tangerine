@@ -188,7 +188,7 @@ export function ChatPanel({
   }, [messages.length, activities.length, isAtBottom])
 
   return (
-    <div className="flex h-full flex-col bg-background">
+    <div className="flex h-full flex-col bg-background text-sm">
       {/* Messages */}
       <div className="relative flex-1 overflow-hidden">
         <div
@@ -197,7 +197,7 @@ export function ChatPanel({
           onScroll={handleScroll}
         >
           {messages.length === 0 ? (
-            <div className="flex h-full items-center justify-center py-20 text-sm text-muted-foreground">
+            <div className="flex h-full items-center justify-center py-20 text-muted-foreground">
               No messages yet. Send a prompt to start.
             </div>
           ) : (
@@ -312,7 +312,7 @@ function TerminatedBanner({
         <p className="mb-2 truncate text-xs text-status-error" title={taskError}>{taskError}</p>
       )}
       <div className="flex items-center justify-between gap-3">
-        <div className="flex items-center gap-2 text-sm text-muted-foreground">
+        <div className="flex items-center gap-2 text-muted-foreground">
           <span
             className="inline-flex shrink-0 items-center gap-1 rounded px-1.5 py-0.5 text-xxs font-medium"
             style={{ backgroundColor: `color-mix(in srgb, ${color} 10%, transparent)`, color }}
