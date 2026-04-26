@@ -1,4 +1,4 @@
-import type { Task, TaskWriteResponse, ProjectConfig, SystemLogEntry, ActivityEntry, ActionCombo, ShortcutConfig, SystemCapabilities, Checkpoint, TaskTreeNode } from "@tangerine/shared"
+import type { Task, TaskWriteResponse, ProjectConfig, SystemLogEntry, ActivityEntry, ActionCombo, ShortcutConfig, SystemCapabilities, Checkpoint, TaskTree } from "@tangerine/shared"
 import { buildAuthHeaders, emitAuthFailure } from "./auth"
 
 const BASE = ""
@@ -202,8 +202,8 @@ export async function createBranch(taskId: string, data: {
   })
 }
 
-export async function fetchTaskTree(taskId: string): Promise<TaskTreeNode> {
-  return request<TaskTreeNode>(`/api/tasks/${taskId}/tree`)
+export async function fetchTaskTree(taskId: string): Promise<TaskTree> {
+  return request<TaskTree>(`/api/tasks/${taskId}/tree`)
 }
 
 export async function cancelTask(id: string): Promise<void> {

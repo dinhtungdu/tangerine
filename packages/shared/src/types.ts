@@ -131,22 +131,27 @@ export interface BranchRequest {
   reasoningEffort?: string
 }
 
-export interface TaskTreeTurn {
-  turnIndex: number
+export interface TreeTurn {
+  level: number
   checkpointId: string
-  lastMessage: string
+  taskId: string
+  turnIndex: number
+  message: string
   createdAt: string
-  branches: TaskTreeNode[]
+  parentCheckpointId: string | null
 }
 
-export interface TaskTreeNode {
+export interface TaskMeta {
   taskId: string
   title: string
   status: TaskStatus
   provider: ProviderType
   model: string | null
-  branchedFromCheckpointId: string | null
-  turns: TaskTreeTurn[]
+}
+
+export interface TaskTree {
+  turns: TreeTurn[]
+  tasks: Record<string, TaskMeta>
 }
 
 // System logs

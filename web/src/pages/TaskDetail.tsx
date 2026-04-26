@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback, useRef, useMemo } from "react"
 import { useParams, Link, useOutletContext } from "react-router-dom"
 import type { SidebarContext } from "../components/Layout"
-import { resolveTaskTypeConfig, TERMINAL_STATUSES, type Task, type Checkpoint, type TaskTreeNode } from "@tangerine/shared"
+import { resolveTaskTypeConfig, TERMINAL_STATUSES, type Task, type Checkpoint, type TaskTree } from "@tangerine/shared"
 import { fetchTask, fetchChildTasks, changeTaskConfig, markTaskSeen, resolveTask, startTask, fetchCheckpoints, fetchTaskTree } from "../lib/api"
 import { getStatusConfig } from "../lib/status"
 import { useSession } from "../hooks/useSession"
@@ -66,7 +66,7 @@ export function TaskDetail() {
   const [checkpoints, setCheckpoints] = useState<Checkpoint[]>([])
   const [parentCheckpoints, setParentCheckpoints] = useState<Checkpoint[]>([])
   const [relatedLoaded, setRelatedLoaded] = useState(false)
-  const [tree, setTree] = useState<TaskTreeNode | null>(null)
+  const [tree, setTree] = useState<TaskTree | null>(null)
   const [treeLoading, setTreeLoading] = useState(false)
   const [branchCheckpoint, setBranchCheckpoint] = useState<Checkpoint | null>(null)
   const [loading, setLoading] = useState(true)
