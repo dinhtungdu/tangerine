@@ -1000,18 +1000,20 @@ describe("ChatMessage", async () => {
     return render(<MemoryRouter><ChatMessage {...props} /></MemoryRouter>)
   }
 
-  test("uses 1rem text size for assistant and user messages", () => {
-    const { rerender } = renderChat({
-      message: { role: "assistant", content: "Assistant text", timestamp: "2026-03-17T10:00:00Z" },
-    })
-    expect(screen.getByText("Assistant text").parentElement?.className).toContain("text-base")
-
-    rerender(
+  test("uses 1rem text size for message body container", () => {
+    render(
       <MemoryRouter>
-        <ChatMessage message={{ role: "user", content: "User text", timestamp: "2026-03-17T10:00:00Z" }} />
+        <ChatPanel
+          messages={[{ id: "m1", role: "assistant", content: "Assistant text", timestamp: "2026-03-17T10:00:00Z" }]}
+          agentStatus="idle"
+          queueLength={0}
+          onSend={() => {}}
+          onAbort={() => {}}
+        />
       </MemoryRouter>,
     )
-    expect(screen.getByText("User text").parentElement?.className).toContain("text-base")
+
+    expect(screen.getByText("Assistant text").closest(".text-base")).toBeTruthy()
   })
 
   test("renders markdown tables as HTML tables", () => {

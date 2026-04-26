@@ -103,7 +103,7 @@ const markdownComponents: Components = {
   p: ({ children }) => <p className="my-1">{children}</p>,
   pre: ({ children }) => (
     <InsidePreContext.Provider value={true}>
-      <pre className="my-2 rounded-md bg-muted p-3 font-mono text-base leading-[1.6] overflow-x-auto border border-border">
+      <pre className="my-2 rounded-md bg-muted p-3 font-mono leading-[1.6] overflow-x-auto border border-border">
         {children}
       </pre>
     </InsidePreContext.Provider>
@@ -112,7 +112,7 @@ const markdownComponents: Components = {
     const insidePre = useContext(InsidePreContext)
     // Apply inline-code styling only for true inline code, not unlanguaged fenced blocks
     if (!className && !insidePre) {
-      return <code className="rounded bg-muted px-1 py-0.5 font-mono text-base border border-border">{children}</code>
+      return <code className="rounded bg-muted px-1 py-0.5 font-mono border border-border">{children}</code>
     }
     return <code className={className}>{children}</code>
   },
@@ -135,7 +135,7 @@ const markdownComponents: Components = {
   th: ({ children }) => (
     <th className="px-3 py-1.5 text-left text-xxs font-semibold text-muted-foreground">{children}</th>
   ),
-  td: ({ children }) => <td className="px-3 py-1.5 text-base">{children}</td>,
+  td: ({ children }) => <td className="px-3 py-1.5">{children}</td>,
   tr: ({ children }) => <tr className="border-t border-border">{children}</tr>,
 }
 
@@ -222,7 +222,7 @@ function ThinkingMessage({ message, isActive, duration }: {
         </span>
         <span className="text-2xs text-muted-foreground/50">{formatTimestamp(message.timestamp)}</span>
       </div>
-      <div className="rounded-lg border border-amber-500/10 bg-amber-500/5 px-3 py-2 text-base italic leading-[1.6] text-muted-foreground break-words">
+      <div className="rounded-lg border border-amber-500/10 bg-amber-500/5 px-3 py-2 italic leading-[1.6] text-muted-foreground break-words">
         {message.content}
       </div>
     </div>
@@ -338,7 +338,7 @@ export const ChatMessage = memo(function ChatMessage({ message, tasks, onReply, 
           )}
           {message.content && (
             <div
-              className="break-words text-base leading-[1.5] text-primary-foreground [&_a]:underline [&_a]:text-blue-600 [&_a]:dark:text-blue-400 hover:[&_a]:text-blue-800 dark:hover:[&_a]:text-blue-300 [&_a]:break-all [&_code]:bg-primary-foreground/15 [&_code]:border-primary-foreground/20 [&_pre_code]:bg-transparent [&_pre_code]:border-transparent [&_pre]:bg-primary-foreground/10 [&_pre]:border-primary-foreground/15 [&_blockquote]:border-primary-foreground/30 [&_blockquote]:text-primary-foreground/70"
+              className="break-words leading-[1.5] text-primary-foreground [&_a]:underline [&_a]:text-blue-600 [&_a]:dark:text-blue-400 hover:[&_a]:text-blue-800 dark:hover:[&_a]:text-blue-300 [&_a]:break-all [&_code]:bg-primary-foreground/15 [&_code]:border-primary-foreground/20 [&_pre_code]:bg-transparent [&_pre_code]:border-transparent [&_pre]:bg-primary-foreground/10 [&_pre]:border-primary-foreground/15 [&_blockquote]:border-primary-foreground/30 [&_blockquote]:text-primary-foreground/70"
               onClick={handleLinkClick}
             >
               <ReactMarkdown remarkPlugins={userRemarkPlugins} components={markdownComponents}>
@@ -390,7 +390,7 @@ export const ChatMessage = memo(function ChatMessage({ message, tasks, onReply, 
           <span className="text-xs font-medium text-blue-500/70">Narration</span>
           <span className="text-2xs text-muted-foreground/50">{formatTimestamp(message.timestamp)}</span>
         </div>
-        <div className="rounded-lg border border-blue-500/10 bg-blue-500/5 px-3 py-2 text-base leading-[1.6] text-muted-foreground break-words" onClick={handleLinkClick}>
+        <div className="rounded-lg border border-blue-500/10 bg-blue-500/5 px-3 py-2 leading-[1.6] text-muted-foreground break-words" onClick={handleLinkClick}>
           <ReactMarkdown remarkPlugins={remarkPlugins} components={markdownComponents}>
             {message.content}
           </ReactMarkdown>
@@ -425,7 +425,7 @@ export const ChatMessage = memo(function ChatMessage({ message, tasks, onReply, 
         <span className="text-xs font-semibold text-foreground">Agent</span>
         <span className="text-2xs text-muted-foreground/50">{formatTimestamp(message.timestamp)}</span>
       </div>
-      <div className="text-base leading-[1.6] text-foreground break-words" onClick={handleLinkClick}>
+      <div className="leading-[1.6] text-foreground break-words" onClick={handleLinkClick}>
         <ReactMarkdown remarkPlugins={remarkPlugins} components={markdownComponents}>
           {message.content}
         </ReactMarkdown>
