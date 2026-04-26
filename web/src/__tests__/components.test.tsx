@@ -541,12 +541,10 @@ describe("StatusPage", () => {
 })
 
 describe("ChatInput", () => {
-  test("uses 1rem text size for composer input", () => {
+  test("uses text-sm size for composer input", () => {
     render(<ChatInput onSend={() => {}} disabled={false} queueLength={0} />)
 
-    const composer = screen.getByPlaceholderText("Message agent...")
-    expect(composer.className).toContain("text-base")
-    expect(composer.className).toContain("md:text-base")
+    expect(screen.getByPlaceholderText("Message agent...").className).toContain("text-sm")
   })
 
   test("formats quoted text as a composer block", () => {
@@ -1000,7 +998,7 @@ describe("ChatMessage", async () => {
     return render(<MemoryRouter><ChatMessage {...props} /></MemoryRouter>)
   }
 
-  test("uses 1rem text size for message body container", () => {
+  test("uses text-sm size for message body container", () => {
     render(
       <MemoryRouter>
         <ChatPanel
@@ -1013,7 +1011,7 @@ describe("ChatMessage", async () => {
       </MemoryRouter>,
     )
 
-    expect(screen.getByText("Assistant text").closest(".text-base")).toBeTruthy()
+    expect(screen.getByText("Assistant text").closest(".text-sm")).toBeTruthy()
   })
 
   test("renders markdown tables as HTML tables", () => {
