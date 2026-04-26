@@ -1095,6 +1095,14 @@ describe("ChatMessage", async () => {
     expect(document.querySelector("del")!.textContent).toBe("deleted")
   })
 
+  test("renders inline code with text-sm", () => {
+    renderChat({
+      message: { role: "assistant", content: "Use `inline code` here", timestamp: "2026-03-17T10:00:00Z" },
+    })
+
+    expect(document.querySelector("code")!.className).toContain("text-sm")
+  })
+
   test("linkifies task UUID inside inline code (backticks)", () => {
     const taskId = "abc12345-0000-0000-0000-000000000001"
     renderChat({

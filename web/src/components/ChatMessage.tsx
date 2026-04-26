@@ -112,7 +112,7 @@ const markdownComponents: Components = {
     const insidePre = useContext(InsidePreContext)
     // Apply inline-code styling only for true inline code, not unlanguaged fenced blocks
     if (!className && !insidePre) {
-      return <code className="rounded bg-muted px-1 py-0.5 font-mono border border-border">{children}</code>
+      return <code className="rounded bg-muted px-1 py-0.5 font-mono text-sm border border-border">{children}</code>
     }
     return <code className={className}>{children}</code>
   },
