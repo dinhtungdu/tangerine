@@ -129,15 +129,6 @@ export function TreePane({ taskId, tree, loading, checkpoints, onBranch }: TreeP
   const turns = tree?.turns ?? []
   const tasks = tree?.tasks ?? {}
 
-  const levels = useMemo(() => {
-    const grouped = new Map<number, TreeTurn[]>()
-    for (const turn of turns) {
-      if (!grouped.has(turn.level)) grouped.set(turn.level, [])
-      grouped.get(turn.level)!.push(turn)
-    }
-    return Array.from(grouped.entries()).sort((a, b) => a[0] - b[0])
-  }, [turns])
-
   useEffect(() => {
     if (focusedId) {
       nodeRefs.current.get(focusedId)?.focus({ preventScroll: false })
@@ -258,37 +249,25 @@ export function TreePane({ taskId, tree, loading, checkpoints, onBranch }: TreeP
       </div>
 
       <div className="flex-1 touch-pan-y overflow-y-auto py-1">
-        {levels.map(([level, levelTurns]) => (
-          <div key={level} className="flex flex-col">
-            {level > 1 && (
-              <div className="flex items-center gap-1.5 px-2 py-1 text-2xs text-muted-foreground/40">
-                <svg className="h-3 w-3 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
-                  <path strokeLinecap="round" strokeLinejoin="round" d="M6 3v12m0 0a3 3 0 1 0 3 3m-3-3a3 3 0 0 1 3 3m0 0h6a3 3 0 0 0 3-3V9m0 0a3 3 0 1 0 0-6 3 3 0 0 0 0 6Z" />
-                </svg>
-                <span>Level {level}</span>
-              </div>
-            )}
-            {levelTurns.map((turn) => {
-              const task = tasks[turn.taskId]
-              if (!task) return null
-              const checkpoint = turn.taskId === taskId ? checkpointMap.get(turn.checkpointId) : undefined
-              return (
-                <TurnRow
-                  key={turn.checkpointId}
-                  turn={turn}
-                  task={task}
-                  currentTaskId={taskId}
-                  isFocused={focusedId === `turn:${turn.taskId}:${turn.turnIndex}`}
-                  onFocus={setFocusedId}
-                  nodeRefs={nodeRefs}
-                  search={search}
-                  checkpoint={checkpoint}
-                  onBranch={onBranch}
-                />
-              )
-            })}
-          </div>
-        ))}
+        {turns.map((turn) => {
+          const task = tasks[turn.taskId]
+          if (!task) return null
+          const checkpoint = turn.taskId === taskId ? checkpointMap.get(turn.checkpointId) : undefined
+          return (
+            <TurnRow
+              key={turn.checkpointId}
+              turn={turn}
+              task={task}
+              currentTaskId={taskId}
+              isFocused={focusedId === `turn:${turn.taskId}:${turn.turnIndex}`}
+              onFocus={setFocusedId}
+              nodeRefs={nodeRefs}
+              search={search}
+              checkpoint={checkpoint}
+              onBranch={onBranch}
+            />
+          )
+        })}
       </div>
 
       <div className="border-t border-border px-3 py-1.5 text-2xs text-muted-foreground/40">
