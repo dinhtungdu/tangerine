@@ -201,6 +201,19 @@ export function taskRoutes(deps: AppDeps): Hono {
           let level = taskStartLevel.get(currentTaskId) ?? 1
           const cps = checkpointsByTask.get(currentTaskId) ?? []
 
+          // Tasks with no checkpoints yet still need a row in the tree
+          if (cps.length === 0) {
+            turns.push({
+              level,
+              checkpointId: `pending:${currentTaskId}`,
+              taskId: currentTaskId,
+              turnIndex: -1,
+              message: "",
+              createdAt: t.created_at,
+              parentCheckpointId: t.branched_from_checkpoint_id,
+            })
+          }
+
           for (const cp of cps) {
             turns.push({
               level,

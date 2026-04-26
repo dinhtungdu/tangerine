@@ -87,9 +87,11 @@ const TurnRow = memo(function TurnRow({
       </span>
       <span className="text-muted-foreground/30">·</span>
       <span className="min-w-0 flex-1 truncate">
-        {turn.message
-          ? turn.message.slice(0, 60) + (turn.message.length > 60 ? "…" : "")
-          : `Turn ${turn.turnIndex + 1}`}
+        {turn.turnIndex < 0
+          ? <span className="italic text-muted-foreground/50">Starting…</span>
+          : turn.message
+            ? turn.message.slice(0, 60) + (turn.message.length > 60 ? "…" : "")
+            : `Turn ${turn.turnIndex + 1}`}
       </span>
       {checkpoint && onBranch && (
         <button
@@ -182,8 +184,8 @@ export function TreePane({ taskId, tree, loading, checkpoints, onBranch }: TreeP
         case "ArrowLeft": {
           e.preventDefault()
           const cur = turns[currentIndex]
-          if (cur && cur.level > 1) {
-            const parent = turns.slice(0, currentIndex).findLast((t) => t.level < cur.level)
+          if (cur && cur.parentCheckpointId) {
+            const parent = turns.find((t) => t.checkpointId === cur.parentCheckpointId)
             if (parent) setFocusedId(`turn:${parent.taskId}:${parent.turnIndex}`)
           }
           break
