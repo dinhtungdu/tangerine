@@ -541,6 +541,14 @@ describe("StatusPage", () => {
 })
 
 describe("ChatInput", () => {
+  test("uses text-sm size for composer input", () => {
+    render(<ChatInput onSend={() => {}} disabled={false} queueLength={0} />)
+
+    const composer = screen.getByPlaceholderText("Message agent...")
+    expect(composer.className).toContain("text-sm")
+    expect(composer.className).not.toContain("text-base")
+  })
+
   test("formats quoted text as a composer block", () => {
     expect(appendQuotedText("", "> quoted")).toBe("> quoted\n\n")
     expect(appendQuotedText("Already typing", "> quoted")).toBe("Already typing\n\n> quoted\n\n")
@@ -992,6 +1000,22 @@ describe("ChatMessage", async () => {
     return render(<MemoryRouter><ChatMessage {...props} /></MemoryRouter>)
   }
 
+  test("uses text-sm size for message body container", () => {
+    render(
+      <MemoryRouter>
+        <ChatPanel
+          messages={[{ id: "m1", role: "assistant", content: "Assistant text", timestamp: "2026-03-17T10:00:00Z" }]}
+          agentStatus="idle"
+          queueLength={0}
+          onSend={() => {}}
+          onAbort={() => {}}
+        />
+      </MemoryRouter>,
+    )
+
+    expect(screen.getByText("Assistant text").closest(".text-sm")).toBeTruthy()
+  })
+
   test("renders markdown tables as HTML tables", () => {
     const tableContent = "| Feature | Status |\n|---|---|\n| Tables | Yes |\n| Bold | Yes |"
     renderChat({
@@ -1069,6 +1093,14 @@ describe("ChatMessage", async () => {
       message: { role: "assistant", content: "~~deleted~~", timestamp: "2026-03-17T10:00:00Z" },
     })
     expect(document.querySelector("del")!.textContent).toBe("deleted")
+  })
+
+  test("renders inline code with text-sm", () => {
+    renderChat({
+      message: { role: "assistant", content: "Use `inline code` here", timestamp: "2026-03-17T10:00:00Z" },
+    })
+
+    expect(document.querySelector("code")!.className).toContain("text-sm")
   })
 
   test("linkifies task UUID inside inline code (backticks)", () => {
