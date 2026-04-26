@@ -143,6 +143,7 @@ export interface TreeTurn {
 
 export interface TaskMeta {
   taskId: string
+  parentTaskId: string | null
   title: string
   status: TaskStatus
   provider: ProviderType

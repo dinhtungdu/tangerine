@@ -192,6 +192,7 @@ export function taskRoutes(deps: AppDeps): Hono {
           const t = allTasks.get(currentTaskId)!
           tasks[t.id] = {
             taskId: t.id,
+            parentTaskId: t.parent_task_id,
             title: t.title,
             status: t.status as TaskStatus,
             provider: t.provider as ProviderType,
