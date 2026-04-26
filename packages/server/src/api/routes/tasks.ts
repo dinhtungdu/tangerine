@@ -178,7 +178,8 @@ export function taskRoutes(deps: AppDeps): Hono {
           }
         }
 
-        const root = taskRows.find((t) => !t.parent_task_id || !allTasks.has(t.parent_task_id))
+        // Root is task with no branched_from_checkpoint_id (not branched from anything)
+        const root = taskRows.find((t) => !t.branched_from_checkpoint_id)
         if (!root) return yield* Effect.fail(new TaskNotFoundError({ taskId }))
 
         // Build flat structure with levels
@@ -214,6 +215,7 @@ export function taskRoutes(deps: AppDeps): Hono {
             })
           }
 
+          let prevCheckpointId: string | null = t.branched_from_checkpoint_id
           for (const cp of cps) {
             turns.push({
               level,
@@ -222,8 +224,9 @@ export function taskRoutes(deps: AppDeps): Hono {
               turnIndex: cp.turn_index,
               message: cp.preview,
               createdAt: cp.created_at,
-              parentCheckpointId: t.branched_from_checkpoint_id,
+              parentCheckpointId: prevCheckpointId,
             })
+            prevCheckpointId = cp.id
 
             const branches = branchesByCheckpoint.get(cp.id) ?? []
             if (branches.length > 0) {

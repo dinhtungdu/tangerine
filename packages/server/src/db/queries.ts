@@ -333,41 +333,35 @@ export function getTasksWithExpiredCheckpoints(
 
 export function getAllFamilyTaskIds(db: Database, taskId: string): Effect.Effect<string[], DbError> {
   return dbTry(() => {
-    // Walk up to find the branch family root, stopping before orchestrators.
-    // This ensures orchestrator→worker relationships are not followed, but
-    // continuation tasks (parent set, no branched_from_checkpoint_id) within
-    // a branch family still resolve to the shared root.
-    // Track depth to pick the FURTHEST non-branched ancestor as root.
-    // Walk down collecting only branched descendants.
+    // Tree family = tasks connected via branched_from_checkpoint_id (NOT parent_task_id).
+    // 1. Walk UP via branched_from_checkpoint_id to find branch root
+    // 2. Walk DOWN via branched_from_checkpoint_id to find all branches
+    // Continuations (parent_task_id only) are separate conversations, not in tree.
     const rows = db.prepare(`
       WITH RECURSIVE
-        ancestors(id, parent_task_id, branched_from_checkpoint_id, depth) AS (
-          SELECT id, parent_task_id, branched_from_checkpoint_id, 0 FROM tasks WHERE id = ?
+        -- Walk up via branched_from_checkpoint_id to find root
+        branch_ancestors(id, branched_from_checkpoint_id) AS (
+          SELECT id, branched_from_checkpoint_id FROM tasks WHERE id = ?
           UNION ALL
-          SELECT t.id, t.parent_task_id, t.branched_from_checkpoint_id, a.depth + 1 FROM tasks t
-          JOIN ancestors a ON t.id = a.parent_task_id
-          WHERE t.type != 'orchestrator'
+          SELECT t.id, t.branched_from_checkpoint_id FROM tasks t
+          JOIN checkpoints c ON t.branched_from_checkpoint_id = c.id
+          JOIN branch_ancestors a ON c.task_id = a.id
         ),
+        -- Root is the ancestor with no branched_from_checkpoint_id
         root AS (
-          SELECT id FROM (
-            SELECT id FROM ancestors
-            WHERE branched_from_checkpoint_id IS NULL
-            ORDER BY depth DESC
-            LIMIT 1
-          )
-          UNION ALL
-          SELECT ? WHERE NOT EXISTS (SELECT 1 FROM ancestors WHERE branched_from_checkpoint_id IS NULL)
+          SELECT id FROM branch_ancestors WHERE branched_from_checkpoint_id IS NULL
+          LIMIT 1
         ),
-        family(id) AS (
+        -- Walk down: find all tasks that branch from root's checkpoints, recursively
+        branch_family(id) AS (
           SELECT id FROM root
           UNION ALL
           SELECT t.id FROM tasks t
-          JOIN family f ON t.parent_task_id = f.id
-          JOIN tasks p ON p.id = f.id
-          WHERE p.type != 'orchestrator'
+          JOIN checkpoints c ON t.branched_from_checkpoint_id = c.id
+          JOIN branch_family f ON c.task_id = f.id
         )
-      SELECT DISTINCT id FROM family
-    `).all(taskId, taskId) as { id: string }[]
+      SELECT DISTINCT id FROM branch_family
+    `).all(taskId) as { id: string }[]
     return rows.map((r) => r.id)
   })
 }

@@ -26,6 +26,8 @@ function StatusDot({ status }: { status: string }) {
 interface TurnRowProps {
   turn: TreeTurn
   task: TaskMeta
+  prefix: string
+  isFirstTurnOfTask: boolean
   currentTaskId: string
   isFocused: boolean
   onFocus: (id: string) => void
@@ -38,6 +40,8 @@ interface TurnRowProps {
 const TurnRow = memo(function TurnRow({
   turn,
   task,
+  prefix,
+  isFirstTurnOfTask,
   currentTaskId,
   isFocused,
   onFocus,
@@ -75,12 +79,19 @@ const TurnRow = memo(function TurnRow({
       ref={setRef as React.RefCallback<HTMLElement>}
       {...turnLinkProps}
       onFocus={(e) => { if (e.target === e.currentTarget) onFocus(nodeId) }}
-      className={`group/turn flex items-center gap-1.5 rounded px-2 py-1.5 text-xs transition-colors ${isCurrent ? "bg-muted/50 text-foreground" : "cursor-pointer touch-manipulation hover:bg-muted active:bg-muted text-muted-foreground"} ${isFocused ? "ring-1 ring-ring" : ""} ${!visible ? "opacity-30" : ""}`}
-      style={{ paddingLeft: `${8 + (turn.level - 1) * 20}px` }}
+      className={`group/turn flex items-center gap-1.5 rounded px-2 py-0.5 text-xs transition-colors ${isCurrent ? "bg-muted/50 text-foreground" : "cursor-pointer touch-manipulation hover:bg-muted active:bg-muted text-muted-foreground"} ${isFocused ? "ring-1 ring-ring" : ""} ${!visible ? "opacity-30" : ""}`}
       tabIndex={isFocused ? 0 : -1}
       role="treeitem"
       title={turn.message || `Turn ${turn.turnIndex + 1}`}
     >
+      {prefix && <span className="shrink-0 font-mono text-muted-foreground/40 text-2xs whitespace-pre">{prefix}</span>}
+      {isFirstTurnOfTask && (
+        <>
+          <StatusDot status={task.status} />
+          <span className="shrink-0 max-w-[80px] truncate text-2xs font-medium">{task.title}</span>
+          <span className="text-muted-foreground/30">·</span>
+        </>
+      )}
       <span className="min-w-0 flex-1 truncate">
         {turn.turnIndex < 0
           ? <span className="italic text-muted-foreground/50">Starting…</span>
@@ -124,19 +135,79 @@ export function TreePane({ taskId, tree, loading, checkpoints, onBranch }: TreeP
   const turns = tree?.turns ?? []
   const tasks = tree?.tasks ?? {}
 
-  const taskGroups = useMemo(() => {
-    const groups = new Map<string, TreeTurn[]>()
+  const treeData = useMemo(() => {
+    // Group turns by task
+    const turnsByTask = new Map<string, TreeTurn[]>()
     for (const turn of turns) {
-      const existing = groups.get(turn.taskId)
-      if (existing) {
-        existing.push(turn)
-      } else {
-        groups.set(turn.taskId, [turn])
-      }
+      const existing = turnsByTask.get(turn.taskId)
+      if (existing) existing.push(turn)
+      else turnsByTask.set(turn.taskId, [turn])
     }
-    return Array.from(groups.entries())
-      .map(([taskIdKey, taskTurns]) => ({ taskId: taskIdKey, turns: taskTurns }))
-      .sort((a, b) => (a.turns[0]?.createdAt ?? "").localeCompare(b.turns[0]?.createdAt ?? ""))
+
+    // Build task branch tree: which tasks branch from which checkpoint
+    const tasksByBranchPoint = new Map<string | null, string[]>()
+    for (const [tid, taskTurns] of turnsByTask) {
+      const firstTurn = taskTurns[0]
+      const branchPoint = firstTurn?.parentCheckpointId ?? null
+      const existing = tasksByBranchPoint.get(branchPoint)
+      if (existing) existing.push(tid)
+      else tasksByBranchPoint.set(branchPoint, [tid])
+    }
+
+    const result: Array<{ turn: TreeTurn; prefix: string; isFirstTurnOfTask: boolean }> = []
+    const activeLines = new Set<number>()
+
+    function walkTask(tid: string, isLastTask: boolean) {
+      const taskTurns = turnsByTask.get(tid) ?? []
+      const level = taskTurns[0]?.level ?? 1
+
+      taskTurns.forEach((turn, turnIdx) => {
+        const isFirstTurn = turnIdx === 0
+        const isLastTurn = turnIdx === taskTurns.length - 1
+
+        // Check if any child tasks branch from this turn's checkpoint
+        const childTasks = tasksByBranchPoint.get(turn.checkpointId) ?? []
+        const hasChildren = childTasks.length > 0
+
+        let prefix = ""
+        for (let l = 1; l < level; l++) {
+          prefix += activeLines.has(l) ? "│  " : "   "
+        }
+
+        if (level > 1) {
+          if (isFirstTurn) {
+            // First turn of task gets branch connector
+            prefix += isLastTask ? "└─ " : "├─ "
+          } else {
+            // Subsequent turns get continuation line
+            prefix += "│  "
+          }
+        }
+
+        // Update active lines for children
+        if (isLastTurn && isLastTask) activeLines.delete(level)
+        else if (isFirstTurn && !isLastTask) activeLines.add(level)
+
+        result.push({ turn, prefix, isFirstTurnOfTask: isFirstTurn })
+
+        // After last turn of this task, recurse into child tasks
+        if (isLastTurn && hasChildren) {
+          activeLines.add(level)
+          childTasks.forEach((childTid, idx) => {
+            walkTask(childTid, idx === childTasks.length - 1)
+          })
+          activeLines.delete(level)
+        }
+      })
+    }
+
+    // Start with root tasks (no parent checkpoint)
+    const rootTasks = tasksByBranchPoint.get(null) ?? []
+    rootTasks.forEach((tid, idx) => {
+      walkTask(tid, idx === rootTasks.length - 1)
+    })
+
+    return result
   }, [turns])
 
   useEffect(() => {
@@ -146,12 +217,12 @@ export function TreePane({ taskId, tree, loading, checkpoints, onBranch }: TreeP
   }, [focusedId])
 
   useEffect(() => {
-    if (!tree || turns.length === 0) return
-    const currentTurn = turns.find((t) => t.taskId === taskId)
-    if (currentTurn) {
-      setFocusedId(`turn:${currentTurn.taskId}:${currentTurn.turnIndex}`)
+    if (!tree || treeData.length === 0) return
+    const current = treeData.find(({ turn }) => turn.taskId === taskId)
+    if (current) {
+      setFocusedId(`turn:${current.turn.taskId}:${current.turn.turnIndex}`)
     }
-  }, [tree, taskId, turns])
+  }, [tree, taskId, treeData])
 
   const handleKeyDown = useCallback(
     (e: React.KeyboardEvent<HTMLDivElement>) => {
@@ -163,13 +234,13 @@ export function TreePane({ taskId, tree, loading, checkpoints, onBranch }: TreeP
         return
       }
 
-      const currentIndex = turns.findIndex((t) => `turn:${t.taskId}:${t.turnIndex}` === focusedId)
+      const currentIndex = treeData.findIndex(({ turn }) => `turn:${turn.taskId}:${turn.turnIndex}` === focusedId)
 
       switch (e.key) {
         case "ArrowDown": {
           e.preventDefault()
-          const next = turns[currentIndex + 1]
-          if (next) setFocusedId(`turn:${next.taskId}:${next.turnIndex}`)
+          const next = treeData[currentIndex + 1]
+          if (next) setFocusedId(`turn:${next.turn.taskId}:${next.turn.turnIndex}`)
           break
         }
         case "ArrowUp": {
@@ -177,24 +248,24 @@ export function TreePane({ taskId, tree, loading, checkpoints, onBranch }: TreeP
           if (currentIndex <= 0) {
             searchRef.current?.focus()
           } else {
-            const prev = turns[currentIndex - 1]
-            if (prev) setFocusedId(`turn:${prev.taskId}:${prev.turnIndex}`)
+            const prev = treeData[currentIndex - 1]
+            if (prev) setFocusedId(`turn:${prev.turn.taskId}:${prev.turn.turnIndex}`)
           }
           break
         }
         case "ArrowLeft": {
           e.preventDefault()
-          const cur = turns[currentIndex]
-          if (cur && cur.parentCheckpointId) {
-            const parent = turns.find((t) => t.checkpointId === cur.parentCheckpointId)
-            if (parent) setFocusedId(`turn:${parent.taskId}:${parent.turnIndex}`)
+          const cur = treeData[currentIndex]
+          if (cur && cur.turn.parentCheckpointId) {
+            const parent = treeData.find(({ turn }) => turn.checkpointId === cur.turn.parentCheckpointId)
+            if (parent) setFocusedId(`turn:${parent.turn.taskId}:${parent.turn.turnIndex}`)
           }
           break
         }
         case "Enter": {
           e.preventDefault()
-          const cur = turns[currentIndex]
-          if (cur && cur.taskId !== taskId) navigate(`/tasks/${cur.taskId}`)
+          const cur = treeData[currentIndex]
+          if (cur && cur.turn.taskId !== taskId) navigate(`/tasks/${cur.turn.taskId}`)
           break
         }
         case "/": {
@@ -204,7 +275,7 @@ export function TreePane({ taskId, tree, loading, checkpoints, onBranch }: TreeP
         }
       }
     },
-    [turns, focusedId, navigate, taskId],
+    [treeData, focusedId, navigate, taskId],
   )
 
   if (loading) {
@@ -248,8 +319,8 @@ export function TreePane({ taskId, tree, loading, checkpoints, onBranch }: TreeP
             if (e.key === "Escape") { setSearch(""); e.currentTarget.blur() }
             if (e.key === "ArrowDown") {
               e.preventDefault()
-              const first = turns[0]
-              if (first) { setFocusedId(`turn:${first.taskId}:${first.turnIndex}`); e.currentTarget.blur() }
+              const first = treeData[0]
+              if (first) { setFocusedId(`turn:${first.turn.taskId}:${first.turn.turnIndex}`); e.currentTarget.blur() }
             }
           }}
           placeholder="Filter… (/)"
@@ -259,37 +330,25 @@ export function TreePane({ taskId, tree, loading, checkpoints, onBranch }: TreeP
       </div>
 
       <div className="flex-1 touch-pan-y overflow-y-auto py-1">
-        {taskGroups.map((group) => {
-          const task = tasks[group.taskId]
+        {treeData.map(({ turn, prefix, isFirstTurnOfTask }) => {
+          const task = tasks[turn.taskId]
           if (!task) return null
-          const isCurrent = group.taskId === taskId
+          const checkpoint = turn.taskId === taskId ? checkpointMap.get(turn.checkpointId) : undefined
           return (
-            <div key={group.taskId} className="mb-2">
-              <div
-                className={`sticky top-0 z-10 flex items-center gap-1.5 px-2 py-1 text-2xs font-medium ${isCurrent ? "bg-muted text-foreground" : "bg-background text-muted-foreground"}`}
-                style={{ paddingLeft: `${8 + ((group.turns[0]?.level ?? 1) - 1) * 20}px` }}
-              >
-                <StatusDot status={task.status} />
-                <span className="truncate">{task.title}</span>
-              </div>
-              {group.turns.map((turn) => {
-                const checkpoint = turn.taskId === taskId ? checkpointMap.get(turn.checkpointId) : undefined
-                return (
-                  <TurnRow
-                    key={turn.checkpointId}
-                    turn={turn}
-                    task={task}
-                    currentTaskId={taskId}
-                    isFocused={focusedId === `turn:${turn.taskId}:${turn.turnIndex}`}
-                    onFocus={setFocusedId}
-                    nodeRefs={nodeRefs}
-                    search={search}
-                    checkpoint={checkpoint}
-                    onBranch={onBranch}
-                  />
-                )
-              })}
-            </div>
+            <TurnRow
+              key={turn.checkpointId}
+              turn={turn}
+              task={task}
+              prefix={prefix}
+              isFirstTurnOfTask={isFirstTurnOfTask}
+              currentTaskId={taskId}
+              isFocused={focusedId === `turn:${turn.taskId}:${turn.turnIndex}`}
+              onFocus={setFocusedId}
+              nodeRefs={nodeRefs}
+              search={search}
+              checkpoint={checkpoint}
+              onBranch={onBranch}
+            />
           )
         })}
       </div>
