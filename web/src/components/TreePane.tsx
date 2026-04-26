@@ -1,8 +1,7 @@
-import { memo, useState, useCallback, useRef, useEffect, useMemo } from "react"
+import { memo, useState, useMemo, useCallback } from "react"
 import type { TaskTreeNode, Checkpoint } from "@tangerine/shared"
-import { getStatusConfig } from "../lib/status"
 import { useProjectNav } from "../hooks/useProjectNav"
-import { formatTimestamp } from "../lib/format"
+import { formatRelativeTime } from "../lib/format"
 
 interface TreePaneProps {
   taskId: string
@@ -12,385 +11,243 @@ interface TreePaneProps {
   onBranch?: (checkpoint: Checkpoint) => void
 }
 
-// ---------------------------------------------------------------------------
-// Flat node model — drives keyboard navigation
-// ---------------------------------------------------------------------------
+interface FlatBranch {
+  node: TaskTreeNode
+  depth: number
+  /** Branched off a turn in the parent (true = render as indented sub-branch with corner connector) */
+  isBranchedChild: boolean
+  /** Visual abandoned state (e.g. cancelled tasks) */
+  abandoned: boolean
+}
 
-type FlatNode =
-  | { kind: "task"; id: string; taskId: string; depth: number; node: TaskTreeNode }
-  | { kind: "turn"; id: string; taskId: string; turnIndex: number; checkpointId: string; depth: number }
-
-function flattenTree(
-  node: TaskTreeNode,
-  collapsed: Set<string>,
-  depth: number,
-  out: FlatNode[],
-): void {
-  out.push({ kind: "task", id: `task:${node.taskId}`, taskId: node.taskId, depth, node })
-  if (collapsed.has(node.taskId)) return
+function flatten(node: TaskTreeNode, depth: number, isBranchedChild: boolean, out: FlatBranch[]): void {
+  const abandoned = node.status === "cancelled" || node.status === "failed"
+  out.push({ node, depth, isBranchedChild, abandoned })
   for (const turn of node.turns) {
-    out.push({
-      kind: "turn",
-      id: `turn:${node.taskId}:${turn.turnIndex}`,
-      taskId: node.taskId,
-      turnIndex: turn.turnIndex,
-      checkpointId: turn.checkpointId,
-      depth: depth + 1,
-    })
     for (const branch of turn.branches) {
-      flattenTree(branch, collapsed, depth + 2, out)
+      flatten(branch, depth + 1, true, out)
     }
   }
 }
 
-function buildFlatList(tree: TaskTreeNode, collapsed: Set<string>): FlatNode[] {
-  const out: FlatNode[] = []
-  flattenTree(tree, collapsed, 0, out)
-  return out
+function getDescription(node: TaskTreeNode): string {
+  if (node.turns.length === 0) return ""
+  const last = node.turns[node.turns.length - 1]!
+  return last.lastMessage ?? ""
 }
 
-// ---------------------------------------------------------------------------
-// Sub-components
-// ---------------------------------------------------------------------------
+function getUpdatedAt(node: TaskTreeNode): string | null {
+  if (node.turns.length === 0) return null
+  return node.turns[node.turns.length - 1]!.createdAt
+}
 
-function StatusDot({ status }: { status: string }) {
-  const { color } = getStatusConfig(status as Parameters<typeof getStatusConfig>[0])
-  const isRunning = status === "running"
+type BadgeKind = "active" | "completed" | "in-progress" | "abandoned" | "queued"
+
+function getBadge(node: TaskTreeNode, isCurrent: boolean): { kind: BadgeKind; label: string } {
+  if (isCurrent) return { kind: "active", label: "Active" }
+  switch (node.status) {
+    case "running":      return { kind: "in-progress", label: "In progress" }
+    case "done":         return { kind: "completed",   label: "Completed" }
+    case "cancelled":    return { kind: "abandoned",   label: "Abandoned" }
+    case "failed":       return { kind: "abandoned",   label: "Failed" }
+    case "created":
+    case "provisioning": return { kind: "queued",      label: "Queued" }
+    default:             return { kind: "abandoned",   label: node.status }
+  }
+}
+
+const ICON_BG: Record<BadgeKind, string> = {
+  "active":      "bg-violet-100 text-violet-600 dark:bg-violet-500/20 dark:text-violet-300",
+  "completed":   "bg-emerald-100 text-emerald-600 dark:bg-emerald-500/20 dark:text-emerald-300",
+  "in-progress": "bg-amber-100 text-amber-600 dark:bg-amber-500/20 dark:text-amber-300",
+  "abandoned":   "bg-muted text-muted-foreground",
+  "queued":      "bg-sky-100 text-sky-600 dark:bg-sky-500/20 dark:text-sky-300",
+}
+
+function BadgePill({ kind, label }: { kind: BadgeKind; label: string }) {
+  if (kind === "active") {
+    return (
+      <span className="shrink-0 rounded bg-violet-100 px-1.5 py-0.5 text-2xs font-medium text-violet-700 dark:bg-violet-500/20 dark:text-violet-300">
+        {label}
+      </span>
+    )
+  }
+  const dot: Record<BadgeKind, string> = {
+    "active":      "bg-violet-500",
+    "completed":   "bg-emerald-500",
+    "in-progress": "bg-amber-500",
+    "abandoned":   "bg-muted-foreground/50",
+    "queued":      "bg-sky-500",
+  }
+  const text: Record<BadgeKind, string> = {
+    "active":      "text-violet-600",
+    "completed":   "text-emerald-600 dark:text-emerald-400",
+    "in-progress": "text-amber-600 dark:text-amber-400",
+    "abandoned":   "text-muted-foreground",
+    "queued":      "text-sky-600 dark:text-sky-400",
+  }
   return (
-    <span
-      className={`inline-block h-1.5 w-1.5 shrink-0 rounded-full ${isRunning ? "animate-pulse" : ""}`}
-      style={{ backgroundColor: color }}
-    />
+    <span className={`inline-flex shrink-0 items-center gap-1 text-2xs font-medium ${text[kind]}`}>
+      <span className={`h-1.5 w-1.5 rounded-full ${kind === "in-progress" ? "animate-pulse " : ""}${dot[kind]}`} />
+      {label}
+    </span>
   )
 }
 
-interface TreeNodeProps {
-  node: TaskTreeNode
-  currentTaskId: string
-  depth: number
-  collapsed: Set<string>
-  focusedId: string | null
-  onToggle: (taskId: string) => void
-  onFocus: (id: string) => void
-  nodeRefs: React.MutableRefObject<Map<string, HTMLElement>>
-  tree: TaskTreeNode
-  search: string
-  checkpoints?: Checkpoint[]
-  onBranch?: (checkpoint: Checkpoint) => void
+function BranchIcon() {
+  return (
+    <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+      <path strokeLinecap="round" strokeLinejoin="round" d="M6 3v12m0 0a3 3 0 1 0 3 3m-3-3a3 3 0 0 1 3 3m0 0h6a3 3 0 0 0 3-3V9m0 0a3 3 0 1 0 0-6 3 3 0 0 0 0 6Z" />
+    </svg>
+  )
 }
 
-const TreeNode = memo(function TreeNode({
-  node,
-  currentTaskId,
-  depth,
-  collapsed,
-  focusedId,
-  onToggle,
-  onFocus,
-  nodeRefs,
-  tree,
-  search,
-  checkpoints,
-  onBranch,
-}: TreeNodeProps) {
-  const { link, navigate } = useProjectNav()
-  const isCurrent = node.taskId === currentTaskId
-  const checkpointMap = useMemo(
-    () => new Map(checkpoints?.map((cp) => [cp.id, cp]) ?? []),
-    [checkpoints],
-  )
-  const hasBranches = node.turns.some((t) => t.branches.length > 0)
-  const isRunning = node.status === "running"
-  const isCollapsed = collapsed.has(node.taskId)
-  const taskNodeId = `task:${node.taskId}`
-  const isFocused = focusedId === taskNodeId
+interface BranchCardProps {
+  flat: FlatBranch
+  isCurrent: boolean
+  onSelect: (taskId: string) => void
+}
 
-  const setRef = useCallback(
-    (el: HTMLElement | null) => {
-      if (el) nodeRefs.current.set(taskNodeId, el)
-      else nodeRefs.current.delete(taskNodeId)
-    },
-    [nodeRefs, taskNodeId],
-  )
+const BranchCard = memo(function BranchCard({ flat, isCurrent, onSelect }: BranchCardProps) {
+  const { node, depth, isBranchedChild, abandoned } = flat
+  const badge = getBadge(node, isCurrent)
+  const description = getDescription(node)
+  const updatedAt = getUpdatedAt(node)
+  const turnCount = node.turns.length
 
-  const handleNodeClick = useCallback(() => {
-    navigate(`/tasks/${node.taskId}`)
-  }, [navigate, node.taskId])
+  const handleClick = useCallback(() => {
+    if (!isCurrent) onSelect(node.taskId)
+  }, [isCurrent, onSelect, node.taskId])
 
-  const handleToggle = useCallback(
-    (e: React.MouseEvent) => {
-      e.stopPropagation()
-      onToggle(node.taskId)
-    },
-    [onToggle, node.taskId],
-  )
-
-  // Filter: hide task node only if search active AND neither the task nor any
-  // of its visible turns match (always show task headers so tree structure is clear)
-  const taskVisible = !search || node.title.toLowerCase().includes(search.toLowerCase())
+  const indent = depth * 24
 
   return (
-    <div className="flex flex-col">
-      {/* Task header row */}
-      <div
-        ref={setRef}
-        className={`group flex items-center gap-1.5 rounded px-2 py-1.5 text-xs transition-colors ${isCurrent ? "cursor-default bg-muted font-medium text-foreground" : "cursor-pointer touch-manipulation hover:bg-muted active:bg-muted text-muted-foreground"} ${isFocused ? "ring-1 ring-ring" : ""} ${!taskVisible ? "opacity-40" : ""}`}
-        style={{ paddingLeft: `${8 + depth * 16}px` }}
-        onClick={isCurrent ? undefined : handleNodeClick}
-        onFocus={(e) => { if (e.target === e.currentTarget) onFocus(taskNodeId) }}
-        role="treeitem"
-        aria-expanded={hasBranches ? !isCollapsed : undefined}
-        tabIndex={isFocused ? 0 : -1}
-        title={node.title}
-      >
-        {hasBranches && (
-          <button
-            onClick={handleToggle}
-            className="shrink-0 text-muted-foreground hover:text-foreground"
-            aria-label={isCollapsed ? "Expand" : "Collapse"}
-            tabIndex={-1}
-          >
-            <svg
-              className={`h-3 w-3 transition-transform ${isCollapsed ? "" : "rotate-90"}`}
-              fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}
-            >
-              <path strokeLinecap="round" strokeLinejoin="round" d="m9 18 6-6-6-6" />
-            </svg>
-          </button>
+    <div className="relative flex items-stretch" style={{ paddingLeft: indent }}>
+      {/* Timeline gutter (circle + connector lines) */}
+      <div className="relative flex w-6 shrink-0 items-start justify-center">
+        {/* vertical line through gutter */}
+        <span
+          aria-hidden
+          className={`absolute left-1/2 top-0 -translate-x-1/2 h-full w-px ${abandoned ? "border-l border-dashed border-border" : "bg-border"}`}
+        />
+        {/* L-connector for branched children */}
+        {isBranchedChild && (
+          <span
+            aria-hidden
+            className={`absolute right-full top-5 h-px w-6 ${abandoned ? "border-t border-dashed border-border" : "bg-border"}`}
+          />
         )}
-        {!hasBranches && <span className="w-3 shrink-0" />}
-        <StatusDot status={node.status} />
-        <span className="min-w-0 flex-1 truncate">{node.title}</span>
-        {isRunning && (
-          <span className="shrink-0 rounded bg-amber-500/15 px-1 py-0.5 text-2xs text-amber-500">running</span>
-        )}
+        {/* circle */}
+        <span
+          aria-hidden
+          className={`relative z-10 mt-4 inline-block h-2.5 w-2.5 rounded-full border-2 ${isCurrent ? "border-violet-500 bg-background" : "border-border bg-background"}`}
+        />
       </div>
 
-      {/* Turns + branches */}
-      {!isCollapsed && node.turns.map((turn) => {
-        const turnNodeId = `turn:${node.taskId}:${turn.turnIndex}`
-        const isTurnFocused = focusedId === turnNodeId
-        const turnVisible = !search || (turn.lastMessage ?? "").toLowerCase().includes(search.toLowerCase())
+      {/* Card */}
+      <button
+        type="button"
+        onClick={handleClick}
+        disabled={isCurrent}
+        className={[
+          "group ml-2 mb-2 flex flex-1 items-start gap-2 rounded-lg border px-3 py-2.5 text-left transition-colors",
+          isCurrent
+            ? "border-violet-500 bg-violet-50 dark:bg-violet-500/10"
+            : "border-border bg-card hover:border-foreground/20 hover:bg-muted/40",
+          abandoned ? "opacity-70" : "",
+        ].join(" ")}
+        aria-current={isCurrent ? "true" : undefined}
+      >
+        {/* Icon circle */}
+        <span className={`mt-0.5 inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-full ${ICON_BG[badge.kind]}`}>
+          <BranchIcon />
+        </span>
 
-        const setTurnRef = (el: HTMLElement | null) => {
-          if (el) nodeRefs.current.set(turnNodeId, el)
-          else nodeRefs.current.delete(turnNodeId)
-        }
-
-        // Turns under the current task navigate to the same URL — no-op.
-        // Render as a non-interactive div; only turns under other tasks are links.
-        const TurnEl = isCurrent ? "div" : "a"
-        const turnLinkProps = isCurrent
-          ? {}
-          : {
-              href: link(`/tasks/${node.taskId}`),
-              onClick: (e: React.MouseEvent) => { e.preventDefault(); navigate(`/tasks/${node.taskId}`) },
-            }
-
-        // Find checkpoint for this turn to enable branching (O(1) via Map)
-        const checkpoint = isCurrent && onBranch
-          ? checkpointMap.get(turn.checkpointId)
-          : undefined
-
-        return (
-          <div key={turn.checkpointId}>
-            {/* Turn row */}
-            <TurnEl
-              ref={setTurnRef as React.RefCallback<HTMLElement>}
-              {...turnLinkProps}
-              onFocus={(e) => { if (e.target === e.currentTarget) onFocus(turnNodeId) }}
-              className={`group/turn flex items-center gap-1.5 rounded px-2 py-1 text-2xs transition-colors ${isCurrent ? "text-foreground/70 hover:bg-muted/40" : "cursor-pointer touch-manipulation hover:bg-muted/60 active:bg-muted/60 text-muted-foreground/60"} ${isTurnFocused ? "ring-1 ring-ring" : ""} ${!turnVisible ? "opacity-30" : ""}`}
-              style={{ paddingLeft: `${8 + (depth + 1) * 16}px` }}
-              tabIndex={isTurnFocused ? 0 : -1}
-              role="treeitem"
-              title={turn.lastMessage || `Turn ${turn.turnIndex + 1}`}
-            >
-              <svg className="h-2.5 w-2.5 shrink-0 text-muted-foreground/40" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                <circle cx="12" cy="12" r="3" />
-              </svg>
-              <span className="min-w-0 flex-1 truncate">
-                {turn.lastMessage
-                  ? turn.lastMessage.slice(0, 60) + (turn.lastMessage.length > 60 ? "…" : "")
-                  : `Turn ${turn.turnIndex + 1}`}
-              </span>
-              {checkpoint && (
-                <button
-                  type="button"
-                  onClick={(e) => { e.stopPropagation(); onBranch!(checkpoint) }}
-                  className="shrink-0 rounded px-1.5 py-0.5 text-2xs text-muted-foreground md:opacity-0 transition-opacity hover:bg-muted hover:text-foreground focus:opacity-100 focus-visible:ring-1 focus-visible:ring-ring md:group-hover/turn:opacity-100"
-                  title="Branch from this turn"
-                  aria-label="Branch from this turn"
-                >
-                  <svg className="h-3 w-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                    <path strokeLinecap="round" strokeLinejoin="round" d="M6 3v12m0 0a3 3 0 1 0 3 3m-3-3a3 3 0 0 1 3 3m0 0h6a3 3 0 0 0 3-3V9m0 0a3 3 0 1 0 0-6 3 3 0 0 0 0 6Z" />
-                  </svg>
-                </button>
-              )}
-              <span className={`shrink-0 text-muted-foreground/40 ${checkpoint ? "hidden md:inline md:group-hover/turn:hidden" : ""}`}>{formatTimestamp(turn.createdAt)}</span>
-            </TurnEl>
-
-            {/* Branches off this turn */}
-            {turn.branches.length > 0 && (
-              <div className="flex flex-col">
-                {/* Fork indicator */}
-                <div
-                  className="flex items-center gap-1.5 py-0.5 text-2xs text-muted-foreground/40"
-                  style={{ paddingLeft: `${8 + (depth + 1) * 16}px` }}
-                >
-                  <svg className="h-3 w-3 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
-                    <path strokeLinecap="round" strokeLinejoin="round" d="M6 3v12m0 0a3 3 0 1 0 3 3m-3-3a3 3 0 0 1 3 3m0 0h6a3 3 0 0 0 3-3V9m0 0a3 3 0 1 0 0-6 3 3 0 0 0 0 6Z" />
-                  </svg>
-                  <span>{turn.branches.length === 1 ? "1 branch" : `${turn.branches.length} branches`}</span>
-                </div>
-                {turn.branches.map((branch) => (
-                  <TreeNode
-                    key={branch.taskId}
-                    node={branch}
-                    currentTaskId={currentTaskId}
-                    depth={depth + 2}
-                    collapsed={collapsed}
-                    focusedId={focusedId}
-                    onToggle={onToggle}
-                    onFocus={onFocus}
-                    nodeRefs={nodeRefs}
-                    tree={tree}
-                    search={search}
-                    checkpoints={checkpoints}
-                    onBranch={onBranch}
-                  />
-                ))}
-              </div>
-            )}
+        {/* Body */}
+        <div className="min-w-0 flex-1">
+          <div className="flex items-center gap-2">
+            <span className="min-w-0 flex-1 truncate text-xs font-semibold text-foreground">{node.title}</span>
+            <BadgePill kind={badge.kind} label={badge.label} />
           </div>
-        )
-      })}
+          {description && (
+            <p className="mt-1 line-clamp-1 text-2xs text-muted-foreground">{description}</p>
+          )}
+          <div className="mt-1.5 flex items-center gap-2 text-2xs text-muted-foreground/70">
+            <span className="inline-flex items-center gap-1">
+              <svg className="h-3 w-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M8 12h.01M12 12h.01M16 12h.01M21 12a9 9 0 1 1-18 0 9 9 0 0 1 18 0Z" />
+              </svg>
+              {turnCount}
+            </span>
+            <span aria-hidden>·</span>
+            <span>{updatedAt ? `Updated ${formatRelativeTime(updatedAt)}` : "No updates"}</span>
+          </div>
+        </div>
+
+        {/* Selection circle + chevron */}
+        <div className="flex shrink-0 items-center gap-1.5 self-center">
+          {isCurrent ? (
+            <span className="inline-flex h-5 w-5 items-center justify-center rounded-full bg-violet-600 text-white">
+              <svg className="h-3 w-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={3}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
+              </svg>
+            </span>
+          ) : (
+            <span className="inline-block h-5 w-5 rounded-full border border-border" />
+          )}
+          <svg className="h-4 w-4 text-muted-foreground" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+            <path strokeLinecap="round" strokeLinejoin="round" d="m9 18 6-6-6-6" />
+          </svg>
+        </div>
+      </button>
     </div>
   )
 })
 
 // ---------------------------------------------------------------------------
-// Main pane
-// ---------------------------------------------------------------------------
 
 export function TreePane({ taskId, tree, loading, checkpoints, onBranch }: TreePaneProps) {
   const { navigate } = useProjectNav()
-  const [collapsed, setCollapsed] = useState<Set<string>>(new Set())
-  const [focusedId, setFocusedId] = useState<string | null>(null)
   const [search, setSearch] = useState("")
-  const nodeRefs = useRef<Map<string, HTMLElement>>(new Map())
-  const containerRef = useRef<HTMLDivElement>(null)
-  const searchRef = useRef<HTMLInputElement>(null)
+  const [searchOpen, setSearchOpen] = useState(false)
 
-  const handleToggle = useCallback((nodeTaskId: string) => {
-    setCollapsed((prev) => {
-      const next = new Set(prev)
-      if (next.has(nodeTaskId)) next.delete(nodeTaskId)
-      else next.add(nodeTaskId)
-      return next
-    })
-  }, [])
+  const flat = useMemo<FlatBranch[]>(() => {
+    if (!tree) return []
+    const out: FlatBranch[] = []
+    flatten(tree, 0, false, out)
+    return out
+  }, [tree])
 
-  const flatNodes = useMemo(
-    () => (tree ? buildFlatList(tree, collapsed) : []),
-    [tree, collapsed],
+  const filtered = useMemo(() => {
+    if (!search) return flat
+    const q = search.toLowerCase()
+    return flat.filter((f) =>
+      f.node.title.toLowerCase().includes(q) ||
+      getDescription(f.node).toLowerCase().includes(q),
+    )
+  }, [flat, search])
+
+  const totalCount = flat.length
+  const activeCount = useMemo(
+    () => flat.filter((f) => f.node.status === "running").length,
+    [flat],
   )
 
-  // Focus the DOM element for the focused node
-  useEffect(() => {
-    if (focusedId) {
-      nodeRefs.current.get(focusedId)?.focus({ preventScroll: false })
-    }
-  }, [focusedId])
+  const handleSelect = useCallback((id: string) => {
+    navigate(`/tasks/${id}`)
+  }, [navigate])
 
-  // Auto-focus the current task's node on mount
-  useEffect(() => {
-    if (!tree) return
-    const currentNodeId = `task:${taskId}`
-    setFocusedId(currentNodeId)
-  }, [tree, taskId])
+  const latestCheckpoint = checkpoints && checkpoints.length > 0
+    ? checkpoints[checkpoints.length - 1]!
+    : null
 
-  const handleKeyDown = useCallback(
-    (e: React.KeyboardEvent<HTMLDivElement>) => {
-      // Let search input handle its own keys
-      if (document.activeElement === searchRef.current) {
-        if (e.key === "Escape") {
-          setSearch("")
-          searchRef.current?.blur()
-        }
-        return
-      }
+  const handleNewBranch = useCallback(() => {
+    if (latestCheckpoint && onBranch) onBranch(latestCheckpoint)
+  }, [latestCheckpoint, onBranch])
 
-      const currentIndex = flatNodes.findIndex((n) => n.id === focusedId)
-
-      switch (e.key) {
-        case "ArrowDown": {
-          e.preventDefault()
-          const next = flatNodes[currentIndex + 1]
-          if (next) setFocusedId(next.id)
-          break
-        }
-        case "ArrowUp": {
-          e.preventDefault()
-          if (currentIndex <= 0) {
-            // Jump to search
-            searchRef.current?.focus()
-          } else {
-            const prev = flatNodes[currentIndex - 1]
-            if (prev) setFocusedId(prev.id)
-          }
-          break
-        }
-        case "ArrowRight": {
-          e.preventDefault()
-          const cur = flatNodes[currentIndex]
-          if (cur?.kind === "task" && collapsed.has(cur.taskId)) {
-            setCollapsed((prev) => {
-              const next = new Set(prev)
-              next.delete(cur.taskId)
-              return next
-            })
-          }
-          break
-        }
-        case "ArrowLeft": {
-          e.preventDefault()
-          const cur = flatNodes[currentIndex]
-          if (cur?.kind === "task") {
-            const hasBranches = cur.node.turns.some((t) => t.branches.length > 0)
-            if (hasBranches && !collapsed.has(cur.taskId)) {
-              // Collapse current task
-              setCollapsed((prev) => new Set([...prev, cur.taskId]))
-            } else {
-              // Move to parent task node if any
-              const parentIdx = flatNodes.slice(0, currentIndex).findLastIndex(
-                (n) => n.kind === "task" && n.depth < cur.depth
-              )
-              if (parentIdx >= 0) setFocusedId(flatNodes[parentIdx]!.id)
-            }
-          } else if (cur?.kind === "turn") {
-            // Move to the owning task node
-            const parentIdx = flatNodes.slice(0, currentIndex).findLastIndex(
-              (n) => n.kind === "task" && n.taskId === cur.taskId
-            )
-            if (parentIdx >= 0) setFocusedId(flatNodes[parentIdx]!.id)
-          }
-          break
-        }
-        case "Enter": {
-          e.preventDefault()
-          const cur = flatNodes[currentIndex]
-          if (cur && cur.taskId !== taskId) navigate(`/tasks/${cur.taskId}`)
-          break
-        }
-        case "/": {
-          e.preventDefault()
-          searchRef.current?.focus()
-          break
-        }
-      }
-    },
-    [flatNodes, focusedId, collapsed, navigate, taskId],
-  )
+  const handleSwitchToMain = useCallback(() => {
+    if (tree && tree.taskId !== taskId) navigate(`/tasks/${tree.taskId}`)
+  }, [tree, taskId, navigate])
 
   if (loading) {
     return (
@@ -408,64 +265,109 @@ export function TreePane({ taskId, tree, loading, checkpoints, onBranch }: TreeP
     )
   }
 
+  const isOnRoot = tree.taskId === taskId
+  const canBranch = !!latestCheckpoint && !!onBranch
+
   return (
-    <div
-      ref={containerRef}
-      className="flex h-full flex-col overflow-hidden"
-      onKeyDown={handleKeyDown}
-      role="tree"
-      aria-label="Conversation tree"
-    >
+    <div className="flex h-full flex-col overflow-hidden bg-background">
       {/* Header */}
-      <div className="flex items-center gap-2 border-b border-border px-3 py-2">
-        <svg className="h-3.5 w-3.5 shrink-0 text-muted-foreground" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-          <path strokeLinecap="round" strokeLinejoin="round" d="M6 3v12m0 0a3 3 0 1 0 3 3m-3-3a3 3 0 0 1 3 3m0 0h6a3 3 0 0 0 3-3V9m0 0a3 3 0 1 0 0-6 3 3 0 0 0 0 6Z" />
-        </svg>
-        <span className="text-xs font-medium">Conversation tree</span>
+      <div className="flex items-start justify-between gap-2 border-b border-border px-4 py-3">
+        <div className="min-w-0">
+          <h2 className="text-sm font-semibold text-foreground">Branch explorer</h2>
+          <p className="mt-0.5 text-2xs text-muted-foreground">
+            {totalCount} {totalCount === 1 ? "branch" : "branches"}
+            {activeCount > 0 && <> · {activeCount} active</>}
+          </p>
+        </div>
+        <div className="flex shrink-0 items-center gap-1">
+          <button
+            type="button"
+            onClick={() => setSearchOpen((v) => !v)}
+            className={`inline-flex h-8 w-8 items-center justify-center rounded-md border border-border text-muted-foreground hover:bg-muted ${searchOpen ? "bg-muted text-foreground" : ""}`}
+            aria-label="Search branches"
+            aria-pressed={searchOpen}
+          >
+            <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+              <path strokeLinecap="round" strokeLinejoin="round" d="m21 21-4.35-4.35M17 10a7 7 0 1 1-14 0 7 7 0 0 1 14 0Z" />
+            </svg>
+          </button>
+          <button
+            type="button"
+            disabled
+            className="inline-flex h-8 w-8 items-center justify-center rounded-md border border-border text-muted-foreground/50"
+            aria-label="Filter (coming soon)"
+            title="Filters coming soon"
+          >
+            <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+              <path strokeLinecap="round" strokeLinejoin="round" d="M6 6h12M9 12h6M11 18h2" />
+            </svg>
+          </button>
+        </div>
       </div>
 
-      {/* Search */}
-      <div className="border-b border-border px-2 py-1.5">
-        <input
-          ref={searchRef}
-          type="text"
-          value={search}
-          onChange={(e) => setSearch(e.target.value)}
-          onKeyDown={(e) => {
-            if (e.key === "Escape") { setSearch(""); e.currentTarget.blur() }
-            if (e.key === "ArrowDown") {
-              e.preventDefault()
-              const first = flatNodes[0]
-              if (first) { setFocusedId(first.id); e.currentTarget.blur() }
-            }
-          }}
-          placeholder="Filter… (/)"
-          className="w-full rounded border border-border bg-background px-2 py-1 text-2xs text-foreground placeholder:text-muted-foreground/50 focus:outline-none focus:ring-1 focus:ring-ring"
-          aria-label="Filter tree nodes"
-        />
+      {searchOpen && (
+        <div className="border-b border-border px-4 py-2">
+          <input
+            autoFocus
+            type="text"
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            placeholder="Filter branches…"
+            className="w-full rounded border border-border bg-background px-2 py-1.5 text-xs text-foreground placeholder:text-muted-foreground/60 focus:outline-none focus:ring-1 focus:ring-ring"
+            aria-label="Filter branches"
+          />
+        </div>
+      )}
+
+      {/* List */}
+      <div className="min-h-0 flex-1 touch-pan-y overflow-y-auto px-3 py-3">
+        {filtered.length === 0 ? (
+          <div className="flex h-full items-center justify-center text-xs text-muted-foreground">
+            No branches match
+          </div>
+        ) : (
+          filtered.map((f) => (
+            <BranchCard
+              key={f.node.taskId}
+              flat={f}
+              isCurrent={f.node.taskId === taskId}
+              onSelect={handleSelect}
+            />
+          ))
+        )}
       </div>
 
-      {/* Tree */}
-      <div className="flex-1 touch-pan-y overflow-y-auto py-1">
-        <TreeNode
-          node={tree}
-          currentTaskId={taskId}
-          depth={0}
-          collapsed={collapsed}
-          focusedId={focusedId}
-          onToggle={handleToggle}
-          onFocus={setFocusedId}
-          nodeRefs={nodeRefs}
-          tree={tree}
-          search={search}
-          checkpoints={checkpoints}
-          onBranch={onBranch}
-        />
-      </div>
-
-      {/* Keyboard hint */}
-      <div className="border-t border-border px-3 py-1.5 text-2xs text-muted-foreground/40">
-        ↑↓ navigate · ←→ expand/collapse · Enter select · / search
+      {/* Bottom action bar */}
+      <div className="grid grid-cols-3 gap-2 border-t border-border bg-background px-3 py-2">
+        <button
+          type="button"
+          onClick={handleNewBranch}
+          disabled={!canBranch}
+          className="inline-flex items-center justify-center gap-1.5 rounded-md px-2 py-2 text-xs font-medium text-violet-600 hover:bg-violet-50 disabled:opacity-40 disabled:hover:bg-transparent dark:text-violet-300 dark:hover:bg-violet-500/10"
+          title={canBranch ? "Branch from latest checkpoint" : "No checkpoints yet"}
+        >
+          <BranchIcon />
+          New branch
+        </button>
+        <button
+          type="button"
+          disabled
+          className="inline-flex items-center justify-center gap-1.5 rounded-md px-2 py-2 text-xs font-medium text-muted-foreground opacity-50"
+          title="Compare coming soon"
+        >
+          <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+            <path strokeLinecap="round" strokeLinejoin="round" d="M3 6h13l-3-3m3 3-3 3M21 18H8l3 3m-3-3 3-3" />
+          </svg>
+          Compare
+        </button>
+        <button
+          type="button"
+          onClick={handleSwitchToMain}
+          disabled={isOnRoot}
+          className="inline-flex items-center justify-center rounded-md bg-violet-600 px-3 py-2 text-xs font-medium text-white hover:bg-violet-700 disabled:opacity-40 disabled:hover:bg-violet-600"
+        >
+          {isOnRoot ? "On main" : "Switch to main"}
+        </button>
       </div>
     </div>
   )
