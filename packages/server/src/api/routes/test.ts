@@ -151,10 +151,9 @@ export function testRoutes(deps: AppDeps): Hono {
     return c.json({ ok: true, seeded: { tasks: taskCount, activity_log: activityCount, session_logs: sessionCount } })
   })
 
-  // Wipe all data from tasks, activity_log, session_logs, and checkpoints
+  // Wipe all data from tasks, activity_log, and session_logs
   app.post("/reset", (c) => {
     const db = deps.db
-    db.run("DELETE FROM checkpoints")
     db.run("DELETE FROM session_logs")
     db.run("DELETE FROM activity_log")
     db.run("DELETE FROM tasks")

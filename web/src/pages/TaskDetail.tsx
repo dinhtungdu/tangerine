@@ -1,8 +1,8 @@
 import { useState, useEffect, useCallback, useRef, useMemo } from "react"
 import { useParams, Link, useOutletContext } from "react-router-dom"
 import type { SidebarContext } from "../components/Layout"
-import { resolveTaskTypeConfig, TERMINAL_STATUSES, type Task, type Checkpoint, type TaskTree } from "@tangerine/shared"
-import { fetchTask, fetchChildTasks, changeTaskConfig, markTaskSeen, resolveTask, startTask, fetchCheckpoints, fetchTaskTree } from "../lib/api"
+import { resolveTaskTypeConfig, TERMINAL_STATUSES, type Task } from "@tangerine/shared"
+import { fetchTask, fetchChildTasks, changeTaskConfig, markTaskSeen, resolveTask, startTask } from "../lib/api"
 import { getStatusConfig } from "../lib/status"
 import { useSession } from "../hooks/useSession"
 import { useProject } from "../context/ProjectContext"
@@ -16,8 +16,6 @@ import { ActivityList } from "../components/ActivityList"
 import { ChangesPanel as DiffSidebar, type DiffComment } from "../components/ChangesPanel"
 import { ResizeHandle, PaneToggle } from "../components/PaneControls"
 import { TerminalPane } from "../components/TerminalPane"
-import { TreePane } from "../components/TreePane"
-import { BranchModal } from "../components/BranchModal"
 import { formatPrNumber, formatTaskTitle } from "../lib/format"
 import {
   getResponsiveVisiblePanes,
@@ -63,12 +61,6 @@ export function TaskDetail() {
   const [task, setTask] = useState<Task | null>(null)
   const [parentTask, setParentTask] = useState<Task | null>(null)
   const [childTasks, setChildTasks] = useState<Task[]>([])
-  const [checkpoints, setCheckpoints] = useState<Checkpoint[]>([])
-  const [parentCheckpoints, setParentCheckpoints] = useState<Checkpoint[]>([])
-  const [relatedLoaded, setRelatedLoaded] = useState(false)
-  const [tree, setTree] = useState<TaskTree | null>(null)
-  const [treeLoading, setTreeLoading] = useState(false)
-  const [branchCheckpoint, setBranchCheckpoint] = useState<Checkpoint | null>(null)
   const [loading, setLoading] = useState(true)
   const [paneState, setPaneState] = useState<ResponsivePaneState>(() => loadPaneState(id))
   const { visiblePanes, mobilePane, desktopSyncPane } = paneState
@@ -121,12 +113,12 @@ export function TaskDetail() {
   }, [])
 
   const dimsKey = `tangerine:pane-dims:${id}`
-  const dimsRef = useRef<{ terminal: number; activity: number; diff: number; tree: number }>((() => {
+  const dimsRef = useRef<{ terminal: number; activity: number; diff: number }>((() => {
     try {
       const s = localStorage.getItem(dimsKey)
-      if (s) return { tree: 280, ...JSON.parse(s) }
+      if (s) return JSON.parse(s)
     } catch { /* ignore */ }
-    return { terminal: 480, activity: 250, diff: 600, tree: 280 }
+    return { terminal: 480, activity: 250, diff: 600 }
   })())
   const saveDims = useCallback(() => {
     try { localStorage.setItem(dimsKey, JSON.stringify(dimsRef.current)) } catch { /* ignore */ }
@@ -135,7 +127,6 @@ export function TaskDetail() {
   const [terminalWidth, setTerminalWidth] = useState(dimsRef.current.terminal)
   const [activityWidth, setActivityWidth] = useState(dimsRef.current.activity)
   const [diffWidth, setDiffWidth] = useState(dimsRef.current.diff)
-  const [treeWidth, setTreeWidth] = useState(dimsRef.current.tree)
   const containerRef = useRef<HTMLDivElement>(null)
 
   const MIN_PANE = 200
@@ -151,7 +142,6 @@ export function TaskDetail() {
     diff: (v: number) => { dimsRef.current.diff = v; setDiffWidth(v) },
     terminal: (v: number) => { dimsRef.current.terminal = v; setTerminalWidth(v) },
     activity: (v: number) => { dimsRef.current.activity = v; setActivityWidth(v) },
-    tree: (v: number) => { dimsRef.current.tree = v; setTreeWidth(v) },
   }), [])
 
   const resize = useResizable({
@@ -332,23 +322,10 @@ export function TaskDetail() {
     }
   }, [id, navigate])
 
-  const handleBranch = useCallback((checkpoint: Checkpoint) => {
-    setBranchCheckpoint(checkpoint)
-  }, [])
-
-  const handleBranchSuccess = useCallback((newTaskId: string) => {
-    setBranchCheckpoint(null)
-    navigate(`/tasks/${newTaskId}`)
-  }, [navigate])
-
-  // Tree pane gated on capability (workers, reviewers) + having checkpoints or family
-  const hasTreeCapability = task?.capabilities.includes("tree") ?? false
-  const hasTree = hasTreeCapability && (checkpoints.length > 0 || !!task?.parentTaskId || childTasks.length > 0)
-
   // Register task-contextual actions in the command palette
   useTaskActions(task, handleRefetch)
   // Register panel toggle actions colocated with the pane state they control
-  usePanelActions(task, togglePaneFromAction, hasTree)
+  usePanelActions(task, togglePaneFromAction)
 
   // Start the task on first prompt if it's still in "created" status
   const handleSend = useCallback(
@@ -369,61 +346,25 @@ export function TaskDetail() {
   useEffect(() => {
     if (!id) return
     let cancelled = false
-    setRelatedLoaded(false)
     async function loadRelated() {
       try {
-        const [data, children, cps] = await Promise.all([
+        const [data, children] = await Promise.all([
           fetchTask(id!),
           fetchChildTasks(id!),
-          fetchCheckpoints(id!),
         ])
         if (cancelled) return
         setChildTasks(children)
-        setCheckpoints(cps)
         if (data.parentTaskId) {
-          const [p, parentCps] = await Promise.all([
-            fetchTask(data.parentTaskId),
-            data.branchedFromCheckpointId ? fetchCheckpoints(data.parentTaskId) : Promise.resolve([]),
-          ])
-          if (!cancelled) {
-            setParentTask(p)
-            setParentCheckpoints(parentCps)
-          }
+          const p = await fetchTask(data.parentTaskId)
+          if (!cancelled) setParentTask(p)
         } else {
           setParentTask(null)
-          setParentCheckpoints([])
         }
       } catch { /* ignore */ }
-      finally { if (!cancelled) setRelatedLoaded(true) }
     }
     loadRelated()
     return () => { cancelled = true }
   }, [id])
-
-  // Refresh checkpoints when agent becomes idle (server creates a checkpoint after each turn)
-  const prevAgentStatusRef = useRef<string | null>(null)
-  useEffect(() => {
-    const prev = prevAgentStatusRef.current
-    prevAgentStatusRef.current = session.agentStatus
-    if (prev === "working" && session.agentStatus === "idle" && id) {
-      fetchCheckpoints(id).then(setCheckpoints).catch(() => {})
-    }
-  }, [session.agentStatus, id])
-
-  // Fetch tree when tree pane becomes visible (use raw pane state to avoid ordering issues)
-  const treeIsVisible = visiblePanes.has("tree") || mobilePane === "tree"
-  useEffect(() => {
-    if (!id || !treeIsVisible) return
-    let cancelled = false
-    setTree(null)
-    setTreeLoading(true)
-    fetchTaskTree(id).then((t) => {
-      if (!cancelled) { setTree(t); setTreeLoading(false) }
-    }).catch(() => {
-      if (!cancelled) { setTree(null); setTreeLoading(false) }
-    })
-    return () => { cancelled = true }
-  }, [id, treeIsVisible])
 
   useEffect(() => {
     if (!id) return
@@ -476,14 +417,6 @@ export function TaskDetail() {
     }
   }, [task?.id, task?.capabilities])
 
-  // Remove "tree" pane only after related data has loaded and task truly has no family
-  useEffect(() => {
-    if (!task || !relatedLoaded) return
-    if (checkpoints.length === 0 && !task.parentTaskId && childTasks.length === 0) {
-      setPaneState((prev) => removePaneCapability(prev, "tree"))
-    }
-  }, [task?.id, task?.parentTaskId, checkpoints.length, childTasks.length, relatedLoaded])
-
   useEffect(() => {
     if (!session.taskStatus || isCrossProject) return
     const terminal = ["done", "failed", "cancelled"]
@@ -501,8 +434,8 @@ export function TaskDetail() {
     () => getResponsiveVisiblePanes(visiblePanes, desktopSyncPane),
     [desktopSyncPane, visiblePanes],
   )
-  const PANE_ORDER: PaneId[] = ["chat", "diff", "terminal", "tree", "activity"]
-  const orderedVisible = PANE_ORDER.filter((p) => responsiveVisiblePanes.has(p) && (p !== "diff" || hasDiff) && (p !== "tree" || hasTree))
+  const PANE_ORDER: PaneId[] = ["chat", "diff", "terminal", "activity"]
+  const orderedVisible = PANE_ORDER.filter((p) => responsiveVisiblePanes.has(p) && (p !== "diff" || hasDiff))
   const desktopIsSolo = orderedVisible.length === 1
   const firstVisiblePane = orderedVisible[0]
   orderedVisibleRef.current = orderedVisible
@@ -511,7 +444,6 @@ export function TaskDetail() {
     diff: (e) => { dragPaneRef.current = "diff"; resize.onPointerDown(e) },
     terminal: (e) => { dragPaneRef.current = "terminal"; resize.onPointerDown(e) },
     activity: (e) => { dragPaneRef.current = "activity"; resize.onPointerDown(e) },
-    tree: (e) => { dragPaneRef.current = "tree"; resize.onPointerDown(e) },
   }
 
   if (loading) {
@@ -645,19 +577,6 @@ export function TaskDetail() {
                     <rect x="2" y="3" width="20" height="18" rx="2" />
                   </svg>
                 </PaneToggle>
-                {hasTree && (
-                  <PaneToggle
-                    desktopActive={responsiveVisiblePanes.has("tree")}
-                    mobileActive={mobilePane === "tree"}
-                    onDesktopClick={() => toggleDesktopPane("tree")}
-                    onMobileClick={() => showMobilePane("tree")}
-                    label="Conversation Tree"
-                  >
-                    <svg className="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                      <path strokeLinecap="round" strokeLinejoin="round" d="M6 3v12m0 0a3 3 0 1 0 3 3m-3-3a3 3 0 0 1 3 3m0 0h6a3 3 0 0 0 3-3V9m0 0a3 3 0 1 0 0-6 3 3 0 0 0 0 6Z" />
-                    </svg>
-                  </PaneToggle>
-                )}
                 <PaneToggle
                   desktopActive={responsiveVisiblePanes.has("activity")}
                   mobileActive={mobilePane === "activity"}
@@ -679,33 +598,18 @@ export function TaskDetail() {
         {/* Parent / children relationship bar */}
         {(parentTask || childTasks.length > 0) && (
           <div className="flex items-center gap-x-3 overflow-x-auto scrollbar-none border-b border-border px-3 py-1.5 text-xs text-muted-foreground md:px-5">
-            {parentTask && (() => {
-              const isBranch = task?.source === "branch" || !!task?.branchedFromCheckpointId
-              const branchTurn = isBranch && task?.branchedFromCheckpointId
-                ? parentCheckpoints.find((cp) => cp.id === task?.branchedFromCheckpointId)?.turnIndex
-                : undefined
-              return (
-                <Link
-                  to={link(`/tasks/${parentTask.id}`)}
-                  className="flex shrink-0 items-center gap-1 rounded outline-none hover:text-foreground focus-visible:ring-1 focus-visible:ring-ring/50"
-                >
-                  {isBranch ? (
-                    <svg className="h-3 w-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                      <path strokeLinecap="round" strokeLinejoin="round" d="M6 3v12m0 0a3 3 0 1 0 3 3m-3-3a3 3 0 0 1 3 3m0 0h6a3 3 0 0 0 3-3V9m0 0a3 3 0 1 0 0-6 3 3 0 0 0 0 6Z" />
-                    </svg>
-                  ) : (
-                    <svg className="h-3 w-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                      <path strokeLinecap="round" strokeLinejoin="round" d="M13.19 8.688a4.5 4.5 0 0 1 1.242 7.244l-4.5 4.5a4.5 4.5 0 0 1-6.364-6.364l1.757-1.757m13.35-.622 1.757-1.757a4.5 4.5 0 0 0-6.364-6.364l-4.5 4.5a4.5 4.5 0 0 0 1.242 7.244" />
-                    </svg>
-                  )}
-                  <span>{isBranch ? "Branched from:" : "Continued from:"}</span>
-                  <span className="font-medium text-foreground">{parentTask.title}</span>
-                  {isBranch && branchTurn !== undefined && (
-                    <span className="rounded bg-muted px-1 py-0.5 text-xxs">turn {branchTurn + 1}</span>
-                  )}
-                </Link>
-              )
-            })()}
+            {parentTask && (
+              <Link
+                to={link(`/tasks/${parentTask.id}`)}
+                className="flex shrink-0 items-center gap-1 rounded outline-none hover:text-foreground focus-visible:ring-1 focus-visible:ring-ring/50"
+              >
+                <svg className="h-3 w-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M13.19 8.688a4.5 4.5 0 0 1 1.242 7.244l-4.5 4.5a4.5 4.5 0 0 1-6.364-6.364l1.757-1.757m13.35-.622 1.757-1.757a4.5 4.5 0 0 0-6.364-6.364l-4.5 4.5a4.5 4.5 0 0 0 1.242 7.244" />
+                </svg>
+                <span>Continued from:</span>
+                <span className="font-medium text-foreground">{parentTask.title}</span>
+              </Link>
+            )}
             {parentTask && childTasks.length > 0 && (
               <span className="shrink-0 text-border">|</span>
             )}
@@ -719,7 +623,7 @@ export function TaskDetail() {
                     className="shrink-0 max-w-[200px] truncate rounded bg-muted px-1.5 py-0.5 text-xxs font-medium text-foreground outline-none hover:bg-border focus-visible:ring-1 focus-visible:ring-ring/50"
                     title={child.title}
                   >
-                    {child.source === "branch" ? "Branch: " : "Continued in: "}{child.title}
+                    Continued in: {child.title}
                   </Link>
                 ))}
               </div>
@@ -766,8 +670,6 @@ export function TaskDetail() {
                 autoFocusKey={chatTaskId}
                 contextTokens={session.contextTokens || undefined}
                 contextWindowMax={ctxMax}
-                checkpoints={hasTreeCapability && checkpoints.length > 0 ? checkpoints : undefined}
-                onBranch={hasTreeCapability && checkpoints.length > 0 ? handleBranch : undefined}
               />
             </div>
           )}
@@ -830,25 +732,6 @@ export function TaskDetail() {
             </div>
           )}
 
-          {/* Tree pane */}
-          {orderedVisible.indexOf("tree") > 0 && (
-            <ResizeHandle className="hidden md:flex" onPointerDown={resizeHandlers.tree!} />
-          )}
-          {hasTree && (mobilePane === "tree" || responsiveVisiblePanes.has("tree")) && (
-            <div
-              className={[
-                "flex min-h-0 min-w-0 flex-col",
-                mobilePane === "tree" ? "flex-1" : "hidden",
-                responsiveVisiblePanes.has("tree")
-                  ? `md:flex${desktopIsSolo || firstVisiblePane === "tree" ? " md:flex-1" : " md:flex-none md:[width:var(--pane-w)] md:max-w-full"}`
-                  : "md:hidden",
-              ].join(" ")}
-              style={responsiveVisiblePanes.has("tree") && !desktopIsSolo && firstVisiblePane !== "tree" ? { "--pane-w": `${treeWidth}px` } as React.CSSProperties : undefined}
-            >
-              <TreePane taskId={id!} tree={tree} loading={treeLoading} checkpoints={checkpoints} onBranch={handleBranch} />
-            </div>
-          )}
-
           {/* Activity pane */}
           {orderedVisible.indexOf("activity") > 0 && (
             <ResizeHandle className="hidden md:flex" onPointerDown={resizeHandlers.activity!} />
@@ -872,15 +755,6 @@ export function TaskDetail() {
         </div>
       </div>
 
-      {branchCheckpoint && id && (
-        <BranchModal
-          open={true}
-          onClose={() => setBranchCheckpoint(null)}
-          taskId={id}
-          checkpoint={branchCheckpoint}
-          onSuccess={handleBranchSuccess}
-        />
-      )}
     </div>
   )
 }

@@ -1,5 +1,5 @@
-import { getCapabilitiesForType, type Task, type Cron, type Checkpoint, type TaskType, type TaskSource, type TaskStatus, type ProviderType, type TaskCapability } from "@tangerine/shared"
-import type { TaskRow, CronRow, CheckpointRow } from "../db/types"
+import { getCapabilitiesForType, type Task, type Cron, type TaskType, type TaskSource, type TaskStatus, type ProviderType, type TaskCapability } from "@tangerine/shared"
+import type { TaskRow, CronRow } from "../db/types"
 
 /**
  * SQLite datetime('now') produces UTC timestamps without a Z suffix
@@ -58,7 +58,6 @@ export function mapTaskRow(row: TaskRow): Task {
     lastResultAt: utc(row.last_result_at),
     capabilities: mergeCapabilities(row.capabilities, row.type ?? "worker"),
     contextTokens: row.context_tokens ?? 0,
-    branchedFromCheckpointId: row.branched_from_checkpoint_id,
   }
 }
 
@@ -97,18 +96,6 @@ export function taskHasCapability(type: string, storedCapabilities: string | nul
   if (!storedCapabilities) return false
   const parsed: TaskCapability[] = JSON.parse(storedCapabilities)
   return parsed.includes(cap)
-}
-
-/** Maps a snake_case CheckpointRow from SQLite to a camelCase Checkpoint for API responses */
-export function mapCheckpointRow(row: CheckpointRow): Checkpoint {
-  return {
-    id: row.id,
-    taskId: row.task_id,
-    sessionLogId: row.session_log_id,
-    commitSha: row.commit_sha,
-    turnIndex: row.turn_index,
-    createdAt: utc(row.created_at)!,
-  }
 }
 
 /** Generates a unique ID using the built-in crypto API */

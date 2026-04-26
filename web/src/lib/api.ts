@@ -1,4 +1,4 @@
-import type { Task, TaskWriteResponse, ProjectConfig, SystemLogEntry, ActivityEntry, ActionCombo, ShortcutConfig, SystemCapabilities, Checkpoint, TaskTree } from "@tangerine/shared"
+import type { Task, TaskWriteResponse, ProjectConfig, SystemLogEntry, ActivityEntry, ActionCombo, ShortcutConfig, SystemCapabilities } from "@tangerine/shared"
 import { buildAuthHeaders, emitAuthFailure } from "./auth"
 
 const BASE = ""
@@ -175,35 +175,6 @@ export async function updateCron(id: string, data: {
 
 export async function deleteCron(id: string): Promise<void> {
   return request<void>(`/api/crons/${id}`, { method: "DELETE" })
-}
-
-export async function fetchCheckpoints(taskId: string): Promise<Checkpoint[]> {
-  return request<Checkpoint[]>(`/api/tasks/${taskId}/checkpoints`)
-}
-
-export async function createBranch(taskId: string, data: {
-  checkpointId: string
-  title: string
-  description?: string
-  provider?: string
-  model?: string
-  reasoningEffort?: string
-}): Promise<TaskWriteResponse> {
-  return request<TaskWriteResponse>(`/api/tasks/${taskId}/branch`, {
-    method: "POST",
-    body: JSON.stringify({
-      checkpoint_id: data.checkpointId,
-      title: data.title,
-      description: data.description,
-      provider: data.provider,
-      model: data.model,
-      reasoningEffort: data.reasoningEffort,
-    }),
-  })
-}
-
-export async function fetchTaskTree(taskId: string): Promise<TaskTree> {
-  return request<TaskTree>(`/api/tasks/${taskId}/tree`)
 }
 
 export async function cancelTask(id: string): Promise<void> {

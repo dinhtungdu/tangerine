@@ -1,7 +1,7 @@
 import { Effect } from "effect"
 import type { Database } from "bun:sqlite"
 import { DEFAULT_PROVIDER } from "@tangerine/shared"
-import type { TaskRow, CronRow, SessionLogRow, CheckpointRow } from "./types"
+import type { TaskRow, CronRow, SessionLogRow } from "./types"
 import { DbError } from "../errors"
 
 function dbTry<T>(op: () => T): Effect.Effect<T, DbError> {
@@ -16,12 +16,12 @@ function dbTry<T>(op: () => T): Effect.Effect<T, DbError> {
 export function createTask(
   db: Database,
   task: Pick<TaskRow, "id" | "project_id" | "source" | "title"> &
-    Partial<Pick<TaskRow, "source_id" | "source_url" | "type" | "description" | "user_id" | "branch" | "pr_url" | "provider" | "model" | "reasoning_effort" | "parent_task_id" | "capabilities" | "branched_from_checkpoint_id">>
+    Partial<Pick<TaskRow, "source_id" | "source_url" | "type" | "description" | "user_id" | "branch" | "pr_url" | "provider" | "model" | "reasoning_effort" | "parent_task_id" | "capabilities">>
 ): Effect.Effect<TaskRow, DbError> {
   return dbTry(() => {
     const stmt = db.prepare(`
-      INSERT INTO tasks (id, project_id, source, source_id, source_url, title, type, description, user_id, branch, pr_url, provider, model, reasoning_effort, parent_task_id, capabilities, branched_from_checkpoint_id)
-      VALUES ($id, $project_id, $source, $source_id, $source_url, $title, $type, $description, $user_id, $branch, $pr_url, $provider, $model, $reasoning_effort, $parent_task_id, $capabilities, $branched_from_checkpoint_id)
+      INSERT INTO tasks (id, project_id, source, source_id, source_url, title, type, description, user_id, branch, pr_url, provider, model, reasoning_effort, parent_task_id, capabilities)
+      VALUES ($id, $project_id, $source, $source_id, $source_url, $title, $type, $description, $user_id, $branch, $pr_url, $provider, $model, $reasoning_effort, $parent_task_id, $capabilities)
     `)
     stmt.run({
       $id: task.id,
@@ -40,7 +40,6 @@ export function createTask(
       $reasoning_effort: task.reasoning_effort ?? null,
       $parent_task_id: task.parent_task_id ?? null,
       $capabilities: task.capabilities ?? null,
-      $branched_from_checkpoint_id: task.branched_from_checkpoint_id ?? null,
     })
     return db.prepare("SELECT * FROM tasks WHERE id = ?").get(task.id) as TaskRow
   })
@@ -251,152 +250,11 @@ export function hasActiveCronTask(db: Database, cronId: string): Effect.Effect<b
   })
 }
 
-// --- Checkpoints ---
-
-export function insertCheckpoint(
-  db: Database,
-  cp: Pick<CheckpointRow, "id" | "task_id" | "session_log_id" | "commit_sha" | "turn_index">
-): Effect.Effect<CheckpointRow, DbError> {
-  return dbTry(() => {
-    db.prepare(`
-      INSERT OR IGNORE INTO checkpoints (id, task_id, session_log_id, commit_sha, turn_index)
-      VALUES ($id, $task_id, $session_log_id, $commit_sha, $turn_index)
-    `).run({
-      $id: cp.id,
-      $task_id: cp.task_id,
-      $session_log_id: cp.session_log_id,
-      $commit_sha: cp.commit_sha,
-      $turn_index: cp.turn_index,
-    })
-    return db.prepare("SELECT * FROM checkpoints WHERE task_id = ? AND session_log_id = ?").get(cp.task_id, cp.session_log_id) as CheckpointRow
-  })
-}
-
-export function listCheckpoints(db: Database, taskId: string): Effect.Effect<CheckpointRow[], DbError> {
-  return dbTry(() => {
-    return db.prepare("SELECT * FROM checkpoints WHERE task_id = ? ORDER BY turn_index ASC").all(taskId) as CheckpointRow[]
-  })
-}
-
-export function getCheckpoint(db: Database, checkpointId: string): Effect.Effect<CheckpointRow | null, DbError> {
-  return dbTry(() => {
-    return db.prepare("SELECT * FROM checkpoints WHERE id = ?").get(checkpointId) as CheckpointRow | null
-  })
-}
-
-/** Get session logs up to and including a specific session log ID (for building conversation prefix on branch) */
-export function getSessionLogsUpTo(db: Database, taskId: string, sessionLogId: number): Effect.Effect<SessionLogRow[], DbError> {
-  return dbTry(() => {
-    return db.prepare("SELECT * FROM session_logs WHERE task_id = ? AND id <= ? ORDER BY id ASC").all(taskId, sessionLogId) as SessionLogRow[]
-  })
-}
-
-export function checkpointExistsForSessionLog(db: Database, taskId: string, sessionLogId: number): Effect.Effect<boolean, DbError> {
-  return dbTry(() => {
-    const row = db.prepare("SELECT 1 FROM checkpoints WHERE task_id = ? AND session_log_id = ? LIMIT 1").get(taskId, sessionLogId)
-    return row != null
-  })
-}
-
-export function getMaxCheckpointTurnIndex(db: Database, taskId: string): Effect.Effect<number, DbError> {
-  return dbTry(() => {
-    const row = db.prepare("SELECT MAX(turn_index) as max_idx FROM checkpoints WHERE task_id = ?").get(taskId) as { max_idx: number | null }
-    return row.max_idx ?? -1
-  })
-}
-
-export function deleteCheckpointsForTask(db: Database, taskId: string): Effect.Effect<void, DbError> {
-  return dbTry(() => {
-    db.prepare("DELETE FROM checkpoints WHERE task_id = ?").run(taskId)
-  })
-}
-
-/**
- * Return tasks in terminal status whose checkpoints have exceeded the TTL.
- * Uses updated_at as the proxy for when the task reached terminal state.
- */
-export function getTasksWithExpiredCheckpoints(
-  db: Database,
-  ttlHours: number,
-): Effect.Effect<Array<{ taskId: string; projectId: string }>, DbError> {
-  return dbTry(() => {
-    const rows = db.prepare(`
-      SELECT DISTINCT t.id as task_id, t.project_id
-      FROM tasks t
-      INNER JOIN checkpoints c ON c.task_id = t.id
-      WHERE t.status IN ('done', 'failed', 'cancelled')
-        AND COALESCE(t.completed_at, t.updated_at) <= datetime('now', '-' || ? || ' hours')
-    `).all(ttlHours) as Array<{ task_id: string; project_id: string }>
-    return rows.map((r) => ({ taskId: r.task_id, projectId: r.project_id }))
-  })
-}
-
-export function getAllFamilyTaskIds(db: Database, taskId: string): Effect.Effect<string[], DbError> {
-  return dbTry(() => {
-    // Tree family = tasks connected via branched_from_checkpoint_id (NOT parent_task_id).
-    // 1. Walk UP via branched_from_checkpoint_id to find branch root
-    // 2. Walk DOWN via branched_from_checkpoint_id to find all branches
-    // Continuations (parent_task_id only) are separate conversations, not in tree.
-    const rows = db.prepare(`
-      WITH RECURSIVE
-        -- Walk up via branched_from_checkpoint_id to find root
-        branch_ancestors(id, branched_from_checkpoint_id) AS (
-          SELECT id, branched_from_checkpoint_id FROM tasks WHERE id = ?
-          UNION ALL
-          SELECT t.id, t.branched_from_checkpoint_id FROM tasks t
-          JOIN checkpoints c ON t.branched_from_checkpoint_id = c.id
-          JOIN branch_ancestors a ON c.task_id = a.id
-        ),
-        -- Root is the ancestor with no branched_from_checkpoint_id
-        root AS (
-          SELECT id FROM branch_ancestors WHERE branched_from_checkpoint_id IS NULL
-          LIMIT 1
-        ),
-        -- Walk down: find all tasks that branch from root's checkpoints, recursively
-        branch_family(id) AS (
-          SELECT id FROM root
-          UNION ALL
-          SELECT t.id FROM tasks t
-          JOIN checkpoints c ON t.branched_from_checkpoint_id = c.id
-          JOIN branch_family f ON c.task_id = f.id
-        )
-      SELECT DISTINCT id FROM branch_family
-    `).all(taskId) as { id: string }[]
-    return rows.map((r) => r.id)
-  })
-}
-
 export function getTasksByIds(db: Database, ids: string[]): Effect.Effect<TaskRow[], DbError> {
   return dbTry(() => {
     if (ids.length === 0) return []
     const placeholders = ids.map(() => "?").join(",")
     return db.prepare(`SELECT * FROM tasks WHERE id IN (${placeholders})`).all(...ids) as TaskRow[]
-  })
-}
-
-export function getCheckpointsWithPreviewForTasks(
-  db: Database,
-  taskIds: string[],
-): Effect.Effect<Array<CheckpointRow & { preview: string }>, DbError> {
-  return dbTry(() => {
-    if (taskIds.length === 0) return []
-    const placeholders = taskIds.map(() => "?").join(",")
-    return db.prepare(`
-      SELECT c.*, COALESCE(SUBSTR(sl.content, 1, 150), '') as preview
-      FROM checkpoints c
-      LEFT JOIN session_logs sl ON c.session_log_id = sl.id
-      WHERE c.task_id IN (${placeholders})
-      ORDER BY c.task_id, c.turn_index ASC
-    `).all(...taskIds) as Array<CheckpointRow & { preview: string }>
-  })
-}
-
-export function getLastAssistantSessionLogId(db: Database, taskId: string): Effect.Effect<number | null, DbError> {
-  return dbTry(() => {
-    const row = db.prepare(
-      "SELECT id FROM session_logs WHERE task_id = ? AND role = 'assistant' ORDER BY id DESC LIMIT 1"
-    ).get(taskId) as { id: number } | null
-    return row?.id ?? null
   })
 }
 
@@ -410,7 +268,6 @@ export function deleteTask(db: Database, id: string): Effect.Effect<void, DbErro
       throw new Error(`Task ${id} is not terminal (status: ${task.status})`)
     }
     db.prepare("DELETE FROM activity_log WHERE task_id = ?").run(id)
-    db.prepare("DELETE FROM checkpoints WHERE task_id = ?").run(id)
     db.prepare("DELETE FROM session_logs WHERE task_id = ?").run(id)
     db.prepare("DELETE FROM tasks WHERE id = ?").run(id)
   })

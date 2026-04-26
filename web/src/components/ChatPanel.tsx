@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState, useCallback } from "react"
 import { Button } from "@/components/ui/button"
 import { TERMINAL_STATUSES } from "@tangerine/shared"
-import type { PromptImage, PredefinedPrompt, TaskStatus, ProviderType, ActivityEntry, Checkpoint } from "@tangerine/shared"
+import type { PromptImage, PredefinedPrompt, TaskStatus, ProviderType, ActivityEntry } from "@tangerine/shared"
 import type { ChatMessage as ChatMessageType } from "../hooks/useSession"
 import { AssistantMessageGroups } from "./AssistantMessageGroups"
 import { ChatInput } from "./ChatInput"
@@ -34,8 +34,6 @@ interface ChatPanelProps {
   autoFocusKey?: string
   contextTokens?: number
   contextWindowMax?: number
-  checkpoints?: Checkpoint[]
-  onBranch?: (checkpoint: Checkpoint) => void
 }
 
 const EMPTY_ACTIVITIES: ActivityEntry[] = []
@@ -66,8 +64,6 @@ export function ChatPanel({
   autoFocusKey,
   contextTokens,
   contextWindowMax,
-  checkpoints,
-  onBranch,
 }: ChatPanelProps) {
   const scrollRef = useRef<HTMLDivElement>(null)
   const contentRef = useRef<HTMLDivElement>(null)
@@ -211,8 +207,6 @@ export function ChatPanel({
                 activities={activities}
                 tasks={tasks}
                 onReply={handleReply}
-                onBranch={onBranch}
-                checkpoints={checkpoints}
                 isLastGroupStreaming={agentStatus === "working"}
               />
             </div>

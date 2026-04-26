@@ -2,16 +2,16 @@ import { SUPPORTED_PROVIDERS } from "./constants"
 
 export type TaskStatus = "created" | "provisioning" | "running" | "done" | "failed" | "cancelled"
 export type ProviderType = typeof SUPPORTED_PROVIDERS[number]
-export type TaskSource = "github" | "linear" | "manual" | "cross-project" | "cron" | "branch"
+export type TaskSource = "github" | "linear" | "manual" | "cross-project" | "cron"
 export type TaskType = "worker" | "orchestrator" | "reviewer" | "runner"
-export type TaskCapability = "resolve" | "predefined-prompts" | "diff" | "continue" | "pr-track" | "pr-create" | "tree"
+export type TaskCapability = "resolve" | "predefined-prompts" | "diff" | "continue" | "pr-track" | "pr-create"
 
 /** Returns canonical capabilities for a task type. Used to gate UI on capabilities, not type strings. */
 export function getCapabilitiesForType(type: TaskType): TaskCapability[] {
   if (type === "orchestrator") return ["resolve", "predefined-prompts"]
-  if (type === "runner") return ["resolve", "diff", "continue", "tree"]
-  if (type === "reviewer") return ["resolve", "predefined-prompts", "diff", "pr-track", "tree"]
-  return ["resolve", "predefined-prompts", "diff", "continue", "pr-track", "pr-create", "tree"]
+  if (type === "runner") return ["resolve", "diff", "continue"]
+  if (type === "reviewer") return ["resolve", "predefined-prompts", "diff", "pr-track"]
+  return ["resolve", "predefined-prompts", "diff", "continue", "pr-track", "pr-create"]
 }
 export interface TaskWriteResponse {
   id: string
@@ -50,7 +50,6 @@ export interface Task {
   capabilities: TaskCapability[]
   agentStatus?: "idle" | "working"
   contextTokens: number
-  branchedFromCheckpointId: string | null
 }
 
 export interface Cron {
@@ -111,47 +110,6 @@ export interface SystemCapabilities {
 export function isProviderAvailable(capabilities: SystemCapabilities | null, provider: string): boolean {
   if (!capabilities) return true
   return capabilities.providers[provider]?.available !== false
-}
-
-export interface Checkpoint {
-  id: string
-  taskId: string
-  sessionLogId: number
-  commitSha: string
-  turnIndex: number
-  createdAt: string
-}
-
-export interface BranchRequest {
-  checkpointId: string
-  title: string
-  description?: string
-  provider?: ProviderType
-  model?: string
-  reasoningEffort?: string
-}
-
-export interface TreeTurn {
-  level: number
-  checkpointId: string
-  taskId: string
-  turnIndex: number
-  message: string
-  createdAt: string
-  parentCheckpointId: string | null
-}
-
-export interface TaskMeta {
-  taskId: string
-  title: string
-  status: TaskStatus
-  provider: ProviderType
-  model: string | null
-}
-
-export interface TaskTree {
-  turns: TreeTurn[]
-  tasks: Record<string, TaskMeta>
 }
 
 // System logs

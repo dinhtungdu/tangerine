@@ -130,6 +130,25 @@ function dropRepoUrlColumn(db: Database): void {
 }
 
 /**
+ * Drop the checkpoints table and branched_from_checkpoint_id column.
+ * Checkpoint/branching feature was removed — clean up legacy data to prevent FK errors.
+ */
+function dropCheckpointsTable(db: Database): void {
+  const tables = db.prepare("SELECT name FROM sqlite_master WHERE type='table' AND name='checkpoints'").all() as { name: string }[]
+  if (tables.length === 0) return
+
+  db.exec("DROP TABLE IF EXISTS checkpoints")
+  console.error("[db] Migrated: dropped legacy checkpoints table")
+
+  // Also drop the branched_from_checkpoint_id column if present
+  const cols = db.prepare("PRAGMA table_info(tasks)").all() as { name: string }[]
+  if (cols.some((c) => c.name === "branched_from_checkpoint_id")) {
+    db.exec("ALTER TABLE tasks DROP COLUMN branched_from_checkpoint_id")
+    console.error("[db] Migrated tasks: dropped branched_from_checkpoint_id column")
+  }
+}
+
+/**
  * Drop unused input_tokens and output_tokens columns from tasks.
  * We now only track context_tokens for display.
  */
@@ -165,6 +184,9 @@ export function getDb(path?: string): Database {
   // The old schema has vm_id TEXT NOT NULL which silently blocks v1 INSERTs.
   // Since slots are transient (rebuilt by initPool), we can safely recreate the table.
   migrateWorktreeSlots(db)
+
+  // Drop legacy checkpoints table/column before autoMigrate (feature removed)
+  dropCheckpointsTable(db)
 
   // autoMigrate first — adds missing columns to existing tables so that
   // CREATE INDEX statements in SCHEMA don't fail on new columns

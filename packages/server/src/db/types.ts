@@ -28,7 +28,6 @@ export interface TaskRow {
   last_result_at: string | null
   capabilities: string | null
   context_tokens: number
-  branched_from_checkpoint_id: string | null
 }
 
 export interface CronRow {
@@ -52,15 +51,6 @@ export interface SessionLogRow {
   images: string | null
   from_task_id: string | null
   timestamp: string
-}
-
-export interface CheckpointRow {
-  id: string
-  task_id: string
-  session_log_id: number
-  commit_sha: string
-  turn_index: number
-  created_at: string
 }
 
 export type WorktreeSlotStatus = "available" | "bound" | "initializing"

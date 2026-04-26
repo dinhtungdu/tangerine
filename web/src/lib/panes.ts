@@ -1,4 +1,4 @@
-export type PaneId = "chat" | "diff" | "terminal" | "activity" | "tree"
+export type PaneId = "chat" | "diff" | "terminal" | "activity"
 
 export interface ResponsivePaneState {
   visiblePanes: Set<PaneId>

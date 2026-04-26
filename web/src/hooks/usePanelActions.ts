@@ -11,7 +11,6 @@ import type { PaneId } from "../lib/panes"
 export function usePanelActions(
   task: Task | null,
   togglePane: (pane: PaneId) => void,
-  hasTree?: boolean,
 ) {
   useEffect(() => {
     const hasDiff = task?.capabilities.includes("diff") ?? false
@@ -46,15 +45,6 @@ export function usePanelActions(
       })
     }
 
-    if (hasTree) {
-      defs.push({
-        id: "panel.toggle-tree",
-        label: "Toggle conversation tree panel",
-        section: "Panels",
-        handler: () => togglePane("tree"),
-      })
-    }
-
     return registerActions(defs)
-  }, [task?.capabilities, togglePane, hasTree])
+  }, [task?.capabilities, togglePane])
 }

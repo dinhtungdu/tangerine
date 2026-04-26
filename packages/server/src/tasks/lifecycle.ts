@@ -11,9 +11,7 @@ import { getRepoDir, resolveWorkspace } from "../config"
 import { resolveTaskTypeConfig, type TangerineConfig } from "@tangerine/shared"
 import type { TaskRow } from "../db/types"
 import { initPool, acquireSlot, acquireOrchestratorSlot } from "./worktree-pool"
-import { buildSystemNotes, buildConversationPrefix } from "./prompts"
-import { guessContextWindow, truncateMessagesToTokenBudget } from "./token-utils"
-import { getCheckpoint, getSessionLogsUpTo } from "../db/queries"
+import { buildSystemNotes } from "./prompts"
 import { killProcessTree } from "../agent/process-tree"
 import { resolveGithubSlug, getRepoForkInfo } from "../gh"
 
@@ -192,36 +190,6 @@ export function startSession(
         // git fetch already ran above; no reset needed — slot 0 is shared and must not
         // be destructively modified at startup.
         yield* activity("worktree.ready", "Task using slot 0", { worktreePath, branch, slot: slot.id })
-      } else if (task.branched_from_checkpoint_id) {
-        // Branched task: checkout from checkpoint commit
-        const checkpoint = yield* getCheckpoint(deps.db, task.branched_from_checkpoint_id).pipe(
-          Effect.mapError((e) => new SessionStartError({
-            message: `Failed to get checkpoint: ${e.message}`,
-            taskId: task.id,
-            phase: "get-checkpoint",
-            cause: e,
-          }))
-        )
-        if (!checkpoint) {
-          return yield* Effect.fail(new SessionStartError({
-            message: `Checkpoint not found: ${task.branched_from_checkpoint_id}`,
-            taskId: task.id,
-            phase: "checkout-branch",
-          }))
-        }
-        yield* localExec(
-          `cd ${worktreePath} && git checkout -B ${branch} ${checkpoint.commit_sha}`,
-        ).pipe(
-          Effect.tap(() => activity("worktree.ready",
-            `Branched from checkpoint at turn ${checkpoint.turn_index}`,
-            { worktreePath, branch, slot: slot.id, checkpointCommit: checkpoint.commit_sha })),
-          Effect.mapError((e) => new SessionStartError({
-            message: `Branch checkout from checkpoint failed: ${e.message}`,
-            taskId: task.id,
-            phase: "checkout-branch",
-            cause: e,
-          }))
-        )
       } else {
         // Checkout the task branch on the acquired slot
         yield* localExec(
@@ -328,44 +296,7 @@ export function startSession(
       }
     }
 
-    // 6. Build conversation prefix for branched tasks
-    let conversationPrefix = ""
-    if (task.branched_from_checkpoint_id) {
-      const checkpoint = yield* getCheckpoint(deps.db, task.branched_from_checkpoint_id).pipe(
-        Effect.tapError((e) => Effect.sync(() =>
-          taskLog.error("Failed to load checkpoint for conversation prefix", { checkpointId: task.branched_from_checkpoint_id, error: String(e) })
-        )),
-        Effect.catchAll(() => Effect.succeed(null))
-      )
-      if (checkpoint) {
-        const sessionLogs = yield* getSessionLogsUpTo(deps.db, checkpoint.task_id, checkpoint.session_log_id).pipe(
-          Effect.tapError((e) => Effect.sync(() =>
-            taskLog.error("Failed to load session logs for conversation prefix", { checkpointId: task.branched_from_checkpoint_id, error: String(e) })
-          )),
-          Effect.catchAll(() => Effect.succeed([]))
-        )
-        const allMessages = sessionLogs
-          .filter((log) => log.role === "user" || log.role === "assistant")
-          .map((log) => ({
-            role: log.role as "user" | "assistant",
-            content: log.content,
-          }))
-        const budgetFraction = deps.tangerineConfig.checkpointTokenBudgetFraction ?? 0.5
-        const contextWindow = guessContextWindow(task.model)
-        const tokenBudget = Math.floor(contextWindow * budgetFraction)
-        const messages = truncateMessagesToTokenBudget(allMessages, tokenBudget)
-        if (messages.length < allMessages.length) {
-          taskLog.info("Conversation prefix truncated to fit token budget", {
-            original: allMessages.length,
-            kept: messages.length,
-            tokenBudget,
-          })
-        }
-        conversationPrefix = buildConversationPrefix(checkpoint.task_id, checkpoint.turn_index, messages)
-      }
-    }
-
-    // 7. Start agent locally (with timeout to prevent indefinite hangs)
+    // 6. Start agent locally (with timeout to prevent indefinite hangs)
     yield* activity("agent.starting", "Starting agent")
     const systemNotes = buildSystemNotes(task.id, {
       setupCommand: usesSlot0 ? undefined : config.setup, // slot 0 skips setup
@@ -374,15 +305,11 @@ export function startSession(
       customSystemPrompt: resolveCustomSystemPrompt(config, task.type),
       upstreamSlug,
     })
-    // Prepend conversation prefix for branched tasks
-    const fullSystemPrompt = conversationPrefix
-      ? [conversationPrefix, "", ...systemNotes].join("\n")
-      : systemNotes.length > 0 ? systemNotes.join("\n") : undefined
     const agentHandle = yield* deps.agentFactory.start({
       taskId: task.id,
       workdir: worktreePath,
       title: task.title,
-      systemPrompt: fullSystemPrompt,
+      systemPrompt: systemNotes.length > 0 ? systemNotes.join("\n") : undefined,
       model: task.model ?? undefined,
       reasoningEffort: task.reasoning_effort ?? undefined,
       env: {

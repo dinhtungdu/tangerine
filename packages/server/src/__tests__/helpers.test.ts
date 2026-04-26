@@ -65,7 +65,6 @@ describe("mapTaskRow", () => {
       last_result_at: null,
       capabilities: null,
       context_tokens: 0,
-      branched_from_checkpoint_id: null,
     }
     const task = mapTaskRow(row)
     expect(task.createdAt).toBe("2026-03-27T09:00:00Z")

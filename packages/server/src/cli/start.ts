@@ -37,7 +37,6 @@ import { createAgentFactories } from "../agent/factories"
 import { enqueue as enqueuePrompt, drainAll as drainQueuedPrompts, clearQueue } from "../agent/prompt-queue"
 import { buildSystemNotes, buildEscalationBlock, buildPrWorkflowNote } from "../tasks/prompts"
 import { getTaskState, clearTaskState } from "../tasks/task-state"
-import { snapshotCheckpoint, runCheckpointGc } from "../tasks/checkpoints"
 const log = createLogger("cli")
 
 /** Resolve custom system prompt for a task type from project config. */
@@ -599,15 +598,6 @@ export async function start(): Promise<void> {
                   // the restart counter to prevent false positives from the
                   // stability window in the health checker.
                   resetRestartCount(taskId)
-
-                  // Snapshot checkpoint: auto-commit worktree + record in DB
-                  {
-                    const taskRow = db.prepare("SELECT worktree_path FROM tasks WHERE id = ?").get(taskId) as { worktree_path: string | null } | null
-                    const worktreePath = taskRow?.worktree_path
-                    if (worktreePath) {
-                      Effect.runPromise(snapshotCheckpoint(db, taskId, worktreePath))
-                    }
-                  }
 
                   // Persist dynamically captured session ID (e.g. OpenCode's ses_... ID
                   // is only known after the first prompt produces NDJSON output)
@@ -1177,26 +1167,9 @@ export async function start(): Promise<void> {
     const scheduler = startScheduler(schedulerDeps)
     log.info("Scheduler started")
 
-    // Start checkpoint GC loop (hourly) — cleans up refs + DB rows past TTL.
-    // In-progress guard prevents concurrent runs if a GC cycle takes longer than the interval.
-    const CHECKPOINT_GC_INTERVAL_MS = 60 * 60 * 1_000 // 1 hour
-    let checkpointGcRunning = false
-    const runGc = async () => {
-      if (checkpointGcRunning) return
-      checkpointGcRunning = true
-      try {
-        await Effect.runPromise(runCheckpointGc(db, config.config).pipe(Effect.catchAll(() => Effect.void)))
-      } finally {
-        checkpointGcRunning = false
-      }
-    }
-    void runGc() // run immediately on startup
-    const checkpointGcTimer = setInterval(() => { void runGc() }, CHECKPOINT_GC_INTERVAL_MS)
-
     const shutdown = async (signal: string) => {
       log.info("Shutdown signal received", { signal })
       scheduler.stop()
-      clearInterval(checkpointGcTimer)
       process.exit(0)
     }
 

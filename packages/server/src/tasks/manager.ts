@@ -32,7 +32,7 @@ function depsForProvider(deps: TaskManagerDeps, provider: string): LifecycleDeps
 }
 
 export interface TaskManagerDeps {
-  insertTask(task: Pick<TaskRow, "id" | "project_id" | "source" | "title"> & Partial<Pick<TaskRow, "source_id" | "source_url" | "type" | "description" | "user_id" | "branch" | "pr_url" | "provider" | "model" | "reasoning_effort" | "parent_task_id" | "capabilities" | "branched_from_checkpoint_id">>): Effect.Effect<TaskRow, Error>
+  insertTask(task: Pick<TaskRow, "id" | "project_id" | "source" | "title"> & Partial<Pick<TaskRow, "source_id" | "source_url" | "type" | "description" | "user_id" | "branch" | "pr_url" | "provider" | "model" | "reasoning_effort" | "parent_task_id" | "capabilities">>): Effect.Effect<TaskRow, Error>
   updateTask(taskId: string, updates: Partial<Omit<TaskRow, "id">>): Effect.Effect<TaskRow | null, Error>
   getTask(taskId: string): Effect.Effect<TaskRow | null, Error>
   listTasks(filter?: { status?: string; projectId?: string }): Effect.Effect<TaskRow[], Error>
@@ -62,7 +62,6 @@ export function createTask(
     branch?: string
     prUrl?: string
     parentTaskId?: string
-    branchedFromCheckpointId?: string
   },
 ): Effect.Effect<TaskRow, Error> {
   return Effect.gen(function* () {
@@ -112,7 +111,6 @@ export function createTask(
       pr_url: params.prUrl ?? null,
       parent_task_id: params.parentTaskId ?? null,
       capabilities: JSON.stringify(capabilities),
-      branched_from_checkpoint_id: params.branchedFromCheckpointId ?? null,
     })
 
     log.info("Task created", { taskId: id, projectId: params.projectId, source: params.source, title: params.title })

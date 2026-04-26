@@ -260,7 +260,6 @@ describe("tracer: config -> db -> api", () => {
       last_result_at: null,
       capabilities: null,
       context_tokens: 0,
-      branched_from_checkpoint_id: null,
     }
 
     const mapped = mapTaskRow(row)
