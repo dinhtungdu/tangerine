@@ -19,8 +19,9 @@ export {
   type SystemCapabilities,
   type Checkpoint,
   type BranchRequest,
-  type TaskTreeTurn,
-  type TaskTreeNode,
+  type TreeTurn,
+  type TaskMeta,
+  type TaskTree,
 } from "./types"
 
 export {

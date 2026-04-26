@@ -1,7 +1,7 @@
 import { Effect } from "effect"
 import { Hono } from "hono"
 import { SUPPORTED_PROVIDERS, getCapabilitiesForType } from "@tangerine/shared"
-import type { TaskWriteResponse, TaskType, TaskSource, TaskTreeNode, TaskTreeTurn, TaskStatus, ProviderType } from "@tangerine/shared"
+import type { TaskWriteResponse, TaskType, TaskSource, TaskTree, TreeTurn, TaskMeta, TaskStatus, ProviderType } from "@tangerine/shared"
 import type { AppDeps } from "../app"
 import { mapTaskRow, mapCheckpointRow } from "../helpers"
 import { runEffect, runEffectVoid } from "../effect-helpers"
@@ -154,14 +154,10 @@ export function taskRoutes(deps: AppDeps): Hono {
     const taskId = c.req.param("id")
     return runEffect(c,
       Effect.gen(function* () {
-        // Verify the task exists
         const task = yield* getTask(deps.db, taskId)
         if (!task) return yield* Effect.fail(new TaskNotFoundError({ taskId }))
 
-        // Collect all task IDs in the family (walks up to root, down to all descendants)
         const familyIds = yield* getAllFamilyTaskIds(deps.db, taskId)
-
-        // Fetch all task rows and checkpoints with message previews
         const [taskRows, checkpointsWithPreview] = yield* Effect.all([
           getTasksByIds(deps.db, familyIds),
           getCheckpointsWithPreviewForTasks(deps.db, familyIds),
@@ -173,45 +169,76 @@ export function taskRoutes(deps: AppDeps): Hono {
           if (!checkpointsByTask.has(cp.task_id)) checkpointsByTask.set(cp.task_id, [])
           checkpointsByTask.get(cp.task_id)!.push(cp)
         }
-        const tasksByCheckpointId = new Map<string, string[]>()
+        const branchesByCheckpoint = new Map<string, string[]>()
         for (const row of taskRows) {
           if (row.branched_from_checkpoint_id) {
-            const existing = tasksByCheckpointId.get(row.branched_from_checkpoint_id) ?? []
+            const existing = branchesByCheckpoint.get(row.branched_from_checkpoint_id) ?? []
             existing.push(row.id)
-            tasksByCheckpointId.set(row.branched_from_checkpoint_id, existing)
+            branchesByCheckpoint.set(row.branched_from_checkpoint_id, existing)
           }
         }
 
-        const buildNode = (nodeTaskId: string): TaskTreeNode => {
-          const t = allTasks.get(nodeTaskId)!
-          const cps = checkpointsByTask.get(nodeTaskId) ?? []
-          const turns: TaskTreeTurn[] = cps.map((cp) => {
-            const branchTaskIds = tasksByCheckpointId.get(cp.id) ?? []
-            const branches: TaskTreeNode[] = branchTaskIds.map((id) => buildNode(id))
-            return {
-              turnIndex: cp.turn_index,
-              checkpointId: cp.id,
-              lastMessage: cp.preview,
-              createdAt: cp.created_at,
-              branches,
-            }
-          })
-          return {
+        const root = taskRows.find((t) => !t.parent_task_id || !allTasks.has(t.parent_task_id))
+        if (!root) return yield* Effect.fail(new TaskNotFoundError({ taskId }))
+
+        // Build flat structure with levels
+        const turns: TreeTurn[] = []
+        const tasks: Record<string, TaskMeta> = {}
+        const taskStartLevel = new Map<string, number>([[root.id, 1]])
+        const queue = [root.id]
+
+        while (queue.length > 0) {
+          const currentTaskId = queue.shift()!
+          const t = allTasks.get(currentTaskId)!
+          tasks[t.id] = {
             taskId: t.id,
             title: t.title,
             status: t.status as TaskStatus,
             provider: t.provider as ProviderType,
             model: t.model,
-            branchedFromCheckpointId: t.branched_from_checkpoint_id,
-            turns,
+          }
+
+          let level = taskStartLevel.get(currentTaskId) ?? 1
+          const cps = checkpointsByTask.get(currentTaskId) ?? []
+
+          // Tasks with no checkpoints yet still need a row in the tree
+          if (cps.length === 0) {
+            turns.push({
+              level,
+              checkpointId: `pending:${currentTaskId}`,
+              taskId: currentTaskId,
+              turnIndex: -1,
+              message: "",
+              createdAt: t.created_at,
+              parentCheckpointId: t.branched_from_checkpoint_id,
+            })
+          }
+
+          for (const cp of cps) {
+            turns.push({
+              level,
+              checkpointId: cp.id,
+              taskId: currentTaskId,
+              turnIndex: cp.turn_index,
+              message: cp.preview,
+              createdAt: cp.created_at,
+              parentCheckpointId: t.branched_from_checkpoint_id,
+            })
+
+            const branches = branchesByCheckpoint.get(cp.id) ?? []
+            if (branches.length > 0) {
+              level++
+              for (const branchId of branches) {
+                taskStartLevel.set(branchId, level)
+                queue.push(branchId)
+              }
+            }
           }
         }
 
-        // Root = task in the family with no parent (or whose parent is outside the family)
-        const root = taskRows.find((t) => !t.parent_task_id || !allTasks.has(t.parent_task_id))
-        if (!root) return yield* Effect.fail(new TaskNotFoundError({ taskId }))
+        turns.sort((a, b) => a.level - b.level || new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime())
 
-        return buildNode(root.id)
+        return { turns, tasks } as TaskTree
       })
     )
   })
