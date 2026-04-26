@@ -67,11 +67,9 @@ function computeActivePath(node: TaskTreeNode, currentTaskId: string): Set<strin
           return true
         }
       }
-      // Leading turn before the fork — mark provisionally; rolled back if branch not found
       path.add(turnId)
       addedTurns.push(turnId)
     }
-    // current not under this node — backtrack
     path.delete(`task:${n.taskId}`)
     for (const id of addedTurns) path.delete(id)
     return false
@@ -81,21 +79,53 @@ function computeActivePath(node: TaskTreeNode, currentTaskId: string): Set<strin
 }
 
 // ---------------------------------------------------------------------------
-// Node marker + rail
+// Rail / marker primitives
 // ---------------------------------------------------------------------------
 
 const RAIL_INDENT = 16 // px per depth level
-const RAIL_OFFSET = 14 // x-position of rail center within a depth column
+const RAIL_OFFSET = 14 // x-position of rail center within depth column
 
 function railLeft(depth: number): number {
   return depth * RAIL_INDENT + RAIL_OFFSET
+}
+
+interface RailDescriptor {
+  depth: number
+  onPath: boolean
+}
+
+function railColor(onPath: boolean) {
+  return onPath ? "var(--color-status-info)" : "var(--border)"
+}
+
+function railOpacity(onPath: boolean) {
+  return onPath ? 0.55 : 0.55
+}
+
+function Rails({ rails }: { rails: RailDescriptor[] }) {
+  return (
+    <>
+      {rails.map((r) => (
+        <span
+          key={r.depth}
+          aria-hidden
+          className="pointer-events-none absolute top-0 bottom-0 w-px"
+          style={{
+            left: `${railLeft(r.depth) + 3}px`,
+            backgroundColor: railColor(r.onPath),
+            opacity: railOpacity(r.onPath),
+          }}
+        />
+      ))}
+    </>
+  )
 }
 
 function NodeMarker({ onPath, isCurrent }: { onPath: boolean; isCurrent: boolean }) {
   if (onPath) {
     return (
       <span
-        className="block h-2 w-2 shrink-0 rounded-full"
+        className="block h-2.5 w-2.5 shrink-0 rounded-full"
         style={{ backgroundColor: "var(--color-status-info)" }}
         aria-hidden
       />
@@ -103,8 +133,31 @@ function NodeMarker({ onPath, isCurrent }: { onPath: boolean; isCurrent: boolean
   }
   return (
     <span
-      className={`block h-2 w-2 shrink-0 rounded-full border bg-background ${isCurrent ? "border-foreground" : "border-muted-foreground/40"}`}
+      className={`block h-2.5 w-2.5 shrink-0 rounded-full border bg-background ${isCurrent ? "border-foreground" : "border-muted-foreground/50"}`}
       aria-hidden
+    />
+  )
+}
+
+// Curved L-connector from a parent rail to a branch dot. Rendered as a div with
+// border-left + border-bottom and a border-bottom-left-radius for the curve.
+function LConnector({ parentDepth, depth, onPath }: { parentDepth: number; depth: number; onPath: boolean }) {
+  const parentX = railLeft(parentDepth) + 3
+  const dotX = railLeft(depth) + 3
+  return (
+    <span
+      aria-hidden
+      className="pointer-events-none absolute"
+      style={{
+        left: `${parentX}px`,
+        top: 0,
+        width: `${dotX - parentX}px`,
+        height: "50%",
+        borderLeft: `1px solid ${railColor(onPath)}`,
+        borderBottom: `1px solid ${railColor(onPath)}`,
+        borderBottomLeftRadius: "10px",
+        opacity: railOpacity(onPath),
+      }}
     />
   )
 }
@@ -117,7 +170,10 @@ interface TreeNodeProps {
   node: TaskTreeNode
   currentTaskId: string
   depth: number
-  parentDepth: number | null // depth of parent rail for branch L-connector (null for root)
+  // Rails inherited from ancestors that pass continuously through every row
+  ancestorRails: RailDescriptor[]
+  // L-connector: if this task is a branch off a parent turn, parentDepth = turn depth
+  parentTurnDepth: number | null
   collapsed: Set<string>
   focusedId: string | null
   activePath: Set<string>
@@ -134,7 +190,8 @@ const TreeNode = memo(function TreeNode({
   node,
   currentTaskId,
   depth,
-  parentDepth,
+  ancestorRails,
+  parentTurnDepth,
   collapsed,
   focusedId,
   activePath,
@@ -180,24 +237,24 @@ const TreeNode = memo(function TreeNode({
   )
 
   const taskVisible = !search || node.title.toLowerCase().includes(search.toLowerCase())
-
   const dotX = railLeft(depth)
-  const showLConnector = parentDepth !== null
-  const parentX = parentDepth !== null ? railLeft(parentDepth) : 0
+
+  // Rails passed to descendants: ancestors + own task rail
+  const childAncestorRails: RailDescriptor[] = [...ancestorRails, { depth, onPath }]
 
   return (
     <div className="flex flex-col">
       {/* Task header row */}
       <div
         ref={setRef}
-        className={`group relative flex min-h-[32px] items-center gap-2 py-1 pr-2 text-xs transition-colors ${
+        className={`group relative flex min-h-[34px] items-center gap-2 py-1 pr-2 text-xs transition-colors ${
           isFocused
             ? "rounded-lg bg-[color:var(--color-status-info-bg)]/40 ring-2 ring-[color:var(--color-status-info)]"
             : isCurrent
               ? "cursor-default font-medium text-foreground"
               : "cursor-pointer touch-manipulation hover:bg-muted active:bg-muted text-foreground/80"
         } ${!taskVisible ? "opacity-40" : ""}`}
-        style={{ paddingLeft: `${dotX + 12}px` }}
+        style={{ paddingLeft: `${dotX + 14}px` }}
         onClick={isCurrent ? undefined : handleNodeClick}
         onFocus={(e) => { if (e.target === e.currentTarget) onFocus(taskNodeId) }}
         role="treeitem"
@@ -205,44 +262,28 @@ const TreeNode = memo(function TreeNode({
         tabIndex={isFocused ? 0 : -1}
         title={node.title}
       >
-        {/* Vertical rail through this row at own depth */}
-        <span
-          aria-hidden
-          className="pointer-events-none absolute top-0 bottom-0 w-px"
-          style={{
-            left: `${dotX + 3}px`,
-            backgroundColor: onPath ? "var(--color-status-info)" : "var(--border)",
-            opacity: onPath ? 0.6 : 0.4,
-          }}
-        />
-        {/* Branch L-connector from parent rail to own dot (top half only) */}
-        {showLConnector && (
-          <>
-            <span
-              aria-hidden
-              className="pointer-events-none absolute top-0 w-px"
-              style={{
-                left: `${parentX + 3}px`,
-                height: "50%",
-                backgroundColor: activePath.has(`task:${node.taskId}`) ? "var(--color-status-info)" : "var(--border)",
-                opacity: activePath.has(`task:${node.taskId}`) ? 0.6 : 0.4,
-              }}
-            />
-            <span
-              aria-hidden
-              className="pointer-events-none absolute h-px"
-              style={{
-                left: `${parentX + 3}px`,
-                top: "50%",
-                width: `${dotX - parentX}px`,
-                backgroundColor: activePath.has(`task:${node.taskId}`) ? "var(--color-status-info)" : "var(--border)",
-                opacity: activePath.has(`task:${node.taskId}`) ? 0.6 : 0.4,
-              }}
-            />
-          </>
+        {/* Continuous ancestor rails */}
+        <Rails rails={ancestorRails} />
+        {/* Own rail through this row at own depth (only if there are turns/children below) */}
+        {!isCollapsed && node.turns.length > 0 && (
+          <span
+            aria-hidden
+            className="pointer-events-none absolute w-px"
+            style={{
+              left: `${dotX + 3}px`,
+              top: "50%",
+              bottom: 0,
+              backgroundColor: railColor(onPath),
+              opacity: railOpacity(onPath),
+            }}
+          />
         )}
-        {/* Node marker */}
-        <span className="absolute" style={{ left: `${dotX - 1}px`, top: "50%", transform: "translateY(-50%)" }}>
+        {/* Branch L-connector from parent turn rail */}
+        {parentTurnDepth !== null && (
+          <LConnector parentDepth={parentTurnDepth} depth={depth} onPath={onPath} />
+        )}
+        {/* Node marker centered on rail */}
+        <span className="absolute" style={{ left: `${dotX - 2}px`, top: "50%", transform: "translateY(-50%)" }}>
           <NodeMarker onPath={onPath} isCurrent={isCurrent} />
         </span>
         <span className="min-w-0 flex-1 truncate">{node.title}</span>
@@ -276,14 +317,13 @@ const TreeNode = memo(function TreeNode({
         const isTurnFocused = focusedId === turnNodeId
         const turnOnPath = activePath.has(turnNodeId)
         const turnVisible = !search || (turn.lastMessage ?? "").toLowerCase().includes(search.toLowerCase())
-        const turnDotX = railLeft(depth + 1)
-
+        const turnDepth = depth + 1
+        const turnDotX = railLeft(turnDepth)
         const setTurnRef = (el: HTMLElement | null) => {
           if (el) nodeRefs.current.set(turnNodeId, el)
           else nodeRefs.current.delete(turnNodeId)
         }
 
-        // Turns under the current task navigate to the same URL — render as div.
         const TurnEl = isCurrent ? "div" : "a"
         const turnLinkProps = isCurrent
           ? {}
@@ -310,32 +350,24 @@ const TreeNode = memo(function TreeNode({
                     ? "text-foreground/80 hover:bg-muted/40"
                     : "cursor-pointer touch-manipulation hover:bg-muted/60 active:bg-muted/60 text-muted-foreground"
               } ${!turnVisible ? "opacity-30" : ""}`}
-              style={{ paddingLeft: `${turnDotX + 12}px` }}
+              style={{ paddingLeft: `${turnDotX + 14}px` }}
               tabIndex={isTurnFocused ? 0 : -1}
               role="treeitem"
               title={turn.lastMessage || `Turn ${turn.turnIndex + 1}`}
             >
-              {/* Vertical rail at turn's own depth */}
-              <span
-                aria-hidden
-                className="pointer-events-none absolute top-0 bottom-0 w-px"
-                style={{
-                  left: `${turnDotX + 3}px`,
-                  backgroundColor: turnOnPath ? "var(--color-status-info)" : "var(--border)",
-                  opacity: turnOnPath ? 0.6 : 0.4,
-                }}
-              />
-              {/* Parent rail continues through this row (vertical line at parent's depth) */}
+              {/* Continuous ancestor rails */}
+              <Rails rails={ancestorRails} />
+              {/* Parent task rail through this row */}
               <span
                 aria-hidden
                 className="pointer-events-none absolute top-0 bottom-0 w-px"
                 style={{
                   left: `${dotX + 3}px`,
-                  backgroundColor: onPath ? "var(--color-status-info)" : "var(--border)",
-                  opacity: onPath ? 0.6 : 0.4,
+                  backgroundColor: railColor(onPath),
+                  opacity: railOpacity(onPath),
                 }}
               />
-              {/* Horizontal connector from parent rail to turn dot */}
+              {/* Horizontal connector from parent task rail to turn dot */}
               <span
                 aria-hidden
                 className="pointer-events-none absolute h-px"
@@ -343,17 +375,31 @@ const TreeNode = memo(function TreeNode({
                   left: `${dotX + 3}px`,
                   top: "50%",
                   width: `${turnDotX - dotX}px`,
-                  backgroundColor: turnOnPath ? "var(--color-status-info)" : "var(--border)",
-                  opacity: turnOnPath ? 0.6 : 0.4,
+                  backgroundColor: railColor(turnOnPath),
+                  opacity: railOpacity(turnOnPath),
                 }}
               />
+              {/* Own turn rail (extends down if branches follow) */}
+              {turn.branches.length > 0 && (
+                <span
+                  aria-hidden
+                  className="pointer-events-none absolute w-px"
+                  style={{
+                    left: `${turnDotX + 3}px`,
+                    top: "50%",
+                    bottom: 0,
+                    backgroundColor: railColor(turnOnPath),
+                    opacity: railOpacity(turnOnPath),
+                  }}
+                />
+              )}
               {/* Node marker */}
-              <span className="absolute" style={{ left: `${turnDotX - 1}px`, top: "50%", transform: "translateY(-50%)" }}>
+              <span className="absolute" style={{ left: `${turnDotX - 2}px`, top: "50%", transform: "translateY(-50%)" }}>
                 <NodeMarker onPath={turnOnPath} isCurrent={false} />
               </span>
               <span className="min-w-0 flex-1 truncate">
                 {turn.lastMessage
-                  ? turn.lastMessage.slice(0, 60) + (turn.lastMessage.length > 60 ? "…" : "")
+                  ? turn.lastMessage.slice(0, 80) + (turn.lastMessage.length > 80 ? "…" : "")
                   : `Turn ${turn.turnIndex + 1}`}
               </span>
               {checkpoint ? (
@@ -381,25 +427,35 @@ const TreeNode = memo(function TreeNode({
             {/* Branches off this turn */}
             {turn.branches.length > 0 && (
               <div className="flex flex-col">
-                {turn.branches.map((branch) => (
-                  <TreeNode
-                    key={branch.taskId}
-                    node={branch}
-                    currentTaskId={currentTaskId}
-                    depth={depth + 2}
-                    parentDepth={depth + 1}
-                    collapsed={collapsed}
-                    focusedId={focusedId}
-                    activePath={activePath}
-                    onToggle={onToggle}
-                    onFocus={onFocus}
-                    nodeRefs={nodeRefs}
-                    tree={tree}
-                    search={search}
-                    checkpoints={checkpoints}
-                    onBranch={onBranch}
-                  />
-                ))}
+                {turn.branches.map((branch, branchIdx) => {
+                  const isLastBranch = branchIdx === turn.branches.length - 1
+                  // Turn rail continues through branch rows only if more branches follow
+                  // OR if more turns follow (parent task rail handles ancestor rails for siblings).
+                  const turnRailContinues = !isLastBranch
+                  const branchAncestorRails: RailDescriptor[] = turnRailContinues
+                    ? [...childAncestorRails, { depth: turnDepth, onPath: turnOnPath }]
+                    : childAncestorRails
+                  return (
+                    <TreeNode
+                      key={branch.taskId}
+                      node={branch}
+                      currentTaskId={currentTaskId}
+                      depth={depth + 2}
+                      ancestorRails={branchAncestorRails}
+                      parentTurnDepth={turnDepth}
+                      collapsed={collapsed}
+                      focusedId={focusedId}
+                      activePath={activePath}
+                      onToggle={onToggle}
+                      onFocus={onFocus}
+                      nodeRefs={nodeRefs}
+                      tree={tree}
+                      search={search}
+                      checkpoints={checkpoints}
+                      onBranch={onBranch}
+                    />
+                  )
+                })}
               </div>
             )}
           </div>
@@ -441,14 +497,12 @@ export function TreePane({ taskId, tree, loading, checkpoints, onBranch }: TreeP
     [tree, taskId],
   )
 
-  // Focus the DOM element for the focused node
   useEffect(() => {
     if (focusedId) {
       nodeRefs.current.get(focusedId)?.focus({ preventScroll: false })
     }
   }, [focusedId])
 
-  // Auto-focus the current task's node on mount
   useEffect(() => {
     if (!tree) return
     const currentNodeId = `task:${taskId}`
@@ -592,7 +646,8 @@ export function TreePane({ taskId, tree, loading, checkpoints, onBranch }: TreeP
           node={tree}
           currentTaskId={taskId}
           depth={0}
-          parentDepth={null}
+          ancestorRails={[]}
+          parentTurnDepth={null}
           collapsed={collapsed}
           focusedId={focusedId}
           activePath={activePath}
