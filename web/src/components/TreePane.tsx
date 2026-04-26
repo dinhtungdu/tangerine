@@ -77,6 +77,21 @@ interface TreeNodeProps {
   search: string
   checkpoints?: Checkpoint[]
   onBranch?: (checkpoint: Checkpoint) => void
+  continuingDepths?: boolean[]
+  isLast?: boolean
+}
+
+// Git-style branch prefix: renders │ for continuing depths, └/├ for current connector
+function BranchPrefix({ depth, continuingDepths, isLast }: { depth: number; continuingDepths: boolean[]; isLast: boolean }) {
+  if (depth === 0) return null
+  return (
+    <span className="shrink-0 font-mono text-muted-foreground/30 text-2xs select-none" aria-hidden>
+      {continuingDepths.slice(0, depth - 1).map((cont, i) => (
+        <span key={i} className="inline-block w-4 text-center">{cont ? "│" : " "}</span>
+      ))}
+      <span className="inline-block w-4 text-center">{isLast ? "└" : "├"}</span>
+    </span>
+  )
 }
 
 const TreeNode = memo(function TreeNode({
@@ -92,6 +107,8 @@ const TreeNode = memo(function TreeNode({
   search,
   checkpoints,
   onBranch,
+  continuingDepths = [],
+  isLast = true,
 }: TreeNodeProps) {
   const { link, navigate } = useProjectNav()
   const isCurrent = node.taskId === currentTaskId
@@ -134,8 +151,7 @@ const TreeNode = memo(function TreeNode({
       {/* Task header row */}
       <div
         ref={setRef}
-        className={`group flex items-center gap-1.5 rounded px-2 py-1.5 text-xs transition-colors ${isCurrent ? "cursor-default bg-muted font-medium text-foreground" : "cursor-pointer touch-manipulation hover:bg-muted active:bg-muted text-muted-foreground"} ${isFocused ? "ring-1 ring-ring" : ""} ${!taskVisible ? "opacity-40" : ""}`}
-        style={{ paddingLeft: `${8 + depth * 16}px` }}
+        className={`group flex items-center gap-1 rounded px-2 py-1.5 text-xs transition-colors ${isCurrent ? "cursor-default bg-muted font-medium text-foreground" : "cursor-pointer touch-manipulation hover:bg-muted active:bg-muted text-muted-foreground"} ${isFocused ? "ring-1 ring-ring" : ""} ${!taskVisible ? "opacity-40" : ""}`}
         onClick={isCurrent ? undefined : handleNodeClick}
         onFocus={(e) => { if (e.target === e.currentTarget) onFocus(taskNodeId) }}
         role="treeitem"
@@ -143,6 +159,7 @@ const TreeNode = memo(function TreeNode({
         tabIndex={isFocused ? 0 : -1}
         title={node.title}
       >
+        <BranchPrefix depth={depth} continuingDepths={continuingDepths} isLast={isLast} />
         {hasBranches && (
           <button
             onClick={handleToggle}
@@ -167,10 +184,11 @@ const TreeNode = memo(function TreeNode({
       </div>
 
       {/* Turns + branches */}
-      {!isCollapsed && node.turns.map((turn) => {
+      {!isCollapsed && node.turns.map((turn, turnIdx) => {
         const turnNodeId = `turn:${node.taskId}:${turn.turnIndex}`
         const isTurnFocused = focusedId === turnNodeId
         const turnVisible = !search || (turn.lastMessage ?? "").toLowerCase().includes(search.toLowerCase())
+        const isLastTurn = turnIdx === node.turns.length - 1
 
         const setTurnRef = (el: HTMLElement | null) => {
           if (el) nodeRefs.current.set(turnNodeId, el)
@@ -192,6 +210,9 @@ const TreeNode = memo(function TreeNode({
           ? checkpointMap.get(turn.checkpointId)
           : undefined
 
+        // Continuing depths for turn row: parent continues if not last, plus task depth continues if more turns
+        const turnContinuing = [...continuingDepths, !isLast, !isLastTurn]
+
         return (
           <div key={turn.checkpointId}>
             {/* Turn row */}
@@ -199,12 +220,12 @@ const TreeNode = memo(function TreeNode({
               ref={setTurnRef as React.RefCallback<HTMLElement>}
               {...turnLinkProps}
               onFocus={(e) => { if (e.target === e.currentTarget) onFocus(turnNodeId) }}
-              className={`group/turn flex items-center gap-1.5 rounded px-2 py-1 text-2xs transition-colors ${isCurrent ? "text-foreground/70 hover:bg-muted/40" : "cursor-pointer touch-manipulation hover:bg-muted/60 active:bg-muted/60 text-muted-foreground/60"} ${isTurnFocused ? "ring-1 ring-ring" : ""} ${!turnVisible ? "opacity-30" : ""}`}
-              style={{ paddingLeft: `${8 + (depth + 1) * 16}px` }}
+              className={`group/turn flex items-center gap-1 rounded px-2 py-1 text-2xs transition-colors ${isCurrent ? "text-foreground/70 hover:bg-muted/40" : "cursor-pointer touch-manipulation hover:bg-muted/60 active:bg-muted/60 text-muted-foreground/60"} ${isTurnFocused ? "ring-1 ring-ring" : ""} ${!turnVisible ? "opacity-30" : ""}`}
               tabIndex={isTurnFocused ? 0 : -1}
               role="treeitem"
               title={turn.lastMessage || `Turn ${turn.turnIndex + 1}`}
             >
+              <BranchPrefix depth={depth + 1} continuingDepths={turnContinuing} isLast={isLastTurn && turn.branches.length === 0} />
               <svg className="h-2.5 w-2.5 shrink-0 text-muted-foreground/40" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                 <circle cx="12" cy="12" r="3" />
               </svg>
@@ -232,7 +253,7 @@ const TreeNode = memo(function TreeNode({
             {/* Branches off this turn */}
             {turn.branches.length > 0 && (
               <div className="flex flex-col">
-                {turn.branches.map((branch) => (
+                {turn.branches.map((branch, branchIdx) => (
                   <TreeNode
                     key={branch.taskId}
                     node={branch}
@@ -247,6 +268,8 @@ const TreeNode = memo(function TreeNode({
                     search={search}
                     checkpoints={checkpoints}
                     onBranch={onBranch}
+                    continuingDepths={[...turnContinuing, branchIdx < turn.branches.length - 1]}
+                    isLast={branchIdx === turn.branches.length - 1 && isLastTurn}
                   />
                 ))}
               </div>
