@@ -241,7 +241,7 @@ rm -f "$TEST_DB"
 | Problem | Solution |
 |---------|----------|
 | Port already in use | Check `lsof -i :$VITE_PORT` and kill the stale process, or use a different port |
-| Test server port in use | `lsof -ti :$TEST_API_PORT \| xargs kill` then retry. Test servers use 13000-range; if still colliding, increment `SLOT_NUM` |
+| Test server port in use | `kill $(lsof -ti :$TEST_API_PORT 2>/dev/null)` then retry. Test servers use 13000-range; if still colliding, increment `SLOT_NUM` |
 | `/api/auth/session` returns 500 or empty | Vite is proxying to the live server (port 3456) which is down or returning empty replies. Switch to Test Server Mode so Vite points at `$TEST_API_PORT` instead |
 | Vite won't start | Check `cat /tmp/vite-$VITE_PORT.log` for errors. Run `bun install` first if deps are missing |
 | Screenshots are blank | Wait longer for the page to render: `playwright-cli -s=$SESSION eval "await new Promise(r => setTimeout(r, 2000))"` then screenshot |
