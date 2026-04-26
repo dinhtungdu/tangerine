@@ -541,6 +541,14 @@ describe("StatusPage", () => {
 })
 
 describe("ChatInput", () => {
+  test("uses 1rem text size for composer input", () => {
+    render(<ChatInput onSend={() => {}} disabled={false} queueLength={0} />)
+
+    const composer = screen.getByPlaceholderText("Message agent...")
+    expect(composer.className).toContain("text-base")
+    expect(composer.className).toContain("md:text-base")
+  })
+
   test("formats quoted text as a composer block", () => {
     expect(appendQuotedText("", "> quoted")).toBe("> quoted\n\n")
     expect(appendQuotedText("Already typing", "> quoted")).toBe("Already typing\n\n> quoted\n\n")
@@ -991,6 +999,20 @@ describe("ChatMessage", async () => {
   function renderChat(props: Parameters<typeof ChatMessage>[0]) {
     return render(<MemoryRouter><ChatMessage {...props} /></MemoryRouter>)
   }
+
+  test("uses 1rem text size for assistant and user messages", () => {
+    const { rerender } = renderChat({
+      message: { role: "assistant", content: "Assistant text", timestamp: "2026-03-17T10:00:00Z" },
+    })
+    expect(screen.getByText("Assistant text").parentElement?.className).toContain("text-base")
+
+    rerender(
+      <MemoryRouter>
+        <ChatMessage message={{ role: "user", content: "User text", timestamp: "2026-03-17T10:00:00Z" }} />
+      </MemoryRouter>,
+    )
+    expect(screen.getByText("User text").parentElement?.className).toContain("text-base")
+  })
 
   test("renders markdown tables as HTML tables", () => {
     const tableContent = "| Feature | Status |\n|---|---|\n| Tables | Yes |\n| Bold | Yes |"
