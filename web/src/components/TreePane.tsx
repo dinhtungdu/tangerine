@@ -81,16 +81,36 @@ interface TreeNodeProps {
   isLast?: boolean
 }
 
-// Git-style branch prefix: renders │ for continuing depths, └/├ for current connector
-function BranchPrefix({ depth, continuingDepths, isLast }: { depth: number; continuingDepths: boolean[]; isLast: boolean }) {
-  if (depth === 0) return null
+// Timeline gutter: circle on main line, dashed connectors for nested items
+const TIMELINE_WIDTH = 28 // width of main timeline column
+const INDENT_WIDTH = 16 // additional indent per depth level
+
+function TreeGutter({ depth, continuingDepths: _continuingDepths, isLast: _isLast }: { depth: number; continuingDepths: boolean[]; isLast: boolean }) {
+  // Depth 0 & 1: circle on main timeline
+  if (depth <= 1) {
+    return (
+      <div className="relative flex shrink-0 items-center justify-center" style={{ width: TIMELINE_WIDTH }} aria-hidden>
+        {/* Circle node on top of the vertical line */}
+        <div className="z-10 h-2 w-2 rounded-full border-[1.5px] border-muted-foreground/60 bg-background" />
+      </div>
+    )
+  }
+
+  // Depth 2+: timeline column + dashed connector
+  const extraIndent = (depth - 1) * INDENT_WIDTH
+
   return (
-    <span className="shrink-0 font-mono text-muted-foreground/30 text-2xs select-none" aria-hidden>
-      {continuingDepths.slice(0, depth - 1).map((cont, i) => (
-        <span key={i} className="inline-block w-4 text-center">{cont ? "│" : " "}</span>
-      ))}
-      <span className="inline-block w-4 text-center">{isLast ? "└" : "├"}</span>
-    </span>
+    <div className="flex shrink-0 self-stretch" style={{ width: TIMELINE_WIDTH + extraIndent }} aria-hidden>
+      {/* Timeline column - just empty space over the background line */}
+      <div style={{ width: TIMELINE_WIDTH }} />
+      {/* Dashed connector area */}
+      <div className="relative flex-1 flex items-center">
+        {/* Horizontal dashed line */}
+        <div className="h-px w-full border-t border-dashed border-muted-foreground/40" />
+        {/* Small dot at end */}
+        <div className="absolute right-0 h-1.5 w-1.5 rounded-full bg-muted-foreground/50" />
+      </div>
+    </div>
   )
 }
 
@@ -159,7 +179,7 @@ const TreeNode = memo(function TreeNode({
         tabIndex={isFocused ? 0 : -1}
         title={node.title}
       >
-        <BranchPrefix depth={depth} continuingDepths={continuingDepths} isLast={isLast} />
+        <TreeGutter depth={depth} continuingDepths={continuingDepths} isLast={isLast} />
         {hasBranches && (
           <button
             onClick={handleToggle}
@@ -225,7 +245,7 @@ const TreeNode = memo(function TreeNode({
               role="treeitem"
               title={turn.lastMessage || `Turn ${turn.turnIndex + 1}`}
             >
-              <BranchPrefix depth={depth + 1} continuingDepths={turnContinuing} isLast={isLastTurn && turn.branches.length === 0} />
+              <TreeGutter depth={depth + 1} continuingDepths={turnContinuing} isLast={isLastTurn && turn.branches.length === 0} />
               <svg className="h-2.5 w-2.5 shrink-0 text-muted-foreground/40" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                 <circle cx="12" cy="12" r="3" />
               </svg>
@@ -459,7 +479,12 @@ export function TreePane({ taskId, tree, loading, checkpoints, onBranch }: TreeP
       </div>
 
       {/* Tree */}
-      <div className="flex-1 touch-pan-y overflow-y-auto py-1">
+      <div className="relative flex-1 touch-pan-y overflow-y-auto py-1">
+        {/* Main vertical timeline line */}
+        <div
+          className="pointer-events-none absolute left-[18px] top-0 bottom-0 w-0.5 bg-border"
+          aria-hidden
+        />
         <TreeNode
           node={tree}
           currentTaskId={taskId}
