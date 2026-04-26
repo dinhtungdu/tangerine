@@ -81,11 +81,6 @@ const TurnRow = memo(function TurnRow({
       role="treeitem"
       title={turn.message || `Turn ${turn.turnIndex + 1}`}
     >
-      <StatusDot status={task.status} />
-      <span className="min-w-0 shrink-0 max-w-[100px] truncate text-2xs text-muted-foreground/60">
-        {task.title}
-      </span>
-      <span className="text-muted-foreground/30">·</span>
       <span className="min-w-0 flex-1 truncate">
         {turn.turnIndex < 0
           ? <span className="italic text-muted-foreground/50">Starting…</span>
@@ -128,6 +123,21 @@ export function TreePane({ taskId, tree, loading, checkpoints, onBranch }: TreeP
 
   const turns = tree?.turns ?? []
   const tasks = tree?.tasks ?? {}
+
+  const taskGroups = useMemo(() => {
+    const groups = new Map<string, TreeTurn[]>()
+    for (const turn of turns) {
+      const existing = groups.get(turn.taskId)
+      if (existing) {
+        existing.push(turn)
+      } else {
+        groups.set(turn.taskId, [turn])
+      }
+    }
+    return Array.from(groups.entries())
+      .map(([taskIdKey, taskTurns]) => ({ taskId: taskIdKey, turns: taskTurns }))
+      .sort((a, b) => (a.turns[0]?.createdAt ?? "").localeCompare(b.turns[0]?.createdAt ?? ""))
+  }, [turns])
 
   useEffect(() => {
     if (focusedId) {
@@ -249,23 +259,37 @@ export function TreePane({ taskId, tree, loading, checkpoints, onBranch }: TreeP
       </div>
 
       <div className="flex-1 touch-pan-y overflow-y-auto py-1">
-        {turns.map((turn) => {
-          const task = tasks[turn.taskId]
+        {taskGroups.map((group) => {
+          const task = tasks[group.taskId]
           if (!task) return null
-          const checkpoint = turn.taskId === taskId ? checkpointMap.get(turn.checkpointId) : undefined
+          const isCurrent = group.taskId === taskId
           return (
-            <TurnRow
-              key={turn.checkpointId}
-              turn={turn}
-              task={task}
-              currentTaskId={taskId}
-              isFocused={focusedId === `turn:${turn.taskId}:${turn.turnIndex}`}
-              onFocus={setFocusedId}
-              nodeRefs={nodeRefs}
-              search={search}
-              checkpoint={checkpoint}
-              onBranch={onBranch}
-            />
+            <div key={group.taskId} className="mb-2">
+              <div
+                className={`sticky top-0 z-10 flex items-center gap-1.5 px-2 py-1 text-2xs font-medium ${isCurrent ? "bg-muted text-foreground" : "bg-background text-muted-foreground"}`}
+                style={{ paddingLeft: `${8 + ((group.turns[0]?.level ?? 1) - 1) * 20}px` }}
+              >
+                <StatusDot status={task.status} />
+                <span className="truncate">{task.title}</span>
+              </div>
+              {group.turns.map((turn) => {
+                const checkpoint = turn.taskId === taskId ? checkpointMap.get(turn.checkpointId) : undefined
+                return (
+                  <TurnRow
+                    key={turn.checkpointId}
+                    turn={turn}
+                    task={task}
+                    currentTaskId={taskId}
+                    isFocused={focusedId === `turn:${turn.taskId}:${turn.turnIndex}`}
+                    onFocus={setFocusedId}
+                    nodeRefs={nodeRefs}
+                    search={search}
+                    checkpoint={checkpoint}
+                    onBranch={onBranch}
+                  />
+                )
+              })}
+            </div>
           )
         })}
       </div>
