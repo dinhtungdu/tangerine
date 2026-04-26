@@ -1,6 +1,5 @@
 import { memo, useState, useCallback, useRef, useEffect, useMemo } from "react"
 import type { TaskTreeNode, Checkpoint } from "@tangerine/shared"
-import { getStatusConfig } from "../lib/status"
 import { useProjectNav } from "../hooks/useProjectNav"
 import { formatTimestamp } from "../lib/format"
 
@@ -49,27 +48,79 @@ function buildFlatList(tree: TaskTreeNode, collapsed: Set<string>): FlatNode[] {
   return out
 }
 
+// Mark IDs on the chain from root → current task. Includes ancestor task IDs, turns up to
+// and including the turn that branches toward current, and all turns of the current task.
+function computeActivePath(node: TaskTreeNode, currentTaskId: string): Set<string> {
+  const path = new Set<string>()
+  function walk(n: TaskTreeNode): boolean {
+    path.add(`task:${n.taskId}`)
+    if (n.taskId === currentTaskId) {
+      for (const t of n.turns) path.add(`turn:${n.taskId}:${t.turnIndex}`)
+      return true
+    }
+    const addedTurns: string[] = []
+    for (const turn of n.turns) {
+      const turnId = `turn:${n.taskId}:${turn.turnIndex}`
+      for (const branch of turn.branches) {
+        if (walk(branch)) {
+          path.add(turnId)
+          return true
+        }
+      }
+      // Leading turn before the fork — mark provisionally; rolled back if branch not found
+      path.add(turnId)
+      addedTurns.push(turnId)
+    }
+    // current not under this node — backtrack
+    path.delete(`task:${n.taskId}`)
+    for (const id of addedTurns) path.delete(id)
+    return false
+  }
+  walk(node)
+  return path
+}
+
 // ---------------------------------------------------------------------------
-// Sub-components
+// Node marker + rail
 // ---------------------------------------------------------------------------
 
-function StatusDot({ status }: { status: string }) {
-  const { color } = getStatusConfig(status as Parameters<typeof getStatusConfig>[0])
-  const isRunning = status === "running"
+const RAIL_INDENT = 16 // px per depth level
+const RAIL_OFFSET = 14 // x-position of rail center within a depth column
+
+function railLeft(depth: number): number {
+  return depth * RAIL_INDENT + RAIL_OFFSET
+}
+
+function NodeMarker({ onPath, isCurrent }: { onPath: boolean; isCurrent: boolean }) {
+  if (onPath) {
+    return (
+      <span
+        className="block h-2 w-2 shrink-0 rounded-full"
+        style={{ backgroundColor: "var(--color-status-info)" }}
+        aria-hidden
+      />
+    )
+  }
   return (
     <span
-      className={`inline-block h-1.5 w-1.5 shrink-0 rounded-full ${isRunning ? "animate-pulse" : ""}`}
-      style={{ backgroundColor: color }}
+      className={`block h-2 w-2 shrink-0 rounded-full border bg-background ${isCurrent ? "border-foreground" : "border-muted-foreground/40"}`}
+      aria-hidden
     />
   )
 }
+
+// ---------------------------------------------------------------------------
+// Sub-components
+// ---------------------------------------------------------------------------
 
 interface TreeNodeProps {
   node: TaskTreeNode
   currentTaskId: string
   depth: number
+  parentDepth: number | null // depth of parent rail for branch L-connector (null for root)
   collapsed: Set<string>
   focusedId: string | null
+  activePath: Set<string>
   onToggle: (taskId: string) => void
   onFocus: (id: string) => void
   nodeRefs: React.MutableRefObject<Map<string, HTMLElement>>
@@ -83,8 +134,10 @@ const TreeNode = memo(function TreeNode({
   node,
   currentTaskId,
   depth,
+  parentDepth,
   collapsed,
   focusedId,
+  activePath,
   onToggle,
   onFocus,
   nodeRefs,
@@ -104,6 +157,7 @@ const TreeNode = memo(function TreeNode({
   const isCollapsed = collapsed.has(node.taskId)
   const taskNodeId = `task:${node.taskId}`
   const isFocused = focusedId === taskNodeId
+  const onPath = activePath.has(taskNodeId)
 
   const setRef = useCallback(
     (el: HTMLElement | null) => {
@@ -125,17 +179,25 @@ const TreeNode = memo(function TreeNode({
     [onToggle, node.taskId],
   )
 
-  // Filter: hide task node only if search active AND neither the task nor any
-  // of its visible turns match (always show task headers so tree structure is clear)
   const taskVisible = !search || node.title.toLowerCase().includes(search.toLowerCase())
+
+  const dotX = railLeft(depth)
+  const showLConnector = parentDepth !== null
+  const parentX = parentDepth !== null ? railLeft(parentDepth) : 0
 
   return (
     <div className="flex flex-col">
       {/* Task header row */}
       <div
         ref={setRef}
-        className={`group flex items-center gap-1.5 rounded px-2 py-1.5 text-xs transition-colors ${isCurrent ? "cursor-default bg-muted font-medium text-foreground" : "cursor-pointer touch-manipulation hover:bg-muted active:bg-muted text-muted-foreground"} ${isFocused ? "ring-1 ring-ring" : ""} ${!taskVisible ? "opacity-40" : ""}`}
-        style={{ paddingLeft: `${8 + depth * 16}px` }}
+        className={`group relative flex min-h-[32px] items-center gap-2 py-1 pr-2 text-xs transition-colors ${
+          isFocused
+            ? "rounded-lg bg-[color:var(--color-status-info-bg)]/40 ring-2 ring-[color:var(--color-status-info)]"
+            : isCurrent
+              ? "cursor-default font-medium text-foreground"
+              : "cursor-pointer touch-manipulation hover:bg-muted active:bg-muted text-foreground/80"
+        } ${!taskVisible ? "opacity-40" : ""}`}
+        style={{ paddingLeft: `${dotX + 12}px` }}
         onClick={isCurrent ? undefined : handleNodeClick}
         onFocus={(e) => { if (e.target === e.currentTarget) onFocus(taskNodeId) }}
         role="treeitem"
@@ -143,26 +205,68 @@ const TreeNode = memo(function TreeNode({
         tabIndex={isFocused ? 0 : -1}
         title={node.title}
       >
-        {hasBranches && (
+        {/* Vertical rail through this row at own depth */}
+        <span
+          aria-hidden
+          className="pointer-events-none absolute top-0 bottom-0 w-px"
+          style={{
+            left: `${dotX + 3}px`,
+            backgroundColor: onPath ? "var(--color-status-info)" : "var(--border)",
+            opacity: onPath ? 0.6 : 0.4,
+          }}
+        />
+        {/* Branch L-connector from parent rail to own dot (top half only) */}
+        {showLConnector && (
+          <>
+            <span
+              aria-hidden
+              className="pointer-events-none absolute top-0 w-px"
+              style={{
+                left: `${parentX + 3}px`,
+                height: "50%",
+                backgroundColor: activePath.has(`task:${node.taskId}`) ? "var(--color-status-info)" : "var(--border)",
+                opacity: activePath.has(`task:${node.taskId}`) ? 0.6 : 0.4,
+              }}
+            />
+            <span
+              aria-hidden
+              className="pointer-events-none absolute h-px"
+              style={{
+                left: `${parentX + 3}px`,
+                top: "50%",
+                width: `${dotX - parentX}px`,
+                backgroundColor: activePath.has(`task:${node.taskId}`) ? "var(--color-status-info)" : "var(--border)",
+                opacity: activePath.has(`task:${node.taskId}`) ? 0.6 : 0.4,
+              }}
+            />
+          </>
+        )}
+        {/* Node marker */}
+        <span className="absolute" style={{ left: `${dotX - 1}px`, top: "50%", transform: "translateY(-50%)" }}>
+          <NodeMarker onPath={onPath} isCurrent={isCurrent} />
+        </span>
+        <span className="min-w-0 flex-1 truncate">{node.title}</span>
+        {isRunning && (
+          <span className="shrink-0 rounded bg-amber-500/15 px-1.5 py-0.5 text-2xs font-medium text-amber-600 dark:text-amber-400">running</span>
+        )}
+        {hasBranches ? (
           <button
             onClick={handleToggle}
-            className="shrink-0 text-muted-foreground hover:text-foreground"
+            className="shrink-0 text-muted-foreground/60 hover:text-foreground"
             aria-label={isCollapsed ? "Expand" : "Collapse"}
             tabIndex={-1}
           >
             <svg
-              className={`h-3 w-3 transition-transform ${isCollapsed ? "" : "rotate-90"}`}
+              className={`h-3.5 w-3.5 transition-transform ${isCollapsed ? "" : "rotate-90"}`}
               fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}
             >
               <path strokeLinecap="round" strokeLinejoin="round" d="m9 18 6-6-6-6" />
             </svg>
           </button>
-        )}
-        {!hasBranches && <span className="w-3 shrink-0" />}
-        <StatusDot status={node.status} />
-        <span className="min-w-0 flex-1 truncate">{node.title}</span>
-        {isRunning && (
-          <span className="shrink-0 rounded bg-amber-500/15 px-1 py-0.5 text-2xs text-amber-500">running</span>
+        ) : (
+          <svg className="h-3.5 w-3.5 shrink-0 text-muted-foreground/40" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2} aria-hidden>
+            <path strokeLinecap="round" strokeLinejoin="round" d="M6 3v12m0 0a3 3 0 1 0 3 3m-3-3a3 3 0 0 1 3 3m0 0h6a3 3 0 0 0 3-3V9m0 0a3 3 0 1 0 0-6 3 3 0 0 0 0 6Z" />
+          </svg>
         )}
       </div>
 
@@ -170,15 +274,16 @@ const TreeNode = memo(function TreeNode({
       {!isCollapsed && node.turns.map((turn) => {
         const turnNodeId = `turn:${node.taskId}:${turn.turnIndex}`
         const isTurnFocused = focusedId === turnNodeId
+        const turnOnPath = activePath.has(turnNodeId)
         const turnVisible = !search || (turn.lastMessage ?? "").toLowerCase().includes(search.toLowerCase())
+        const turnDotX = railLeft(depth + 1)
 
         const setTurnRef = (el: HTMLElement | null) => {
           if (el) nodeRefs.current.set(turnNodeId, el)
           else nodeRefs.current.delete(turnNodeId)
         }
 
-        // Turns under the current task navigate to the same URL — no-op.
-        // Render as a non-interactive div; only turns under other tasks are links.
+        // Turns under the current task navigate to the same URL — render as div.
         const TurnEl = isCurrent ? "div" : "a"
         const turnLinkProps = isCurrent
           ? {}
@@ -187,7 +292,6 @@ const TreeNode = memo(function TreeNode({
               onClick: (e: React.MouseEvent) => { e.preventDefault(); navigate(`/tasks/${node.taskId}`) },
             }
 
-        // Find checkpoint for this turn to enable branching (O(1) via Map)
         const checkpoint = isCurrent && onBranch
           ? checkpointMap.get(turn.checkpointId)
           : undefined
@@ -199,57 +303,94 @@ const TreeNode = memo(function TreeNode({
               ref={setTurnRef as React.RefCallback<HTMLElement>}
               {...turnLinkProps}
               onFocus={(e) => { if (e.target === e.currentTarget) onFocus(turnNodeId) }}
-              className={`group/turn flex items-center gap-1.5 rounded px-2 py-1 text-2xs transition-colors ${isCurrent ? "text-foreground/70 hover:bg-muted/40" : "cursor-pointer touch-manipulation hover:bg-muted/60 active:bg-muted/60 text-muted-foreground/60"} ${isTurnFocused ? "ring-1 ring-ring" : ""} ${!turnVisible ? "opacity-30" : ""}`}
-              style={{ paddingLeft: `${8 + (depth + 1) * 16}px` }}
+              className={`group/turn relative flex min-h-[28px] items-center gap-2 py-0.5 pr-2 text-2xs transition-colors ${
+                isTurnFocused
+                  ? "rounded-lg bg-[color:var(--color-status-info-bg)]/40 ring-2 ring-[color:var(--color-status-info)]"
+                  : isCurrent
+                    ? "text-foreground/80 hover:bg-muted/40"
+                    : "cursor-pointer touch-manipulation hover:bg-muted/60 active:bg-muted/60 text-muted-foreground"
+              } ${!turnVisible ? "opacity-30" : ""}`}
+              style={{ paddingLeft: `${turnDotX + 12}px` }}
               tabIndex={isTurnFocused ? 0 : -1}
               role="treeitem"
               title={turn.lastMessage || `Turn ${turn.turnIndex + 1}`}
             >
-              <svg className="h-2.5 w-2.5 shrink-0 text-muted-foreground/40" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                <circle cx="12" cy="12" r="3" />
-              </svg>
+              {/* Vertical rail at turn's own depth */}
+              <span
+                aria-hidden
+                className="pointer-events-none absolute top-0 bottom-0 w-px"
+                style={{
+                  left: `${turnDotX + 3}px`,
+                  backgroundColor: turnOnPath ? "var(--color-status-info)" : "var(--border)",
+                  opacity: turnOnPath ? 0.6 : 0.4,
+                }}
+              />
+              {/* Parent rail continues through this row (vertical line at parent's depth) */}
+              <span
+                aria-hidden
+                className="pointer-events-none absolute top-0 bottom-0 w-px"
+                style={{
+                  left: `${dotX + 3}px`,
+                  backgroundColor: onPath ? "var(--color-status-info)" : "var(--border)",
+                  opacity: onPath ? 0.6 : 0.4,
+                }}
+              />
+              {/* Horizontal connector from parent rail to turn dot */}
+              <span
+                aria-hidden
+                className="pointer-events-none absolute h-px"
+                style={{
+                  left: `${dotX + 3}px`,
+                  top: "50%",
+                  width: `${turnDotX - dotX}px`,
+                  backgroundColor: turnOnPath ? "var(--color-status-info)" : "var(--border)",
+                  opacity: turnOnPath ? 0.6 : 0.4,
+                }}
+              />
+              {/* Node marker */}
+              <span className="absolute" style={{ left: `${turnDotX - 1}px`, top: "50%", transform: "translateY(-50%)" }}>
+                <NodeMarker onPath={turnOnPath} isCurrent={false} />
+              </span>
               <span className="min-w-0 flex-1 truncate">
                 {turn.lastMessage
                   ? turn.lastMessage.slice(0, 60) + (turn.lastMessage.length > 60 ? "…" : "")
                   : `Turn ${turn.turnIndex + 1}`}
               </span>
-              {checkpoint && (
+              {checkpoint ? (
                 <button
                   type="button"
                   onClick={(e) => { e.stopPropagation(); onBranch!(checkpoint) }}
-                  className="shrink-0 rounded px-1.5 py-0.5 text-2xs text-muted-foreground md:opacity-0 transition-opacity hover:bg-muted hover:text-foreground focus:opacity-100 focus-visible:ring-1 focus-visible:ring-ring md:group-hover/turn:opacity-100"
+                  className="shrink-0 rounded p-0.5 text-muted-foreground/50 transition-colors hover:bg-muted hover:text-foreground focus-visible:ring-1 focus-visible:ring-ring"
                   title="Branch from this turn"
                   aria-label="Branch from this turn"
                 >
-                  <svg className="h-3 w-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                  <svg className="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                     <path strokeLinecap="round" strokeLinejoin="round" d="M6 3v12m0 0a3 3 0 1 0 3 3m-3-3a3 3 0 0 1 3 3m0 0h6a3 3 0 0 0 3-3V9m0 0a3 3 0 1 0 0-6 3 3 0 0 0 0 6Z" />
                   </svg>
                 </button>
+              ) : (
+                <>
+                  <span className="hidden shrink-0 text-muted-foreground/50 md:inline">{formatTimestamp(turn.createdAt)}</span>
+                  <svg className="h-3.5 w-3.5 shrink-0 text-muted-foreground/40" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2} aria-hidden>
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M6 3v12m0 0a3 3 0 1 0 3 3m-3-3a3 3 0 0 1 3 3m0 0h6a3 3 0 0 0 3-3V9m0 0a3 3 0 1 0 0-6 3 3 0 0 0 0 6Z" />
+                  </svg>
+                </>
               )}
-              <span className={`shrink-0 text-muted-foreground/40 ${checkpoint ? "hidden md:inline md:group-hover/turn:hidden" : ""}`}>{formatTimestamp(turn.createdAt)}</span>
             </TurnEl>
 
             {/* Branches off this turn */}
             {turn.branches.length > 0 && (
               <div className="flex flex-col">
-                {/* Fork indicator */}
-                <div
-                  className="flex items-center gap-1.5 py-0.5 text-2xs text-muted-foreground/40"
-                  style={{ paddingLeft: `${8 + (depth + 1) * 16}px` }}
-                >
-                  <svg className="h-3 w-3 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
-                    <path strokeLinecap="round" strokeLinejoin="round" d="M6 3v12m0 0a3 3 0 1 0 3 3m-3-3a3 3 0 0 1 3 3m0 0h6a3 3 0 0 0 3-3V9m0 0a3 3 0 1 0 0-6 3 3 0 0 0 0 6Z" />
-                  </svg>
-                  <span>{turn.branches.length === 1 ? "1 branch" : `${turn.branches.length} branches`}</span>
-                </div>
                 {turn.branches.map((branch) => (
                   <TreeNode
                     key={branch.taskId}
                     node={branch}
                     currentTaskId={currentTaskId}
                     depth={depth + 2}
+                    parentDepth={depth + 1}
                     collapsed={collapsed}
                     focusedId={focusedId}
+                    activePath={activePath}
                     onToggle={onToggle}
                     onFocus={onFocus}
                     nodeRefs={nodeRefs}
@@ -295,6 +436,11 @@ export function TreePane({ taskId, tree, loading, checkpoints, onBranch }: TreeP
     [tree, collapsed],
   )
 
+  const activePath = useMemo(
+    () => (tree ? computeActivePath(tree, taskId) : new Set<string>()),
+    [tree, taskId],
+  )
+
   // Focus the DOM element for the focused node
   useEffect(() => {
     if (focusedId) {
@@ -311,7 +457,6 @@ export function TreePane({ taskId, tree, loading, checkpoints, onBranch }: TreeP
 
   const handleKeyDown = useCallback(
     (e: React.KeyboardEvent<HTMLDivElement>) => {
-      // Let search input handle its own keys
       if (document.activeElement === searchRef.current) {
         if (e.key === "Escape") {
           setSearch("")
@@ -332,7 +477,6 @@ export function TreePane({ taskId, tree, loading, checkpoints, onBranch }: TreeP
         case "ArrowUp": {
           e.preventDefault()
           if (currentIndex <= 0) {
-            // Jump to search
             searchRef.current?.focus()
           } else {
             const prev = flatNodes[currentIndex - 1]
@@ -358,17 +502,14 @@ export function TreePane({ taskId, tree, loading, checkpoints, onBranch }: TreeP
           if (cur?.kind === "task") {
             const hasBranches = cur.node.turns.some((t) => t.branches.length > 0)
             if (hasBranches && !collapsed.has(cur.taskId)) {
-              // Collapse current task
               setCollapsed((prev) => new Set([...prev, cur.taskId]))
             } else {
-              // Move to parent task node if any
               const parentIdx = flatNodes.slice(0, currentIndex).findLastIndex(
                 (n) => n.kind === "task" && n.depth < cur.depth
               )
               if (parentIdx >= 0) setFocusedId(flatNodes[parentIdx]!.id)
             }
           } else if (cur?.kind === "turn") {
-            // Move to the owning task node
             const parentIdx = flatNodes.slice(0, currentIndex).findLastIndex(
               (n) => n.kind === "task" && n.taskId === cur.taskId
             )
@@ -451,8 +592,10 @@ export function TreePane({ taskId, tree, loading, checkpoints, onBranch }: TreeP
           node={tree}
           currentTaskId={taskId}
           depth={0}
+          parentDepth={null}
           collapsed={collapsed}
           focusedId={focusedId}
+          activePath={activePath}
           onToggle={handleToggle}
           onFocus={setFocusedId}
           nodeRefs={nodeRefs}
