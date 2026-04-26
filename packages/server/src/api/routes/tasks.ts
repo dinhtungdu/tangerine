@@ -236,7 +236,7 @@ export function taskRoutes(deps: AppDeps): Hono {
           }
         }
 
-        turns.sort((a, b) => a.level - b.level || new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime())
+        turns.sort((a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime())
 
         return { turns, tasks } as TaskTree
       })
