@@ -544,7 +544,9 @@ describe("ChatInput", () => {
   test("uses text-sm size for composer input", () => {
     render(<ChatInput onSend={() => {}} disabled={false} queueLength={0} />)
 
-    expect(screen.getByPlaceholderText("Message agent...").className).toContain("text-sm")
+    const composer = screen.getByPlaceholderText("Message agent...")
+    expect(composer.className).toContain("text-sm")
+    expect(composer.className).not.toContain("text-base")
   })
 
   test("formats quoted text as a composer block", () => {

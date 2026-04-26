@@ -1,7 +1,6 @@
 import React, { useState, useRef, useCallback, useEffect, type KeyboardEvent, type ClipboardEvent, type MouseEvent } from "react"
 import { ArrowUp, X, Quote, Paperclip } from "lucide-react"
 import { Button } from "@/components/ui/button"
-import { Textarea } from "@/components/ui/textarea"
 import type { PromptImage, PredefinedPrompt, ProviderType, Task } from "@tangerine/shared"
 import { ModelEffortPopover } from "./ModelEffortPopover"
 import { MentionPicker } from "./MentionPicker"
@@ -424,7 +423,7 @@ export function ChatInput({ onSend, disabled, queueLength, taskId, isWorking, on
           />
         )}
         <div className="rounded-lg border border-input bg-background transition-colors focus-within:border-ring focus-within:ring-1 focus-within:ring-ring/50 dark:bg-input/30">
-          <Textarea
+          <textarea
             ref={textareaRef}
             value={text}
             onChange={(e) => {
@@ -463,7 +462,7 @@ export function ChatInput({ onSend, disabled, queueLength, taskId, isWorking, on
             placeholder={isWorking ? "Agent is working... (messages will be queued)" : "Message agent..."}
             disabled={disabled}
             rows={1}
-            className="min-h-9 max-h-36 resize-none rounded-none border-0 bg-transparent px-3 text-sm shadow-none ring-0 focus-visible:border-transparent focus-visible:ring-0 placeholder:text-muted-foreground/50 md:px-3.5"
+            className="field-sizing-content w-full py-2 transition-colors outline-none disabled:cursor-not-allowed disabled:opacity-50 min-h-9 max-h-36 resize-none rounded-none border-0 bg-transparent px-3 text-sm shadow-none ring-0 focus-visible:border-transparent focus-visible:ring-0 placeholder:text-muted-foreground/50 md:px-3.5"
           />
           {/* Bottom toolbar: model/effort on left, queue badge + send on right */}
           <div
