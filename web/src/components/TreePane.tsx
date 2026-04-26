@@ -27,7 +27,10 @@ function flattenTree(
 ): void {
   out.push({ kind: "task", id: `task:${node.taskId}`, taskId: node.taskId, depth, node })
   if (collapsed.has(node.taskId)) return
+  // Only render turns that are fork points — non-branching turns are part of the
+  // linear conversation and don't need a tree node.
   for (const turn of node.turns) {
+    if (turn.branches.length === 0) continue
     out.push({
       kind: "turn",
       id: `turn:${node.taskId}:${turn.turnIndex}`,
@@ -264,8 +267,8 @@ const TreeNode = memo(function TreeNode({
       >
         {/* Continuous ancestor rails */}
         <Rails rails={ancestorRails} />
-        {/* Own rail through this row at own depth (only if there are turns/children below) */}
-        {!isCollapsed && node.turns.length > 0 && (
+        {/* Own rail through this row at own depth (only if there are fork turns below) */}
+        {!isCollapsed && hasBranches && (
           <span
             aria-hidden
             className="pointer-events-none absolute w-px"
@@ -311,8 +314,8 @@ const TreeNode = memo(function TreeNode({
         )}
       </div>
 
-      {/* Turns + branches */}
-      {!isCollapsed && node.turns.map((turn) => {
+      {/* Fork turns + branches — non-fork turns are not rendered */}
+      {!isCollapsed && node.turns.filter((t) => t.branches.length > 0).map((turn) => {
         const turnNodeId = `turn:${node.taskId}:${turn.turnIndex}`
         const isTurnFocused = focusedId === turnNodeId
         const turnOnPath = activePath.has(turnNodeId)
