@@ -2,7 +2,6 @@ import { memo, useState, useCallback, useRef, useEffect, useMemo } from "react"
 import type { TaskTree, TreeTurn, TaskMeta, Checkpoint } from "@tangerine/shared"
 import { getStatusConfig } from "../lib/status"
 import { useProjectNav } from "../hooks/useProjectNav"
-import { formatTimestamp } from "../lib/format"
 
 interface TreePaneProps {
   taskId: string
@@ -23,29 +22,80 @@ function StatusDot({ status }: { status: string }) {
   )
 }
 
-interface TurnRowProps {
-  turn: TreeTurn
+interface TaskNode {
   task: TaskMeta
+  turns: TreeTurn[]
+  children: TaskNode[]
+}
+
+function buildTaskTree(tree: TaskTree): TaskNode | null {
+  const { turns, tasks } = tree
+  const taskIds = Object.keys(tasks)
+  if (taskIds.length === 0) return null
+
+  const turnsByTask = new Map<string, TreeTurn[]>()
+  for (const turn of turns) {
+    const existing = turnsByTask.get(turn.taskId) ?? []
+    existing.push(turn)
+    turnsByTask.set(turn.taskId, existing)
+  }
+
+  const childrenByParent = new Map<string, string[]>()
+  let rootId: string | null = null
+
+  for (const taskId of taskIds) {
+    const task = tasks[taskId]
+    if (!task) continue
+    if (task.parentTaskId && tasks[task.parentTaskId]) {
+      const siblings = childrenByParent.get(task.parentTaskId) ?? []
+      siblings.push(taskId)
+      childrenByParent.set(task.parentTaskId, siblings)
+    } else {
+      rootId = taskId
+    }
+  }
+
+  if (!rootId) return null
+
+  function buildNode(taskId: string): TaskNode {
+    const task = tasks[taskId]!
+    const taskTurns = turnsByTask.get(taskId) ?? []
+    const childIds = childrenByParent.get(taskId) ?? []
+    taskTurns.sort((a, b) => a.turnIndex - b.turnIndex)
+    childIds.sort((a, b) => {
+      const aTurns = turnsByTask.get(a) ?? []
+      const bTurns = turnsByTask.get(b) ?? []
+      return (aTurns[0]?.createdAt ?? "").localeCompare(bTurns[0]?.createdAt ?? "")
+    })
+    return {
+      task,
+      turns: taskTurns,
+      children: childIds.map(buildNode),
+    }
+  }
+
+  return buildNode(rootId)
+}
+
+interface TurnChipProps {
+  turn: TreeTurn
   currentTaskId: string
   isFocused: boolean
   onFocus: (id: string) => void
   nodeRefs: React.MutableRefObject<Map<string, HTMLElement>>
-  search: string
   checkpoint?: Checkpoint
   onBranch?: (checkpoint: Checkpoint) => void
 }
 
-const TurnRow = memo(function TurnRow({
+const TurnChip = memo(function TurnChip({
   turn,
-  task,
   currentTaskId,
   isFocused,
   onFocus,
   nodeRefs,
-  search,
   checkpoint,
   onBranch,
-}: TurnRowProps) {
+}: TurnChipProps) {
   const { link, navigate } = useProjectNav()
   const isCurrent = turn.taskId === currentTaskId
   const nodeId = `turn:${turn.taskId}:${turn.turnIndex}`
@@ -58,10 +108,6 @@ const TurnRow = memo(function TurnRow({
     [nodeRefs, nodeId],
   )
 
-  const visible = !search ||
-    task.title.toLowerCase().includes(search.toLowerCase()) ||
-    (turn.message ?? "").toLowerCase().includes(search.toLowerCase())
-
   const TurnEl = isCurrent ? "div" : "a"
   const turnLinkProps = isCurrent
     ? {}
@@ -70,46 +116,116 @@ const TurnRow = memo(function TurnRow({
         onClick: (e: React.MouseEvent) => { e.preventDefault(); navigate(`/tasks/${turn.taskId}`) },
       }
 
+  const label = turn.turnIndex < 0
+    ? "…"
+    : turn.message
+      ? turn.message.slice(0, 20) + (turn.message.length > 20 ? "…" : "")
+      : `t${turn.turnIndex}`
+
   return (
     <TurnEl
       ref={setRef as React.RefCallback<HTMLElement>}
       {...turnLinkProps}
       onFocus={(e) => { if (e.target === e.currentTarget) onFocus(nodeId) }}
-      className={`group/turn flex items-center gap-1.5 rounded px-2 py-1.5 text-xs transition-colors ${isCurrent ? "bg-muted/50 text-foreground" : "cursor-pointer touch-manipulation hover:bg-muted active:bg-muted text-muted-foreground"} ${isFocused ? "ring-1 ring-ring" : ""} ${!visible ? "opacity-30" : ""}`}
-      style={{ paddingLeft: `${8 + (turn.level - 1) * 20}px` }}
+      className={`group/turn relative flex items-center gap-0.5 rounded px-1.5 py-0.5 text-2xs whitespace-nowrap transition-colors ${isCurrent ? "bg-primary/20 text-foreground" : "cursor-pointer touch-manipulation hover:bg-muted active:bg-muted text-muted-foreground"} ${isFocused ? "ring-1 ring-ring" : ""}`}
       tabIndex={isFocused ? 0 : -1}
       role="treeitem"
       title={turn.message || `Turn ${turn.turnIndex + 1}`}
     >
-      <StatusDot status={task.status} />
-      <span className="min-w-0 shrink-0 max-w-[100px] truncate text-2xs text-muted-foreground/60">
-        {task.title}
-      </span>
-      <span className="text-muted-foreground/30">·</span>
-      <span className="min-w-0 flex-1 truncate">
-        {turn.turnIndex < 0
-          ? <span className="italic text-muted-foreground/50">Starting…</span>
-          : turn.message
-            ? turn.message.slice(0, 60) + (turn.message.length > 60 ? "…" : "")
-            : `Turn ${turn.turnIndex + 1}`}
-      </span>
+      <span className="truncate max-w-[80px]">{label}</span>
       {checkpoint && onBranch && (
         <button
           type="button"
           onClick={(e) => { e.stopPropagation(); e.preventDefault(); onBranch(checkpoint) }}
-          className="shrink-0 rounded px-1.5 py-0.5 text-2xs text-muted-foreground md:opacity-0 transition-opacity hover:bg-muted hover:text-foreground focus:opacity-100 focus-visible:ring-1 focus-visible:ring-ring md:group-hover/turn:opacity-100"
-          title="Branch from this turn"
+          className="shrink-0 rounded px-0.5 text-muted-foreground/50 hover:text-foreground"
+          title="Branch"
           aria-label="Branch from this turn"
         >
-          <svg className="h-3 w-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-            <path strokeLinecap="round" strokeLinejoin="round" d="M6 3v12m0 0a3 3 0 1 0 3 3m-3-3a3 3 0 0 1 3 3m0 0h6a3 3 0 0 0 3-3V9m0 0a3 3 0 1 0 0-6 3 3 0 0 0 0 6Z" />
-          </svg>
+          +
         </button>
       )}
-      <span className={`shrink-0 text-2xs text-muted-foreground/40 ${checkpoint && onBranch ? "hidden md:inline md:group-hover/turn:hidden" : ""}`}>
-        {formatTimestamp(turn.createdAt)}
-      </span>
     </TurnEl>
+  )
+})
+
+interface TaskRowProps {
+  node: TaskNode
+  currentTaskId: string
+  focusedId: string | null
+  onFocus: (id: string) => void
+  nodeRefs: React.MutableRefObject<Map<string, HTMLElement>>
+  checkpointMap: Map<string, Checkpoint>
+  onBranch?: (checkpoint: Checkpoint) => void
+  isLast: boolean
+  connectorPrefix: string
+}
+
+const TaskRow = memo(function TaskRow({
+  node,
+  currentTaskId,
+  focusedId,
+  onFocus,
+  nodeRefs,
+  checkpointMap,
+  onBranch,
+  isLast,
+  connectorPrefix,
+}: TaskRowProps) {
+  const { task, turns, children } = node
+  const isCurrent = task.taskId === currentTaskId
+
+  const connector = connectorPrefix + (isLast ? "└─" : "├─")
+  const childPrefix = connectorPrefix + (isLast ? "  " : "│ ")
+
+  return (
+    <>
+      <div className="flex items-center gap-1 py-0.5">
+        {connectorPrefix && (
+          <span className="font-mono text-2xs text-muted-foreground/30 whitespace-pre select-none">
+            {connector}
+          </span>
+        )}
+        <div className={`flex items-center gap-1 rounded px-1 py-0.5 ${isCurrent ? "bg-muted" : ""}`}>
+          <StatusDot status={task.status} />
+          <span className={`text-2xs font-medium truncate max-w-[100px] ${isCurrent ? "text-foreground" : "text-muted-foreground"}`}>
+            {task.title}
+          </span>
+        </div>
+        <div className="flex items-center gap-0.5">
+          {turns.map((turn, i) => (
+            <span key={turn.checkpointId} className="flex items-center gap-0.5">
+              {i > 0 && <span className="text-muted-foreground/30 text-2xs">→</span>}
+              <TurnChip
+                turn={turn}
+                currentTaskId={currentTaskId}
+                isFocused={focusedId === `turn:${turn.taskId}:${turn.turnIndex}`}
+                onFocus={onFocus}
+                nodeRefs={nodeRefs}
+                checkpoint={turn.taskId === currentTaskId ? checkpointMap.get(turn.checkpointId) : undefined}
+                onBranch={onBranch}
+              />
+            </span>
+          ))}
+        </div>
+        {children.length > 0 && (
+          <span className="text-muted-foreground/30 text-2xs">──┬</span>
+        )}
+      </div>
+      {children.map((child, i) => (
+        <TaskRow
+          key={child.task.taskId}
+          node={child}
+          currentTaskId={currentTaskId}
+          focusedId={focusedId}
+          onFocus={onFocus}
+          nodeRefs={nodeRefs}
+          checkpointMap={checkpointMap}
+          onBranch={onBranch}
+          isLast={i === children.length - 1}
+          connectorPrefix={childPrefix}
+        />
+      ))}
+    </>
   )
 })
 
@@ -126,8 +242,8 @@ export function TreePane({ taskId, tree, loading, checkpoints, onBranch }: TreeP
     [checkpoints],
   )
 
+  const rootNode = useMemo(() => tree ? buildTaskTree(tree) : null, [tree])
   const turns = tree?.turns ?? []
-  const tasks = tree?.tasks ?? {}
 
   useEffect(() => {
     if (focusedId) {
@@ -205,7 +321,7 @@ export function TreePane({ taskId, tree, loading, checkpoints, onBranch }: TreeP
     )
   }
 
-  if (!tree || turns.length === 0) {
+  if (!tree || !rootNode) {
     return (
       <div className="flex h-full items-center justify-center text-xs text-muted-foreground">
         No tree data
@@ -248,26 +364,18 @@ export function TreePane({ taskId, tree, loading, checkpoints, onBranch }: TreeP
         />
       </div>
 
-      <div className="flex-1 touch-pan-y overflow-y-auto py-1">
-        {turns.map((turn) => {
-          const task = tasks[turn.taskId]
-          if (!task) return null
-          const checkpoint = turn.taskId === taskId ? checkpointMap.get(turn.checkpointId) : undefined
-          return (
-            <TurnRow
-              key={turn.checkpointId}
-              turn={turn}
-              task={task}
-              currentTaskId={taskId}
-              isFocused={focusedId === `turn:${turn.taskId}:${turn.turnIndex}`}
-              onFocus={setFocusedId}
-              nodeRefs={nodeRefs}
-              search={search}
-              checkpoint={checkpoint}
-              onBranch={onBranch}
-            />
-          )
-        })}
+      <div className="flex-1 touch-pan-y overflow-auto p-2">
+        <TaskRow
+          node={rootNode}
+          currentTaskId={taskId}
+          focusedId={focusedId}
+          onFocus={setFocusedId}
+          nodeRefs={nodeRefs}
+          checkpointMap={checkpointMap}
+          onBranch={onBranch}
+          isLast={true}
+          connectorPrefix=""
+        />
       </div>
 
       <div className="border-t border-border px-3 py-1.5 text-2xs text-muted-foreground/40">
