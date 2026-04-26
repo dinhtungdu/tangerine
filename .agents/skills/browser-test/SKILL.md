@@ -94,14 +94,21 @@ All later `playwright-cli` commands in the session reuse that Chromium instance.
 If the Tangerine server has auth enabled (`TANGERINE_AUTH_TOKEN` is set), you must inject the token into localStorage before the app loads:
 
 ```bash
-# Check if auth is enabled
-AUTH_STATUS=$(curl -s http://localhost:$VITE_PORT/api/auth/session | jq -r '.enabled')
+# Check if auth is enabled — use -f so curl exits non-zero on HTTP errors
+AUTH_RESPONSE=$(curl -sf http://localhost:$VITE_PORT/api/auth/session 2>/dev/null)
+AUTH_STATUS=$(echo "$AUTH_RESPONSE" | jq -r '.enabled' 2>/dev/null)
 
 if [ "$AUTH_STATUS" = "true" ]; then
   # Inject the auth token into localStorage (must be done before navigating)
   playwright-cli -s=$SESSION eval "localStorage.setItem('tangerine-auth-token', '$TANGERINE_AUTH_TOKEN')"
   # Reload to pick up the token
   playwright-cli -s=$SESSION goto http://localhost:$VITE_PORT/
+elif [ -z "$AUTH_RESPONSE" ] || [ "$AUTH_STATUS" = "null" ] || [ "$AUTH_STATUS" = "" ]; then
+  # Empty or invalid response means the backend is unreachable or returned an error.
+  # This usually means Vite is proxying to a live Tangerine server that is down or
+  # returning an empty reply. Switch to Test Server Mode to get a reliable backend.
+  echo "WARNING: /api/auth/session returned an empty or invalid response (backend may be down or returning 500)."
+  echo "Recommendation: use Test Server Mode so Vite proxies to a fresh isolated server instead."
 fi
 ```
 
@@ -164,10 +171,19 @@ For deterministic, seeded data instead of live state, start an isolated test ser
 ### Start a test server
 
 ```bash
-# Pick a unique port for the test API server
-TEST_API_PORT=$((3456 + SLOT_NUM + 100))
+# Pick a unique port for the test API server.
+# Use 13000-range — far from the live server default (3456) and Vite range (5170+).
+# NEVER use 3456: a live Tangerine daemon may already be bound there.
+TEST_API_PORT=$((13000 + ${SLOT_NUM:-0}))
 TEST_DB="/tmp/tangerine-test-${TASK_SHORT}.db"
 TEST_CONFIG="$(pwd)/packages/server/src/test-fixtures/test-config.json"
+
+# Guard: fail loudly if the chosen port is already in use
+if lsof -ti :$TEST_API_PORT >/dev/null 2>&1; then
+  echo "ERROR: Test server port $TEST_API_PORT is already in use."
+  echo "Kill the existing process (lsof -ti :$TEST_API_PORT | xargs kill) or increment SLOT_NUM."
+  exit 1
+fi
 
 # Start the test server with isolated config, DB, test mode, and auth disabled
 TEST_MODE=1 TANGERINE_INSECURE_NO_AUTH=1 TANGERINE_CONFIG="$TEST_CONFIG" TANGERINE_DB="$TEST_DB" TANGERINE_PORT=$TEST_API_PORT \
@@ -225,6 +241,8 @@ rm -f "$TEST_DB"
 | Problem | Solution |
 |---------|----------|
 | Port already in use | Check `lsof -i :$VITE_PORT` and kill the stale process, or use a different port |
+| Test server port in use | `lsof -ti :$TEST_API_PORT \| xargs kill` then retry. Test servers use 13000-range; if still colliding, increment `SLOT_NUM` |
+| `/api/auth/session` returns 500 or empty | Vite is proxying to the live server (port 3456) which is down or returning empty replies. Switch to Test Server Mode so Vite points at `$TEST_API_PORT` instead |
 | Vite won't start | Check `cat /tmp/vite-$VITE_PORT.log` for errors. Run `bun install` first if deps are missing |
 | Screenshots are blank | Wait longer for the page to render: `playwright-cli -s=$SESSION eval "await new Promise(r => setTimeout(r, 2000))"` then screenshot |
 | Screenshots are at 1/4 resolution (e.g. 320x180 instead of 1920x1080) | The browser opened with a non-standard default viewport. Always run `playwright-cli -s=$SESSION resize 1920 1080` immediately after `open` (already in Step 4). |
