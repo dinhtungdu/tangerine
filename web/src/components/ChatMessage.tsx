@@ -1,5 +1,8 @@
 import { memo, useState, useMemo, useCallback, useRef, useEffect, createContext, useContext } from "react"
+import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
+import { Card, CardAction, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
+import { Separator } from "@/components/ui/separator"
 import type { Components } from "react-markdown"
 import ReactMarkdown from "react-markdown"
 import remarkGfm from "remark-gfm"
@@ -11,9 +14,11 @@ import type { ChatMessage as ChatMessageType } from "../hooks/useSession"
 import { formatTimestamp } from "../lib/format"
 import { useNavigate } from "react-router-dom"
 import { ToolCallDisplay } from "./ToolCallDisplay"
+import { DiffViewer, getDiffStats } from "./DiffViewer"
 import { AuthenticatedImage } from "./AuthenticatedImage"
 import { ImageLightbox } from "./ImageLightbox"
 import { copyToClipboard } from "../lib/clipboard"
+import { FileDiff, FileText, Terminal } from "lucide-react"
 
 export interface MessageAction {
   key: string
@@ -242,9 +247,89 @@ function getContentBlock(message: ChatMessageType): AgentContentBlock | null {
   }
 }
 
-function ContentBlockMessage({ message }: { message: ChatMessageType }) {
-  const block = getContentBlock(message)
-  if (!block) return null
+function ContentBlockFrame({ label, timestamp, icon, children }: {
+  label: string
+  timestamp: string
+  icon: React.ReactNode
+  children: React.ReactNode
+}) {
+  return (
+    <Card size="sm" className="animate-fade-in">
+      <CardHeader>
+        <CardTitle className="flex items-center gap-2">
+          <span className="flex size-5 items-center justify-center rounded-full bg-muted text-muted-foreground [&>svg]:size-3">
+            {icon}
+          </span>
+          {label}
+        </CardTitle>
+        <CardAction>
+          <CardDescription>{formatTimestamp(timestamp)}</CardDescription>
+        </CardAction>
+      </CardHeader>
+      <CardContent>{children}</CardContent>
+    </Card>
+  )
+}
+
+function getStringField(block: AgentContentBlock, key: string): string | null {
+  const value = block[key]
+  return typeof value === "string" ? value : null
+}
+
+function getDiffBlock(block: AgentContentBlock): { path: string; oldText: string; newText: string } | null {
+  if (block.type !== "diff") return null
+  const newText = getStringField(block, "newText")
+  if (newText === null) return null
+  return {
+    path: getStringField(block, "path") ?? "Untitled diff",
+    oldText: getStringField(block, "oldText") ?? "",
+    newText,
+  }
+}
+
+function getTerminalBlock(block: AgentContentBlock): { terminalId: string } | null {
+  if (block.type !== "terminal") return null
+  const terminalId = getStringField(block, "terminalId")
+  return terminalId ? { terminalId } : null
+}
+
+function DiffContentBlockCard({ message, block }: { message: ChatMessageType; block: AgentContentBlock }) {
+  const diff = getDiffBlock(block)
+  if (!diff) return null
+  const stats = getDiffStats(diff.oldText, diff.newText)
+  return (
+    <ContentBlockFrame label="Diff" timestamp={message.timestamp} icon={<FileDiff />}>
+      <div className="overflow-hidden rounded-md border border-border bg-background">
+        <div className="flex flex-wrap items-center gap-2 px-2.5 py-2">
+          <div className="min-w-0 flex-1 break-all font-mono text-xs font-medium text-foreground">{diff.path}</div>
+          <div className="flex items-center gap-1">
+            <Badge variant="secondary">+{stats.additions}</Badge>
+            <Badge variant="destructive">-{stats.deletions}</Badge>
+          </div>
+        </div>
+        <Separator />
+        <div className="max-h-80 overflow-auto">
+          <DiffViewer oldString={diff.oldText} newString={diff.newText} className="rounded-none border-0" />
+        </div>
+      </div>
+    </ContentBlockFrame>
+  )
+}
+
+function TerminalContentBlockCard({ message, block }: { message: ChatMessageType; block: AgentContentBlock }) {
+  const terminal = getTerminalBlock(block)
+  if (!terminal) return null
+  return (
+    <ContentBlockFrame label="Terminal" timestamp={message.timestamp} icon={<Terminal />}>
+      <div className="rounded-md border border-border bg-background px-2.5 py-2">
+        <div className="font-mono text-xs font-medium text-foreground">{terminal.terminalId}</div>
+        <div className="mt-1 text-2xs text-muted-foreground">Live terminal output is available in the terminal pane when attached.</div>
+      </div>
+    </ContentBlockFrame>
+  )
+}
+
+function GenericContentBlockCard({ message, block }: { message: ChatMessageType; block: AgentContentBlock }) {
   const title = typeof block.title === "string" ? block.title
     : typeof block.name === "string" ? block.name
       : typeof block.uri === "string" ? block.uri
@@ -256,23 +341,22 @@ function ContentBlockMessage({ message }: { message: ChatMessageType }) {
         : block.type
 
   return (
-    <div className="animate-fade-in flex flex-col gap-2 rounded-lg border border-border bg-muted/30 p-3">
-      <div className="flex items-center gap-2">
-        <div className="flex h-5 w-5 items-center justify-center rounded-[10px] bg-sky-500/15">
-          <svg className="h-2.5 w-2.5 text-sky-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-            <path strokeLinecap="round" strokeLinejoin="round" d="M19.5 14.25v-2.625a3.375 3.375 0 0 0-3.375-3.375h-1.5A1.125 1.125 0 0 1 13.5 7.125v-1.5A3.375 3.375 0 0 0 10.125 2.25H8.25m2.25 0H5.625c-.621 0-1.125.504-1.125 1.125v17.25c0 .621.504 1.125 1.125 1.125h12.75c.621 0 1.125-.504 1.125-1.125V11.25a9 9 0 0 0-9-9Z" />
-          </svg>
-        </div>
-        <span className="text-xs font-medium text-sky-500/80">{label}</span>
-        <span className="text-2xs text-muted-foreground/50">{formatTimestamp(message.timestamp)}</span>
-      </div>
-      <div className="rounded-md bg-background/60 px-2.5 py-2">
+    <ContentBlockFrame label={label} timestamp={message.timestamp} icon={<FileText />}>
+      <div className="rounded-md border border-border bg-background px-2.5 py-2">
         <div className="text-xs font-medium text-foreground">{title}</div>
         {uri && <div className="mt-1 break-all font-mono text-2xs text-muted-foreground">{uri}</div>}
         {typeof block.mimeType === "string" && <div className="mt-1 text-2xs text-muted-foreground">{block.mimeType}</div>}
       </div>
-    </div>
+    </ContentBlockFrame>
   )
+}
+
+function ContentBlockMessage({ message }: { message: ChatMessageType }) {
+  const block = getContentBlock(message)
+  if (!block) return null
+  if (block.type === "diff") return <DiffContentBlockCard message={message} block={block} />
+  if (block.type === "terminal") return <TerminalContentBlockCard message={message} block={block} />
+  return <GenericContentBlockCard message={message} block={block} />
 }
 
 function getPlanEntries(message: ChatMessageType): AgentPlanEntry[] {

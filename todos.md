@@ -4,7 +4,7 @@
 
 - [x] ACP config options → backend state + API/WS + model/reasoning/mode UI.
 - [x] Legacy provider deletion → removed hardcoded provider runtime, tests, deps.
-- [ ] Native ACP plan/content-block UI → plan cards + generic content cards done; diff/terminal-specific blocks pending.
+- [x] Native ACP plan/content-block UI → plan cards, generic content cards, and diff/terminal-specific blocks.
 - [x] Web verification → `cd web && bun test` + browser-test changed chat/task pages.
 
 ## Spec / planning
@@ -53,7 +53,7 @@
 - [x] Implement unattended permission policy: prefer first allow option.
 - [x] Fallback to first option when no allow option exists.
 - [x] Log permission requests and selected option to activity log.
-- [ ] Decide later if dashboard needs interactive permission UI.
+- [x] Decide later if dashboard needs interactive permission UI → no interactive UI for unattended v0; keep auto policy + activity log, revisit with foreground/manual mode.
 
 ## Config migration
 
@@ -103,7 +103,7 @@
 - [x] Add native plan card component.
 - [x] Add native plan WebSocket/API payload shape.
 - [x] Add content-block renderer for ACP text/image first.
-- [x] Add content-block renderer placeholders for `resource_link`, `resource`, diff, terminal.
+- [x] Add content-block renderer for `resource_link`, `resource`, diff, terminal.
 - [x] Verify mobile/task detail still works.
 
 ## API / WebSocket

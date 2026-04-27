@@ -52,6 +52,7 @@ Important ACP updates:
 | `user_message_chunk` | user message log |
 | `tool_call` | `tool.start` |
 | `tool_call_update` | `tool.end` on completed/failed |
+| `tool_call_update` content `diff` / `terminal` | native diff/terminal content-block card |
 | `plan` | native plan card plus thinking text for compatibility |
 | `config_option_update` | refresh model/reasoning/mode options |
 | `usage_update` | context token usage |
@@ -77,7 +78,7 @@ Initial unattended policy:
 2. otherwise choose first provided option
 3. record request and selected option in activity logs
 
-Interactive permission UI can come later.
+Do not show interactive permission prompts for unattended v0 tasks. Future foreground/manual task modes may add dashboard approval UI.
 
 ## Client Capabilities
 

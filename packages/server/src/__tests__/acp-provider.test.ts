@@ -119,6 +119,23 @@ describe("createAcpEventMapper", () => {
     })).toEqual([{ kind: "content.block", block: { type: "resource_link", uri: "file:///tmp/a.ts", name: "a.ts", mimeType: "text/typescript" } }])
   })
 
+  test("maps ACP diff and terminal tool content to native content blocks", () => {
+    const mapper = createAcpEventMapper()
+
+    expect(mapper.mapSessionUpdate({
+      sessionUpdate: "tool_call_update",
+      toolCallId: "edit-1",
+      status: "in_progress",
+      content: [
+        { type: "diff", path: "/repo/src/a.ts", oldText: "old", newText: "new" },
+        { type: "terminal", terminalId: "term-1" },
+      ],
+    })).toEqual([
+      { kind: "content.block", block: { type: "diff", path: "/repo/src/a.ts", oldText: "old", newText: "new" } },
+      { kind: "content.block", block: { type: "terminal", terminalId: "term-1" } },
+    ])
+  })
+
   test("maps config option updates", () => {
     const mapper = createAcpEventMapper()
 

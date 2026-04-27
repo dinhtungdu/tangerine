@@ -1101,6 +1101,40 @@ describe("ChatMessage", async () => {
     expect(screen.getByText("file:///tmp/a.ts")).toBeTruthy()
   })
 
+  test("renders ACP diff content block cards", () => {
+    renderChat({
+      message: {
+        id: "diff-1",
+        role: "content",
+        content: "",
+        timestamp: "2026-03-17T10:00:00Z",
+        contentBlock: { type: "diff", path: "/repo/src/a.ts", oldText: "const a = 1", newText: "const a = 2\nconst b = 3" },
+      },
+    })
+
+    expect(screen.getByText("Diff")).toBeTruthy()
+    expect(screen.getByText("/repo/src/a.ts")).toBeTruthy()
+    expect(screen.getByText("+2")).toBeTruthy()
+    expect(screen.getByText("-1")).toBeTruthy()
+    expect(screen.getByText("const b = 3")).toBeTruthy()
+  })
+
+  test("renders ACP terminal content block cards", () => {
+    renderChat({
+      message: {
+        id: "terminal-1",
+        role: "content",
+        content: "",
+        timestamp: "2026-03-17T10:00:00Z",
+        contentBlock: { type: "terminal", terminalId: "term-xyz" },
+      },
+    })
+
+    expect(screen.getByText("Terminal")).toBeTruthy()
+    expect(screen.getByText("term-xyz")).toBeTruthy()
+    expect(screen.getByText("Live terminal output is available in the terminal pane when attached.")).toBeTruthy()
+  })
+
   test("renders ACP plan cards", () => {
     renderChat({
       message: {

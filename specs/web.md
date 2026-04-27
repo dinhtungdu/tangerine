@@ -51,7 +51,7 @@ Current task-detail feature set includes:
 - tool call display
 - ACP config-option selectors for `model`, `thought_level`, and `mode`
 - ACP plan cards
-- generic ACP content-block cards for non-text blocks
+- ACP content-block cards, including resource, diff, and terminal blocks
 - diff / changes panel
 - terminal pane
 - pane controls and resizing

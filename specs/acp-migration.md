@@ -90,13 +90,13 @@ On session creation/resume, store the returned `configOptions`. On model/reasoni
 
 ## Permissions
 
-Tangerine background tasks need unattended execution. Initial permission policy:
+Tangerine background tasks need unattended execution. Current permission policy:
 
 - auto-select first `allow_once` or `allow_always` option
 - fallback to first option if no allow option exists
 - log permission decisions to the activity log
 
-Later UI can expose per-project permission policy.
+No interactive permission prompt is planned for unattended v0 tasks. Add dashboard approval UI only with a future foreground/manual task mode so background workers never block invisibly.
 
 ## Streaming and Logs
 
@@ -109,6 +109,7 @@ Map ACP updates to Tangerine events:
 | `user_message_chunk` text | `message.complete` role `user` |
 | `tool_call` | `tool.start` |
 | `tool_call_update` completed/failed | `tool.end` |
+| `tool_call_update` content `diff` / `terminal` | native `content.block` diff/terminal card |
 | `plan` | native plan card plus compatibility `thinking` text |
 | non-text content block | native `content.block` card |
 | `session_info_update` | `session.info` metadata + activity log |
@@ -133,7 +134,6 @@ Completed:
 Remaining:
 
 - Rename remaining DB/API compatibility field `provider` to `agent` in a future schema migration.
-- Add richer ACP diff/terminal content block cards.
 - Add remote ACP transport and registry install/discovery when stable.
 
 ## Verification

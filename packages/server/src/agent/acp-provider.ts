@@ -167,15 +167,19 @@ export function createAcpEventMapper(): {
         case "tool_call_update": {
           const toolCallId = stringField(update, "toolCallId")
           const status = stringField(update, "status")
-          if (status !== "completed" && status !== "failed") return []
+          const contentBlockEvents = contentBlocksFromToolContent(update.content)
+          if (status !== "completed" && status !== "failed") return contentBlockEvents
           const toolName = (toolCallId ? toolNames.get(toolCallId) : undefined) ?? stringField(update, "title") ?? toolCallId ?? "tool"
           if (toolCallId) toolNames.delete(toolCallId)
           const result = stringifyForEvent(update.rawOutput) ?? stringifyToolContent(update.content)
-          return [{
-            kind: "tool.end",
-            toolName,
-            toolResult: status === "failed" && result ? `[failed] ${result}` : result,
-          }]
+          return [
+            ...contentBlockEvents,
+            {
+              kind: "tool.end",
+              toolName,
+              toolResult: status === "failed" && result ? `[failed] ${result}` : result,
+            },
+          ]
         }
 
         case "plan": {
@@ -719,6 +723,24 @@ function contentBlockFromContent(content: unknown): AgentContentBlock | null {
   if (!isRecord(content)) return null
   const type = stringField(content, "type")
   return type ? { ...content, type } : null
+}
+
+function contentBlocksFromToolContent(content: unknown): AgentEvent[] {
+  if (!Array.isArray(content)) return []
+  const events: AgentEvent[] = []
+  for (const entry of content) {
+    if (!isRecord(entry)) continue
+    const type = stringField(entry, "type")
+    if (type === "content") {
+      const block = contentBlockFromContent(entry.content)
+      if (block && block.type !== "text") events.push({ kind: "content.block", block })
+      continue
+    }
+    if (type === "diff" || type === "terminal") {
+      events.push({ kind: "content.block", block: { ...entry, type } })
+    }
+  }
+  return events
 }
 
 function parsePlanEntries(value: unknown): AgentPlanEntry[] {
