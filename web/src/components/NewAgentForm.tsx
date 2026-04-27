@@ -1,9 +1,7 @@
-import { useState, useCallback, useEffect, useRef, forwardRef, useImperativeHandle, type ClipboardEvent, type KeyboardEvent } from "react"
-import { isGithubRepo, isProviderAvailable, getCapabilitiesForType, SUPPORTED_PROVIDERS, type ProviderType, type PromptImage, type Task, type TaskType } from "@tangerine/shared"
+import { useState, useCallback, useEffect, useMemo, useRef, forwardRef, useImperativeHandle, type ClipboardEvent, type KeyboardEvent } from "react"
+import { isGithubRepo, isProviderAvailable, getCapabilitiesForType, type ProviderType, type PromptImage, type Task, type TaskType } from "@tangerine/shared"
 import { useProject } from "../context/ProjectContext"
-import { ModelSelector } from "./ModelSelector"
 import { HarnessSelector } from "./HarnessSelector"
-import { ReasoningEffortSelector, type ReasoningEffort } from "./ReasoningEffortSelector"
 import { MentionPicker } from "./MentionPicker"
 import { useMentionPicker } from "../hooks/useMentionPicker"
 import { useTasks } from "../hooks/useTasks"
@@ -11,13 +9,14 @@ import { Button } from "@/components/ui/button"
 import { Textarea } from "@/components/ui/textarea"
 import { ProjectSelector } from "./ProjectSelector"
 import { BranchInput } from "./BranchInput"
+import { getConfiguredAgentIds, resolveAvailableAgent } from "../lib/agent-selection"
 
 export interface NewAgentFormHandle {
   focus(): void
 }
 
 interface NewAgentFormProps {
-  onSubmit: (data: { projectId: string; title: string; description?: string; branch?: string; provider?: string; model?: string; reasoningEffort?: string; parentTaskId?: string; type?: string; images?: PromptImage[] }) => void
+  onSubmit: (data: { projectId: string; title: string; description?: string; branch?: string; provider?: string; model?: string; parentTaskId?: string; type?: string; images?: PromptImage[] }) => void
   refTaskId?: string
   refTaskTitle?: string
   refBranch?: string
@@ -43,7 +42,7 @@ function loadDraftFromKey(key: string): { description?: string; customBranch?: s
 /* -- Main form -- */
 
 export const NewAgentForm = forwardRef<NewAgentFormHandle, NewAgentFormProps>(function NewAgentForm({ onSubmit, refTaskId, refTaskTitle, refBranch, refProjectId, autoFocus }: NewAgentFormProps, ref) {
-  const { current, projects, modelsByProvider, systemCapabilities, providerMetadata } = useProject()
+  const { current, projects, agents, defaultAgent: globalDefaultAgent, systemCapabilities } = useProject()
   const PREFS_KEY = "tangerine:agent-prefs"
 
   // selectedProjectName is set when the user explicitly picks a project or when
@@ -63,32 +62,32 @@ export const NewAgentForm = forwardRef<NewAgentFormHandle, NewAgentFormProps>(fu
   const [customBranch, setCustomBranch] = useState(() => loadDraftFromKey(draftKey).customBranch ?? refBranch ?? "")
   const [pendingImages, setPendingImages] = useState<PendingImage[]>(() => loadDraftFromKey(draftKey).pendingImages ?? [])
 
-  const loadPrefs = (): { provider?: string; models?: Record<string, string>; reasoningEffort?: string } => {
+  const loadPrefs = (): { provider?: string } => {
     try { return JSON.parse(localStorage.getItem(PREFS_KEY) ?? "{}") } catch { return {} }
   }
   const saved = loadPrefs()
+  const configuredAgentIds = useMemo(() => getConfiguredAgentIds(agents), [agents])
 
-  const defaultProvider = (() => {
-    const preferred = (saved.provider as ProviderType) ?? effectiveProject?.defaultProvider ?? "claude-code"
-    if (isProviderAvailable(systemCapabilities, preferred)) return preferred
-    const available = SUPPORTED_PROVIDERS.find((p) => isProviderAvailable(systemCapabilities, p))
-    return (available ?? preferred) as ProviderType
-  })()
+  const defaultProvider = resolveAvailableAgent({
+    agents,
+    systemCapabilities,
+    project: effectiveProject,
+    globalDefaultAgent,
+    preferred: saved.provider,
+  })
 
   const [provider, setProvider] = useState<ProviderType>(defaultProvider)
-  const [modelByProvider, setModelByProvider] = useState<Record<string, string>>(saved.models ?? {})
-  const [reasoningEffort, setReasoningEffort] = useState<ReasoningEffort>((saved.reasoningEffort as ReasoningEffort) ?? "medium")
 
   // Resync provider once systemCapabilities loads (initially null → object)
   const capsLoadedRef = useRef(false)
   useEffect(() => {
     if (!systemCapabilities || capsLoadedRef.current) return
     capsLoadedRef.current = true
-    if (!isProviderAvailable(systemCapabilities, provider)) {
-      const available = SUPPORTED_PROVIDERS.find((p) => isProviderAvailable(systemCapabilities, p))
-      if (available) setProvider(available as ProviderType)
+    const providerConfigured = configuredAgentIds.length === 0 || configuredAgentIds.includes(provider)
+    if (!providerConfigured || !isProviderAvailable(systemCapabilities, provider)) {
+      setProvider(resolveAvailableAgent({ agents, systemCapabilities, project: effectiveProject, globalDefaultAgent }))
     }
-  }, [systemCapabilities, provider])
+  }, [agents, systemCapabilities, provider, configuredAgentIds, effectiveProject, globalDefaultAgent])
   const [taskType, setTaskType] = useState<FormTaskType>(() => loadDraftFromKey(draftKey).taskType ?? "worker")
   const [submitting, setSubmitting] = useState(false)
   const branch = effectiveProject?.defaultBranch ?? "main"
@@ -106,12 +105,7 @@ export const NewAgentForm = forwardRef<NewAgentFormHandle, NewAgentFormProps>(fu
   const descriptionRef = useRef(description)
   descriptionRef.current = description
 
-  const providerModels = modelsByProvider[provider] ?? []
-  const activeModel = modelByProvider[provider] && providerModels.includes(modelByProvider[provider]!)
-    ? modelByProvider[provider]!
-    : providerModels[0] ?? ""
-
-  const savePrefs = useCallback((updates: Partial<{ provider: string; models: Record<string, string>; reasoningEffort: string }>) => {
+  const savePrefs = useCallback((updates: Partial<{ provider: string }>) => {
     const current = loadPrefs()
     localStorage.setItem(PREFS_KEY, JSON.stringify({ ...current, ...updates }))
   }, [])
@@ -119,25 +113,8 @@ export const NewAgentForm = forwardRef<NewAgentFormHandle, NewAgentFormProps>(fu
   const handleProviderChange = useCallback((p: ProviderType) => {
     setProvider(p)
     savePrefs({ provider: p })
-    // Reset reasoningEffort if the current value is invalid for the new provider
-    const meta = providerMetadata[p]
-    if (meta?.reasoningEfforts.length) {
-      const validValues = meta.reasoningEfforts.map((e) => e.value)
-      if (!validValues.includes(reasoningEffort)) {
-        const fallback = meta.reasoningEfforts.find((e) => e.value === "medium") ?? meta.reasoningEfforts[0]!
-        setReasoningEffort(fallback.value as ReasoningEffort)
-        savePrefs({ reasoningEffort: fallback.value })
-      }
-    }
-  }, [savePrefs, providerMetadata, reasoningEffort])
+  }, [savePrefs])
 
-  const handleModelChange = useCallback((m: string) => {
-    setModelByProvider((prev) => {
-      const next = { ...prev, [provider]: m }
-      savePrefs({ models: next })
-      return next
-    })
-  }, [provider, savePrefs])
 
   const MAX_IMAGES = 5
 
@@ -238,13 +215,11 @@ export const NewAgentForm = forwardRef<NewAgentFormHandle, NewAgentFormProps>(fu
       description: fullDescription || undefined,
       branch: customBranch.trim() || undefined,
       provider,
-      model: activeModel || undefined,
-      reasoningEffort: reasoningEffort !== "medium" ? reasoningEffort : undefined,
       parentTaskId: refTaskId,
       type: taskType,
       images,
     })
-  }, [effectiveProject, submitting, description, pendingImages, customBranch, provider, activeModel, reasoningEffort, taskType, refTaskId, refTaskTitle, submitAndReset])
+  }, [effectiveProject, submitting, description, pendingImages, customBranch, provider, taskType, refTaskId, refTaskTitle, submitAndReset])
 
   const handleSubmit = handleCodeSubmit
 
@@ -388,14 +363,6 @@ export const NewAgentForm = forwardRef<NewAgentFormHandle, NewAgentFormProps>(fu
                   />
                 )}
                 <HarnessSelector value={provider} onChange={handleProviderChange} systemCapabilities={systemCapabilities} />
-                <ModelSelector
-                  models={providerModels}
-                  model={activeModel}
-                  onModelChange={handleModelChange}
-                  menuPlacement="bottom"
-                  variant="default"
-                />
-                <ReasoningEffortSelector value={reasoningEffort} onChange={(e) => { setReasoningEffort(e); savePrefs({ reasoningEffort: e }) }} provider={provider} variant="default" />
                 {getCapabilitiesForType(taskType).includes("pr-track") && (
                   <BranchInput
                     value={customBranch}

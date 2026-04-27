@@ -73,7 +73,7 @@ It inserts a manual task row directly into the DB.
 
 ## `tangerine secret`
 
-Manages secrets stored in `~/tangerine/.credentials` (mode 0600). Use this for API keys, auth tokens, and other sensitive values.
+Manages Tangerine secrets stored in `~/tangerine/.credentials` (mode 0600). ACP agent LLM credentials are managed by each agent's own CLI/config.
 
 Subcommands:
 
@@ -84,8 +84,6 @@ Subcommands:
 
 Allowed keys currently come from `ALLOWED_CREDENTIAL_KEYS`:
 
-- `ANTHROPIC_API_KEY`
-- `CLAUDE_CODE_OAUTH_TOKEN`
 - `TANGERINE_AUTH_TOKEN`
 - `EXTERNAL_HOST`
 
@@ -95,8 +93,7 @@ Examples:
 
 ```bash
 tangerine secret set TANGERINE_AUTH_TOKEN=$(openssl rand -hex 32)
-tangerine secret set ANTHROPIC_API_KEY=sk-ant-...
-tangerine secret get ANTHROPIC_API_KEY
+tangerine secret get TANGERINE_AUTH_TOKEN
 tangerine secret list
-tangerine secret delete ANTHROPIC_API_KEY
+tangerine secret delete TANGERINE_AUTH_TOKEN
 ```

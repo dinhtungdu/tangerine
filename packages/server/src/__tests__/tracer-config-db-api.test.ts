@@ -240,7 +240,7 @@ describe("tracer: config -> db -> api", () => {
       type: "worker",
         description: "desc",
       status: "running",
-      provider: "opencode",
+      provider: "acp",
       model: null,
       reasoning_effort: null,
       branch: "feat/test",
@@ -264,7 +264,7 @@ describe("tracer: config -> db -> api", () => {
 
     const mapped = mapTaskRow(row)
 
-    expect(mapped.provider).toBe("opencode")
+    expect(mapped.provider).toBe("acp")
     expect(mapped.sourceId).toBe("owner/repo#1")
     expect(mapped.sourceUrl).toBe("https://github.com/owner/repo/issues/1")
     expect(mapped.prUrl).toBe("https://github.com/owner/repo/pull/1")

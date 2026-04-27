@@ -12,7 +12,7 @@ const mockTasks = [
   {
     id: "1", projectId: "proj", source: "manual" as const, sourceId: null, sourceUrl: null,
     title: "Fix auth middleware", description: "Fix the JWT validation", status: "running" as const,
-    provider: "opencode" as const, branch: "main", worktreePath: null, prUrl: null, parentTaskId: null, userId: null, agentSessionId: null,
+    provider: "acp" as const, branch: "main", worktreePath: null, prUrl: null, parentTaskId: null, userId: null, agentSessionId: null,
     agentPid: null, suspended: false, error: null,
     createdAt: "2026-03-17T10:00:00Z", updatedAt: "2026-03-17T10:00:00Z",
     startedAt: "2026-03-17T10:01:00Z", completedAt: null,
@@ -21,7 +21,7 @@ const mockTasks = [
   {
     id: "2", projectId: "proj", source: "github" as const, sourceId: null, sourceUrl: null,
     title: "Add API docs", description: null, status: "done" as const,
-    provider: "opencode" as const, branch: "main", worktreePath: null, prUrl: null, parentTaskId: null, userId: null, agentSessionId: null,
+    provider: "acp" as const, branch: "main", worktreePath: null, prUrl: null, parentTaskId: null, userId: null, agentSessionId: null,
     agentPid: null, suspended: false, error: null,
     createdAt: "2026-03-16T10:00:00Z", updatedAt: "2026-03-16T12:00:00Z",
     startedAt: "2026-03-16T10:01:00Z", completedAt: "2026-03-16T12:00:00Z",
@@ -233,7 +233,7 @@ const mentionTasks: Task[] = [
   {
     id: "6536bda8-c097-4ff9-9521-38145bc9001c", projectId: "proj", type: "worker", source: "manual", sourceId: null, sourceUrl: null,
     title: "Fix auth middleware", description: null, status: "running",
-    provider: "opencode", model: null, reasoningEffort: null, branch: null, worktreePath: null, prUrl: null,
+    provider: "acp", model: null, reasoningEffort: null, branch: null, worktreePath: null, prUrl: null,
     parentTaskId: null, userId: null, agentSessionId: null, agentPid: null, error: null,
     createdAt: "2026-03-17T10:00:00Z", updatedAt: "2026-03-17T11:00:00Z",
     startedAt: null, completedAt: null, lastSeenAt: null, lastResultAt: null, capabilities: [],
@@ -241,7 +241,7 @@ const mentionTasks: Task[] = [
   {
     id: "a1b2c3d4-e5f6-7890-abcd-ef1234567890", projectId: "proj", type: "worker", source: "manual", sourceId: null, sourceUrl: null,
     title: "Add API docs", description: null, status: "done",
-    provider: "opencode", model: null, reasoningEffort: null, branch: null, worktreePath: null, prUrl: null,
+    provider: "acp", model: null, reasoningEffort: null, branch: null, worktreePath: null, prUrl: null,
     parentTaskId: null, userId: null, agentSessionId: null, agentPid: null, error: null,
     createdAt: "2026-03-16T10:00:00Z", updatedAt: "2026-03-16T12:00:00Z",
     startedAt: null, completedAt: null, lastSeenAt: null, lastResultAt: null, capabilities: [],
@@ -370,7 +370,7 @@ describe("useMentionPicker", () => {
 const makeTask = (overrides: Partial<Task> = {}): Task => ({
   id: "task-1", projectId: "proj", type: "worker", source: "manual", sourceId: null, sourceUrl: null,
   title: "Test task", description: null, status: "running",
-  provider: "claude-code", model: null, reasoningEffort: null, branch: null, worktreePath: null, prUrl: null,
+  provider: "acp", model: null, reasoningEffort: null, branch: null, worktreePath: null, prUrl: null,
   parentTaskId: null, userId: null, agentSessionId: null, agentPid: null, error: null,
   createdAt: "2026-01-01T00:00:00Z", updatedAt: "2026-01-01T00:00:00Z",
   startedAt: null, completedAt: null, lastSeenAt: null, lastResultAt: null,

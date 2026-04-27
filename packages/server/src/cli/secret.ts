@@ -26,10 +26,9 @@ Allowed keys:
 
 Examples:
   tangerine secret set TANGERINE_AUTH_TOKEN=$(openssl rand -hex 32)
-  tangerine secret set ANTHROPIC_API_KEY=sk-ant-...
-  tangerine secret get ANTHROPIC_API_KEY
+  tangerine secret get TANGERINE_AUTH_TOKEN
   tangerine secret list
-  tangerine secret delete ANTHROPIC_API_KEY
+  tangerine secret delete TANGERINE_AUTH_TOKEN
 `)
 }
 

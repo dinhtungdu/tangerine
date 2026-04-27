@@ -1,6 +1,5 @@
 export const DEFAULT_API_PORT = 3456
 export const DEFAULT_SSL_PORT = 3443
-export const DEFAULT_OPENCODE_PORT = 4096
 export const DEFAULT_POLL_INTERVAL_MINUTES = 60
 export const DEFAULT_IDLE_TIMEOUT_MS = 600_000
 export const DEFAULT_MIN_READY = 1
@@ -10,14 +9,7 @@ export const HEALTH_CHECK_INTERVAL_MS = 30_000
 export const MAX_RETRY_ATTEMPTS = 3
 export const WS_HEARTBEAT_INTERVAL_MS = 15_000
 export const WS_HEARTBEAT_TIMEOUT_MS = 45_000
-export const SUPPORTED_PROVIDERS = ["opencode", "claude-code", "codex", "pi"] as const
-export const DEFAULT_PROVIDER = "claude-code" as const
-export const PROVIDER_DISPLAY_NAMES = {
-  opencode: "OpenCode",
-  "claude-code": "Claude Code",
-  codex: "Codex",
-  pi: "Pi",
-} as const
+export const DEFAULT_AGENT_ID = "acp" as const
 
 /** Reserved task name for the per-project orchestrator (always pinned to slot 0). */
 export const ORCHESTRATOR_TASK_NAME = "_orchestrator"

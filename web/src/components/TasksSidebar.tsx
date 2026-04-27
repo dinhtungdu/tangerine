@@ -50,7 +50,8 @@ function TaskItem({
   isActive: boolean
   onRefetch?: () => void
 }) {
-  const { providerMetadata } = useProject()
+  const { agents } = useProject()
+  const agentLabel = agents.find((agent) => agent.id === task.provider)?.name ?? task.provider
   const statusConfig = getStatusConfig(task.status)
   const color = task.status === "running" && task.agentStatus === "idle"
     ? "var(--color-status-warning)"
@@ -83,7 +84,7 @@ function TaskItem({
           {formatRelativeTime(task.createdAt)} · {task.status === "running" && task.agentStatus === "idle" ? "idle" : task.status}
           {" · "}
           <span className="rounded bg-muted px-1 py-px text-2xs">
-            {providerMetadata[task.provider]?.abbreviation ?? task.provider}
+            {agentLabel}
           </span>
           {task.type !== "worker" && (
             <>

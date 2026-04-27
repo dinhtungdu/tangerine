@@ -1,14 +1,12 @@
 import { Effect } from "effect"
 import { Hono } from "hono"
 import { CronExpressionParser } from "cron-parser"
-import { SUPPORTED_PROVIDERS } from "@tangerine/shared"
 import type { AppDeps } from "../app"
+import { isConfiguredProvider } from "../provider-validation"
 import { mapCronRow } from "../helpers"
 import { runEffect, runEffectVoid } from "../effect-helpers"
 import { createCron, getCron, listCrons, updateCron, deleteCron } from "../../db/queries"
 import { CronNotFoundError, CronValidationError } from "../../errors"
-
-const VALID_PROVIDERS = new Set<string>(SUPPORTED_PROVIDERS)
 
 /** Validate a cron expression is exactly 5 fields (no seconds field). */
 function validateCron(expr: string): Effect.Effect<void, CronValidationError> {
@@ -63,7 +61,7 @@ export function cronRoutes(deps: AppDeps): Hono {
     const project = deps.config.config.projects.find((p) => p.name === projectId)
     if (!project) return c.json({ error: `Unknown project: ${projectId}` }, 400)
 
-    if (body.taskDefaults?.provider && !VALID_PROVIDERS.has(body.taskDefaults.provider)) {
+    if (body.taskDefaults?.provider && !isConfiguredProvider(deps, body.taskDefaults.provider)) {
       return c.json({ error: `Invalid provider: ${body.taskDefaults.provider}` }, 400)
     }
 
@@ -99,7 +97,7 @@ export function cronRoutes(deps: AppDeps): Hono {
       taskDefaults?: { provider?: string; model?: string; reasoningEffort?: string; branch?: string } | null
     }>()
 
-    if (body.taskDefaults?.provider && !VALID_PROVIDERS.has(body.taskDefaults.provider)) {
+    if (body.taskDefaults?.provider && !isConfiguredProvider(deps, body.taskDefaults.provider)) {
       return c.json({ error: `Invalid provider: ${body.taskDefaults.provider}` }, 400)
     }
 

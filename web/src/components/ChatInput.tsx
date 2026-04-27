@@ -2,8 +2,8 @@ import React, { useState, useRef, useCallback, useEffect, type KeyboardEvent, ty
 import { ArrowUp, X, Quote, Paperclip } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Textarea } from "@/components/ui/textarea"
-import type { PromptImage, PredefinedPrompt, ProviderType, Task } from "@tangerine/shared"
-import { ModelEffortPopover } from "./ModelEffortPopover"
+import type { AgentConfigOption, PromptImage, PredefinedPrompt, ProviderType, Task } from "@tangerine/shared"
+import { ModelEffortPopover, type EffortOption } from "./ModelEffortPopover"
 import { MentionPicker } from "./MentionPicker"
 import { SlashCommandPicker } from "./SlashCommandPicker"
 import { useMentionPicker } from "../hooks/useMentionPicker"
@@ -24,10 +24,11 @@ interface ChatInputProps {
   onAbort?: () => void
   model?: string | null
   provider?: ProviderType
-  providerModels?: string[]
   reasoningEffort?: string | null
   onModelChange?: (model: string) => void
   onReasoningEffortChange?: (effort: string) => void
+  onModeChange?: (mode: string) => void
+  configOptions?: AgentConfigOption[]
   predefinedPrompts?: PredefinedPrompt[]
   /** Raw message content to quote; shown as a chip above the input. Prepended as blockquote on send. */
   quotedMessage?: string | null
@@ -37,7 +38,7 @@ interface ChatInputProps {
   onQuoteSelection?: () => void
   /** When this value changes, the input is focused. Pass the task ID to focus on navigation. */
   autoFocusKey?: string
-  /** Actual current context window usage (only available for Claude Code via message_start) */
+  /** Actual current context window usage reported by ACP usage updates. */
   contextTokens?: number
   /** Max context window size in tokens for the current model */
   contextWindowMax?: number
@@ -56,7 +57,7 @@ export function appendQuotedText(existingText: string, quotedText: string): stri
   return `${prefix}${quotedText}\n\n`
 }
 
-export function ChatInput({ onSend, disabled, queueLength, taskId, isWorking, onAbort, model, provider, providerModels, reasoningEffort, onModelChange, onReasoningEffortChange, predefinedPrompts, quotedMessage, onQuoteDismiss, selectedText, onQuoteSelection, autoFocusKey, contextTokens, contextWindowMax }: ChatInputProps) {
+export function ChatInput({ onSend, disabled, queueLength, taskId, isWorking, onAbort, model, provider, reasoningEffort, onModelChange, onReasoningEffortChange, onModeChange, configOptions, predefinedPrompts, quotedMessage, onQuoteDismiss, selectedText, onQuoteSelection, autoFocusKey, contextTokens, contextWindowMax }: ChatInputProps) {
   const draftKey = taskId ? `tangerine:chat-draft:${taskId}` : null
 
   const [text, setText] = useState(() => draftKey ? (loadChatDraft(draftKey).text ?? "") : "")
@@ -84,7 +85,7 @@ export function ChatInput({ onSend, disabled, queueLength, taskId, isWorking, on
   skillsRef.current = skills
 
   // Fetch skills on mount and whenever the agent finishes a turn (isWorking → false),
-  // because Claude/Pi populate skills asynchronously from the init/state event.
+  // because ACP agents may populate skills asynchronously.
   useEffect(() => {
     if (!taskId || isWorking) return
     fetch(`/api/tasks/${taskId}/skills`, { headers: buildAuthHeaders() })
@@ -317,8 +318,30 @@ export function ChatInput({ onSend, disabled, queueLength, taskId, isWorking, on
   // Chips are visible whenever the input is empty — hide once user starts typing
   const showPrompts = !text.trim() && !!predefinedPrompts?.length
 
+  const modelOption = configOptions?.find((option) => option.category === "model" && option.type === "select")
+  const thoughtOption = configOptions?.find((option) => option.category === "thought_level" && option.type === "select")
+  const modeOption = configOptions?.find((option) => option.category === "mode" && option.type === "select")
+  const usesAcpOptions = configOptions !== undefined
+  const configModels = modelOption?.options.map((option) => option.value)
+  const configEfforts: EffortOption[] | undefined = thoughtOption?.options.map((option) => ({
+    value: option.value,
+    label: option.name,
+    description: option.description ?? "",
+  }))
+  const configModes: EffortOption[] | undefined = modeOption?.options.map((option) => ({
+    value: option.value,
+    label: option.name,
+    description: option.description ?? "",
+  }))
+  const displayedModel = modelOption?.currentValue ?? (usesAcpOptions ? "" : (model ?? ""))
+  const displayedModels = configModels ?? (usesAcpOptions ? [] : (displayedModel ? [displayedModel] : []))
+  const displayedReasoningEffort = thoughtOption?.currentValue ?? (usesAcpOptions ? undefined : reasoningEffort)
+  const displayedMode = modeOption?.currentValue
+  const effectiveReasoningChange = usesAcpOptions && !thoughtOption ? undefined : onReasoningEffortChange
+  const effectiveModeChange = modeOption ? onModeChange : undefined
+
   const canSend = (text.trim().length > 0 || pendingImages.length > 0 || !!quotedMessage) && !disabled
-  const canChangeModel = providerModels && providerModels.length > 1 && onModelChange
+  const canChangeModel = displayedModels.length > 1 && onModelChange
   // Show "used/max" when both available, just "used" when only contextTokens
   const hasContext = contextTokens && contextTokens > 0
   const contextWindowLabel = hasContext
@@ -491,15 +514,19 @@ export function ChatInput({ onSend, disabled, queueLength, taskId, isWorking, on
               >
                 <Paperclip className="h-4 w-4" />
               </Button>
-              {(canChangeModel || model || onReasoningEffortChange) && (
+              {(canChangeModel || displayedModel || effectiveReasoningChange || effectiveModeChange) && (
                 <ModelEffortPopover
-                  models={providerModels ?? (model ? [model] : [])}
-                  model={model ?? providerModels?.[0] ?? ""}
+                  models={displayedModels}
+                  model={displayedModel}
                   onModelChange={onModelChange ?? (() => {})}
                   canChangeModel={!!canChangeModel}
-                  reasoningEffort={reasoningEffort}
-                  onReasoningEffortChange={onReasoningEffortChange}
+                  reasoningEffort={displayedReasoningEffort}
+                  onReasoningEffortChange={effectiveReasoningChange}
                   provider={provider}
+                  efforts={configEfforts}
+                  mode={displayedMode}
+                  modes={configModes}
+                  onModeChange={effectiveModeChange}
                 />
               )}
               {contextWindowLabel && (

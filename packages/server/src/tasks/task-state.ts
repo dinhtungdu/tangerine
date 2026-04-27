@@ -1,6 +1,8 @@
 // Consolidated per-task in-memory coordination state.
 // Replaces scattered Set/Map instances across start.ts and health.ts.
 
+import type { AgentConfigOption } from "@tangerine/shared"
+
 /** Per-task coordination state tracked in memory (not persisted). */
 export interface TaskState {
   reconnecting: boolean
@@ -19,6 +21,10 @@ export interface TaskState {
   hungToolAbortedAt?: number
   /** Current context window usage (persisted to DB, displayed as used/max) */
   contextTokens: number
+  /** Active ACP session configuration selectors. */
+  configOptions: AgentConfigOption[]
+  /** Latest ACP session metadata update. */
+  sessionInfo: { title?: string | null; updatedAt?: string | null; metadata?: Record<string, unknown> }
 }
 
 const taskStates = new Map<string, TaskState>()
@@ -34,6 +40,8 @@ function defaultState(): TaskState {
     prNudgeSent: false,
     consecutiveRestarts: 0,
     contextTokens: 0,
+    configOptions: [],
+    sessionInfo: {},
   }
 }
 

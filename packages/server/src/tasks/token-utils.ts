@@ -11,8 +11,8 @@ export function estimateTokens(text: string): number {
 
 /**
  * Return the context window size for a model based on its ID.
- * Values mirror the fallback tables in claude-code-provider.ts and codex-provider.ts
- * so that truncation decisions are consistent with what each provider actually supports.
+ * This is a conservative fallback for branch-prefix truncation when ACP session
+ * config has not exposed a context window.
  */
 export function guessContextWindow(model?: string | null): number {
   if (!model) return 200_000
@@ -20,7 +20,7 @@ export function guessContextWindow(model?: string | null): number {
   // Anthropic
   if (m.includes("opus-4-7") || m.includes("opus-4-6")) return 1_000_000
   if (m.includes("claude")) return 200_000
-  // OpenAI / Codex — keep in sync with codex-provider.ts CONTEXT_WINDOW_FALLBACKS
+  // OpenAI-family models
   if (m.includes("o4-mini") || m.includes("o3")) return 200_000
   if (m.includes("o1-mini")) return 128_000
   if (m.includes("gpt-5") || m.includes("gpt-4o")) return 128_000

@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState, useCallback } from "react"
 import { Button } from "@/components/ui/button"
 import { TERMINAL_STATUSES } from "@tangerine/shared"
-import type { PromptImage, PredefinedPrompt, TaskStatus, ProviderType, ActivityEntry } from "@tangerine/shared"
+import type { AgentConfigOption, PromptImage, PredefinedPrompt, TaskStatus, ProviderType, ActivityEntry } from "@tangerine/shared"
 import type { ChatMessage as ChatMessageType } from "../hooks/useSession"
 import { AssistantMessageGroups } from "./AssistantMessageGroups"
 import { ChatInput } from "./ChatInput"
@@ -16,7 +16,6 @@ interface ChatPanelProps {
   queueLength: number
   model?: string | null
   provider?: ProviderType
-  providerModels?: string[]
   reasoningEffort?: string | null
   taskStatus?: TaskStatus | null
   taskError?: string | null
@@ -26,6 +25,8 @@ interface ChatPanelProps {
   onAbort: () => void
   onModelChange?: (model: string) => void
   onReasoningEffortChange?: (effort: string) => void
+  onModeChange?: (mode: string) => void
+  configOptions?: AgentConfigOption[]
   predefinedPrompts?: PredefinedPrompt[]
   onResolve?: () => Promise<void>
   canContinue?: boolean
@@ -46,7 +47,6 @@ export function ChatPanel({
   queueLength,
   model,
   provider,
-  providerModels,
   reasoningEffort,
   taskStatus,
   taskError,
@@ -56,6 +56,8 @@ export function ChatPanel({
   onAbort,
   onModelChange,
   onReasoningEffortChange,
+  onModeChange,
+  configOptions,
   predefinedPrompts,
   onResolve,
   canContinue,
@@ -257,10 +259,11 @@ export function ChatPanel({
           onAbort={onAbort}
           model={model}
           provider={provider}
-          providerModels={providerModels}
           reasoningEffort={reasoningEffort}
           onModelChange={onModelChange}
           onReasoningEffortChange={onReasoningEffortChange}
+          onModeChange={onModeChange}
+          configOptions={configOptions}
           predefinedPrompts={predefinedPrompts}
           quotedMessage={effectivePendingQuote}
           onQuoteDismiss={() => setPendingQuote(null)}

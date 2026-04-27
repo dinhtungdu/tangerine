@@ -6,7 +6,7 @@ import { listCrons, deleteCron, updateCron } from "../lib/api"
 import { Button } from "@/components/ui/button"
 
 export function CronsPage() {
-  const { projects, modelsByProvider } = useProject()
+  const { projects } = useProject()
   const [crons, setCrons] = useState<Cron[]>([])
   const [loading, setLoading] = useState(true)
   const [newCronOpen, setNewCronOpen] = useState(false)
@@ -72,7 +72,6 @@ export function CronsPage() {
               projects={activeProjects}
               onCreated={fetchCrons}
               onClose={() => setNewCronOpen(false)}
-              modelsByProvider={modelsByProvider}
             />
           )}
 
@@ -90,7 +89,6 @@ export function CronsPage() {
                   onToggle={handleToggle}
                   onDelete={handleDelete}
                   onRefresh={fetchCrons}
-                  modelsByProvider={modelsByProvider}
                 />
               ))
             )}

@@ -15,7 +15,7 @@ function makeTask(overrides: Partial<TaskRow>): TaskRow {
     type: "worker",
     description: null,
     status: "done",
-    provider: "claude-code",
+    provider: "acp",
     model: null,
     reasoning_effort: null,
     branch: null,

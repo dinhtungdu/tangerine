@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback, useRef } from "react"
-import type { WsServerMessage, TaskStatus, ActivityEntry, PromptImage } from "@tangerine/shared"
-import { fetchMessages, fetchActivities, type SessionLog } from "../lib/api"
+import type { AgentConfigOption, AgentContentBlock, AgentPlanEntry, WsServerMessage, TaskStatus, ActivityEntry, PromptImage } from "@tangerine/shared"
+import { fetchMessages, fetchActivities, fetchTaskConfigOptions, type SessionLog } from "../lib/api"
 import { useWebSocket } from "./useWebSocket"
 
 export interface ChatMessageImage {
@@ -13,6 +13,8 @@ export interface ChatMessage {
   content: string
   timestamp: string
   images?: ChatMessageImage[]
+  planEntries?: AgentPlanEntry[]
+  contentBlock?: AgentContentBlock
 }
 
 interface UseSessionResult {
@@ -25,6 +27,7 @@ interface UseSessionResult {
   sendPrompt: (text: string, images?: PromptImage[]) => void
   abort: () => void
   contextTokens: number
+  configOptions: AgentConfigOption[]
 }
 
 export function useSession(taskId: string, initialContextTokens?: number): UseSessionResult {
@@ -34,6 +37,7 @@ export function useSession(taskId: string, initialContextTokens?: number): UseSe
   const [queueLength, setQueueLength] = useState(0)
   const [taskStatus, setTaskStatus] = useState<TaskStatus | null>(null)
   const [contextTokens, setContextTokens] = useState(initialContextTokens ?? 0)
+  const [configOptions, setConfigOptions] = useState<AgentConfigOption[]>([])
   const { connected, messages: wsMessages, send } = useWebSocket(taskId)
   const processedCountRef = useRef(0)
   // Track optimistic user message IDs so we can deduplicate WS broadcasts
@@ -59,6 +63,7 @@ export function useSession(taskId: string, initialContextTokens?: number): UseSe
     setQueueLength(0)
     setTaskStatus(null)
     setContextTokens(0)
+    setConfigOptions([])
     processedCountRef.current = 0
   }, [taskId])
 
@@ -73,6 +78,16 @@ export function useSession(taskId: string, initialContextTokens?: number): UseSe
             role: log.role,
             content: log.content,
             timestamp: log.timestamp,
+          }
+          if (log.role === "plan") {
+            try {
+              msg.planEntries = JSON.parse(log.content) as AgentPlanEntry[]
+            } catch { /* ignore malformed */ }
+          }
+          if (log.role === "content") {
+            try {
+              msg.contentBlock = JSON.parse(log.content) as AgentContentBlock
+            } catch { /* ignore malformed */ }
           }
           if (log.images) {
             try {
@@ -91,6 +106,11 @@ export function useSession(taskId: string, initialContextTokens?: number): UseSe
       setActivities(data)
     } catch {
       // Activities may not be available yet
+    }
+    try {
+      setConfigOptions(await fetchTaskConfigOptions(taskId))
+    } catch {
+      // Config options may not be available yet
     }
   }, [taskId])
 
@@ -128,6 +148,26 @@ export function useSession(taskId: string, initialContextTokens?: number): UseSe
       case "event": {
         // Agent events may contain message data
         const data = msg.data as Record<string, unknown> | undefined
+        if (data && typeof data === "object" && data.event === "content.block" && typeof data.block === "object" && data.block !== null) {
+          const block = data.block as AgentContentBlock
+          setMessages((prev) => [...prev, {
+            id: `content-${Date.now()}-${Math.random().toString(36).slice(2)}`,
+            role: "content",
+            content: JSON.stringify(block),
+            timestamp: typeof data.timestamp === "string" ? data.timestamp : new Date().toISOString(),
+            contentBlock: block,
+          }])
+        }
+        if (data && typeof data === "object" && data.event === "plan" && Array.isArray(data.entries)) {
+          const entries = data.entries as AgentPlanEntry[]
+          setMessages((prev) => [...prev, {
+            id: `plan-${Date.now()}-${Math.random().toString(36).slice(2)}`,
+            role: "plan",
+            content: JSON.stringify(entries),
+            timestamp: typeof data.timestamp === "string" ? data.timestamp : new Date().toISOString(),
+            planEntries: entries,
+          }])
+        }
         if (data && typeof data === "object" && "role" in data && "content" in data) {
           const newMsg: ChatMessage = {
             id: `ws-${Date.now()}-${Math.random().toString(36).slice(2)}`,
@@ -167,6 +207,9 @@ export function useSession(taskId: string, initialContextTokens?: number): UseSe
           } else if (eventType === "usage") {
             const ev = data as { contextTokens?: number }
             if (typeof ev.contextTokens === "number" && ev.contextTokens > 0) setContextTokens(ev.contextTokens)
+          } else if (eventType === "config.options") {
+            const ev = data as { configOptions?: unknown }
+            if (Array.isArray(ev.configOptions)) setConfigOptions(ev.configOptions as AgentConfigOption[])
           }
         }
         break
@@ -237,5 +280,5 @@ export function useSession(taskId: string, initialContextTokens?: number): UseSe
     setQueueLength(0)
   }, [send])
 
-  return { messages, activities, agentStatus, queueLength, connected, taskStatus, sendPrompt, abort, contextTokens }
+  return { messages, activities, agentStatus, queueLength, connected, taskStatus, sendPrompt, abort, contextTokens, configOptions }
 }

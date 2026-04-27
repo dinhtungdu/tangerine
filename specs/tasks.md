@@ -73,8 +73,8 @@ At a high level:
 2. Fetch repo state
 3. Acquire or create a worktree slot
 4. Create branch/worktree
-5. Start local agent process for the chosen provider
-6. Persist session/process metadata
+5. Start local ACP agent process for the chosen agent ID/provider field
+6. Persist ACP session/process metadata
 7. Stream events to logs and WebSockets
 
 The implementation lives across:
@@ -88,7 +88,7 @@ The implementation lives across:
 
 - prompt queue while the agent is busy
 - idle suspension and later wake-up
-- model/reasoning-effort changes
+- model/reasoning-effort/mode changes through ACP session config options
 - PR detection and PR URL persistence
 - last-seen and last-result timestamps
 - parent/child task linkage
@@ -108,7 +108,7 @@ CREATE TABLE tasks (
   type TEXT NOT NULL DEFAULT 'worker',
   description TEXT,
   status TEXT NOT NULL DEFAULT 'created',
-  provider TEXT NOT NULL DEFAULT 'opencode',
+  provider TEXT NOT NULL DEFAULT 'acp', -- compatibility column storing configured ACP agent ID
   model TEXT,
   reasoning_effort TEXT,
   branch TEXT,
@@ -166,6 +166,6 @@ Cleanup responsibilities include:
 On startup, Tangerine resumes orphaned work:
 
 - `created` and `provisioning` tasks are restarted from the beginning
-- `running` tasks are reconnected through provider-specific resume logic
+- `running` tasks are reconnected through ACP `session/resume` or `session/load` when available, with legacy provider resume remaining during migration
 
 Health monitoring and reconnect locking prevent duplicate recovery loops.

@@ -39,7 +39,8 @@ import {
   getContext,
   _resetForTesting,
 } from "../lib/actions"
-import { isGithubRepo, isProviderAvailable, type Task, type SystemCapabilities } from "@tangerine/shared"
+import { isGithubRepo, isProviderAvailable, type AgentConfig, type Task, type SystemCapabilities } from "@tangerine/shared"
+import { getConfiguredAgentIds, resolveAvailableAgent } from "../lib/agent-selection"
 
 function makeTask(overrides: Partial<Task> = {}): Task {
   return {
@@ -52,7 +53,7 @@ function makeTask(overrides: Partial<Task> = {}): Task {
     title: "Test task",
     description: null,
     status: "running",
-    provider: "claude-code",
+    provider: "acp",
     model: null,
     reasoningEffort: null,
     branch: null,
@@ -869,8 +870,8 @@ describe("isProviderAvailable", () => {
     git: { available: true },
     gh: { available: true, authenticated: true },
     providers: {
-      "claude-code": { available: true, cliCommand: "claude" },
-      codex: { available: false, cliCommand: "codex" },
+      "acp": { available: true, cliCommand: "acp-agent" },
+      "custom-agent": { available: false, cliCommand: "custom-acp" },
     },
   }
 
@@ -879,15 +880,51 @@ describe("isProviderAvailable", () => {
   })
 
   test("returns true for available provider", () => {
-    expect(isProviderAvailable(caps, "claude-code")).toBe(true)
+    expect(isProviderAvailable(caps, "acp")).toBe(true)
   })
 
   test("returns false for unavailable provider", () => {
-    expect(isProviderAvailable(caps, "codex")).toBe(false)
+    expect(isProviderAvailable(caps, "custom-agent")).toBe(false)
   })
 
   test("returns true for unknown provider (not in capabilities)", () => {
-    expect(isProviderAvailable(caps, "opencode")).toBe(true)
+    expect(isProviderAvailable(caps, "acp")).toBe(true)
+  })
+})
+
+describe("agent selection", () => {
+  const agents: AgentConfig[] = [
+    { id: "acp", name: "ACP", command: "acp-agent" },
+    { id: "reviewer", name: "Reviewer", command: "reviewer-acp" },
+  ]
+  const caps: SystemCapabilities = {
+    git: { available: true },
+    gh: { available: true, authenticated: true },
+    providers: {
+      acp: { available: true, cliCommand: "acp-agent" },
+      reviewer: { available: false, cliCommand: "reviewer-acp" },
+    },
+  }
+
+  test("returns configured agent ids", () => {
+    expect(getConfiguredAgentIds(agents)).toEqual(["acp", "reviewer"])
+  })
+
+  test("keeps preferred configured agent when available", () => {
+    expect(resolveAvailableAgent({ agents, systemCapabilities: caps, preferred: "acp" })).toBe("acp")
+  })
+
+  test("falls back when preferred agent is not configured", () => {
+    expect(resolveAvailableAgent({ agents, systemCapabilities: caps, preferred: "missing" })).toBe("acp")
+  })
+
+  test("falls back to project default before global default", () => {
+    expect(resolveAvailableAgent({
+      agents,
+      systemCapabilities: caps,
+      project: { defaultAgent: "acp" },
+      globalDefaultAgent: "reviewer",
+    })).toBe("acp")
   })
 })
 

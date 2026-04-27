@@ -1,6 +1,6 @@
 # Architecture
 
-Tangerine is a local background coding agent platform. The current implementation runs on a single machine: the Bun server, SQLite database, git repos, worktrees, and agent CLIs all live in the same environment.
+Tangerine is a local background coding agent platform. The target ACP-only implementation runs on a single machine: the Bun server, SQLite database, git repos, worktrees, and ACP agent subprocesses all live in the same environment.
 
 ## Overview
 
@@ -16,9 +16,9 @@ Tangerine is a local background coding agent platform. The current implementatio
 │ Task manager, lifecycle, retry, health, PR monitor         │
 │ Worktree pool, prompt queue, orphan cleanup                │
 ├─────────────────────────────────────────────────────────────┤
-│ Agent Providers                                             │
-│ OpenCode | Claude Code | Codex                             │
-│ Local subprocesses behind a shared AgentFactory API        │
+│ ACP Agent Runtime                                           │
+│ Configured ACP-compatible commands over stdio              │
+│ Thin ACP client wrapper behind task lifecycle              │
 ├─────────────────────────────────────────────────────────────┤
 │ Persistence + Workspace                                     │
 │ SQLite + git repos + per-task worktrees                    │
@@ -30,7 +30,7 @@ Tangerine is a local background coding agent platform. The current implementatio
 - Local-first: Tangerine runs locally and serves the built web app itself
 - Single-machine architecture: no VM provisioning, SSH tunneling, or preview port forwarding in the active design
 - Single-user remote access uses a shared bearer token when the server is reachable over LAN/Tailscale
-- Multi-provider agents behind a shared abstraction
+- ACP-only agent integration: Tangerine is the ACP client; agents are configured ACP commands
 - Git worktree isolation per task
 - Project-agnostic setup through per-project config (with archive/unarchive support)
 - Typed task model: source, type, capabilities, provider, model, reasoning effort
@@ -44,7 +44,7 @@ Tangerine is a local background coding agent platform. The current implementatio
 | API | Hono |
 | Frontend | Vite + React |
 | Database | SQLite (`bun:sqlite`) |
-| Agent CLIs | OpenCode, Claude Code, Codex |
+| Agent CLIs | ACP-compatible commands over stdio |
 | Shared validation | Zod |
 
 ## Source Layout
@@ -77,8 +77,8 @@ specs/
 
 1. A task is created through the API, web UI, GitHub webhook/poller, or cross-project prompt.
 2. `tasks/manager.ts` assigns task type capabilities and starts non-orchestrator tasks immediately.
-3. `tasks/lifecycle.ts` fetches the repo, allocates a worktree slot, creates a branch/worktree, and starts the provider process locally.
-4. Provider events are normalized and forwarded to WebSocket clients, activity logs, and session logs.
+3. `tasks/lifecycle.ts` fetches the repo, allocates a worktree slot, creates a branch/worktree, and starts the configured ACP agent process locally.
+4. ACP `session/update` events are mapped and forwarded to WebSocket clients, activity logs, and session logs.
 5. The task can be prompted, aborted, reconfigured, retried, completed, cancelled, or reconnected after restart.
 6. Crons are separate entities that fire on a cron schedule, spawning regular worker tasks.
 
@@ -103,9 +103,9 @@ The main persisted tables are:
 Notable task fields in the active schema:
 
 - `type` — "worker" (worktree + branch + PR tracking), "orchestrator" (system coordinator), "reviewer" (PR review), "runner" (no worktree, runs on project root, no PR tracking, agent self-completes)
-- `provider`
-- `model`
-- `reasoning_effort`
+- `provider` — migration-compatible selected ACP agent id
+- `model` — selected from ACP session config option category `model` when available
+- `reasoning_effort` — selected from ACP session config option category `thought_level` when available
 - `branch`
 - `worktree_path`
 - `parent_task_id`
@@ -117,16 +117,19 @@ Notable task fields in the active schema:
 
 ## Major Subsystems
 
-### Agent Providers
+### ACP Agent Runtime
 
-- `opencode-provider.ts`
-- `claude-code-provider.ts`
-- `codex-provider.ts`
-- `pi-provider.ts`
+Tangerine should not maintain provider-specific agent protocols. The runtime owns one ACP client wrapper that:
 
-All providers implement the shared contract in `agent/provider.ts`, emit normalized events, and support prompt delivery plus shutdown. OpenCode exposes a richer live update path; Claude Code, Codex, and Pi use subprocess streams. Pi uses its own RPC protocol over stdin/stdout NDJSON. On abort and shutdown, providers kill the entire process tree (agent + all descendant subprocesses) via `agent/process-tree.ts` to prevent orphaned bash commands.
+- spawns a configured ACP-compatible command over stdio
+- initializes ACP protocol version 1
+- creates/resumes/loads/closes ACP sessions
+- sends prompt turns and cancellation notifications
+- handles permission callbacks using Tangerine's unattended policy
+- maps ACP streaming updates into Tangerine task events
+- applies model/reasoning/mode changes through ACP `session/set_config_option`
 
-Provider identity is centralized in `@tangerine/shared` via `SUPPORTED_PROVIDERS`, with `DEFAULT_PROVIDER` as the shared fallback. Each provider module owns its metadata, and the server aggregates that metadata for both provider factories and CLI flows such as skill installation.
+Legacy provider runtime files have been removed. See [ACP Migration](./acp-migration.md).
 
 ### Task Management
 

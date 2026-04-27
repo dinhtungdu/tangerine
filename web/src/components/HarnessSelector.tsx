@@ -1,6 +1,7 @@
-import { isProviderAvailable as checkProvider, type ProviderType, type SystemCapabilities } from "@tangerine/shared"
+import { DEFAULT_AGENT_ID, isProviderAvailable as checkProvider, type ProviderType, type SystemCapabilities } from "@tangerine/shared"
 import { Select, SelectTrigger, SelectValue, SelectContent, SelectGroup, SelectItem } from "@/components/ui/select"
 import { Terminal } from "lucide-react"
+import { useProject } from "../context/ProjectContext"
 
 interface HarnessSelectorProps {
   value: ProviderType
@@ -8,15 +9,13 @@ interface HarnessSelectorProps {
   systemCapabilities?: SystemCapabilities | null
 }
 
-const harnesses: { value: ProviderType; label: string }[] = [
-  { value: "claude-code", label: "Claude Code" },
-  { value: "opencode", label: "OpenCode" },
-  { value: "codex", label: "Codex" },
-  { value: "pi", label: "Pi" },
-]
-
 export function HarnessSelector({ value, onChange, systemCapabilities: capsRaw }: HarnessSelectorProps) {
+  const { agents } = useProject()
   const systemCapabilities = capsRaw ?? null
+  const harnesses = agents.length > 0
+    ? agents.map((agent) => ({ value: agent.id, label: agent.name }))
+    : Object.entries(systemCapabilities?.providers ?? { [DEFAULT_AGENT_ID]: { available: true, cliCommand: DEFAULT_AGENT_ID } })
+      .map(([id]) => ({ value: id, label: id }))
 
   return (
     <Select

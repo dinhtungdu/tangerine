@@ -53,33 +53,11 @@ function shellExec(cmd: string, cwd: string) {
 }
 
 function buildProjectsResponse(deps: AppDeps) {
-  const modelsByProvider: Record<string, string[]> = {}
-  const contextWindowByModel: Record<string, number> = {}
-  const providerMetadata: Record<string, {
-    displayName: string
-    abbreviation: string
-    reasoningEfforts: { value: string; label: string; description: string }[]
-  }> = {}
-
-  for (const [key, factory] of Object.entries(deps.agentFactories)) {
-    const models = factory.listModels()
-    modelsByProvider[key] = models.map((m) => m.id)
-    for (const m of models) {
-      if (m.contextWindow) contextWindowByModel[m.id] = m.contextWindow
-    }
-    providerMetadata[key] = {
-      displayName: factory.metadata.displayName,
-      abbreviation: factory.metadata.abbreviation,
-      reasoningEfforts: factory.metadata.reasoningEfforts,
-    }
-  }
-
   return {
     projects: deps.config.config.projects,
     model: deps.config.config.model,
-    modelsByProvider,
-    contextWindowByModel,
-    providerMetadata,
+    agents: deps.config.config.agents,
+    defaultAgent: deps.config.config.defaultAgent,
     systemCapabilities: deps.systemCapabilities,
     sshHost: deps.config.config.sshHost,
     sshUser: deps.config.config.sshUser,
@@ -92,7 +70,7 @@ function buildProjectsResponse(deps: AppDeps) {
 export function projectRoutes(deps: AppDeps): Hono {
   const app = new Hono()
 
-  // List all configured projects + available models from providers
+  // List configured projects and ACP agent availability.
   app.get("/", (c) => {
     return c.json(buildProjectsResponse(deps))
   })

@@ -17,7 +17,7 @@ function makeTask(overrides?: Partial<TaskRow>): TaskRow {
     type: "worker",
     description: null,
     status: "running",
-    provider: "claude-code",
+    provider: "acp",
     model: null,
     reasoning_effort: null,
     branch: "test-branch",
@@ -128,7 +128,7 @@ describe("health check", () => {
       checkAgentAlive: () => Effect.succeed(false),
       restartAgent: restartFn,
       failTask: failFn,
-      getLastAgentError: () => "Model not found: opencode/gpt-5.4.",
+      getLastAgentError: () => "Model not found: gpt-5.",
     })
     const result = await Effect.runPromise(checkTask(task, deps))
     expect(result).toBe("failed")
@@ -187,7 +187,7 @@ describe("health check", () => {
   })
 
   test("alive agent with unrecoverable error fails immediately", async () => {
-    // OpenCode server stays alive even after billing/API errors
+    // ACP agent process can stay alive after billing/API errors
     const task = makeTask()
     const failFn = mock(() => Effect.void)
     const deps = makeDeps({
@@ -385,9 +385,9 @@ describe("idle timeout", () => {
     expect(isTaskSuspended(task.id)).toBe(false)
   })
 
-  test("opencode tasks are suspended (disk-based session resume via -s flag)", async () => {
+  test("ACP tasks are suspended after idle timeout", async () => {
     const task = makeTask({
-      provider: "opencode",
+      provider: "acp",
       started_at: new Date(Date.now() - 700_000).toISOString(),
     })
     const suspendFn = mock(() => Effect.void)

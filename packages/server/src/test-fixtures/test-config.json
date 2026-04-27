@@ -5,10 +5,12 @@
       "repo": "dinhtungdu/tangerine",
       "defaultBranch": "main",
       "setup": "bun install",
-      "defaultProvider": "claude-code"
+      "defaultAgent": "acp"
     }
   ],
-  "model": "anthropic/claude-sonnet-4-6",
+  "agents": [{ "id": "acp", "name": "ACP Agent", "command": "acp-agent" }],
+  "defaultAgent": "acp",
+  "model": "gpt-5",
   "integrations": {
     "github": {
       "trigger": {

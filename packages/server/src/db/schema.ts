@@ -1,4 +1,4 @@
-import { DEFAULT_PROVIDER } from "@tangerine/shared"
+import { DEFAULT_AGENT_ID } from "@tangerine/shared"
 
 export const SCHEMA = `
   CREATE TABLE IF NOT EXISTS tasks (
@@ -11,7 +11,7 @@ export const SCHEMA = `
     type TEXT NOT NULL DEFAULT 'worker',
     description TEXT,
     status TEXT NOT NULL DEFAULT 'created',
-    provider TEXT NOT NULL DEFAULT '${DEFAULT_PROVIDER}',
+    provider TEXT NOT NULL DEFAULT '${DEFAULT_AGENT_ID}',
     model TEXT,
     reasoning_effort TEXT,
     branch TEXT,

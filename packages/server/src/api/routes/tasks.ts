@@ -1,6 +1,6 @@
 import { Effect } from "effect"
 import { Hono } from "hono"
-import { SUPPORTED_PROVIDERS, getCapabilitiesForType } from "@tangerine/shared"
+import { getCapabilitiesForType } from "@tangerine/shared"
 import type { TaskWriteResponse, TaskType, TaskSource } from "@tangerine/shared"
 import type { AppDeps } from "../app"
 import { mapTaskRow } from "../helpers"
@@ -11,10 +11,7 @@ import { getAgentWorkingState, hasAgentWorkingState } from "../../tasks/events"
 import { getRepoDir } from "../../config"
 import { ghSpawnEnv } from "../../gh"
 import { localExecStrict } from "./../../tasks/worktree-pool"
-import { isValidReasoningEffort, getValidReasoningEfforts } from "../../agent/metadata"
-
-const VALID_PROVIDERS = new Set<string>(SUPPORTED_PROVIDERS)
-const PROVIDER_LIST = SUPPORTED_PROVIDERS.join(", ")
+import { configuredProviderList, isConfiguredProvider } from "../provider-validation"
 
 const toWriteResponse = (row: { id: string; title: string; status: string }): TaskWriteResponse =>
   ({ id: row.id, title: row.title, status: row.status as TaskWriteResponse["status"] })
@@ -84,16 +81,8 @@ export function taskRoutes(deps: AppDeps): Hono {
     if (project.archived) {
       return c.json({ error: `Project "${projectId}" is archived — unarchive it before creating tasks` }, 400)
     }
-    if (body.provider !== undefined && !VALID_PROVIDERS.has(body.provider)) {
-      return c.json({ error: `Invalid provider: ${body.provider}. Must be ${PROVIDER_LIST}` }, 400)
-    }
-    if (body.reasoningEffort !== undefined) {
-      // Validate against the effective provider (explicit > project default)
-      const effectiveProvider = body.provider ?? project.defaultProvider
-      if (effectiveProvider !== undefined && !isValidReasoningEffort(effectiveProvider, body.reasoningEffort)) {
-        const valid = getValidReasoningEfforts(effectiveProvider).join(", ")
-        return c.json({ error: `Invalid reasoningEffort "${body.reasoningEffort}" for provider "${effectiveProvider}". Must be one of: ${valid}` }, 400)
-      }
+    if (body.provider !== undefined && !isConfiguredProvider(deps, body.provider)) {
+      return c.json({ error: `Invalid provider: ${body.provider}. Must be ${configuredProviderList(deps)}` }, 400)
     }
     const validTypes = new Set(["worker", "orchestrator", "reviewer", "runner"])
     if (body.type && !validTypes.has(body.type)) {

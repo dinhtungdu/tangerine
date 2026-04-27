@@ -148,8 +148,8 @@ export function checkTask(
     }
 
     // Agent process is alive, but check if it reported an unrecoverable error.
-    // For OpenCode, the server process stays alive even after API errors like
-    // billing issues — the process is healthy but can't do any useful work.
+    // Some ACP agents keep the process alive after API/billing errors, so process
+    // health alone is not enough.
     const lastError = deps.getLastAgentError(task.id)
     if (lastError && isUnrecoverable(lastError)) {
       taskLog.error("Agent alive but reported unrecoverable error, marking failed", { error: lastError })
@@ -165,7 +165,7 @@ export function checkTask(
     // alive, causing infinite restarts. The counter is only reset when the
     // agent completes real work (goes idle → resetRestartCount in start.ts).
     // Clear suspended flag if agent is alive — abort may have only interrupted
-    // the current turn without killing the process (codex, pi).
+    // the current turn without killing the process.
     if (state.suspended) {
       state.suspended = false
       yield* deps.persistSuspended(task.id, false)
@@ -210,22 +210,17 @@ function attemptRestart(
   )
 }
 
-// Providers that persist sessions to disk and support resume after process kill.
-const SUSPENDABLE_PROVIDERS = new Set(["claude-code", "codex", "opencode", "pi"])
-
 /**
  * Suspend a running task's agent if it has been idle (no user messages) for
  * longer than DEFAULT_IDLE_TIMEOUT_MS. The task stays "running" — the agent
- * process is killed to free resources but restarts on next user message.
- * Only applies to providers that support disk-based resume (claude-code, codex).
+ * process is killed to free resources and restarted through ACP resume/load on
+ * next user message when supported.
  */
 function checkIdleTimeout(
   task: TaskRow,
   deps: HealthCheckDeps,
 ): Effect.Effect<void, never> {
   return Effect.gen(function* () {
-    if (!SUSPENDABLE_PROVIDERS.has(task.provider)) return
-
     const state = getTaskState(task.id)
 
     // Already suspended — don't re-log or re-suspend

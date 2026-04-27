@@ -16,7 +16,7 @@ Host (laptop or VPS)
     │   └── worktrees/task-abc/         ← per-task worktree
     ├── /workspace/project-b/repo
     │   └── worktrees/task-def/
-    ├── agents (claude, opencode)       ← local processes
+    ├── ACP agents                      ← local stdio processes
     ├── Apache (preview on :80)         ← subdirectory sites
     └── MariaDB, PHP, tools             ← project deps
 ```
@@ -61,8 +61,8 @@ Host (laptop or VPS)
 
 - Web dashboard (all of `web/`)
 - API routes (Hono, REST + WebSocket)
-- Agent provider abstraction (`AgentFactory`, `AgentHandle`, `AgentEvent`)
-- NDJSON parser for Claude Code
+- ACP agent abstraction (`AgentFactory`, `AgentHandle`, `AgentEvent`)
+- JSON-RPC stdio parser for ACP
 - Task CRUD, status transitions
 - Activity log, system log
 - Session logs (chat history)
@@ -88,14 +88,15 @@ const projectConfigSchema = z.object({
   }).optional(),
   env: z.record(z.string()).optional(),   // extra env vars for agent
   model: z.string().optional(),
-  defaultProvider: z.enum(["opencode", "claude-code"]).default("claude-code"),
+  defaultAgent: z.string().optional(),
   postUpdateCommand: z.string().optional(),  // runs after git pull (e.g. "bun install && bun run build")
 })
 
 const tangerineConfigSchema = z.object({
   projects: z.array(projectConfigSchema).min(1),
-  model: z.string().default("anthropic/claude-sonnet-4-6"),
-  models: z.array(z.string()).default([...]),
+  agents: z.array(agentConfigSchema).default([]),
+  defaultAgent: z.string().optional(),
+  model: z.string().optional(),
   integrations: integrationsSchema.optional(),
   workspace: z.string().default("/workspace"),  // base path for all repos
 })
@@ -118,10 +119,12 @@ Example `config.json`:
         "provision": "$HOME/worktree-scripts/provision.sh",
         "teardown": "$HOME/worktree-scripts/teardown.sh"
       },
-      "defaultProvider": "claude-code"
+      "defaultAgent": "acp"
     }
   ],
-  "model": "anthropic/claude-sonnet-4-6"
+  "agents": [{ "id": "acp", "name": "ACP Agent", "command": "acp-agent" }],
+  "defaultAgent": "acp",
+  "model": "gpt-5"
 }
 ```
 
@@ -152,7 +155,7 @@ CREATE TABLE IF NOT EXISTS tasks (
   title TEXT NOT NULL,
   description TEXT,
   status TEXT NOT NULL DEFAULT 'created',
-  provider TEXT NOT NULL DEFAULT 'claude-code',
+  provider TEXT NOT NULL DEFAULT 'acp',
   model TEXT,
   reasoning_effort TEXT,
   branch TEXT,
@@ -258,41 +261,11 @@ interface AgentStartContext {
 
 Removed: `vmIp`, `sshPort` (no SSH), `setupCommand` (handled by lifecycle).
 
-### Claude Code Provider (simplified)
+### ACP Agent Runtime
 
-Before: SSH into VM, spawn claude via SSH command, parse stdout over SSH pipe.
+Before: custom provider adapters spawned provider-specific CLIs and parsed provider-specific output.
 
-After: `Bun.spawn(["claude", ...args], { cwd: workdir, stdin: "pipe", stdout: "pipe" })`. Direct local process. The NDJSON parser stays the same — it reads from `proc.stdout`.
-
-```typescript
-// agent/claude-code-provider.ts
-start(ctx: AgentStartContext): Effect.Effect<AgentHandle, SessionStartError> {
-  const args = [
-    "claude",
-    "--output-format", "stream-json",
-    "--input-format", "stream-json",
-    "--verbose",
-    "--dangerously-skip-permissions",
-  ]
-  if (ctx.model) args.push("--model", ctx.model)
-  if (ctx.resumeSessionId) args.push("--resume", ctx.resumeSessionId)
-
-  const proc = Bun.spawn(args, {
-    cwd: ctx.workdir,
-    stdin: "pipe",
-    stdout: "pipe",
-    stderr: "pipe",
-    env: { ...process.env, ...ctx.env },
-  })
-  // ... rest is same NDJSON parsing logic
-}
-```
-
-### OpenCode Provider (simplified)
-
-Before: SSH into VM, start `opencode serve`, create SSH -L tunnel for HTTP port, poll SSE events via tunnel.
-
-After: `Bun.spawn(["opencode", "serve"], { cwd: workdir })`. Connect to localhost port directly.
+After: `Bun.spawn([configuredAcpCommand], { cwd: workdir, stdin: "pipe", stdout: "pipe" })`. Tangerine speaks ACP JSON-RPC over stdio and maps `session/update` events into task/session logs.
 
 ## Preview System
 
@@ -412,11 +385,9 @@ packages/
         ws.ts        # WebSocket bridge
         terminal-ws.ts
         project.ts   # Project CRUD
-    agent/           # Agent providers (simplified — local spawn)
+    agent/           # ACP agent runtime
+      acp-provider.ts # ACP JSON-RPC stdio client
       provider.ts    # AgentFactory, AgentHandle interfaces
-      claude-code-provider.ts  # Local Bun.spawn
-      opencode-provider.ts     # Local Bun.spawn
-      ndjson.ts      # NDJSON parser (unchanged)
       prompt-queue.ts
     tasks/           # Task lifecycle (simplified)
       manager.ts     # createTask, cancelTask, completeTask

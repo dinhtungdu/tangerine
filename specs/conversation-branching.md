@@ -123,7 +123,7 @@ POST /api/tasks/:taskId/branch
   "checkpoint_id": "uuid",        -- which checkpoint to branch from
   "title": "Try different approach",
   "description": "...",           -- optional
-  "provider": "claude-code",      -- optional, defaults to source task's provider
+  "provider": "acp",              -- optional, defaults to source task's ACP agent
   "model": "...",                 -- optional, defaults to source task's model
 }
 ```

@@ -3,7 +3,7 @@
 
 import { Effect } from "effect"
 import { createLogger } from "../logger"
-import { type ActivityType, type TaskType, type TaskCapability, type TaskSource, DEFAULT_PROVIDER, ORCHESTRATOR_TASK_NAME, TERMINAL_STATUSES, getCapabilitiesForType } from "@tangerine/shared"
+import { type ActivityType, type TaskType, type TaskCapability, type TaskSource, DEFAULT_AGENT_ID, ORCHESTRATOR_TASK_NAME, TERMINAL_STATUSES, getCapabilitiesForType, resolveDefaultAgentId } from "@tangerine/shared"
 import {
   TaskNotFoundError,
   TaskNotTerminalError,
@@ -29,6 +29,13 @@ const log = createLogger("tasks")
 function depsForProvider(deps: TaskManagerDeps, provider: string): LifecycleDeps {
   if (!deps.getAgentFactory) return deps.lifecycleDeps
   return { ...deps.lifecycleDeps, agentFactory: deps.getAgentFactory(provider) }
+}
+
+function resolveTaskAgentId(deps: TaskManagerDeps, projectConfig: ProjectConfig, explicit?: string): string {
+  if (explicit) return explicit
+  const tangerineConfig = (deps.lifecycleDeps as Partial<LifecycleDeps>).tangerineConfig
+  if (tangerineConfig) return resolveDefaultAgentId(tangerineConfig, projectConfig)
+  return projectConfig.defaultAgent ?? projectConfig.defaultProvider ?? DEFAULT_AGENT_ID
 }
 
 export interface TaskManagerDeps {
@@ -89,7 +96,7 @@ export function createTask(
     }
 
     const id = crypto.randomUUID()
-    const resolvedProvider = params.provider ?? projectConfig.defaultProvider ?? DEFAULT_PROVIDER
+    const resolvedProvider = resolveTaskAgentId(deps, projectConfig, params.provider)
 
     const description = params.description ?? null
 
@@ -322,14 +329,14 @@ export function resumeOrphanedTasks(
 }
 
 /**
- * Change model/reasoning config for a running task.
- * Tries hot-swap via handle.updateConfig() first (works for OpenCode).
- * Falls back to shutdown + restart with --resume (needed for Claude Code).
+ * Change ACP session config for a running task.
+ * Tries hot-swap via session/set_config_option first. Falls back to restart only
+ * for model/reasoning values supplied before ACP config options are available.
  */
 export function changeConfig(
   deps: TaskManagerDeps,
   taskId: string,
-  config: { model?: string; reasoningEffort?: string },
+  config: { model?: string; reasoningEffort?: string; mode?: string },
 ): Effect.Effect<void, TaskNotFoundError | Error> {
   return Effect.gen(function* () {
     const task = yield* deps.getTask(taskId).pipe(
@@ -347,28 +354,34 @@ export function changeConfig(
 
     const modelChanged = config.model && config.model !== task.model
     const effortChanged = config.reasoningEffort && config.reasoningEffort !== task.reasoning_effort
-    if (!modelChanged && !effortChanged) return
+    const modeChanged = config.mode !== undefined
+    if (!modelChanged && !effortChanged && !modeChanged) return
 
-    log.info("Changing task config", { taskId, model: modelChanged ? { from: task.model, to: config.model } : undefined, reasoningEffort: effortChanged ? { from: task.reasoning_effort, to: config.reasoningEffort } : undefined })
+    log.info("Changing task config", { taskId, model: modelChanged ? { from: task.model, to: config.model } : undefined, reasoningEffort: effortChanged ? { from: task.reasoning_effort, to: config.reasoningEffort } : undefined, mode: config.mode })
 
     const handle = deps.cleanupDeps.getAgentHandle(taskId)
 
-    // Try hot-swap — provider applies changes without restart
+    // Try hot-swap — ACP applies changes without restart
     if (handle?.updateConfig) {
       const applied = yield* handle.updateConfig({
         model: modelChanged ? config.model : undefined,
         reasoningEffort: effortChanged ? config.reasoningEffort : undefined,
+        mode: modeChanged ? config.mode : undefined,
       }).pipe(Effect.catchAll(() => Effect.succeed(false)))
 
       if (applied) {
         const updates: Partial<import("../db/types").TaskRow> = {}
         if (modelChanged) updates.model = config.model!
         if (effortChanged) updates.reasoning_effort = config.reasoningEffort!
-        yield* deps.updateTask(taskId, updates).pipe(Effect.ignoreLogged)
+        if (Object.keys(updates).length > 0) yield* deps.updateTask(taskId, updates).pipe(Effect.ignoreLogged)
 
         yield* logConfigChange(deps, taskId, config, task)
         return
       }
+    }
+
+    if (modeChanged && !modelChanged && !effortChanged) {
+      return yield* Effect.fail(new Error("Mode changes require ACP session config support"))
     }
 
     // Fallback: restart agent process with new config
@@ -404,16 +417,18 @@ export function changeConfig(
 function logConfigChange(
   deps: TaskManagerDeps,
   taskId: string,
-  config: { model?: string; reasoningEffort?: string },
+  config: { model?: string; reasoningEffort?: string; mode?: string },
   prev: import("../db/types").TaskRow,
 ) {
   const changes = [
     config.model && config.model !== prev.model && `model -> ${config.model}`,
     config.reasoningEffort && config.reasoningEffort !== prev.reasoning_effort && `reasoning -> ${config.reasoningEffort}`,
+    config.mode && `mode -> ${config.mode}`,
   ].filter(Boolean).join(", ")
   return deps.logActivity(taskId, "lifecycle", "config.changed", changes, {
     model: config.model ?? prev.model,
     reasoningEffort: config.reasoningEffort ?? prev.reasoning_effort,
+    mode: config.mode,
   }).pipe(Effect.catchAll(() => Effect.void))
 }
 
@@ -566,8 +581,6 @@ export function ensureOrchestrator(
       .sort((a, b) => (b.created_at ?? "").localeCompare(a.created_at ?? ""))[0]
 
     const projectConfig = deps.getProjectConfig(projectId)
-    const resolvedProvider = provider ?? projectConfig?.defaultProvider ?? DEFAULT_PROVIDER
-    const metadata = deps.getAgentFactory?.(resolvedProvider)?.metadata
 
     const defaultPrompt = `You are the orchestrator for the "${projectId}" project. You are running on the default branch (main repo, not a worktree).
 
@@ -590,8 +603,8 @@ Start by loading the tangerine-tasks skill and checking active tasks via the API
       type: "orchestrator",
       description: projectConfig?.taskTypes?.orchestrator?.systemPrompt ?? defaultPrompt,
       provider,
-      model: model ?? metadata?.defaultModel,
-      reasoningEffort: reasoningEffort ?? metadata?.defaultReasoningEffort,
+      model,
+      reasoningEffort,
       parentTaskId: parent?.id,
     })
   })

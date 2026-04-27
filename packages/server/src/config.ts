@@ -1,6 +1,6 @@
 import { existsSync, readFileSync, writeFileSync, mkdirSync, chmodSync } from "fs"
 import { join } from "path"
-import { homedir, userInfo } from "os"
+import { homedir } from "os"
 import { tangerineConfigSchema, DEFAULT_API_PORT, DEFAULT_SSL_PORT } from "@tangerine/shared"
 import type { TangerineConfig, ProjectConfig, SslConfig } from "@tangerine/shared"
 
@@ -51,46 +51,12 @@ export function writeRawConfig(config: RawConfig): void {
   writeFileSync(path, JSON.stringify(config, null, 2) + "\n")
 }
 
-/** Path to OpenCode's credential store on the host */
-export const OPENCODE_AUTH_PATH = join(homedir(), ".local", "share", "opencode", "auth.json")
-
-/** Path to Claude Code's config directory on the host */
-export const CLAUDE_AUTH_DIR = join(homedir(), ".claude")
-
-/** Path to Claude Code's stored OAuth credentials */
-export const CLAUDE_CREDENTIALS_PATH = join(CLAUDE_AUTH_DIR, ".credentials.json")
-
-/** Read the OAuth token Claude Code CLI has already stored on disk, if any. */
-export function readClaudeCliToken(): string | null {
-  if (!existsSync(CLAUDE_CREDENTIALS_PATH)) return null
-  try {
-    const raw = JSON.parse(readFileSync(CLAUDE_CREDENTIALS_PATH, "utf-8")) as unknown
-    if (typeof raw !== "object" || raw === null) return null
-    const oauth = (raw as Record<string, unknown>)?.claudeAiOauth
-    if (typeof oauth !== "object" || oauth === null) return null
-    const { accessToken } = oauth as Record<string, unknown>
-    if (typeof accessToken !== "string") return null
-    return accessToken
-  } catch {
-    return null
-  }
-}
-
-/** SSH user inside the VM — Lima defaults to the host username */
-export const VM_USER = userInfo().username
-
-/** Relative path for auth.json inside the VM (under user's home) */
-export const VM_AUTH_RELPATH = ".local/share/opencode/auth.json"
-
 /** SslConfig with port resolved to a concrete number (never undefined). */
 export type ResolvedSslConfig = Omit<SslConfig, "port"> & { port: number }
 
 export interface AppConfig {
   config: TangerineConfig
   credentials: {
-    opencodeAuthPath: string | null
-    claudeOauthToken: string | null
-    anthropicApiKey: string | null
     tangerineAuthToken: string | null
     serverPort: number
     externalHost: string
@@ -99,8 +65,6 @@ export interface AppConfig {
 }
 
 export const ALLOWED_CREDENTIAL_KEYS = [
-  "ANTHROPIC_API_KEY",
-  "CLAUDE_CODE_OAUTH_TOKEN",
   "TANGERINE_AUTH_TOKEN",
   "EXTERNAL_HOST",
 ] as const
@@ -201,10 +165,6 @@ export function loadConfig(overrides?: { configPath?: string }): AppConfig {
   // Dotfile credentials first, env vars override
   const dotfile = readCredentialsFile()
 
-  const opencodeAuthPath = existsSync(OPENCODE_AUTH_PATH) ? OPENCODE_AUTH_PATH : null
-  const claudeOauthToken =
-    process.env["CLAUDE_CODE_OAUTH_TOKEN"] ?? dotfile.CLAUDE_CODE_OAUTH_TOKEN ?? readClaudeCliToken()
-  const anthropicApiKey = process.env["ANTHROPIC_API_KEY"] ?? dotfile.ANTHROPIC_API_KEY ?? null
   const tangerineAuthToken = process.env["TANGERINE_AUTH_TOKEN"] ?? dotfile.TANGERINE_AUTH_TOKEN ?? null
 
   // HTTP port: TANGERINE_PORT env var overrides config.port, which overrides the default.
@@ -234,9 +194,6 @@ export function loadConfig(overrides?: { configPath?: string }): AppConfig {
   return {
     config,
     credentials: {
-      opencodeAuthPath,
-      claudeOauthToken,
-      anthropicApiKey,
       tangerineAuthToken,
       serverPort,
       externalHost: process.env["EXTERNAL_HOST"] ?? dotfile.EXTERNAL_HOST ?? "localhost",

@@ -1,7 +1,6 @@
-import { SUPPORTED_PROVIDERS } from "./constants"
-
 export type TaskStatus = "created" | "provisioning" | "running" | "done" | "failed" | "cancelled"
-export type ProviderType = typeof SUPPORTED_PROVIDERS[number]
+export type AgentId = string
+export type ProviderType = AgentId
 export type TaskSource = "github" | "linear" | "manual" | "cross-project" | "cron"
 export type TaskType = "worker" | "orchestrator" | "reviewer" | "runner"
 export type TaskCapability = "resolve" | "predefined-prompts" | "diff" | "continue" | "pr-track" | "pr-create"
@@ -50,6 +49,30 @@ export interface Task {
   capabilities: TaskCapability[]
   agentStatus?: "idle" | "working"
   contextTokens: number
+}
+
+export type AgentContentBlock = Record<string, unknown> & { type: string }
+
+export interface AgentPlanEntry {
+  content: string
+  priority?: string
+  status?: string
+}
+
+export interface AgentConfigOptionValue {
+  value: string
+  name: string
+  description?: string
+}
+
+export interface AgentConfigOption {
+  id: string
+  name: string
+  description?: string
+  category?: string
+  type: string
+  currentValue: string
+  options: AgentConfigOptionValue[]
 }
 
 export interface Cron {

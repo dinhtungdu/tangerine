@@ -2,6 +2,7 @@
 // Provides seed/reset/webhook-simulation for e2e browser tests.
 
 import { Effect } from "effect"
+import { DEFAULT_AGENT_ID } from "@tangerine/shared"
 import { Hono } from "hono"
 import type { AppDeps } from "../app"
 import { createLogger } from "../../logger"
@@ -82,7 +83,7 @@ export function testRoutes(deps: AppDeps): Hono {
           source_url: t.source_url ?? null,
           title: t.title,
           description: t.description ?? null,
-          provider: t.provider ?? "claude-code",
+          provider: t.provider ?? DEFAULT_AGENT_ID,
           model: t.model ?? null,
           branch: t.branch ?? null,
         }))

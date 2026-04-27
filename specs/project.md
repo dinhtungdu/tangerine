@@ -12,9 +12,8 @@ Stored in `tangerine.json` at the project root (or `~/.config/tangerine/config.j
     "name": "wordpress-develop",
     "repo": "https://github.com/WordPress/wordpress-develop",
     "defaultBranch": "trunk",
-    "image": "wordpress-dev",
     "setup": "npm install && npx wp-env start",
-    "defaultProvider": "opencode",
+    "defaultAgent": "acp",
     "previewCommand": "setup-vhost.sh $TANGERINE_PREVIEW_PORT",
     "test": "npx wp-env run tests-wordpress phpunit",
     "env": {
@@ -31,9 +30,8 @@ Stored in `tangerine.json` at the project root (or `~/.config/tangerine/config.j
 | `name` | string | yes | Human-readable project name (also used as project ID) |
 | `repo` | string | yes | Repository URL (or `owner/repo` shorthand) |
 | `defaultBranch` | string | no | Default: `main` |
-| `image` | string | yes | Golden image name (built from image assets dir) |
-| `setup` | string | yes | Shell commands to run after clone (install deps, start dev server) |
-| `defaultProvider` | `"opencode" \| "claude-code" \| "codex" \| "pi"` | no | Default agent provider. Default: `"claude-code"` |
+| `setup` | string | yes | Shell commands to run in task worktrees |
+| `defaultAgent` | string | no | Configured ACP agent ID. Default: top-level `defaultAgent` or `acp` |
 | `previewCommand` | string | no | Command to run on first preview access (e.g. setup vhost, start server). Port available via `$TANGERINE_PREVIEW_PORT` |
 | `test` | string | no | Command to run tests |
 | `extraPorts` | number[] | no | Additional ports to forward |
@@ -46,8 +44,9 @@ Stored in `tangerine.json` at the project root (or `~/.config/tangerine/config.j
 ```json
 {
   "projects": [...],
-  "model": "openai/gpt-5.4",
-  "models": ["openai/gpt-5.4", "anthropic/claude-sonnet-4-20250514", ...],
+  "agents": [{ "id": "acp", "name": "ACP Agent", "command": "acp-agent" }],
+  "defaultAgent": "acp",
+  "model": "gpt-5",
   "sshHost": "dev-vm",
   "sshUser": "tung.linux",
   "editor": "vscode",
@@ -63,8 +62,9 @@ Stored in `tangerine.json` at the project root (or `~/.config/tangerine/config.j
 
 | Field | Type | Description |
 |-------|------|-------------|
-| `model` | string | Default LLM model for new tasks |
-| `models` | string[] | Available models shown in the UI |
+| `agents` | object[] | Configured ACP agent commands |
+| `defaultAgent` | string | Default ACP agent ID |
+| `model` | string | Optional initial model hint for ACP agents |
 | `workspace` | string | Base directory for project clones and worktrees (default: `~/tangerine-workspace`) |
 | `sshHost` | string | SSH hostname for editor deep-links (e.g. `"dev-vm"`) |
 | `sshUser` | string | SSH username for Zed editor links (e.g. `"tung.linux"`) |
@@ -87,7 +87,7 @@ Base environments with common tooling pre-installed. Project-specific setup runs
 
 ### Two-Layer Build
 
-1. **Base layer** (`tangerine-base`): built from `tangerine.yaml` with cloud-init. Contains Node.js, Docker, OpenCode, Claude Code, gh CLI, etc. Slow (~10 min), rarely rebuilt.
+1. **Base layer** (`tangerine-base`): built from `tangerine.yaml` with cloud-init. Contains Node.js, Docker, ACP agent commands, gh CLI, etc. Slow (~10 min), rarely rebuilt.
 2. **Project layer** (`tangerine-golden-<name>`): cloned from base via `limactl clone` (APFS CoW, instant). Runs project's `build.sh` for project-specific setup.
 
 ### Image Assets

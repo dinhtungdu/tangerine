@@ -40,7 +40,7 @@ export interface AppDeps {
     resolveTask(taskId: string): Effect.Effect<void, TaggedError>
     sendPrompt(taskId: string, text: string, images?: import("../agent/provider").PromptImage[], fromTaskId?: string): Effect.Effect<void, TaggedError>
     abortTask(taskId: string): Effect.Effect<void, TaggedError>
-    changeConfig(taskId: string, config: { model?: string; reasoningEffort?: string }): Effect.Effect<void, TaggedError>
+    changeConfig(taskId: string, config: { model?: string; reasoningEffort?: string; mode?: string }): Effect.Effect<void, TaggedError>
     cleanupTask(taskId: string): Effect.Effect<void, TaggedError>
     ensureOrchestrator(projectId: string, provider?: string, model?: string, reasoningEffort?: string): Effect.Effect<TaskRow, TaggedError>
     startTask(taskId: string): Effect.Effect<void, TaggedError>

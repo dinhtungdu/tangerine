@@ -1,21 +1,10 @@
-// Agent provider abstraction: defines the contract that both OpenCode and Claude Code
-// (and future providers) must implement. Decouples task lifecycle from any specific agent.
+// Agent provider abstraction: ACP runtime contract used by task lifecycle.
 
 import type { Effect } from "effect"
 import type { AgentError, PromptError, SessionStartError } from "../errors"
-import type { PromptImage, ProviderType } from "@tangerine/shared"
+import type { AgentConfigOption, AgentContentBlock, AgentPlanEntry, PromptImage, ProviderType } from "@tangerine/shared"
 
 export type { PromptImage, ProviderType }
-
-/** A model available through a provider, used for model discovery and selection */
-export interface ModelInfo {
-  id: string
-  name: string
-  provider: string
-  providerName: string
-  /** Maximum context window in tokens, if known */
-  contextWindow?: number
-}
 
 /** Normalized events emitted by all agent providers */
 export type AgentEvent =
@@ -32,32 +21,26 @@ export type AgentEvent =
    *  inputTokens/outputTokens = token counts for accumulation.
    *  cumulative = true means values are already session totals (overwrite, don't add). */
   | { kind: "usage"; inputTokens?: number; outputTokens?: number; contextTokens?: number; cumulative?: boolean }
+  | { kind: "config.options"; options: AgentConfigOption[] }
+  | { kind: "plan"; entries: AgentPlanEntry[] }
+  | { kind: "content.block"; block: AgentContentBlock }
+  | { kind: "session.info"; title?: string | null; updatedAt?: string | null; metadata?: Record<string, unknown> }
+  | { kind: "permission.decision"; toolName?: string; optionId: string; optionName: string; optionKind: string }
 
 /** Runtime config that can be changed mid-session */
 export interface AgentConfig {
   model?: string
   reasoningEffort?: string
+  mode?: string
 }
 
-export interface ReasoningEffortOption {
-  value: string
-  label: string
-  description: string
-}
-
-export interface ProviderMetadata {
+export interface AgentMetadata {
   displayName: string
-  /** Short label for compact UI (e.g. "CC", "OC") */
+  /** Short label for compact UI. */
   abbreviation: string
-  /** CLI binary name used to invoke this provider (e.g. "claude", "codex") */
+  /** CLI binary name used to invoke this ACP agent. */
   cliCommand: string
-  /** Default model ID when none is specified */
-  defaultModel?: string
-  /** Default reasoning effort level when none is specified */
-  defaultReasoningEffort?: string
-  /** Reasoning effort levels supported by this provider */
-  reasoningEfforts: ReasoningEffortOption[]
-  skills: {
+  skills?: {
     directory: string
   }
 }
@@ -81,17 +64,16 @@ export interface AgentHandle {
   updateConfig?(config: AgentConfig): Effect.Effect<boolean, AgentError>
   /**
    * Session-level health check. Returns true if the agent session is responsive.
-   * For OpenCode: checks SSE connection + session responsiveness.
-   * For Claude Code: checks if the subprocess is alive.
    * If not implemented, the health monitor falls back to PID-based checks.
    */
   isAlive?(): boolean
   /**
    * Return the list of skill names available in this agent session.
-   * Claude Code: parsed from system/init event. Pi: parsed from get_state response.
-   * OpenCode/Codex: scanned from ~/.claude/skills or ~/.codex/skills.
+   * ACP agents may expose this if they can report skill names.
    */
   getSkills?(): string[]
+  /** Return latest ACP session config options, if the provider exposes them. */
+  getConfigOptions?(): AgentConfigOption[]
 }
 
 /** Context passed to AgentFactory.start() to bootstrap an agent session */
@@ -101,7 +83,7 @@ export interface AgentStartContext {
   title: string
   /** Provider-native system/developer instructions applied at session startup when supported */
   systemPrompt?: string
-  /** Model ID to use (e.g. "claude-sonnet-4-6" for Claude Code, "anthropic/claude-sonnet-4-6" for OpenCode) */
+  /** Initial model ID to pass through to the ACP agent when supported. */
   model?: string
   /** Reasoning effort level: "low", "medium", "high" */
   reasoningEffort?: string
@@ -113,7 +95,15 @@ export interface AgentStartContext {
 
 /** Factory that creates agent sessions — one implementation per provider */
 export interface AgentFactory {
-  metadata: ProviderMetadata
-  listModels(): ModelInfo[]
+  metadata: AgentMetadata
   start(ctx: AgentStartContext): Effect.Effect<AgentHandle, SessionStartError>
+}
+
+export function getAgentHandleMeta(handle: AgentHandle): { sessionId: string | null; agentPort: number | null } | null {
+  const meta = (handle as { __meta?: { sessionId?: string | null; agentPort?: number | null } }).__meta
+  if (!meta) return null
+  return {
+    sessionId: meta.sessionId ?? null,
+    agentPort: meta.agentPort ?? null,
+  }
 }

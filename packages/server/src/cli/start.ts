@@ -11,7 +11,7 @@ import type { TaskRow, CronRow } from "../db/types"
 import { taskHasCapability } from "../api/helpers"
 import { createApp } from "../api/app"
 import type { AppDeps } from "../api/app"
-import { resolveTaskTypeConfig } from "@tangerine/shared"
+import { resolveDefaultAgentId, resolveTaskTypeConfig } from "@tangerine/shared"
 import * as taskManager from "../tasks/manager"
 import type { TaskManagerDeps } from "../tasks/manager"
 import { onTaskEvent, onStatusChange, emitTaskEvent, setAgentWorkingState, getAgentWorkingState } from "../tasks/events"
@@ -31,12 +31,12 @@ import { applyLoginShellPath, checkSystemTools } from "./system-check"
 import { getStartupAuthError, getStartupAuthWarning } from "../auth"
 import type { PrMonitorDeps } from "../tasks/pr-monitor"
 import { initSystemLog, cleanupSystemLogs } from "../system-log"
-import type { AgentHandle } from "../agent/provider"
-import { getHandleMeta } from "../agent/opencode-provider"
+import { getAgentHandleMeta, type AgentHandle } from "../agent/provider"
 import { createAgentFactories } from "../agent/factories"
 import { enqueue as enqueuePrompt, drainAll as drainQueuedPrompts, clearQueue } from "../agent/prompt-queue"
 import { buildSystemNotes, buildEscalationBlock, buildPrWorkflowNote } from "../tasks/prompts"
 import { getTaskState, clearTaskState } from "../tasks/task-state"
+import { taskConfigUpdatesFromOptions } from "../agent/config-options"
 const log = createLogger("cli")
 
 /** Resolve custom system prompt for a task type from project config. */
@@ -48,7 +48,7 @@ function resolveCustomSystemPrompt(projConfig: ReturnType<typeof getProjectConfi
 }
 
 /** Classify agent tool name -> activity type + event name.
- * Case-insensitive so both Claude Code (PascalCase) and OpenCode (lowercase) work. */
+ * Case-insensitive because ACP agents choose their own tool-name casing. */
 function classifyTool(toolName: string): { activityType: "file" | "system"; activityEvent: string } {
   switch (toolName.toLowerCase()) {
     case "read": case "glob": case "grep":
@@ -193,8 +193,15 @@ export async function start(): Promise<void> {
       applyLoginShellPath()
     }
 
-    // Agent provider factories (local — no SSH deps)
-    const factories = createAgentFactories()
+    const factories = createAgentFactories({ agents: config.config.agents })
+    const defaultFactory = (() => {
+      const defaultAgentId = resolveDefaultAgentId(config.config, config.config.projects[0])
+      const configuredDefault = factories[defaultAgentId]
+      const firstFactory = Object.values(factories)[0]
+      if (configuredDefault) return configuredDefault
+      if (firstFactory) return firstFactory
+      throw new Error("No ACP agents configured")
+    })()
 
     // Detect system tool availability. Results are stored in systemCapabilities
     // and passed to the API so the UI can gate features on what's installed.
@@ -241,7 +248,7 @@ export async function start(): Promise<void> {
 
     // Select factory based on provider type
     const getAgentFactory = (provider: string) =>
-      factories[provider as keyof typeof factories] ?? factories.opencode
+      factories[provider] ?? defaultFactory
 
     // Wire task manager — extract cleanupDeps so retryDeps can reference it
     const cleanupDeps: CleanupDeps = {
@@ -265,7 +272,7 @@ export async function start(): Promise<void> {
       lifecycleDeps: {
         db,
         tangerineConfig: config.config,
-        agentFactory: factories.opencode,
+        agentFactory: defaultFactory,
         authToken: config.credentials.tangerineAuthToken,
         getTask: (taskId) => getTask(db, taskId),
         updateTask: (taskId, updates) => updateTask(db, taskId, updates).pipe(Effect.asVoid),
@@ -333,9 +340,8 @@ export async function start(): Promise<void> {
             // Skip for idle-wake: the user's new message is already queued via drainQueuedPrompts.
             const sendReconnectNudge = async () => {
               try {
-                // Wait for Claude Code to finish initializing before sending a prompt.
-                // Do NOT send abort/SIGINT here — Claude Code is idle after resume and
-                // SIGINT terminates an idle process rather than interrupting an in-progress turn,
+                // Wait for the ACP agent to finish resume/load before sending a prompt.
+                // Do NOT send abort here — an idle agent may interpret it as process termination,
                 // causing an immediate crash-restart loop.
                 await new Promise((r) => setTimeout(r, 1500))
 
@@ -516,8 +522,7 @@ export async function start(): Promise<void> {
 
                   if (event.imagePaths?.length) {
                     // Copy original full-size images from the worktree to the
-                    // serving directory. Claude Code downscales images in its
-                    // stream, so we skip base64 and copy originals from disk.
+                    // serving directory when an ACP agent reports image paths.
                     const copyImages = async () => {
                       const imagesDir = `${TANGERINE_HOME}/images/${taskId}`
                       // Resolve relative paths against the task's worktree
@@ -544,7 +549,7 @@ export async function start(): Promise<void> {
                     }
                     copyImages().then(emitAndInsert)
                   } else if (event.images?.length) {
-                    // Fallback for providers that send base64 images (OpenCode)
+                    // Fallback for ACP agents that send base64 images.
                     const saveImages = async () => {
                       const imagesDir = `${TANGERINE_HOME}/images/${taskId}`
                       try {
@@ -599,10 +604,9 @@ export async function start(): Promise<void> {
                   // stability window in the health checker.
                   resetRestartCount(taskId)
 
-                  // Persist dynamically captured session ID (e.g. OpenCode's ses_... ID
-                  // is only known after the first prompt produces NDJSON output)
+                  // Persist dynamically captured session ID when the ACP agent reports it.
                   const handle = agentHandles.get(taskId)
-                  const meta = handle ? getHandleMeta(handle) : null
+                  const meta = handle ? getAgentHandleMeta(handle) : null
                   if (meta?.sessionId) {
                     const row = db.prepare("SELECT agent_session_id FROM tasks WHERE id = ?").get(taskId) as { agent_session_id: string | null } | null
                     if (row && row.agent_session_id !== meta.sessionId) {
@@ -709,6 +713,80 @@ export async function start(): Promise<void> {
                   logActivity(db, taskId, "system", "agent.thinking", event.content).pipe(
                     Effect.catchAll(() => Effect.void)
                   )
+                )
+                break
+              }
+              case "content.block": {
+                emitTaskEvent(taskId, {
+                  event: "content.block",
+                  block: event.block,
+                  timestamp: new Date().toISOString(),
+                })
+                Effect.runPromise(
+                  insertSessionLog(db, { task_id: taskId, role: "content", content: JSON.stringify(event.block) }).pipe(
+                    Effect.catchAll(() => Effect.void)
+                  )
+                )
+                break
+              }
+              case "plan": {
+                emitTaskEvent(taskId, {
+                  event: "plan",
+                  entries: event.entries,
+                  timestamp: new Date().toISOString(),
+                })
+                Effect.runPromise(
+                  insertSessionLog(db, { task_id: taskId, role: "plan", content: JSON.stringify(event.entries) }).pipe(
+                    Effect.catchAll(() => Effect.void)
+                  )
+                )
+                break
+              }
+              case "config.options": {
+                const state = getTaskState(taskId)
+                state.configOptions = event.options
+                const updates = taskConfigUpdatesFromOptions(event.options)
+                if (Object.keys(updates).length > 0) {
+                  Effect.runPromise(
+                    updateTask(db, taskId, updates, { skipUpdatedAt: true }).pipe(
+                      Effect.catchAll(() => Effect.void)
+                    )
+                  )
+                }
+                emitTaskEvent(taskId, {
+                  event: "config.options",
+                  configOptions: event.options,
+                })
+                break
+              }
+              case "session.info": {
+                const state = getTaskState(taskId)
+                state.sessionInfo = {
+                  ...state.sessionInfo,
+                  ...("title" in event ? { title: event.title } : {}),
+                  ...("updatedAt" in event ? { updatedAt: event.updatedAt } : {}),
+                  ...("metadata" in event ? { metadata: event.metadata } : {}),
+                }
+                emitTaskEvent(taskId, {
+                  event: "session.info",
+                  ...state.sessionInfo,
+                })
+                const content = state.sessionInfo.title ? `Session title: ${state.sessionInfo.title}` : "Session info updated"
+                Effect.runPromise(
+                  logActivity(db, taskId, "system", "session.info", content, state.sessionInfo).pipe(
+                    Effect.catchAll(() => Effect.void)
+                  )
+                )
+                break
+              }
+              case "permission.decision": {
+                Effect.runPromise(
+                  logActivity(db, taskId, "system", "permission.decision", `Permission selected: ${event.optionName}`, {
+                    toolName: event.toolName,
+                    optionId: event.optionId,
+                    optionName: event.optionName,
+                    optionKind: event.optionKind,
+                  }).pipe(Effect.catchAll(() => Effect.void))
                 )
                 break
               }
@@ -918,7 +996,7 @@ export async function start(): Promise<void> {
           // The agent will wake again when the user sends a new message.
           getTaskState(taskId).suspended = true
 
-          // Try handle-based abort first (works for Claude Code too)
+          // Try handle-based abort first.
           const handle = agentHandles.get(taskId)
           if (handle) {
             return handle.abort().pipe(
@@ -1049,7 +1127,7 @@ export async function start(): Promise<void> {
         const handle = agentHandles.get(taskId)
         if (!handle) return false
 
-        // Prefer session-level health check (covers SSE connectivity for OpenCode)
+        // Prefer session-level health check when the ACP handle exposes one.
         if (handle.isAlive) return handle.isAlive()
 
         // Fallback to PID check for handles without isAlive
@@ -1065,13 +1143,13 @@ export async function start(): Promise<void> {
       restartAgent: (task) => {
         // Per-task lock: skip if a reconnect is already in progress for this task.
         // Health monitor and resumeOrphanedTasks can race — without this, both spawn
-        // a Claude process and only the second handle is tracked, leaving the first orphaned.
+        // an ACP process and only the second handle is tracked, leaving the first orphaned.
         const restartState = getTaskState(task.id)
         if (restartState.reconnecting) {
           log.info("Reconnect already in progress, skipping duplicate", { taskId: task.id })
           return Effect.void
         }
-        const provider = task.provider ?? "opencode"
+        const provider = task.provider
         const factory = getAgentFactory(provider)
         const lifecycleDeps = { ...tmDeps.lifecycleDeps, agentFactory: factory }
         const projectConfig = task.project_id ? getProjectConfig(config.config, task.project_id) : undefined

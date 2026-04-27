@@ -98,8 +98,7 @@ curl -X POST "$API/api/tasks" \
     "title": "Fix flaky timeout in retry loop",
     "type": "worker",
     "description": "The retry loop uses a fixed 5s timeout...",
-    "provider": "claude-code",
-    "model": "claude-sonnet-4-6",
+    "provider": "acp",
     "parentTaskId": "abc123",
     "source": "cross-project"
   }'
@@ -115,9 +114,7 @@ curl -X POST "$API/api/tasks" \
     "title": "Review PR #123",
     "type": "reviewer",
     "description": "Check for regressions",
-    "provider": "codex",
-    "model": "openai/gpt-5.4",
-    "reasoningEffort": "high",
+    "provider": "acp",
     "branch": "tangerine/abc12345",
     "parentTaskId": "abc123",
     "source": "cross-project"
@@ -128,12 +125,7 @@ curl -X POST "$API/api/tasks" \
 > - Set `branch` to the **PR's source branch** (e.g. `tangerine/abc12345`), NOT the PR number shorthand (`#123`) or a new branch. The reviewer must check out the same branch as the PR.
 > - Always set `prUrl` to the full PR URL (e.g. `https://github.com/org/repo/pull/123`). The poller can discover it from the branch as a fallback, but setting it upfront ensures immediate tracking.
 
-Provider values:
-
-- `opencode`
-- `claude-code`
-- `codex`
-- `pi`
+Provider values are configured ACP agent IDs from `agents[]` (default: `acp`). Omit `provider` to use project/global `defaultAgent`.
 
 Task types — **always pass the correct type**:
 
@@ -176,7 +168,7 @@ curl -X POST "$API/api/tasks/$TANGERINE_TASK_ID/abort"
 
 curl -X POST "$API/api/tasks/$TANGERINE_TASK_ID/model" \
   -H "Content-Type: application/json" \
-  -d '{"model":"openai/gpt-5.4","reasoningEffort":"high"}'
+  -d '{"model":"gpt-5","reasoningEffort":"high","mode":"code"}'
 
 curl -X PATCH "$API/api/tasks/$TANGERINE_TASK_ID" \
   -H "Content-Type: application/json" \
@@ -191,7 +183,7 @@ curl "$API/api/projects/my-project"
 
 curl -X POST "$API/api/projects/my-project/orchestrator" \
   -H "Content-Type: application/json" \
-  -d '{"provider":"claude-code","model":"claude-sonnet-4-6"}'
+  -d '{"provider":"acp"}'
 
 curl "$API/api/projects/my-project/update-status"
 curl -X POST "$API/api/projects/my-project/update"
@@ -216,8 +208,7 @@ curl -X POST "$API/api/crons" \
     "cron": "0 3 * * 1-5",
     "enabled": true,
     "taskDefaults": {
-      "provider": "claude-code",
-      "model": "claude-sonnet-4-6"
+      "provider": "acp"
     }
   }'
 
@@ -283,9 +274,9 @@ Use polling to wait for PR reviews, CI completion, child task results, or extern
 
 > **PR merges — do NOT poll for these.** When a PR is merged, Tangerine sends you a re-prompt automatically (`pr-monitor.ts` keeps your task `running` and injects a post-merge message). You will receive the prompt; you don't need to poll. Only non-running tasks get auto-completed to `done` by the monitor.
 
-### Provider-agnostic shell loop
+### ACP-agent shell loop
 
-Works on all providers (claude-code, codex, opencode, pi):
+Works from any ACP agent session:
 
 ```bash
 # Poll until task done (max 30 attempts, 60s interval = 30 min max)
@@ -316,30 +307,11 @@ fi
 
 Use this when you need to pause for a duration regardless of what you're waiting for — no specific endpoint to poll, just "wait N seconds then continue".
 
-**claude-code** — use `ScheduleWakeup` (suspends agent, no blocked process, cache-aware):
-
-```
-ScheduleWakeup(delaySeconds=300, reason="waiting 5 min before retrying deploy", prompt="<resume instructions>")
-```
-
-**codex / opencode / pi** — use shell sleep:
-
 ```bash
 echo "Waiting 300s..."; sleep 300; echo "Resuming."
 ```
 
-### claude-code: use ScheduleWakeup for long waits
-
-On claude-code, prefer `ScheduleWakeup` over shell `sleep` for waits longer than ~2 minutes — it suspends the agent without burning context or blocking the process. Shell sleep is fine for short polls (≤60s).
-
-```
-# In claude-code: if wait > 2 min, call ScheduleWakeup instead of sleeping
-ScheduleWakeup(delaySeconds=270, reason="waiting for CI on PR #123", prompt="...")
-```
-
-Resume the same task after wake with the polling loop above. Use `delaySeconds=270` (just under 5 min cache TTL) for CI; use `1200` for PR review waits.
-
-For codex, opencode, and pi — use the shell loop; these providers do not have ScheduleWakeup.
+Resume the same task after wake with the polling loop above. Use `270s` for CI checks and `1200s` for PR review waits.
 
 ### Recommended intervals
 
@@ -411,33 +383,21 @@ curl -X POST "$API/api/tasks/$TANGERINE_TASK_ID/rename-branch" \
 
 Choose a short slug that describes the change (e.g. `fix/worktree-cleanup`, `feat/add-retry-logic`). Only alphanumeric, dash, underscore, dot, and slash are allowed.
 
-## Required: Codex Review
+## Required: Self Review
 
-All worker and reviewer tasks must run `codex review` if codex is installed. If not, skip and continue.
+Worker and reviewer tasks must inspect their own diff before finalizing.
 
 ### Worker tasks — self-review before PR
 
-Run before pushing or creating a PR:
-
-```bash
-command -v codex >/dev/null 2>&1 && codex review --base main -c model="gpt-5.4" -c reasoning.effort="xhigh" || true
-```
-
-1. Read the findings
-2. Fix every issue found
-3. Share the review result
-4. Only then run `git push origin HEAD` and create PR according to project `prMode` (see above)
+1. Review `git diff` against the base branch.
+2. Fix every issue found.
+3. Share the review result.
+4. Only then run `git push origin HEAD` and create PR according to project `prMode` (see above).
 
 ### Reviewer tasks — review the PR changes
 
-Run as part of the review:
-
-```bash
-command -v codex >/dev/null 2>&1 && codex review --base main -c model="gpt-5.4" -c reasoning.effort="xhigh" || true
-```
-
-1. Read the findings
-2. Include them in the review report
+1. Review the PR diff against the base branch.
+2. Include findings in the review report.
 3. **Post the full review summary as your final message in this task** — verdict, key findings, any bugs found. This is what the user sees when they open the reviewer task.
 
 > 🚨 **CRITICAL**: The review summary MUST be posted in **this task's own conversation** — do NOT skip this.
@@ -458,8 +418,8 @@ Typical task fields exposed by the API:
   "source": "manual",
   "title": "Fix the failing test",
   "status": "running",
-  "provider": "codex",
-  "model": "openai/gpt-5.4",
+  "provider": "acp",
+  "model": "gpt-5",
   "reasoningEffort": "high",
   "branch": "tangerine/abc12345",
   "worktreePath": "/workspace/my-project/1",

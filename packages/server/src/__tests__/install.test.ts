@@ -2,21 +2,11 @@ import { describe, expect, it } from "bun:test"
 import { mkdtempSync, mkdirSync, lstatSync, rmSync } from "fs"
 import { join } from "path"
 import { homedir, tmpdir } from "os"
-import { PROVIDER_DISPLAY_NAMES, SUPPORTED_PROVIDERS } from "@tangerine/shared"
-import { AGENT_PROVIDER_METADATA } from "../agent/metadata"
-import { symlinkSkill } from "../cli/install"
+import { ACP_SKILLS_DIR, symlinkSkill } from "../cli/install"
 
-describe("agent provider skill metadata", () => {
-  it("exposes display names and skill directories for all providers", () => {
-    expect(SUPPORTED_PROVIDERS).toEqual(["opencode", "claude-code", "codex", "pi"])
-    expect(AGENT_PROVIDER_METADATA.opencode.displayName).toBe(PROVIDER_DISPLAY_NAMES.opencode)
-    expect(AGENT_PROVIDER_METADATA["claude-code"].displayName).toBe(PROVIDER_DISPLAY_NAMES["claude-code"])
-    expect(AGENT_PROVIDER_METADATA.codex.displayName).toBe(PROVIDER_DISPLAY_NAMES.codex)
-    expect(AGENT_PROVIDER_METADATA.pi.displayName).toBe(PROVIDER_DISPLAY_NAMES.pi)
-    expect(AGENT_PROVIDER_METADATA.opencode.skills.directory).toBe(join(homedir(), ".claude", "skills"))
-    expect(AGENT_PROVIDER_METADATA["claude-code"].skills.directory).toBe(join(homedir(), ".claude", "skills"))
-    expect(AGENT_PROVIDER_METADATA.codex.skills.directory).toBe(join(homedir(), ".codex", "skills"))
-    expect(AGENT_PROVIDER_METADATA.pi.skills.directory).toBe(join(homedir(), ".pi", "agent", "skills"))
+describe("ACP skill install target", () => {
+  it("uses a provider-neutral ACP skills directory", () => {
+    expect(ACP_SKILLS_DIR).toBe(join(homedir(), ".config", "acp", "skills"))
   })
 })
 

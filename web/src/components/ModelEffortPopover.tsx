@@ -1,13 +1,16 @@
 import { useState } from "react"
 import { Check, ChevronDown } from "lucide-react"
-import type { ProviderType } from "@tangerine/shared"
 import { Button } from "@/components/ui/button"
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
 import { Separator } from "@/components/ui/separator"
 import { cn } from "@/lib/utils"
-import { useProject } from "../context/ProjectContext"
 import { formatModelName } from "../lib/format"
-import { getEfforts } from "./ReasoningEffortSelector"
+
+export interface EffortOption {
+  value: string
+  label: string
+  description: string
+}
 
 interface ModelEffortPopoverProps {
   models: string[]
@@ -15,7 +18,11 @@ interface ModelEffortPopoverProps {
   onModelChange: (model: string) => void
   reasoningEffort?: string | null
   onReasoningEffortChange?: (effort: string) => void
-  provider?: ProviderType
+  provider?: string
+  efforts?: EffortOption[]
+  mode?: string | null
+  modes?: EffortOption[]
+  onModeChange?: (mode: string) => void
   /** Whether the model list is interactive (vs read-only display) */
   canChangeModel?: boolean
 }
@@ -26,25 +33,25 @@ export function ModelEffortPopover({
   onModelChange,
   reasoningEffort,
   onReasoningEffortChange,
-  provider,
+  efforts: propEfforts,
+  mode,
+  modes,
+  onModeChange,
   canChangeModel = true,
 }: ModelEffortPopoverProps) {
   const [open, setOpen] = useState(false)
-  const { providerMetadata } = useProject()
 
   // Don't render if there's nothing to show
   const resolvedModel = model || models[0] || ""
-  if (!resolvedModel && !onReasoningEffortChange) return null
+  const efforts = propEfforts ?? []
+  if (!resolvedModel && (!onReasoningEffortChange || efforts.length === 0)) return null
 
-  const effortsByProvider: Record<string, { value: string; label: string; description: string }[]> = {}
-  for (const [key, meta] of Object.entries(providerMetadata)) {
-    effortsByProvider[key] = meta.reasoningEfforts
-  }
-  const efforts = getEfforts(provider, effortsByProvider)
   // Normalize to an effective value so trigger and highlight stay in sync
-  const effectiveEffort = (efforts.find((e) => e.value === reasoningEffort) ?? efforts.find((e) => e.value === "medium") ?? efforts[0])?.value
+  const effectiveEffort = (efforts.find((e) => e.value === reasoningEffort) ?? efforts[0])?.value
 
-  const showEffort = !!onReasoningEffortChange
+  const showEffort = !!onReasoningEffortChange && efforts.length > 0
+  const showMode = !!onModeChange && !!modes?.length
+  const effectiveMode = modes?.find((entry) => entry.value === mode)?.value ?? modes?.[0]?.value
 
   return (
     <Popover open={open} onOpenChange={setOpen}>
@@ -133,6 +140,46 @@ export function ModelEffortPopover({
                       <span className="flex flex-col items-start gap-0">
                         <span className="text-xs font-medium">{e.label}</span>
                         <span className="text-2xs text-muted-foreground">{e.description}</span>
+                      </span>
+                    </Button>
+                  ))}
+                </div>
+              </div>
+            </>
+          )}
+
+          {/* Mode column */}
+          {showMode && (
+            <>
+              {(resolvedModel || showEffort) && <Separator orientation="vertical" />}
+              <div className="flex min-w-35 flex-1 flex-col">
+                <div className="border-b border-border px-3 py-2 text-2xs font-medium uppercase tracking-wide text-muted-foreground">
+                  Mode
+                </div>
+                <div className="p-1">
+                  {modes!.map((entry) => (
+                    <Button
+                      key={entry.value}
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => {
+                        onModeChange!(entry.value)
+                        setOpen(false)
+                      }}
+                      className={cn(
+                        "h-auto w-full justify-start items-start gap-1.5 px-2 py-1.5",
+                        entry.value === effectiveMode && "bg-accent/60"
+                      )}
+                    >
+                      <Check
+                        className={cn(
+                          "mt-0.5 size-3 shrink-0",
+                          entry.value !== effectiveMode && "invisible"
+                        )}
+                      />
+                      <span className="flex flex-col items-start gap-0">
+                        <span className="text-xs font-medium">{entry.label}</span>
+                        <span className="text-2xs text-muted-foreground">{entry.description}</span>
                       </span>
                     </Button>
                   ))}

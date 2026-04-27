@@ -3,8 +3,8 @@
 
 import { existsSync, lstatSync, mkdirSync, readFileSync, rmSync, symlinkSync, readlinkSync } from "fs"
 import { join, resolve } from "path"
+import { homedir } from "os"
 import { TANGERINE_HOME } from "../config"
-import { AGENT_PROVIDER_METADATA } from "../agent/metadata"
 
 // Walk up from this file to find the package root (directory with package.json
 // containing the package name). Works from both source and bundled locations.
@@ -20,6 +20,7 @@ function findProjectRoot(): string {
   return resolve(import.meta.dir, "../../../../")
 }
 const PROJECT_ROOT = findProjectRoot()
+export const ACP_SKILLS_DIR = join(homedir(), ".config", "acp", "skills")
 
 // Skills to symlink into agent skill directories.
 // source: path relative to PROJECT_ROOT
@@ -88,20 +89,17 @@ export async function install(): Promise<void> {
   ensureDir(TANGERINE_HOME)
   check(`${TANGERINE_HOME}`, true)
 
-  for (const metadata of Object.values(AGENT_PROVIDER_METADATA)) {
-    const targetDir = metadata.skills.directory
-    console.log(`\n${metadata.displayName} skills:`)
-    for (const skill of SKILLS_TO_INSTALL) {
-      if (!existsSync(skill.source)) {
-        check(`${skill.name} skill`, false, `skill source not found at ${skill.source}`)
-        continue
-      }
-      const result = symlinkSkill(skill.source, targetDir)
-      if (result.created) {
-        check(`${skill.name} skill → ${targetDir}/${skill.name}`, true)
-      } else {
-        check(`${skill.name} skill (${result.skipped})`, true)
-      }
+  console.log(`\nACP skills:`)
+  for (const skill of SKILLS_TO_INSTALL) {
+    if (!existsSync(skill.source)) {
+      check(`${skill.name} skill`, false, `skill source not found at ${skill.source}`)
+      continue
+    }
+    const result = symlinkSkill(skill.source, ACP_SKILLS_DIR)
+    if (result.created) {
+      check(`${skill.name} skill → ${ACP_SKILLS_DIR}/${skill.name}`, true)
+    } else {
+      check(`${skill.name} skill (${result.skipped})`, true)
     }
   }
 

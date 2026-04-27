@@ -6,6 +6,7 @@ import { createWebSocketHeartbeat, type WebSocketHeartbeat } from "../ws-heartbe
 import { isAuthEnabled, isRequestAuthenticated, isValidAuthToken } from "../../auth"
 import { getTask } from "../../db/queries"
 import { getAgentWorkingState, onAgentStatusChange } from "../../tasks/events"
+import { getTaskState } from "../../tasks/task-state"
 import type { WsClientMessage, WsServerMessage, TaskStatus } from "@tangerine/shared"
 
 /**
@@ -49,6 +50,11 @@ export function wsRoutes(deps: AppDeps, upgradeWebSocket: UpgradeWebSocket): Hon
               if (task.status === "running") {
                 const agentMsg: WsServerMessage = { type: "agent_status", agentStatus: getAgentWorkingState(taskId) }
                 ws.send(JSON.stringify(agentMsg))
+              }
+
+              const configOptions = getTaskState(taskId).configOptions
+              if (configOptions.length > 0) {
+                ws.send(JSON.stringify({ type: "event", data: { event: "config.options", configOptions } } satisfies WsServerMessage))
               }
             }
 

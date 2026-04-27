@@ -23,7 +23,7 @@ export function makeTask(overrides?: Partial<Task>): Task {
     type: "worker",
     description: null,
     status: "created",
-    provider: "opencode",
+    provider: "acp",
     model: null,
     reasoningEffort: null,
     branch: null,

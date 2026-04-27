@@ -19,7 +19,7 @@ Host (laptop) — or VM (Lima)
 │                          1 (task worktree)
 │                          2 (task worktree)
 ├── {workspace}/project-b/0, 1, ...
-├── agents (claude, opencode) — local processes
+├── ACP agents — local stdio processes
 └── Apache, MariaDB, tools — shared
 ```
 `{workspace}` defaults to `~/tangerine-workspace` but is configurable via `config.workspace` in `~/tangerine/config.json`.
@@ -74,12 +74,11 @@ User is on the machine where Tangerine will run — either their host or inside 
      && sudo apt update && sudo apt install gh -y
    ```
 
-2. **Verify agent CLIs are installed and authenticated**:
+2. **Verify ACP agent CLIs are installed and authenticated**:
    ```bash
-   which claude && claude --version
-   which opencode && opencode --version
+   which acp-agent && acp-agent --version
    ```
-   Tangerine assumes agents are already installed and authenticated. If any are missing, install them (`npm install -g @anthropic-ai/claude-code opencode-ai`) and authenticate each before starting Tangerine — Tangerine does not manage credentials.
+   Tangerine assumes configured ACP agents are already installed and authenticated. If the user uses another ACP command, verify that command instead and put it in top-level `agents[]`. Tangerine does not manage agent credentials.
 
 3. **Clone tangerine**:
    ```bash
@@ -195,15 +194,12 @@ User wants a Lima VM to run Tangerine in. You help them create it, then they run
    limactl start --name tangerine /tmp/tangerine.yaml
    ```
 
-2. **Shell into the VM**, install your coding agent(s), authenticate them, then run `/platform-setup`:
+2. **Shell into the VM**, install your ACP agent command(s), authenticate them, then run `/platform-setup`:
    ```bash
    limactl shell tangerine
-   # Install your agent(s) of choice, e.g.:
-   npm install -g @anthropic-ai/claude-code   # Claude Code
-   npm install -g opencode-ai                 # OpenCode
-   # Authenticate each agent before continuing:
-   claude       # complete OAuth
-   opencode     # complete auth
+   # Install/configure the ACP agent command(s) you want Tangerine to run.
+   acp-agent --version
+   # Authenticate each ACP agent before continuing.
    gh auth login
    # Then run platform-setup to install tools and configure projects:
    # /platform-setup
@@ -258,15 +254,16 @@ User wants to add a project to an already-running Tangerine instance. You help t
    **Optional fields** (omit if not needed):
    - `test` — test command
    - `defaultBranch` — defaults to `"main"`
-   - `defaultProvider` — `"claude-code"` | `"opencode"` | `"codex"`, defaults to `"claude-code"`
-   - `model` — override the default LLM model
+   - `defaultAgent` — configured ACP agent ID from top-level `agents[]`, defaults to `"acp"`
+   - `model` — optional initial model hint for ACP agents that expose model config
    - `env` — key/value pairs injected into agent environment
    - `postUpdateCommand` — runs after `git pull` (install + build)
    - `predefinedPrompts` — array of `{label, text}` quick-send buttons
 
    **Top-level optional fields** (outside `projects[]`):
-   - `model` — default LLM model for new tasks
-   - `models` — array of available model strings
+   - `agents` — array of ACP agents: `{ "id", "name", "command", "args"? }`
+   - `defaultAgent` — default ACP agent ID, defaults to `"acp"`
+   - `model` — optional initial model hint
    - `workspace` — base directory for clones/worktrees (default: `~/tangerine-workspace`)
    - `sshHost` — SSH hostname for editor deep-links (e.g. `"dev-vm"`). Must match a `Host` entry in `~/.ssh/config` on the host machine where the editor runs
    - `sshUser` — SSH username for Zed editor links (e.g. `"tung.linux"`)
@@ -282,10 +279,14 @@ User wants to add a project to an already-running Tangerine instance. You help t
          "defaultBranch": "main",
          "setup": "pnpm install",
          "test": "pnpm test",
-         "defaultProvider": "claude-code",
+         "defaultAgent": "acp",
          "postUpdateCommand": "pnpm install && pnpm build"
        }
      ],
+     "agents": [
+       { "id": "acp", "name": "ACP Agent", "command": "acp-agent" }
+     ],
+     "defaultAgent": "acp",
      "sshHost": "dev-vm",
      "sshUser": "tung.linux",
      "editor": "vscode"
@@ -301,13 +302,9 @@ User wants to add a project to an already-running Tangerine instance. You help t
 
 ## Credentials
 
-Tangerine does not manage agent credentials. Before starting Tangerine, ensure each agent you plan to use is already installed and authenticated:
+Tangerine does not manage agent credentials. Before starting Tangerine, ensure each ACP agent command in top-level `agents[]` is installed and authenticated.
 
-- **Claude Code**: `claude --version` works and `claude` can make API calls (OAuth or `ANTHROPIC_API_KEY` set)
-- **OpenCode**: `opencode --version` works and `opencode` can make API calls
-- **Codex**: `codex --version` works and credentials are configured
-
-Tangerine does not configure or verify credentials — it relies on the agent's own auth being in place. If an agent fails to start due to missing credentials, authenticate it directly (e.g. run `claude` once to complete OAuth, or set the relevant API key in your shell profile) and retry.
+Tangerine does not configure or verify credentials — it relies on the agent's own auth being in place. If an agent fails to start due to missing credentials, authenticate it directly with that agent's CLI and retry.
 
 `gh` CLI is also required for GitHub integration (PR tracking, webhook setup). Tangerine checks `gh auth status` on startup and will warn if it is not authenticated — run `gh auth login` to fix it.
 
@@ -333,7 +330,7 @@ Tangerine does not configure or verify credentials — it relies on the agent's 
 
 Only ask if you can't determine from the codebase:
 - Repo URL (if no git remote found)
-- Which agent skills to install
+- Which ACP agent command(s) to configure
 
 ## After Init
 

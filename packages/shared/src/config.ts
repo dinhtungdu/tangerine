@@ -1,5 +1,5 @@
 import { z } from "zod"
-import { DEFAULT_PROVIDER, SUPPORTED_PROVIDERS } from "./constants"
+import { DEFAULT_AGENT_ID } from "./constants"
 
 export const predefinedPromptSchema = z.object({
   label: z.string(),
@@ -40,6 +40,14 @@ export const taskTypesSchema = z.object({
   reviewer: taskTypeConfigSchema.optional(),
 })
 
+export const agentConfigSchema = z.object({
+  id: z.string().min(1),
+  name: z.string().min(1),
+  command: z.string().min(1),
+  args: z.array(z.string()).optional(),
+  env: z.record(z.string()).optional(),
+})
+
 export const projectConfigSchema = z.object({
   name: z.string(),
   repo: z.string(),
@@ -48,7 +56,9 @@ export const projectConfigSchema = z.object({
   test: z.string().optional(),
   env: z.record(z.string()).optional(),
   model: z.string().optional(),
-  defaultProvider: z.enum(SUPPORTED_PROVIDERS).default(DEFAULT_PROVIDER),
+  /** Deprecated migration field. Use defaultAgent with top-level agents[]. */
+  defaultProvider: z.string().optional(),
+  defaultAgent: z.string().optional(),
   prMode: z.enum(["ready", "draft", "none"]).default("none"),
   archived: z.boolean().optional().default(false),
   postUpdateCommand: z.string().optional(),
@@ -92,6 +102,8 @@ const sslConfigSchema = z.object({
 
 export const tangerineConfigSchema = z.object({
   projects: z.array(projectConfigSchema).min(1),
+  agents: z.array(agentConfigSchema).optional().default([]),
+  defaultAgent: z.string().optional(),
   workspace: z.string().default("~/tangerine-workspace"),
   model: z.string().default("anthropic/claude-sonnet-4-6"),
   models: z.array(z.string()).default(defaultModels),
@@ -112,6 +124,7 @@ export const tangerineConfigSchema = z.object({
 export type PredefinedPrompt = z.infer<typeof predefinedPromptSchema>
 export type ShortcutConfig = z.infer<typeof shortcutSchema>
 export type ActionCombo = z.infer<typeof actionComboSchema>
+export type AgentConfig = z.infer<typeof agentConfigSchema>
 export type TaskTypeConfig = z.infer<typeof taskTypeConfigSchema>
 export type ProjectConfig = z.infer<typeof projectConfigSchema>
 export type SslConfig = z.infer<typeof sslConfigSchema>
@@ -133,4 +146,8 @@ export function resolveTaskTypeConfig(
     systemPrompt: override?.systemPrompt,
     predefinedPrompts: override?.predefinedPrompts ?? DEFAULTS[taskType]!.predefinedPrompts,
   }
+}
+
+export function resolveDefaultAgentId(config: TangerineConfig, project?: Pick<ProjectConfig, "defaultAgent" | "defaultProvider">): string {
+  return project?.defaultAgent ?? config.defaultAgent ?? project?.defaultProvider ?? config.agents[0]?.id ?? DEFAULT_AGENT_ID
 }

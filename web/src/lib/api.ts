@@ -1,4 +1,4 @@
-import type { Task, TaskWriteResponse, ProjectConfig, SystemLogEntry, ActivityEntry, ActionCombo, ShortcutConfig, SystemCapabilities } from "@tangerine/shared"
+import type { AgentConfig, AgentConfigOption, Task, TaskWriteResponse, ProjectConfig, SystemLogEntry, ActivityEntry, ActionCombo, ShortcutConfig, SystemCapabilities } from "@tangerine/shared"
 import { buildAuthHeaders, emitAuthFailure } from "./auth"
 
 const BASE = ""
@@ -60,18 +60,11 @@ export async function fetchAuthSession(): Promise<AuthSession> {
   return request<AuthSession>("/api/auth/session")
 }
 
-export interface ProviderMeta {
-  displayName: string
-  abbreviation: string
-  reasoningEfforts: { value: string; label: string; description: string }[]
-}
-
 export async function fetchProjects(): Promise<{
   projects: ProjectConfig[]
   model: string
-  modelsByProvider: Record<string, string[]>
-  contextWindowByModel?: Record<string, number>
-  providerMetadata?: Record<string, ProviderMeta>
+  agents?: AgentConfig[]
+  defaultAgent?: string
   systemCapabilities?: SystemCapabilities
   sshHost?: string
   sshUser?: string
@@ -82,9 +75,8 @@ export async function fetchProjects(): Promise<{
   return request<{
     projects: ProjectConfig[]
     model: string
-    modelsByProvider: Record<string, string[]>
-    contextWindowByModel?: Record<string, number>
-    providerMetadata?: Record<string, ProviderMeta>
+    agents?: AgentConfig[]
+    defaultAgent?: string
     systemCapabilities?: SystemCapabilities
     sshHost?: string
     sshUser?: string
@@ -189,6 +181,11 @@ export async function fetchMessages(id: string): Promise<SessionLog[]> {
   return request<SessionLog[]>(`/api/tasks/${id}/messages`)
 }
 
+export async function fetchTaskConfigOptions(id: string): Promise<AgentConfigOption[]> {
+  const body = await request<{ configOptions: AgentConfigOption[] }>(`/api/tasks/${id}/config-options`)
+  return body.configOptions
+}
+
 export async function sendPrompt(id: string, text: string): Promise<void> {
   return request<void>(`/api/tasks/${id}/prompt`, {
     method: "POST",
@@ -200,7 +197,7 @@ export async function abortTask(id: string): Promise<void> {
   return request<void>(`/api/tasks/${id}/abort`, { method: "POST" })
 }
 
-export async function changeTaskConfig(id: string, config: { model?: string; reasoningEffort?: string }): Promise<void> {
+export async function changeTaskConfig(id: string, config: { model?: string; reasoningEffort?: string; mode?: string }): Promise<void> {
   return request<void>(`/api/tasks/${id}/model`, {
     method: "POST",
     body: JSON.stringify(config),

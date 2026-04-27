@@ -34,7 +34,7 @@ Orchestrators do **not** auto-start on creation. They start when the user opens 
 
 The health monitor tracks the last user message time for all running tasks (not just orchestrators). If no user message arrives within `DEFAULT_IDLE_TIMEOUT_MS` (10 minutes), the agent process is killed to free resources — but the task stays `running`. When the next user message arrives, the agent is automatically restarted via `reconnectSessionWithRetry` and the message is delivered.
 
-This only applies to providers with disk-based session persistence (`claude-code`, `codex`). OpenCode uses a server mode where killing the process loses the session, so OpenCode tasks are not suspended.
+This applies to ACP agents that support `session/resume` or `session/load`. If neither is supported, Tangerine creates a fresh ACP session and re-sends pending prompt context when needed.
 
 ### Termination and restart
 

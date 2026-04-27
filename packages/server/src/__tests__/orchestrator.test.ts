@@ -24,7 +24,7 @@ function makeDeps(db: Database): TaskManagerDeps {
     cleanupDeps: {} as TaskManagerDeps["cleanupDeps"],
     retryDeps: {} as TaskManagerDeps["retryDeps"],
     getProjectConfig: (id) => id === PROJECT_ID
-      ? { repo: "https://github.com/test/repo", setup: "echo ok", defaultBranch: "main", defaultProvider: "claude-code" as const }
+      ? { repo: "https://github.com/test/repo", setup: "echo ok", defaultBranch: "main", defaultAgent: "acp" }
       : undefined,
     getAgentFactory: (provider) => factories[provider as keyof typeof factories],
     abortAgent: () => Effect.void,
@@ -99,32 +99,26 @@ describe("ensureOrchestrator", () => {
     expect(task.status).toBe("created")
   })
 
-  test("uses project defaultProvider when no provider specified", async () => {
+  test("uses project defaultAgent when no provider specified", async () => {
     const task = await Effect.runPromise(ensureOrchestrator(deps, PROJECT_ID))
-    expect(task.provider).toBe("claude-code")
+    expect(task.provider).toBe("acp")
   })
 
-  test("explicit provider overrides project default", async () => {
-    const task = await Effect.runPromise(ensureOrchestrator(deps, PROJECT_ID, "opencode"))
-    expect(task.provider).toBe("opencode")
+  test("explicit agent id overrides project default", async () => {
+    const task = await Effect.runPromise(ensureOrchestrator(deps, PROJECT_ID, "custom-agent"))
+    expect(task.provider).toBe("custom-agent")
   })
 
-  test("defaults to provider's default model and reasoning effort", async () => {
+  test("ACP agents do not inject provider-specific default model or reasoning effort", async () => {
     const task = await Effect.runPromise(ensureOrchestrator(deps, PROJECT_ID))
-    expect(task.model).toBe("claude-sonnet-4-6")
-    expect(task.reasoning_effort).toBe("medium")
+    expect(task.model).toBeNull()
+    expect(task.reasoning_effort).toBeNull()
   })
 
   test("explicit model and reasoningEffort override defaults", async () => {
     const task = await Effect.runPromise(ensureOrchestrator(deps, PROJECT_ID, undefined, "claude-sonnet-4-6", "medium"))
     expect(task.model).toBe("claude-sonnet-4-6")
     expect(task.reasoning_effort).toBe("medium")
-  })
-
-  test("providers without defaults get no model or effort", async () => {
-    const task = await Effect.runPromise(ensureOrchestrator(deps, PROJECT_ID, "opencode"))
-    expect(task.model).toBeNull()
-    expect(task.reasoning_effort).toBeNull()
   })
 })
 
@@ -150,6 +144,20 @@ describe("createTask description storage", () => {
     // Description must be stored verbatim — escalation block lives in the agent
     // prompt (injected by cli/start.ts) not in the DB so the UI stays clean.
     expect(task.description).toBe("Do the thing")
+  })
+
+  test("uses project defaultAgent over legacy defaultProvider", async () => {
+    deps.getProjectConfig = (id) => id === PROJECT_ID
+      ? { repo: "https://github.com/test/repo", setup: "echo ok", defaultBranch: "main", defaultAgent: "codex" }
+      : undefined
+
+    const task = await Effect.runPromise(createTask(deps, {
+      source: "manual",
+      projectId: PROJECT_ID,
+      title: "Fix a bug",
+    }))
+
+    expect(task.provider).toBe("codex")
   })
 
   test("stores null description when none provided", async () => {

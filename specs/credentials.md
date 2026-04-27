@@ -1,16 +1,14 @@
 # Credentials
 
-How API keys and tokens are configured. All credentials live on the machine where Tangerine runs.
+How tokens are configured. All credentials live on the machine where Tangerine runs.
 
 ## Credential Types
 
 | Credential | Purpose | Source |
 |------------|---------|--------|
-| OpenCode `auth.json` | LLM provider auth for OpenCode (API keys or OAuth tokens) | `~/.local/share/opencode/auth.json` |
-| `CLAUDE_CODE_OAUTH_TOKEN` | Claude Code OAuth authentication | Dotfile or env var |
-| `ANTHROPIC_API_KEY` | Direct Anthropic API key (both providers) | Dotfile or env var |
-| `TANGERINE_AUTH_TOKEN` | Shared bearer token for dashboard/API/WebSocket access | Dotfile or env var |
+| `TANGERINE_AUTH_TOKEN` | Shared bearer token for dashboard/API/WebSocket access and agent self-calls | Dotfile or env var |
 | `EXTERNAL_HOST` | External hostname for access (e.g. Tailscale hostname) | Dotfile or env var (default: `localhost`) |
+| ACP agent credentials | LLM auth for the configured ACP agent command | Managed by that agent's own CLI/config |
 
 ## GitHub Authentication
 
@@ -20,42 +18,35 @@ The startup check (`tangerine start`) verifies `gh auth status` and warns if una
 
 ## Credential Storage
 
-Three sources (in priority order — first match wins):
+Two Tangerine-controlled sources (priority order — first match wins):
 
-1. **Environment variables** — `ANTHROPIC_API_KEY`, `CLAUDE_CODE_OAUTH_TOKEN`, `TANGERINE_AUTH_TOKEN`, etc.
+1. **Environment variables** — `TANGERINE_AUTH_TOKEN`, `EXTERNAL_HOST`, etc.
 2. **Dotfile** (`~/tangerine/.credentials`) — managed via `tangerine secret`, mode 0600
-3. **OpenCode auth.json** (`~/.local/share/opencode/auth.json`) — LLM provider credentials for OpenCode
+
+ACP agent credentials are outside Tangerine. Configure and authenticate each ACP agent command directly before starting Tangerine.
 
 ### Credential Dotfile
 
 `~/tangerine/.credentials` stores credentials as `KEY=VALUE` lines (mode 0600). Managed via `tangerine secret`:
 
 ```bash
-tangerine secret set ANTHROPIC_API_KEY=sk-ant-...
 tangerine secret set TANGERINE_AUTH_TOKEN=$(openssl rand -hex 32)
-tangerine secret get ANTHROPIC_API_KEY
-tangerine secret delete ANTHROPIC_API_KEY
+tangerine secret get TANGERINE_AUTH_TOKEN
+tangerine secret delete TANGERINE_AUTH_TOKEN
 tangerine secret list                          # shows all keys, values masked
 ```
 
-Allowed keys: `ANTHROPIC_API_KEY`, `CLAUDE_CODE_OAUTH_TOKEN`, `TANGERINE_AUTH_TOKEN`, `EXTERNAL_HOST`.
+Allowed keys: `TANGERINE_AUTH_TOKEN`, `EXTERNAL_HOST`.
 
 Env vars override dotfile values. Server reads dotfile at startup via `loadConfig()`.
 
 ## Agent Credential Resolution
 
-Agents run as local processes and inherit the server's environment. The task lifecycle sets credential env vars before spawning the agent.
+ACP agents run as local processes and inherit the server environment plus Tangerine task env vars.
 
-This includes `TANGERINE_AUTH_TOKEN`, so agent prompts can use authenticated `curl` calls back into the Tangerine API.
+Tangerine injects `TANGERINE_AUTH_TOKEN` into agent processes so prompts can use authenticated `curl` calls back into the Tangerine API.
 
-### Per-Provider Validation
-
-Task creation validates that credentials exist for the requested provider:
-
-- `claude-code` → requires `CLAUDE_CODE_OAUTH_TOKEN` or `ANTHROPIC_API_KEY`
-- `opencode` → requires `auth.json` or `ANTHROPIC_API_KEY`
-
-Missing credentials fail fast with an actionable error message before the task starts.
+Tangerine does not validate LLM credentials. If an ACP agent fails due to missing credentials, authenticate that agent's CLI/config directly and retry.
 
 ## PR Creation
 
@@ -70,7 +61,7 @@ gh pr create --base main --head tangerine/abc123 --fill
 ## Security Notes
 
 - Dotfile stored with mode 0600
-- `auth.json` stored with mode 0600
 - The dashboard stores `TANGERINE_AUTH_TOKEN` in browser `localStorage` on the client machine after unlock
+- ACP agent credentials stay in each agent's native storage
 - Credentials persist between tasks (acceptable for local single-user)
 - Remote access over LAN/Tailscale should use `TANGERINE_AUTH_TOKEN`

@@ -64,15 +64,15 @@ async function captureOutput(
 
 describe("tangerine secret set", () => {
   it("writes key to .credentials", async () => {
-    const { stdout } = await captureOutput(() => runSecret(["set", "ANTHROPIC_API_KEY=sk-ant-test123"]))
-    expect(stdout).toContain("Set ANTHROPIC_API_KEY=")
-    expect(readCredentialsFile().ANTHROPIC_API_KEY).toBe("sk-ant-test123")
+    const { stdout } = await captureOutput(() => runSecret(["set", "TANGERINE_AUTH_TOKEN=token-test123"]))
+    expect(stdout).toContain("Set TANGERINE_AUTH_TOKEN=")
+    expect(readCredentialsFile().TANGERINE_AUTH_TOKEN).toBe("token-test123")
   })
 
   it("masks value in output", async () => {
-    const { stdout } = await captureOutput(() => runSecret(["set", "ANTHROPIC_API_KEY=sk-ant-abcdef"]))
-    expect(stdout).not.toContain("sk-ant-abcdef")
-    expect(stdout).toContain("sk-a")
+    const { stdout } = await captureOutput(() => runSecret(["set", "TANGERINE_AUTH_TOKEN=token-abcdef"]))
+    expect(stdout).not.toContain("token-abcdef")
+    expect(stdout).toContain("toke")
   })
 
   it("rejects unknown keys", async () => {
@@ -82,7 +82,7 @@ describe("tangerine secret set", () => {
   })
 
   it("rejects empty value", async () => {
-    const { stderr, exitCode } = await captureOutput(() => runSecret(["set", "ANTHROPIC_API_KEY="]))
+    const { stderr, exitCode } = await captureOutput(() => runSecret(["set", "TANGERINE_AUTH_TOKEN="]))
     expect(stderr).toContain("cannot be empty")
     expect(exitCode).toBe(1)
   })
@@ -101,7 +101,7 @@ describe("tangerine secret get", () => {
   })
 
   it("returns (not set) for missing key", async () => {
-    const { stdout } = await captureOutput(() => runSecret(["get", "ANTHROPIC_API_KEY"]))
+    const { stdout } = await captureOutput(() => runSecret(["get", "EXTERNAL_HOST"]))
     expect(stdout).toBe("(not set)")
   })
 
@@ -114,11 +114,11 @@ describe("tangerine secret get", () => {
 
 describe("tangerine secret list", () => {
   it("lists all keys, masks set values", async () => {
-    writeCredentialsFile({ ANTHROPIC_API_KEY: "sk-ant-abcdef" })
+    writeCredentialsFile({ TANGERINE_AUTH_TOKEN: "token-abcdef" })
     const { stdout } = await captureOutput(() => runSecret(["list"]))
-    expect(stdout).toContain("ANTHROPIC_API_KEY")
-    expect(stdout).toContain("sk-a")
-    expect(stdout).not.toContain("sk-ant-abcdef")
+    expect(stdout).toContain("TANGERINE_AUTH_TOKEN")
+    expect(stdout).toContain("toke")
+    expect(stdout).not.toContain("token-abcdef")
   })
 
   it("shows (not set) for unset keys", async () => {
@@ -129,14 +129,14 @@ describe("tangerine secret list", () => {
 
 describe("tangerine secret delete", () => {
   it("removes a key from .credentials", async () => {
-    writeCredentialsFile({ ANTHROPIC_API_KEY: "sk-ant-xyz" })
-    const { stdout } = await captureOutput(() => runSecret(["delete", "ANTHROPIC_API_KEY"]))
-    expect(stdout).toContain("Deleted ANTHROPIC_API_KEY")
-    expect(readCredentialsFile().ANTHROPIC_API_KEY).toBeUndefined()
+    writeCredentialsFile({ TANGERINE_AUTH_TOKEN: "token-xyz" })
+    const { stdout } = await captureOutput(() => runSecret(["delete", "TANGERINE_AUTH_TOKEN"]))
+    expect(stdout).toContain("Deleted TANGERINE_AUTH_TOKEN")
+    expect(readCredentialsFile().TANGERINE_AUTH_TOKEN).toBeUndefined()
   })
 
   it("reports key was not set", async () => {
-    const { stdout } = await captureOutput(() => runSecret(["delete", "ANTHROPIC_API_KEY"]))
+    const { stdout } = await captureOutput(() => runSecret(["delete", "TANGERINE_AUTH_TOKEN"]))
     expect(stdout).toContain("was not set")
   })
 

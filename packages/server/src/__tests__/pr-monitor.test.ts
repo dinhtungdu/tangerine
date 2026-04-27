@@ -165,7 +165,7 @@ function makeTaskRow(overrides?: Partial<TaskRow>): TaskRow {
     type: "worker",
     description: null,
     status: "running",
-    provider: "opencode",
+    provider: "acp",
     model: null,
     reasoning_effort: null,
     branch: "tangerine/abc123",

@@ -8,6 +8,11 @@ export {
   type Task,
   type TaskWriteResponse,
   type Cron,
+  type AgentContentBlock,
+  type AgentPlanEntry,
+  type AgentConfigOption,
+  type AgentConfigOptionValue,
+  type AgentId,
   type ProviderType,
   type ActivityType,
   type ActivityEntry,
@@ -22,12 +27,15 @@ export {
 export {
   projectConfigSchema,
   actionComboSchema,
+  agentConfigSchema,
   tangerineConfigSchema,
+  resolveDefaultAgentId,
   resolveTaskTypeConfig,
 } from "./config"
 
 export type {
   ActionCombo,
+  AgentConfig,
   PredefinedPrompt,
   TaskTypeConfig,
   ProjectConfig,
@@ -39,7 +47,6 @@ export type {
 export {
   DEFAULT_API_PORT,
   DEFAULT_SSL_PORT,
-  DEFAULT_OPENCODE_PORT,
   DEFAULT_POLL_INTERVAL_MINUTES,
   DEFAULT_IDLE_TIMEOUT_MS,
   DEFAULT_MIN_READY,
@@ -49,9 +56,7 @@ export {
   MAX_RETRY_ATTEMPTS,
   WS_HEARTBEAT_INTERVAL_MS,
   WS_HEARTBEAT_TIMEOUT_MS,
-  DEFAULT_PROVIDER,
-  PROVIDER_DISPLAY_NAMES,
-  SUPPORTED_PROVIDERS,
+  DEFAULT_AGENT_ID,
   ORCHESTRATOR_TASK_NAME,
   TERMINAL_STATUSES,
   isGithubRepo,

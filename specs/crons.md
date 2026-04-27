@@ -56,7 +56,7 @@ List crons. Optional `?project=<id>` filter.
   "description": "Run test suite",
   "cron": "0 9 * * 1-5",
   "enabled": true,
-  "taskDefaults": { "provider": "claude-code", "model": "claude-sonnet-4-6" }
+  "taskDefaults": { "provider": "acp" }
 }
 ```
 

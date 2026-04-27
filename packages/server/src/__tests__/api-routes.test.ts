@@ -9,13 +9,15 @@ import { TaskNotFoundError } from "../errors"
 import type { TaskRow } from "../db/types"
 import type { RawConfig } from "../config"
 import { createAgentFactories } from "../agent/factories"
-import type { AgentFactories } from "../agent/factories"
+import { getTaskState } from "../tasks/task-state"
 
 function createMockDeps(db: Database, configOverrides?: Partial<AppDeps["config"]["config"]>): AppDeps {
   const configData = {
     projects: [
-      { name: "test-project", repo: "test/repo", defaultBranch: "main", setup: "echo ok", defaultProvider: "opencode" as const },
+      { name: "test-project", repo: "test/repo", defaultBranch: "main", setup: "echo ok", defaultAgent: "acp" },
     ],
+    agents: [{ id: "acp", name: "ACP", command: "acp-agent" }],
+    defaultAgent: "acp",
     integrations: {},
     model: "openai/gpt-4o",
     models: ["openai/gpt-4o"],
@@ -76,7 +78,7 @@ function createMockDeps(db: Database, configOverrides?: Partial<AppDeps["config"
         return Effect.succeed(undefined as void)
       },
       abortTask() { return Effect.succeed(undefined as void) },
-      changeConfig(taskId: string, config: { model?: string; reasoningEffort?: string }) {
+      changeConfig(taskId: string, config: { model?: string; reasoningEffort?: string; mode?: string }) {
         return Effect.sync(() => {
           if (config.model) db.prepare("UPDATE tasks SET model = ? WHERE id = ?").run(config.model, taskId)
           if (config.reasoningEffort) db.prepare("UPDATE tasks SET reasoning_effort = ? WHERE id = ?").run(config.reasoningEffort, taskId)
@@ -112,9 +114,6 @@ function createMockDeps(db: Database, configOverrides?: Partial<AppDeps["config"
     config: {
       config: configData as AppDeps["config"]["config"],
       credentials: {
-        opencodeAuthPath: null,
-        claudeOauthToken: null,
-        anthropicApiKey: null,
         tangerineAuthToken: null,
         serverPort: 3456,
         externalHost: "localhost",
@@ -122,15 +121,12 @@ function createMockDeps(db: Database, configOverrides?: Partial<AppDeps["config"
       },
     } satisfies AppDeps["config"],
     getAgentHandle: () => null,
-    agentFactories: createAgentFactories(),
+    agentFactories: createAgentFactories({ agents: configData.agents }),
     systemCapabilities: {
       git: { available: true },
       gh: { available: true, authenticated: true },
       providers: {
-        opencode: { available: true, cliCommand: "opencode" },
-        "claude-code": { available: true, cliCommand: "claude" },
-        codex: { available: true, cliCommand: "codex" },
-        pi: { available: true, cliCommand: "pi" },
+        acp: { available: true, cliCommand: "acp-agent" },
       },
     },
   }
@@ -393,7 +389,8 @@ describe("API routes", () => {
       expect(body.error).toContain("provider")
     })
 
-    test("passes explicit provider to createTask when specified", async () => {
+    test("accepts configured ACP agent ids as providers", async () => {
+      deps.config.config.agents = [{ id: "my-agent", name: "My Agent", command: "my-agent-acp" }]
       let capturedProvider: string | undefined
       const original = deps.taskManager.createTask
       deps.taskManager.createTask = (params) => {
@@ -404,52 +401,39 @@ describe("API routes", () => {
       const res = await app.fetch(new Request("http://localhost/api/tasks", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ projectId: "test-project", title: "New task", provider: "my-agent" }),
+      }))
+
+      expect(res.status).toBe(201)
+      expect(capturedProvider).toBe("my-agent")
+    })
+
+    test("rejects legacy provider ids when they are not configured ACP agents", async () => {
+      const res = await app.fetch(new Request("http://localhost/api/tasks", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ projectId: "test-project", title: "New task", provider: "claude-code" }),
       }))
-      expect(res.status).toBe(201)
-      expect(capturedProvider).toBe("claude-code")
-    })
-
-    test("returns 400 for reasoningEffort invalid for provider (xhigh on claude-code)", async () => {
-      const res = await app.fetch(new Request("http://localhost/api/tasks", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ projectId: "test-project", title: "Task", provider: "claude-code", reasoningEffort: "xhigh" }),
-      }))
       expect(res.status).toBe(400)
       const body = await res.json() as { error: string }
-      expect(body.error).toContain("xhigh")
-      expect(body.error).toContain("claude-code")
+      expect(body.error).toContain("Invalid provider")
     })
 
-    test("accepts valid reasoningEffort for provider (max on claude-code)", async () => {
+    test("passes ACP reasoningEffort through without legacy provider validation", async () => {
+      let capturedReasoning: string | undefined
+      const original = deps.taskManager.createTask
+      deps.taskManager.createTask = (params) => {
+        capturedReasoning = params.reasoningEffort
+        return original(params)
+      }
+
       const res = await app.fetch(new Request("http://localhost/api/tasks", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ projectId: "test-project", title: "Task", provider: "claude-code", reasoningEffort: "max" }),
+        body: JSON.stringify({ projectId: "test-project", title: "Task", provider: "acp", reasoningEffort: "agent-specific" }),
       }))
       expect(res.status).toBe(201)
-    })
-
-    test("accepts xhigh reasoningEffort for codex provider", async () => {
-      const res = await app.fetch(new Request("http://localhost/api/tasks", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ projectId: "test-project", title: "Task", provider: "codex", reasoningEffort: "xhigh" }),
-      }))
-      expect(res.status).toBe(201)
-    })
-
-    test("returns 400 for reasoningEffort invalid for project default provider", async () => {
-      // test-project defaultProvider is "opencode", which has low/medium/high but not xhigh
-      const res = await app.fetch(new Request("http://localhost/api/tasks", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ projectId: "test-project", title: "Task", reasoningEffort: "xhigh" }),
-      }))
-      expect(res.status).toBe(400)
-      const body = await res.json() as { error: string }
-      expect(body.error).toContain("xhigh")
+      expect(capturedReasoning).toBe("agent-specific")
     })
 
     test("accepts prUrl for worker tasks", async () => {
@@ -778,6 +762,32 @@ describe("API routes", () => {
     })
   })
 
+  describe("GET /api/tasks/:id/config-options", () => {
+    test("returns active ACP session config options", async () => {
+      const row = seedTask(db)
+      ;(getTaskState(row.id) as { configOptions?: unknown[] }).configOptions = [{
+        id: "model",
+        name: "Model",
+        category: "model",
+        type: "select",
+        currentValue: "gpt-5",
+        options: [{ value: "gpt-5", name: "GPT-5" }],
+      }]
+
+      const res = await app.fetch(new Request(`http://localhost/api/tasks/${row.id}/config-options`))
+
+      expect(res.status).toBe(200)
+      expect(await res.json()).toEqual({ configOptions: [{
+        id: "model",
+        name: "Model",
+        category: "model",
+        type: "select",
+        currentValue: "gpt-5",
+        options: [{ value: "gpt-5", name: "GPT-5" }],
+      }] })
+    })
+  })
+
   describe("GET /api/tasks/:id/messages", () => {
     test("returns empty messages for new task", async () => {
       const row = seedTask(db)
@@ -870,7 +880,21 @@ describe("API routes", () => {
       expect(updated.reasoning_effort).toBe("high")
     })
 
-    test("returns 400 without model or reasoningEffort", async () => {
+    test("changes ACP mode for a task", async () => {
+      const row = seedTask(db)
+      db.prepare("UPDATE tasks SET status = 'running' WHERE id = ?").run(row.id)
+      let received: { mode?: string } | undefined
+      deps.taskManager.changeConfig = (_taskId, config) => Effect.sync(() => { received = config })
+      const res = await app.fetch(new Request(`http://localhost/api/tasks/${row.id}/model`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ mode: "code" }),
+      }))
+      expect(res.status).toBe(200)
+      expect(received).toEqual({ mode: "code" })
+    })
+
+    test("returns 400 without model, reasoningEffort, or mode", async () => {
       const row = seedTask(db)
       const res = await app.fetch(new Request(`http://localhost/api/tasks/${row.id}/model`, {
         method: "POST",
@@ -880,29 +904,38 @@ describe("API routes", () => {
       expect(res.status).toBe(400)
     })
 
-    test("returns 400 for reasoningEffort invalid for task's provider (xhigh on claude-code task)", async () => {
-      const row = seedTask(db, { provider: "claude-code" })
+    test("passes ACP reasoningEffort changes through without legacy provider validation", async () => {
+      const row = seedTask(db, { provider: "acp" })
       db.prepare("UPDATE tasks SET status = 'running' WHERE id = ?").run(row.id)
       const res = await app.fetch(new Request(`http://localhost/api/tasks/${row.id}/model`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ reasoningEffort: "xhigh" }),
-      }))
-      expect(res.status).toBe(400)
-      const body = await res.json() as { error: string }
-      expect(body.error).toContain("xhigh")
-      expect(body.error).toContain("claude-code")
-    })
-
-    test("accepts xhigh reasoningEffort for codex task", async () => {
-      const row = seedTask(db, { provider: "codex" })
-      db.prepare("UPDATE tasks SET status = 'running' WHERE id = ?").run(row.id)
-      const res = await app.fetch(new Request(`http://localhost/api/tasks/${row.id}/model`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ reasoningEffort: "xhigh" }),
+        body: JSON.stringify({ reasoningEffort: "agent-specific" }),
       }))
       expect(res.status).toBe(200)
+      const updated = db.prepare("SELECT reasoning_effort FROM tasks WHERE id = ?").get(row.id) as { reasoning_effort: string }
+      expect(updated.reasoning_effort).toBe("agent-specific")
+    })
+  })
+
+  describe("POST /api/crons", () => {
+    test("accepts configured ACP agent ids in task defaults", async () => {
+      deps.config.config.agents = [{ id: "nightly-agent", name: "Nightly Agent", command: "nightly-acp" }]
+
+      const res = await app.fetch(new Request("http://localhost/api/crons", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          projectId: "test-project",
+          title: "Nightly",
+          cron: "0 9 * * 1",
+          taskDefaults: { provider: "nightly-agent" },
+        }),
+      }))
+
+      expect(res.status).toBe(201)
+      const body = await res.json() as { taskDefaults: { provider?: string } | null }
+      expect(body.taskDefaults?.provider).toBe("nightly-agent")
     })
   })
 
@@ -919,53 +952,23 @@ describe("API routes", () => {
   })
 
   describe("GET /api/projects", () => {
-    test("returns provider-keyed models even when discovery is empty", async () => {
-      deps.agentFactories = {
-        ...deps.agentFactories,
-        opencode: {
-          ...deps.agentFactories.opencode,
-          listModels: () => [],
-        },
-        "claude-code": {
-          ...deps.agentFactories["claude-code"],
-          listModels: () => [],
-        },
-        codex: {
-          ...deps.agentFactories.codex,
-          listModels: () => [],
-        },
-        pi: {
-          ...deps.agentFactories.pi,
-          listModels: () => [],
-        },
-      } satisfies AgentFactories
-      app = createApp(deps).app
-
+    test("does not expose legacy provider metadata or model discovery", async () => {
       const res = await app.fetch(new Request("http://localhost/api/projects"))
       expect(res.status).toBe(200)
-      const body = await res.json() as { modelsByProvider: Record<string, string[]> }
-      expect(body.modelsByProvider["claude-code"]).toEqual([])
+      const body = await res.json() as { modelsByProvider?: unknown; providerMetadata?: unknown; contextWindowByModel?: unknown }
+      expect(body.modelsByProvider).toBeUndefined()
+      expect(body.providerMetadata).toBeUndefined()
+      expect(body.contextWindowByModel).toBeUndefined()
     })
 
-    test("returns discovered models grouped by provider", async () => {
-      deps.agentFactories = {
-        ...deps.agentFactories,
-        opencode: {
-          ...deps.agentFactories.opencode,
-          listModels: () => [{ id: "openai/gpt-5.4", name: "GPT-5.4", provider: "openai", providerName: "OpenAI" }],
-        },
-        "claude-code": {
-          ...deps.agentFactories["claude-code"],
-          listModels: () => [{ id: "claude-sonnet-4-6", name: "Claude Sonnet 4.6", provider: "anthropic", providerName: "Anthropic" }],
-        },
-      } satisfies AgentFactories
-      app = createApp(deps).app
-
+    test("returns configured ACP agents", async () => {
+      deps.config.config.defaultAgent = "my-agent"
+      deps.config.config.agents = [{ id: "my-agent", name: "My Agent", command: "my-agent-acp" }]
       const res = await app.fetch(new Request("http://localhost/api/projects"))
       expect(res.status).toBe(200)
-      const body = await res.json() as { modelsByProvider: Record<string, string[]> }
-      expect(body.modelsByProvider.opencode).toEqual(["openai/gpt-5.4"])
-      expect(body.modelsByProvider["claude-code"]).toEqual(["claude-sonnet-4-6"])
+      const body = await res.json() as { agents?: unknown[]; defaultAgent?: string }
+      expect(body.defaultAgent).toBe("my-agent")
+      expect(body.agents).toEqual([{ id: "my-agent", name: "My Agent", command: "my-agent-acp" }])
     })
 
     test("includes systemCapabilities in response", async () => {
@@ -975,7 +978,7 @@ describe("API routes", () => {
       expect(body.systemCapabilities).toBeDefined()
       expect(body.systemCapabilities.git).toEqual({ available: true })
       expect(body.systemCapabilities.gh).toEqual({ available: true, authenticated: true })
-      expect(body.systemCapabilities.providers["claude-code"]).toEqual({ available: true, cliCommand: "claude" })
+      expect(body.systemCapabilities.providers.acp).toEqual({ available: true, cliCommand: "acp-agent" })
     })
 
     test("reflects unavailable providers in systemCapabilities", async () => {
@@ -983,15 +986,15 @@ describe("API routes", () => {
         ...deps.systemCapabilities,
         providers: {
           ...deps.systemCapabilities.providers,
-          codex: { available: false, cliCommand: "codex" },
+          "custom-agent": { available: false, cliCommand: "custom-acp" },
         },
       }
       app = createApp(deps).app
 
       const res = await app.fetch(new Request("http://localhost/api/projects"))
       const body = await res.json() as { systemCapabilities: import("@tangerine/shared").SystemCapabilities }
-      expect(body.systemCapabilities.providers.codex).toEqual({ available: false, cliCommand: "codex" })
-      expect(body.systemCapabilities.providers["claude-code"]?.available).toBe(true)
+      expect(body.systemCapabilities.providers["custom-agent"]).toEqual({ available: false, cliCommand: "custom-acp" })
+      expect(body.systemCapabilities.providers.acp?.available).toBe(true)
     })
   })
 

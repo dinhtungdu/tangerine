@@ -10,15 +10,17 @@ import { createAgentFactories } from "../agent/factories"
 function createMockDeps(db: Database, configOverrides?: Partial<AppDeps["config"]["config"]>): AppDeps {
   const configData = {
     projects: [
-      { name: "tangerine", repo: "dinhtungdu/tangerine", defaultBranch: "main", setup: "echo ok", defaultProvider: "claude-code" as const },
+      { name: "tangerine", repo: "dinhtungdu/tangerine", defaultBranch: "main", setup: "echo ok", defaultAgent: "acp" },
     ],
     integrations: {
       github: {
         trigger: { type: "label" as const, value: "tangerine" },
       },
     },
-    model: "anthropic/claude-sonnet-4-6",
-    models: ["anthropic/claude-sonnet-4-6"],
+    agents: [{ id: "acp", name: "ACP", command: "acp-agent" }],
+    defaultAgent: "acp",
+    model: "gpt-5",
+    models: ["gpt-5"],
     ...configOverrides,
   }
 
@@ -75,9 +77,6 @@ function createMockDeps(db: Database, configOverrides?: Partial<AppDeps["config"
     config: {
       config: configData as AppDeps["config"]["config"],
       credentials: {
-        opencodeAuthPath: null,
-        claudeOauthToken: null,
-        anthropicApiKey: null,
         tangerineAuthToken: null,
         serverPort: 3456,
         externalHost: "localhost",
@@ -85,15 +84,12 @@ function createMockDeps(db: Database, configOverrides?: Partial<AppDeps["config"
       },
     } satisfies AppDeps["config"],
     getAgentHandle: () => null,
-    agentFactories: createAgentFactories(),
+    agentFactories: createAgentFactories({ agents: configData.agents }),
     systemCapabilities: {
       git: { available: true },
       gh: { available: true, authenticated: true },
       providers: {
-        opencode: { available: true, cliCommand: "opencode" },
-        "claude-code": { available: true, cliCommand: "claude" },
-        codex: { available: true, cliCommand: "codex" },
-        pi: { available: true, cliCommand: "pi" },
+        acp: { available: true, cliCommand: "acp-agent" },
       },
     },
   }

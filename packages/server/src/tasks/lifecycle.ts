@@ -6,19 +6,19 @@ import { resolve } from "node:path"
 import type { Database } from "bun:sqlite"
 import { createLogger } from "../logger"
 import { SessionStartError } from "../errors"
-import { getHandleMeta as getOpenCodeHandleMeta } from "../agent/opencode-provider"
 import { getRepoDir, resolveWorkspace } from "../config"
 import { resolveTaskTypeConfig, type TangerineConfig } from "@tangerine/shared"
 import type { TaskRow } from "../db/types"
 import { initPool, acquireSlot, acquireOrchestratorSlot } from "./worktree-pool"
 import { buildSystemNotes } from "./prompts"
 import { killProcessTree } from "../agent/process-tree"
+import { getAgentHandleMeta } from "../agent/provider"
 import { resolveGithubSlug, getRepoForkInfo } from "../gh"
 
 const log = createLogger("lifecycle")
 
 // Max time to wait for agentFactory.start() before giving up.
-// Covers process spawn + provider handshake (e.g. Codex RPC init).
+// Covers process spawn + ACP handshake.
 const AGENT_START_TIMEOUT = Duration.seconds(60)
 
 export interface SessionInfo {
@@ -45,6 +45,7 @@ export interface ProjectConfig {
   setup: string
   poolSize?: number
   defaultProvider?: string
+  defaultAgent?: string
   archived?: boolean
   prMode?: "ready" | "draft" | "none"
   taskTypes?: import("@tangerine/shared").ProjectConfig["taskTypes"]
@@ -273,15 +274,7 @@ export function startSession(
       )
     }
 
-    // 4. Kill any stale agent processes in this worktree
-    // Skip for slot 0 — it's shared, so we'd kill a concurrent task's agent.
-    if (!usesSlot0) {
-      yield* localExec(
-        `pkill -f "claude.*${worktreePath}" 2>/dev/null; true`,
-      ).pipe(Effect.catchAll(() => Effect.void))
-    }
-
-    // 5. Detect fork upstream for PR targeting
+    // 4. Detect fork upstream for PR targeting
     let upstreamSlug: string | undefined
     if (task.type === "worker" && config.prMode !== "none") {
       const slug = resolveGithubSlug(config.repo)
@@ -296,7 +289,7 @@ export function startSession(
       }
     }
 
-    // 6. Start agent locally (with timeout to prevent indefinite hangs)
+    // 5. Start agent locally (with timeout to prevent indefinite hangs)
     yield* activity("agent.starting", "Starting agent")
     const systemNotes = buildSystemNotes(task.id, {
       setupCommand: usesSlot0 ? undefined : config.setup, // slot 0 skips setup
@@ -384,10 +377,6 @@ export function reconnectSession(
         taskLog.info("Killed existing agent process tree", { pid: existingPid })
       }).pipe(Effect.catchAll(() => Effect.void))
     }
-    yield* localExec(
-      `pkill -f "claude.*${worktreePath}" 2>/dev/null; true`,
-    ).pipe(Effect.catchAll(() => Effect.void))
-
     // 2b. Bail out if the task was cancelled or failed while we were preparing.
     // Health monitor restarts run async; a cancel/fail can race with reconnect and
     // we must not overwrite the terminal status with "running".
@@ -478,9 +467,9 @@ export function reconnectSession(
 
 export function getAgentRuntimeMeta(handle: import("../agent/provider").AgentHandle): { agentPid: number | null; agentSessionId: string | null } {
   const processMeta = handle as { __pid?: number }
-  const openCodeMeta = getOpenCodeHandleMeta(handle)
+  const agentMeta = getAgentHandleMeta(handle)
   return {
     agentPid: processMeta.__pid ?? null,
-    agentSessionId: openCodeMeta?.sessionId ?? null,
+    agentSessionId: agentMeta?.sessionId ?? null,
   }
 }

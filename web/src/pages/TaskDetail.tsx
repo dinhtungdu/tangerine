@@ -65,7 +65,7 @@ export function TaskDetail() {
   const [paneState, setPaneState] = useState<ResponsivePaneState>(() => loadPaneState(id))
   const { visiblePanes, mobilePane, desktopSyncPane } = paneState
 
-  const { current, modelsByProvider, contextWindowByModel, sshHost, sshUser, editor } = useProject()
+  const { current, sshHost, sshUser, editor } = useProject()
   const { showToast } = useToast()
 
   // When viewing a task from a different project, show that project's orchestrator chat
@@ -234,7 +234,6 @@ export function TaskDetail() {
 
   // The task whose chat is shown — orchestrator when cross-project, otherwise the viewed task
   const chatTask = (isCrossProject && orchestratorTask) ? orchestratorTask : task
-  const providerModels = chatTask ? (modelsByProvider[chatTask.provider] ?? []) : []
 
   const handleModelChange = useCallback(async (model: string) => {
     const targetId = chatTask?.id
@@ -261,6 +260,16 @@ export function TaskDetail() {
       showToast("Failed to change reasoning effort")
     }
   }, [chatTask?.id, isCrossProject, showToast])
+
+  const handleModeChange = useCallback(async (mode: string) => {
+    const targetId = chatTask?.id
+    if (!targetId) return
+    try {
+      await changeTaskConfig(targetId, { mode })
+    } catch {
+      showToast("Failed to change mode")
+    }
+  }, [chatTask?.id, showToast])
 
   const canResolve = chatTask?.capabilities.includes("resolve") ?? false
   const hasPredefinedPrompts = chatTask?.capabilities.includes("predefined-prompts") ?? false
@@ -465,9 +474,6 @@ export function TaskDetail() {
   const { color: statusColor, label: statusLabel } = getStatusConfig(task.status)
   const isTerminated = task.status === "done" || task.status === "failed" || task.status === "cancelled"
 
-  const tokenModel = sessionTask?.model ?? task.model
-  const ctxMax = tokenModel ? contextWindowByModel[tokenModel] : undefined
-
   return (
     <div className="flex h-full">
       {/* Main column */}
@@ -652,7 +658,6 @@ export function TaskDetail() {
                 queueLength={session.queueLength}
                 model={chatTask.model}
                 provider={chatTask.provider}
-                providerModels={providerModels}
                 reasoningEffort={chatTask.reasoningEffort}
                 taskStatus={chatTask.status}
                 taskError={chatTask.error}
@@ -662,6 +667,8 @@ export function TaskDetail() {
                 onAbort={session.abort}
                 onModelChange={handleModelChange}
                 onReasoningEffortChange={handleReasoningEffortChange}
+                onModeChange={handleModeChange}
+                configOptions={session.configOptions}
                 predefinedPrompts={resolvedPrompts}
                 onResolve={canResolve ? handleResolve : undefined}
                 canContinue={canContinue}
@@ -669,7 +676,6 @@ export function TaskDetail() {
                 taskProjectId={chatTask.projectId}
                 autoFocusKey={chatTaskId}
                 contextTokens={session.contextTokens || undefined}
-                contextWindowMax={ctxMax}
               />
             </div>
           )}

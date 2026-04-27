@@ -1,23 +1,20 @@
 import { createContext, useContext, useState, useEffect, useCallback, type ReactNode } from "react"
 import { useSearchParams, useNavigate, useLocation } from "react-router-dom"
-import type { ProjectConfig, ActionCombo, ShortcutConfig, SystemCapabilities } from "@tangerine/shared"
-import { fetchProjects, fetchTasks, ensureOrchestrator, type ProviderMeta } from "../lib/api"
+import type { AgentConfig, ProjectConfig, ActionCombo, ShortcutConfig, SystemCapabilities } from "@tangerine/shared"
+import { fetchProjects, fetchTasks, ensureOrchestrator } from "../lib/api"
 import { getMostRecentTask } from "../lib/task-recency"
 
 interface ProjectContextValue {
   projects: ProjectConfig[]
   current: ProjectConfig | null
-  model: string
-  modelsByProvider: Record<string, string[]>
-  contextWindowByModel: Record<string, number>
-  providerMetadata: Record<string, ProviderMeta>
+  agents: AgentConfig[]
+  defaultAgent?: string
   systemCapabilities: SystemCapabilities | null
   sshHost: string | undefined
   sshUser: string | undefined
   editor: "vscode" | "cursor" | "zed" | undefined
   actionCombos: ActionCombo[]
   shortcuts: Record<string, ShortcutConfig>
-  setModel: (model: string) => void
   switchProject: (name: string, options?: { replace?: boolean }) => void
   refreshProjects: () => void
   loading: boolean
@@ -26,17 +23,14 @@ interface ProjectContextValue {
 const ProjectContext = createContext<ProjectContextValue>({
   projects: [],
   current: null,
-  model: "",
-  modelsByProvider: {},
-  contextWindowByModel: {},
-  providerMetadata: {},
+  agents: [],
+  defaultAgent: undefined,
   systemCapabilities: null,
   sshHost: undefined,
   sshUser: undefined,
   editor: undefined,
   actionCombos: [],
   shortcuts: {},
-  setModel: () => {},
   switchProject: () => {},
   refreshProjects: () => {},
   loading: true,
@@ -47,12 +41,9 @@ export function ProjectProvider({ children }: { children: ReactNode }) {
   const navigate = useNavigate()
   const location = useLocation()
   const [projects, setProjects] = useState<ProjectConfig[]>([])
-  const [globalModel, setGlobalModel] = useState("")
-  const [modelsByProvider, setModelsByProvider] = useState<Record<string, string[]>>({})
-  const [contextWindowByModel, setContextWindowByModel] = useState<Record<string, number>>({})
-  const [providerMetadata, setProviderMetadata] = useState<Record<string, ProviderMeta>>({})
+  const [agents, setAgents] = useState<AgentConfig[]>([])
+  const [defaultAgent, setDefaultAgent] = useState<string | undefined>(undefined)
   const [systemCapabilities, setSystemCapabilities] = useState<SystemCapabilities | null>(null)
-  const [selectedModel, setSelectedModel] = useState<string | null>(null)
   const [sshHost, setSshHost] = useState<string | undefined>(undefined)
   const [sshUser, setSshUser] = useState<string | undefined>(undefined)
   const [editor, setEditor] = useState<"vscode" | "cursor" | "zed" | undefined>(undefined)
@@ -60,51 +51,37 @@ export function ProjectProvider({ children }: { children: ReactNode }) {
   const [shortcuts, setShortcuts] = useState<Record<string, ShortcutConfig>>({})
   const [loading, setLoading] = useState(true)
 
+  const applyProjectsResponse = useCallback((data: Awaited<ReturnType<typeof fetchProjects>>) => {
+    setProjects(data.projects)
+    setAgents(data.agents ?? [])
+    setDefaultAgent(data.defaultAgent)
+    setSystemCapabilities(data.systemCapabilities ?? null)
+    setSshHost(data.sshHost)
+    setSshUser(data.sshUser)
+    setEditor(data.editor)
+    setActionCombos(data.actionCombos ?? [])
+    setShortcuts(data.shortcuts ?? {})
+  }, [])
+
   useEffect(() => {
     fetchProjects()
-      .then((data) => {
-        setProjects(data.projects)
-        setGlobalModel(data.model)
-        setModelsByProvider(data.modelsByProvider ?? {})
-        setContextWindowByModel(data.contextWindowByModel ?? {})
-        setProviderMetadata(data.providerMetadata ?? {})
-        setSystemCapabilities(data.systemCapabilities ?? null)
-        setSshHost(data.sshHost)
-        setSshUser(data.sshUser)
-        setEditor(data.editor)
-        setActionCombos(data.actionCombos ?? [])
-        setShortcuts(data.shortcuts ?? {})
-      })
+      .then(applyProjectsResponse)
       .catch(() => {})
       .finally(() => setLoading(false))
-  }, [])
+  }, [applyProjectsResponse])
 
   const projectParam = searchParams.get("project")
   const defaultProject = projects.find((p) => !p.archived) ?? projects[0] ?? null
   const current = projects.find((p) => p.name === projectParam) ?? defaultProject
-  const model = selectedModel ?? current?.model ?? globalModel
 
   const refreshProjects = useCallback(() => {
     fetchProjects()
-      .then((data) => {
-        setProjects(data.projects)
-        setGlobalModel(data.model)
-        setModelsByProvider(data.modelsByProvider ?? {})
-        setContextWindowByModel(data.contextWindowByModel ?? {})
-        setProviderMetadata(data.providerMetadata ?? {})
-        setSystemCapabilities(data.systemCapabilities ?? null)
-        setSshHost(data.sshHost)
-        setSshUser(data.sshUser)
-        setEditor(data.editor)
-        setActionCombos(data.actionCombos ?? [])
-        setShortcuts(data.shortcuts ?? {})
-      })
+      .then(applyProjectsResponse)
       .catch(() => {})
-  }, [])
+  }, [applyProjectsResponse])
 
   const switchProject = useCallback(
     (name: string, { replace = false }: { replace?: boolean } = {}) => {
-      setSelectedModel(null)
       if (location.pathname.startsWith("/tasks/")) {
         const projectParam = `?project=${encodeURIComponent(name)}`
         fetchTasks({ project: name }).then((tasks) => {
@@ -148,7 +125,7 @@ export function ProjectProvider({ children }: { children: ReactNode }) {
   }, [loading, projects, projectParam, setSearchParams])
 
   return (
-    <ProjectContext.Provider value={{ projects, current, model, modelsByProvider, contextWindowByModel, providerMetadata, systemCapabilities, sshHost, sshUser, editor, actionCombos, shortcuts, setModel: setSelectedModel, switchProject, refreshProjects, loading }}>
+    <ProjectContext.Provider value={{ projects, current, agents, defaultAgent, systemCapabilities, sshHost, sshUser, editor, actionCombos, shortcuts, switchProject, refreshProjects, loading }}>
       {children}
     </ProjectContext.Provider>
   )

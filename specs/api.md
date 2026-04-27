@@ -38,8 +38,8 @@ Tangerine uses a single shared bearer token for remote single-user access when `
   "title": "Review PR #123",
   "type": "reviewer",
   "description": "Check for regressions",
-  "provider": "codex",
-  "model": "openai/gpt-5.4",
+  "provider": "acp",
+  "model": "gpt-5",
   "reasoningEffort": "high",
   "source": "cross-project",
   "branch": "#123",
@@ -47,12 +47,9 @@ Tangerine uses a single shared bearer token for remote single-user access when `
 }
 ```
 
-Current provider values:
+Current provider values are configured ACP agent IDs from top-level `agents[]`; default fallback ID is `acp`. Legacy provider IDs are rejected unless explicitly configured as ACP agent IDs.
 
-- `opencode`
-- `claude-code`
-- `codex`
-- `pi`
+If `provider` is omitted, task creation resolves `project.defaultAgent`, then top-level `defaultAgent`, then `acp`. `project.defaultProvider` is accepted only as deprecated migration input.
 
 Current task types:
 
@@ -75,7 +72,8 @@ Current task types:
 | POST | `/api/tasks/:id/prompt` | Send a prompt |
 | POST | `/api/tasks/:id/chat` | Send a prompt and return `202` immediately |
 | POST | `/api/tasks/:id/abort` | Abort the current run |
-| POST | `/api/tasks/:id/model` | Change model and/or reasoning effort |
+| POST | `/api/tasks/:id/model` | Change model, reasoning effort, and/or ACP mode |
+| GET | `/api/tasks/:id/config-options` | Return active ACP session config options |
 | GET | `/api/tasks/:id/diff` | Return parsed git diff files |
 | GET | `/api/tasks/:id/activities` | List activity log entries |
 
@@ -83,7 +81,7 @@ Current task types:
 
 | Method | Path | Description |
 |--------|------|-------------|
-| GET | `/api/projects` | List configured projects, available models, and SSH editor config |
+| GET | `/api/projects` | List configured projects, ACP agents, capabilities, and SSH editor config |
 | GET | `/api/projects/:name` | Get one project |
 | POST | `/api/projects` | Register a project |
 | PUT | `/api/projects/:name` | Update a project |
@@ -96,9 +94,11 @@ Current task types:
 
 `GET /api/projects` returns:
 
-- `modelsByProvider`: the authoritative discovered models keyed by provider
+- `agents`: configured ACP agents from top-level config
+- `defaultAgent`: top-level default ACP agent ID, when set
+- `systemCapabilities`: installed/authenticated tool and ACP agent command status
 
-Provider model discovery is owned by the provider contract via `listModels()`. `GET /api/projects` re-reads provider model availability when the response is built.
+Provider metadata, model discovery, and context-window maps are not exposed. Model/reasoning/mode selectors use per-session ACP config options from `GET /api/tasks/:id/config-options` and `config.options` WebSocket events.
 
 ### System
 
@@ -131,6 +131,12 @@ These routes follow the same bearer-token rules as the rest of `/api/*`.
 ```text
 WS /api/tasks/:id/ws
 ```
+
+Task event payloads include legacy normalized chat/activity events plus ACP-derived events:
+
+- `{ event: "config.options", configOptions }` for ACP session config selectors
+- `{ event: "plan", entries }` for ACP plan cards
+- `{ event: "content.block", block }` for ACP non-text content blocks
 
 Server messages match the shared type shape:
 

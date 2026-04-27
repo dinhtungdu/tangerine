@@ -45,7 +45,7 @@ describe("mapTaskRow", () => {
       type: "worker",
         description: null,
       status: "running",
-      provider: "claude-code",
+      provider: "acp",
       model: null,
       reasoning_effort: null,
       branch: null,
@@ -82,7 +82,7 @@ describe("updateTask skipUpdatedAt", () => {
     const id = crypto.randomUUID()
     db.prepare(
       "INSERT INTO tasks (id, project_id, source, title, status, provider, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, datetime('now', '-1 hour'), datetime('now', '-1 hour'))",
-    ).run(id, "test", "manual", "Test", "running", "claude-code")
+    ).run(id, "test", "manual", "Test", "running", "acp")
 
     const before = db.prepare("SELECT updated_at FROM tasks WHERE id = ?").get(id) as { updated_at: string }
     Effect.runSync(updateTask(db, id, { title: "Updated" }))
@@ -96,7 +96,7 @@ describe("updateTask skipUpdatedAt", () => {
     const id = crypto.randomUUID()
     db.prepare(
       "INSERT INTO tasks (id, project_id, source, title, status, provider, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, datetime('now', '-1 hour'), datetime('now', '-1 hour'))",
-    ).run(id, "test", "manual", "Test", "running", "claude-code")
+    ).run(id, "test", "manual", "Test", "running", "acp")
 
     const before = db.prepare("SELECT updated_at FROM tasks WHERE id = ?").get(id) as { updated_at: string }
     Effect.runSync(updateTask(db, id, { last_seen_at: new Date().toISOString() }, { skipUpdatedAt: true }))
@@ -110,7 +110,7 @@ describe("updateTask skipUpdatedAt", () => {
     const id = crypto.randomUUID()
     db.prepare(
       "INSERT INTO tasks (id, project_id, source, title, status, provider, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, datetime('now'), datetime('now'))",
-    ).run(id, "test", "manual", "Test", "running", "claude-code")
+    ).run(id, "test", "manual", "Test", "running", "acp")
 
     const before = db.prepare("SELECT updated_at FROM tasks WHERE id = ?").get(id) as { updated_at: string }
     Effect.runSync(markTaskSeen(db, id))
@@ -125,7 +125,7 @@ describe("updateTask skipUpdatedAt", () => {
     const id = crypto.randomUUID()
     db.prepare(
       "INSERT INTO tasks (id, project_id, source, title, status, provider, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, datetime('now'), datetime('now'))",
-    ).run(id, "test", "manual", "Test", "running", "claude-code")
+    ).run(id, "test", "manual", "Test", "running", "acp")
 
     const before = db.prepare("SELECT updated_at FROM tasks WHERE id = ?").get(id) as { updated_at: string }
     Effect.runSync(markTaskResult(db, id))

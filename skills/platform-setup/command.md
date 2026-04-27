@@ -1,7 +1,7 @@
 ---
 description: Set up Tangerine — on host machine or in a VM, install tools, configure projects, install agent skills
 ---
-Read SKILL.md for full instructions (`~/.claude/skills/platform-setup/SKILL.md` on Claude Code, `~/.codex/skills/platform-setup/SKILL.md` on Codex).
+Read SKILL.md for full instructions (`~/.config/acp/skills/platform-setup/SKILL.md`).
 
 **Step 0 — Detect environment (run these checks in parallel):**
 ```bash
@@ -22,8 +22,8 @@ Determine mode:
 
 **Mode 2 — Lima VM setup**: Follow Mode 2 steps in SKILL.md.
 
-**Mode 3 — Add a project**: Read reference files first:
-- `~/.claude/skills/platform-setup/references/stacks.md` (Claude Code) or `~/.codex/skills/platform-setup/references/stacks.md` (Codex)
+**Mode 3 — Add a project**: Read reference first:
+- `~/.config/acp/skills/platform-setup/references/stacks.md`
 
 Then follow the Project Setup Workflow in SKILL.md:
 1. Get repo URL (and optional project name) from user
@@ -32,7 +32,8 @@ Then follow the Project Setup Workflow in SKILL.md:
 4. Scan the cloned repo for stack
 5. Present plan, get confirmation
 6. Write project config to `~/tangerine/config.json`
-7. Ask about agent skills to install (run `bin/tangerine install` — symlinks into each provider's configured skills dir)
-8. Guide through `bin/tangerine start`
+7. Ask about ACP agent command(s) to configure
+8. Run `bin/tangerine install` to install skills into the ACP skills dir
+9. Guide through `bin/tangerine start`
 
 $ARGUMENTS

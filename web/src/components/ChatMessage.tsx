@@ -6,6 +6,7 @@ import remarkGfm from "remark-gfm"
 import remarkBreaks from "remark-breaks"
 import { visit } from "unist-util-visit"
 import type { Root, Text, Parent, Link } from "mdast"
+import type { AgentContentBlock, AgentPlanEntry } from "@tangerine/shared"
 import type { ChatMessage as ChatMessageType } from "../hooks/useSession"
 import { formatTimestamp } from "../lib/format"
 import { useNavigate } from "react-router-dom"
@@ -229,6 +230,89 @@ function ThinkingMessage({ message, isActive, duration }: {
   )
 }
 
+function getContentBlock(message: ChatMessageType): AgentContentBlock | null {
+  if (message.contentBlock) return message.contentBlock
+  try {
+    const parsed = JSON.parse(message.content) as unknown
+    return typeof parsed === "object" && parsed !== null && "type" in parsed && typeof parsed.type === "string"
+      ? parsed as AgentContentBlock
+      : null
+  } catch {
+    return null
+  }
+}
+
+function ContentBlockMessage({ message }: { message: ChatMessageType }) {
+  const block = getContentBlock(message)
+  if (!block) return null
+  const title = typeof block.title === "string" ? block.title
+    : typeof block.name === "string" ? block.name
+      : typeof block.uri === "string" ? block.uri
+        : block.type
+  const uri = typeof block.uri === "string" ? block.uri : null
+  const label = block.type === "resource_link" ? "Resource link"
+    : block.type === "resource" ? "Resource"
+      : block.type === "image" ? "Image"
+        : block.type
+
+  return (
+    <div className="animate-fade-in flex flex-col gap-2 rounded-lg border border-border bg-muted/30 p-3">
+      <div className="flex items-center gap-2">
+        <div className="flex h-5 w-5 items-center justify-center rounded-[10px] bg-sky-500/15">
+          <svg className="h-2.5 w-2.5 text-sky-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+            <path strokeLinecap="round" strokeLinejoin="round" d="M19.5 14.25v-2.625a3.375 3.375 0 0 0-3.375-3.375h-1.5A1.125 1.125 0 0 1 13.5 7.125v-1.5A3.375 3.375 0 0 0 10.125 2.25H8.25m2.25 0H5.625c-.621 0-1.125.504-1.125 1.125v17.25c0 .621.504 1.125 1.125 1.125h12.75c.621 0 1.125-.504 1.125-1.125V11.25a9 9 0 0 0-9-9Z" />
+          </svg>
+        </div>
+        <span className="text-xs font-medium text-sky-500/80">{label}</span>
+        <span className="text-2xs text-muted-foreground/50">{formatTimestamp(message.timestamp)}</span>
+      </div>
+      <div className="rounded-md bg-background/60 px-2.5 py-2">
+        <div className="text-xs font-medium text-foreground">{title}</div>
+        {uri && <div className="mt-1 break-all font-mono text-2xs text-muted-foreground">{uri}</div>}
+        {typeof block.mimeType === "string" && <div className="mt-1 text-2xs text-muted-foreground">{block.mimeType}</div>}
+      </div>
+    </div>
+  )
+}
+
+function getPlanEntries(message: ChatMessageType): AgentPlanEntry[] {
+  if (message.planEntries) return message.planEntries
+  try {
+    const parsed = JSON.parse(message.content) as unknown
+    return Array.isArray(parsed) ? parsed.filter((entry): entry is AgentPlanEntry => typeof entry === "object" && entry !== null && "content" in entry) : []
+  } catch {
+    return []
+  }
+}
+
+function PlanMessage({ message }: { message: ChatMessageType }) {
+  const entries = getPlanEntries(message)
+  if (entries.length === 0) return null
+  return (
+    <div className="animate-fade-in flex flex-col gap-2 rounded-lg border border-border bg-muted/30 p-3">
+      <div className="flex items-center gap-2">
+        <div className="flex h-5 w-5 items-center justify-center rounded-[10px] bg-violet-500/15">
+          <svg className="h-2.5 w-2.5 text-violet-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+            <path strokeLinecap="round" strokeLinejoin="round" d="M9 12.75 11.25 15 15 9.75M21 12a9 9 0 1 1-18 0 9 9 0 0 1 18 0Z" />
+          </svg>
+        </div>
+        <span className="text-xs font-medium text-violet-500/80">Plan</span>
+        <span className="text-2xs text-muted-foreground/50">{formatTimestamp(message.timestamp)}</span>
+      </div>
+      <div className="flex flex-col gap-1.5">
+        {entries.map((entry, index) => (
+          <div key={`${entry.content}-${index}`} className="flex items-start gap-2 rounded-md bg-background/60 px-2.5 py-2 text-xs">
+            <span className="mt-0.5 h-1.5 w-1.5 shrink-0 rounded-full bg-violet-500/60" />
+            <div className="min-w-0 flex-1 leading-[1.5] text-foreground">{entry.content}</div>
+            {entry.status && <span className="shrink-0 rounded bg-muted px-1.5 py-0.5 text-2xs text-muted-foreground">{entry.status}</span>}
+            {entry.priority && <span className="shrink-0 rounded bg-violet-500/10 px-1.5 py-0.5 text-2xs text-violet-500">{entry.priority}</span>}
+          </div>
+        ))}
+      </div>
+    </div>
+  )
+}
+
 export const ChatMessage = memo(function ChatMessage({ message, tasks, onReply, isThinkingActive = false, thinkingDuration }: ChatMessageProps) {
   const navigate = useNavigate()
   const [lightboxIndex, setLightboxIndex] = useState<number | null>(null)
@@ -257,7 +341,9 @@ export const ChatMessage = memo(function ChatMessage({ message, tasks, onReply, 
   const isSystem = message.role === "system"
   const isThinking = message.role === "thinking"
   const isNarration = message.role === "narration"
-  const isTool = !isUser && !isSystem && !isThinking && !isNarration && isToolCall(message.content)
+  const isPlan = message.role === "plan"
+  const isContentBlock = message.role === "content"
+  const isTool = !isUser && !isSystem && !isThinking && !isNarration && !isPlan && !isContentBlock && isToolCall(message.content)
 
   const messageRef = useRef<HTMLDivElement>(null)
 
@@ -411,6 +497,14 @@ export const ChatMessage = memo(function ChatMessage({ message, tasks, onReply, 
         )}
       </div>
     )
+  }
+
+  if (isPlan) {
+    return <PlanMessage message={message} />
+  }
+
+  if (isContentBlock) {
+    return <ContentBlockMessage message={message} />
   }
 
   // Agent message
