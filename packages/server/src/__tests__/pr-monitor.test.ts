@@ -640,7 +640,7 @@ describe("pollPrStatuses", () => {
 describe("buildSystemNotes", () => {
   test("places auth curl flags before the rename-branch URL", () => {
     const note = buildPrWorkflowNote("test-id")
-    expect(note).toContain('curl -X POST ${TANGERINE_AUTH_TOKEN:+-H "Authorization: Bearer $TANGERINE_AUTH_TOKEN"} http://localhost:')
+    expect(note).toContain('curl -X POST -H "Authorization: Bearer $TANGERINE_AUTH_TOKEN" http://localhost:')
   })
 
   test("includes PR workflow note for worker tasks", () => {
