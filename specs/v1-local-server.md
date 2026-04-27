@@ -119,11 +119,16 @@ Example `config.json`:
         "provision": "$HOME/worktree-scripts/provision.sh",
         "teardown": "$HOME/worktree-scripts/teardown.sh"
       },
-      "defaultAgent": "acp"
+      "defaultAgent": "claude"
     }
   ],
-  "agents": [{ "id": "acp", "name": "ACP Agent", "command": "acp-agent" }],
-  "defaultAgent": "acp",
+  "agents": [
+    { "id": "claude", "name": "Claude Code", "command": "bunx", "args": ["--bun", "@zed-industries/claude-code-acp"] },
+    { "id": "codex", "name": "Codex", "command": "bunx", "args": ["--bun", "@zed-industries/codex-acp"] },
+    { "id": "opencode", "name": "OpenCode", "command": "bunx", "args": ["--bun", "opencode-ai", "acp"] },
+    { "id": "pi", "name": "Pi", "command": "bunx", "args": ["--bun", "pi-acp"] }
+  ],
+  "defaultAgent": "claude",
   "model": "gpt-5"
 }
 ```
@@ -431,12 +436,12 @@ deploy/              # Deployment scripts (NEW — extracted from server)
 3. Delete `vm/` directory (providers, project-vm, tunnel, ssh, pool)
 4. Delete `image/build.ts`, `image/build-service.ts`
 
-### Phase 2: Simplify agent providers
+### Phase 2: Simplify agent runtime
 
 5. Remove `vmIp`, `sshPort` from `AgentStartContext`
-6. Claude Code provider: replace SSH spawn with `Bun.spawn`
-7. OpenCode provider: replace SSH spawn + tunnel with local `Bun.spawn`
-8. Remove SSH-related imports from providers
+6. Replace provider-specific adapters with configured ACP stdio commands
+7. Map ACP `session/update` events into Tangerine messages/activities/content blocks
+8. Remove SSH-related imports from the agent runtime
 
 ### Phase 3: Simplify task lifecycle
 

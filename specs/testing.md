@@ -61,7 +61,7 @@ The agent decides when to run tests (after changes, before creating PR).
 
 ## Test Results in Chat
 
-When the agent runs tests via shell, the output appears in the chat stream (via tool call display). Users see pass/fail in real time. Works identically for both OpenCode and Claude Code providers.
+When the agent runs tests via shell, ACP tool-call output appears in the chat stream. Users see pass/fail in real time for any configured ACP agent that streams tool updates.
 
 ## Future
 

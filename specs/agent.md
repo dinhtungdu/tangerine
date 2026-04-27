@@ -30,14 +30,26 @@ Config shape:
 
 ```json
 {
-  "defaultAgent": "acp",
+  "defaultAgent": "claude",
   "agents": [
-    { "id": "acp", "name": "ACP Agent", "command": "acp-agent", "args": [], "env": {} }
+    { "id": "claude", "name": "Claude Code", "command": "bunx", "args": ["--bun", "@zed-industries/claude-code-acp"] },
+    { "id": "codex", "name": "Codex", "command": "bunx", "args": ["--bun", "@zed-industries/codex-acp"] },
+    { "id": "opencode", "name": "OpenCode", "command": "bunx", "args": ["--bun", "opencode-ai", "acp"] },
+    { "id": "pi", "name": "Pi", "command": "bunx", "args": ["--bun", "pi-acp"] }
   ]
 }
 ```
 
-No hardcoded provider list should remain after the migration.
+Known commands:
+
+| Agent | ACP command source |
+|-------|--------------------|
+| Claude Code | Zed adapter `@zed-industries/claude-code-acp` (`claude-code-acp`) |
+| Codex | Zed adapter `@zed-industries/codex-acp` (`codex-acp`) |
+| OpenCode | native ACP command `opencode acp` from `opencode-ai` |
+| Pi | `pi-acp` adapter |
+
+No hardcoded provider list should remain after the migration. These are documented setup examples only; users can configure any ACP-compatible command.
 
 ## Streaming
 

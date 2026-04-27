@@ -30,9 +30,9 @@ Then follow the Project Setup Workflow in SKILL.md:
 2. Read workspace: `jq -r '.workspace // "~/tangerine-workspace"' ~/tangerine/config.json`
 3. Clone repo to `{workspace}/<project>/0`
 4. Scan the cloned repo for stack
-5. Present plan, get confirmation
-6. Write project config to `~/tangerine/config.json`
-7. Ask about ACP agent command(s) to configure
+5. Ask which ACP agent command(s) to configure (Claude Code via `@zed-industries/claude-code-acp`, Codex via `@zed-industries/codex-acp`, OpenCode via `opencode-ai acp`, Pi via `pi-acp`, or custom) and which should be `defaultAgent`
+6. Present plan, get confirmation
+7. Write project config to `~/tangerine/config.json`
 8. Run `bin/tangerine install` to install skills into the ACP skills dir
 9. Guide through `bin/tangerine start`
 

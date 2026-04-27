@@ -61,20 +61,17 @@ Replace hardcoded provider IDs with configured ACP agents:
 
 ```json
 {
-  "defaultAgent": "acp",
+  "defaultAgent": "claude",
   "agents": [
-    {
-      "id": "acp",
-      "name": "ACP Agent",
-      "command": "acp-agent",
-      "args": [],
-      "env": {}
-    }
+    { "id": "claude", "name": "Claude Code", "command": "bunx", "args": ["--bun", "@zed-industries/claude-code-acp"] },
+    { "id": "codex", "name": "Codex", "command": "bunx", "args": ["--bun", "@zed-industries/codex-acp"] },
+    { "id": "opencode", "name": "OpenCode", "command": "bunx", "args": ["--bun", "opencode-ai", "acp"] },
+    { "id": "pi", "name": "Pi", "command": "bunx", "args": ["--bun", "pi-acp"] }
   ]
 }
 ```
 
-Existing `provider` task column can remain during migration as the selected ACP agent id. UI labels should call it `agent`/`harness` only after schema/API migration is complete.
+Existing `provider` task column can remain during migration as the selected ACP agent id. UI labels should call it `agent`/`harness` only after schema/API migration is complete. These command entries are external ACP adapter examples, not built-in legacy provider runtimes.
 
 ## Model and Reasoning Selection
 

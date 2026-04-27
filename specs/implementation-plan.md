@@ -71,11 +71,11 @@ Project scaffolding, DB schema (tasks with `provider`, `worktree_path`, `agent_s
 - VM summary card
 - Streaming chat UI
 
-## Phase 5: Multi-Provider + Polish — DONE
+## Phase 5: ACP Runtime + Polish — DONE
 
-- Claude Code provider: SSH stdin/stdout + NDJSON
-- NDJSON parser (`ndjson.ts`) + event mapping
-- `CLAUDE_CODE_OAUTH_TOKEN` credential injection
+- ACP stdio client runtime for configured agent commands
+- ACP `session/update` event mapping
+- ACP config options for model/reasoning/mode selection
 - Server restart reconciliation (`reconcileOnStartup`)
 - Error recovery + retry
 - System logging (DB-backed)
@@ -85,7 +85,7 @@ Project scaffolding, DB schema (tasks with `provider`, `worktree_path`, `agent_s
 ## Critical Path (completed)
 
 ```
-Spike → DB + VM extract → Session lifecycle → WebSocket relay → Chat UI → Claude Code provider
+Spike → DB + VM extract → Session lifecycle → WebSocket relay → Chat UI → ACP runtime
 ```
 
 ## Testing Strategy

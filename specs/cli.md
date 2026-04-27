@@ -7,7 +7,7 @@ The `tangerine` CLI is implemented under `packages/server/src/cli/`.
 | Command | Description |
 |---------|-------------|
 | `tangerine start` | Start the Tangerine server |
-| `tangerine install` | Create local directories and install skills for all providers |
+| `tangerine install` | Create local directories and install Tangerine skills into the ACP skills dir |
 | `tangerine project ...` | Manage registered projects |
 | `tangerine task ...` | Create manual tasks |
 | `tangerine secret ...` | Manage secrets stored in `.credentials` |
@@ -30,8 +30,17 @@ If the server binds a non-loopback host (for example `0.0.0.0`) and `TANGERINE_A
 Current behavior:
 
 - ensures `~/tangerine` exists
-- symlinks repo skills into each provider's configured skill directory
-- checks whether usable LLM credentials are present
+- symlinks repo skills into the provider-neutral ACP skills directory (`~/.config/acp/skills`)
+- does not install ACP agent adapters or manage LLM credentials
+
+Configured ACP agent examples:
+
+| Agent | No-global-install command | Global command |
+|-------|---------------------------|----------------|
+| Claude Code | `bunx --bun @zed-industries/claude-code-acp` | `claude-code-acp` |
+| Codex | `bunx --bun @zed-industries/codex-acp` | `codex-acp` |
+| OpenCode | `bunx --bun opencode-ai acp` | `opencode acp` |
+| Pi | `bunx --bun pi-acp` | `pi-acp` |
 
 Installed skills:
 

@@ -13,7 +13,7 @@ Stored in `tangerine.json` at the project root (or `~/.config/tangerine/config.j
     "repo": "https://github.com/WordPress/wordpress-develop",
     "defaultBranch": "trunk",
     "setup": "npm install && npx wp-env start",
-    "defaultAgent": "acp",
+    "defaultAgent": "claude",
     "previewCommand": "setup-vhost.sh $TANGERINE_PREVIEW_PORT",
     "test": "npx wp-env run tests-wordpress phpunit",
     "env": {
@@ -44,8 +44,13 @@ Stored in `tangerine.json` at the project root (or `~/.config/tangerine/config.j
 ```json
 {
   "projects": [...],
-  "agents": [{ "id": "acp", "name": "ACP Agent", "command": "acp-agent" }],
-  "defaultAgent": "acp",
+  "agents": [
+    { "id": "claude", "name": "Claude Code", "command": "bunx", "args": ["--bun", "@zed-industries/claude-code-acp"] },
+    { "id": "codex", "name": "Codex", "command": "bunx", "args": ["--bun", "@zed-industries/codex-acp"] },
+    { "id": "opencode", "name": "OpenCode", "command": "bunx", "args": ["--bun", "opencode-ai", "acp"] },
+    { "id": "pi", "name": "Pi", "command": "bunx", "args": ["--bun", "pi-acp"] }
+  ],
+  "defaultAgent": "claude",
   "model": "gpt-5",
   "sshHost": "dev-vm",
   "sshUser": "tung.linux",
@@ -70,6 +75,17 @@ Stored in `tangerine.json` at the project root (or `~/.config/tangerine/config.j
 | `sshUser` | string | SSH username for Zed editor links (e.g. `"tung.linux"`) |
 | `editor` | `"vscode" \| "cursor" \| "zed"` | Editor for deep-link URIs. VS Code/Cursor use `vscode-remote` scheme; Zed uses `zed://ssh/` |
 | `integrations` | object | GitHub webhook and polling configuration |
+
+Known ACP adapter examples:
+
+| Agent ID | Command config |
+|----------|----------------|
+| `claude` | `bunx --bun @zed-industries/claude-code-acp` or global `claude-code-acp` |
+| `codex` | `bunx --bun @zed-industries/codex-acp` or global `codex-acp` |
+| `opencode` | `bunx --bun opencode-ai acp` or global `opencode acp` |
+| `pi` | `bunx --bun pi-acp` or global `pi-acp` |
+
+These are examples only. Tangerine accepts any ACP-compatible command and expects each underlying agent to be installed/authenticated outside Tangerine.
 
 When `sshHost` and `editor` are set, the web dashboard shows "Open in {editor}" links on task cards and the task detail page for tasks with worktrees. `sshUser` is required for Zed links.
 

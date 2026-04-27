@@ -166,6 +166,6 @@ Cleanup responsibilities include:
 On startup, Tangerine resumes orphaned work:
 
 - `created` and `provisioning` tasks are restarted from the beginning
-- `running` tasks are reconnected through ACP `session/resume` or `session/load` when available, with legacy provider resume remaining during migration
+- `running` tasks are reconnected through ACP `session/resume` or `session/load` when available; agents without resume/load start fresh and receive pending context
 
 Health monitoring and reconnect locking prevent duplicate recovery loops.
