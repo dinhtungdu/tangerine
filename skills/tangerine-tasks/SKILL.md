@@ -3,7 +3,7 @@ name: tangerine-tasks
 description: Reference for agents running inside a Tangerine task — API endpoints, env vars, and common workflows.
 metadata:
   author: tung
-  version: "1.6.0"
+  version: "1.7.0"
 ---
 
 # Tangerine Agent Reference
@@ -29,24 +29,26 @@ You are running inside a **Tangerine task**. Tangerine manages local agent proce
 | Variable | Meaning |
 |----------|---------|
 | `TANGERINE_TASK_ID` | Current task ID |
+| `TANGERINE_AUTH_TOKEN` | Auth token for the Tangerine API (may be empty when auth is disabled) |
 
 API base:
 
 ```bash
 API=http://localhost:3456
-AUTH_HEADER=${TANGERINE_AUTH_TOKEN:+-H "Authorization: Bearer $TANGERINE_AUTH_TOKEN"}
 echo "$TANGERINE_TASK_ID"
 ```
 
-When calling the Tangerine API, include `$AUTH_HEADER` if `TANGERINE_AUTH_TOKEN` is set.
+Always include `-H "Authorization: Bearer $TANGERINE_AUTH_TOKEN"` on every Tangerine API curl call. When auth is disabled the server ignores this header; when enabled the token is always set in your environment.
+
+> ⚠️ **Do NOT use the `${TANGERINE_AUTH_TOKEN:+-H "..."}` conditional pattern** — it breaks in OpenCode's shell context where each command runs in a fresh `zsh -lc` invocation. Use the inline form on every curl call instead.
 
 ## 🚨 PR Mode — CRITICAL (Worker Tasks)
 
 > **You MUST check `prMode` before creating any PR. Injected into your system prompt — follow it exactly.**
 
 ```bash
-PROJECT_NAME=$(curl -s $AUTH_HEADER "$API/api/tasks/$TANGERINE_TASK_ID" | jq -r '.projectId')
-PR_MODE=$(curl -s $AUTH_HEADER "$API/api/projects/$PROJECT_NAME" | jq -r '.prMode // "draft"')
+PROJECT_NAME=$(curl -s -H "Authorization: Bearer $TANGERINE_AUTH_TOKEN" "$API/api/tasks/$TANGERINE_TASK_ID" | jq -r '.projectId')
+PR_MODE=$(curl -s -H "Authorization: Bearer $TANGERINE_AUTH_TOKEN" "$API/api/projects/$PROJECT_NAME" | jq -r '.prMode // "draft"')
 ```
 
 Act strictly according to `PR_MODE` — no exceptions:
@@ -293,7 +295,7 @@ MAX=30
 INTERVAL=60
 
 while [ $ATTEMPTS -lt $MAX ]; do
-  STATUS=$(curl -s $AUTH_HEADER "$API/api/tasks/$TASK_ID" | jq -r '.status')
+  STATUS=$(curl -s -H "Authorization: Bearer $TANGERINE_AUTH_TOKEN" "$API/api/tasks/$TASK_ID" | jq -r '.status')
   echo "[$ATTEMPTS] status=$STATUS"
   case "$STATUS" in
     done)      echo "Task complete."; break ;;
@@ -355,7 +357,7 @@ For codex, opencode, and pi — use the shell loop; these providers do not have 
 DELAY=30
 STATUS=""
 for i in 1 2 3 4 5; do
-  RESULT=$(curl -s $AUTH_HEADER "$API/api/tasks/$TASK_ID")
+  RESULT=$(curl -s -H "Authorization: Bearer $TANGERINE_AUTH_TOKEN" "$API/api/tasks/$TASK_ID")
   STATUS=$(echo "$RESULT" | jq -r '.status')
   case "$STATUS" in
     done)      break ;;
