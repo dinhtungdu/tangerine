@@ -132,6 +132,7 @@ function QueuedPromptList({
                       onChange={(e) => setEditDraft(e.target.value)}
                       onKeyDown={handleEditKeyDown}
                       onBlur={handleSaveEdit}
+                      aria-label={`Edit queued message: ${displayText}`}
                       className="min-w-0 flex-1 rounded border border-input bg-background px-2 py-1 text-sm outline-none focus-visible:ring-1 focus-visible:ring-ring/50"
                     />
                   ) : (
