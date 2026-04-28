@@ -15,6 +15,7 @@ export interface TaskState {
   reconnecting: boolean
   suspended: boolean
   idleWake: boolean
+  queuePaused: boolean
   lastError?: string
   firstPromptSent: boolean
   systemPromptApplied: boolean
@@ -46,6 +47,7 @@ function defaultState(): TaskState {
     reconnecting: false,
     suspended: false,
     idleWake: false,
+    queuePaused: false,
     firstPromptSent: false,
     systemPromptApplied: false,
     prUrlSaved: false,

@@ -7,6 +7,7 @@ import { isAuthEnabled, isRequestAuthenticated, isValidAuthToken } from "../../a
 import { getTask } from "../../db/queries"
 import { getAgentWorkingState, onAgentStatusChange } from "../../tasks/events"
 import { getTaskState } from "../../tasks/task-state"
+import { getQueuedPrompts, onQueueChange } from "../../agent/prompt-queue"
 import type { WsClientMessage, WsServerMessage, TaskStatus } from "@tangerine/shared"
 
 /**
@@ -27,6 +28,7 @@ export function wsRoutes(deps: AppDeps, upgradeWebSocket: UpgradeWebSocket): Hon
       // Store unsubscribe functions so we can clean up on close
       let unsubEvent: (() => void) | null = null
       let unsubStatus: (() => void) | null = null
+      let unsubQueue: (() => void) | null = null
       let heartbeat: WebSocketHeartbeat | null = null
       let authenticated = !authEnabled || requestAuthenticated
       let authTimer: ReturnType<typeof setTimeout> | null = null
@@ -56,6 +58,16 @@ export function wsRoutes(deps: AppDeps, upgradeWebSocket: UpgradeWebSocket): Hon
               if (configOptions.length > 0) {
                 ws.send(JSON.stringify({ type: "event", data: { event: "config.options", configOptions } } satisfies WsServerMessage))
               }
+
+              Effect.runPromise(getQueuedPrompts(taskId)).then((queuedPrompts) => {
+                const queueMsg: WsServerMessage = { type: "queue", queuedPrompts }
+                try { ws.send(JSON.stringify(queueMsg)) } catch { /* disconnected */ }
+              }).catch(() => undefined)
+
+              unsubQueue = onQueueChange(taskId, (queuedPrompts) => {
+                const queueMsg: WsServerMessage = { type: "queue", queuedPrompts }
+                try { ws.send(JSON.stringify(queueMsg)) } catch { /* disconnected */ }
+              })
             }
 
             unsubEvent = deps.taskManager.onTaskEvent(taskId, (data: unknown) => {
@@ -178,6 +190,7 @@ export function wsRoutes(deps: AppDeps, upgradeWebSocket: UpgradeWebSocket): Hon
           heartbeat?.stop()
           unsubEvent?.()
           unsubStatus?.()
+          unsubQueue?.()
         },
       }
     })

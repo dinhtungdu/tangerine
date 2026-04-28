@@ -8,6 +8,7 @@ import { normalizeTimestamps } from "../helpers"
 import { TaskNotFoundError } from "../../errors"
 import { getProjectConfig, getRepoDir, TANGERINE_HOME } from "../../config"
 import { getActiveStreamMessages, getTaskState } from "../../tasks/task-state"
+import { editQueuedPrompt, getQueuedPrompts, removeQueuedPrompt } from "../../agent/prompt-queue"
 
 function gitDiff(cmd: string, cwd: string): Effect.Effect<string, never> {
   return Effect.tryPromise({
@@ -87,6 +88,39 @@ export function sessionRoutes(deps: AppDeps): Hono {
     return new Response(file, {
       headers: { "Content-Type": file.type, "Cache-Control": "public, max-age=31536000, immutable" },
     })
+  })
+
+  app.get("/:id/queue", (c) => {
+    return runEffect(c,
+      getQueuedPrompts(c.req.param("id")).pipe(
+        Effect.map((queuedPrompts) => ({ queuedPrompts }))
+      )
+    )
+  })
+
+  app.patch("/:id/queue/:promptId", async (c) => {
+    const body = await c.req.json<{ text?: string; images?: import("../../agent/provider").PromptImage[]; fromTaskId?: string | null }>()
+    if (body.text !== undefined && body.text.trim().length === 0 && (!body.images || body.images.length === 0)) {
+      return c.json({ error: "text or images are required" }, 400)
+    }
+    return runEffect(c,
+      editQueuedPrompt(c.req.param("id"), c.req.param("promptId"), body).pipe(
+        Effect.flatMap((queuedPrompt) => queuedPrompt
+          ? Effect.succeed({ queuedPrompt })
+          : Effect.fail(new TaskNotFoundError({ taskId: c.req.param("promptId") })))
+      )
+    )
+  })
+
+  app.delete("/:id/queue/:promptId", (c) => {
+    return runEffectVoid(c,
+      removeQueuedPrompt(c.req.param("id"), c.req.param("promptId")).pipe(
+        Effect.flatMap((removed) => removed
+          ? Effect.void
+          : Effect.fail(new TaskNotFoundError({ taskId: c.req.param("promptId") })))
+      ),
+      { status: 204 },
+    )
   })
 
   app.post("/:id/prompt", async (c) => {

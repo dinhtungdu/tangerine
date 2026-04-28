@@ -72,6 +72,9 @@ Current task types:
 | POST | `/api/tasks/:id/prompt` | Send a prompt |
 | POST | `/api/tasks/:id/chat` | Send a prompt and return `202` immediately |
 | POST | `/api/tasks/:id/abort` | Abort the current run |
+| GET | `/api/tasks/:id/queue` | List queued prompts waiting for the current turn to finish |
+| PATCH | `/api/tasks/:id/queue/:promptId` | Edit queued prompt text/images before delivery |
+| DELETE | `/api/tasks/:id/queue/:promptId` | Remove a queued prompt |
 | POST | `/api/tasks/:id/model` | Change model, reasoning effort, and/or ACP mode |
 | GET | `/api/tasks/:id/config-options` | Return active ACP session config options |
 | GET | `/api/tasks/:id/diff` | Return parsed git diff files |
@@ -150,6 +153,7 @@ type WsServerMessage =
   | { type: "activity"; entry: ActivityEntry }
   | { type: "status"; status: TaskStatus }
   | { type: "agent_status"; agentStatus: "idle" | "working" }
+  | { type: "queue"; queuedPrompts: PromptQueueEntry[] }
   | { type: "error"; message: string }
   | { type: "ping" }
 ```

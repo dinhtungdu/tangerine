@@ -71,6 +71,7 @@ Current sections:
 - active runs summary
 - project update status / update action
 - predefined prompt editors for worker, orchestrator, and reviewer prompts
+- editable queued prompt cards shown while the agent is working
 - system log viewer
 
 ## State and Data Flow
@@ -82,6 +83,7 @@ Current sections:
 - initial task-detail load uses `/api/tasks/:id/messages`, which includes persisted logs plus any transient active assistant/thinking stream so switching into a running task shows current output immediately
 - ACP `config.options`, `thinking.streaming`, `thinking.complete`, `plan`, and `content.block` events are folded into per-task session state
 - activity REST snapshots merge with WebSocket activity updates by id/freshness so stale fetch responses cannot overwrite live tool progress
+- queued prompts come from `queue` WebSocket messages plus `/api/tasks/:id/queue` REST fallback; edits/removals call queue REST routes
 
 ## Shared Components
 

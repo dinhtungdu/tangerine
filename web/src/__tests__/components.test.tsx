@@ -98,7 +98,7 @@ import { _resetForTesting as resetActions, registerActions, setShortcutOverrides
 import { defaultShortcuts } from "../lib/default-shortcuts"
 import { cancelTask, retryTask, deleteTask } from "../lib/api"
 import { useShortcuts } from "../hooks/useShortcuts"
-import type { Task, ActivityEntry } from "@tangerine/shared"
+import type { Task, ActivityEntry, PromptQueueEntry } from "@tangerine/shared"
 
 function WithShortcuts({ children }: { children: import("react").ReactNode }) {
   useShortcuts()
@@ -853,6 +853,36 @@ describe("ChatPanel", () => {
     )
 
     expect(screen.queryByText("some error")).toBeNull()
+  })
+
+  test("renders editable queued prompts", () => {
+    const onUpdate = mock(async () => {})
+    const onRemove = mock(async () => {})
+    const queuedPrompts: PromptQueueEntry[] = [{ id: "q1", text: "Original queued message", enqueuedAt: 1 }]
+
+    render(
+      <MemoryRouter>
+        <ChatPanel
+          messages={[]}
+          agentStatus="working"
+          queueLength={1}
+          queuedPrompts={queuedPrompts}
+          onQueuedPromptUpdate={onUpdate}
+          onQueuedPromptRemove={onRemove}
+          onSend={() => {}}
+          onAbort={() => {}}
+        />
+      </MemoryRouter>
+    )
+
+    const editor = screen.getByLabelText("Edit queued message 1") as HTMLTextAreaElement
+    expect(editor.value).toBe("Original queued message")
+    fireEvent.change(editor, { target: { value: "Edited queued message" } })
+    fireEvent.click(screen.getByText("Save"))
+    expect(onUpdate).toHaveBeenCalledWith("q1", "Edited queued message")
+
+    fireEvent.click(screen.getByLabelText("Remove queued message 1"))
+    expect(onRemove).toHaveBeenCalledWith("q1")
   })
 
   test("clicking Reply on a message shows the quote chip above the input", async () => {

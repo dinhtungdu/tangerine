@@ -1,4 +1,4 @@
-import type { AgentConfig, AgentConfigOption, Task, TaskWriteResponse, ProjectConfig, SystemLogEntry, ActivityEntry, ActionCombo, ShortcutConfig, SystemCapabilities } from "@tangerine/shared"
+import type { AgentConfig, AgentConfigOption, Task, TaskWriteResponse, ProjectConfig, SystemLogEntry, ActivityEntry, ActionCombo, ShortcutConfig, SystemCapabilities, PromptImage, PromptQueueEntry } from "@tangerine/shared"
 import { buildAuthHeaders, emitAuthFailure } from "./auth"
 
 const BASE = ""
@@ -185,6 +185,23 @@ export async function fetchMessages(id: string): Promise<SessionLog[]> {
 export async function fetchTaskConfigOptions(id: string): Promise<AgentConfigOption[]> {
   const body = await request<{ configOptions: AgentConfigOption[] }>(`/api/tasks/${id}/config-options`)
   return body.configOptions
+}
+
+export async function fetchQueuedPrompts(id: string): Promise<PromptQueueEntry[]> {
+  const body = await request<{ queuedPrompts: PromptQueueEntry[] }>(`/api/tasks/${id}/queue`)
+  return body.queuedPrompts
+}
+
+export async function updateQueuedPrompt(id: string, promptId: string, text: string, images?: PromptImage[]): Promise<PromptQueueEntry> {
+  const body = await request<{ queuedPrompt: PromptQueueEntry }>(`/api/tasks/${id}/queue/${promptId}`, {
+    method: "PATCH",
+    body: JSON.stringify({ text, images }),
+  })
+  return body.queuedPrompt
+}
+
+export async function removeQueuedPrompt(id: string, promptId: string): Promise<void> {
+  return request<void>(`/api/tasks/${id}/queue/${promptId}`, { method: "DELETE" })
 }
 
 export async function sendPrompt(id: string, text: string): Promise<void> {

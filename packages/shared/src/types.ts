@@ -119,12 +119,21 @@ export type WsServerMessage =
   | { type: "status"; status: TaskStatus }
   | { type: "agent_status"; agentStatus: "idle" | "working" }
   | { type: "task_agent_status"; taskId: string; agentStatus: "idle" | "working" }
+  | { type: "queue"; queuedPrompts: PromptQueueEntry[] }
   | { type: "error"; message: string }
   | { type: "ping" }
 
 export interface PromptImage {
   mediaType: "image/png" | "image/jpeg" | "image/gif" | "image/webp"
   data: string // base64-encoded bytes (no data: URL prefix)
+}
+
+export interface PromptQueueEntry {
+  id: string
+  text: string
+  images?: PromptImage[]
+  fromTaskId?: string
+  enqueuedAt: number
 }
 
 export type WsClientMessage =

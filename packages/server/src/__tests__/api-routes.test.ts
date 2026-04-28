@@ -10,6 +10,7 @@ import type { TaskRow } from "../db/types"
 import type { RawConfig } from "../config"
 import { createAgentFactories } from "../agent/factories"
 import { getTaskState } from "../tasks/task-state"
+import { clearQueue, enqueue } from "../agent/prompt-queue"
 
 function createMockDeps(db: Database, configOverrides?: Partial<AppDeps["config"]["config"]>): AppDeps {
   const configData = {
@@ -863,6 +864,36 @@ describe("API routes", () => {
         body: JSON.stringify({ text: "Hello" }),
       }))
       expect(res.status).toBe(404)
+    })
+  })
+
+  describe("queued prompts", () => {
+    test("returns, edits, and removes queued prompts", async () => {
+      const row = seedTask(db)
+      const queued = Effect.runSync(enqueue(row.id, "Original"))
+
+      const listRes = await app.fetch(new Request(`http://localhost/api/tasks/${row.id}/queue`))
+      expect(listRes.status).toBe(200)
+      const listed = await listRes.json() as { queuedPrompts: Array<{ id: string; text: string; enqueuedAt: number }> }
+      expect(listed.queuedPrompts).toEqual([{ id: queued.id, text: "Original", enqueuedAt: queued.enqueuedAt }])
+
+      const editRes = await app.fetch(new Request(`http://localhost/api/tasks/${row.id}/queue/${queued.id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ text: "Edited" }),
+      }))
+      expect(editRes.status).toBe(200)
+      const edited = await editRes.json() as { queuedPrompt: { text: string } }
+      expect(edited.queuedPrompt.text).toBe("Edited")
+
+      const deleteRes = await app.fetch(new Request(`http://localhost/api/tasks/${row.id}/queue/${queued.id}`, { method: "DELETE" }))
+      expect(deleteRes.status).toBe(204)
+
+      const emptyRes = await app.fetch(new Request(`http://localhost/api/tasks/${row.id}/queue`))
+      const empty = await emptyRes.json() as { queuedPrompts: unknown[] }
+      expect(empty.queuedPrompts).toEqual([])
+
+      Effect.runSync(clearQueue(row.id))
     })
   })
 

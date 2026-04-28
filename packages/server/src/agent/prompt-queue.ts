@@ -12,18 +12,23 @@ const log = createLogger("prompt-queue")
 
 type AgentState = "idle" | "busy"
 
-interface QueueEntry {
+export interface PromptQueueEntry {
+  id: string
   text: string
   images?: PromptImage[]
+  fromTaskId?: string
   enqueuedAt: number
 }
 
 interface TaskQueue {
-  entries: QueueEntry[]
+  entries: PromptQueueEntry[]
   state: AgentState
 }
 
+type QueueListener = (entries: PromptQueueEntry[]) => void
+
 const queues = new Map<string, TaskQueue>()
+const queueListeners = new Map<string, Set<QueueListener>>()
 
 function getQueue(taskId: string): TaskQueue {
   let q = queues.get(taskId)
@@ -34,14 +39,80 @@ function getQueue(taskId: string): TaskQueue {
   return q
 }
 
-export type SendPromptFn = (taskId: string, text: string, images?: PromptImage[]) => Promise<void>
+export type SendPromptFn = (taskId: string, text: string, images?: PromptImage[], fromTaskId?: string) => Promise<void>
 
-export function enqueue(taskId: string, text: string, images?: PromptImage[]): Effect.Effect<number, never> {
+function cloneEntry(entry: PromptQueueEntry): PromptQueueEntry {
+  return {
+    ...entry,
+    ...(entry.images ? { images: entry.images.map((image) => ({ ...image })) } : {}),
+  }
+}
+
+function queueSnapshot(taskId: string): PromptQueueEntry[] {
+  const q = queues.get(taskId)
+  return q ? q.entries.map(cloneEntry) : []
+}
+
+function notifyQueueChanged(taskId: string): void {
+  const listeners = queueListeners.get(taskId)
+  if (!listeners || listeners.size === 0) return
+  const snapshot = queueSnapshot(taskId)
+  for (const listener of listeners) listener(snapshot)
+}
+
+export function onQueueChange(taskId: string, listener: QueueListener): () => void {
+  let listeners = queueListeners.get(taskId)
+  if (!listeners) {
+    listeners = new Set()
+    queueListeners.set(taskId, listeners)
+  }
+  listeners.add(listener)
+  return () => {
+    listeners.delete(listener)
+    if (listeners.size === 0) queueListeners.delete(taskId)
+  }
+}
+
+export function enqueue(taskId: string, text: string, images?: PromptImage[], fromTaskId?: string): Effect.Effect<PromptQueueEntry, never> {
   return Effect.sync(() => {
     const q = getQueue(taskId)
-    q.entries.push({ text, images, enqueuedAt: Date.now() })
-    log.debug("Prompt enqueued", { taskId, queueLength: q.entries.length })
-    return q.entries.length
+    const entry: PromptQueueEntry = { id: crypto.randomUUID(), text, images, fromTaskId, enqueuedAt: Date.now() }
+    q.entries.push(entry)
+    log.debug("Prompt enqueued", { taskId, queueLength: q.entries.length, promptId: entry.id })
+    notifyQueueChanged(taskId)
+    return cloneEntry(entry)
+  })
+}
+
+export function getQueuedPrompts(taskId: string): Effect.Effect<PromptQueueEntry[], never> {
+  return Effect.sync(() => queueSnapshot(taskId))
+}
+
+export function editQueuedPrompt(taskId: string, promptId: string, update: { text?: string; images?: PromptImage[]; fromTaskId?: string | null }): Effect.Effect<PromptQueueEntry | null, never> {
+  return Effect.sync(() => {
+    const q = queues.get(taskId)
+    const entry = q?.entries.find((item) => item.id === promptId)
+    if (!entry) return null
+    if (update.text !== undefined) entry.text = update.text
+    if (update.images !== undefined) entry.images = update.images
+    if (update.fromTaskId !== undefined) {
+      if (update.fromTaskId === null) delete entry.fromTaskId
+      else entry.fromTaskId = update.fromTaskId
+    }
+    notifyQueueChanged(taskId)
+    return cloneEntry(entry)
+  })
+}
+
+export function removeQueuedPrompt(taskId: string, promptId: string): Effect.Effect<boolean, never> {
+  return Effect.sync(() => {
+    const q = queues.get(taskId)
+    if (!q) return false
+    const before = q.entries.length
+    q.entries = q.entries.filter((entry) => entry.id !== promptId)
+    const removed = q.entries.length !== before
+    if (removed) notifyQueueChanged(taskId)
+    return removed
   })
 }
 
@@ -71,6 +142,7 @@ export function drainNext(
 
     const entry = q.entries.shift()!
     q.state = "busy"
+    notifyQueueChanged(taskId)
 
     log.info("Sending next prompt", {
       taskId,
@@ -81,7 +153,7 @@ export function drainNext(
     // Retry transient failures (e.g. HTTP 503, stdin backpressure) with short
     // exponential backoff before re-queuing the prompt for a later drain cycle.
     yield* Effect.tryPromise({
-      try: () => sendPrompt(taskId, entry.text, entry.images),
+      try: () => sendPrompt(taskId, entry.text, entry.images, entry.fromTaskId),
       catch: (e) => new PromptError({
         message: `Prompt send attempt failed: ${e instanceof Error ? e.message : String(e)}`,
         taskId,
@@ -93,6 +165,7 @@ export function drainNext(
         // All retries exhausted — put it back at the front so no prompts are lost
         q.entries.unshift(entry)
         q.state = "idle"
+        notifyQueueChanged(taskId)
         log.error("Prompt send failed after retries, re-queued", {
           taskId,
           error: e.message,
@@ -122,12 +195,13 @@ export function drainAll(
     const q = getQueue(taskId)
     const entries = q.entries.splice(0)
     if (entries.length === 0) return 0
+    notifyQueueChanged(taskId)
 
     log.info("Draining all queued prompts", { taskId, count: entries.length })
     let sent = 0
     for (const entry of entries) {
       yield* Effect.tryPromise({
-        try: () => sendPrompt(taskId, entry.text, entry.images),
+        try: () => sendPrompt(taskId, entry.text, entry.images, entry.fromTaskId),
         catch: () => new PromptError({
           message: "Drain send failed",
           taskId,
@@ -166,5 +240,6 @@ export function getAgentState(taskId: string): Effect.Effect<AgentState, never> 
 export function clearQueue(taskId: string): Effect.Effect<void, never> {
   return Effect.sync(() => {
     queues.delete(taskId)
+    notifyQueueChanged(taskId)
   })
 }

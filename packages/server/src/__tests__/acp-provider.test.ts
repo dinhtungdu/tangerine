@@ -10,6 +10,7 @@ import {
   configOptionsFromAcpResponse,
   createAcpEventMapper,
   createAcpProvider,
+  createPromptStatusTracker,
   resolveAcpCommand,
   selectPermissionOption,
 } from "../agent/acp-provider"
@@ -50,6 +51,23 @@ describe("buildAcpPromptBlocks", () => {
 
     expect(() => buildAcpPromptBlocks("look", [{ mediaType: "image/png", data: "abc" }], false))
       .toThrow("ACP agent does not support image prompts")
+  })
+})
+
+describe("createPromptStatusTracker", () => {
+  test("stays working until all overlapping prompt turns finish", () => {
+    const statuses: Array<"idle" | "working"> = []
+    const tracker = createPromptStatusTracker((status) => statuses.push(status))
+
+    const first = tracker.begin()
+    const second = tracker.begin()
+    tracker.end(first)
+    expect(statuses).toEqual(["working"])
+    expect(tracker.isWorking()).toBe(true)
+
+    tracker.end(second)
+    expect(statuses).toEqual(["working", "idle"])
+    expect(tracker.isWorking()).toBe(false)
   })
 })
 
@@ -273,6 +291,48 @@ describe("createAcpProvider", () => {
     expect(events).toContainEqual({ kind: "usage", inputTokens: 10, outputTokens: 5, contextTokens: 15, cumulative: true })
     expect(events).toContainEqual({ kind: "status", status: "idle" })
 
+    rmSync(tempDir, { recursive: true, force: true })
+  })
+
+  test("replays current ACP status to late subscribers", async () => {
+    const tempDir = mkdtempSync(join(tmpdir(), "tangerine-acp-status-"))
+    const scriptPath = join(tempDir, "mock-acp-agent.js")
+    writeFileSync(scriptPath, mockSlowAcpAgentScript, "utf-8")
+
+    process.env.TANGERINE_ACP_COMMAND = `bun ${scriptPath}`
+    const provider = createAcpProvider()
+    const handle = await Effect.runPromise(provider.start({ taskId: "task-acp", workdir: tempDir, title: "ACP status" }))
+
+    await Effect.runPromise(handle.sendPrompt("slow"))
+    await new Promise((resolve) => setTimeout(resolve, 20))
+    const events: AgentEvent[] = []
+    handle.subscribe((event) => events.push(event))
+
+    expect(events).toContainEqual({ kind: "status", status: "working" })
+    await waitFor(() => events.some((event) => event.kind === "status" && event.status === "idle"))
+
+    await Effect.runPromise(handle.shutdown())
+    rmSync(tempDir, { recursive: true, force: true })
+  })
+
+  test("advertises ACP filesystem callbacks and handles read/write requests", async () => {
+    const tempDir = mkdtempSync(join(tmpdir(), "tangerine-acp-fs-"))
+    const scriptPath = join(tempDir, "mock-acp-agent.js")
+    writeFileSync(scriptPath, mockFsAcpAgentScript, "utf-8")
+
+    process.env.TANGERINE_ACP_COMMAND = `bun ${scriptPath}`
+    const provider = createAcpProvider()
+    const handle = await Effect.runPromise(provider.start({ taskId: "task-acp", workdir: tempDir, title: "ACP fs" }))
+    const events: AgentEvent[] = []
+    handle.subscribe((event) => events.push(event))
+
+    await Effect.runPromise(handle.sendPrompt("write and read"))
+    await waitFor(() => events.some((event) => event.kind === "status" && event.status === "idle"))
+
+    expect(await Bun.file(join(tempDir, "edited.txt")).text()).toBe("edited content")
+    expect(events).toContainEqual({ kind: "message.complete", role: "assistant", content: "fs:edited content" })
+
+    await Effect.runPromise(handle.shutdown())
     rmSync(tempDir, { recursive: true, force: true })
   })
 
@@ -555,6 +615,73 @@ async function waitFor(condition: () => boolean): Promise<void> {
     await new Promise((resolve) => setTimeout(resolve, 10))
   }
 }
+
+const mockSlowAcpAgentScript = `
+const readline = require("node:readline")
+const rl = readline.createInterface({ input: process.stdin })
+function send(message) { process.stdout.write(JSON.stringify(message) + "\\n") }
+rl.on("line", (line) => {
+  const msg = JSON.parse(line)
+  if (msg.method === "initialize") {
+    send({ jsonrpc: "2.0", id: msg.id, result: { protocolVersion: 1, agentCapabilities: { sessionCapabilities: { close: {} } }, authMethods: [] } })
+    return
+  }
+  if (msg.method === "session/new") {
+    send({ jsonrpc: "2.0", id: msg.id, result: { sessionId: "sess-status" } })
+    return
+  }
+  if (msg.method === "session/prompt") {
+    const id = msg.id
+    setTimeout(() => send({ jsonrpc: "2.0", id, result: { stopReason: "end_turn" } }), 120)
+    return
+  }
+  if (msg.method === "session/close") {
+    send({ jsonrpc: "2.0", id: msg.id, result: {} })
+  }
+})
+`
+
+const mockFsAcpAgentScript = `
+const readline = require("node:readline")
+const path = require("node:path")
+const rl = readline.createInterface({ input: process.stdin })
+let promptId = null
+let wrote = false
+function send(message) { process.stdout.write(JSON.stringify(message) + "\\n") }
+rl.on("line", (line) => {
+  const msg = JSON.parse(line)
+  if (msg.method === "initialize") {
+    if (!msg.params.clientCapabilities?.fs?.readTextFile || !msg.params.clientCapabilities?.fs?.writeTextFile) {
+      send({ jsonrpc: "2.0", id: msg.id, error: { code: -32602, message: "missing fs capabilities" } })
+      return
+    }
+    send({ jsonrpc: "2.0", id: msg.id, result: { protocolVersion: 1, agentCapabilities: { sessionCapabilities: { close: {} } }, authMethods: [] } })
+    return
+  }
+  if (msg.method === "session/new") {
+    send({ jsonrpc: "2.0", id: msg.id, result: { sessionId: "sess-fs" } })
+    return
+  }
+  if (msg.method === "session/prompt") {
+    promptId = msg.id
+    send({ jsonrpc: "2.0", id: 201, method: "fs/write_text_file", params: { sessionId: "sess-fs", path: path.join(process.cwd(), "edited.txt"), content: "edited content" } })
+    return
+  }
+  if (msg.id === 201 && msg.result) {
+    wrote = true
+    send({ jsonrpc: "2.0", id: 202, method: "fs/read_text_file", params: { sessionId: "sess-fs", path: path.join(process.cwd(), "edited.txt") } })
+    return
+  }
+  if (msg.id === 202 && msg.result && wrote) {
+    send({ jsonrpc: "2.0", method: "session/update", params: { sessionId: "sess-fs", update: { sessionUpdate: "agent_message_chunk", content: { type: "text", text: "fs:" + msg.result.content } } } })
+    send({ jsonrpc: "2.0", id: promptId, result: { stopReason: "end_turn" } })
+    return
+  }
+  if (msg.method === "session/close") {
+    send({ jsonrpc: "2.0", id: msg.id, result: {} })
+  }
+})
+`
 
 const mockResumeAcpAgentScript = `
 const readline = require("node:readline")

@@ -1,6 +1,7 @@
 import { Effect } from "effect"
 import { homedir } from "node:os"
-import { join } from "node:path"
+import { dirname, isAbsolute, join, relative, resolve } from "node:path"
+import { mkdir } from "node:fs/promises"
 import { createLogger } from "../logger"
 import { AgentError, PromptError, SessionStartError } from "../errors"
 import { killDescendants, killProcessTreeEscalated } from "./process-tree"
@@ -118,6 +119,37 @@ export function buildAcpPromptBlocks(text: string, images: PromptImage[] = [], s
 export function selectPermissionOption(options: PermissionOption[]): string | null {
   const allow = options.find((option) => option.kind === "allow_once" || option.kind === "allow_always")
   return allow?.optionId ?? options[0]?.optionId ?? null
+}
+
+export function createPromptStatusTracker(emit: (status: "idle" | "working") => void): {
+  begin(): number
+  end(turnId: number): void
+  reset(): void
+  isWorking(): boolean
+} {
+  let nextTurnId = 0
+  const activeTurns = new Set<number>()
+  return {
+    begin() {
+      const turnId = ++nextTurnId
+      const wasIdle = activeTurns.size === 0
+      activeTurns.add(turnId)
+      if (wasIdle) emit("working")
+      return turnId
+    },
+    end(turnId: number) {
+      if (!activeTurns.delete(turnId)) return
+      if (activeTurns.size === 0) emit("idle")
+    },
+    reset() {
+      const wasWorking = activeTurns.size > 0
+      activeTurns.clear()
+      if (wasWorking) emit("idle")
+    },
+    isWorking() {
+      return activeTurns.size > 0
+    },
+  }
 }
 
 export function createAcpEventMapper(): {
@@ -319,6 +351,7 @@ async function startAcpSession(ctx: AgentStartContext, config?: AcpProviderConfi
   const command = resolveProviderCommand(config, process.env)
   const subscribers = new Set<(event: AgentEvent) => void>()
   let shutdownCalled = false
+  let lastStatus: "idle" | "working" | null = null
   let sessionId: string | null = null
   let configOptions: AgentConfigOption[] = []
   let capabilities: AcpAgentCapabilities = {
@@ -329,8 +362,11 @@ async function startAcpSession(ctx: AgentStartContext, config?: AcpProviderConfi
   }
 
   const emit = (event: AgentEvent) => {
+    if (event.kind === "status") lastStatus = event.status
     for (const subscriber of subscribers) subscriber(event)
   }
+
+  const statusTracker = createPromptStatusTracker((status) => emit({ kind: "status", status }))
 
   const emitMapped = (event: AgentEvent) => {
     if (event.kind === "config.options") configOptions = event.options
@@ -383,26 +419,29 @@ async function startAcpSession(ctx: AgentStartContext, config?: AcpProviderConfi
       for (const event of mapper.mapSessionUpdate(update)) emitMapped(event)
     },
     onRequest: async (method, params) => {
-      if (method !== "session/request_permission" || !isRecord(params)) {
-        throw new Error(`Unsupported ACP client request: ${method}`)
+      if (!isRecord(params)) throw new Error(`Invalid ACP client request params: ${method}`)
+      if (method === "session/request_permission") {
+        const options = Array.isArray(params.options)
+          ? params.options.filter(isPermissionOption)
+          : []
+        const optionId = selectPermissionOption(options)
+        if (!optionId) return { outcome: { outcome: "cancelled" } }
+        const selected = options.find((option) => option.optionId === optionId)
+        if (selected) {
+          const toolCall = isRecord(params.toolCall) ? params.toolCall : {}
+          emit({
+            kind: "permission.decision",
+            toolName: stringField(toolCall, "title") ?? stringField(toolCall, "kind") ?? stringField(toolCall, "toolCallId"),
+            optionId: selected.optionId,
+            optionName: selected.name,
+            optionKind: selected.kind,
+          })
+        }
+        return { outcome: { outcome: "selected", optionId } }
       }
-      const options = Array.isArray(params.options)
-        ? params.options.filter(isPermissionOption)
-        : []
-      const optionId = selectPermissionOption(options)
-      if (!optionId) return { outcome: { outcome: "cancelled" } }
-      const selected = options.find((option) => option.optionId === optionId)
-      if (selected) {
-        const toolCall = isRecord(params.toolCall) ? params.toolCall : {}
-        emit({
-          kind: "permission.decision",
-          toolName: stringField(toolCall, "title") ?? stringField(toolCall, "kind") ?? stringField(toolCall, "toolCallId"),
-          optionId: selected.optionId,
-          optionName: selected.name,
-          optionKind: selected.kind,
-        })
-      }
-      return { outcome: { outcome: "selected", optionId } }
+      if (method === "fs/read_text_file") return readTextFileForAcp(ctx.workdir, params)
+      if (method === "fs/write_text_file") return writeTextFileForAcp(ctx.workdir, params)
+      throw new Error(`Unsupported ACP client request: ${method}`)
     },
     onError: (error) => {
       if (!shutdownCalled) emit({ kind: "error", message: error.message })
@@ -419,7 +458,7 @@ async function startAcpSession(ctx: AgentStartContext, config?: AcpProviderConfi
 
   const initResult = await rpc.request("initialize", {
     protocolVersion: ACP_PROTOCOL_VERSION,
-    clientCapabilities: {},
+    clientCapabilities: { fs: { readTextFile: true, writeTextFile: true } },
     clientInfo: { name: "tangerine", title: "Tangerine", version: "0.0.8" },
   })
   capabilities = parseAcpCapabilities(initResult)
@@ -473,20 +512,20 @@ async function startAcpSession(ctx: AgentStartContext, config?: AcpProviderConfi
           if (shutdownCalled) return
           if (!sessionId) throw new Error("ACP session is not ready")
           const prompt = buildAcpPromptBlocks(text, images ?? [], capabilities.imagePrompts)
-          emit({ kind: "status", status: "working" })
+          const turnId = statusTracker.begin()
           rpc.request("session/prompt", { sessionId, prompt })
             .then((response) => {
               emitFlushedThoughts()
               for (const event of mapper.flushAssistantMessage()) emit(event)
               const usage = parsePromptUsage(response)
               if (usage) emit(usage)
-              emit({ kind: "status", status: "idle" })
+              statusTracker.end(turnId)
             })
             .catch((error: unknown) => {
               emitFlushedThoughts()
               const message = error instanceof Error ? error.message : String(error)
               emit({ kind: "error", message })
-              emit({ kind: "status", status: "idle" })
+              statusTracker.end(turnId)
             })
         },
         catch: (cause) => new PromptError({
@@ -514,6 +553,7 @@ async function startAcpSession(ctx: AgentStartContext, config?: AcpProviderConfi
 
     subscribe(onEvent: (event: AgentEvent) => void) {
       subscribers.add(onEvent)
+      if (lastStatus === "working") onEvent({ kind: "status", status: lastStatus })
       if (configOptions.length > 0) onEvent({ kind: "config.options", options: configOptions })
       return {
         unsubscribe() {
@@ -976,6 +1016,40 @@ export function parseAcpCapabilities(value: unknown): AcpAgentCapabilities {
     resume: isRecord(sessionCapabilities.resume),
     close: isRecord(sessionCapabilities.close),
   }
+}
+
+async function readTextFileForAcp(workdir: string, params: Record<string, unknown>): Promise<{ content: string }> {
+  const requestedPath = stringField(params, "path")
+  if (!requestedPath) throw new Error("fs/read_text_file requires path")
+  const filePath = resolveAcpFsPath(workdir, requestedPath)
+  const text = await Bun.file(filePath).text()
+  const line = numberField(params, "line")
+  const limit = numberField(params, "limit")
+  if (!line && !limit) return { content: text }
+
+  const lines = text.split(/\r?\n/)
+  const start = Math.max(0, Math.floor((line ?? 1) - 1))
+  const end = limit && limit > 0 ? start + Math.floor(limit) : undefined
+  return { content: lines.slice(start, end).join("\n") }
+}
+
+async function writeTextFileForAcp(workdir: string, params: Record<string, unknown>): Promise<Record<string, never>> {
+  const requestedPath = stringField(params, "path")
+  const content = stringField(params, "content")
+  if (!requestedPath) throw new Error("fs/write_text_file requires path")
+  if (content === undefined) throw new Error("fs/write_text_file requires content")
+  const filePath = resolveAcpFsPath(workdir, requestedPath)
+  await mkdir(dirname(filePath), { recursive: true })
+  await Bun.write(filePath, content)
+  return {}
+}
+
+function resolveAcpFsPath(workdir: string, requestedPath: string): string {
+  const root = resolve(workdir)
+  const target = resolve(root, requestedPath)
+  const rel = relative(root, target)
+  if (rel === "" || (!rel.startsWith("..") && !isAbsolute(rel))) return target
+  throw new Error("ACP filesystem request path is outside the session workdir")
 }
 
 function parsePromptUsage(value: unknown): AgentEvent | null {

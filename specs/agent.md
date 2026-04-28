@@ -19,6 +19,7 @@ Responsibilities:
 - cancel active work with `session/cancel`
 - close sessions with `session/close` when supported
 - handle `session/request_permission`
+- advertise and serve ACP filesystem callbacks `fs/read_text_file` and `fs/write_text_file`, restricted to the task worktree
 - apply session configuration via `session/set_config_option`, or compatibility `session/set_model` / `session/set_mode` for ACP agents that expose legacy model/mode state
 - expose session id and process pid for task persistence and cleanup
 
@@ -100,13 +101,13 @@ Do not show interactive permission prompts for unattended v0 tasks. Future foreg
 
 ## Client Capabilities
 
-First pass should advertise minimal capabilities unless needed by a chosen agent:
+Current client capabilities:
 
-- filesystem callbacks: optional
-- terminal callbacks: optional
+- filesystem callbacks: `fs.readTextFile` and `fs.writeTextFile` are advertised and sandboxed to the task worktree
+- terminal callbacks: not advertised
 - image prompts: only send images when agent advertises image support
 
-Tangerine can add filesystem/terminal callbacks later without changing the core agent model.
+Filesystem callbacks let ACP adapters request editor-style reads/writes through the client, matching ACP client behavior without giving dashboard access outside the session worktree.
 
 ## Event Flow
 
@@ -116,6 +117,7 @@ ACP events fan out to the existing Tangerine surfaces:
 - `session_logs`
 - `activity_log`
 - task working-state updates
+- queued prompt updates for messages waiting on the active turn
 - token/context usage persistence
 
 The dashboard is a Tangerine task UI powered by ACP streams, not an embedded ACP UI.

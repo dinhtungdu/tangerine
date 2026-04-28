@@ -5,6 +5,10 @@ import {
   setAgentState,
   drainNext,
   clearQueue,
+  editQueuedPrompt,
+  getQueuedPrompts,
+  onQueueChange,
+  removeQueuedPrompt,
   type SendPromptFn,
 } from "../agent/prompt-queue"
 
@@ -16,13 +20,13 @@ import {
  */
 describe("tracer: prompt queue -> agent state -> delivery", () => {
   const tid = () => `task-${crypto.randomUUID().slice(0, 8)}`
-  let sentPrompts: Array<{ taskId: string; text: string }>
+  let sentPrompts: Array<{ taskId: string; text: string; fromTaskId?: string }>
   let sendPrompt: SendPromptFn
 
   beforeEach(() => {
     sentPrompts = []
-    sendPrompt = mock(async (taskId: string, text: string) => {
-      sentPrompts.push({ taskId, text })
+    sendPrompt = mock(async (taskId: string, text: string, _images, fromTaskId) => {
+      sentPrompts.push({ taskId, text, fromTaskId })
     }) as SendPromptFn
   })
 
@@ -107,6 +111,41 @@ describe("tracer: prompt queue -> agent state -> delivery", () => {
     Effect.runSync(setAgentState(t, "idle"))
     const emptySend = await Effect.runPromise(drainNext(t, sendPrompt))
     expect(emptySend).toBe(false)
+
+    Effect.runSync(clearQueue(t))
+  })
+
+  it("exposes stable queued prompt ids and snapshots", () => {
+    const t = tid()
+    const snapshots: string[][] = []
+    const unsubscribe = onQueueChange(t, (entries) => snapshots.push(entries.map((entry) => entry.text)))
+
+    const first = Effect.runSync(enqueue(t, "First", undefined, "source-task"))
+    const second = Effect.runSync(enqueue(t, "Second"))
+
+    expect(first.id).not.toBe(second.id)
+    expect(first.fromTaskId).toBe("source-task")
+    expect(Effect.runSync(getQueuedPrompts(t)).map((entry) => entry.text)).toEqual(["First", "Second"])
+    expect(snapshots).toEqual([["First"], ["First", "Second"]])
+
+    unsubscribe()
+    Effect.runSync(clearQueue(t))
+  })
+
+  it("edits and removes queued prompts before delivery", async () => {
+    const t = tid()
+    const entry = Effect.runSync(enqueue(t, "Original", undefined, "source-task"))
+    Effect.runSync(editQueuedPrompt(t, entry.id, { text: "Edited" }))
+
+    expect(Effect.runSync(getQueuedPrompts(t))[0]?.text).toBe("Edited")
+
+    await Effect.runPromise(drainNext(t, sendPrompt))
+    expect(sentPrompts).toEqual([{ taskId: t, text: "Edited", fromTaskId: "source-task" }])
+
+    Effect.runSync(setAgentState(t, "idle"))
+    const removedEntry = Effect.runSync(enqueue(t, "Remove me"))
+    expect(Effect.runSync(removeQueuedPrompt(t, removedEntry.id))).toBe(true)
+    expect(Effect.runSync(getQueuedPrompts(t))).toEqual([])
 
     Effect.runSync(clearQueue(t))
   })

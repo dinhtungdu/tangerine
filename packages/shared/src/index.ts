@@ -20,6 +20,7 @@ export {
   type WsServerMessage,
   type WsClientMessage,
   type PromptImage,
+  type PromptQueueEntry,
   type LogLevel,
   type SystemLogEntry,
   type SystemCapabilities,

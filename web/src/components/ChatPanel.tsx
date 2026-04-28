@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState, useCallback } from "react"
 import { Button } from "@/components/ui/button"
 import { TERMINAL_STATUSES } from "@tangerine/shared"
-import type { AgentConfigOption, PromptImage, PredefinedPrompt, TaskStatus, ProviderType, ActivityEntry } from "@tangerine/shared"
+import type { AgentConfigOption, PromptImage, PromptQueueEntry, PredefinedPrompt, TaskStatus, ProviderType, ActivityEntry } from "@tangerine/shared"
 import type { ChatMessage as ChatMessageType } from "../hooks/useSession"
 import { AssistantMessageGroups } from "./AssistantMessageGroups"
 import { ChatInput } from "./ChatInput"
@@ -14,6 +14,7 @@ interface ChatPanelProps {
   tasks?: ReadonlyArray<{ id: string }>
   agentStatus: "idle" | "working"
   queueLength: number
+  queuedPrompts?: PromptQueueEntry[]
   model?: string | null
   provider?: ProviderType
   reasoningEffort?: string | null
@@ -23,6 +24,8 @@ interface ChatPanelProps {
   taskTitle?: string
   onSend: (text: string, images?: PromptImage[]) => void
   onAbort: () => void
+  onQueuedPromptUpdate?: (promptId: string, text: string) => void | Promise<void>
+  onQueuedPromptRemove?: (promptId: string) => void | Promise<void>
   onModelChange?: (model: string) => void
   onReasoningEffortChange?: (effort: string) => void
   onModeChange?: (mode: string) => void
@@ -38,6 +41,79 @@ interface ChatPanelProps {
 }
 
 const EMPTY_ACTIVITIES: ActivityEntry[] = []
+const EMPTY_QUEUE: PromptQueueEntry[] = []
+
+function QueuedPromptList({
+  queuedPrompts,
+  onUpdate,
+  onRemove,
+}: {
+  queuedPrompts: PromptQueueEntry[]
+  onUpdate?: (promptId: string, text: string) => void | Promise<void>
+  onRemove?: (promptId: string) => void | Promise<void>
+}) {
+  const [drafts, setDrafts] = useState<Record<string, string>>({})
+
+  useEffect(() => {
+    setDrafts((prev) => {
+      const next: Record<string, string> = {}
+      for (const entry of queuedPrompts) next[entry.id] = prev[entry.id] ?? entry.text
+      return next
+    })
+  }, [queuedPrompts])
+
+  if (queuedPrompts.length === 0) return null
+
+  return (
+    <div className="border-t border-border bg-muted/30 px-3 py-2 md:px-4">
+      <div className="mb-2 text-2xs font-medium uppercase tracking-wide text-muted-foreground">
+        Queued messages
+      </div>
+      <div className="space-y-2">
+        {queuedPrompts.map((entry, index) => {
+          const draft = drafts[entry.id] ?? entry.text
+          const isChanged = draft !== entry.text
+          return (
+            <div key={entry.id} className="rounded-lg border border-border bg-background p-2 shadow-sm">
+              <textarea
+                aria-label={`Edit queued message ${index + 1}`}
+                value={draft}
+                onChange={(event) => setDrafts((prev) => ({ ...prev, [entry.id]: event.target.value }))}
+                rows={2}
+                className="min-h-14 w-full resize-y rounded-md border border-input bg-transparent px-2 py-1.5 text-xs outline-none focus-visible:ring-1 focus-visible:ring-ring/50"
+              />
+              <div className="mt-1.5 flex items-center justify-between gap-2">
+                <span className="text-2xs text-muted-foreground">
+                  Sends after current turn
+                </span>
+                <div className="flex items-center gap-1.5">
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="xs"
+                    disabled={!isChanged || draft.trim().length === 0}
+                    onClick={() => { void onUpdate?.(entry.id, draft) }}
+                  >
+                    Save
+                  </Button>
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="xs"
+                    aria-label={`Remove queued message ${index + 1}`}
+                    onClick={() => { void onRemove?.(entry.id) }}
+                  >
+                    Remove
+                  </Button>
+                </div>
+              </div>
+            </div>
+          )
+        })}
+      </div>
+    </div>
+  )
+}
 
 export function ChatPanel({
   messages,
@@ -45,6 +121,7 @@ export function ChatPanel({
   tasks,
   agentStatus,
   queueLength,
+  queuedPrompts = EMPTY_QUEUE,
   model,
   provider,
   reasoningEffort,
@@ -54,6 +131,8 @@ export function ChatPanel({
   taskTitle,
   onSend,
   onAbort,
+  onQueuedPromptUpdate,
+  onQueuedPromptRemove,
   onModelChange,
   onReasoningEffortChange,
   onModeChange,
@@ -249,11 +328,16 @@ export function ChatPanel({
         />
       ) : (
         <>
+          <QueuedPromptList
+            queuedPrompts={queuedPrompts}
+            onUpdate={onQueuedPromptUpdate}
+            onRemove={onQueuedPromptRemove}
+          />
           <ChatInput
           key={taskId}
           onSend={onSend}
           disabled={false}
-          queueLength={queueLength}
+          queueLength={queuedPrompts.length || queueLength}
           taskId={taskId}
           isWorking={agentStatus === "working"}
           onAbort={onAbort}

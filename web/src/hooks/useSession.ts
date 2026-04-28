@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback, useRef } from "react"
-import type { AgentConfigOption, AgentContentBlock, AgentPlanEntry, WsServerMessage, TaskStatus, ActivityEntry, PromptImage } from "@tangerine/shared"
-import { fetchMessages, fetchActivities, fetchTaskConfigOptions, type SessionLog } from "../lib/api"
+import type { AgentConfigOption, AgentContentBlock, AgentPlanEntry, WsServerMessage, TaskStatus, ActivityEntry, PromptImage, PromptQueueEntry } from "@tangerine/shared"
+import { fetchMessages, fetchActivities, fetchQueuedPrompts, fetchTaskConfigOptions, removeQueuedPrompt, updateQueuedPrompt, type SessionLog } from "../lib/api"
 import { useWebSocket } from "./useWebSocket"
 
 export interface ChatMessageImage {
@@ -22,10 +22,13 @@ interface UseSessionResult {
   activities: ActivityEntry[]
   agentStatus: "idle" | "working"
   queueLength: number
+  queuedPrompts: PromptQueueEntry[]
   connected: boolean
   taskStatus: TaskStatus | null
   sendPrompt: (text: string, images?: PromptImage[]) => void
   abort: () => void
+  updateQueuedPrompt: (promptId: string, text: string) => Promise<void>
+  removeQueuedPrompt: (promptId: string) => Promise<void>
   contextTokens: number
   contextWindowMax: number | null
   configOptions: AgentConfigOption[]
@@ -125,7 +128,7 @@ export function useSession(taskId: string, initialContextTokens?: number, initia
   const [messages, setMessages] = useState<ChatMessage[]>([])
   const [activities, setActivities] = useState<ActivityEntry[]>([])
   const [agentStatus, setAgentStatus] = useState<"idle" | "working">("idle")
-  const [queueLength, setQueueLength] = useState(0)
+  const [queuedPrompts, setQueuedPrompts] = useState<PromptQueueEntry[]>([])
   const [taskStatus, setTaskStatus] = useState<TaskStatus | null>(null)
   const [contextTokens, setContextTokens] = useState(initialContextTokens ?? 0)
   const [contextWindowMax, setContextWindowMax] = useState<number | null>(initialContextWindowMax ?? null)
@@ -153,7 +156,7 @@ export function useSession(taskId: string, initialContextTokens?: number, initia
     setMessages([])
     setActivities([])
     setAgentStatus("idle")
-    setQueueLength(0)
+    setQueuedPrompts([])
     setTaskStatus(null)
     setContextTokens(0)
     setContextWindowMax(null)
@@ -206,6 +209,11 @@ export function useSession(taskId: string, initialContextTokens?: number, initia
       setConfigOptions(await fetchTaskConfigOptions(taskId))
     } catch {
       // Config options may not be available yet
+    }
+    try {
+      setQueuedPrompts(await fetchQueuedPrompts(taskId))
+    } catch {
+      // Queue may not be available yet
     }
   }, [taskId])
 
@@ -351,6 +359,9 @@ export function useSession(taskId: string, initialContextTokens?: number, initia
       case "agent_status":
         setAgentStatus(msg.agentStatus)
         break
+      case "queue":
+        setQueuedPrompts(msg.queuedPrompts)
+        break
       case "error":
         setMessages((prev) => [
           ...prev,
@@ -370,10 +381,8 @@ export function useSession(taskId: string, initialContextTokens?: number, initia
 
   const sendPrompt = useCallback(
     (text: string, images?: PromptImage[]) => {
-      // Add user message optimistically so the sender sees it immediately.
-      // The server also broadcasts a WS event to all clients; the handleWsMessage
-      // handler deduplicates so this tab won't show the message twice.
-      if (text || images?.length) {
+      const shouldQueue = agentStatus === "working"
+      if (!shouldQueue && (text || images?.length)) {
         const optimisticId = `user-${Date.now()}`
         pendingOptimisticRef.current.add(optimisticId)
         setMessages((prev) => [
@@ -386,21 +395,27 @@ export function useSession(taskId: string, initialContextTokens?: number, initia
             images: images?.map((img) => ({ src: `data:${img.mediaType};base64,${img.data}` })),
           },
         ])
+        setAgentStatus("working")
       }
-      setAgentStatus("working")
-      setQueueLength((q) => q + 1)
       send({ type: "prompt", text, images })
-      // Decrement queue after a short delay (server will process)
-      setTimeout(() => setQueueLength((q) => Math.max(0, q - 1)), 500)
     },
-    [send],
+    [agentStatus, send],
   )
 
   const abort = useCallback(() => {
     send({ type: "abort" })
     setAgentStatus("idle")
-    setQueueLength(0)
   }, [send])
 
-  return { messages, activities, agentStatus, queueLength, connected, taskStatus, sendPrompt, abort, contextTokens, contextWindowMax, configOptions }
+  const handleUpdateQueuedPrompt = useCallback(async (promptId: string, text: string) => {
+    const updated = await updateQueuedPrompt(taskId, promptId, text)
+    setQueuedPrompts((prev) => prev.map((entry) => entry.id === promptId ? updated : entry))
+  }, [taskId])
+
+  const handleRemoveQueuedPrompt = useCallback(async (promptId: string) => {
+    await removeQueuedPrompt(taskId, promptId)
+    setQueuedPrompts((prev) => prev.filter((entry) => entry.id !== promptId))
+  }, [taskId])
+
+  return { messages, activities, agentStatus, queueLength: queuedPrompts.length, queuedPrompts, connected, taskStatus, sendPrompt, abort, updateQueuedPrompt: handleUpdateQueuedPrompt, removeQueuedPrompt: handleRemoveQueuedPrompt, contextTokens, contextWindowMax, configOptions }
 }

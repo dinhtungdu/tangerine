@@ -656,6 +656,7 @@ export function TaskDetail() {
                 tasks={tasks}
                 agentStatus={session.agentStatus}
                 queueLength={session.queueLength}
+                queuedPrompts={session.queuedPrompts}
                 model={chatTask.model}
                 provider={chatTask.provider}
                 reasoningEffort={chatTask.reasoningEffort}
@@ -665,6 +666,8 @@ export function TaskDetail() {
                 taskTitle={chatTask.title}
                 onSend={handleSend}
                 onAbort={session.abort}
+                onQueuedPromptUpdate={session.updateQueuedPrompt}
+                onQueuedPromptRemove={session.removeQueuedPrompt}
                 onModelChange={handleModelChange}
                 onReasoningEffortChange={handleReasoningEffortChange}
                 onModeChange={handleModeChange}

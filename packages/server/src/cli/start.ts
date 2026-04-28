@@ -33,7 +33,7 @@ import type { PrMonitorDeps } from "../tasks/pr-monitor"
 import { initSystemLog, cleanupSystemLogs } from "../system-log"
 import { getAgentHandleMeta, type AgentHandle } from "../agent/provider"
 import { createAgentFactories } from "../agent/factories"
-import { enqueue as enqueuePrompt, drainAll as drainQueuedPrompts, clearQueue } from "../agent/prompt-queue"
+import { enqueue as enqueuePrompt, drainNext as drainQueuedPrompts, setAgentState as setQueuedAgentState, clearQueue } from "../agent/prompt-queue"
 import { buildSystemNotes, buildEscalationBlock, buildPrWorkflowNote } from "../tasks/prompts"
 import { appendActiveStreamMessage, clearTaskState, completeActiveStreamMessage, getTaskState } from "../tasks/task-state"
 import { taskConfigUpdatesFromOptions } from "../agent/config-options"
@@ -328,8 +328,16 @@ export async function start(): Promise<void> {
           agentHandles.set(taskId, session.agentHandle)
 
           const sendFn = async (_tid: string, text: string, imgs?: import("../agent/provider").PromptImage[]) => {
-            await Effect.runPromise(session.agentHandle.sendPrompt(text, imgs).pipe(Effect.catchAll(() => Effect.void)))
+            await Effect.runPromise(session.agentHandle.sendPrompt(text, imgs))
           }
+          const drainQueuedOnce = () => Effect.runPromise(
+            drainQueuedPrompts(taskId, sendFn).pipe(
+              Effect.catchAll((error) => {
+                log.error("Failed to drain queued prompt", { taskId, error: error.message })
+                return Effect.void
+              })
+            )
+          )
 
           // Hydrate in-memory tracking from DB (lost on restart)
           const taskMeta = db.prepare("SELECT pr_url, context_tokens, context_window_max FROM tasks WHERE id = ?").get(taskId) as { pr_url: string | null; context_tokens: number; context_window_max: number | null } | null
@@ -397,7 +405,7 @@ export async function start(): Promise<void> {
             }
             sendReconnectNudge()
             // Drain queued prompts for reconnect — agent already has conversation context
-            Effect.runPromise(drainQueuedPrompts(taskId, sendFn))
+            drainQueuedOnce()
           } else if (!hasLogs || (hasLogs && !hasAssistantResponse)) {
             // No logs at all (fresh task) or logs exist but agent never responded
             // (e.g. killed by model change before processing prompt). Either way,
@@ -466,6 +474,7 @@ export async function start(): Promise<void> {
                   ? initialPrompt + escalationBlock
                   : notes.join("\n") + "\n\n" + initialPrompt + escalationBlock
 
+                await Effect.runPromise(setQueuedAgentState(taskId, "busy"))
                 await Effect.runPromise(
                   session.agentHandle.sendPrompt(fullPrompt, images).pipe(Effect.catchAll(() => Effect.void))
                 )
@@ -490,15 +499,15 @@ export async function start(): Promise<void> {
                 }
 
                 // Now drain any queued prompts (e.g. user message sent while task was starting)
-                await Effect.runPromise(drainQueuedPrompts(taskId, sendFn))
+                await drainQueuedOnce()
               })
             } else {
               // No initial prompt — just drain the queue
-              Effect.runPromise(drainQueuedPrompts(taskId, sendFn))
+              drainQueuedOnce()
             }
           } else {
             // Fallback: drain queued prompts for any other case
-            Effect.runPromise(drainQueuedPrompts(taskId, sendFn))
+            drainQueuedOnce()
           }
 
           getTaskState(taskId).idleWake = false
@@ -616,6 +625,7 @@ export async function start(): Promise<void> {
                 const st = getTaskState(taskId)
                 if (event.status === "working") {
                   setAgentWorkingState(taskId, "working")
+                  Effect.runPromise(setQueuedAgentState(taskId, "busy"))
                   emitTaskEvent(taskId, { event: "agent.start" })
                   // Cancel pending PR nudge — agent is still working
                   if (st.prNudgeTimer) {
@@ -624,6 +634,7 @@ export async function start(): Promise<void> {
                   }
                 } else if (event.status === "idle") {
                   setAgentWorkingState(taskId, "idle")
+                  Effect.runPromise(setQueuedAgentState(taskId, "idle"))
                   emitTaskEvent(taskId, { event: "agent.idle" })
                   // Agent completed a turn — it's alive and productive, so reset
                   // the restart counter to prevent false positives from the
@@ -641,6 +652,8 @@ export async function start(): Promise<void> {
                       )
                     }
                   }
+
+                  if (!st.queuePaused) drainQueuedOnce()
 
                   // Schedule PR nudge if agent has commits but no PR (skip orchestrators)
                   if (!st.prUrlSaved && !st.prNudgeSent) {
@@ -948,6 +961,8 @@ export async function start(): Promise<void> {
             // Skip empty messages (no text and no images)
             if (!text && (!images || images.length === 0)) return
 
+            getTaskState(taskId).queuePaused = false
+
             // Save images to disk and store filenames in session_logs
             let imageFilenames: string[] | undefined
             if (images && images.length > 0) {
@@ -1017,6 +1032,11 @@ export async function start(): Promise<void> {
               }
             }
 
+            if (getAgentWorkingState(taskId) === "working") {
+              yield* enqueuePrompt(taskId, promptText, images, fromTaskId)
+              return
+            }
+
             // Try agent handle first (works for both providers).
             // Check isAlive before writing — without this, prompts are silently
             // lost when the process died but the stale handle remains in agentHandles.
@@ -1062,7 +1082,7 @@ export async function start(): Promise<void> {
             }
 
             // Queue for delivery once the agent is ready
-            yield* enqueuePrompt(taskId, promptText, images)
+            yield* enqueuePrompt(taskId, promptText, images, fromTaskId)
           }).pipe(
             Effect.catchAll((e) => {
               log.error("sendPrompt failed", { taskId, error: String(e) })
@@ -1073,7 +1093,9 @@ export async function start(): Promise<void> {
         abortTask: (taskId) => {
           // Mark as suspended so health check won't auto-restart.
           // The agent will wake again when the user sends a new message.
-          getTaskState(taskId).suspended = true
+          const state = getTaskState(taskId)
+          state.suspended = true
+          state.queuePaused = true
 
           // Try handle-based abort first.
           const handle = agentHandles.get(taskId)
