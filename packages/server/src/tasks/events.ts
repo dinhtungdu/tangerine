@@ -1,15 +1,24 @@
 // Singleton event emitter for task events.
 // WebSocket routes subscribe per-task; the task manager emits on status transitions.
 
+/**
+ * If an agent claims "working" but hasn't produced output in this time,
+ * treat it as stalled/idle. Matches Temporal's progress-based heartbeat model.
+ */
+export const AGENT_PROGRESS_TIMEOUT_MS = 120_000 // 2 minutes
+
 type TaskEventHandler = (data: unknown) => void
 type StatusChangeHandler = (status: string) => void
 
 const taskEventListeners = new Map<string, Set<TaskEventHandler>>()
 const statusChangeListeners = new Map<string, Set<StatusChangeHandler>>()
 
-// Track whether each task's agent is currently working or idle.
-// This is separate from task status ("running" = task is open, agent may be idle).
-const agentWorkingState = new Map<string, "idle" | "working">()
+// Single state object per task: status + last progress timestamp (if working)
+interface AgentState {
+  status: "idle" | "working"
+  lastProgressAt?: number // Updated on any output, not just turn start
+}
+const agentState = new Map<string, AgentState>()
 
 // Global listeners for agent_status broadcasts (used by task-list WS)
 type AgentStatusHandler = (event: { taskId: string; agentStatus: "idle" | "working" }) => void
@@ -48,27 +57,74 @@ export function onTaskEvent(taskId: string, handler: TaskEventHandler): () => vo
   }
 }
 
-/** Get the current agent working state for a task. */
+/** Get the current agent working state for a task (pure, no side effects). */
 export function getAgentWorkingState(taskId: string): "idle" | "working" {
-  return agentWorkingState.get(taskId) ?? "idle"
+  return agentState.get(taskId)?.status ?? "idle"
 }
 
 /** Check if an agent working state has been explicitly set for a task. */
 export function hasAgentWorkingState(taskId: string): boolean {
-  return agentWorkingState.has(taskId)
+  return agentState.has(taskId)
+}
+
+/**
+ * Check if agent is stalled (working with no progress for > AGENT_PROGRESS_TIMEOUT_MS).
+ * Returns true if stalled, false otherwise.
+ */
+export function isAgentStalled(taskId: string): boolean {
+  const state = agentState.get(taskId)
+  if (!state || state.status !== "working" || !state.lastProgressAt) return false
+  return Date.now() - state.lastProgressAt >= AGENT_PROGRESS_TIMEOUT_MS
+}
+
+/**
+ * Check for stalled agent and reset to idle if detected.
+ * Call this before reading status in API routes and health checks.
+ * Returns true if agent was stalled and reset.
+ */
+export function resetIfStalled(taskId: string): boolean {
+  if (isAgentStalled(taskId)) {
+    setAgentWorkingState(taskId, "idle")
+    return true
+  }
+  return false
+}
+
+/**
+ * Get effective agent status, resetting stalled agents first.
+ * Convenience wrapper: resetIfStalled() + getAgentWorkingState().
+ */
+export function getEffectiveAgentStatus(taskId: string): "idle" | "working" {
+  resetIfStalled(taskId)
+  return getAgentWorkingState(taskId)
 }
 
 /** Update the agent working state for a task and broadcast to global listeners. */
-export function setAgentWorkingState(taskId: string, state: "idle" | "working"): void {
-  agentWorkingState.set(taskId, state)
+export function setAgentWorkingState(taskId: string, status: "idle" | "working"): void {
+  const state: AgentState = { status }
+  if (status === "working") {
+    state.lastProgressAt = Date.now()
+  }
+  agentState.set(taskId, state)
   for (const handler of agentStatusListeners) {
-    handler({ taskId, agentStatus: state })
+    handler({ taskId, agentStatus: status })
+  }
+}
+
+/**
+ * Record progress for a working agent. Call on any output (messages, tool use, thinking).
+ * Resets stall timer so long-running but active agents aren't marked idle.
+ */
+export function recordAgentProgress(taskId: string): void {
+  const state = agentState.get(taskId)
+  if (state?.status === "working") {
+    state.lastProgressAt = Date.now()
   }
 }
 
 /** Clean up agent working state when a task is terminal. */
 export function clearAgentWorkingState(taskId: string): void {
-  agentWorkingState.delete(taskId)
+  agentState.delete(taskId)
 }
 
 /** Subscribe to status changes. Returns an unsubscribe function. */

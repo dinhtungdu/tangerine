@@ -73,8 +73,10 @@ export interface HealthCheckDeps {
   getLastAgentError(taskId: string): string | undefined
   /** Returns the ISO timestamp of the most recent user message for a task, or null. */
   getLastUserMessageTime(taskId: string): string | null
-  /** Returns whether the agent is currently processing (working) or idle. */
+  /** Returns whether the agent is currently processing (working) or idle (stall-aware). */
   isAgentWorking(taskId: string): boolean
+  /** Returns raw working state (ignores stall timeout). Used by hung-tool check. */
+  isAgentWorkingRaw(taskId: string): boolean
   /** Log an activity entry when an agent is suspended due to idle timeout. */
   logSuspend(taskId: string, idleMs: number): Effect.Effect<void, never>
   /**
@@ -284,7 +286,9 @@ function checkHungTool(
     // Only relevant when the agent is actively working — if an agent dies before
     // sending a final tool update, stale status:"running" activity can remain.
     // Without this guard a healthy idle agent could be spuriously aborted.
-    if (!deps.isAgentWorking(task.id)) return
+    // Use raw state: stall timeout (2 min) < hung-tool timeout (5 min), so effective
+    // state would reset to idle before hung-tool check fires.
+    if (!deps.isAgentWorkingRaw(task.id)) return
 
     const state = getTaskState(task.id)
 

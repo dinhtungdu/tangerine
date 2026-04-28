@@ -51,6 +51,7 @@ function makeDeps(overrides?: Partial<HealthCheckDeps>): HealthCheckDeps {
     suspendAgent: () => Effect.void,
     getLastAgentError: () => undefined,
     isAgentWorking: () => false,
+    isAgentWorkingRaw: () => false,
     logSuspend: () => Effect.void,
     persistSuspended: () => Effect.void,
     getLastUserMessageTime: () => new Date().toISOString(),
@@ -438,6 +439,7 @@ describe("hung tool watchdog", () => {
     const deps = makeDeps({
       listRunningTasks: () => Effect.succeed([task]),
       isAgentWorking: () => true,
+      isAgentWorkingRaw: () => true,
       // Last activity is a running tool from 6 minutes ago
       getLastRunningActivityTime: () => new Date(Date.now() - 360_000).toISOString(),
       abortHungTool: abortFn,
@@ -455,6 +457,7 @@ describe("hung tool watchdog", () => {
     const deps = makeDeps({
       listRunningTasks: () => Effect.succeed([task]),
       isAgentWorking: () => true,
+      isAgentWorkingRaw: () => true,
       // Last activity is a running tool from 2 minutes ago — not yet hung
       getLastRunningActivityTime: () => new Date(Date.now() - 120_000).toISOString(),
       abortHungTool: abortFn,
@@ -472,6 +475,7 @@ describe("hung tool watchdog", () => {
     const deps = makeDeps({
       listRunningTasks: () => Effect.succeed([task]),
       isAgentWorking: () => false,
+      isAgentWorkingRaw: () => false,
       getLastRunningActivityTime: () => new Date(Date.now() - 360_000).toISOString(),
       abortHungTool: abortFn,
     })
@@ -486,6 +490,7 @@ describe("hung tool watchdog", () => {
     const deps = makeDeps({
       listRunningTasks: () => Effect.succeed([task]),
       isAgentWorking: () => true,
+      isAgentWorkingRaw: () => true,
       getLastRunningActivityTime: () => new Date(Date.now() - 360_000).toISOString(),
       abortHungTool: abortFn,
     })

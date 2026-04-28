@@ -14,7 +14,7 @@ import type { AppDeps } from "../api/app"
 import { resolveDefaultAgentId, resolveTaskTypeConfig } from "@tangerine/shared"
 import * as taskManager from "../tasks/manager"
 import type { TaskManagerDeps } from "../tasks/manager"
-import { onTaskEvent, onStatusChange, emitTaskEvent, setAgentWorkingState, getAgentWorkingState } from "../tasks/events"
+import { onTaskEvent, onStatusChange, emitTaskEvent, setAgentWorkingState, getAgentWorkingState, getEffectiveAgentStatus, recordAgentProgress } from "../tasks/events"
 import { cleanupSession } from "../tasks/cleanup"
 import type { CleanupDeps } from "../tasks/cleanup"
 import { startOrphanCleanup, findOrphans, cleanupOrphans } from "../tasks/orphan-cleanup"
@@ -527,6 +527,7 @@ export async function start(): Promise<void> {
           session.agentHandle.subscribe((event) => {
             switch (event.kind) {
               case "message.streaming": {
+                recordAgentProgress(taskId)
                 if (event.content) {
                   const active = appendActiveStreamMessage(taskId, "assistant", event.content, event.messageId)
                   emitTaskEvent(taskId, {
@@ -538,6 +539,7 @@ export async function start(): Promise<void> {
                 break
               }
               case "message.complete": {
+                recordAgentProgress(taskId)
                 if (event.role === "assistant" && (event.content || event.imagePaths?.length || event.images?.length)) {
                   const completedActive = completeActiveStreamMessage(taskId, "assistant")
                   const messageId = event.messageId ?? completedActive?.messageId
@@ -720,6 +722,7 @@ export async function start(): Promise<void> {
                 break
               }
               case "tool.start": {
+                recordAgentProgress(taskId)
                 const { activityType, activityEvent } = classifyTool(event.toolName)
                 Effect.runPromise(
                   updateToolActivity(db, taskId, {
@@ -734,6 +737,7 @@ export async function start(): Promise<void> {
                 break
               }
               case "tool.update": {
+                recordAgentProgress(taskId)
                 const { activityType, activityEvent } = classifyTool(event.toolName)
                 Effect.runPromise(
                   updateToolActivity(db, taskId, {
@@ -750,6 +754,7 @@ export async function start(): Promise<void> {
                 break
               }
               case "tool.end": {
+                recordAgentProgress(taskId)
                 const { activityType, activityEvent } = classifyTool(event.toolName)
                 Effect.runPromise(
                   updateToolActivity(db, taskId, {
@@ -771,6 +776,7 @@ export async function start(): Promise<void> {
                 break
               }
               case "thinking.streaming": {
+                recordAgentProgress(taskId)
                 const active = appendActiveStreamMessage(taskId, "thinking", event.content, event.messageId)
                 emitTaskEvent(taskId, {
                   event: "thinking.streaming",
@@ -782,6 +788,7 @@ export async function start(): Promise<void> {
               }
               case "thinking.complete":
               case "thinking": {
+                recordAgentProgress(taskId)
                 // Persist only complete thoughts; streaming chunks stay transient.
                 if (!event.content.trim()) break
                 const completedActive = event.kind === "thinking.complete" ? completeActiveStreamMessage(taskId, "thinking") : undefined
@@ -1290,7 +1297,8 @@ export async function start(): Promise<void> {
       persistSuspended: (taskId, suspended) =>
         updateTask(db, taskId, { suspended: suspended ? 1 : 0 }).pipe(Effect.asVoid, Effect.catchAll(() => Effect.void)),
       getLastAgentError: (taskId) => getTaskState(taskId).lastError,
-      isAgentWorking: (taskId) => getAgentWorkingState(taskId) === "working",
+      isAgentWorking: (taskId) => getEffectiveAgentStatus(taskId) === "working",
+      isAgentWorkingRaw: (taskId) => getAgentWorkingState(taskId) === "working",
       logSuspend: (taskId, idleMs) =>
         logActivity(db, taskId, "lifecycle", "agent.suspended", "Agent suspended due to inactivity", {
           idleMs,
