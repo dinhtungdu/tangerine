@@ -278,16 +278,10 @@ export function createAcpEventMapper(): {
           const text = textFromContent(update.content)
           if (text) {
             const messageId = stringField(update, "messageId")
-            const events: AgentEvent[] = []
-            if (messageId && assistantMessageId && messageId !== assistantMessageId && assistantBuffer) {
-              events.push({ kind: "message.complete", role: "assistant", content: assistantBuffer, messageId: assistantMessageId })
-              assistantBuffer = ""
-              assistantMessageId = undefined
-            }
-            if (messageId) assistantMessageId = messageId
-            assistantBuffer += text
-            events.push({ kind: "message.streaming", content: text, ...(messageId ? { messageId } : {}) })
-            return events
+            if (messageId && !assistantMessageId) assistantMessageId = messageId
+            const chunk = `${paragraphBoundaryPrefix(assistantBuffer, text)}${text}`
+            assistantBuffer += chunk
+            return [{ kind: "message.streaming", content: chunk, ...(assistantMessageId ? { messageId: assistantMessageId } : {}) }]
           }
           const block = contentBlockFromContent(update.content)
           return block ? [{ kind: "content.block", block }] : []
@@ -436,6 +430,13 @@ export function createAcpEventMapper(): {
       return [{ kind: "thinking.complete", content, messageId }]
     },
   }
+}
+
+function paragraphBoundaryPrefix(previous: string, next: string): string {
+  if (!previous || !next) return ""
+  if (!/[.!?]$/.test(previous)) return ""
+  if (!/^[A-Z]/.test(next)) return ""
+  return "\n\n"
 }
 
 export function createAcpProvider(config?: AcpProviderConfig): AgentFactory {
