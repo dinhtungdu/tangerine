@@ -31,11 +31,24 @@ function depsForProvider(deps: TaskManagerDeps, provider: string): LifecycleDeps
   return { ...deps.lifecycleDeps, agentFactory: deps.getAgentFactory(provider) }
 }
 
-function resolveTaskAgentId(deps: TaskManagerDeps, projectConfig: ProjectConfig, explicit?: string): string {
+type ConfigurableTaskType = "worker" | "orchestrator" | "reviewer"
+
+function configurableTaskType(taskType: TaskType): ConfigurableTaskType | undefined {
+  if (taskType === "worker" || taskType === "orchestrator" || taskType === "reviewer") return taskType
+  return undefined
+}
+
+function taskTypeDefaults(projectConfig: ProjectConfig, taskType: TaskType) {
+  const key = configurableTaskType(taskType)
+  return key ? projectConfig.taskTypes?.[key] : undefined
+}
+
+function resolveTaskAgentId(deps: TaskManagerDeps, projectConfig: ProjectConfig, explicit: string | undefined, taskType: TaskType): string {
   if (explicit) return explicit
+  const key = configurableTaskType(taskType)
   const tangerineConfig = (deps.lifecycleDeps as Partial<LifecycleDeps>).tangerineConfig
-  if (tangerineConfig) return resolveDefaultAgentId(tangerineConfig, projectConfig)
-  return projectConfig.defaultAgent ?? projectConfig.defaultProvider ?? DEFAULT_AGENT_ID
+  if (tangerineConfig) return resolveDefaultAgentId(tangerineConfig, projectConfig, key)
+  return taskTypeDefaults(projectConfig, taskType)?.agent ?? projectConfig.defaultAgent ?? projectConfig.defaultProvider ?? DEFAULT_AGENT_ID
 }
 
 export interface TaskManagerDeps {
@@ -96,7 +109,8 @@ export function createTask(
     }
 
     const id = crypto.randomUUID()
-    const resolvedProvider = resolveTaskAgentId(deps, projectConfig, params.provider)
+    const defaults = taskTypeDefaults(projectConfig, taskType)
+    const resolvedProvider = resolveTaskAgentId(deps, projectConfig, params.provider, taskType)
 
     const description = params.description ?? null
 
@@ -112,8 +126,8 @@ export function createTask(
       type: taskType,
       description,
       provider: resolvedProvider,
-      model: params.model ?? null,
-      reasoning_effort: params.reasoningEffort ?? null,
+      model: params.model ?? defaults?.model ?? null,
+      reasoning_effort: params.reasoningEffort ?? defaults?.reasoningEffort ?? null,
       branch: params.branch ?? null,
       pr_url: params.prUrl ?? null,
       parent_task_id: params.parentTaskId ?? null,
@@ -588,11 +602,11 @@ Your role:
 - **Coordinate work**: Create worker tasks for features, bugs, and refactors. Create reviewer tasks for code review — never use workers for review.
 - **Monitor tasks**: Check task status via the API. Send prompts to nudge or unblock running agents.
 
-## Model and provider selection
+## Agent and model selection
 
-Choose based on task complexity. Pass \`"model"\` and optionally \`"provider"\` when creating tasks.
+Choose from configured ACP agents and model options based on task complexity. Pass \`"model"\` and optionally \`"provider"\` (the agent id) when creating tasks.
 
-Default to the most capable model for ambiguous complexity.
+Default to the most capable configured model for ambiguous work. Use a faster/cheaper configured model for straightforward work.
 
 Start by loading the tangerine-tasks skill and checking active tasks via the API.`
 

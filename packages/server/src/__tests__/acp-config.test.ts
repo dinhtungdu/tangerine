@@ -19,4 +19,29 @@ describe("ACP agent config", () => {
     ])
     expect(config.projects[0]?.defaultAgent).toBe("codex")
   })
+
+  test("parses task-type agent and model defaults", () => {
+    const config = tangerineConfigSchema.parse({
+      defaultAgent: "acp",
+      agents: [
+        { id: "acp", name: "Default ACP", command: "acp-agent" },
+        { id: "codex", name: "Codex", command: "codex-acp" },
+      ],
+      projects: [
+        {
+          name: "app",
+          repo: "org/app",
+          setup: "bun install",
+          defaultAgent: "acp",
+          taskTypes: {
+            orchestrator: { agent: "codex", model: "gpt-5", reasoningEffort: "high" },
+          },
+        },
+      ],
+    })
+
+    expect(config.projects[0]?.taskTypes?.orchestrator?.agent).toBe("codex")
+    expect(config.projects[0]?.taskTypes?.orchestrator?.model).toBe("gpt-5")
+    expect(config.projects[0]?.taskTypes?.orchestrator?.reasoningEffort).toBe("high")
+  })
 })

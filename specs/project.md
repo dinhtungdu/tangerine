@@ -14,6 +14,13 @@ Stored in `tangerine.json` at the project root (or `~/.config/tangerine/config.j
     "defaultBranch": "trunk",
     "setup": "npm install && npx wp-env start",
     "defaultAgent": "claude",
+    "taskTypes": {
+      "orchestrator": {
+        "agent": "codex",
+        "model": "gpt-5",
+        "reasoningEffort": "high"
+      }
+    },
     "previewCommand": "setup-vhost.sh $TANGERINE_PREVIEW_PORT",
     "test": "npx wp-env run tests-wordpress phpunit",
     "env": {
@@ -38,6 +45,7 @@ Stored in `tangerine.json` at the project root (or `~/.config/tangerine/config.j
 | `env` | object | no | Extra env vars passed to VM |
 | `model` | string | no | Model override for this project |
 | `prMode` | `"ready" \| "draft" \| "none"` | no | How worker agents handle PRs. `ready`: normal PR, `draft`: draft PR, `none`: commit only, no push/PR. Default: `"none"` |
+| `taskTypes` | object | no | Per-task-type prompt, quick reply, agent, model, and reasoning-effort defaults. `taskTypes.orchestrator.agent` lets the coordinator use a different ACP agent without hardcoding Claude. |
 
 ### Top-Level Config
 

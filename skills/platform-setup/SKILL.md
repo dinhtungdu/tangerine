@@ -3,7 +3,7 @@ name: platform-setup
 description: Set up Tangerine on the host machine or inside a VM — install tools, configure projects, clone repos, and install agent skills.
 metadata:
   author: tung
-  version: "1.3.0"
+  version: "1.3.1"
 ---
 
 # Tangerine Init Skill
@@ -295,6 +295,7 @@ User wants to add a project to an already-running Tangerine instance. You help t
    - Test command
    - Post-update command (install deps + build, runs after git pull)
    - ACP agent commands to configure and chosen `defaultAgent`
+   - Optional orchestrator-specific `agent`, `model`, and `reasoningEffort` if the coordinator should differ from workers
 
 6. **Write config** to `~/tangerine/config.json`.
 
@@ -310,7 +311,8 @@ User wants to add a project to an already-running Tangerine instance. You help t
    - `model` — optional initial model hint for ACP agents that expose model config
    - `env` — key/value pairs injected into agent environment
    - `postUpdateCommand` — runs after `git pull` (install + build)
-   - `predefinedPrompts` — array of `{label, text}` quick-send buttons
+   - `taskTypes` — per-task-type defaults. Use `taskTypes.orchestrator.agent`, `taskTypes.orchestrator.model`, and `taskTypes.orchestrator.reasoningEffort` when the project coordinator should use a specific ACP agent/model. Explicit API values override these; active orchestrators keep their existing task config until recreated or changed in chat.
+   - `predefinedPrompts` — legacy quick-send buttons; prefer `taskTypes.<type>.predefinedPrompts` for worker/orchestrator/reviewer-specific prompts
 
    **Top-level optional fields** (outside `projects[]`):
    - `agents` — array of ACP agents: `{ "id", "name", "command", "args"? }`
@@ -332,6 +334,13 @@ User wants to add a project to an already-running Tangerine instance. You help t
          "setup": "pnpm install",
          "test": "pnpm test",
          "defaultAgent": "claude",
+         "taskTypes": {
+           "orchestrator": {
+             "agent": "codex",
+             "model": "gpt-5",
+             "reasoningEffort": "high"
+           }
+         },
          "postUpdateCommand": "pnpm install && pnpm build"
        }
      ],
@@ -386,6 +395,7 @@ Tangerine does not configure or verify credentials — it relies on the agent's 
 Only ask if you can't determine from the codebase:
 - Repo URL (if no git remote found)
 - Which ACP agent command(s) to configure (Claude Agent, Codex, OpenCode, Pi, or custom ACP command) and which one should be `defaultAgent`
+- Whether the orchestrator should use a different `taskTypes.orchestrator.agent`, `model`, or `reasoningEffort` than regular worker tasks
 
 ## After Init
 

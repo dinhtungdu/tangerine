@@ -32,6 +32,9 @@ const defaultReviewerPrompts: z.infer<typeof predefinedPromptSchema>[] = [
 export const taskTypeConfigSchema = z.object({
   systemPrompt: z.string().optional(),
   predefinedPrompts: z.array(predefinedPromptSchema).optional(),
+  agent: z.string().optional(),
+  model: z.string().optional(),
+  reasoningEffort: z.string().optional(),
 })
 
 export const taskTypesSchema = z.object({
@@ -127,6 +130,7 @@ export type ActionCombo = z.infer<typeof actionComboSchema>
 export type AgentConfig = z.infer<typeof agentConfigSchema>
 export type TaskTypeConfig = z.infer<typeof taskTypeConfigSchema>
 export type ProjectConfig = z.infer<typeof projectConfigSchema>
+export type ResolvedTaskTypeConfig = Omit<TaskTypeConfig, "predefinedPrompts"> & { predefinedPrompts: PredefinedPrompt[] }
 export type SslConfig = z.infer<typeof sslConfigSchema>
 export type TangerineConfig = z.infer<typeof tangerineConfigSchema>
 
@@ -140,14 +144,22 @@ const DEFAULTS: Record<string, { predefinedPrompts: PredefinedPrompt[] }> = {
 export function resolveTaskTypeConfig(
   project: ProjectConfig,
   taskType: "worker" | "orchestrator" | "reviewer",
-): { systemPrompt?: string; predefinedPrompts: PredefinedPrompt[] } {
+): ResolvedTaskTypeConfig {
   const override = project.taskTypes?.[taskType]
   return {
     systemPrompt: override?.systemPrompt,
     predefinedPrompts: override?.predefinedPrompts ?? DEFAULTS[taskType]!.predefinedPrompts,
+    agent: override?.agent,
+    model: override?.model,
+    reasoningEffort: override?.reasoningEffort,
   }
 }
 
-export function resolveDefaultAgentId(config: TangerineConfig, project?: Pick<ProjectConfig, "defaultAgent" | "defaultProvider">): string {
-  return project?.defaultAgent ?? config.defaultAgent ?? project?.defaultProvider ?? config.agents[0]?.id ?? DEFAULT_AGENT_ID
+export function resolveDefaultAgentId(
+  config: TangerineConfig,
+  project?: Pick<ProjectConfig, "defaultAgent" | "defaultProvider" | "taskTypes">,
+  taskType?: "worker" | "orchestrator" | "reviewer",
+): string {
+  const taskTypeAgent = taskType ? project?.taskTypes?.[taskType]?.agent : undefined
+  return taskTypeAgent ?? project?.defaultAgent ?? config.defaultAgent ?? project?.defaultProvider ?? config.agents[0]?.id ?? DEFAULT_AGENT_ID
 }

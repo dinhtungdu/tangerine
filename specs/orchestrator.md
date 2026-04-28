@@ -47,6 +47,7 @@ When an orchestrator ends (`failed` or `cancelled`), the correct action is to **
 - **One active per project**: `createTask` rejects a second orchestrator if one is already in a non-terminal state.
 - **Default branch only**: orchestrators always use the project's `defaultBranch`. They never create a `tangerine/*` branch.
 - **No worktree isolation**: the orchestrator works directly in the main repo clone (slot 0), so it can see the full project state and delegate to sub-tasks.
+- **Agent-agnostic**: orchestrators are regular ACP-backed tasks. Agent selection resolves from explicit request, then `taskTypes.orchestrator.agent`, then project/global defaults. No Claude-specific fallback or model name is hardcoded.
 
 ## UI rules
 
@@ -63,4 +64,4 @@ The orchestrator is initialized with a system prompt that instructs it to:
 - Delegate: break down large work items into parallel sub-tasks
 - Do small direct changes (docs, config, quick fixes) on the main branch when delegation would be wasteful — and always tell the user when doing so
 
-Model selection guidance is included: opus for complex/ambiguous work, sonnet for straightforward tasks.
+Model selection guidance stays provider-neutral: use the most capable configured model for ambiguous work, and a faster/cheaper configured model for straightforward work. Projects may set `taskTypes.orchestrator.agent`, `taskTypes.orchestrator.model`, and `taskTypes.orchestrator.reasoningEffort`; explicit API values still override those defaults.
