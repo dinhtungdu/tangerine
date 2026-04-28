@@ -3,8 +3,8 @@ import { Link, useParams, useNavigate } from "react-router-dom"
 import { TERMINAL_STATUSES } from "@tangerine/shared"
 import type { Task, ProjectConfig } from "@tangerine/shared"
 import { Search, Plus, X } from "lucide-react"
-import { getStatusConfig, hasUnseenUpdates } from "../lib/status"
-import { formatRelativeTime } from "../lib/format"
+import { getStatusConfig, hasUnseenUpdates, getPrStatusConfig } from "../lib/status"
+import { formatRelativeTime, formatPrNumber } from "../lib/format"
 import { useProject } from "../context/ProjectContext"
 import { ensureOrchestrator } from "../lib/api"
 import { TaskOverflowMenu } from "./TaskListItem"
@@ -94,6 +94,17 @@ function TaskItem({
               </span>
             </>
           )}
+          {task.prUrl && (() => {
+            const prConfig = getPrStatusConfig(task.prStatus)
+            return (
+              <>
+                {" · "}
+                <span className={`${prConfig.textClass} opacity-70`}>
+                  {formatPrNumber(task.prUrl)}
+                </span>
+              </>
+            )
+          })()}
         </span>
       </div>
       <div className="shrink-0 [@media(hover:hover)]:opacity-0 [@media(hover:hover)]:group-hover:opacity-100">
