@@ -439,9 +439,9 @@ describe("hung tool watchdog", () => {
   })
 
   test("does not abort when agent is idle even if last DB activity is a running tool", async () => {
-    // tool.end is not persisted — the last activity_log row remains tool.start
-    // (status: "running") after the tool completes. Without the isAgentWorking
-    // guard an idle healthy agent would be spuriously aborted after 5 minutes.
+    // A stale status:"running" tool row can remain if the agent never sends a
+    // final update. Without the isAgentWorking guard an idle healthy agent would
+    // be spuriously aborted after 5 minutes.
     const task = makeTask()
     const abortFn = mock(() => Effect.void)
     const deps = makeDeps({

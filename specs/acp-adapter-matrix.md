@@ -20,6 +20,7 @@ Adapters normalize provider-specific SDK events into ACP. Tangerine still owns A
 - merge `agent_thought_chunk` into one live Thought card
 - persist only final assistant/thinking messages after `session/prompt` completes
 - render non-text content blocks; do not render text chunks as generic content cards
+- merge `tool_call_update` entries into the matching tool activity by `toolCallId`, including streamed/replaced result text from `content` or `rawOutput`
 - map `models` / `modes` compatibility fields into selectors
 - map config option categories `thought_level` and `effort` to the reasoning-effort selector
 - map legacy `modes` to `thought_level` when the advertised values are semantic thinking/reasoning levels
@@ -47,6 +48,10 @@ Observed from installed/open adapter packages on 2026-04-28.
 - If legacy `modes` exist and all values are semantic thinking/reasoning levels, synthesize `category: "thought_level"` and write with `session/set_mode`.
 - If text chunks have no `messageId`, Tangerine creates one active assistant/thought stream id per turn.
 - If `type: "text"` content has empty/missing text, ignore it; it is not a content block card.
+- Treat repeated `tool_call_update.content` as replacement/progress state; ACP does not define a separate `tool_result_delta` event.
+- If `tool_call_update` arrives without a prior `tool_call`, create a best-effort tool activity keyed by `toolCallId`.
+- If the matching `tool_call` arrives later, merge it into that activity and reclassify the activity event/type when the tool name becomes known.
+- Preserve the activity row timestamp as tool start time; track real progress freshness (new input/output, not status-only heartbeats) in metadata so replayed chat chronology stays stable.
 - If an adapter emits invalid ACP, fix upstream or document a generic tolerance only when multiple adapters need it.
 
 ## Tangerine vs Zed

@@ -1,7 +1,7 @@
 import { describe, test, expect, mock, beforeEach, afterEach } from "bun:test"
 import { renderHook, act, waitFor } from "@testing-library/react"
 import { useTasks } from "../hooks/useTasks"
-import { applyAssistantStreamMessage, applyThinkingStreamMessage } from "../hooks/useSession"
+import { applyActivityUpdate, applyAssistantStreamMessage, applyThinkingStreamMessage, mergeActivitySnapshot } from "../hooks/useSession"
 import { useMentionPicker } from "../hooks/useMentionPicker"
 import { usePanelActions } from "../hooks/usePanelActions"
 import { useResizable } from "../hooks/useResizable"
@@ -68,6 +68,64 @@ describe("applyThinkingStreamMessage", () => {
     const complete = applyThinkingStreamMessage(second, { messageId: "thought-1", content: "think", timestamp: "2026-04-27T10:00:02.000Z" }, "complete")
 
     expect(complete).toEqual([{ id: "thinking-thought-1", role: "thinking", content: "think", timestamp: "2026-04-27T10:00:02.000Z" }])
+  })
+})
+
+describe("applyActivityUpdate", () => {
+  test("replaces existing activity rows by id", () => {
+    const initial = [{
+      id: 1,
+      taskId: "task-1",
+      type: "system" as const,
+      event: "tool.bash",
+      content: "Bash",
+      metadata: { status: "running" },
+      timestamp: "2026-04-27T10:00:00.000Z",
+    }]
+    const updated = {
+      ...initial[0]!,
+      metadata: { status: "success", output: "2 tests passed" },
+    }
+
+    expect(applyActivityUpdate(initial, updated)).toEqual([updated])
+  })
+})
+
+describe("mergeActivitySnapshot", () => {
+  test("keeps newer websocket activity when a stale REST snapshot resolves", () => {
+    const live = [{
+      id: 1,
+      taskId: "task-1",
+      type: "system" as const,
+      event: "tool.bash",
+      content: "Bash",
+      metadata: { status: "success", output: "2 tests passed", lastProgressAt: "2026-04-27T10:00:03.000Z" },
+      timestamp: "2026-04-27T10:00:00.000Z",
+    }]
+    const staleSnapshot = [{
+      ...live[0]!,
+      metadata: { status: "running", output: "1/2 tests passed", lastProgressAt: "2026-04-27T10:00:01.000Z" },
+    }]
+
+    expect(mergeActivitySnapshot(live, staleSnapshot)).toEqual(live)
+  })
+
+  test("uses a newer REST snapshot when websocket missed an update", () => {
+    const current = [{
+      id: 1,
+      taskId: "task-1",
+      type: "system" as const,
+      event: "tool.bash",
+      content: "Bash",
+      metadata: { status: "running", output: "1/2 tests passed", lastProgressAt: "2026-04-27T10:00:01.000Z" },
+      timestamp: "2026-04-27T10:00:00.000Z",
+    }]
+    const snapshot = [{
+      ...current[0]!,
+      metadata: { status: "success", output: "2 tests passed", lastProgressAt: "2026-04-27T10:00:03.000Z" },
+    }]
+
+    expect(mergeActivitySnapshot(current, snapshot)).toEqual(snapshot)
   })
 })
 

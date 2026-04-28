@@ -108,9 +108,9 @@ describe("createAcpEventMapper", () => {
       ] },
     ])
     expect(mapper.mapSessionUpdate({ sessionUpdate: "tool_call", toolCallId: "call-1", title: "Read file", status: "pending", rawInput: { path: "/tmp/a.ts" } }))
-      .toEqual([{ kind: "tool.start", toolName: "Read file", toolInput: "{\"path\":\"/tmp/a.ts\"}" }])
+      .toEqual([{ kind: "tool.start", toolCallId: "call-1", toolName: "Read file", toolInput: "{\"path\":\"/tmp/a.ts\"}" }])
     expect(mapper.mapSessionUpdate({ sessionUpdate: "tool_call_update", toolCallId: "call-1", status: "completed", rawOutput: { ok: true } }))
-      .toEqual([{ kind: "tool.end", toolName: "Read file", toolResult: "{\"ok\":true}" }])
+      .toEqual([{ kind: "tool.end", toolCallId: "call-1", toolName: "Read file", toolResult: "{\"ok\":true}", status: "success" }])
     expect(mapper.mapSessionUpdate({ sessionUpdate: "usage_update", used: 123, size: 1000 }))
       .toEqual([{ kind: "usage", contextTokens: 123 }])
     expect(mapper.mapSessionUpdate({
@@ -119,6 +119,19 @@ describe("createAcpEventMapper", () => {
       updatedAt: "2026-04-27T10:00:00.000Z",
       _meta: { tags: ["auth"] },
     })).toEqual([{ kind: "session.info", title: "Implement auth", updatedAt: "2026-04-27T10:00:00.000Z", metadata: { tags: ["auth"] } }])
+  })
+
+  test("maps in-progress ACP tool call updates to tool updates", () => {
+    const mapper = createAcpEventMapper()
+
+    mapper.mapSessionUpdate({ sessionUpdate: "tool_call", toolCallId: "call-1", title: "Bash", status: "pending", rawInput: { command: "bun test" } })
+
+    expect(mapper.mapSessionUpdate({
+      sessionUpdate: "tool_call_update",
+      toolCallId: "call-1",
+      status: "in_progress",
+      content: [{ type: "content", content: { type: "text", text: "1/2 tests passed" } }],
+    })).toEqual([{ kind: "tool.update", toolCallId: "call-1", toolName: "Bash", toolResult: "1/2 tests passed", status: "running" }])
   })
 
   test("maps ACP non-text content blocks", () => {
@@ -153,6 +166,7 @@ describe("createAcpEventMapper", () => {
     })).toEqual([
       { kind: "content.block", block: { type: "diff", path: "/repo/src/a.ts", oldText: "old", newText: "new" } },
       { kind: "content.block", block: { type: "terminal", terminalId: "term-1" } },
+      { kind: "tool.update", toolCallId: "edit-1", toolName: "edit-1", status: "running" },
     ])
   })
 
@@ -246,7 +260,7 @@ describe("createAcpProvider", () => {
     expect(events).toContainEqual({ kind: "status", status: "working" })
     expect(events).toContainEqual({ kind: "message.streaming", content: "hello " })
     expect(events).toContainEqual({ kind: "message.streaming", content: "permission:allow" })
-    expect(events).toContainEqual({ kind: "tool.start", toolName: "Edit file", toolInput: "{\"path\":\"/tmp/file\"}" })
+    expect(events).toContainEqual({ kind: "tool.start", toolCallId: "call-1", toolName: "Edit file", toolInput: "{\"path\":\"/tmp/file\"}" })
     expect(events).toContainEqual({
       kind: "permission.decision",
       toolName: "Edit file",
@@ -254,7 +268,7 @@ describe("createAcpProvider", () => {
       optionName: "Allow",
       optionKind: "allow_once",
     })
-    expect(events).toContainEqual({ kind: "tool.end", toolName: "Edit file", toolResult: "{\"permission\":\"allow\"}" })
+    expect(events).toContainEqual({ kind: "tool.end", toolCallId: "call-1", toolName: "Edit file", toolResult: "{\"permission\":\"allow\"}", status: "success" })
     expect(events).toContainEqual({ kind: "message.complete", role: "assistant", content: "hello permission:allow" })
     expect(events).toContainEqual({ kind: "usage", inputTokens: 10, outputTokens: 5, contextTokens: 15, cumulative: true })
     expect(events).toContainEqual({ kind: "status", status: "idle" })
