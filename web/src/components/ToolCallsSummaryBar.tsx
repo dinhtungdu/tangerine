@@ -7,6 +7,7 @@ interface ToolCallsSummaryBarProps {
   endTime?: string
   toolCount: number
   filesChanged: number
+  errorCount: number
   expanded: boolean
   onToggle: () => void
 }
@@ -52,6 +53,7 @@ export function ToolCallsSummaryBar({
   endTime,
   toolCount,
   filesChanged,
+  errorCount,
   expanded,
   onToggle,
 }: ToolCallsSummaryBarProps) {
@@ -69,6 +71,7 @@ export function ToolCallsSummaryBar({
       <span>
         {toolCount} tools
         {filesChanged > 0 && ` · ${filesChanged} files`}
+        {errorCount > 0 && <span className="text-destructive"> · {errorCount} {errorCount === 1 ? "error" : "errors"}</span>}
         {" · "}
         {formatElapsed(duration)}
       </span>

@@ -1,4 +1,4 @@
-import { memo, useState, useCallback, useMemo, useEffect } from "react"
+import { memo, useState, useCallback, useMemo } from "react"
 import type { ActivityEntry } from "@tangerine/shared"
 import type { ChatMessage as ChatMessageType } from "../hooks/useSession"
 import { ChatMessage } from "./ChatMessage"
@@ -25,7 +25,7 @@ interface MessageGroup {
   endTime: string
   toolCount: number
   filesChanged: number
-  hasError: boolean
+  errorCount: number
   hasToolsOrThinking: boolean
 }
 
@@ -84,7 +84,7 @@ function groupItems(items: MergedItem[]): MessageGroup[] {
 
     let toolCount = 0
     const changedFiles = new Set<string>()
-    let hasError = false
+    let errorCount = 0
     let hasToolsOrThinking = false
 
     for (const item of currentGroup) {
@@ -96,7 +96,7 @@ function groupItems(items: MergedItem[]): MessageGroup[] {
           if (path) changedFiles.add(path)
         }
         const meta = item.data.metadata as { status?: string } | null
-        if (meta?.status === "error") hasError = true
+        if (meta?.status === "error") errorCount++
       } else if (item.data.role === "thinking") {
         hasToolsOrThinking = true
       }
@@ -114,7 +114,7 @@ function groupItems(items: MergedItem[]): MessageGroup[] {
       endTime,
       toolCount,
       filesChanged: changedFiles.size,
-      hasError,
+      errorCount,
       hasToolsOrThinking,
     })
     currentGroup = []
@@ -131,7 +131,7 @@ function groupItems(items: MergedItem[]): MessageGroup[] {
         endTime: item.data.timestamp,
         toolCount: 0,
         filesChanged: 0,
-        hasError: false,
+        errorCount: 0,
         hasToolsOrThinking: false,
       })
     } else {
@@ -181,11 +181,7 @@ function AssistantGroup({
   onReply?: (content: string) => void
   isStreaming: boolean
 }) {
-  const [expanded, setExpanded] = useState(() => group.hasError)
-
-  useEffect(() => {
-    if (group.hasError) setExpanded(true)
-  }, [group.hasError])
+  const [expanded, setExpanded] = useState(false)
 
   const handleToggle = useCallback(() => {
     setExpanded((v) => !v)
@@ -253,6 +249,7 @@ function AssistantGroup({
         endTime={group.endTime}
         toolCount={group.toolCount}
         filesChanged={group.filesChanged}
+        errorCount={group.errorCount}
         expanded={expanded}
         onToggle={handleToggle}
       />
@@ -291,6 +288,7 @@ function AssistantGroup({
             endTime={group.endTime}
             toolCount={group.toolCount}
             filesChanged={group.filesChanged}
+            errorCount={group.errorCount}
             expanded={expanded}
             onToggle={handleToggle}
           />
