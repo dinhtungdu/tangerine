@@ -33,7 +33,7 @@ export function getStatusConfig(status: string): StatusConfig {
 export const PR_STATUS_CONFIG: Record<string, StatusConfig> = {
   open:   { label: "Open",   textClass: "text-status-success-text", bgClass: "bg-status-success-bg", color: "var(--color-status-success)" },
   draft:  { label: "Draft",  textClass: "text-muted-foreground",    bgClass: "bg-muted",             color: "var(--color-muted-foreground)" },
-  merged: { label: "Merged", textClass: "text-status-info-text",    bgClass: "bg-status-info-bg",    color: "var(--color-status-info)" },
+  merged: { label: "Merged", textClass: "text-status-merged-text",  bgClass: "bg-status-merged-bg",  color: "var(--color-status-merged)" },
   closed: { label: "Closed", textClass: "text-status-error-text",   bgClass: "bg-status-error-bg",   color: "var(--color-status-error)" },
 }
 
