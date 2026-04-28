@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback, useRef, useMemo } from "react"
 import { useParams, Link, useOutletContext } from "react-router-dom"
 import type { SidebarContext } from "../components/Layout"
-import { resolveTaskTypeConfig, TERMINAL_STATUSES, type Task } from "@tangerine/shared"
+import { resolveTaskTypeConfig, type Task } from "@tangerine/shared"
 import { fetchTask, fetchChildTasks, changeTaskConfig, markTaskSeen, resolveTask, startTask } from "../lib/api"
 import { getStatusConfig, getPrStatusConfig } from "../lib/status"
 import { useSession } from "../hooks/useSession"
@@ -68,17 +68,8 @@ export function TaskDetail() {
   const { current, sshHost, sshUser, editor } = useProject()
   const { showToast } = useToast()
 
-  // When viewing a task from a different project, show that project's orchestrator chat
-  const isCrossProject = task !== null && current !== null && task.projectId !== current.name
-  const orchestratorTask = useMemo(() => {
-    if (!isCrossProject || !task) return null
-    const orchTasks = tasks.filter((t) => t.type === "orchestrator" && t.projectId === task.projectId)
-    return orchTasks.find((t) => !TERMINAL_STATUSES.has(t.status)) ?? null
-  }, [isCrossProject, task, tasks])
-
-  const chatTaskId = (isCrossProject && orchestratorTask) ? orchestratorTask.id : (id ?? "")
-  const sessionTask = (isCrossProject && orchestratorTask) ? orchestratorTask : task
-  const session = useSession(chatTaskId, sessionTask?.contextTokens, sessionTask?.contextWindowMax)
+  const chatTaskId = id ?? ""
+  const session = useSession(chatTaskId, task?.contextTokens, task?.contextWindowMax)
   const { files: diffFiles } = useDiffFiles(id ?? "")
   const diffCommentsKey = `diff-comments:${id}`
   const [diffComments, setDiffComments] = useState<DiffComment[]>([])
@@ -232,34 +223,29 @@ export function TaskDetail() {
     el?.scrollIntoView({ behavior: "smooth", block: "start" })
   }, [])
 
-  // The task whose chat is shown — orchestrator when cross-project, otherwise the viewed task
-  const chatTask = (isCrossProject && orchestratorTask) ? orchestratorTask : task
+  const chatTask = task
 
   const handleModelChange = useCallback(async (model: string) => {
     const targetId = chatTask?.id
     if (!targetId) return
     try {
       await changeTaskConfig(targetId, { model })
-      if (!isCrossProject) {
-        setTask((prev) => prev ? { ...prev, model } : prev)
-      }
+      setTask((prev) => prev ? { ...prev, model } : prev)
     } catch {
       showToast("Failed to change model")
     }
-  }, [chatTask?.id, isCrossProject, showToast])
+  }, [chatTask?.id, showToast])
 
   const handleReasoningEffortChange = useCallback(async (reasoningEffort: string) => {
     const targetId = chatTask?.id
     if (!targetId) return
     try {
       await changeTaskConfig(targetId, { reasoningEffort })
-      if (!isCrossProject) {
-        setTask((prev) => prev ? { ...prev, reasoningEffort } : prev)
-      }
+      setTask((prev) => prev ? { ...prev, reasoningEffort } : prev)
     } catch {
       showToast("Failed to change reasoning effort")
     }
-  }, [chatTask?.id, isCrossProject, showToast])
+  }, [chatTask?.id, showToast])
 
   const handleModeChange = useCallback(async (mode: string) => {
     const targetId = chatTask?.id
@@ -278,22 +264,19 @@ export function TaskDetail() {
 
   const resolvedPrompts = useMemo(() => {
     if (!hasPredefinedPrompts || !chatTask || !current) return undefined
-    const tt = chatTask.type as "worker" | "orchestrator" | "reviewer"
-    return resolveTaskTypeConfig(current, tt).predefinedPrompts
+    return resolveTaskTypeConfig(current, chatTask.type).predefinedPrompts
   }, [hasPredefinedPrompts, chatTask, current])
 
   const handleResolve = useCallback(async () => {
     if (!chatTask) return
     try {
       await resolveTask(chatTask.id)
-      if (!isCrossProject) {
-        const updated = await fetchTask(chatTask.id)
-        setTask(updated)
-      }
+      const updated = await fetchTask(chatTask.id)
+      setTask(updated)
     } catch {
       showToast("Failed to resolve task")
     }
-  }, [chatTask, isCrossProject, showToast])
+  }, [chatTask, showToast])
 
   const sendPromptRef = useRef(session.sendPrompt)
   sendPromptRef.current = session.sendPrompt
@@ -341,14 +324,11 @@ export function TaskDetail() {
     async (text: string, images?: import("@tangerine/shared").PromptImage[]) => {
       if (chatTask?.status === "created") {
         await startTask(chatTask.id)
-        // Only optimistically update the viewed task's status when it IS the chat task
-        if (!isCrossProject) {
-          setTask((prev) => prev ? { ...prev, status: "provisioning" } : prev)
-        }
+        setTask((prev) => prev ? { ...prev, status: "provisioning" } : prev)
       }
       sendPromptRef.current(text, images)
     },
-    [chatTask?.status, chatTask?.id, isCrossProject],
+    [chatTask?.status, chatTask?.id],
   )
 
   // Fetch parent and children once per task ID (not on every poll)
@@ -427,7 +407,7 @@ export function TaskDetail() {
   }, [task?.id, task?.capabilities])
 
   useEffect(() => {
-    if (!session.taskStatus || isCrossProject) return
+    if (!session.taskStatus) return
     const terminal = ["done", "failed", "cancelled"]
     if (terminal.includes(session.taskStatus)) {
       // Refetch the full task to capture error and other fields set on completion
@@ -435,7 +415,7 @@ export function TaskDetail() {
     } else {
       setTask((prev) => (prev ? { ...prev, status: session.taskStatus! } : prev))
     }
-  }, [session.taskStatus, id, isCrossProject])
+  }, [session.taskStatus, id])
 
   // Desktop shows the persisted pane set plus any temporarily synced pane
   // (desktopSyncPane), so rotating from mobile does not drop the pane the user was viewing.

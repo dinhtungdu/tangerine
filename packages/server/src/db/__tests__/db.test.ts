@@ -268,4 +268,15 @@ describe("auto-migration", () => {
 
     db.close()
   })
+
+  test("unknown persisted task types remain stored for API normalization", () => {
+    const db = new Database(":memory:")
+    db.exec(SCHEMA)
+    db.prepare("INSERT INTO tasks (id, project_id, source, title, type) VALUES (?, ?, ?, ?, ?)")
+      .run("legacy-kind-task", "proj", "manual", "legacy", "legacy-kind")
+
+    const row = db.prepare("SELECT type FROM tasks WHERE id = ?").get("legacy-kind-task") as { type: string }
+    expect(row.type).toBe("legacy-kind")
+    db.close()
+  })
 })

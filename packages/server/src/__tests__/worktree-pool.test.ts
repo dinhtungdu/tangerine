@@ -5,7 +5,7 @@ import { createTestDb } from "./helpers"
 import {
   initPool,
   acquireSlot,
-  acquireOrchestratorSlot,
+  acquireRootSlot,
   releaseSlot,
   reconcileStaleSlots,
   deletePoolForProject,
@@ -143,7 +143,7 @@ describe("worktree-pool", () => {
     test("slot 0 is not bound in DB — release is a no-op (shared slot)", async () => {
       await Effect.runPromise(initPool(db, PROJECT_ID, mockExec, REPO_PATH, 1))
       insertTask("task-1")
-      await Effect.runPromise(acquireOrchestratorSlot(db, PROJECT_ID, "task-1", mockGetTask({})))
+      await Effect.runPromise(acquireRootSlot(db, PROJECT_ID, "task-1", mockGetTask({})))
 
       // Slot 0 is shared — no exclusive DB binding, so getSlotForTask returns null
       const slot = await Effect.runPromise(getSlotForTask(db, "task-1"))
@@ -192,7 +192,7 @@ describe("worktree-pool", () => {
     })
   })
 
-  describe("acquireOrchestratorSlot", () => {
+  describe("acquireRootSlot", () => {
     beforeEach(async () => {
       await Effect.runPromise(initPool(db, PROJECT_ID, mockExec, REPO_PATH, 2))
     })
@@ -200,7 +200,7 @@ describe("worktree-pool", () => {
     test("acquires slot 0 and returns its path", async () => {
       insertTask("task-1")
       const slot = await Effect.runPromise(
-        acquireOrchestratorSlot(db, PROJECT_ID, "task-1", mockGetTask({})),
+        acquireRootSlot(db, PROJECT_ID, "task-1", mockGetTask({})),
       )
       expect(slot.id).toBe("proj-1-slot-0")
       expect(slot.path).toBe(REPO_PATH)
@@ -211,10 +211,10 @@ describe("worktree-pool", () => {
       insertTask("task-2")
       // Both acquisitions must succeed — slot 0 is shared
       const slot1 = await Effect.runPromise(
-        acquireOrchestratorSlot(db, PROJECT_ID, "task-1", mockGetTask({ "task-1": "running" })),
+        acquireRootSlot(db, PROJECT_ID, "task-1", mockGetTask({ "task-1": "running" })),
       )
       const slot2 = await Effect.runPromise(
-        acquireOrchestratorSlot(db, PROJECT_ID, "task-2", mockGetTask({ "task-1": "running" })),
+        acquireRootSlot(db, PROJECT_ID, "task-2", mockGetTask({ "task-1": "running" })),
       )
       expect(slot1.id).toBe("proj-1-slot-0")
       expect(slot2.id).toBe("proj-1-slot-0")

@@ -1,7 +1,7 @@
 import { createContext, useContext, useState, useEffect, useCallback, type ReactNode } from "react"
 import { useSearchParams, useNavigate, useLocation } from "react-router-dom"
 import type { AgentConfig, ProjectConfig, ActionCombo, ShortcutConfig, SystemCapabilities } from "@tangerine/shared"
-import { fetchProjects, fetchTasks, ensureOrchestrator } from "../lib/api"
+import { fetchProjects, fetchTasks } from "../lib/api"
 import { getMostRecentTask } from "../lib/task-recency"
 
 interface ProjectContextValue {
@@ -90,9 +90,7 @@ export function ProjectProvider({ children }: { children: ReactNode }) {
             navigate(`/tasks/${task.id}${projectParam}`, { replace })
             return
           }
-          return ensureOrchestrator(name).then((orchestrator) => {
-            navigate(`/tasks/${orchestrator.id}${projectParam}`, { replace })
-          })
+          navigate(`/${projectParam}`, { replace })
         }).catch(() => {
           navigate(`/${projectParam}`, { replace })
         })

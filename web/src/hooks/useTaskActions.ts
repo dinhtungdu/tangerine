@@ -73,7 +73,7 @@ export function useTaskActions(
       })
     }
 
-    // Retry — failed or cancelled tasks
+    // Retry — failed/cancelled tasks.
     if (task.status === "failed" || task.status === "cancelled") {
       defs.push({
         id: "task.retry",
@@ -89,7 +89,7 @@ export function useTaskActions(
       })
     }
 
-    // Resolve — failed/cancelled tasks with the "resolve" capability
+    // Resolve — failed/cancelled tasks with the "resolve" capability.
     if (task.capabilities.includes("resolve") && (task.status === "failed" || task.status === "cancelled")) {
       defs.push({
         id: "task.resolve",

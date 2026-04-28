@@ -8,9 +8,6 @@ export const WS_HEARTBEAT_INTERVAL_MS = 15_000
 export const WS_HEARTBEAT_TIMEOUT_MS = 45_000
 export const DEFAULT_AGENT_ID = "acp" as const
 
-/** Reserved task name for the per-project orchestrator (always pinned to slot 0). */
-export const ORCHESTRATOR_TASK_NAME = "_orchestrator"
-
 /** Task statuses that represent a completed lifecycle (no longer active). */
 export const TERMINAL_STATUSES = new Set(["done", "failed", "cancelled"])
 

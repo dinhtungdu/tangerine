@@ -1,6 +1,6 @@
 import { Effect } from "effect"
 import { Hono } from "hono"
-import { getCapabilitiesForType } from "@tangerine/shared"
+import { getCapabilitiesForType, normalizeTaskType } from "@tangerine/shared"
 import type { TaskWriteResponse, TaskType, TaskSource } from "@tangerine/shared"
 import type { AppDeps } from "../app"
 import { mapTaskRow } from "../helpers"
@@ -86,7 +86,7 @@ export function taskRoutes(deps: AppDeps): Hono {
   })
 
   app.post("/", async (c) => {
-    const body = await c.req.json<{ projectId?: string; title?: string; type?: "worker" | "orchestrator" | "reviewer" | "runner"; description?: string; provider?: string; model?: string; reasoningEffort?: string; source?: string; sourceId?: string; sourceUrl?: string; branch?: string; prUrl?: string; parentTaskId?: string; images?: import("../../agent/provider").PromptImage[] }>()
+    const body = await c.req.json<{ projectId?: string; title?: string; type?: "worker" | "reviewer" | "runner"; description?: string; provider?: string; model?: string; reasoningEffort?: string; source?: string; sourceId?: string; sourceUrl?: string; branch?: string; prUrl?: string; parentTaskId?: string; images?: import("../../agent/provider").PromptImage[] }>()
     if (!body.title) {
       return c.json({ error: "title is required" }, 400)
     }
@@ -102,9 +102,9 @@ export function taskRoutes(deps: AppDeps): Hono {
     if (body.provider !== undefined && !isConfiguredProvider(deps, body.provider)) {
       return c.json({ error: `Invalid provider: ${body.provider}. Must be ${configuredProviderList(deps)}` }, 400)
     }
-    const validTypes = new Set(["worker", "orchestrator", "reviewer", "runner"])
+    const validTypes = new Set(["worker", "reviewer", "runner"])
     if (body.type && !validTypes.has(body.type)) {
-      return c.json({ error: `Invalid type: ${body.type}. Must be worker, orchestrator, reviewer, or runner` }, 400)
+      return c.json({ error: `Invalid type: ${body.type}. Must be worker, reviewer, or runner` }, 400)
     }
     const source = body.source === "cross-project" ? "cross-project" : "manual"
 
@@ -163,8 +163,7 @@ export function taskRoutes(deps: AppDeps): Hono {
       getTask(deps.db, taskId).pipe(
         Effect.flatMap((task) => {
           if (!task) return Effect.fail(new TaskNotFoundError({ taskId }))
-          if (task.status !== "failed" && task.status !== "cancelled") return Effect.fail(new Error("Only failed or cancelled tasks can be retried"))
-
+          if (task.status !== "failed" && task.status !== "cancelled") return Effect.fail(new TaskNotTerminalError({ taskId, status: task.status }))
           // Clean up old task's worktree, mark as cancelled, create fresh one
           return deps.taskManager.cleanupTask(taskId).pipe(
             Effect.catchAll(() => Effect.void),
@@ -174,7 +173,7 @@ export function taskRoutes(deps: AppDeps): Hono {
                 source: task.source as TaskSource,
                 projectId: task.project_id,
                 title: task.title,
-                type: (task.type ?? "worker") as "worker" | "orchestrator" | "reviewer" | "runner",
+                type: normalizeTaskType(task.type),
                 description: task.description ?? undefined,
                 sourceId: task.source_id ?? undefined,
                 sourceUrl: task.source_url ?? undefined,
@@ -191,7 +190,7 @@ export function taskRoutes(deps: AppDeps): Hono {
     )
   })
 
-  // On-demand session start for dormant tasks (e.g. orchestrator)
+  // On-demand session start for dormant tasks
   app.post("/:id/start", (c) => {
     return runEffectVoid(c,
       deps.taskManager.startTask(c.req.param("id"))

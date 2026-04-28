@@ -23,9 +23,9 @@ Tangerine uses a single shared bearer token for remote single-user access when `
 | GET | `/api/tasks/:id/children` | List child tasks |
 | GET | `/api/tasks/:id/files` | List existing files in the task worktree for `@` file mentions. Falls back to committed project files before a worktree exists. Supports `query` |
 | POST | `/api/tasks/:id/cancel` | Cancel a task |
-| POST | `/api/tasks/:id/resolve` | Resolve a task |
+| POST | `/api/tasks/:id/resolve` | Resolve a failed/cancelled task |
 | POST | `/api/tasks/:id/retry` | Retry a failed or cancelled task by creating a new one |
-| POST | `/api/tasks/:id/start` | Start a dormant task, used for on-demand orchestrators |
+| POST | `/api/tasks/:id/start` | Start a dormant task |
 | POST | `/api/tasks/:id/seen` | Mark task as seen |
 | POST | `/api/tasks/:id/done` | Mark task complete |
 | PATCH | `/api/tasks/:id` | Update agent-writable fields such as `prUrl` |
@@ -56,8 +56,10 @@ If `provider` is omitted, task creation resolves `project.defaultAgent`, then to
 Current task types:
 
 - `worker`
-- `orchestrator`
 - `reviewer`
+- `runner`
+
+Unknown persisted task-type values normalize to `runner` for legacy compatibility. Public task creation accepts only `worker`, `reviewer`, and `runner`.
 
 ### Auth
 
@@ -92,7 +94,6 @@ Current task types:
 | POST | `/api/projects` | Register a project |
 | PUT | `/api/projects/:name` | Update a project |
 | DELETE | `/api/projects/:name` | Remove a project |
-| POST | `/api/projects/:name/orchestrator` | Ensure the project has an orchestrator task |
 | GET | `/api/projects/:name/files` | List committed project files for new-task `@` file mentions. Untracked slot-0 files are excluded because new task worktrees cannot resolve them. Supports `query` |
 | GET | `/api/projects/:name/update-status` | Read cached self-update status |
 | POST | `/api/projects/:name/update` | Pull latest and optionally run `postUpdateCommand` |

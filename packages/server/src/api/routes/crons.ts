@@ -100,7 +100,6 @@ export function cronRoutes(deps: AppDeps): Hono {
     if (body.taskDefaults?.provider && !isConfiguredProvider(deps, body.taskDefaults.provider)) {
       return c.json({ error: `Invalid provider: ${body.taskDefaults.provider}` }, 400)
     }
-
     return runEffect(c,
       Effect.gen(function* () {
         const existing = yield* getCron(deps.db, id)

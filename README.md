@@ -34,9 +34,8 @@ specs/             # design and implementation docs
 ## Key Features
 
 - Manual and cross-project task creation
-- Task types: `worker`, `orchestrator`, `reviewer`
+- Task types: `worker`, `reviewer`, `runner`
 - Task capabilities derived from type, not title
-- On-demand orchestrator startup
 - Model and reasoning-effort changes on running tasks
 - Git diff, activity log, terminal attach, system log, and project update controls in the UI
 - GitHub PR reference resolution from branch input like `#123` or full PR URLs

@@ -79,18 +79,18 @@ export function StatusPage() {
                 prompts={resolveTaskTypeConfig(current, "worker").predefinedPrompts}
               />
               <SystemPromptEditor
-                key={`${current.name}-orchestrator-sp`}
+                key={`${current.name}-runner-sp`}
                 project={current.name}
-                title="Orchestrator System Prompt"
-                taskType="orchestrator"
-                value={resolveTaskTypeConfig(current, "orchestrator").systemPrompt}
+                title="Runner System Prompt"
+                taskType="runner"
+                value={resolveTaskTypeConfig(current, "runner").systemPrompt}
               />
               <PredefinedPromptsEditor
-                key={`${current.name}-orchestrator`}
+                key={`${current.name}-runner`}
                 project={current.name}
-                title="Orchestrator Quick Replies"
-                taskType="orchestrator"
-                prompts={resolveTaskTypeConfig(current, "orchestrator").predefinedPrompts}
+                title="Runner Quick Replies"
+                taskType="runner"
+                prompts={resolveTaskTypeConfig(current, "runner").predefinedPrompts}
               />
               <SystemPromptEditor
                 key={`${current.name}-reviewer-sp`}

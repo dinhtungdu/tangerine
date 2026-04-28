@@ -1,6 +1,7 @@
 export {
   isProviderAvailable,
   getCapabilitiesForType,
+  normalizeTaskType,
   isAgentEffortOption,
   type TaskStatus,
   type TaskSource,
@@ -57,7 +58,6 @@ export {
   WS_HEARTBEAT_INTERVAL_MS,
   WS_HEARTBEAT_TIMEOUT_MS,
   DEFAULT_AGENT_ID,
-  ORCHESTRATOR_TASK_NAME,
   TERMINAL_STATUSES,
   isGithubRepo,
 } from "./constants"

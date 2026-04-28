@@ -11,7 +11,7 @@ import type { TaskRow, CronRow } from "../db/types"
 import { taskHasCapability } from "../api/helpers"
 import { createApp } from "../api/app"
 import type { AppDeps } from "../api/app"
-import { resolveDefaultAgentId, resolveTaskTypeConfig } from "@tangerine/shared"
+import { normalizeTaskType, resolveDefaultAgentId, resolveTaskTypeConfig } from "@tangerine/shared"
 import * as taskManager from "../tasks/manager"
 import type { TaskManagerDeps } from "../tasks/manager"
 import { onTaskEvent, onStatusChange, emitTaskEvent, setAgentWorkingState, getAgentWorkingState, getEffectiveAgentStatus, recordAgentProgress } from "../tasks/events"
@@ -34,17 +34,15 @@ import { initSystemLog, cleanupSystemLogs } from "../system-log"
 import { getAgentHandleMeta, type AgentHandle } from "../agent/provider"
 import { createAgentFactories } from "../agent/factories"
 import { enqueue as enqueuePrompt, drainNext as drainQueuedPrompts, setAgentState as setQueuedAgentState, clearQueue } from "../agent/prompt-queue"
-import { buildSystemNotes, buildEscalationBlock, buildPrWorkflowNote } from "../tasks/prompts"
+import { buildSystemNotes, buildPrWorkflowNote } from "../tasks/prompts"
 import { appendActiveStreamMessage, clearTaskState, completeActiveStreamMessage, getTaskState } from "../tasks/task-state"
 import { taskConfigUpdatesFromOptions } from "../agent/config-options"
 const log = createLogger("cli")
 
 /** Resolve custom system prompt for a task type from project config. */
 function resolveCustomSystemPrompt(projConfig: ReturnType<typeof getProjectConfig>, taskType: string | null | undefined): string | undefined {
-  if (!projConfig || !taskType) return undefined
-  // Only worker, orchestrator, reviewer have taskTypes config — skip others to avoid crash
-  if (taskType !== "worker" && taskType !== "orchestrator" && taskType !== "reviewer") return undefined
-  return resolveTaskTypeConfig(projConfig, taskType).systemPrompt
+  if (!projConfig) return undefined
+  return resolveTaskTypeConfig(projConfig, normalizeTaskType(taskType)).systemPrompt
 }
 
 /** Classify agent tool name -> activity type + event name.
@@ -455,7 +453,7 @@ export async function start(): Promise<void> {
                 const nudgeParts = [
                   `[TANGERINE: Server restarted. You are working on: ${originalTask}]`,
                 ]
-                if (taskRow?.type === "worker" && reconnectProjConfig?.prMode !== "none") {
+                if (normalizeTaskType(taskRow?.type) === "worker" && reconnectProjConfig?.prMode !== "none") {
                   nudgeParts.push(`[NOTE: When your work is complete: ${buildPrWorkflowNote(taskId, undefined, reconnectProjConfig?.prMode)}]`)
                 }
                 nudgeParts.push(
@@ -480,7 +478,7 @@ export async function start(): Promise<void> {
             // (e.g. killed by model change before processing prompt). Either way,
             // send the full initial prompt — don't resume a nonexistent conversation.
             // Queued prompts are drained AFTER the initial prompt so the agent gets
-            // its task description (including orchestrator system prompt) first.
+            // its task description first.
             const isRetry = !!hasLogs // User message already saved, just re-deliver prompt
             const task = db.prepare("SELECT description, title, project_id, type FROM tasks WHERE id = ?").get(taskId) as { description: string | null; title: string; project_id: string; type: string | null } | null
             const initialPrompt = task?.description || task?.title
@@ -517,31 +515,18 @@ export async function start(): Promise<void> {
 
                 const notes = buildSystemNotes(taskId, {
                   setupCommand: projConfig?.setup,
-                  taskType: task?.type ?? undefined,
+                  taskType: normalizeTaskType(task?.type),
                   prMode: projConfig?.prMode,
                   customSystemPrompt: resolveCustomSystemPrompt(projConfig, task?.type),
                 })
                 getTaskState(taskId).firstPromptSent = true
 
-                // Append escalation block for worker tasks so the agent knows
-                // how to escalate out-of-scope issues. Injected here (not stored
-                // in DB description) to keep the UI task description clean.
-                let escalationBlock = ""
-                if (task?.project_id) {
-                  const orchestratorRow = db.prepare(
-                    "SELECT id FROM tasks WHERE project_id = ? AND type = 'orchestrator' AND status NOT IN ('done', 'failed', 'cancelled') LIMIT 1"
-                  ).get(task.project_id) as { id: string } | null
-                  if (orchestratorRow && orchestratorRow.id !== taskId) {
-                    escalationBlock = buildEscalationBlock(orchestratorRow.id)
-                  }
-                }
-
                 const taskState = getTaskState(taskId)
                 const usedSystemPrompt = await applySystemPromptIfSupported(session.agentHandle, notes, taskState.systemPromptApplied)
                 taskState.systemPromptApplied = usedSystemPrompt
                 const fullPrompt = usedSystemPrompt || notes.length === 0
-                  ? initialPrompt + escalationBlock
-                  : notes.join("\n") + "\n\n" + initialPrompt + escalationBlock
+                  ? initialPrompt
+                  : notes.join("\n") + "\n\n" + initialPrompt
 
                 await Effect.runPromise(setQueuedAgentState(taskId, "busy"))
                 await Effect.runPromise(
@@ -725,7 +710,7 @@ export async function start(): Promise<void> {
 
                   if (!st.queuePaused) drainQueuedOnce()
 
-                  // Schedule PR nudge if agent has commits but no PR (skip orchestrators)
+                  // Schedule PR nudge if agent has commits but no PR
                   if (!st.prUrlSaved && !st.prNudgeSent) {
                     const timer = setTimeout(async () => {
                       st.prNudgeTimer = undefined
@@ -1055,7 +1040,7 @@ export async function start(): Promise<void> {
               const projConfig = task?.project_id ? getProjectConfig(config.config, task.project_id) : undefined
               const notes = buildSystemNotes(taskId, {
                 setupCommand: projConfig?.setup,
-                taskType: task?.type ?? undefined,
+                taskType: normalizeTaskType(task?.type),
                 prMode: projConfig?.prMode,
                 customSystemPrompt: resolveCustomSystemPrompt(projConfig, task?.type),
               })
@@ -1163,10 +1148,6 @@ export async function start(): Promise<void> {
               agentHandles.delete(taskId)
             })),
             Effect.mapError((e) => ({ _tag: e._tag, message: e.message }))
-          ),
-        ensureOrchestrator: (projectId, provider, model, reasoningEffort) =>
-          taskManager.ensureOrchestrator(tmDeps, projectId, provider, model, reasoningEffort).pipe(
-            Effect.mapError((e) => ({ _tag: "TaskError" as const, message: e.message }))
           ),
         startTask: (taskId) =>
           taskManager.startTask(tmDeps, taskId).pipe(

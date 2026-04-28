@@ -685,8 +685,8 @@ describe("buildSystemNotes", () => {
     expect(notes.some((n) => n.includes("rename-branch"))).toBe(false)
   })
 
-  test("excludes PR creation note for orchestrator tasks", () => {
-    const notes = buildSystemNotes("test-id", { taskType: "orchestrator" })
+  test("excludes PR creation note for runner tasks", () => {
+    const notes = buildSystemNotes("test-id", { taskType: "runner" })
     expect(notes.some((n) => n.includes("rename-branch"))).toBe(false)
   })
 
@@ -756,10 +756,9 @@ describe("buildSystemLayer", () => {
     expect(notes.some((n) => n.includes("TANGERINE"))).toBe(true)
   })
 
-  test("includes delegation rules for orchestrator", () => {
-    const notes = buildSystemLayer("test-id", { taskType: "orchestrator" })
-    expect(notes.some((n) => n.includes("DELEGATION"))).toBe(true)
-    expect(notes.some((n) => n.includes("CONTEXT"))).toBe(true)
+  test("includes runner task note", () => {
+    const notes = buildSystemLayer("test-id", { taskType: "runner" })
+    expect(notes.some((n) => n.includes("RUNNER TASK"))).toBe(true)
   })
 
   test("excludes delegation rules for workers", () => {
@@ -807,8 +806,8 @@ describe("buildUserLayer", () => {
     expect(notes.some((n) => n.includes("STYLE"))).toBe(true)
   })
 
-  test("uses defaults for orchestrator when no custom prompt", () => {
-    const notes = buildUserLayer("test-id", { taskType: "orchestrator" })
+  test("uses defaults for runner when no custom prompt", () => {
+    const notes = buildUserLayer("test-id", { taskType: "runner" })
     expect(notes.some((n) => n.includes("STYLE"))).toBe(true)
   })
 })
@@ -835,21 +834,21 @@ describe("resolveTaskTypeConfig", () => {
     expect(result.predefinedPrompts).toEqual([{ label: "new", text: "new" }])
   })
 
-  test("returns orchestrator systemPrompt from taskTypes", () => {
+  test("returns runner systemPrompt from taskTypes", () => {
     const project = {
       ...baseProject,
-      taskTypes: { orchestrator: { systemPrompt: "custom orch" } },
+      taskTypes: { runner: { systemPrompt: "custom runner" } },
     } as ProjectConfig
-    const result = resolveTaskTypeConfig(project, "orchestrator")
-    expect(result.systemPrompt).toBe("custom orch")
+    const result = resolveTaskTypeConfig(project, "runner")
+    expect(result.systemPrompt).toBe("custom runner")
   })
 
-  test("returns orchestrator agent and model defaults from taskTypes", () => {
+  test("returns runner agent and model defaults from taskTypes", () => {
     const project = {
       ...baseProject,
-      taskTypes: { orchestrator: { agent: "codex", model: "gpt-5", reasoningEffort: "high" } },
+      taskTypes: { runner: { agent: "codex", model: "gpt-5", reasoningEffort: "high" } },
     } as ProjectConfig
-    const result = resolveTaskTypeConfig(project, "orchestrator")
+    const result = resolveTaskTypeConfig(project, "runner")
     expect(result.agent).toBe("codex")
     expect(result.model).toBe("gpt-5")
     expect(result.reasoningEffort).toBe("high")
@@ -880,7 +879,7 @@ describe("resolveTaskTypeConfig", () => {
 
   test("returns default prompts per task type", () => {
     expect(resolveTaskTypeConfig(baseProject, "worker").predefinedPrompts[0]!.label).toBe("Are you proud of your code?")
-    expect(resolveTaskTypeConfig(baseProject, "orchestrator").predefinedPrompts[0]!.label).toBe("Check active tasks")
+    expect(resolveTaskTypeConfig(baseProject, "runner").predefinedPrompts[0]!.label).toBe("Check active tasks")
     expect(resolveTaskTypeConfig(baseProject, "reviewer").predefinedPrompts[0]!.label).toBe("Summarize findings")
   })
 })

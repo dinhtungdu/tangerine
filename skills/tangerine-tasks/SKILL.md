@@ -8,7 +8,7 @@ metadata:
 
 # Tangerine Agent Reference
 
-> 🚨 **CRITICAL — READ FIRST (applies to ALL task types: orchestrator, worker, reviewer):**
+> 🚨 **CRITICAL — READ FIRST (applies to ALL task roles: worker, reviewer, runner):**
 > **`gh pr review`, `gh pr comment`, `gh pr merge`** — follow these rules strictly:
 > - **Personal repos** (repo owner matches `gh api user --jq .login`): allowed when needed
 > - **All other repos**: NEVER, unless the user has **explicitly asked** you to do so in this task
@@ -20,7 +20,7 @@ metadata:
 >
 > If CI is pending, use `gh pr merge --auto --squash` to queue the merge for when checks pass. Do NOT bypass CI with `--admin`.
 >
-> This applies regardless of task type — orchestrators, workers, and reviewers must all follow these rules.
+> This applies regardless of task role — workers, reviewers, and runners must all follow these rules.
 
 You are running inside a **Tangerine task**. Tangerine manages local agent processes, git worktrees, task lifecycle, and a web/API control plane.
 
@@ -85,7 +85,6 @@ curl -X POST -H "Authorization: Bearer $TANGERINE_AUTH_TOKEN" "$API/api/tasks/$T
 ```
 
 > **IMPORTANT — when to call `/done`:**
-> - **Orchestrators**: call `/done` on yourself when ending the session.
 > - **Workers**: Do NOT call `/done` proactively after PR creation. The agent auto-suspends. When the PR is merged, Tangerine re-prompts you with post-merge instructions — call `/done` then (or `/cancel` if the PR was closed without merging).
 > - **Reviewers**: post the review summary in this task. Do NOT call `/done` unless post-merge/closure instructions say so.
 
@@ -136,7 +135,6 @@ Task types — **always pass the correct type**:
 - `worker` — default for implementation (features, fixes, refactors). Gets a worktree, branch, and PR tracking.
 - `reviewer` — **MUST use for any code review task** (reviewing a PR, auditing a diff, checking for regressions). Never use `worker` for review work — reviewer tasks get review-specific capabilities and UI treatment.
 - `runner` — no worktree allocation, runs on project root, no PR tracking, agent self-completes. Use for publish, deploy, or any non-code-change task.
-- `orchestrator` — system-managed, do not create manually
 
 Example runner task (no worktree, no PR):
 
@@ -156,9 +154,9 @@ curl -X POST "$API/api/tasks" \
 
 ## Task-Type Custom System Prompts
 
-Projects can define custom system prompts per task type. Use these for persistent custom instructions such as review focus, coding standards, orchestration policy, or reporting style.
+Projects can define custom system prompts per task type. Use these for persistent custom instructions such as review focus, coding standards, operational policy, or reporting style.
 
-Supported task types: `worker`, `orchestrator`, `reviewer`.
+Supported task types: `worker`, `reviewer`, `runner`.
 
 ```json
 {
@@ -173,7 +171,7 @@ Supported task types: `worker`, `orchestrator`, `reviewer`.
       "reviewer": {
         "systemPrompt": "Review for regressions, security issues, and missing tests."
       },
-      "orchestrator": {
+      "runner": {
         "systemPrompt": "Keep tasks small. Send unrelated issues to triage."
       }
     }
@@ -181,7 +179,7 @@ Supported task types: `worker`, `orchestrator`, `reviewer`.
 }
 ```
 
-Operational Tangerine notes still apply: auth, PR mode, branch workflow, and orchestrator delegation rules. A custom prompt replaces default user-layer notes such as terse style and setup-status reminder; include those explicitly if wanted.
+Operational Tangerine notes still apply: auth, PR mode, and branch workflow. A custom prompt replaces default user-layer notes such as terse style and setup-status reminder; include those explicitly if wanted.
 
 ### Session / Chat
 
@@ -218,11 +216,6 @@ curl -X PATCH "$API/api/tasks/$TANGERINE_TASK_ID" \
 ```bash
 curl -H "Authorization: Bearer $TANGERINE_AUTH_TOKEN" "$API/api/projects"
 curl -H "Authorization: Bearer $TANGERINE_AUTH_TOKEN" "$API/api/projects/my-project"
-
-curl -X POST "$API/api/projects/my-project/orchestrator" \
-  -H "Authorization: Bearer $TANGERINE_AUTH_TOKEN" \
-  -H "Content-Type: application/json" \
-  -d '{"provider":"acp"}'
 
 curl -H "Authorization: Bearer $TANGERINE_AUTH_TOKEN" "$API/api/projects/my-project/update-status"
 curl -X POST -H "Authorization: Bearer $TANGERINE_AUTH_TOKEN" "$API/api/projects/my-project/update"
@@ -287,7 +280,7 @@ curl -X POST "$API/api/tasks/<target-task-id>/prompt" \
   -d '{"text":"Discovered a failing edge case. Please investigate.","fromTaskId":"'"$TANGERINE_TASK_ID"'"}'
 ```
 
-> ⚠️ **Orchestrators: do NOT use `/prompt` to add new requirements to a running worker.** `/prompt` is only for unblocking or clarifying the worker's existing scope. New requirements = create a new task.
+> ⚠️ **Do NOT use `/prompt` to add new requirements to a running worker.** `/prompt` is only for unblocking or clarifying the worker's existing scope. New requirements = create a new task.
 
 ### Inspect your task metadata
 

@@ -6,6 +6,7 @@ import { useMentionPicker } from "../hooks/useMentionPicker"
 import { useFileMentionPicker } from "../hooks/useFileMentionPicker"
 import { useSlashCommandPicker } from "../hooks/useSlashCommandPicker"
 import { usePanelActions } from "../hooks/usePanelActions"
+import { useTaskActions } from "../hooks/useTaskActions"
 import { useResizable } from "../hooks/useResizable"
 import { getActions, getAction, setShortcutOverrides, _resetForTesting } from "../lib/actions"
 import { defaultShortcuts } from "../lib/default-shortcuts"
@@ -824,6 +825,24 @@ const makeTask = (overrides: Partial<Task> = {}): Task => ({
   startedAt: null, completedAt: null, lastSeenAt: null, lastResultAt: null,
   capabilities: [],
   ...overrides,
+})
+
+describe("useTaskActions", () => {
+  beforeEach(() => _resetForTesting())
+
+  test("registers retry for failed tasks", () => {
+    const task = makeTask({ status: "failed" })
+    renderHook(() => useTaskActions(task))
+
+    expect(getActions().map((a) => a.id)).toContain("task.retry")
+  })
+
+  test("registers resolve for failed tasks with resolve capability", () => {
+    const task = makeTask({ status: "failed", capabilities: ["resolve"] })
+    renderHook(() => useTaskActions(task))
+
+    expect(getActions().map((a) => a.id)).toContain("task.resolve")
+  })
 })
 
 describe("usePanelActions", () => {

@@ -7,9 +7,9 @@ import type { Database } from "bun:sqlite"
 import { createLogger } from "../logger"
 import { SessionStartError } from "../errors"
 import { getRepoDir, resolveWorkspace } from "../config"
-import { resolveTaskTypeConfig, type TangerineConfig } from "@tangerine/shared"
+import { normalizeTaskType, resolveTaskTypeConfig, type TangerineConfig } from "@tangerine/shared"
 import type { TaskRow } from "../db/types"
-import { initPool, acquireSlot, acquireOrchestratorSlot } from "./worktree-pool"
+import { initPool, acquireSlot, acquireRootSlot } from "./worktree-pool"
 import { buildSystemNotes } from "./prompts"
 import { killProcessTree } from "../agent/process-tree"
 import { getAgentHandleMeta } from "../agent/provider"
@@ -56,14 +56,13 @@ export interface ProjectConfig {
 
 /** Resolve custom system prompt for a task type from taskTypes config. */
 function resolveCustomSystemPrompt(config: ProjectConfig, taskType: string | null | undefined): string | undefined {
-  const tt = taskType as "worker" | "orchestrator" | "reviewer" | undefined
-  if (!tt) return undefined
+  const tt = normalizeTaskType(taskType)
   return config.taskTypes?.[tt]?.systemPrompt
 }
 
 /** Resolve default mode for a task type from taskTypes config. */
 function resolveDefaultMode(config: ProjectConfig, taskType: string | null | undefined): string | undefined {
-  const tt = taskType as "worker" | "orchestrator" | "reviewer" | undefined
+  const tt = taskType as "worker" | "reviewer" | "runner" | undefined
   if (!tt) return undefined
   return config.taskTypes?.[tt]?.mode
 }
@@ -110,17 +109,16 @@ export function startSession(
     const sessionSpan = taskLog.startOp("session-start")
     const taskPrefix = task.id.slice(0, 8)
     const defaultBranch = config.defaultBranch ?? "main"
-    const isOrchestrator = task.type === "orchestrator"
-    const isRunner = task.type === "runner"
-    const isReviewer = task.type === "reviewer"
-    // Orchestrator stays on the default branch in slot 0.
+    const taskType = normalizeTaskType(task.type)
+    const isRunner = taskType === "runner"
+    const isReviewer = taskType === "reviewer"
     // Runner tasks run on the project root without a dedicated worktree.
     // Regular tasks use pre-set branch (from PR/branch input) or generate one.
     // Never work directly on the default branch — git worktrees can't share branches
     // with the main repo, and agents should always work on isolated branches.
-    const taskBranch = (isOrchestrator || isRunner) ? defaultBranch : (task.branch === defaultBranch ? null : task.branch)
-    const isExistingBranch = !isOrchestrator && !isRunner && !!taskBranch && !taskBranch.startsWith("tangerine/")
-    const branch = (isOrchestrator || isRunner) ? defaultBranch : (taskBranch ?? `tangerine/${taskPrefix}`)
+    const taskBranch = isRunner ? defaultBranch : (task.branch === defaultBranch ? null : task.branch)
+    const isExistingBranch = !isRunner && !!taskBranch && !taskBranch.startsWith("tangerine/")
+    const branch = isRunner ? defaultBranch : (taskBranch ?? `tangerine/${taskPrefix}`)
     const repoDir = getRepoDir(deps.tangerineConfig, task.project_id)
 
     const baseBranch = defaultBranch
@@ -162,7 +160,7 @@ export function startSession(
         }))
       )
       yield* activity("worktree.acquiring", "Acquiring slot 0 for runner")
-      const slot = yield* acquireOrchestratorSlot(deps.db, task.project_id, task.id, deps.getTask).pipe(
+      const slot = yield* acquireRootSlot(deps.db, task.project_id, task.id, deps.getTask).pipe(
         Effect.mapError((e) => new SessionStartError({
           message: `Slot acquisition failed: ${e.message}`,
           taskId: task.id,
@@ -186,11 +184,8 @@ export function startSession(
         }))
       )
 
-      yield* activity("worktree.acquiring", isOrchestrator ? "Acquiring slot 0" : "Acquiring worktree slot")
-      const slot = yield* (isOrchestrator
-        ? acquireOrchestratorSlot(deps.db, task.project_id, task.id, deps.getTask)
-        : acquireSlot(deps.db, task.project_id, task.id, deps.getTask, exec, defaultBranch)
-      ).pipe(
+      yield* activity("worktree.acquiring", "Acquiring worktree slot")
+      const slot = yield* acquireSlot(deps.db, task.project_id, task.id, deps.getTask, exec, defaultBranch).pipe(
         Effect.mapError((e) => new SessionStartError({
           message: `Slot acquisition failed: ${e.message}`,
           taskId: task.id,
@@ -312,7 +307,7 @@ export function startSession(
     resetSessionAutocompleteState(task.id)
     const systemNotes = buildSystemNotes(task.id, {
       setupCommand: usesSlot0 ? undefined : config.setup, // slot 0 skips setup
-      taskType: task.type ?? undefined,
+      taskType,
       prMode: config.prMode,
       customSystemPrompt: resolveCustomSystemPrompt(config, task.type),
       upstreamSlug,
@@ -414,8 +409,8 @@ export function reconnectSession(
     yield* activity("agent.reconnecting", "Restarting agent process")
     resetSessionAutocompleteState(task.id)
     const project = deps.tangerineConfig.projects.find((p) => p.name === task.project_id)
-    const taskType = task.type as "worker" | "orchestrator" | "reviewer" | "runner" | undefined
-    const resolved = project && taskType && taskType !== "runner" ? resolveTaskTypeConfig(project, taskType) : undefined
+    const taskType = normalizeTaskType(task.type)
+    const resolved = project ? resolveTaskTypeConfig(project, taskType) : undefined
 
     // Detect fork upstream for PR targeting on reconnect
     let reconnectUpstreamSlug: string | undefined
@@ -432,8 +427,8 @@ export function reconnectSession(
       }
     }
 
-    // Slot 0 tasks (orchestrator/runner) skip setup — don't advertise it
-    const isSlot0Task = taskType === "orchestrator" || taskType === "runner"
+    // Slot 0 runner tasks skip setup — don't advertise it
+    const isSlot0Task = taskType === "runner"
     const systemNotes = buildSystemNotes(task.id, {
       setupCommand: isSlot0Task ? undefined : project?.setup,
       taskType: taskType,

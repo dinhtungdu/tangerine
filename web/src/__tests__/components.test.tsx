@@ -1196,9 +1196,9 @@ describe("CommandPalette", () => {
     expect(screen.getByText("Task Detail")).toBeTruthy()
   })
 
-  test("shows task type badge for orchestrator tasks", async () => {
+  test("shows task type badge for runner tasks", async () => {
     mockTasksFetch([
-      makeTask({ id: "orch1", title: "Orchestrator task", status: "running", type: "orchestrator" }),
+      makeTask({ id: "runner1", title: "Runner task", status: "running", type: "runner" }),
     ])
 
     render(
@@ -1214,7 +1214,7 @@ describe("CommandPalette", () => {
       await new Promise((r) => setTimeout(r, 50))
     })
 
-    expect(screen.getByText("orchestrator")).toBeTruthy()
+    expect(screen.getByText("runner")).toBeTruthy()
   })
 })
 

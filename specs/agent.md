@@ -53,7 +53,7 @@ Known commands:
 
 No hardcoded provider list should remain after the migration. These are documented setup examples only; users can configure any ACP-compatible command.
 
-Projects can override the default ACP agent per task type. Orchestrators use `taskTypes.orchestrator.agent` when no explicit agent is supplied, then fall back to project/global `defaultAgent` resolution. The same task-type config may provide initial `model` and `reasoningEffort` hints without coupling Tangerine to a provider-specific model name.
+Projects can override the default ACP agent per task type. `taskTypes.<type>.agent` resolves before project/global `defaultAgent`. The same task-type config may provide initial `model` and `reasoningEffort` hints without coupling Tangerine to a provider-specific model name.
 
 ## Streaming
 

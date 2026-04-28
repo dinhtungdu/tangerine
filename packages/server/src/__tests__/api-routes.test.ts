@@ -90,20 +90,6 @@ function createMockDeps(db: Database, configOverrides?: Partial<AppDeps["config"
         })
       },
       cleanupTask() { return Effect.void },
-      ensureOrchestrator(projectId) {
-        const id = crypto.randomUUID()
-        const row = Effect.runSync(dbCreateTask(db, {
-          id,
-          project_id: projectId,
-          source: "manual",
-          source_id: null,
-          source_url: null,
-          title: "_orchestrator",
-          type: "orchestrator",
-          description: null,
-        }))
-        return Effect.succeed(row)
-      },
       startTask() { return Effect.void },
       onTaskEvent() { return () => {} },
       onStatusChange() { return () => {} },
@@ -376,6 +362,17 @@ describe("API routes", () => {
       expect(body.title).toBe("My Task")
     })
 
+    test("returns runner capabilities", async () => {
+      const row = seedTask(db, { title: "Runner task", type: "runner" })
+
+      const res = await app.fetch(new Request(`http://localhost/api/tasks/${row.id}`))
+      expect(res.status).toBe(200)
+      const body = await res.json() as { capabilities: string[] }
+      expect(body.capabilities).toContain("predefined-prompts")
+      expect(body.capabilities).toContain("continue")
+      expect(body.capabilities).toContain("resolve")
+    })
+
     test("returns 404 for unknown task", async () => {
       const res = await app.fetch(new Request("http://localhost/api/tasks/nonexistent"))
       expect(res.status).toBe(404)
@@ -425,6 +422,17 @@ describe("API routes", () => {
         body: JSON.stringify({ projectId: "test-project" }),
       }))
       expect(res.status).toBe(400)
+    })
+
+    test("creates runner tasks with explicit titles", async () => {
+      const res = await app.fetch(new Request("http://localhost/api/tasks", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ projectId: "test-project", title: "Runner task", type: "runner" }),
+      }))
+      expect(res.status).toBe(201)
+      const body = await res.json() as { title: string }
+      expect(body.title).toBe("Runner task")
     })
 
     test("returns 400 for unknown project", async () => {
@@ -534,15 +542,15 @@ describe("API routes", () => {
       expect(res.status).toBe(201)
     })
 
-    test("rejects prUrl for orchestrator tasks", async () => {
+    test("rejects unknown task types", async () => {
       const res = await app.fetch(new Request("http://localhost/api/tasks", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ projectId: "test-project", title: "Task", type: "orchestrator", prUrl: "https://github.com/test/repo/pull/42" }),
+        body: JSON.stringify({ projectId: "test-project", title: "Task", type: "unsupported" }),
       }))
       expect(res.status).toBe(400)
       const body = await res.json() as { error: string }
-      expect(body.error).toContain("pr-track")
+      expect(body.error).toContain("Must be worker, reviewer, or runner")
     })
 
     test("rejects prUrl for runner tasks", async () => {
@@ -627,8 +635,8 @@ describe("API routes", () => {
       expect(res.status).toBe(404)
     })
 
-    test("rejects prUrl for orchestrator tasks", async () => {
-      const row = seedTask(db, { type: "orchestrator" })
+    test("rejects prUrl for runner tasks", async () => {
+      const row = seedTask(db, { type: "runner" })
       const res = await app.fetch(new Request(`http://localhost/api/tasks/${row.id}`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
@@ -764,6 +772,19 @@ describe("API routes", () => {
     })
   })
 
+  describe("POST /api/tasks/:id/retry", () => {
+    test("retries failed runner tasks", async () => {
+      const row = seedTask(db, { title: "Runner task", type: "runner" })
+      Effect.runSync(updateTaskStatus(db, row.id, "failed"))
+
+      const res = await app.fetch(new Request(`http://localhost/api/tasks/${row.id}/retry`, { method: "POST" }))
+      expect(res.status).toBe(200)
+      const body = await res.json() as { id: string; title: string }
+      expect(body.id).not.toBe(row.id)
+      expect(body.title).toBe("Runner task")
+    })
+  })
+
   describe("DELETE /api/tasks/:id", () => {
     test("deletes a terminal task", async () => {
       const row = seedTask(db)
@@ -822,6 +843,14 @@ describe("API routes", () => {
       // status is "created" (non-terminal)
       const res = await app.fetch(new Request(`http://localhost/api/tasks/${row.id}/resolve`, { method: "POST" }))
       expect(res.status).toBe(400)
+    })
+
+    test("resolves failed runner tasks", async () => {
+      const row = seedTask(db, { title: "Runner task", type: "runner" })
+      Effect.runSync(updateTaskStatus(db, row.id, "failed"))
+
+      const res = await app.fetch(new Request(`http://localhost/api/tasks/${row.id}/resolve`, { method: "POST" }))
+      expect(res.status).toBe(200)
     })
 
     test("returns 404 for unknown task", async () => {
@@ -1076,6 +1105,46 @@ describe("API routes", () => {
       expect(res.status).toBe(201)
       const body = await res.json() as { taskDefaults: { provider?: string } | null }
       expect(body.taskDefaults?.provider).toBe("nightly-agent")
+    })
+
+    test("creates crons with explicit titles", async () => {
+      const res = await app.fetch(new Request("http://localhost/api/crons", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          projectId: "test-project",
+          title: "Nightly run",
+          cron: "0 9 * * 1",
+        }),
+      }))
+
+      expect(res.status).toBe(201)
+      const body = await res.json() as { title: string }
+      expect(body.title).toBe("Nightly run")
+    })
+
+    test("PATCH keeps existing title when title is null", async () => {
+      const createRes = await app.fetch(new Request("http://localhost/api/crons", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          projectId: "test-project",
+          title: "Nightly",
+          cron: "0 9 * * 1",
+        }),
+      }))
+      expect(createRes.status).toBe(201)
+      const created = await createRes.json() as { id: string }
+
+      const patchRes = await app.fetch(new Request(`http://localhost/api/crons/${created.id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ title: null }),
+      }))
+
+      expect(patchRes.status).toBe(200)
+      const patched = await patchRes.json() as { title: string }
+      expect(patched.title).toBe("Nightly")
     })
   })
 

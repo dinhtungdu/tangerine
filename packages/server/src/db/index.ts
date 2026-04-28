@@ -104,20 +104,6 @@ function migrateWorktreeSlots(db: Database): void {
 }
 
 /**
- * Backfill type='orchestrator' for legacy _orchestrator rows.
- * Before the type column existed, orchestrators were identified by title.
- * The autoMigrate DEFAULT 'worker' leaves them misclassified.
- */
-function migrateOrchestratorType(db: Database): void {
-  const result = db.prepare(
-    "UPDATE tasks SET type = 'orchestrator' WHERE title = '_orchestrator' AND type = 'worker'"
-  ).run()
-  if (result.changes > 0) {
-    console.error(`[db] Backfilled type='orchestrator' for ${result.changes} legacy orchestrator row(s)`)
-  }
-}
-
-/**
  * Drop the redundant repo_url column from tasks.
  * Tasks now derive repo URL from their project config via project_id.
  */
@@ -192,9 +178,6 @@ export function getDb(path?: string): Database {
   // CREATE INDEX statements in SCHEMA don't fail on new columns
   autoMigrate(db)
   db.exec(SCHEMA)
-
-  // Backfill type for legacy orchestrator rows that got DEFAULT 'worker'
-  migrateOrchestratorType(db)
 
   // Drop redundant repo_url column — tasks use project_id to look up repo URL
   dropRepoUrlColumn(db)

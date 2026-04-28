@@ -76,7 +76,7 @@ specs/
 ## Core Runtime Flow
 
 1. A task is created through the API, web UI, GitHub webhook/poller, or cross-project prompt.
-2. `tasks/manager.ts` assigns task type capabilities and starts non-orchestrator tasks immediately.
+2. `tasks/manager.ts` assigns task type capabilities and starts tasks.
 3. `tasks/lifecycle.ts` fetches the repo, allocates a worktree slot, creates a branch/worktree, and starts the configured ACP agent process locally.
 4. ACP `session/update` events are mapped and forwarded to WebSocket clients, activity logs, session logs, and in-memory active stream snapshots for mid-turn task reloads.
 5. The task can be prompted, aborted, reconfigured, retried, completed, cancelled, or reconnected after restart.
@@ -102,7 +102,7 @@ The main persisted tables are:
 
 Notable task fields in the active schema:
 
-- `type` — "worker" (worktree + branch + PR tracking), "orchestrator" (system coordinator), "reviewer" (PR review on a reviewer-local branch while `branch` stores the PR source for PR tracking), "runner" (no worktree, runs on project root, no PR tracking, agent self-completes)
+- `type` — "worker" (worktree + branch + PR tracking), "reviewer" (PR review on a reviewer-local branch while `branch` stores the PR source for PR tracking), "runner" (no worktree, runs on project root, no PR tracking, agent self-completes). Unknown persisted type values normalize to runner for legacy compatibility.
 - `provider` — migration-compatible selected ACP agent id
 - `model` — selected from ACP session config option category `model` when available
 - `reasoning_effort` — selected from ACP session config option category `thought_level` or `effort` when available
@@ -135,7 +135,7 @@ Legacy provider runtime files have been removed. See [ACP Migration](./acp-migra
 
 ### Task Management
 
-- `tasks/manager.ts` handles task creation, type-based capabilities, retries, completion, cancellation, config changes, orchestrator creation, and restart recovery.
+- `tasks/manager.ts` handles task creation, type-based capabilities, retries, completion, cancellation, config changes, and restart recovery.
 - `tasks/retry.ts` wraps session start and reconnect flows.
 - `tasks/health.ts` suspends idle tasks and revives unhealthy sessions.
 - `tasks/pr-monitor.ts` detects and records PR URLs.
@@ -169,7 +169,6 @@ Notable UI features:
 - project switching (archived projects sorted to collapsible section)
 - auth gate when `TANGERINE_AUTH_TOKEN` is enabled
 - project archive/unarchive
-- orchestrator entry point
 - diff viewer
 - terminal pane
 - model/harness/reasoning selectors

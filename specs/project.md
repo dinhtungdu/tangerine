@@ -18,7 +18,7 @@ Stored in `tangerine.json` at the project root (or `~/.config/tangerine/config.j
       "worker": {
         "mode": "bypass-permissions"
       },
-      "orchestrator": {
+      "runner": {
         "agent": "codex",
         "model": "gpt-5",
         "reasoningEffort": "high"
@@ -45,7 +45,7 @@ Stored in `tangerine.json` at the project root (or `~/.config/tangerine/config.j
 | `env` | object | no | Extra env vars passed to agent process |
 | `model` | string | no | Model override for this project |
 | `prMode` | `"ready" \| "draft" \| "none"` | no | How worker agents handle PRs. `ready`: normal PR, `draft`: draft PR, `none`: commit only, no push/PR. Default: `"none"` |
-| `taskTypes` | object | no | Per-task-type prompt, quick reply, agent, model, mode, and reasoning-effort defaults. `taskTypes.worker.mode` sets the default agent mode (e.g. `"bypass-permissions"` for Claude). `taskTypes.orchestrator.agent` lets the coordinator use a different ACP agent without hardcoding Claude. |
+| `taskTypes` | object | no | Per-task-type prompt, quick reply, agent, model, mode, and reasoning-effort defaults for `worker`, `reviewer`, and `runner`. `taskTypes.worker.mode` sets the default agent mode (e.g. `"bypass-permissions"` for Claude). |
 
 ### Top-Level Config
 

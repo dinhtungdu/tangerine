@@ -42,7 +42,6 @@ export interface AppDeps {
     abortTask(taskId: string): Effect.Effect<void, TaggedError>
     changeConfig(taskId: string, config: { model?: string; reasoningEffort?: string; mode?: string }): Effect.Effect<void, TaggedError>
     cleanupTask(taskId: string): Effect.Effect<void, TaggedError>
-    ensureOrchestrator(projectId: string, provider?: string, model?: string, reasoningEffort?: string): Effect.Effect<TaskRow, TaggedError>
     startTask(taskId: string): Effect.Effect<void, TaggedError>
     onTaskEvent(taskId: string, handler: (data: unknown) => void): () => void
     onStatusChange(taskId: string, handler: (status: string) => void): () => void

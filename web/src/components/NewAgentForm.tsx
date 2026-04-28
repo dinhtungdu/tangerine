@@ -30,8 +30,7 @@ interface PendingImage extends PromptImage {
   dataUrl: string
 }
 
-/** Task types selectable in the form — excludes orchestrator (system-managed) */
-type FormTaskType = Exclude<TaskType, "orchestrator">
+type FormTaskType = TaskType
 
 function loadDraftFromKey(key: string): { description?: string; customBranch?: string; taskType?: FormTaskType; pendingImages?: PendingImage[] } {
   try {

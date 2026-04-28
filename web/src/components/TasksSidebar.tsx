@@ -1,12 +1,11 @@
 import { useMemo, useState, useCallback, useEffect, useRef } from "react"
-import { Link, useParams, useNavigate } from "react-router-dom"
+import { Link, useParams } from "react-router-dom"
 import { TERMINAL_STATUSES } from "@tangerine/shared"
 import type { Task, ProjectConfig } from "@tangerine/shared"
 import { Search, Plus, X } from "lucide-react"
 import { getStatusConfig, hasUnseenUpdates, getPrStatusConfig } from "../lib/status"
 import { formatRelativeTime, formatPrNumber } from "../lib/format"
 import { useProject } from "../context/ProjectContext"
-import { ensureOrchestrator } from "../lib/api"
 import { TaskOverflowMenu } from "./TaskListItem"
 import {
   InputGroup,
@@ -117,39 +116,26 @@ function TaskItem({
 interface ProjectGroup {
   projectId: string
   projectName: string
-  orchestrator: Task | null
   tasks: Task[]
 }
 
 function ProjectGroupHeader({
   group,
-  isActive,
-  onRefetch,
   activeOnly,
   onToggle,
   activeCount,
   totalCount,
 }: {
   group: ProjectGroup
-  isActive: boolean
-  onRefetch?: () => void
   activeOnly: boolean
   onToggle: () => void
   activeCount: number
   totalCount: number
 }) {
-  const nav = useNavigate()
-  const [creating, setCreating] = useState(false)
-  const projectQs = `?project=${encodeURIComponent(group.projectName)}`
-
   const rowClass = "flex w-full items-center border-t border-border bg-muted/50"
-  const navClass = `flex flex-1 items-center gap-2.5 px-4 py-2 text-left min-w-0`
-  const activeNavClass = isActive
-    ? "border-l-[3px] border-l-status-error"
-    : "hover:bg-muted"
 
   const navContent = (
-    <span className="truncate text-sm font-semibold text-foreground">
+    <span className="min-w-0 flex-1 truncate px-4 py-2 text-sm font-semibold text-foreground">
       {group.projectName}
     </span>
   )
@@ -169,41 +155,9 @@ function ProjectGroupHeader({
     </Badge>
   )
 
-  if (group.orchestrator && !TERMINAL_STATUSES.has(group.orchestrator.status)) {
-    return (
-      <div className={rowClass}>
-        <Link
-          to={`/tasks/${group.orchestrator.id}${projectQs}`}
-          className={`${navClass} ${activeNavClass}`}
-          style={isActive ? {} : { borderLeft: "3px solid transparent" }}
-        >
-          {navContent}
-        </Link>
-        {toggleBtn}
-      </div>
-    )
-  }
-
-  // No orchestrator yet — click to create one
   return (
     <div className={rowClass}>
-      <button
-        disabled={creating}
-        onClick={async () => {
-          setCreating(true)
-          try {
-            const task = await ensureOrchestrator(group.projectName)
-            onRefetch?.()
-            nav(`/tasks/${task.id}${projectQs}`)
-          } finally {
-            setCreating(false)
-          }
-        }}
-        className={`${navClass} outline-none hover:bg-muted focus-visible:ring-1 focus-visible:ring-ring/50`}
-        style={{ borderLeft: "3px solid transparent" }}
-      >
-        {navContent}
-      </button>
+      {navContent}
       {toggleBtn}
     </div>
   )
@@ -226,22 +180,8 @@ export function TasksSidebar({ tasks, projects, searchQuery, onSearchChange, onN
       ? tasks.filter((t) => t.projectId === projectFilter)
       : tasks
 
-    // Split orchestrators vs workers
-    const orchestrators = new Map<string, Task>()
-    const workers: Task[] = []
-    for (const t of filtered) {
-      if (t.type === "orchestrator") {
-        const existing = orchestrators.get(t.projectId)
-        if (!existing || (!TERMINAL_STATUSES.has(t.status) && TERMINAL_STATUSES.has(existing.status))) {
-          orchestrators.set(t.projectId, t)
-        }
-      } else {
-        workers.push(t)
-      }
-    }
-
     // Sort: active first, then terminated
-    const sorted = [...workers].sort((a, b) => {
+    const sorted = [...filtered].sort((a, b) => {
       const aTerminated = TERMINAL_STATUSES.has(a.status) ? 1 : 0
       const bTerminated = TERMINAL_STATUSES.has(b.status) ? 1 : 0
       return aTerminated - bTerminated
@@ -257,7 +197,6 @@ export function TasksSidebar({ tasks, projects, searchQuery, onSearchChange, onN
       groupMap.set(p.name, {
         projectId: p.name,
         projectName: p.name,
-        orchestrator: orchestrators.get(p.name) ?? null,
         tasks: [],
       })
     }
@@ -374,8 +313,6 @@ export function TasksSidebar({ tasks, projects, searchQuery, onSearchChange, onN
               <div key={group.projectId}>
                 <ProjectGroupHeader
                   group={group}
-                  isActive={group.orchestrator?.id === activeId}
-                  onRefetch={onRefetch}
                   activeOnly={groupOnly}
                   onToggle={() => handleGroupToggle(group.projectId)}
                   activeCount={activeTasks.length}

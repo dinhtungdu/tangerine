@@ -3,7 +3,6 @@ import { Effect } from "effect"
 import { checkTask, checkAllTasks, startHealthMonitor, isTaskSuspended, clearSuspended, parseTaskTimestampMs, resetRestartCount } from "../tasks/health"
 import type { HealthCheckDeps } from "../tasks/health"
 import type { TaskRow } from "../db/types"
-import { ORCHESTRATOR_TASK_NAME } from "@tangerine/shared"
 import { getTaskState, clearTaskState } from "../tasks/task-state"
 
 function makeTask(overrides?: Partial<TaskRow>): TaskRow {
@@ -370,11 +369,11 @@ describe("idle timeout", () => {
     clearSuspended(task.id)
   })
 
-  test("idle timeout applies to both orchestrator and regular tasks", async () => {
-    const orchestrator = makeTask({
-      id: "orch-1",
-      title: ORCHESTRATOR_TASK_NAME,
-      type: "orchestrator",
+  test("idle timeout applies to both runner and worker tasks", async () => {
+    const runner = makeTask({
+      id: "runner-1",
+      title: "Run command",
+      type: "runner",
       started_at: new Date(Date.now() - 700_000).toISOString(),
     })
     const worker = makeTask({
@@ -384,13 +383,13 @@ describe("idle timeout", () => {
     })
     const suspendFn = mock(() => Effect.void)
     const deps = makeDeps({
-      listRunningTasks: () => Effect.succeed([orchestrator, worker]),
+      listRunningTasks: () => Effect.succeed([runner, worker]),
       suspendAgent: suspendFn,
       getLastUserMessageTime: () => new Date(Date.now() - 660_000).toISOString(),
     })
     await Effect.runPromise(checkAllTasks(deps))
     expect(suspendFn).toHaveBeenCalledTimes(2)
-    clearSuspended("orch-1")
+    clearSuspended("runner-1")
     clearSuspended("worker-1")
   })
 

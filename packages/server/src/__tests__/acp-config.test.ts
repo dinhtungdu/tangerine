@@ -34,14 +34,14 @@ describe("ACP agent config", () => {
           setup: "bun install",
           defaultAgent: "acp",
           taskTypes: {
-            orchestrator: { agent: "codex", model: "gpt-5", reasoningEffort: "high" },
+            runner: { agent: "codex", model: "gpt-5", reasoningEffort: "high" },
           },
         },
       ],
     })
 
-    expect(config.projects[0]?.taskTypes?.orchestrator?.agent).toBe("codex")
-    expect(config.projects[0]?.taskTypes?.orchestrator?.model).toBe("gpt-5")
-    expect(config.projects[0]?.taskTypes?.orchestrator?.reasoningEffort).toBe("high")
+    expect(config.projects[0]?.taskTypes?.runner?.agent).toBe("codex")
+    expect(config.projects[0]?.taskTypes?.runner?.model).toBe("gpt-5")
+    expect(config.projects[0]?.taskTypes?.runner?.reasoningEffort).toBe("high")
   })
 })

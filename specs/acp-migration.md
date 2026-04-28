@@ -34,7 +34,7 @@ ACP provides a JSON-RPC protocol and streaming event model:
 
 ACP does not define a separate queued-message protocol; ACP clients such as Zed queue/edit pending user prompts in the UI while one `session/prompt` turn is active, then send the next prompt after the active turn finishes. Tangerine mirrors that behavior in its server queue and dashboard.
 
-ACP does not provide an official embeddable chat UI. Tangerine keeps its web dashboard and maps ACP streams into existing task logs, activity logs, queued prompt state, and WebSocket messages. Third-party ACP clients exist, but replacing Tangerine's UI with one would lose Tangerine-specific task/worktree/PR orchestration.
+ACP does not provide an official embeddable chat UI. Tangerine keeps its web dashboard and maps ACP streams into existing task logs, activity logs, queued prompt state, and WebSocket messages. Third-party ACP clients exist, but replacing Tangerine's UI with one would lose Tangerine-specific task/worktree/PR workflows.
 
 ## Target Architecture
 

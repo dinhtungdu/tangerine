@@ -1,7 +1,6 @@
 import { Effect } from "effect"
 import { Hono } from "hono"
 import type { AppDeps } from "../app"
-import { mapTaskRow } from "../helpers"
 import { runEffect, runEffectVoid } from "../effect-helpers"
 import { projectConfigSchema, tangerineConfigSchema, TERMINAL_STATUSES } from "@tangerine/shared"
 import { ProjectNotFoundError, ProjectExistsError, ConfigValidationError } from "../../errors"
@@ -213,22 +212,6 @@ export function projectRoutes(deps: AppDeps): Hono {
         deps.configStore.write(raw)
         deps.config.config = fullParsed.data
       })
-    )
-  })
-
-  // Ensure an orchestrator task exists for a project (lazy create/reuse/recreate).
-  // Returns the task without starting it — the UI triggers start explicitly.
-  app.post("/:name/orchestrator", async (c) => {
-    const name = c.req.param("name")
-    const project = deps.config.config.projects.find((p) => p.name === name)
-    if (!project) return c.json({ error: `Project not found: ${name}` }, 404)
-
-    const body = await c.req.json().catch(() => ({})) as { provider?: string; model?: string; reasoningEffort?: string }
-    return runEffect(c,
-      deps.taskManager.ensureOrchestrator(name, body.provider, body.model, body.reasoningEffort).pipe(
-        Effect.map(mapTaskRow),
-      ),
-      { status: 200 }
     )
   })
 

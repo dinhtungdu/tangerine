@@ -137,6 +137,22 @@ describe("tracer: github polling -> task creation -> dedup", () => {
     expect(createdTasks[1]!.title).toBe("Issue #3")
   })
 
+  it("creates tasks for all matching assigned issues", async () => {
+    const issues = [
+      makeIssue(1, { title: "Run checks", assignee: { login: "bot" } }),
+      makeIssue(2, { assignee: { login: "bot" } }),
+    ]
+
+    spawnSpy.mockReturnValue(makeSpawnResult(JSON.stringify(issues)))
+
+    const config = makeConfig({ type: "assignee", value: "bot" })
+    await Effect.runPromise(pollGitHubIssues(config, deps))
+
+    expect(createdTasks).toHaveLength(2)
+    expect(createdTasks[0]!.sourceId).toBe("github:test/repo#1")
+    expect(createdTasks[1]!.sourceId).toBe("github:test/repo#2")
+  })
+
   it("deduplicates issues on subsequent poll cycles", async () => {
     const issues = [
       makeIssue(1, { assignee: { login: "bot" } }),

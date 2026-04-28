@@ -3,7 +3,7 @@
 
 import { Effect } from "effect"
 import { createLogger } from "../logger"
-import { type ActivityType, type TaskType, type TaskCapability, type TaskSource, DEFAULT_AGENT_ID, ORCHESTRATOR_TASK_NAME, TERMINAL_STATUSES, getCapabilitiesForType, resolveDefaultAgentId } from "@tangerine/shared"
+import { type ActivityType, type TaskType, type TaskCapability, type TaskSource, DEFAULT_AGENT_ID, getCapabilitiesForType, resolveDefaultAgentId } from "@tangerine/shared"
 import {
   TaskNotFoundError,
   TaskNotTerminalError,
@@ -31,11 +31,10 @@ function depsForProvider(deps: TaskManagerDeps, provider: string): LifecycleDeps
   return { ...deps.lifecycleDeps, agentFactory: deps.getAgentFactory(provider) }
 }
 
-type ConfigurableTaskType = "worker" | "orchestrator" | "reviewer"
+type ConfigurableTaskType = TaskType
 
-function configurableTaskType(taskType: TaskType): ConfigurableTaskType | undefined {
-  if (taskType === "worker" || taskType === "orchestrator" || taskType === "reviewer") return taskType
-  return undefined
+function configurableTaskType(taskType: TaskType): ConfigurableTaskType {
+  return taskType
 }
 
 function taskTypeDefaults(projectConfig: ProjectConfig, taskType: TaskType) {
@@ -82,6 +81,7 @@ export function createTask(
     branch?: string
     prUrl?: string
     parentTaskId?: string
+    autoStart?: boolean
   },
 ): Effect.Effect<TaskRow, Error> {
   return Effect.gen(function* () {
@@ -94,19 +94,7 @@ export function createTask(
       return yield* Effect.fail(new Error(`Project "${params.projectId}" is archived — unarchive it before creating tasks`))
     }
 
-    // Enforce one orchestrator per project
     const taskType: TaskType = params.type ?? "worker"
-    if (taskType === "orchestrator") {
-      const allTasks = yield* deps.listTasks({ projectId: params.projectId })
-      const active = allTasks.find(
-        (t) => t.type === "orchestrator" && !["done", "failed", "cancelled"].includes(t.status)
-      )
-      if (active) {
-        return yield* Effect.fail(
-          new Error(`Project ${params.projectId} already has an active orchestrator task: ${active.id}`)
-        )
-      }
-    }
 
     const id = crypto.randomUUID()
     const defaults = taskTypeDefaults(projectConfig, taskType)
@@ -143,8 +131,7 @@ export function createTask(
 
     emitStatusChange(id, task.status)
 
-    // Orchestrator tasks are not auto-started — started on-demand when the user enters the chat.
-    if (taskType !== "orchestrator") {
+    if (params.autoStart !== false) {
       const taskLifecycleDeps = depsForProvider(deps, resolvedProvider)
       yield* Effect.forkDaemon(
         startSessionWithRetry(task, projectConfig, taskLifecycleDeps, deps.retryDeps)
@@ -515,7 +502,6 @@ export function reprovisionTasksForProject(
     const affected = allTasks.filter(
       (t) => t.project_id === projectId
         && !["done", "cancelled"].includes(t.status)
-        && t.type !== "orchestrator"
     )
 
     if (affected.length === 0) return { reprovisioned: 0, failed: 0 }
@@ -565,62 +551,6 @@ export function reprovisionTasksForProject(
 
     log.info("Tasks reprovisioned after rebuild", { projectId, reprovisioned, failed })
     return { reprovisioned, failed }
-  })
-}
-
-/**
- * Ensure an orchestrator task exists for a project. Lazy creation:
- * - Active orchestrator exists → return it
- * - Terminal orchestrator exists → create new one linked via parent_task_id
- * - No orchestrator exists → create one
- * Does NOT start the session — call startTask() when the user enters the chat.
- */
-export function ensureOrchestrator(
-  deps: TaskManagerDeps,
-  projectId: string,
-  provider?: string,
-  model?: string,
-  reasoningEffort?: string,
-): Effect.Effect<TaskRow, Error> {
-  return Effect.gen(function* () {
-    const orchestrators = (yield* deps.listTasks({ projectId }))
-      .filter((t) => t.type === "orchestrator")
-
-    const active = orchestrators.find((t) => !TERMINAL_STATUSES.has(t.status))
-    if (active) return active
-
-    // Link to most recent terminal orchestrator for history chain
-    const parent = orchestrators
-      .filter((t) => TERMINAL_STATUSES.has(t.status))
-      .sort((a, b) => (b.created_at ?? "").localeCompare(a.created_at ?? ""))[0]
-
-    const projectConfig = deps.getProjectConfig(projectId)
-
-    const defaultPrompt = `You are the orchestrator for the "${projectId}" project. You are running on the default branch (main repo, not a worktree).
-
-Your role:
-- **Coordinate work**: Create worker tasks for features, bugs, and refactors. Create reviewer tasks for code review — never use workers for review.
-- **Monitor tasks**: Check task status via the API. Send prompts to nudge or unblock running agents.
-
-## Agent and model selection
-
-Choose from configured ACP agents and model options based on task complexity. Pass \`"model"\` and optionally \`"provider"\` (the agent id) when creating tasks.
-
-Default to the most capable configured model for ambiguous work. Use a faster/cheaper configured model for straightforward work.
-
-Start by loading the tangerine-tasks skill and checking active tasks via the API.`
-
-    return yield* createTask(deps, {
-      source: "manual",
-      projectId,
-      title: ORCHESTRATOR_TASK_NAME,
-      type: "orchestrator",
-      description: projectConfig?.taskTypes?.orchestrator?.systemPrompt ?? defaultPrompt,
-      provider,
-      model,
-      reasoningEffort,
-      parentTaskId: parent?.id,
-    })
   })
 }
 

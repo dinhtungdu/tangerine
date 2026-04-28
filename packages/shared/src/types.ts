@@ -2,13 +2,19 @@ export type TaskStatus = "created" | "provisioning" | "running" | "done" | "fail
 export type AgentId = string
 export type ProviderType = AgentId
 export type TaskSource = "github" | "linear" | "manual" | "cross-project" | "cron"
-export type TaskType = "worker" | "orchestrator" | "reviewer" | "runner"
+export type TaskType = "worker" | "reviewer" | "runner"
 export type TaskCapability = "resolve" | "predefined-prompts" | "diff" | "continue" | "pr-track" | "pr-create"
+
+/** Normalize persisted task types. Unknown legacy values map to runner. */
+export function normalizeTaskType(type: string | null | undefined): TaskType {
+  if (type === "worker" || type === "reviewer" || type === "runner") return type
+  if (typeof type === "string" && type.length > 0) return "runner"
+  return "worker"
+}
 
 /** Returns canonical capabilities for a task type. Used to gate UI on capabilities, not type strings. */
 export function getCapabilitiesForType(type: TaskType): TaskCapability[] {
-  if (type === "orchestrator") return ["resolve", "predefined-prompts"]
-  if (type === "runner") return ["resolve", "diff", "continue"]
+  if (type === "runner") return ["resolve", "predefined-prompts", "diff", "continue"]
   if (type === "reviewer") return ["resolve", "predefined-prompts", "diff", "pr-track"]
   return ["resolve", "predefined-prompts", "diff", "continue", "pr-track", "pr-create"]
 }

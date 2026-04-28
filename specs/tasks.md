@@ -31,25 +31,25 @@ Tasks can be created from:
 
 ### Cross-Project
 
-Other Tangerine tasks can prompt an orchestrator or worker by calling `POST /api/tasks/:id/prompt` or by creating a new task with `source: "cross-project"`.
+Other Tangerine tasks can prompt another task by calling `POST /api/tasks/:id/prompt` or by creating a new task with `source: "cross-project"`.
 
 ## Task Types
 
 Current `type` values:
 
 - `worker`
-- `orchestrator`
 - `reviewer`
+- `runner`
 
 Capabilities are derived from type in `tasks/manager.ts`:
 
 | Type | Capabilities |
 |------|--------------|
-| `worker` | `resolve`, `predefined-prompts`, `diff`, `continue` |
-| `orchestrator` | `resolve`, `predefined-prompts` |
+| `worker` | `resolve`, `predefined-prompts`, `diff`, `continue`, `pr-track`, `pr-create` |
 | `reviewer` | `resolve`, `predefined-prompts`, `diff`, `pr-track` |
+| `runner` | `resolve`, `predefined-prompts`, `diff`, `continue` |
 
-Orchestrators are created lazily and started on demand. Other task types auto-start after creation.
+Unknown persisted task-type values normalize to `runner` for legacy compatibility. New task creation accepts only `worker`, `reviewer`, and `runner`.
 
 ## Lifecycle
 

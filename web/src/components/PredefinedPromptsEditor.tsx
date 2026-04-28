@@ -9,7 +9,7 @@ interface PredefinedPromptsEditorProps {
   project: string
   prompts: PredefinedPrompt[]
   title?: string
-  taskType: "worker" | "orchestrator" | "reviewer"
+  taskType: "worker" | "reviewer" | "runner"
 }
 
 export function PredefinedPromptsEditor({

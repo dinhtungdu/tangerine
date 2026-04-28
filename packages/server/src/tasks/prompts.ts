@@ -1,20 +1,20 @@
-// Helpers for building agent prompt blocks (system notes, escalation instructions).
+// Helpers for building agent prompt blocks (system notes).
 // Centralised here so start.ts and any future callers (reconnect nudge, etc.) stay DRY.
 //
 // Prompts are split into two layers:
-// - System layer: operational scaffolding (identity, PR workflow, escalation, delegation).
+// - System layer: operational scaffolding (identity, PR workflow).
 //   Always injected, not configurable per project.
 // - User layer: behavioral guidance (style, setup notes, custom instructions).
 //   Configurable per project via taskTypes config.
 
-import { DEFAULT_API_PORT } from "@tangerine/shared"
+import { DEFAULT_API_PORT, type TaskType } from "@tangerine/shared"
 import { AUTH_CURL_FLAG } from "./api-auth"
 
 const apiPort = () => Number(process.env["TANGERINE_PORT"] ?? DEFAULT_API_PORT)
 
 export interface SystemNotesInfo {
   setupCommand?: string
-  taskType?: string
+  taskType?: TaskType
   prMode?: "ready" | "draft" | "none"
   /** Custom system prompt from taskTypes config (already resolved by caller). */
   customSystemPrompt?: string
@@ -58,7 +58,7 @@ export function buildPrModeInstruction(prMode: "ready" | "draft" | "none", upstr
 
 /**
  * System layer: operational notes that are always injected, not configurable.
- * Includes: Tangerine identity, PR workflow (workers), delegation rules (orchestrators).
+ * Includes: Tangerine identity and PR workflow (workers).
  */
 export function buildSystemLayer(taskId: string, info: SystemNotesInfo, port = apiPort()): string[] {
   const notes: string[] = []
@@ -77,11 +77,6 @@ export function buildSystemLayer(taskId: string, info: SystemNotesInfo, port = a
 
   if (info.taskType === "runner") {
     notes.push(`[RUNNER TASK: This task runs without a dedicated worktree or branch. No PR creation needed. Complete the task when done by calling POST /api/tasks/${taskId}/done or by finishing your work.]`)
-  }
-
-  if (info.taskType === "orchestrator") {
-    notes.push(`[DELEGATION — CRITICAL: All implementation and review work must go through sub-tasks. Never implement, review diffs, or read code directly. The orchestrator only coordinates.]`)
-    notes.push(`[CONTEXT: Every file read, git diff, tool call, and message fetch consumes your context window and shortens your session life. Keep interactions with the API minimal and purposeful.]`)
   }
 
   return notes
@@ -142,24 +137,5 @@ export function buildConversationPrefix(
     "<prior-conversation>",
     transcript,
     "</prior-conversation>",
-  ].join("\n")
-}
-
-/** Build the escalation block appended to the initial prompt for worker tasks. */
-export function buildEscalationBlock(orchestratorId: string, port = apiPort()): string {
-  return [
-    "",
-    "---",
-    "## Out-of-scope issues",
-    "",
-    `If you discover issues outside your task scope, first mention them to the user in your conversation, then send them to the orchestrator (task ID: ${orchestratorId}) for triage — do NOT create tasks yourself:`,
-    "",
-    "```bash",
-    "curl -X POST \\",
-    `  ${AUTH_CURL_FLAG} \\`,
-    `  http://localhost:${port}/api/tasks/${orchestratorId}/prompt \\`,
-    '  -H "Content-Type: application/json" \\',
-    `  -d '{"text": "Discovered out-of-scope issue: <brief description>"}'`,
-    "```",
   ].join("\n")
 }

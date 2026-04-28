@@ -1,4 +1,4 @@
-import { getCapabilitiesForType, type Task, type Cron, type TaskType, type TaskSource, type TaskStatus, type ProviderType, type TaskCapability } from "@tangerine/shared"
+import { getCapabilitiesForType, normalizeTaskType, type Task, type Cron, type TaskSource, type TaskStatus, type ProviderType, type TaskCapability } from "@tangerine/shared"
 import type { TaskRow, CronRow } from "../db/types"
 
 /**
@@ -14,16 +14,11 @@ export function utc(ts: string | null): string | null {
   return ts.replace(" ", "T") + "Z"
 }
 
-// Canonical capabilities per task type. Used as baseline for all tasks.
-function canonicalCapabilities(type: string): TaskCapability[] {
-  return getCapabilitiesForType(type as TaskType)
-}
-
-// Return canonical capabilities for the task type.
+// Return canonical capabilities for the task role.
 // Stored capabilities are ignored — canonical is the source of truth.
 // This ensures removing a capability from getCapabilitiesForType() takes effect immediately.
-function mergeCapabilities(_stored: string | null, type: string): TaskCapability[] {
-  return canonicalCapabilities(type)
+function mergeCapabilities(_stored: string | null, task: { type?: string | null }): TaskCapability[] {
+  return getCapabilitiesForType(normalizeTaskType(task.type))
 }
 
 /** Maps a snake_case TaskRow from SQLite to a camelCase Task for API responses */
@@ -31,7 +26,7 @@ export function mapTaskRow(row: TaskRow): Task {
   return {
     id: row.id,
     projectId: row.project_id,
-    type: (row.type ?? "worker") as TaskType,
+    type: normalizeTaskType(row.type),
     source: row.source as TaskSource,
     sourceId: row.source_id,
     sourceUrl: row.source_url,
@@ -57,7 +52,7 @@ export function mapTaskRow(row: TaskRow): Task {
     completedAt: utc(row.completed_at),
     lastSeenAt: utc(row.last_seen_at),
     lastResultAt: utc(row.last_result_at),
-    capabilities: mergeCapabilities(row.capabilities, row.type ?? "worker"),
+    capabilities: mergeCapabilities(row.capabilities, row),
     contextTokens: row.context_tokens ?? 0,
     contextWindowMax: row.context_window_max ?? null,
   }
@@ -93,7 +88,7 @@ export function normalizeTimestamps<T extends object>(row: T): T {
 
 /** Check if a task (by type + stored capabilities) has a given capability. */
 export function taskHasCapability(type: string, storedCapabilities: string | null, cap: TaskCapability): boolean {
-  const canonical = canonicalCapabilities(type)
+  const canonical = getCapabilitiesForType(normalizeTaskType(type))
   if (canonical.includes(cap)) return true
   if (!storedCapabilities) return false
   const parsed: TaskCapability[] = JSON.parse(storedCapabilities)

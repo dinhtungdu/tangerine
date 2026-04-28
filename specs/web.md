@@ -21,8 +21,7 @@ Current behavior:
 
 - project switcher
 - search/filter over tasks
-- orchestrator launcher / entry row
-- runs table for non-orchestrator tasks
+- task list grouped by project
 - SSH editor deep-link on task cards (when configured)
 - new-run navigation
 
@@ -72,7 +71,7 @@ Current sections:
 
 - active runs summary
 - project update status / update action
-- predefined prompt editors for worker, orchestrator, and reviewer prompts
+- predefined prompt editors for worker, runner, and reviewer prompts
 - editable queued prompt cards shown while the agent is working
 - system log viewer
 

@@ -19,7 +19,7 @@ const defaultWorkerPrompts: z.infer<typeof predefinedPromptSchema>[] = [
   { label: "Merge", text: "Merge" },
 ]
 
-const defaultOrchestratorPrompts: z.infer<typeof predefinedPromptSchema>[] = [
+const defaultRunnerPrompts: z.infer<typeof predefinedPromptSchema>[] = [
   { label: "Check active tasks", text: "Check active tasks" },
   { label: "Status update", text: "Status update" },
 ]
@@ -41,7 +41,7 @@ export const taskTypeConfigSchema = z.object({
 
 export const taskTypesSchema = z.object({
   worker: taskTypeConfigSchema.optional(),
-  orchestrator: taskTypeConfigSchema.optional(),
+  runner: taskTypeConfigSchema.optional(),
   reviewer: taskTypeConfigSchema.optional(),
 })
 
@@ -131,16 +131,16 @@ export type ResolvedTaskTypeConfig = Omit<TaskTypeConfig, "predefinedPrompts"> &
 export type SslConfig = z.infer<typeof sslConfigSchema>
 export type TangerineConfig = z.infer<typeof tangerineConfigSchema>
 
-const DEFAULTS: Record<string, { predefinedPrompts: PredefinedPrompt[] }> = {
+const DEFAULTS: Record<"worker" | "reviewer" | "runner", { predefinedPrompts: PredefinedPrompt[] }> = {
   worker: { predefinedPrompts: defaultWorkerPrompts },
-  orchestrator: { predefinedPrompts: defaultOrchestratorPrompts },
+  runner: { predefinedPrompts: defaultRunnerPrompts },
   reviewer: { predefinedPrompts: defaultReviewerPrompts },
 }
 
 /** Resolve per-task-type config from the taskTypes section, with defaults. */
 export function resolveTaskTypeConfig(
   project: ProjectConfig,
-  taskType: "worker" | "orchestrator" | "reviewer",
+  taskType: "worker" | "reviewer" | "runner",
 ): ResolvedTaskTypeConfig {
   const override = project.taskTypes?.[taskType]
   return {
@@ -156,7 +156,7 @@ export function resolveTaskTypeConfig(
 export function resolveDefaultAgentId(
   config: TangerineConfig,
   project?: Pick<ProjectConfig, "defaultAgent" | "defaultProvider" | "taskTypes">,
-  taskType?: "worker" | "orchestrator" | "reviewer",
+  taskType?: "worker" | "reviewer" | "runner",
 ): string {
   const taskTypeAgent = taskType ? project?.taskTypes?.[taskType]?.agent : undefined
   return taskTypeAgent ?? project?.defaultAgent ?? config.defaultAgent ?? project?.defaultProvider ?? config.agents[0]?.id ?? DEFAULT_AGENT_ID

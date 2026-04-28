@@ -66,7 +66,7 @@ export function initPool(
   poolSize: number = DEFAULT_POOL_SIZE,
 ): Effect.Effect<WorktreeSlotRow[], DbError | Error> {
   return Effect.gen(function* () {
-    // Always register slot 0 (the repo clone) — used by the orchestrator.
+    // Always register slot 0 (the repo clone).
     // No git worktree needed; it already exists as the main repo.
     const slot0Id = `${projectId}-slot-0`
     yield* dbTry(() => {
@@ -132,7 +132,7 @@ export function acquireSlot(
     // Reconcile stale slots before acquiring
     yield* reconcileStaleSlots(db, projectId, getTask)
 
-    // Exclude slot 0 (reserved for orchestrator)
+    // Exclude slot 0 from isolated task worktrees
     const slot0Id = `${projectId}-slot-0`
     const slot = yield* dbTry(() =>
       db.prepare(
@@ -199,14 +199,14 @@ export function acquireSlot(
   })
 }
 
-// --- Orchestrator slot ---
+// --- Shared root slot ---
 
-/** Acquire slot 0 for an orchestrator or runner task.
+/** Acquire slot 0 for a runner task.
  *  Slot 0 is the main repo directory — no branch isolation needed, so it is
- *  treated as a *shared* (non-exclusive) slot.  Multiple concurrent tasks
- *  (e.g. orchestrator + runner) may hold it at the same time.  No DB binding
- *  is performed, so releaseSlot is a no-op for these tasks. */
-export function acquireOrchestratorSlot(
+ *  treated as a *shared* (non-exclusive) slot. Multiple concurrent runner tasks
+ *  may hold it at the same time. No DB binding is performed, so releaseSlot is
+ *  a no-op for these tasks. */
+export function acquireRootSlot(
   db: Database,
   projectId: string,
   taskId: string,
@@ -248,14 +248,14 @@ export function releaseSlot(
       return
     }
 
-    // Slot 0 is the main repo (orchestrator) — don't reset/detach/clean, just unbind
+    // Slot 0 is the main repo — don't reset/detach/clean, just unbind
     if (slot.id.endsWith("-slot-0")) {
       yield* dbTry(() =>
         db.prepare(
           "UPDATE worktree_slots SET status = 'available', task_id = NULL WHERE id = ?",
         ).run(slot.id)
       )
-      log.info("Orchestrator slot released (no git reset)", { slotId: slot.id, taskId })
+      log.info("Root slot released (no git reset)", { slotId: slot.id, taskId })
       return
     }
 
@@ -312,7 +312,7 @@ export function reconcileStaleSlots(
 
 // --- Pool cleanup ---
 
-/** Delete worker slots for a project. Preserves slot 0 (orchestrator). Called before project rebuild. */
+/** Delete worker slots for a project. Preserves slot 0. Called before project rebuild. */
 export function deletePoolForProject(
   db: Database,
   projectId: string,
