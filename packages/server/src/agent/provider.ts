@@ -9,7 +9,7 @@ export type { PromptImage, ProviderType }
 /** Normalized events emitted by all agent providers */
 export type AgentEvent =
   | { kind: "message.streaming"; content: string; messageId?: string }
-  | { kind: "message.complete"; role: "assistant" | "user" | "narration"; content: string; messageId?: string; images?: PromptImage[]; imagePaths?: string[] }
+  | { kind: "message.complete"; role: "assistant" | "user"; content: string; messageId?: string; images?: PromptImage[]; imagePaths?: string[] }
   | { kind: "status"; status: "idle" | "working" }
   | { kind: "error"; message: string }
   | { kind: "tool.start"; toolName: string; toolCallId?: string; toolInput?: string }
