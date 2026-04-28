@@ -34,6 +34,7 @@ interface TransientSessionLogRow {
   id: string
   task_id: string
   role: "assistant" | "thinking"
+  message_id: string
   content: string
   images: null
   from_task_id: null
@@ -46,6 +47,7 @@ function getTransientSessionLogs(taskId: string): TransientSessionLogRow[] {
     id: `${message.role}-${message.messageId}`,
     task_id: taskId,
     role: message.role,
+    message_id: message.messageId,
     content: message.content,
     images: null,
     from_task_id: null,

@@ -37,6 +37,8 @@ export interface TaskState {
   slashCommands: AgentSlashCommand[]
   /** Latest ACP session metadata update. */
   sessionInfo: { title?: string | null; updatedAt?: string | null; metadata?: Record<string, unknown> }
+  /** Assistant completions already emitted by this server process. */
+  completedAssistantMessageIds: Set<string>
   /** In-memory stream snapshots used when a browser switches into a running task mid-turn. */
   activeAssistantMessage?: ActiveStreamMessage
   activeThinkingMessage?: ActiveStreamMessage
@@ -60,6 +62,7 @@ function defaultState(): TaskState {
     configOptions: [],
     slashCommands: [],
     sessionInfo: {},
+    completedAssistantMessageIds: new Set(),
   }
 }
 

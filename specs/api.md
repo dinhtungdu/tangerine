@@ -68,7 +68,7 @@ Current task types:
 
 | Method | Path | Description |
 |--------|------|-------------|
-| GET | `/api/tasks/:id/messages` | List persisted session messages plus any transient in-flight assistant/thinking stream snapshot |
+| GET | `/api/tasks/:id/messages` | List persisted session messages (including optional `message_id`) plus any transient in-flight assistant/thinking stream snapshot |
 | GET | `/api/tasks/:id/images/:filename` | Serve stored task images |
 | POST | `/api/tasks/:id/prompt` | Send a prompt |
 | POST | `/api/tasks/:id/chat` | Send a prompt and return `202` immediately |

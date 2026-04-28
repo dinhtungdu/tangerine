@@ -146,20 +146,27 @@ export function countTasksByProject(db: Database, filter?: { status?: string; se
 
 export function insertSessionLog(
   db: Database,
-  log: Pick<SessionLogRow, "task_id" | "role" | "content"> & { images?: string | null; from_task_id?: string | null }
+  log: Pick<SessionLogRow, "task_id" | "role" | "content"> & { message_id?: string | null; images?: string | null; from_task_id?: string | null }
 ): Effect.Effect<SessionLogRow, DbError> {
   return dbTry(() => {
+    const messageId = log.message_id?.trim() ? log.message_id : null
     const stmt = db.prepare(`
-      INSERT INTO session_logs (task_id, role, content, images, from_task_id)
-      VALUES ($task_id, $role, $content, $images, $from_task_id)
+      INSERT ${messageId ? "OR IGNORE" : ""} INTO session_logs (task_id, role, message_id, content, images, from_task_id)
+      VALUES ($task_id, $role, $message_id, $content, $images, $from_task_id)
     `)
     const result = stmt.run({
       $task_id: log.task_id,
       $role: log.role,
+      $message_id: messageId,
       $content: log.content,
       $images: log.images ?? null,
       $from_task_id: log.from_task_id ?? null,
     })
+    if (messageId && result.changes === 0) {
+      return db.prepare(
+        "SELECT * FROM session_logs WHERE task_id = ? AND role = ? AND message_id = ? ORDER BY id ASC LIMIT 1"
+      ).get(log.task_id, log.role, messageId) as SessionLogRow
+    }
     return db.prepare("SELECT * FROM session_logs WHERE id = ?").get(result.lastInsertRowid) as SessionLogRow
   })
 }

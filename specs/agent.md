@@ -64,7 +64,7 @@ Important ACP updates:
 | ACP update | Tangerine event |
 |------------|-----------------|
 | `session/prompt` `resource_link` blocks | file mentions extracted from `@relative/path` prompt text |
-| `agent_message_chunk` | `message.streaming`, then final assistant message on prompt completion |
+| `agent_message_chunk` | `message.streaming` only while a `session/prompt` turn is active, then final assistant message on prompt completion |
 | `agent_thought_chunk` | `thinking.streaming`, then one persisted `thinking` message on prompt completion |
 | `user_message_chunk` | user message log |
 | `tool_call` | `tool.start` keyed by `toolCallId`; merges into an existing best-effort row if updates arrived first |
@@ -123,5 +123,7 @@ ACP events fan out to the existing Tangerine surfaces:
 - task working-state updates
 - queued prompt updates for messages waiting on the active turn; queued user prompts enter `session_logs` only when drained to the agent
 - token/context usage persistence
+
+Out-of-turn assistant text chunks (late adapter replay, resume/load history, or startup chatter) are ignored so stale text cannot be prepended to the next assistant completion. Assistant completions with a non-null `messageId` are persisted idempotently.
 
 The dashboard is a Tangerine task UI powered by ACP streams, not an embedded ACP UI.

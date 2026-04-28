@@ -129,6 +129,19 @@ describe("session logs", () => {
     expect(logs[1]!.content).toBe("Hi there")
   })
 
+  test("deduplicates assistant session logs by message id", () => {
+    Effect.runSync(createTask(db, { id: "task-log-dedupe", source: "manual", project_id: "test", title: "Log dedupe" }))
+
+    const first = Effect.runSync(insertSessionLog(db, { task_id: "task-log-dedupe", role: "assistant", content: "Same", message_id: "msg-1" }))
+    const second = Effect.runSync(insertSessionLog(db, { task_id: "task-log-dedupe", role: "assistant", content: "Same", message_id: "msg-1" }))
+
+    const logs = Effect.runSync(getSessionLogs(db, "task-log-dedupe"))
+    expect(second.id).toBe(first.id)
+    expect(logs).toHaveLength(1)
+    expect(logs[0]!.content).toBe("Same")
+    expect(logs[0]!.message_id).toBe("msg-1")
+  })
+
   test("returns empty array for task with no logs", () => {
     Effect.runSync(createTask(db, { id: "task-empty", source: "manual", project_id: "test", title: "Empty" }))
     const logs = Effect.runSync(getSessionLogs(db, "task-empty"))

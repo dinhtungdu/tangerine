@@ -362,6 +362,32 @@ describe("createAcpProvider", () => {
     rmSync(tempDir, { recursive: true, force: true })
   })
 
+  test("does not carry out-of-turn assistant chunks into the next prompt", async () => {
+    const tempDir = mkdtempSync(join(tmpdir(), "tangerine-acp-stale-chunk-"))
+    const scriptPath = join(tempDir, "mock-acp-agent.js")
+    writeFileSync(scriptPath, mockOutOfTurnChunkAcpAgentScript, "utf-8")
+
+    process.env.TANGERINE_ACP_COMMAND = `bun ${scriptPath}`
+    const provider = createAcpProvider()
+    const handle = await Effect.runPromise(provider.start({ taskId: "task-acp", workdir: tempDir, title: "ACP stale chunk" }))
+
+    const events: AgentEvent[] = []
+    handle.subscribe((event) => events.push(event))
+
+    await Effect.runPromise(handle.sendPrompt("first"))
+    await waitFor(() => events.some((event) => event.kind === "message.complete" && event.content === "first"))
+    await new Promise((resolve) => setTimeout(resolve, 40))
+
+    await Effect.runPromise(handle.sendPrompt("second"))
+    await waitFor(() => events.filter((event) => event.kind === "message.complete").length === 2)
+    await Effect.runPromise(handle.shutdown())
+
+    const completed = events.filter((event): event is Extract<AgentEvent, { kind: "message.complete" }> => event.kind === "message.complete")
+    expect(completed.map((event) => event.content)).toEqual(["first", "second"])
+
+    rmSync(tempDir, { recursive: true, force: true })
+  })
+
   test("replays current ACP status to late subscribers", async () => {
     const tempDir = mkdtempSync(join(tmpdir(), "tangerine-acp-status-"))
     const scriptPath = join(tempDir, "mock-acp-agent.js")
@@ -701,6 +727,42 @@ rl.on("line", (line) => {
   if (msg.method === "session/prompt") {
     const id = msg.id
     setTimeout(() => send({ jsonrpc: "2.0", id, result: { stopReason: "end_turn" } }), 120)
+    return
+  }
+  if (msg.method === "session/close") {
+    send({ jsonrpc: "2.0", id: msg.id, result: {} })
+  }
+})
+`
+
+const mockOutOfTurnChunkAcpAgentScript = `
+const readline = require("node:readline")
+const rl = readline.createInterface({ input: process.stdin })
+let promptCount = 0
+function send(message) { process.stdout.write(JSON.stringify(message) + "\\n") }
+function chunk(text) {
+  send({ jsonrpc: "2.0", method: "session/update", params: { sessionId: "sess-stale", update: { sessionUpdate: "agent_message_chunk", messageId: "msg-" + promptCount, content: { type: "text", text } } } })
+}
+rl.on("line", (line) => {
+  const msg = JSON.parse(line)
+  if (msg.method === "initialize") {
+    send({ jsonrpc: "2.0", id: msg.id, result: { protocolVersion: 1, agentCapabilities: { sessionCapabilities: { close: {} } }, authMethods: [] } })
+    return
+  }
+  if (msg.method === "session/new") {
+    send({ jsonrpc: "2.0", id: msg.id, result: { sessionId: "sess-stale" } })
+    return
+  }
+  if (msg.method === "session/prompt") {
+    promptCount += 1
+    if (promptCount === 1) {
+      chunk("first")
+      send({ jsonrpc: "2.0", id: msg.id, result: { stopReason: "end_turn" } })
+      setTimeout(() => chunk("first"), 20)
+      return
+    }
+    chunk("second")
+    send({ jsonrpc: "2.0", id: msg.id, result: { stopReason: "end_turn" } })
     return
   }
   if (msg.method === "session/close") {

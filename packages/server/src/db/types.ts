@@ -49,6 +49,7 @@ export interface SessionLogRow {
   id: number
   task_id: string
   role: string
+  message_id: string | null
   content: string
   images: string | null
   from_task_id: string | null

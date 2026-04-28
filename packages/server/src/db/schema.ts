@@ -57,6 +57,7 @@ export const SCHEMA = `
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     task_id TEXT NOT NULL,
     role TEXT NOT NULL,
+    message_id TEXT,
     content TEXT NOT NULL,
     images TEXT,
     from_task_id TEXT,
@@ -65,6 +66,7 @@ export const SCHEMA = `
   );
 
   CREATE INDEX IF NOT EXISTS idx_session_logs_task_id ON session_logs(task_id);
+  CREATE UNIQUE INDEX IF NOT EXISTS idx_session_logs_task_role_message_id ON session_logs(task_id, role, message_id) WHERE message_id IS NOT NULL;
 
   CREATE TABLE IF NOT EXISTS activity_log (
     id INTEGER PRIMARY KEY AUTOINCREMENT,

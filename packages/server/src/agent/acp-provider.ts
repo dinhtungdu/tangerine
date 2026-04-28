@@ -468,6 +468,13 @@ async function startAcpSession(ctx: AgentStartContext, config?: AcpProviderConfi
     if (shouldEmit) emit({ kind: "config.options", options: configOptions })
   }
 
+  const mapper = createAcpEventMapper()
+
+  const discardBufferedText = () => {
+    mapper.flushAssistantMessage()
+    mapper.flushThoughtMessage()
+  }
+
   const emitFlushedThoughts = () => {
     for (const event of mapper.flushThoughtMessage()) emit(event)
   }
@@ -482,7 +489,6 @@ async function startAcpSession(ctx: AgentStartContext, config?: AcpProviderConfi
     emit({ kind: "config.options", options: configOptions })
   }
 
-  const mapper = createAcpEventMapper()
   const proc = Bun.spawn(["bash", "-lc", command.shellCommand], {
     cwd: ctx.workdir,
     stdin: "pipe",
@@ -504,6 +510,7 @@ async function startAcpSession(ctx: AgentStartContext, config?: AcpProviderConfi
       const update = params.update
       if (!isRecord(update)) return
       updateModeFromNotification(update)
+      if (isAssistantTextStreamUpdate(update) && !statusTracker.isWorking()) return
       for (const event of mapper.mapSessionUpdate(update)) emitMapped(event)
     },
     onRequest: async (method, params) => {
@@ -606,6 +613,7 @@ async function startAcpSession(ctx: AgentStartContext, config?: AcpProviderConfi
           if (shutdownCalled) return
           if (!sessionId) throw new Error("ACP session is not ready")
           const prompt = buildAcpPromptBlocks(text, images ?? [], capabilities.imagePrompts, ctx.workdir)
+          discardBufferedText()
           const turnId = statusTracker.begin()
           rpc.request("session/prompt", { sessionId, prompt })
             .then((response) => {
@@ -1192,6 +1200,10 @@ export function isPermissionOption(value: unknown): value is PermissionOption {
   return typeof value.optionId === "string"
     && typeof value.name === "string"
     && (kind === "allow_once" || kind === "allow_always" || kind === "reject_once" || kind === "reject_always")
+}
+
+function isAssistantTextStreamUpdate(update: Record<string, unknown>): boolean {
+  return stringField(update, "sessionUpdate") === "agent_message_chunk"
 }
 
 function textFromContent(content: unknown): string | null {

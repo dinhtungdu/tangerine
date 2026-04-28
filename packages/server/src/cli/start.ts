@@ -171,6 +171,25 @@ function getLastConversationLog(
   ).get(taskId) as { role: string; content: string } | null
 }
 
+function markAssistantCompletionSeen(
+  db: import("bun:sqlite").Database,
+  taskId: string,
+  messageId: string | undefined,
+): boolean {
+  if (!messageId) return true
+  const state = getTaskState(taskId)
+  if (state.completedAssistantMessageIds.has(messageId)) return false
+  const exists = db.prepare(
+    "SELECT 1 FROM session_logs WHERE task_id = ? AND role = 'assistant' AND message_id = ? LIMIT 1"
+  ).get(taskId, messageId)
+  if (exists) {
+    state.completedAssistantMessageIds.add(messageId)
+    return false
+  }
+  state.completedAssistantMessageIds.add(messageId)
+  return true
+}
+
 /** Parse --config and --db flags from process.argv */
 function parseStartFlags(): { configPath?: string; dbPath?: string } {
   const args = process.argv.slice(2)
@@ -585,6 +604,7 @@ export async function start(): Promise<void> {
                 if (event.role === "assistant" && (event.content || event.imagePaths?.length || event.images?.length)) {
                   const completedActive = completeActiveStreamMessage(taskId, "assistant")
                   const messageId = event.messageId ?? completedActive?.messageId
+                  if (!markAssistantCompletionSeen(db, taskId, messageId)) break
 
                   const emitAndInsert = (imageFilenames?: string[]) => {
                     emitTaskEvent(taskId, {
@@ -598,6 +618,7 @@ export async function start(): Promise<void> {
                       insertSessionLog(db, {
                         task_id: taskId,
                         role: "assistant",
+                        message_id: messageId,
                         content: event.content,
                         images: imageFilenames ? JSON.stringify(imageFilenames) : null,
                       }).pipe(

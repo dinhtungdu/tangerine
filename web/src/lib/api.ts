@@ -23,6 +23,8 @@ export interface SessionLog {
   id: number | string
   taskId: string
   role: string
+  messageId?: string | null
+  message_id?: string | null
   content: string
   images: string | null
   timestamp: string
