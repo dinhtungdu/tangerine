@@ -248,7 +248,7 @@ describe("status", () => {
     expect(config.color).toBe("var(--color-status-warning)")
   })
 
-  test("getTaskDisplayStatus shows waiting for PR instead of running for idle PR tasks", () => {
+  test("getTaskDisplayStatus shows idle for PR tasks (PR badge handles PR state)", () => {
     const task = makeTask({
       status: "running",
       agentStatus: "idle",
@@ -256,11 +256,11 @@ describe("status", () => {
       prStatus: "open",
     })
 
-    expect(getTaskDisplayStatus(task).label).toBe("Waiting for PR")
-    expect(getTaskStatusText(task)).toBe("waiting for PR")
+    expect(getTaskDisplayStatus(task).label).toBe("Idle")
+    expect(getTaskStatusText(task)).toBe("idle")
   })
 
-  test("getTaskDisplayStatus treats PR tasks as waiting before prStatus is polled", () => {
+  test("getTaskDisplayStatus shows idle for PR tasks before prStatus polled", () => {
     const task = makeTask({
       status: "running",
       agentStatus: "idle",
@@ -268,11 +268,11 @@ describe("status", () => {
       prStatus: null,
     })
 
-    expect(getTaskDisplayStatus(task).label).toBe("Waiting for PR")
-    expect(getTaskStatusText(task)).toBe("waiting for PR")
+    expect(getTaskDisplayStatus(task).label).toBe("Idle")
+    expect(getTaskStatusText(task)).toBe("idle")
   })
 
-  test("getTaskDisplayStatus shows working before PR waiting", () => {
+  test("getTaskDisplayStatus shows working for PR tasks when agent working", () => {
     const task = makeTask({
       status: "running",
       agentStatus: "working",
@@ -286,7 +286,7 @@ describe("status", () => {
     expect(getTaskStatusText(task)).toBe("working")
   })
 
-  test("getTaskDisplayStatus shows disconnected before PR waiting", () => {
+  test("getTaskDisplayStatus shows disconnected for PR tasks when agent disconnected", () => {
     const task = makeTask({
       status: "running",
       agentStatus: "disconnected",
