@@ -244,6 +244,13 @@ export async function changeTaskConfig(id: string, config: { model?: string; rea
   })
 }
 
+export async function respondToPermission(id: string, requestId: string, optionId: string): Promise<void> {
+  return request<void>(`/api/tasks/${id}/permission`, {
+    method: "POST",
+    body: JSON.stringify({ requestId, optionId }),
+  })
+}
+
 export async function fetchActivities(id: string): Promise<ActivityEntry[]> {
   return request<ActivityEntry[]>(`/api/tasks/${id}/activities`)
 }

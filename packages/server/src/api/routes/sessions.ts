@@ -191,6 +191,23 @@ export function sessionRoutes(deps: AppDeps): Hono {
     )
   })
 
+  app.post("/:id/permission", async (c) => {
+    const taskId = c.req.param("id")
+    const body = await c.req.json<{ requestId: string; optionId: string }>()
+    if (!body.requestId || !body.optionId) {
+      return c.json({ error: "requestId and optionId are required" }, 400)
+    }
+    const handle = deps.getAgentHandle(taskId)
+    if (!handle) {
+      return c.json({ error: "No active agent handle for task" }, 404)
+    }
+    if (!handle.respondToPermission) {
+      return c.json({ error: "Agent does not support permission responses" }, 400)
+    }
+    handle.respondToPermission(body.requestId, body.optionId)
+    return c.json({ ok: true })
+  })
+
   app.post("/:id/model", async (c) => {
     const taskId = c.req.param("id")
     const body = await c.req.json<{ model?: string; reasoningEffort?: string; mode?: string }>()

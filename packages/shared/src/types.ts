@@ -133,8 +133,22 @@ export type WsServerMessage =
   | { type: "agent_status"; agentStatus: "idle" | "working" }
   | { type: "task_agent_status"; taskId: string; agentStatus: "idle" | "working" }
   | { type: "queue"; queuedPrompts: PromptQueueEntry[] }
+  | { type: "permission_request"; request: PermissionRequest }
   | { type: "error"; message: string }
   | { type: "ping" }
+
+export interface PermissionRequestOption {
+  optionId: string
+  name: string
+  kind: "allow_once" | "allow_always" | "reject_once" | "reject_always"
+}
+
+export interface PermissionRequest {
+  requestId: string
+  toolName?: string
+  toolCallId?: string
+  options: PermissionRequestOption[]
+}
 
 export interface PromptImage {
   mediaType: "image/png" | "image/jpeg" | "image/gif" | "image/webp"

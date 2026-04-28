@@ -931,6 +931,16 @@ export async function start(): Promise<void> {
                 )
                 break
               }
+              case "permission.request": {
+                emitTaskEvent(taskId, {
+                  event: "permission.request",
+                  requestId: event.requestId,
+                  toolName: event.toolName,
+                  toolCallId: event.toolCallId,
+                  options: event.options,
+                })
+                break
+              }
               case "permission.decision": {
                 Effect.runPromise(
                   logActivity(db, taskId, "system", "permission.decision", `Permission selected: ${event.optionName}`, {

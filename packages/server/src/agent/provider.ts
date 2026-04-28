@@ -30,7 +30,14 @@ export type AgentEvent =
   | { kind: "plan"; entries: AgentPlanEntry[] }
   | { kind: "content.block"; block: AgentContentBlock }
   | { kind: "session.info"; title?: string | null; updatedAt?: string | null; metadata?: Record<string, unknown> }
+  | { kind: "permission.request"; requestId: string; toolName?: string; toolCallId?: string; options: PermissionRequestOption[] }
   | { kind: "permission.decision"; toolName?: string; optionId: string; optionName: string; optionKind: string }
+
+export interface PermissionRequestOption {
+  optionId: string
+  name: string
+  kind: "allow_once" | "allow_always" | "reject_once" | "reject_always"
+}
 
 /** Runtime config that can be changed mid-session */
 export interface AgentConfig {
@@ -53,6 +60,8 @@ export interface AgentMetadata {
 /** Handle to a running agent session — owns the process, tunnel, and event subscription */
 export interface AgentHandle {
   sendPrompt(text: string, images?: PromptImage[]): Effect.Effect<void, PromptError>
+  /** Respond to a pending permission request (when autoApprove is false) */
+  respondToPermission?(requestId: string, optionId: string): void
   /**
    * Apply a system prompt to the current session before future user prompts.
    * Returns true if the provider applied it; false means caller should fallback.
@@ -94,8 +103,8 @@ export interface AgentStartContext {
   model?: string
   /** Reasoning effort level: "low", "medium", "high" */
   reasoningEffort?: string
-  /** Default mode to apply at session start (e.g. "bypass-permissions" for Claude) */
-  mode?: string
+  /** Auto-approve permission requests without UI prompt (default: true) */
+  autoApprove?: boolean
   /** If set, resume an existing session instead of creating a new one */
   resumeSessionId?: string
   /** Extra environment variables merged into the spawned process env */

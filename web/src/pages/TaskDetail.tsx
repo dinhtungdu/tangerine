@@ -666,6 +666,8 @@ export function TaskDetail() {
                 autoFocusKey={chatTaskId}
                 contextTokens={session.contextTokens || undefined}
                 contextWindowMax={session.contextWindowMax ?? undefined}
+                permissionRequest={session.permissionRequest}
+                onPermissionRespond={session.respondToPermission}
               />
             </div>
           )}

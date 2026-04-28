@@ -26,6 +26,8 @@ export {
   type LogLevel,
   type SystemLogEntry,
   type SystemCapabilities,
+  type PermissionRequest,
+  type PermissionRequestOption,
 } from "./types"
 
 export {

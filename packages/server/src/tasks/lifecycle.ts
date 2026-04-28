@@ -60,11 +60,10 @@ function resolveCustomSystemPrompt(config: ProjectConfig, taskType: string | nul
   return config.taskTypes?.[tt]?.systemPrompt
 }
 
-/** Resolve default mode for a task type from taskTypes config. */
-function resolveDefaultMode(config: ProjectConfig, taskType: string | null | undefined): string | undefined {
-  const tt = taskType as "worker" | "reviewer" | "runner" | undefined
-  if (!tt) return undefined
-  return config.taskTypes?.[tt]?.mode
+/** Resolve autoApprove setting for a task type from taskTypes config. */
+function resolveAutoApprove(config: ProjectConfig, taskType: string | null | undefined): boolean | undefined {
+  const tt = normalizeTaskType(taskType)
+  return config.taskTypes?.[tt]?.autoApprove
 }
 
 /** Clear transient autocomplete data before binding a fresh agent session. */
@@ -320,7 +319,7 @@ export function startSession(
       systemPrompt: systemNotes.length > 0 ? systemNotes.join("\n") : undefined,
       model: task.model ?? undefined,
       reasoningEffort: task.reasoning_effort ?? undefined,
-      mode: resolveDefaultMode(config, task.type),
+      autoApprove: resolveAutoApprove(config, task.type),
       env: {
         TANGERINE_TASK_ID: task.id,
         ...(deps.authToken ? { TANGERINE_AUTH_TOKEN: deps.authToken } : {}),
@@ -445,7 +444,7 @@ export function reconnectSession(
       systemPrompt: systemNotes.length > 0 ? systemNotes.join("\n") : undefined,
       model: task.model ?? undefined,
       reasoningEffort: task.reasoning_effort ?? undefined,
-      mode: resolved?.mode,
+      autoApprove: resolved?.autoApprove,
       resumeSessionId: task.agent_session_id ?? undefined,
       env: {
         TANGERINE_TASK_ID: task.id,

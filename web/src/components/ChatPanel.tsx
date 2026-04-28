@@ -3,10 +3,11 @@ import { ChevronRight, Trash2, Pencil, X } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible"
 import { TERMINAL_STATUSES } from "@tangerine/shared"
-import type { AgentConfigOption, AgentSlashCommand, PromptImage, PromptQueueEntry, PredefinedPrompt, TaskStatus, ProviderType, ActivityEntry } from "@tangerine/shared"
+import type { AgentConfigOption, AgentSlashCommand, PromptImage, PromptQueueEntry, PredefinedPrompt, TaskStatus, ProviderType, ActivityEntry, PermissionRequest } from "@tangerine/shared"
 import type { ChatMessage as ChatMessageType } from "../hooks/useSession"
 import { AssistantMessageGroups } from "./AssistantMessageGroups"
 import { ChatInput } from "./ChatInput"
+import { PermissionRequestDialog } from "./PermissionRequestDialog"
 import { useProjectNav } from "../hooks/useProjectNav"
 import { getStatusConfig } from "../lib/status"
 
@@ -43,6 +44,8 @@ interface ChatPanelProps {
   autoFocusKey?: string
   contextTokens?: number
   contextWindowMax?: number
+  permissionRequest?: PermissionRequest | null
+  onPermissionRespond?: (optionId: string) => void | Promise<void>
 }
 
 const EMPTY_ACTIVITIES: ActivityEntry[] = []
@@ -224,6 +227,8 @@ export function ChatPanel({
   autoFocusKey,
   contextTokens,
   contextWindowMax,
+  permissionRequest,
+  onPermissionRespond,
 }: ChatPanelProps) {
   const scrollRef = useRef<HTMLDivElement>(null)
   const contentRef = useRef<HTMLDivElement>(null)
@@ -414,6 +419,14 @@ export function ChatPanel({
             onClearAll={onQueuedPromptClearAll}
             onSendNow={onQueuedPromptSendNow}
           />
+          {permissionRequest && onPermissionRespond && (
+            <div className="px-4">
+              <PermissionRequestDialog
+                request={permissionRequest}
+                onRespond={onPermissionRespond}
+              />
+            </div>
+          )}
           <ChatInput
           key={taskId}
           onSend={onSend}

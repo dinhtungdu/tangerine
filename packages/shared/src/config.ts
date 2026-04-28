@@ -35,8 +35,8 @@ export const taskTypeConfigSchema = z.object({
   agent: z.string().optional(),
   model: z.string().optional(),
   reasoningEffort: z.string().optional(),
-  /** Default mode for agents that support it (e.g. "bypass-permissions" for Claude) */
-  mode: z.string().optional(),
+  /** Auto-approve agent permission requests without UI prompt (default: true) */
+  autoApprove: z.boolean().optional(),
 })
 
 export const taskTypesSchema = z.object({
@@ -149,7 +149,7 @@ export function resolveTaskTypeConfig(
     agent: override?.agent,
     model: override?.model,
     reasoningEffort: override?.reasoningEffort,
-    mode: override?.mode,
+    autoApprove: override?.autoApprove,
   }
 }
 

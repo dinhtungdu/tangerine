@@ -479,6 +479,17 @@ async function startAcpSession(ctx: AgentStartContext, config?: AcpProviderConfi
     close: false,
   }
 
+  // Permission request tracking (when autoApprove=false)
+  const PERMISSION_TIMEOUT_MS = 120_000 // 2 minutes
+  let nextPermissionId = 0
+  interface PendingPermission {
+    resolve: (result: { outcome: { outcome: string; optionId?: string } }) => void
+    timeout: ReturnType<typeof setTimeout>
+    options: PermissionOption[]
+    toolName?: string
+  }
+  const pendingPermissions = new Map<string, PendingPermission>()
+
   const emit = (event: AgentEvent) => {
     if (event.kind === "status") lastStatus = event.status
     for (const subscriber of subscribers) subscriber(event)
@@ -486,27 +497,9 @@ async function startAcpSession(ctx: AgentStartContext, config?: AcpProviderConfi
 
   const statusTracker = createPromptStatusTracker((status) => emit({ kind: "status", status }))
 
-  let pendingMode: string | null = ctx.mode ?? null
-
-  const tryApplyPendingMode = async () => {
-    if (!pendingMode || !sessionId || configOptions.length === 0) return
-    const modeOption = configOptions.find((o) => o.category === "mode")
-    if (!modeOption) return
-    const applied = await setConfigOptionByCategory(rpc, sessionId, configOptions, "mode", pendingMode, (options) => {
-      configOptions = options
-    })
-    if (applied) {
-      taskLog.debug("Applied initial mode", { mode: pendingMode })
-      pendingMode = null
-    } else {
-      taskLog.warn("Mode option exists but value not accepted", { mode: pendingMode, available: modeOption.options?.map((o) => o.value) })
-    }
-  }
-
   const emitMapped = (event: AgentEvent) => {
     if (event.kind === "config.options") {
       configOptions = event.options
-      if (pendingMode) tryApplyPendingMode().catch(() => undefined)
     }
     if (event.kind === "slash.commands") slashCommands = event.commands
     // Track tool lifecycle to prevent premature idle emission
@@ -580,20 +573,44 @@ async function startAcpSession(ctx: AgentStartContext, config?: AcpProviderConfi
         const options = Array.isArray(params.options)
           ? params.options.filter(isPermissionOption)
           : []
-        const optionId = selectPermissionOption(options)
-        if (!optionId) return { outcome: { outcome: "cancelled" } }
-        const selected = options.find((option) => option.optionId === optionId)
-        if (selected) {
-          const toolCall = isRecord(params.toolCall) ? params.toolCall : {}
-          emit({
-            kind: "permission.decision",
-            toolName: stringField(toolCall, "title") ?? stringField(toolCall, "kind") ?? stringField(toolCall, "toolCallId"),
-            optionId: selected.optionId,
-            optionName: selected.name,
-            optionKind: selected.kind,
-          })
+        const toolCall = isRecord(params.toolCall) ? params.toolCall : {}
+        const toolName = stringField(toolCall, "title") ?? stringField(toolCall, "kind") ?? stringField(toolCall, "toolCallId")
+        const toolCallId = stringField(toolCall, "toolCallId")
+
+        // Auto-approve mode (default): immediately select allow option
+        const autoApprove = ctx.autoApprove !== false
+        if (autoApprove) {
+          const optionId = selectPermissionOption(options)
+          if (!optionId) return { outcome: { outcome: "cancelled" } }
+          const selected = options.find((option) => option.optionId === optionId)
+          if (selected) {
+            emit({
+              kind: "permission.decision",
+              toolName,
+              optionId: selected.optionId,
+              optionName: selected.name,
+              optionKind: selected.kind,
+            })
+          }
+          return { outcome: { outcome: "selected", optionId } }
         }
-        return { outcome: { outcome: "selected", optionId } }
+
+        // Manual approval: emit request event and wait for external response
+        const requestId = `perm-${++nextPermissionId}`
+        emit({
+          kind: "permission.request",
+          requestId,
+          toolName,
+          toolCallId,
+          options: options.map((o) => ({ optionId: o.optionId, name: o.name, kind: o.kind })),
+        })
+        return new Promise<{ outcome: { outcome: string; optionId?: string } }>((resolve) => {
+          const timeout = setTimeout(() => {
+            pendingPermissions.delete(requestId)
+            resolve({ outcome: { outcome: "cancelled" } })
+          }, PERMISSION_TIMEOUT_MS)
+          pendingPermissions.set(requestId, { resolve, timeout, options, toolName })
+        })
       }
       if (method === "fs/read_text_file") return readTextFileForAcp(ctx.workdir, params)
       if (method === "fs/write_text_file") return writeTextFileForAcp(ctx.workdir, params)
@@ -659,12 +676,6 @@ async function startAcpSession(ctx: AgentStartContext, config?: AcpProviderConfi
     applyConfigOptions(newSession, false)
   }
 
-  // Apply initial mode if configured (e.g. "bypass-permissions" for Claude)
-  // Mode may arrive later via config_option_update if not in session/new response
-  await tryApplyPendingMode().catch((error) => {
-    taskLog.warn("Failed to apply initial mode", { mode: ctx.mode, error: String(error) })
-  })
-
   emit({ kind: "status", status: "idle" })
 
   const handle: AgentHandle = {
@@ -701,6 +712,26 @@ async function startAcpSession(ctx: AgentStartContext, config?: AcpProviderConfi
       })
     },
 
+    respondToPermission(requestId: string, optionId: string) {
+      const pending = pendingPermissions.get(requestId)
+      if (!pending) return
+      pendingPermissions.delete(requestId)
+      clearTimeout(pending.timeout)
+      const selected = pending.options.find((o) => o.optionId === optionId)
+      if (selected) {
+        emit({
+          kind: "permission.decision",
+          toolName: pending.toolName,
+          optionId: selected.optionId,
+          optionName: selected.name,
+          optionKind: selected.kind,
+        })
+        pending.resolve({ outcome: { outcome: "selected", optionId } })
+      } else {
+        pending.resolve({ outcome: { outcome: "cancelled" } })
+      }
+    },
+
     abort() {
       return Effect.try({
         try: () => {
@@ -731,6 +762,12 @@ async function startAcpSession(ctx: AgentStartContext, config?: AcpProviderConfi
     shutdown() {
       return Effect.sync(() => {
         shutdownCalled = true
+        // Clear pending permission requests
+        for (const [, pending] of pendingPermissions) {
+          clearTimeout(pending.timeout)
+          pending.resolve({ outcome: { outcome: "cancelled" } })
+        }
+        pendingPermissions.clear()
         if (sessionId && capabilities.close) {
           rpc.request("session/close", { sessionId }).catch(() => undefined)
         } else if (sessionId) {

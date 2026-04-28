@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback, useRef } from "react"
-import type { AgentConfigOption, AgentContentBlock, AgentPlanEntry, AgentSlashCommand, WsServerMessage, TaskStatus, ActivityEntry, PromptImage, PromptQueueEntry } from "@tangerine/shared"
-import { fetchMessagesPaginated, fetchActivities, fetchQueuedPrompts, fetchTaskConfigOptions, fetchTaskSlashCommands, removeQueuedPrompt, updateQueuedPrompt, type SessionLog } from "../lib/api"
+import type { AgentConfigOption, AgentContentBlock, AgentPlanEntry, AgentSlashCommand, WsServerMessage, TaskStatus, ActivityEntry, PromptImage, PromptQueueEntry, PermissionRequest } from "@tangerine/shared"
+import { fetchMessagesPaginated, fetchActivities, fetchQueuedPrompts, fetchTaskConfigOptions, fetchTaskSlashCommands, removeQueuedPrompt, updateQueuedPrompt, respondToPermission as apiRespondToPermission, type SessionLog } from "../lib/api"
 import { useWebSocket } from "./useWebSocket"
 
 export interface ChatMessageImage {
@@ -35,6 +35,8 @@ interface UseSessionResult {
   contextWindowMax: number | null
   configOptions: AgentConfigOption[]
   slashCommands: AgentSlashCommand[]
+  permissionRequest: PermissionRequest | null
+  respondToPermission: (optionId: string) => Promise<void>
 }
 
 export function applyAssistantStreamMessage(
@@ -219,6 +221,7 @@ export function useSession(taskId: string, initialContextTokens?: number, initia
   const [contextWindowMax, setContextWindowMax] = useState<number | null>(initialContextWindowMax ?? null)
   const [configOptions, setConfigOptions] = useState<AgentConfigOption[]>([])
   const [slashCommands, setSlashCommands] = useState<AgentSlashCommand[]>([])
+  const [permissionRequest, setPermissionRequest] = useState<PermissionRequest | null>(null)
   const { connected, messages: wsMessages, send } = useWebSocket(taskId)
   const activeTaskIdRef = useRef(taskId)
   activeTaskIdRef.current = taskId
@@ -251,6 +254,7 @@ export function useSession(taskId: string, initialContextTokens?: number, initia
     setContextWindowMax(null)
     setConfigOptions([])
     setSlashCommands([])
+    setPermissionRequest(null)
     processedCountRef.current = 0
     activeAssistantStreamIdRef.current = null
     backfillInProgressRef.current = false
@@ -580,6 +584,16 @@ export function useSession(taskId: string, initialContextTokens?: number, initia
           } else if (eventType === "slash.commands") {
             const ev = data as { commands?: unknown }
             if (Array.isArray(ev.commands)) setSlashCommands(ev.commands as AgentSlashCommand[])
+          } else if (eventType === "permission.request") {
+            const ev = data as { requestId?: string; toolName?: string; toolCallId?: string; options?: unknown }
+            if (typeof ev.requestId === "string" && Array.isArray(ev.options)) {
+              setPermissionRequest({
+                requestId: ev.requestId,
+                toolName: ev.toolName,
+                toolCallId: ev.toolCallId,
+                options: ev.options as PermissionRequest["options"],
+              })
+            }
           }
         }
         break
@@ -701,5 +715,12 @@ export function useSession(taskId: string, initialContextTokens?: number, initia
 
   const visibleQueuedPrompts = filterVisibleQueuedPrompts(queuedPrompts, pendingOptimisticRef.current, queueVisibilityNow)
 
-  return { messages, activities, agentStatus, queueLength: visibleQueuedPrompts.length, queuedPrompts: visibleQueuedPrompts, connected, taskStatus, sendPrompt, abort, updateQueuedPrompt: handleUpdateQueuedPrompt, removeQueuedPrompt: handleRemoveQueuedPrompt, clearAllQueuedPrompts: handleClearAllQueuedPrompts, sendNowQueuedPrompt: handleSendNowQueuedPrompt, contextTokens, contextWindowMax, configOptions, slashCommands }
+  const handleRespondToPermission = useCallback(async (optionId: string) => {
+    if (!permissionRequest) return
+    const { requestId } = permissionRequest
+    setPermissionRequest(null)
+    await apiRespondToPermission(taskId, requestId, optionId)
+  }, [taskId, permissionRequest])
+
+  return { messages, activities, agentStatus, queueLength: visibleQueuedPrompts.length, queuedPrompts: visibleQueuedPrompts, connected, taskStatus, sendPrompt, abort, updateQueuedPrompt: handleUpdateQueuedPrompt, removeQueuedPrompt: handleRemoveQueuedPrompt, clearAllQueuedPrompts: handleClearAllQueuedPrompts, sendNowQueuedPrompt: handleSendNowQueuedPrompt, contextTokens, contextWindowMax, configOptions, slashCommands, permissionRequest, respondToPermission: handleRespondToPermission }
 }
