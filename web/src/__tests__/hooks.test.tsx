@@ -502,12 +502,13 @@ describe("useTasks", () => {
       onmessage: ((event: MessageEvent) => void) | null = null
       onerror: ((event: Event) => void) | null = null
       onclose: ((event: CloseEvent) => void) | null = null
+      sent: string[] = []
       constructor(url: string) {
         this.url = url
         TestWebSocket.instances.push(this)
         queueMicrotask(() => this.onopen?.(new Event("open")))
       }
-      send(_data: string) { }
+      send(data: string) { this.sent.push(data) }
       close() { this.readyState = TestWebSocket.CLOSED }
       emit(message: WsServerMessage) {
         this.onmessage?.(new MessageEvent("message", { data: JSON.stringify(message) }))
@@ -541,6 +542,10 @@ describe("useTasks", () => {
 
       const socket = TestWebSocket.instances[0]!
       expect(socket.url).toContain("/api/tasks/list/ws")
+      act(() => {
+        socket.emit({ type: "ping" })
+      })
+      expect(socket.sent).toContain(JSON.stringify({ type: "pong" }))
 
       currentTasks = [{ ...mockTasks[0]!, id: "3", title: "Live task" }]
       act(() => {

@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback, useRef } from "react"
-import type { Task, WsServerMessage } from "@tangerine/shared"
+import type { Task, WsClientMessage, WsServerMessage } from "@tangerine/shared"
 import { fetchTasks, fetchTaskCounts } from "../lib/api"
 import { getAuthToken } from "../lib/auth"
 
@@ -144,6 +144,10 @@ export function useTasks(filter?: { status?: string; project?: string; search?: 
       ws.onmessage = (event) => {
         try {
           const msg = JSON.parse(event.data as string) as WsServerMessage
+          if (msg.type === "ping") {
+            ws?.send(JSON.stringify({ type: "pong" } satisfies WsClientMessage))
+            return
+          }
           if (msg.type === "task_agent_status") {
             setTasksByProject((prev) => {
               let found = false

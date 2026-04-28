@@ -18,6 +18,18 @@ import type { WsClientMessage, WsServerMessage, TaskStatus } from "@tangerine/sh
 type InitialTaskSnapshot = { status: string } | null
 
 type SocketLike = { send(data: string): void; close(code?: number, reason?: string): void }
+type WebSocketMessageEvent = { data: string | { toString(): string } }
+type TaskListStreamHandlers = {
+  onOpen(event: unknown, ws: SocketLike): void
+  onMessage(event: WebSocketMessageEvent, ws: SocketLike): void
+  onClose(): void
+}
+type TaskListStreamOptions = {
+  authEnabled: boolean
+  requestAuthenticated: boolean
+  authToken: string | null
+  createHeartbeat?: (ws: SocketLike) => WebSocketHeartbeat
+}
 
 export function initialTaskStreamMessages(taskId: string, task: InitialTaskSnapshot): WsServerMessage[] {
   const messages: WsServerMessage[] = [{ type: "connected" }]
@@ -38,74 +50,93 @@ export function initialTaskStreamMessages(taskId: string, task: InitialTaskSnaps
   return messages
 }
 
+export function createTaskListStreamHandlers(options: TaskListStreamOptions): TaskListStreamHandlers {
+  let authenticated = !options.authEnabled || options.requestAuthenticated
+  let unsubAgentStatus: (() => void) | null = null
+  let unsubTaskList: (() => void) | null = null
+  let heartbeat: WebSocketHeartbeat | null = null
+  let authTimer: ReturnType<typeof setTimeout> | null = null
+  let started = false
+  const createHeartbeat = options.createHeartbeat ?? createWebSocketHeartbeat
+
+  const startStreaming = (ws: SocketLike) => {
+    if (started) return
+    started = true
+    heartbeat = createHeartbeat(ws)
+    heartbeat.start()
+    const connected: WsServerMessage = { type: "connected" }
+    ws.send(JSON.stringify(connected))
+    unsubAgentStatus = onAgentStatusChange((ev) => {
+      const msg: WsServerMessage = { type: "task_agent_status", taskId: ev.taskId, agentStatus: ev.agentStatus }
+      try { ws.send(JSON.stringify(msg)) } catch { /* disconnected */ }
+    })
+    unsubTaskList = onTaskListChange((ev) => {
+      const msg: WsServerMessage = { type: "task_changed", taskId: ev.taskId, change: ev.change }
+      try { ws.send(JSON.stringify(msg)) } catch { /* disconnected */ }
+    })
+  }
+
+  return {
+    onOpen(_event, ws) {
+      if (authenticated) {
+        startStreaming(ws)
+        return
+      }
+      authTimer = setTimeout(() => {
+        try {
+          ws.send(JSON.stringify({ type: "error", message: "Unauthorized" }))
+          ws.close(1008, "Unauthorized")
+        } catch {
+          // Client gone
+        }
+      }, 5000)
+    },
+    onMessage(event, ws) {
+      try {
+        const msg = JSON.parse(typeof event.data === "string" ? event.data : event.data.toString()) as WsClientMessage
+
+        if (msg.type === "pong") {
+          heartbeat?.markAlive()
+          return
+        }
+
+        if (msg.type === "auth" && !authenticated) {
+          if (!options.authToken || !isValidAuthToken(options.authToken, msg.token)) {
+            ws.send(JSON.stringify({ type: "error", message: "Unauthorized" }))
+            ws.close(1008, "Unauthorized")
+            return
+          }
+          authenticated = true
+          if (authTimer) {
+            clearTimeout(authTimer)
+            authTimer = null
+          }
+          startStreaming(ws)
+        }
+
+        if (authenticated) heartbeat?.markAlive()
+      } catch {
+        // Ignore malformed non-auth messages on this read-only stream
+      }
+    },
+    onClose() {
+      if (authTimer) clearTimeout(authTimer)
+      heartbeat?.stop()
+      unsubAgentStatus?.()
+      unsubTaskList?.()
+    },
+  }
+}
+
 export function wsRoutes(deps: AppDeps, upgradeWebSocket: UpgradeWebSocket): Hono {
   const app = new Hono()
 
   const taskListSocket = () => upgradeWebSocket((c) => {
-    const authEnabled = isAuthEnabled(deps.config)
-    const requestAuthenticated = isRequestAuthenticated(c, deps.config)
-    let authenticated = !authEnabled || requestAuthenticated
-    let unsubAgentStatus: (() => void) | null = null
-    let unsubTaskList: (() => void) | null = null
-    let authTimer: ReturnType<typeof setTimeout> | null = null
-    let started = false
-
-    const startStreaming = (ws: { send(data: string): void; close(code?: number, reason?: string): void }) => {
-      if (started) return
-      started = true
-      const connected: WsServerMessage = { type: "connected" }
-      ws.send(JSON.stringify(connected))
-      unsubAgentStatus = onAgentStatusChange((ev) => {
-        const msg: WsServerMessage = { type: "task_agent_status", taskId: ev.taskId, agentStatus: ev.agentStatus }
-        try { ws.send(JSON.stringify(msg)) } catch { /* disconnected */ }
-      })
-      unsubTaskList = onTaskListChange((ev) => {
-        const msg: WsServerMessage = { type: "task_changed", taskId: ev.taskId, change: ev.change }
-        try { ws.send(JSON.stringify(msg)) } catch { /* disconnected */ }
-      })
-    }
-
-    return {
-      onOpen(_event, ws) {
-        if (authenticated) {
-          startStreaming(ws)
-          return
-        }
-        authTimer = setTimeout(() => {
-          try {
-            ws.send(JSON.stringify({ type: "error", message: "Unauthorized" }))
-            ws.close(1008, "Unauthorized")
-          } catch {
-            // Client gone
-          }
-        }, 5000)
-      },
-      onMessage(event, ws) {
-        try {
-          const msg = JSON.parse(typeof event.data === "string" ? event.data : event.data.toString()) as WsClientMessage
-          if (msg.type === "auth" && !authenticated) {
-            if (!isValidAuthToken(deps.config.credentials.tangerineAuthToken!, msg.token)) {
-              ws.send(JSON.stringify({ type: "error", message: "Unauthorized" }))
-              ws.close(1008, "Unauthorized")
-              return
-            }
-            authenticated = true
-            if (authTimer) {
-              clearTimeout(authTimer)
-              authTimer = null
-            }
-            startStreaming(ws)
-          }
-        } catch {
-          // Ignore malformed non-auth messages on this read-only stream
-        }
-      },
-      onClose() {
-        if (authTimer) clearTimeout(authTimer)
-        unsubAgentStatus?.()
-        unsubTaskList?.()
-      },
-    }
+    return createTaskListStreamHandlers({
+      authEnabled: isAuthEnabled(deps.config),
+      requestAuthenticated: isRequestAuthenticated(c, deps.config),
+      authToken: deps.config.credentials.tangerineAuthToken,
+    })
   })
 
   // Global task-list broadcast for runs/sidebar live updates.
