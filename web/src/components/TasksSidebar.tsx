@@ -2,7 +2,7 @@ import { useMemo, useState, useCallback, useEffect, useRef } from "react"
 import { Link, useParams } from "react-router-dom"
 import { TERMINAL_STATUSES } from "@tangerine/shared"
 import type { Task, ProjectConfig } from "@tangerine/shared"
-import { Search, Plus, X } from "lucide-react"
+import { Search, Plus, X, ChevronDown } from "lucide-react"
 import { getStatusConfig, hasUnseenUpdates, getPrStatusConfig } from "../lib/status"
 import { formatRelativeTime, formatPrNumber } from "../lib/format"
 import { useProject } from "../context/ProjectContext"
@@ -17,6 +17,7 @@ import { ProjectSelector } from "./ProjectSelector"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { ScrollArea } from "@/components/ui/scroll-area"
+import { Collapsible, CollapsibleTrigger, CollapsibleContent } from "@/components/ui/collapsible"
 
 interface TasksSidebarProps {
   tasks: Task[]
@@ -125,19 +126,31 @@ function ProjectGroupHeader({
   onToggle,
   activeCount,
   totalCount,
+  collapsed,
+  onToggleCollapse,
 }: {
   group: ProjectGroup
   activeOnly: boolean
   onToggle: () => void
   activeCount: number
   totalCount: number
+  collapsed: boolean
+  onToggleCollapse: () => void
 }) {
   const rowClass = "flex w-full items-center border-t border-border bg-muted/50"
 
   const navContent = (
-    <span className="min-w-0 flex-1 truncate px-4 py-2 text-sm font-semibold text-foreground">
-      {group.projectName}
-    </span>
+    <CollapsibleTrigger
+      onClick={onToggleCollapse}
+      className="flex min-w-0 flex-1 cursor-pointer items-center gap-1 px-4 py-2 hover:bg-muted"
+    >
+      <ChevronDown
+        className={`h-3.5 w-3.5 shrink-0 text-muted-foreground transition-transform duration-200 ${collapsed ? "-rotate-90" : ""}`}
+      />
+      <span className="min-w-0 flex-1 truncate text-left text-sm font-semibold text-foreground">
+        {group.projectName}
+      </span>
+    </CollapsibleTrigger>
   )
 
   const toggleBtn = (
@@ -168,6 +181,8 @@ export function TasksSidebar({ tasks, projects, searchQuery, onSearchChange, onN
   const [projectFilter, setProjectFilter] = useState(readProjectFilter)
   // Per-group active-only toggle: undefined means default (true = active only)
   const [groupActiveOnly, setGroupActiveOnly] = useState<Record<string, boolean>>({})
+  // Per-group collapsed state: undefined means default (false = expanded)
+  const [groupCollapsed, setGroupCollapsed] = useState<Record<string, boolean>>({})
   const [loadingMore, setLoadingMore] = useState<Record<string, boolean>>({})
   // Ref for synchronous double-click prevention
   const loadingMoreRef = useRef<Set<string>>(new Set())
@@ -225,6 +240,13 @@ export function TasksSidebar({ tasks, projects, searchQuery, onSearchChange, onN
     setGroupActiveOnly((prev) => ({
       ...prev,
       [projectId]: !(prev[projectId] ?? true),
+    }))
+  }, [])
+
+  const handleGroupCollapseToggle = useCallback((projectId: string) => {
+    setGroupCollapsed((prev) => ({
+      ...prev,
+      [projectId]: !(prev[projectId] ?? false),
     }))
   }, [])
 
@@ -309,33 +331,40 @@ export function TasksSidebar({ tasks, projects, searchQuery, onSearchChange, onN
             const loadedForProject = loadedCounts[group.projectId] ?? 0
             const hasMore = loadedForProject < totalForProject
             const isLoading = loadingMore[group.projectId] ?? false
+            const collapsed = groupCollapsed[group.projectId] ?? false
+            // Force expand during search so results are visible
+            const effectiveCollapsed = collapsed && !isSearching
             return (
-              <div key={group.projectId}>
+              <Collapsible key={group.projectId} open={!effectiveCollapsed}>
                 <ProjectGroupHeader
                   group={group}
                   activeOnly={groupOnly}
                   onToggle={() => handleGroupToggle(group.projectId)}
                   activeCount={activeTasks.length}
                   totalCount={totalForProject}
+                  collapsed={effectiveCollapsed}
+                  onToggleCollapse={() => handleGroupCollapseToggle(group.projectId)}
                 />
-                {displayedTasks.map((task) => (
-                  <TaskItem
-                    key={task.id}
-                    task={task}
-                    isActive={task.id === activeId}
-                    onRefetch={onRefetch}
-                  />
-                ))}
-                {hasMore && !groupOnly && (
-                  <button
-                    onClick={() => handleLoadMore(group.projectId)}
-                    disabled={isLoading}
-                    className="flex w-full items-center justify-center gap-1.5 py-2 text-xs text-muted-foreground hover:bg-muted hover:text-foreground disabled:opacity-50"
-                  >
-                    {isLoading ? "Loading..." : `Load more (${loadedForProject}/${totalForProject})`}
-                  </button>
-                )}
-              </div>
+                <CollapsibleContent>
+                  {displayedTasks.map((task) => (
+                    <TaskItem
+                      key={task.id}
+                      task={task}
+                      isActive={task.id === activeId}
+                      onRefetch={onRefetch}
+                    />
+                  ))}
+                  {hasMore && !groupOnly && (
+                    <button
+                      onClick={() => handleLoadMore(group.projectId)}
+                      disabled={isLoading}
+                      className="flex w-full items-center justify-center gap-1.5 py-2 text-xs text-muted-foreground hover:bg-muted hover:text-foreground disabled:opacity-50"
+                    >
+                      {isLoading ? "Loading..." : `Load more (${loadedForProject}/${totalForProject})`}
+                    </button>
+                  )}
+                </CollapsibleContent>
+              </Collapsible>
             )
           })
         )}
