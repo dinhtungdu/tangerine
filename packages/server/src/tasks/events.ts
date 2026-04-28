@@ -24,10 +24,6 @@ const agentState = new Map<string, AgentState>()
 type AgentStatusHandler = (event: { taskId: string; agentStatus: "idle" | "working" }) => void
 const agentStatusListeners = new Set<AgentStatusHandler>()
 
-type TaskListChange = { taskId: string; change: "created" | "updated" | "deleted" }
-type TaskListChangeHandler = (event: TaskListChange) => void
-const taskListChangeListeners = new Set<TaskListChangeHandler>()
-
 export function emitTaskEvent(taskId: string, data: unknown): void {
   const handlers = taskEventListeners.get(taskId)
   if (!handlers) return
@@ -152,17 +148,4 @@ export function onStatusChange(taskId: string, handler: StatusChangeHandler): ()
 export function onAgentStatusChange(handler: AgentStatusHandler): () => void {
   agentStatusListeners.add(handler)
   return () => { agentStatusListeners.delete(handler) }
-}
-
-/** Broadcast list-visible task row mutations to global task-list listeners. */
-export function emitTaskListChange(taskId: string, change: TaskListChange["change"]): void {
-  for (const handler of taskListChangeListeners) {
-    handler({ taskId, change })
-  }
-}
-
-/** Subscribe to global task-list invalidation events. Returns an unsubscribe function. */
-export function onTaskListChange(handler: TaskListChangeHandler): () => void {
-  taskListChangeListeners.add(handler)
-  return () => { taskListChangeListeners.delete(handler) }
 }

@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach } from "bun:test"
-import { setAgentWorkingState, getAgentWorkingState, onAgentStatusChange, clearAgentWorkingState, getEffectiveAgentStatus, isAgentStalled, resetIfStalled, recordAgentProgress, AGENT_PROGRESS_TIMEOUT_MS, emitTaskListChange, onTaskListChange } from "../tasks/events"
+import { setAgentWorkingState, getAgentWorkingState, onAgentStatusChange, clearAgentWorkingState, getEffectiveAgentStatus, isAgentStalled, resetIfStalled, recordAgentProgress, AGENT_PROGRESS_TIMEOUT_MS } from "../tasks/events"
 
 describe("agent status events", () => {
   const testTaskId = "agent-status-test-" + Date.now()
@@ -40,18 +40,6 @@ describe("agent status events", () => {
     expect(getAgentWorkingState(testTaskId)).toBe("working")
     setAgentWorkingState(testTaskId, "idle")
     expect(getAgentWorkingState(testTaskId)).toBe("idle")
-  })
-})
-
-describe("task list events", () => {
-  it("broadcasts task row changes to global listeners", () => {
-    const events: Array<{ taskId: string; change: "created" | "updated" | "deleted" }> = []
-    const unsub = onTaskListChange((ev) => events.push(ev))
-
-    emitTaskListChange("task-list-test", "updated")
-
-    expect(events).toEqual([{ taskId: "task-list-test", change: "updated" }])
-    unsub()
   })
 })
 

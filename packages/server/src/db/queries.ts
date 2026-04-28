@@ -3,7 +3,7 @@ import type { Database } from "bun:sqlite"
 import { DEFAULT_AGENT_ID } from "@tangerine/shared"
 import type { TaskRow, CronRow, SessionLogRow } from "./types"
 import { DbError } from "../errors"
-import { emitTaskListChange } from "../tasks/events"
+import { emitTaskListChange } from "../task-list-events"
 
 function dbTry<T>(op: () => T): Effect.Effect<T, DbError> {
   return Effect.try({
