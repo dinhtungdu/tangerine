@@ -16,7 +16,7 @@ export function ActiveRunsCard({ project }: { project?: string }) {
   useEffect(() => {
     let cancelled = false
     async function poll() {
-      const [activeCounts, createdCounts, provisioningCounts, doneCounts, orphans] = await Promise.all([
+      const [runningCounts, createdCounts, provisioningCounts, doneCounts, orphans] = await Promise.all([
         fetchTaskCounts({ status: "running" }).catch(() => ({} as Record<string, number>)),
         fetchTaskCounts({ status: "created" }).catch(() => ({} as Record<string, number>)),
         fetchTaskCounts({ status: "provisioning" }).catch(() => ({} as Record<string, number>)),
@@ -26,7 +26,7 @@ export function ActiveRunsCard({ project }: { project?: string }) {
       if (cancelled) return
       const sum = (counts: Record<string, number>) =>
         project ? (counts[project] ?? 0) : Object.values(counts).reduce((a, b) => a + b, 0)
-      setActive(sum(activeCounts))
+      setActive(sum(runningCounts))
       setQueued(sum(createdCounts) + sum(provisioningCounts))
       setDone(sum(doneCounts))
       setOrphanCount(orphans.length)

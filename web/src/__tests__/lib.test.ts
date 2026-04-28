@@ -272,6 +272,43 @@ describe("status", () => {
     expect(getTaskStatusText(task)).toBe("waiting for PR")
   })
 
+  test("getTaskDisplayStatus shows working before PR waiting", () => {
+    const task = makeTask({
+      status: "running",
+      agentStatus: "working",
+      prUrl: "https://github.com/dinhtungdu/tangerine/pull/650",
+      prStatus: "open",
+    })
+
+    const config = getTaskDisplayStatus(task)
+    expect(config.label).toBe("Working")
+    expect(config.color).toBe("var(--color-status-success)")
+    expect(getTaskStatusText(task)).toBe("working")
+  })
+
+  test("getTaskDisplayStatus shows disconnected before PR waiting", () => {
+    const task = makeTask({
+      status: "running",
+      agentStatus: "disconnected",
+      prUrl: "https://github.com/dinhtungdu/tangerine/pull/650",
+      prStatus: "open",
+    })
+
+    const config = getTaskDisplayStatus(task)
+    expect(config.label).toBe("Disconnected")
+    expect(config.color).toBe("var(--color-status-error)")
+    expect(getTaskStatusText(task)).toBe("disconnected")
+  })
+
+  test("getTaskDisplayStatus falls back to active for running tasks without agent state", () => {
+    const task = makeTask({ status: "running", agentStatus: undefined })
+
+    const config = getTaskDisplayStatus(task)
+    expect(config.label).toBe("Active")
+    expect(config.color).toBe("var(--color-status-success)")
+    expect(getTaskStatusText(task)).toBe("active")
+  })
+
   test("all statuses have color and textClass", () => {
     for (const [, config] of Object.entries(STATUS_CONFIG)) {
       expect(config.color).toBeTruthy()
