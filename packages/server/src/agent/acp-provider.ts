@@ -188,28 +188,60 @@ export function createPromptStatusTracker(emit: (status: "idle" | "working") => 
   end(turnId: number): void
   reset(): void
   isWorking(): boolean
+  toolStart(toolCallId: string): void
+  toolEnd(toolCallId: string): void
 } {
   let nextTurnId = 0
   const activeTurns = new Set<number>()
+  const activeTools = new Set<string>()
+  const turnsPendingIdle = new Set<number>() // Turns waiting for tools to complete
+
+  const maybeEmitIdle = () => {
+    // Only emit idle when no active turns AND no active tools AND no turns waiting
+    if (activeTurns.size === 0 && activeTools.size === 0 && turnsPendingIdle.size === 0) {
+      emit("idle")
+    }
+  }
+
   return {
     begin() {
       const turnId = ++nextTurnId
-      const wasIdle = activeTurns.size === 0
+      const wasIdle = activeTurns.size === 0 && activeTools.size === 0
       activeTurns.add(turnId)
       if (wasIdle) emit("working")
       return turnId
     },
     end(turnId: number) {
       if (!activeTurns.delete(turnId)) return
-      if (activeTurns.size === 0) emit("idle")
+      // If tools still running, defer idle emission until they complete
+      if (activeTools.size > 0) {
+        turnsPendingIdle.add(turnId)
+        return
+      }
+      maybeEmitIdle()
     },
     reset() {
-      const wasWorking = activeTurns.size > 0
+      const wasWorking = activeTurns.size > 0 || activeTools.size > 0
       activeTurns.clear()
+      activeTools.clear()
+      turnsPendingIdle.clear()
       if (wasWorking) emit("idle")
     },
     isWorking() {
-      return activeTurns.size > 0
+      return activeTurns.size > 0 || activeTools.size > 0
+    },
+    toolStart(toolCallId: string) {
+      const wasIdle = activeTurns.size === 0 && activeTools.size === 0
+      activeTools.add(toolCallId)
+      if (wasIdle) emit("working")
+    },
+    toolEnd(toolCallId: string) {
+      if (!activeTools.delete(toolCallId)) return
+      // Check if any turns were waiting for tools to complete
+      if (activeTools.size === 0 && turnsPendingIdle.size > 0) {
+        turnsPendingIdle.clear()
+      }
+      maybeEmitIdle()
     },
   }
 }
@@ -467,6 +499,12 @@ async function startAcpSession(ctx: AgentStartContext, config?: AcpProviderConfi
       if (pendingMode) tryApplyPendingMode().catch(() => undefined)
     }
     if (event.kind === "slash.commands") slashCommands = event.commands
+    // Track tool lifecycle to prevent premature idle emission
+    if (event.kind === "tool.start" && event.toolCallId) {
+      statusTracker.toolStart(event.toolCallId)
+    } else if (event.kind === "tool.end" && event.toolCallId) {
+      statusTracker.toolEnd(event.toolCallId)
+    }
     emit(event)
   }
 

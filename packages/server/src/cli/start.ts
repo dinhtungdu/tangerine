@@ -786,13 +786,6 @@ export async function start(): Promise<void> {
               }
               case "tool.start": {
                 recordAgentProgress(taskId)
-                // Tool events may arrive after idle due to stream buffering race.
-                // Correct the state if we receive tool activity while "idle".
-                if (getAgentWorkingState(taskId) === "idle") {
-                  setAgentWorkingState(taskId, "working")
-                  Effect.runPromise(setQueuedAgentState(taskId, "busy"))
-                  emitTaskEvent(taskId, { event: "agent.start" })
-                }
                 const { activityType, activityEvent } = classifyTool(event.toolName)
                 Effect.runPromise(
                   updateToolActivity(db, taskId, {
@@ -808,11 +801,6 @@ export async function start(): Promise<void> {
               }
               case "tool.update": {
                 recordAgentProgress(taskId)
-                if (getAgentWorkingState(taskId) === "idle") {
-                  setAgentWorkingState(taskId, "working")
-                  Effect.runPromise(setQueuedAgentState(taskId, "busy"))
-                  emitTaskEvent(taskId, { event: "agent.start" })
-                }
                 const { activityType, activityEvent } = classifyTool(event.toolName)
                 Effect.runPromise(
                   updateToolActivity(db, taskId, {
@@ -852,11 +840,6 @@ export async function start(): Promise<void> {
               }
               case "thinking.streaming": {
                 recordAgentProgress(taskId)
-                if (getAgentWorkingState(taskId) === "idle") {
-                  setAgentWorkingState(taskId, "working")
-                  Effect.runPromise(setQueuedAgentState(taskId, "busy"))
-                  emitTaskEvent(taskId, { event: "agent.start" })
-                }
                 const active = appendActiveStreamMessage(taskId, "thinking", event.content, event.messageId)
                 emitTaskEvent(taskId, {
                   event: "thinking.streaming",
