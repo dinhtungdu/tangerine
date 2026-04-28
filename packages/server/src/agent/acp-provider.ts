@@ -435,8 +435,28 @@ async function startAcpSession(ctx: AgentStartContext, config?: AcpProviderConfi
 
   const statusTracker = createPromptStatusTracker((status) => emit({ kind: "status", status }))
 
+  let pendingMode: string | null = ctx.mode ?? null
+
+  const tryApplyPendingMode = async () => {
+    if (!pendingMode || !sessionId || configOptions.length === 0) return
+    const modeOption = configOptions.find((o) => o.category === "mode")
+    if (!modeOption) return
+    const applied = await setConfigOptionByCategory(rpc, sessionId, configOptions, "mode", pendingMode, (options) => {
+      configOptions = options
+    })
+    if (applied) {
+      taskLog.debug("Applied initial mode", { mode: pendingMode })
+      pendingMode = null
+    } else {
+      taskLog.warn("Mode option exists but value not accepted", { mode: pendingMode, available: modeOption.options?.map((o) => o.value) })
+    }
+  }
+
   const emitMapped = (event: AgentEvent) => {
-    if (event.kind === "config.options") configOptions = event.options
+    if (event.kind === "config.options") {
+      configOptions = event.options
+      if (pendingMode) tryApplyPendingMode().catch(() => undefined)
+    }
     if (event.kind === "slash.commands") slashCommands = event.commands
     emit(event)
   }
@@ -570,6 +590,12 @@ async function startAcpSession(ctx: AgentStartContext, config?: AcpProviderConfi
     sessionId = newSession.sessionId
     applyConfigOptions(newSession, false)
   }
+
+  // Apply initial mode if configured (e.g. "bypass-permissions" for Claude)
+  // Mode may arrive later via config_option_update if not in session/new response
+  await tryApplyPendingMode().catch((error) => {
+    taskLog.warn("Failed to apply initial mode", { mode: ctx.mode, error: String(error) })
+  })
 
   emit({ kind: "status", status: "idle" })
 

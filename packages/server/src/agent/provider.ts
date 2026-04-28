@@ -94,6 +94,8 @@ export interface AgentStartContext {
   model?: string
   /** Reasoning effort level: "low", "medium", "high" */
   reasoningEffort?: string
+  /** Default mode to apply at session start (e.g. "bypass-permissions" for Claude) */
+  mode?: string
   /** If set, resume an existing session instead of creating a new one */
   resumeSessionId?: string
   /** Extra environment variables merged into the spawned process env */

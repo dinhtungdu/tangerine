@@ -840,6 +840,20 @@ describe("resolveTaskTypeConfig", () => {
     expect(result.reasoningEffort).toBe("high")
   })
 
+  test("returns mode from taskTypes", () => {
+    const project = {
+      ...baseProject,
+      taskTypes: { worker: { mode: "bypass-permissions" } },
+    } as ProjectConfig
+    const result = resolveTaskTypeConfig(project, "worker")
+    expect(result.mode).toBe("bypass-permissions")
+  })
+
+  test("returns undefined mode when not configured", () => {
+    const result = resolveTaskTypeConfig(baseProject, "worker")
+    expect(result.mode).toBeUndefined()
+  })
+
   test("returns reviewer config from taskTypes", () => {
     const project = {
       ...baseProject,
