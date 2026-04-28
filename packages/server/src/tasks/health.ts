@@ -335,9 +335,11 @@ export function checkAllTasks(
         }),
       )
 
-      // Idle timeout and hung-tool watchdog: only run when healthy (not
-      // restarting/failed) to avoid false positives during recovery.
-      if (result === "healthy") {
+      // Idle timeout and hung-tool watchdog: only run when healthy AND not
+      // reconnecting. Skip during recovery to avoid incorrectly suspending
+      // tasks while a reconnect fiber is still bringing the agent back.
+      const taskState = getTaskState(task.id)
+      if (result === "healthy" && !taskState.reconnecting) {
         yield* checkIdleTimeout(task, deps)
         yield* checkHungTool(task, deps)
       }
