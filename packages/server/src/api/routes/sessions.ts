@@ -191,6 +191,11 @@ export function sessionRoutes(deps: AppDeps): Hono {
     )
   })
 
+  app.get("/:id/permission", (c) => {
+    const pending = getTaskState(c.req.param("id")).pendingPermissionRequest
+    return c.json({ permissionRequest: pending ?? null })
+  })
+
   app.post("/:id/permission", async (c) => {
     const taskId = c.req.param("id")
     const body = await c.req.json<{ requestId: string; optionId: string }>()

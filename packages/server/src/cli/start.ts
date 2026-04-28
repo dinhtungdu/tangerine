@@ -932,16 +932,21 @@ export async function start(): Promise<void> {
                 break
               }
               case "permission.request": {
-                emitTaskEvent(taskId, {
-                  event: "permission.request",
+                const permissionRequest = {
                   requestId: event.requestId,
                   toolName: event.toolName,
                   toolCallId: event.toolCallId,
                   options: event.options,
+                }
+                getTaskState(taskId).pendingPermissionRequest = permissionRequest
+                emitTaskEvent(taskId, {
+                  event: "permission.request",
+                  ...permissionRequest,
                 })
                 break
               }
               case "permission.decision": {
+                getTaskState(taskId).pendingPermissionRequest = undefined
                 Effect.runPromise(
                   logActivity(db, taskId, "system", "permission.decision", `Permission selected: ${event.optionName}`, {
                     toolName: event.toolName,

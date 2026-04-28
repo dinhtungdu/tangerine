@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback, useRef } from "react"
 import type { AgentConfigOption, AgentContentBlock, AgentPlanEntry, AgentSlashCommand, WsServerMessage, TaskStatus, ActivityEntry, PromptImage, PromptQueueEntry, PermissionRequest } from "@tangerine/shared"
-import { fetchMessagesPaginated, fetchActivities, fetchQueuedPrompts, fetchTaskConfigOptions, fetchTaskSlashCommands, removeQueuedPrompt, updateQueuedPrompt, respondToPermission as apiRespondToPermission, type SessionLog } from "../lib/api"
+import { fetchMessagesPaginated, fetchActivities, fetchQueuedPrompts, fetchTaskConfigOptions, fetchTaskSlashCommands, fetchPendingPermission, removeQueuedPrompt, updateQueuedPrompt, respondToPermission as apiRespondToPermission, type SessionLog } from "../lib/api"
 import { useWebSocket } from "./useWebSocket"
 
 export interface ChatMessageImage {
@@ -397,6 +397,7 @@ export function useSession(taskId: string, initialContextTokens?: number, initia
       fetchTaskConfigOptions(refreshTaskId).catch(() => null),
       fetchTaskSlashCommands(refreshTaskId).catch(() => null),
       fetchQueuedPrompts(refreshTaskId).catch(() => null),
+      fetchPendingPermission(refreshTaskId).catch(() => null),
     ])
 
     // Apply messages as soon as they arrive
@@ -418,7 +419,7 @@ export function useSession(taskId: string, initialContextTokens?: number, initia
     }
 
     // Apply side data when ready (non-blocking)
-    const [activitiesResult, optionsResult, commandsResult, queuedResult] = await sidePromises
+    const [activitiesResult, optionsResult, commandsResult, queuedResult, permissionResult] = await sidePromises
     if (!isCurrentTask()) return
 
     if (activitiesResult) {
@@ -432,6 +433,9 @@ export function useSession(taskId: string, initialContextTokens?: number, initia
     }
     if (queuedResult) {
       applyQueuedPrompts(queuedResult)
+    }
+    if (permissionResult) {
+      setPermissionRequest(permissionResult)
     }
   }, [taskId])
 

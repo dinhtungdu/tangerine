@@ -1,7 +1,7 @@
 // Consolidated per-task in-memory coordination state.
 // Replaces scattered Set/Map instances across start.ts and health.ts.
 
-import type { AgentConfigOption, AgentSlashCommand } from "@tangerine/shared"
+import type { AgentConfigOption, AgentSlashCommand, PermissionRequest } from "@tangerine/shared"
 
 export interface ActiveStreamMessage {
   role: "assistant" | "thinking"
@@ -42,6 +42,8 @@ export interface TaskState {
   /** In-memory stream snapshots used when a browser switches into a running task mid-turn. */
   activeAssistantMessage?: ActiveStreamMessage
   activeThinkingMessage?: ActiveStreamMessage
+  /** Pending permission request awaiting user response (when autoApprove=false). */
+  pendingPermissionRequest?: PermissionRequest
 }
 
 const taskStates = new Map<string, TaskState>()
