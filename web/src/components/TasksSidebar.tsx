@@ -4,7 +4,7 @@ import { TERMINAL_STATUSES } from "@tangerine/shared"
 import type { Task, ProjectConfig } from "@tangerine/shared"
 import { Search, Plus, X } from "lucide-react"
 import { getStatusConfig, hasUnseenUpdates } from "../lib/status"
-import { formatRelativeTime } from "../lib/format"
+import { formatRelativeTime, formatPrNumber } from "../lib/format"
 import { useProject } from "../context/ProjectContext"
 import { ensureOrchestrator } from "../lib/api"
 import { TaskOverflowMenu } from "./TaskListItem"
@@ -91,6 +91,14 @@ function TaskItem({
               {" · "}
               <span className="rounded bg-muted px-1 py-px text-2xs">
                 {task.type}
+              </span>
+            </>
+          )}
+          {task.prUrl && (
+            <>
+              {" · "}
+              <span className="rounded bg-status-success/20 px-1 py-px text-2xs text-status-success">
+                {formatPrNumber(task.prUrl)}
               </span>
             </>
           )}
