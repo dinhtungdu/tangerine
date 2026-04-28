@@ -311,6 +311,7 @@ export function startSession(
       prMode: config.prMode,
       customSystemPrompt: resolveCustomSystemPrompt(config, task.type),
       upstreamSlug,
+      projectId: task.project_id,
     })
     const agentHandle = yield* deps.agentFactory.start({
       taskId: task.id,
@@ -435,6 +436,7 @@ export function reconnectSession(
       prMode: project?.prMode,
       customSystemPrompt: resolved?.systemPrompt,
       upstreamSlug: reconnectUpstreamSlug,
+      projectId: task.project_id,
     })
     const agentHandle = yield* deps.agentFactory.start({
       taskId: task.id,

@@ -20,6 +20,8 @@ export interface SystemNotesInfo {
   customSystemPrompt?: string
   /** For fork repos: the upstream repo slug (owner/repo) to target PRs against. */
   upstreamSlug?: string
+  /** Current task's project ID (used for runner delegation). */
+  projectId?: string
 }
 
 const DEFAULT_STYLE = `[STYLE: Be extremely short and concise in all responses — sacrifice grammar for brevity. Key info only, no walls of text. Applies to all conversations and reviews.]`
@@ -76,7 +78,8 @@ export function buildSystemLayer(taskId: string, info: SystemNotesInfo, port = a
   }
 
   if (info.taskType === "runner") {
-    notes.push(`[RUNNER TASK: This task runs without a dedicated worktree or branch. No PR creation needed. Complete the task when done by calling POST /api/tasks/${taskId}/done or by finishing your work.]`)
+    const projectNote = info.projectId ? `, projectId to "${info.projectId}"` : ""
+    notes.push(`[RUNNER TASK: This task runs without a dedicated worktree or branch — no PR creation. You can run commands on the project root but CANNOT make code changes directly. For any implementation work (code changes, fixes, features), immediately create a worker sub-task via POST /api/tasks — do NOT ask for confirmation, just delegate. When creating worker tasks: use a clear title, include full context and requirements in description (the worker has no access to this conversation), and set parentTaskId to "${taskId}"${projectNote}. Complete when done by calling POST /api/tasks/${taskId}/done.]`)
   }
 
   return notes
