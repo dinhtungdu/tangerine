@@ -7,7 +7,7 @@ import { Button } from "@/components/ui/button"
 /* ── Cards ── */
 
 export function ActiveRunsCard({ project }: { project?: string }) {
-  const [running, setRunning] = useState(0)
+  const [active, setActive] = useState(0)
   const [queued, setQueued] = useState(0)
   const [done, setDone] = useState(0)
   const [orphanCount, setOrphanCount] = useState(0)
@@ -26,7 +26,7 @@ export function ActiveRunsCard({ project }: { project?: string }) {
       if (cancelled) return
       const sum = (counts: Record<string, number>) =>
         project ? (counts[project] ?? 0) : Object.values(counts).reduce((a, b) => a + b, 0)
-      setRunning(sum(runningCounts))
+      setActive(sum(runningCounts))
       setQueued(sum(createdCounts) + sum(provisioningCounts))
       setDone(sum(doneCounts))
       setOrphanCount(orphans.length)
@@ -50,13 +50,13 @@ export function ActiveRunsCard({ project }: { project?: string }) {
       <div className="flex items-center justify-between">
         <span className="text-sm font-medium text-muted-foreground">Active Runs</span>
         <span className="rounded-xl bg-status-info-bg px-2.5 py-0.5 text-xxs font-semibold text-status-info-text">
-          {running} Running
+          {active} Active
         </span>
       </div>
       <div className="flex gap-4">
         <div className="flex flex-col gap-0.5">
-          <span className="text-2xl font-bold text-foreground md:text-3xl">{running}</span>
-          <span className="text-xxs font-medium text-status-info md:text-xs">Running</span>
+          <span className="text-2xl font-bold text-foreground md:text-3xl">{active}</span>
+          <span className="text-xxs font-medium text-status-info md:text-xs">Active</span>
         </div>
         <div className="flex flex-col gap-0.5">
           <span className="text-2xl font-bold text-foreground md:text-3xl">{queued}</span>

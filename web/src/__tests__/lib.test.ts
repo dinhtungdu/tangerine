@@ -8,7 +8,7 @@ import {
   formatCronExpression,
   linkifyTaskIds,
 } from "../lib/format"
-import { getStatusConfig, STATUS_CONFIG } from "../lib/status"
+import { getStatusConfig, getTaskDisplayStatus, getTaskStatusText, STATUS_CONFIG } from "../lib/status"
 import { getActivityStyle, getActivityDetail, resolveToolInput } from "../lib/activity"
 import { searchModels } from "../lib/model-search"
 import { copyToClipboard } from "../lib/clipboard"
@@ -61,6 +61,7 @@ function makeTask(overrides: Partial<Task> = {}): Task {
     branch: null,
     worktreePath: null,
     prUrl: null,
+    prStatus: null,
     parentTaskId: null,
     userId: null,
     agentSessionId: null,
@@ -239,6 +240,73 @@ describe("status", () => {
     const config = getStatusConfig("unknown_status")
     expect(config.label).toBe("Unknown")
     expect(config.color).toBeTruthy()
+  })
+
+  test("getTaskDisplayStatus shows idle instead of running for idle agents", () => {
+    const config = getTaskDisplayStatus(makeTask({ status: "running", agentStatus: "idle" }))
+    expect(config.label).toBe("Idle")
+    expect(config.color).toBe("var(--color-status-warning)")
+  })
+
+  test("getTaskDisplayStatus shows waiting for PR instead of running for idle PR tasks", () => {
+    const task = makeTask({
+      status: "running",
+      agentStatus: "idle",
+      prUrl: "https://github.com/dinhtungdu/tangerine/pull/650",
+      prStatus: "open",
+    })
+
+    expect(getTaskDisplayStatus(task).label).toBe("Waiting for PR")
+    expect(getTaskStatusText(task)).toBe("waiting for PR")
+  })
+
+  test("getTaskDisplayStatus treats PR tasks as waiting before prStatus is polled", () => {
+    const task = makeTask({
+      status: "running",
+      agentStatus: "idle",
+      prUrl: "https://github.com/dinhtungdu/tangerine/pull/650",
+      prStatus: null,
+    })
+
+    expect(getTaskDisplayStatus(task).label).toBe("Waiting for PR")
+    expect(getTaskStatusText(task)).toBe("waiting for PR")
+  })
+
+  test("getTaskDisplayStatus shows working before PR waiting", () => {
+    const task = makeTask({
+      status: "running",
+      agentStatus: "working",
+      prUrl: "https://github.com/dinhtungdu/tangerine/pull/650",
+      prStatus: "open",
+    })
+
+    const config = getTaskDisplayStatus(task)
+    expect(config.label).toBe("Working")
+    expect(config.color).toBe("var(--color-status-success)")
+    expect(getTaskStatusText(task)).toBe("working")
+  })
+
+  test("getTaskDisplayStatus shows disconnected before PR waiting", () => {
+    const task = makeTask({
+      status: "running",
+      agentStatus: "disconnected",
+      prUrl: "https://github.com/dinhtungdu/tangerine/pull/650",
+      prStatus: "open",
+    })
+
+    const config = getTaskDisplayStatus(task)
+    expect(config.label).toBe("Disconnected")
+    expect(config.color).toBe("var(--color-status-error)")
+    expect(getTaskStatusText(task)).toBe("disconnected")
+  })
+
+  test("getTaskDisplayStatus falls back to active for running tasks without agent state", () => {
+    const task = makeTask({ status: "running", agentStatus: undefined })
+
+    const config = getTaskDisplayStatus(task)
+    expect(config.label).toBe("Active")
+    expect(config.color).toBe("var(--color-status-success)")
+    expect(getTaskStatusText(task)).toBe("active")
   })
 
   test("all statuses have color and textClass", () => {
@@ -1115,4 +1183,3 @@ describe("getDiffStats", () => {
     expect(stats.totalLines).toBeGreaterThan(0)
   })
 })
-

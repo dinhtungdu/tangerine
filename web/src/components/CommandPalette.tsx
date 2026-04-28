@@ -3,7 +3,7 @@ import { createPortal } from "react-dom"
 import { useNavigate } from "react-router-dom"
 import type { Task } from "@tangerine/shared"
 import { fetchTasks } from "../lib/api"
-import { getStatusConfig } from "../lib/status"
+import { getTaskDisplayStatus } from "../lib/status"
 import { formatRelativeTime, formatTaskTitle } from "../lib/format"
 import { getRecentTasks, RECENT_TASK_STATUSES } from "../lib/task-recency"
 import { Search, X } from "lucide-react"
@@ -53,10 +53,7 @@ interface PaletteItem {
 }
 
 function TaskResult({ task, isSelected }: { task: Task; isSelected: boolean }) {
-  const statusConfig = getStatusConfig(task.status)
-  const isIdleRunning = task.status === "running" && task.agentStatus === "idle"
-  const dotColor = isIdleRunning ? "var(--color-status-warning)" : statusConfig.color
-  const statusLabel = isIdleRunning ? "idle" : statusConfig.label
+  const statusConfig = getTaskDisplayStatus(task)
   return (
     <div
       className={`flex w-full items-center gap-snug px-normal py-2.5 text-left transition-colors ${
@@ -65,7 +62,7 @@ function TaskResult({ task, isSelected }: { task: Task; isSelected: boolean }) {
     >
       <div
         className="h-2 w-2 shrink-0 rounded-full"
-        style={{ backgroundColor: dotColor }}
+        style={{ backgroundColor: statusConfig.color }}
       />
       <div className="min-w-0 flex-1">
         <p className="truncate text-sm font-medium text-foreground">{formatTaskTitle(task)}</p>
@@ -80,7 +77,7 @@ function TaskResult({ task, isSelected }: { task: Task; isSelected: boolean }) {
         <span
           className={`rounded px-1.5 py-0.5 text-2xs font-medium ${statusConfig.bgClass} ${statusConfig.textClass}`}
         >
-          {statusLabel}
+          {statusConfig.label}
         </span>
       </div>
       <div className="flex shrink-0 flex-col items-end gap-0.5">

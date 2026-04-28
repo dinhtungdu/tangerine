@@ -1,5 +1,6 @@
-/** Unified status configuration — uses Tailwind class names for theming */
+import type { Task } from "@tangerine/shared"
 
+/** Unified status configuration — uses Tailwind class names for theming */
 export interface StatusConfig {
   label: string
   /** Tailwind text color class */
@@ -28,6 +29,66 @@ const DEFAULT_STATUS: StatusConfig = {
 
 export function getStatusConfig(status: string): StatusConfig {
   return STATUS_CONFIG[status] ?? DEFAULT_STATUS
+}
+
+const IDLE_AGENT_STATUS: StatusConfig = {
+  label: "Idle",
+  textClass: "text-status-warning-text",
+  bgClass: "bg-status-warning-bg",
+  color: "var(--color-status-warning)",
+}
+
+const WORKING_AGENT_STATUS: StatusConfig = {
+  label: "Working",
+  textClass: "text-status-success-text",
+  bgClass: "bg-status-success-bg",
+  color: "var(--color-status-success)",
+}
+
+const WAITING_FOR_PR_STATUS: StatusConfig = {
+  label: "Waiting for PR",
+  textClass: "text-status-info-text",
+  bgClass: "bg-status-info-bg",
+  color: "var(--color-status-info)",
+}
+
+const DISCONNECTED_AGENT_STATUS: StatusConfig = {
+  label: "Disconnected",
+  textClass: "text-status-error-text",
+  bgClass: "bg-status-error-bg",
+  color: "var(--color-status-error)",
+}
+
+const ACTIVE_TASK_STATUS: StatusConfig = {
+  label: "Active",
+  textClass: "text-status-success-text",
+  bgClass: "bg-status-success-bg",
+  color: "var(--color-status-success)",
+}
+
+type TaskDisplayStatusInput = Pick<Task, "status" | "agentStatus" | "prStatus" | "prUrl">
+
+function isWaitingForPr(task: TaskDisplayStatusInput): boolean {
+  return task.status === "running"
+    && (task.prStatus === "open" || task.prStatus === "draft" || (task.prStatus === null && Boolean(task.prUrl)))
+}
+
+export function getTaskDisplayStatus(task: TaskDisplayStatusInput): StatusConfig {
+  if (task.status !== "running") return getStatusConfig(task.status)
+  if (task.agentStatus === "disconnected") return DISCONNECTED_AGENT_STATUS
+  if (task.agentStatus === "working") return WORKING_AGENT_STATUS
+  if (isWaitingForPr(task)) return WAITING_FOR_PR_STATUS
+  if (task.agentStatus === "idle") return IDLE_AGENT_STATUS
+  return ACTIVE_TASK_STATUS
+}
+
+export function getTaskStatusText(task: TaskDisplayStatusInput): string {
+  if (task.status !== "running") return task.status
+  if (task.agentStatus === "disconnected") return "disconnected"
+  if (task.agentStatus === "working") return "working"
+  if (isWaitingForPr(task)) return "waiting for PR"
+  if (task.agentStatus === "idle") return "idle"
+  return "active"
 }
 
 export const PR_STATUS_CONFIG: Record<string, StatusConfig> = {

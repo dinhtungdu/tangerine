@@ -1,5 +1,5 @@
 import type { Task } from "@tangerine/shared"
-import { getStatusConfig } from "../lib/status"
+import { getTaskDisplayStatus } from "../lib/status"
 import { formatTaskTitle } from "../lib/format"
 import { SuggestionPicker } from "./SuggestionPicker"
 
@@ -20,7 +20,7 @@ export function MentionPicker({ tasks, selectedIndex, onSelect, onHover }: Menti
       onHover={onHover}
     >
       {(task) => {
-        const statusConfig = getStatusConfig(task.status)
+        const statusConfig = getTaskDisplayStatus(task)
         return (
           <>
             <div
