@@ -236,8 +236,10 @@ function ThinkingMessage({ message, isActive, duration }: {
         </span>
         <span className="text-2xs text-muted-foreground/50">{formatTimestamp(message.timestamp)}</span>
       </div>
-      <div className="rounded-lg border border-amber-500/10 bg-amber-500/5 px-3 py-2 text-xs italic leading-[1.6] text-muted-foreground break-words">
-        {displayContent}
+      <div className="rounded-lg border border-amber-500/10 bg-amber-500/5 px-3 py-2 text-xs italic leading-[1.6] text-muted-foreground break-words prose prose-sm prose-neutral dark:prose-invert max-w-none prose-p:my-1 prose-ul:my-1 prose-ol:my-1 prose-li:my-0">
+        <ReactMarkdown remarkPlugins={BASE_REMARK_PLUGINS} components={markdownComponents}>
+          {displayContent}
+        </ReactMarkdown>
         {needsTruncation && (
           <button
             onClick={() => setExpanded(!expanded)}
