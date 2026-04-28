@@ -392,6 +392,7 @@ export async function start(): Promise<void> {
             Effect.runPromise(existingHandle.shutdown().pipe(Effect.catchAll(() => Effect.void)))
           }
           agentHandles.set(taskId, session.agentHandle)
+          log.debug("Handle stored", { taskId, pid: (session.agentHandle as { __pid?: number }).__pid, handleCount: agentHandles.size })
 
           const sendFn = async (_tid: string, text: string, imgs?: import("../agent/provider").PromptImage[], fromTaskId?: string, displayText?: string) => {
             await Effect.runPromise(session.agentHandle.sendPrompt(text, imgs))
@@ -1077,6 +1078,7 @@ export async function start(): Promise<void> {
                   // Fall through to wake/queue instead of losing the prompt.
                   log.warn("sendPrompt to handle failed, will queue and restart", { taskId, error: String(e) })
                   agentHandles.delete(taskId)
+                  log.debug("Handle removed (sendPrompt failed)", { taskId, handleCount: agentHandles.size })
                   return Effect.succeed(false)
                 }),
               )
@@ -1085,12 +1087,17 @@ export async function start(): Promise<void> {
                 return
               }
             } else if (handle && !handleAlive) {
-              log.warn("Agent handle exists but process is dead, removing stale handle", { taskId })
+              const stalePid = (handle as { __pid?: number }).__pid
+              log.warn("Agent handle exists but process is dead, removing stale handle", { taskId, stalePid })
               agentHandles.delete(taskId)
+              log.debug("Handle removed (stale)", { taskId, stalePid, handleCount: agentHandles.size })
             }
 
             // Agent not reachable — either suspended (idle timeout) or crashed.
             // Restart the agent and queue the prompt for delivery once ready.
+            if (!handle) {
+              log.warn("Handle missing for running task", { taskId, handleCount: agentHandles.size, suspended: isTaskSuspended(taskId) })
+            }
             if (isTaskSuspended(taskId)) {
               clearSuspended(taskId)
               yield* updateTask(db, taskId, { suspended: 0 }).pipe(Effect.ignoreLogged)
@@ -1147,7 +1154,9 @@ export async function start(): Promise<void> {
             Effect.tap(() => clearQueue(taskId)),
             Effect.tap(() => Effect.sync(() => {
               clearTaskState(taskId)
+              const hadHandle = agentHandles.has(taskId)
               agentHandles.delete(taskId)
+              log.debug("Handle removed (cleanup)", { taskId, hadHandle, handleCount: agentHandles.size })
             })),
             Effect.mapError((e) => ({ _tag: e._tag, message: e.message }))
           ),
@@ -1252,18 +1261,31 @@ export async function start(): Promise<void> {
       listRunningTasks: () => listTasks(db, { status: "running" }),
       checkAgentAlive: (taskId) => Effect.sync(() => {
         const handle = agentHandles.get(taskId)
-        if (!handle) return false
+        if (!handle) {
+          log.debug("checkAgentAlive: no handle", { taskId, handleCount: agentHandles.size })
+          return false
+        }
 
         // Prefer session-level health check when the ACP handle exposes one.
-        if (handle.isAlive) return handle.isAlive()
+        if (handle.isAlive) {
+          const alive = handle.isAlive()
+          if (!alive) {
+            log.debug("checkAgentAlive: isAlive returned false", { taskId, pid: (handle as { __pid?: number }).__pid })
+          }
+          return alive
+        }
 
         // Fallback to PID check for handles without isAlive
         const pid = (handle as { __pid?: number }).__pid
-        if (!pid) return false
+        if (!pid) {
+          log.debug("checkAgentAlive: no PID on handle", { taskId })
+          return false
+        }
         try {
           process.kill(pid, 0)
           return true
         } catch {
+          log.debug("checkAgentAlive: PID dead", { taskId, pid })
           return false
         }
       }),
@@ -1297,7 +1319,9 @@ export async function start(): Promise<void> {
       suspendAgent: (taskId) => {
         const handle = agentHandles.get(taskId)
         if (!handle) return Effect.void
+        const pid = (handle as { __pid?: number }).__pid
         agentHandles.delete(taskId)
+        log.debug("Handle removed (suspend)", { taskId, pid, handleCount: agentHandles.size })
         return handle.shutdown().pipe(Effect.catchAll(() => Effect.void))
       },
       persistSuspended: (taskId, suspended) =>
