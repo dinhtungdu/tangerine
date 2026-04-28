@@ -40,7 +40,7 @@ function getQueue(taskId: string): TaskQueue {
   return q
 }
 
-export type SendPromptFn = (taskId: string, text: string, images?: PromptImage[], fromTaskId?: string) => Promise<void>
+export type SendPromptFn = (taskId: string, text: string, images?: PromptImage[], fromTaskId?: string, displayText?: string) => Promise<void>
 
 function cloneEntry(entry: PromptQueueEntry): PromptQueueEntry {
   return {
@@ -157,7 +157,7 @@ export function drainNext(
     // Retry transient failures (e.g. HTTP 503, stdin backpressure) with short
     // exponential backoff before re-queuing the prompt for a later drain cycle.
     yield* Effect.tryPromise({
-      try: () => sendPrompt(taskId, entry.text, entry.images, entry.fromTaskId),
+      try: () => sendPrompt(taskId, entry.text, entry.images, entry.fromTaskId, entry.displayText),
       catch: (e) => new PromptError({
         message: `Prompt send attempt failed: ${e instanceof Error ? e.message : String(e)}`,
         taskId,
@@ -205,7 +205,7 @@ export function drainAll(
     let sent = 0
     for (const entry of entries) {
       yield* Effect.tryPromise({
-        try: () => sendPrompt(taskId, entry.text, entry.images, entry.fromTaskId),
+        try: () => sendPrompt(taskId, entry.text, entry.images, entry.fromTaskId, entry.displayText),
         catch: () => new PromptError({
           message: "Drain send failed",
           taskId,

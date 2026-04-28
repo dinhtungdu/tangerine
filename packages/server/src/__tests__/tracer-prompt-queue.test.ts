@@ -20,13 +20,13 @@ import {
  */
 describe("tracer: prompt queue -> agent state -> delivery", () => {
   const tid = () => `task-${crypto.randomUUID().slice(0, 8)}`
-  let sentPrompts: Array<{ taskId: string; text: string; fromTaskId?: string }>
+  let sentPrompts: Array<{ taskId: string; text: string; fromTaskId?: string; displayText?: string }>
   let sendPrompt: SendPromptFn
 
   beforeEach(() => {
     sentPrompts = []
-    sendPrompt = mock(async (taskId: string, text: string, _images, fromTaskId) => {
-      sentPrompts.push({ taskId, text, fromTaskId })
+    sendPrompt = mock(async (taskId: string, text: string, _images, fromTaskId, displayText) => {
+      sentPrompts.push({ taskId, text, fromTaskId, displayText })
     }) as SendPromptFn
   })
 
@@ -132,6 +132,17 @@ describe("tracer: prompt queue -> agent state -> delivery", () => {
     Effect.runSync(clearQueue(t))
   })
 
+  it("passes display text when draining prompts with system notes", async () => {
+    const t = tid()
+    Effect.runSync(enqueue(t, "system notes\n\nOriginal", undefined, "source-task", "Original"))
+
+    await Effect.runPromise(drainNext(t, sendPrompt))
+
+    expect(sentPrompts).toEqual([{ taskId: t, text: "system notes\n\nOriginal", fromTaskId: "source-task", displayText: "Original" }])
+
+    Effect.runSync(clearQueue(t))
+  })
+
   it("edits and removes queued prompts before delivery", async () => {
     const t = tid()
     const entry = Effect.runSync(enqueue(t, "Original", undefined, "source-task"))
@@ -140,7 +151,7 @@ describe("tracer: prompt queue -> agent state -> delivery", () => {
     expect(Effect.runSync(getQueuedPrompts(t))[0]?.text).toBe("Edited")
 
     await Effect.runPromise(drainNext(t, sendPrompt))
-    expect(sentPrompts).toEqual([{ taskId: t, text: "Edited", fromTaskId: "source-task" }])
+    expect(sentPrompts).toEqual([{ taskId: t, text: "Edited", fromTaskId: "source-task", displayText: "Edited" }])
 
     Effect.runSync(setAgentState(t, "idle"))
     const removedEntry = Effect.runSync(enqueue(t, "Remove me"))

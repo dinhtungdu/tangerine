@@ -73,7 +73,7 @@ Current task types:
 | POST | `/api/tasks/:id/prompt` | Send a prompt |
 | POST | `/api/tasks/:id/chat` | Send a prompt and return `202` immediately |
 | POST | `/api/tasks/:id/abort` | Abort the current run |
-| GET | `/api/tasks/:id/queue` | List queued prompts waiting for the current turn to finish |
+| GET | `/api/tasks/:id/queue` | List queued prompts waiting for the current turn to finish; queued prompts are persisted to session logs only when delivered to the agent |
 | PATCH | `/api/tasks/:id/queue/:promptId` | Edit queued prompt text/images before delivery |
 | DELETE | `/api/tasks/:id/queue/:promptId` | Remove a queued prompt |
 | POST | `/api/tasks/:id/model` | Change model, reasoning effort, and/or ACP mode |

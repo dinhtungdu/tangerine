@@ -85,7 +85,7 @@ Current sections:
 - initial task-detail load uses `/api/tasks/:id/messages`, which includes persisted logs plus any transient active assistant/thinking stream so switching into a running task shows current output immediately
 - ACP `config.options`, `slash.commands`, `thinking.streaming`, `thinking.complete`, `plan`, and `content.block` events are folded into per-task session state
 - activity REST snapshots merge with WebSocket activity updates by id/freshness so stale fetch responses cannot overwrite live tool progress
-- queued prompts come from `queue` WebSocket messages plus `/api/tasks/:id/queue` REST fallback; edits/removals call queue REST routes
+- queued prompts come from `queue` WebSocket messages plus `/api/tasks/:id/queue` REST fallback; edits/removals call queue REST routes; queued prompts stay in the queue UI, not the transcript, until delivered to the agent
 
 ## Shared Components
 

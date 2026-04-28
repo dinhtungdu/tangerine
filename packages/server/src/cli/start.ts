@@ -280,6 +280,47 @@ export async function start(): Promise<void> {
     const getAgentFactory = (provider: string) =>
       factories[provider] ?? defaultFactory
 
+    const persistUserPrompt = (taskId: string, text: string, images?: import("../agent/provider").PromptImage[], fromTaskId?: string): Effect.Effect<void, never> =>
+      Effect.gen(function* () {
+        let imageFilenames: string[] | undefined
+        if (images && images.length > 0) {
+          const imagesDir = `${TANGERINE_HOME}/images/${taskId}`
+          yield* Effect.tryPromise({
+            try: () => Bun.write(`${imagesDir}/.keep`, ""),
+            catch: () => new Error("mkdir"),
+          }).pipe(Effect.catchAll(() => Effect.void))
+
+          imageFilenames = []
+          for (const img of images) {
+            const ext = img.mediaType.split("/")[1] ?? "png"
+            const filename = `${Date.now()}-${Math.random().toString(36).slice(2, 8)}.${ext}`
+            yield* Effect.tryPromise({
+              try: () => Bun.write(
+                `${imagesDir}/${filename}`,
+                Buffer.from(img.data, "base64"),
+              ),
+              catch: () => new Error("write image"),
+            }).pipe(Effect.catchAll(() => Effect.void))
+            imageFilenames.push(filename)
+          }
+        }
+
+        yield* insertSessionLog(db, {
+          task_id: taskId,
+          role: "user",
+          content: text,
+          images: imageFilenames ? JSON.stringify(imageFilenames) : null,
+          from_task_id: fromTaskId ?? null,
+        }).pipe(Effect.catchAll(() => Effect.void))
+
+        emitTaskEvent(taskId, {
+          role: "user",
+          content: text,
+          timestamp: new Date().toISOString(),
+          images: imageFilenames,
+        })
+      })
+
     // Wire task manager — extract cleanupDeps so retryDeps can reference it
     const cleanupDeps: CleanupDeps = {
       db,
@@ -335,8 +376,9 @@ export async function start(): Promise<void> {
           }
           agentHandles.set(taskId, session.agentHandle)
 
-          const sendFn = async (_tid: string, text: string, imgs?: import("../agent/provider").PromptImage[]) => {
+          const sendFn = async (_tid: string, text: string, imgs?: import("../agent/provider").PromptImage[], fromTaskId?: string, displayText?: string) => {
             await Effect.runPromise(session.agentHandle.sendPrompt(text, imgs))
+            await Effect.runPromise(persistUserPrompt(_tid, displayText ?? text, imgs, fromTaskId))
           }
           const drainQueuedOnce = () => Effect.runPromise(
             drainQueuedPrompts(taskId, sendFn).pipe(
@@ -976,49 +1018,6 @@ export async function start(): Promise<void> {
 
             getTaskState(taskId).queuePaused = false
 
-            // Save images to disk and store filenames in session_logs
-            let imageFilenames: string[] | undefined
-            if (images && images.length > 0) {
-              const imagesDir = `${TANGERINE_HOME}/images/${taskId}`
-              yield* Effect.tryPromise({
-                try: () => Bun.write(`${imagesDir}/.keep`, ""),
-                catch: () => new Error("mkdir"),
-              }).pipe(Effect.catchAll(() => Effect.void))
-
-              imageFilenames = []
-              for (const img of images) {
-                const ext = img.mediaType.split("/")[1] ?? "png"
-                const filename = `${Date.now()}-${Math.random().toString(36).slice(2, 8)}.${ext}`
-                yield* Effect.tryPromise({
-                  try: () => Bun.write(
-                    `${imagesDir}/${filename}`,
-                    Buffer.from(img.data, "base64"),
-                  ),
-                  catch: () => new Error("write image"),
-                }).pipe(Effect.catchAll(() => Effect.void))
-                imageFilenames.push(filename)
-              }
-            }
-
-            yield* insertSessionLog(db, {
-              task_id: taskId,
-              role: "user",
-              content: text,
-              images: imageFilenames ? JSON.stringify(imageFilenames) : null,
-              from_task_id: fromTaskId ?? null,
-            }).pipe(
-              Effect.catchAll(() => Effect.void)
-            )
-
-            // Broadcast user message to all WS clients subscribed to this task
-            // so that other browser windows see it in real time.
-            emitTaskEvent(taskId, {
-              role: "user",
-              content: text,
-              timestamp: new Date().toISOString(),
-              images: imageFilenames,
-            })
-
             // Prepend system notes to the first prompt for a task
             let promptText = text
             if (!getTaskState(taskId).firstPromptSent) {
@@ -1066,7 +1065,10 @@ export async function start(): Promise<void> {
                   return Effect.succeed(false)
                 }),
               )
-              if (sent) return
+              if (sent) {
+                yield* persistUserPrompt(taskId, text, images, fromTaskId)
+                return
+              }
             } else if (handle && !handleAlive) {
               log.warn("Agent handle exists but process is dead, removing stale handle", { taskId })
               agentHandles.delete(taskId)

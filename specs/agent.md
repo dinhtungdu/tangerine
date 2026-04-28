@@ -121,7 +121,7 @@ ACP events fan out to the existing Tangerine surfaces:
 - `session_logs`
 - `activity_log`
 - task working-state updates
-- queued prompt updates for messages waiting on the active turn
+- queued prompt updates for messages waiting on the active turn; queued user prompts enter `session_logs` only when drained to the agent
 - token/context usage persistence
 
 The dashboard is a Tangerine task UI powered by ACP streams, not an embedded ACP UI.
