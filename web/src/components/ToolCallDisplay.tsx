@@ -163,7 +163,7 @@ export function ToolCallDisplay({ content, status = "success" }: ToolCallDisplay
         onClick={() => setExpanded(!expanded)}
         aria-expanded={expanded}
         aria-label={`${expanded ? "Collapse" : "Expand"} ${label}`}
-        className="flex w-full items-center gap-2 bg-muted px-3 py-1.5 outline-none focus-visible:ring-1 focus-visible:ring-ring/50"
+        className="flex w-full items-center gap-2 overflow-hidden bg-muted px-3 py-1.5 outline-none focus-visible:ring-1 focus-visible:ring-ring/50"
       >
         <StatusIndicator status={status} />
         <svg className="h-3.5 w-3.5 text-muted-foreground" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
