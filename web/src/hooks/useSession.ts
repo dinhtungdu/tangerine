@@ -27,6 +27,7 @@ interface UseSessionResult {
   sendPrompt: (text: string, images?: PromptImage[]) => void
   abort: () => void
   contextTokens: number
+  contextWindowMax: number | null
   configOptions: AgentConfigOption[]
 }
 
@@ -74,13 +75,26 @@ export function applyThinkingStreamMessage(
   })
 }
 
-export function useSession(taskId: string, initialContextTokens?: number): UseSessionResult {
+export interface UsageState {
+  contextTokens: number
+  contextWindowMax: number | null
+}
+
+export function applyUsageUpdate(state: UsageState, event: { contextTokens?: number; contextWindowMax?: number }): UsageState {
+  return {
+    contextTokens: typeof event.contextTokens === "number" && event.contextTokens > 0 ? event.contextTokens : state.contextTokens,
+    contextWindowMax: typeof event.contextWindowMax === "number" && event.contextWindowMax > 0 ? event.contextWindowMax : state.contextWindowMax,
+  }
+}
+
+export function useSession(taskId: string, initialContextTokens?: number, initialContextWindowMax?: number | null): UseSessionResult {
   const [messages, setMessages] = useState<ChatMessage[]>([])
   const [activities, setActivities] = useState<ActivityEntry[]>([])
   const [agentStatus, setAgentStatus] = useState<"idle" | "working">("idle")
   const [queueLength, setQueueLength] = useState(0)
   const [taskStatus, setTaskStatus] = useState<TaskStatus | null>(null)
   const [contextTokens, setContextTokens] = useState(initialContextTokens ?? 0)
+  const [contextWindowMax, setContextWindowMax] = useState<number | null>(initialContextWindowMax ?? null)
   const [configOptions, setConfigOptions] = useState<AgentConfigOption[]>([])
   const { connected, messages: wsMessages, send } = useWebSocket(taskId)
   const processedCountRef = useRef(0)
@@ -89,18 +103,18 @@ export function useSession(taskId: string, initialContextTokens?: number): UseSe
   // without false-positives when the same text is sent twice.
   const pendingOptimisticRef = useRef<Set<string>>(new Set())
 
-  // Sync context tokens when the task's persisted value changes (e.g. on initial load or poll).
-  // Reset to 0 when switching tasks and new data hasn't loaded yet.
+  // Sync context usage when persisted task values change (e.g. on initial load or poll).
+  // Reset when switching tasks and new data hasn't loaded yet.
   useEffect(() => {
     setContextTokens(initialContextTokens ?? 0)
-  }, [taskId, initialContextTokens])
+    setContextWindowMax(initialContextWindowMax ?? null)
+  }, [taskId, initialContextTokens, initialContextWindowMax])
 
   // Clear all session state immediately when the task changes so the previous
   // task's messages/activities/status don't leak into the new one while the
-  // REST fetch is in flight. Reset contextTokens to 0 here to clear stale data
-  // from the previous task — the sync effect above will update it when the new
-  // task's initialContextTokens arrives. This runs AFTER the sync effect, so it
-  // overrides any stale initialContextTokens that hasn't updated yet.
+  // REST fetch is in flight. Reset context usage here to clear stale data from
+  // the previous task. This runs AFTER the sync effect, so it overrides stale
+  // initial values until the new task data arrives.
   useEffect(() => {
     setMessages([])
     setActivities([])
@@ -108,6 +122,7 @@ export function useSession(taskId: string, initialContextTokens?: number): UseSe
     setQueueLength(0)
     setTaskStatus(null)
     setContextTokens(0)
+    setContextWindowMax(null)
     setConfigOptions([])
     processedCountRef.current = 0
     activeAssistantStreamIdRef.current = null
@@ -277,8 +292,9 @@ export function useSession(taskId: string, initialContextTokens?: number): UseSe
           } else if (eventType === "agent.end" || eventType === "agent.idle") {
             setAgentStatus("idle")
           } else if (eventType === "usage") {
-            const ev = data as { contextTokens?: number }
-            if (typeof ev.contextTokens === "number" && ev.contextTokens > 0) setContextTokens(ev.contextTokens)
+            const ev = data as { contextTokens?: number; contextWindowMax?: number }
+            setContextTokens((prev) => applyUsageUpdate({ contextTokens: prev, contextWindowMax: null }, ev).contextTokens)
+            setContextWindowMax((prev) => applyUsageUpdate({ contextTokens: 0, contextWindowMax: prev }, ev).contextWindowMax)
           } else if (eventType === "config.options") {
             const ev = data as { configOptions?: unknown }
             if (Array.isArray(ev.configOptions)) setConfigOptions(ev.configOptions as AgentConfigOption[])
@@ -352,5 +368,5 @@ export function useSession(taskId: string, initialContextTokens?: number): UseSe
     setQueueLength(0)
   }, [send])
 
-  return { messages, activities, agentStatus, queueLength, connected, taskStatus, sendPrompt, abort, contextTokens, configOptions }
+  return { messages, activities, agentStatus, queueLength, connected, taskStatus, sendPrompt, abort, contextTokens, contextWindowMax, configOptions }
 }

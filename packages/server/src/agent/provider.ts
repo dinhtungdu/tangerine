@@ -19,10 +19,11 @@ export type AgentEvent =
   | { kind: "thinking.complete"; content: string; messageId?: string }
   /** Token usage — providers emit this when they have token data.
    *  Fields are undefined when the event only carries partial data (e.g. stream events).
-   *  contextTokens = current context window usage for this turn (from message_start).
+   *  contextTokens = current context window usage for this turn.
+   *  contextWindowMax = current context window capacity when the provider reports it.
    *  inputTokens/outputTokens = token counts for accumulation.
    *  cumulative = true means values are already session totals (overwrite, don't add). */
-  | { kind: "usage"; inputTokens?: number; outputTokens?: number; contextTokens?: number; cumulative?: boolean }
+  | { kind: "usage"; inputTokens?: number; outputTokens?: number; contextTokens?: number; contextWindowMax?: number; cumulative?: boolean }
   | { kind: "config.options"; options: AgentConfigOption[] }
   | { kind: "plan"; entries: AgentPlanEntry[] }
   | { kind: "content.block"; block: AgentContentBlock }

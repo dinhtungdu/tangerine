@@ -310,9 +310,10 @@ export async function start(): Promise<void> {
           }
 
           // Hydrate in-memory tracking from DB (lost on restart)
-          const taskMeta = db.prepare("SELECT pr_url, context_tokens FROM tasks WHERE id = ?").get(taskId) as { pr_url: string | null; context_tokens: number } | null
+          const taskMeta = db.prepare("SELECT pr_url, context_tokens, context_window_max FROM tasks WHERE id = ?").get(taskId) as { pr_url: string | null; context_tokens: number; context_window_max: number | null } | null
           const s = getTaskState(taskId)
           s.contextTokens = taskMeta?.context_tokens ?? 0
+          s.contextWindowMax = taskMeta?.context_window_max ?? null
           const taskRow = db.prepare("SELECT project_id, type FROM tasks WHERE id = ?").get(taskId) as { project_id: string | null; type: string | null } | null
           const projConfig = taskRow?.project_id ? getProjectConfig(config.config, taskRow.project_id) : undefined
           s.systemPromptApplied = buildSystemNotes(taskId, {
@@ -807,10 +808,18 @@ export async function start(): Promise<void> {
               case "usage": {
                 // Context tokens = current context window usage (not cumulative)
                 const state = getTaskState(taskId)
+                const updates: Partial<TaskRow> = {}
                 if (event.contextTokens != null && event.contextTokens > 0) {
                   state.contextTokens = event.contextTokens
+                  updates.context_tokens = state.contextTokens
+                }
+                if (event.contextWindowMax != null && event.contextWindowMax > 0) {
+                  state.contextWindowMax = event.contextWindowMax
+                  updates.context_window_max = state.contextWindowMax
+                }
+                if (Object.keys(updates).length > 0) {
                   Effect.runPromise(
-                    updateTask(db, taskId, { context_tokens: state.contextTokens }, { skipUpdatedAt: true }).pipe(
+                    updateTask(db, taskId, updates, { skipUpdatedAt: true }).pipe(
                       Effect.catchAll(() => Effect.void)
                     )
                   )
@@ -818,6 +827,7 @@ export async function start(): Promise<void> {
                 emitTaskEvent(taskId, {
                   event: "usage",
                   contextTokens: state.contextTokens,
+                  contextWindowMax: state.contextWindowMax,
                 })
                 break
               }

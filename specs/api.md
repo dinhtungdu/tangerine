@@ -139,6 +139,7 @@ Task event payloads include legacy normalized chat/activity events plus ACP-deri
 - `{ event: "thinking.complete", messageId, role: "thinking", content }` for one persisted thought message
 - `{ event: "plan", entries }` for ACP plan cards
 - `{ event: "content.block", block }` for ACP non-text content blocks
+- `{ event: "usage", contextTokens, contextWindowMax }` for ACP context-window usage
 
 Server messages match the shared type shape:
 
