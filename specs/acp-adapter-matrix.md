@@ -47,7 +47,8 @@ Observed from installed/open adapter packages on 2026-04-28.
 - If legacy `modes` exist and values are session behavior modes, synthesize `category: "mode"` and write with `session/set_mode`.
 - If legacy `modes` exist and all values are semantic thinking/reasoning levels, synthesize `category: "thought_level"` and write with `session/set_mode`.
 - If text chunks have no `messageId`, Tangerine creates one active assistant/thought stream id per turn.
-- If an assistant text chunk starts a new sentence immediately after a sentence-ending punctuation mark from the previous chunk, Tangerine inserts a `\n\n` paragraph separator while keeping one assistant message.
+- If an assistant text chunk changes non-null `messageId`, Tangerine flushes the previous assistant message and starts a new one.
+- Within one assistant message, if a multi-word prose text chunk starts after sentence-ending punctuation with no adapter whitespace, Tangerine inserts a `\n\n` paragraph separator.
 - If an adapter replays or delays assistant text chunks outside the active prompt turn, Tangerine drops them instead of carrying them into the next completion.
 - If `type: "text"` content has empty/missing text, ignore it; it is not a content block card.
 - Treat repeated `tool_call_update.content` as replacement/progress state; ACP does not define a separate `tool_result_delta` event.
