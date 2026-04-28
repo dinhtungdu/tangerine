@@ -282,7 +282,20 @@ describe("useSession", () => {
       expect(result.current.messages[0].role).toBe("user")
       expect(result.current.messages[0].content).toBe("hello world")
 
-      // Simulate server queue update (agent was actually busy)
+      // Server broadcasts user message back (acknowledges receipt)
+      act(() => {
+        wsInstance?.onmessage?.(new MessageEvent("message", {
+          data: JSON.stringify({
+            type: "event",
+            data: { role: "user", content: "hello world", timestamp: new Date().toISOString() },
+          }),
+        }))
+      })
+
+      // Optimistic message still in chat (deduplicated, not added twice)
+      expect(result.current.messages).toHaveLength(1)
+
+      // Simulate server queue update (agent was actually busy, so it queued)
       act(() => {
         wsInstance?.onmessage?.(new MessageEvent("message", {
           data: JSON.stringify({

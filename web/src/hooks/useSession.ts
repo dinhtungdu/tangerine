@@ -142,7 +142,8 @@ export function useSession(taskId: string, initialContextTokens?: number, initia
   const activeAssistantStreamIdRef = useRef<string | null>(null)
   // Track optimistic user message IDs so we can deduplicate WS broadcasts
   // without false-positives when the same text is sent twice.
-  const pendingOptimisticRef = useRef<Set<string>>(new Set())
+  // Map value: true = server-acknowledged (WS broadcast received), false = not yet
+  const pendingOptimisticRef = useRef<Map<string, boolean>>(new Map())
 
   // Sync context usage when persisted task values change (e.g. on initial load or poll).
   // Reset when switching tasks and new data hasn't loaded yet.
@@ -338,13 +339,26 @@ export function useSession(taskId: string, initialContextTokens?: number, initia
             // Deduplicate: if this tab sent the message optimistically, skip
             // the WS broadcast. Match by content against pending optimistic IDs
             // so sending the same text twice still works correctly.
+            // Mark as acknowledged (don't delete) so queue handler can check later.
+            // Only match unacknowledged entries to avoid matching stale ones.
             if (newMsg.role === "user" && pendingOptimisticRef.current.size > 0) {
-              const matchId = [...pendingOptimisticRef.current].find((id) => {
+              const matchId = [...pendingOptimisticRef.current.entries()].find(([id, acknowledged]) => {
+                if (acknowledged) return false
                 const opt = prev.find((m) => m.id === id)
                 return opt && opt.content === newMsg.content
-              })
+              })?.[0]
               if (matchId) {
-                pendingOptimisticRef.current.delete(matchId)
+                pendingOptimisticRef.current.set(matchId, true)
+                // Clear any stale acknowledged entries with same content to prevent buildup
+                const matchContent = prev.find((m) => m.id === matchId)?.content
+                for (const [id, ack] of pendingOptimisticRef.current) {
+                  if (id !== matchId && ack) {
+                    const entry = prev.find((m) => m.id === id)
+                    if (entry?.content === matchContent) {
+                      pendingOptimisticRef.current.delete(id)
+                    }
+                  }
+                }
                 return prev
               }
             }
@@ -390,14 +404,16 @@ export function useSession(taskId: string, initialContextTokens?: number, initia
       case "queue":
         // If queue contains a message we optimistically added to chat, remove from chat.
         // This fixes the race where client thinks agent idle but server queues (agent busy).
-        // Only match against pendingOptimisticRef to avoid removing legitimate chat history
-        // (e.g. duplicate messages, or messages from reconnect).
+        // Only match against server-acknowledged entries in pendingOptimisticRef to avoid
+        // removing legitimate chat history (e.g. duplicate messages, or messages from reconnect).
         setMessages((prev) => {
           if (pendingOptimisticRef.current.size === 0) return prev
           const toRemove = new Set<string>()
           // Build list of queued texts for matching (handle duplicates with 1:1 matching)
           const queuedTexts = msg.queuedPrompts.map((e) => e.text)
-          for (const optimisticId of [...pendingOptimisticRef.current]) {
+          for (const [optimisticId, acknowledged] of pendingOptimisticRef.current) {
+            // Only check acknowledged entries (server received, may have queued)
+            if (!acknowledged) continue
             const opt = prev.find((m) => m.id === optimisticId)
             if (!opt) continue
             const matchIdx = queuedTexts.indexOf(opt.content)
@@ -406,6 +422,9 @@ export function useSession(taskId: string, initialContextTokens?: number, initia
               pendingOptimisticRef.current.delete(optimisticId)
               // Remove matched text to handle duplicate sends correctly (1:1 matching)
               queuedTexts.splice(matchIdx, 1)
+            } else {
+              // Acknowledged but not in queue = message was processed, not queued. Clear tracking.
+              pendingOptimisticRef.current.delete(optimisticId)
             }
           }
           if (toRemove.size === 0) return prev
@@ -435,7 +454,7 @@ export function useSession(taskId: string, initialContextTokens?: number, initia
       const shouldQueue = agentStatus === "working"
       if (!shouldQueue && (text || images?.length)) {
         const optimisticId = `user-${Date.now()}`
-        pendingOptimisticRef.current.add(optimisticId)
+        pendingOptimisticRef.current.set(optimisticId, false)
         setMessages((prev) => [
           ...prev,
           {
