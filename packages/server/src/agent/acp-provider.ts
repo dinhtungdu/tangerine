@@ -190,6 +190,7 @@ export function createPromptStatusTracker(emit: (status: "idle" | "working") => 
   isWorking(): boolean
   toolStart(toolCallId: string): void
   toolEnd(toolCallId: string): void
+  clearTools(): void
 } {
   let nextTurnId = 0
   const activeTurns = new Set<number>()
@@ -227,8 +228,9 @@ export function createPromptStatusTracker(emit: (status: "idle" | "working") => 
       turnsPendingIdle.clear()
       if (wasWorking) emit("idle")
     },
+    // Used for gating assistant chunks - only check prompt turns, not tools
     isWorking() {
-      return activeTurns.size > 0 || activeTools.size > 0
+      return activeTurns.size > 0
     },
     toolStart(toolCallId: string) {
       const wasIdle = activeTurns.size === 0 && activeTools.size === 0
@@ -242,6 +244,14 @@ export function createPromptStatusTracker(emit: (status: "idle" | "working") => 
         turnsPendingIdle.clear()
       }
       maybeEmitIdle()
+    },
+    // Clear tool state on prompt error/cancel to prevent stuck "working" state
+    clearTools() {
+      activeTools.clear()
+      if (turnsPendingIdle.size > 0) {
+        turnsPendingIdle.clear()
+        maybeEmitIdle()
+      }
     },
   }
 }
@@ -500,12 +510,16 @@ async function startAcpSession(ctx: AgentStartContext, config?: AcpProviderConfi
     }
     if (event.kind === "slash.commands") slashCommands = event.commands
     // Track tool lifecycle to prevent premature idle emission
+    // For tool.end: emit event first, then update tracker (which may emit idle)
     if (event.kind === "tool.start" && event.toolCallId) {
       statusTracker.toolStart(event.toolCallId)
+      emit(event)
     } else if (event.kind === "tool.end" && event.toolCallId) {
+      emit(event)
       statusTracker.toolEnd(event.toolCallId)
+    } else {
+      emit(event)
     }
-    emit(event)
   }
 
   const applyConfigOptions = (value: unknown, shouldEmit: boolean) => {
@@ -674,6 +688,8 @@ async function startAcpSession(ctx: AgentStartContext, config?: AcpProviderConfi
               emitFlushedThoughts()
               const message = error instanceof Error ? error.message : String(error)
               emit({ kind: "error", message })
+              // Clear tool state on error - cancelled/failed prompts may not send terminal tool events
+              statusTracker.clearTools()
               statusTracker.end(turnId)
             })
         },
