@@ -9,13 +9,10 @@ interface FileMentionPickerProps {
   onHover: (index: number) => void
 }
 
-function fileName(path: string): string {
-  return path.split("/").pop() ?? path
-}
-
-function fileDir(path: string): string {
+function splitPath(path: string): { dir: string; name: string } {
   const idx = path.lastIndexOf("/")
-  return idx === -1 ? "" : path.slice(0, idx)
+  if (idx === -1) return { dir: "", name: path }
+  return { dir: path.slice(0, idx + 1), name: path.slice(idx + 1) }
 }
 
 export function FileMentionPicker({ files, selectedIndex, onSelect, onHover }: FileMentionPickerProps) {
@@ -27,15 +24,23 @@ export function FileMentionPicker({ files, selectedIndex, onSelect, onHover }: F
       onSelect={onSelect}
       onHover={onHover}
     >
-      {(file) => (
-        <>
-          <FileText className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
-          <span className="min-w-0 flex-1 truncate text-sm text-foreground">{fileName(file.path)}</span>
-          <span className="hidden min-w-0 max-w-[50%] truncate font-mono text-xxs text-muted-foreground md:inline">
-            {fileDir(file.path)}
-          </span>
-        </>
-      )}
+      {(file) => {
+        const { dir, name } = splitPath(file.path)
+        return (
+          <>
+            <FileText className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
+            <span
+              className="min-w-0 flex-1 overflow-hidden text-ellipsis whitespace-nowrap font-mono text-sm"
+              dir="rtl"
+            >
+              <bdi>
+                <span className="text-muted-foreground">{dir}</span>
+                <span className="font-semibold text-foreground">{name}</span>
+              </bdi>
+            </span>
+          </>
+        )
+      }}
     </SuggestionPicker>
   )
 }
