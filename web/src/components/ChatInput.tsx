@@ -510,28 +510,29 @@ export function ChatInput({ onSend, disabled, queueLength, taskId, isWorking, on
                   {queueLength}
                 </span>
               )}
-              {isWorking && (
+              {/* Merged send/stop button: stop icon when working + no input, send icon otherwise */}
+              {isWorking && !canSend ? (
                 <Button
-                  variant="ghost"
-                  size="icon-xs"
                   onClick={onAbort}
                   aria-label="Stop agent"
-                  className="text-destructive hover:bg-destructive/10 hover:text-destructive"
+                  size="icon-sm"
+                  className="shrink-0 bg-destructive hover:bg-destructive/90"
                 >
                   <svg className="h-3.5 w-3.5" fill="currentColor" viewBox="0 0 24 24">
                     <rect x="6" y="6" width="12" height="12" rx="1" />
                   </svg>
                 </Button>
+              ) : (
+                <Button
+                  onClick={handleSend}
+                  disabled={!canSend}
+                  aria-label="Send message"
+                  size="icon-sm"
+                  className="shrink-0"
+                >
+                  <ArrowUp className="h-4 w-4" />
+                </Button>
               )}
-              <Button
-                onClick={handleSend}
-                disabled={!canSend}
-                aria-label="Send message"
-                size="icon-sm"
-                className="shrink-0"
-              >
-                <ArrowUp className="h-4 w-4" />
-              </Button>
             </div>
           </div>
         </div>
