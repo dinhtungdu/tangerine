@@ -197,7 +197,7 @@ describe("useSession", () => {
     }
     globalThis.WebSocket = TestWebSocket as unknown as typeof WebSocket
     globalThis.fetch = mock((url: string) => {
-      if (url.includes("/messages")) return Promise.resolve(new Response(JSON.stringify([]), { status: 200, headers: { "Content-Type": "application/json" } }))
+      if (url.includes("/messages")) return Promise.resolve(new Response(JSON.stringify({ messages: [], hasMore: false }), { status: 200, headers: { "Content-Type": "application/json" } }))
       if (url.includes("/activities")) return Promise.resolve(new Response(JSON.stringify([]), { status: 200, headers: { "Content-Type": "application/json" } }))
       if (url.includes("/config-options")) {
         return Promise.resolve(new Response(JSON.stringify({ configOptions: [{ id: "model", name: "Model", category: "model", type: "select", currentValue: "gpt-5", options: [{ value: "gpt-5", name: "GPT-5" }] }] }), { status: 200, headers: { "Content-Type": "application/json" } }))
@@ -235,7 +235,10 @@ describe("useSession", () => {
 
     let resolveOldCommands: (() => void) | null = null
     globalThis.fetch = mock((url: string) => {
-      if (url.includes("/messages") || url.includes("/activities")) {
+      if (url.includes("/messages")) {
+        return Promise.resolve(new Response(JSON.stringify({ messages: [], hasMore: false }), { status: 200, headers: { "Content-Type": "application/json" } }))
+      }
+      if (url.includes("/activities")) {
         return Promise.resolve(new Response(JSON.stringify([]), { status: 200, headers: { "Content-Type": "application/json" } }))
       }
       if (url.includes("/config-options")) {
@@ -289,7 +292,10 @@ describe("useSession", () => {
     }
     globalThis.WebSocket = TestWebSocket as unknown as typeof WebSocket
     globalThis.fetch = mock((url: string) => {
-      if (url.includes("/messages") || url.includes("/activities") || url.includes("/queued-prompts")) {
+      if (url.includes("/messages")) {
+        return Promise.resolve(new Response(JSON.stringify({ messages: [], hasMore: false }), { status: 200, headers: { "Content-Type": "application/json" } }))
+      }
+      if (url.includes("/activities") || url.includes("/queued-prompts")) {
         return Promise.resolve(new Response(JSON.stringify([]), { status: 200, headers: { "Content-Type": "application/json" } }))
       }
       if (url.includes("/config-options")) {
@@ -376,7 +382,7 @@ describe("useSession", () => {
     globalThis.fetch = mock((url: string) => {
       if (url.includes("/messages")) {
         return new Promise<Response>((resolve) => {
-          resolveMessages = () => resolve(new Response(JSON.stringify([]), { status: 200, headers: { "Content-Type": "application/json" } }))
+          resolveMessages = () => resolve(new Response(JSON.stringify({ messages: [], hasMore: false }), { status: 200, headers: { "Content-Type": "application/json" } }))
         })
       }
       if (url.includes("/activities") || url.includes("/queued-prompts")) {

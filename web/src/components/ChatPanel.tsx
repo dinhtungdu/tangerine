@@ -43,6 +43,9 @@ interface ChatPanelProps {
   autoFocusKey?: string
   contextTokens?: number
   contextWindowMax?: number
+  hasMoreMessages?: boolean
+  loadingOlderMessages?: boolean
+  onLoadOlderMessages?: () => void
 }
 
 const EMPTY_ACTIVITIES: ActivityEntry[] = []
@@ -222,6 +225,9 @@ export function ChatPanel({
   autoFocusKey,
   contextTokens,
   contextWindowMax,
+  hasMoreMessages,
+  loadingOlderMessages,
+  onLoadOlderMessages,
 }: ChatPanelProps) {
   const scrollRef = useRef<HTMLDivElement>(null)
   const contentRef = useRef<HTMLDivElement>(null)
@@ -360,6 +366,18 @@ export function ChatPanel({
             </div>
           ) : (
             <div ref={contentRef} className="px-4 pb-12 pt-4">
+              {hasMoreMessages && onLoadOlderMessages && (
+                <div className="mb-4 flex justify-center">
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={onLoadOlderMessages}
+                    disabled={loadingOlderMessages}
+                  >
+                    {loadingOlderMessages ? "Loading..." : "Load older messages"}
+                  </Button>
+                </div>
+              )}
               <AssistantMessageGroups
                 messages={messages}
                 activities={activities}

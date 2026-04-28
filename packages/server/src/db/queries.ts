@@ -177,6 +177,31 @@ export function getSessionLogs(db: Database, taskId: string): Effect.Effect<Sess
   })
 }
 
+export interface PaginatedSessionLogs {
+  logs: SessionLogRow[]
+  hasMore: boolean
+}
+
+export function getSessionLogsPaginated(
+  db: Database,
+  taskId: string,
+  limit: number,
+  beforeId?: number
+): Effect.Effect<PaginatedSessionLogs, DbError> {
+  return dbTry(() => {
+    // Fetch most recent N logs (or N before cursor), then reverse for chronological order
+    const query = beforeId
+      ? "SELECT * FROM session_logs WHERE task_id = ? AND id < ? ORDER BY id DESC LIMIT ?"
+      : "SELECT * FROM session_logs WHERE task_id = ? ORDER BY id DESC LIMIT ?"
+    const params = beforeId ? [taskId, beforeId, limit + 1] : [taskId, limit + 1]
+    const rows = db.prepare(query).all(...params) as SessionLogRow[]
+    const hasMore = rows.length > limit
+    const logs = hasMore ? rows.slice(0, limit) : rows
+    // Reverse to chronological order (oldest first)
+    return { logs: logs.reverse(), hasMore }
+  })
+}
+
 // --- Crons ---
 
 export function createCron(

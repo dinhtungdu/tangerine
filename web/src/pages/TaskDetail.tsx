@@ -686,6 +686,9 @@ export function TaskDetail() {
                 autoFocusKey={chatTaskId}
                 contextTokens={session.contextTokens || undefined}
                 contextWindowMax={session.contextWindowMax ?? undefined}
+                hasMoreMessages={session.hasMoreMessages}
+                loadingOlderMessages={session.loadingOlderMessages}
+                onLoadOlderMessages={session.loadOlderMessages}
               />
             </div>
           )}

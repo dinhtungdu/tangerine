@@ -184,6 +184,21 @@ export async function fetchMessages(id: string): Promise<SessionLog[]> {
   return request<SessionLog[]>(`/api/tasks/${id}/messages`)
 }
 
+export interface PaginatedMessages {
+  messages: SessionLog[]
+  hasMore: boolean
+}
+
+export async function fetchMessagesPaginated(
+  id: string,
+  limit: number,
+  beforeId?: number
+): Promise<PaginatedMessages> {
+  const params = new URLSearchParams({ limit: String(limit) })
+  if (beforeId !== undefined) params.set("beforeId", String(beforeId))
+  return request<PaginatedMessages>(`/api/tasks/${id}/messages?${params}`)
+}
+
 export async function fetchTaskConfigOptions(id: string): Promise<AgentConfigOption[]> {
   const body = await request<{ configOptions?: AgentConfigOption[] }>(`/api/tasks/${id}/config-options`)
   return Array.isArray(body?.configOptions) ? body.configOptions : []

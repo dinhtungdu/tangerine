@@ -1,7 +1,7 @@
 import { Effect } from "effect"
 import { Hono } from "hono"
 import type { AppDeps } from "../app"
-import { getTask, getSessionLogs } from "../../db/queries"
+import { getTask, getSessionLogs, getSessionLogsPaginated } from "../../db/queries"
 import { getActivities } from "../../activity"
 import { runEffect, runEffectVoid } from "../effect-helpers"
 import { normalizeTimestamps } from "../helpers"
@@ -71,6 +71,28 @@ export function sessionRoutes(deps: AppDeps): Hono {
 
   app.get("/:id/messages", (c) => {
     const taskId = c.req.param("id")
+    const limitParam = c.req.query("limit")
+    const beforeIdParam = c.req.query("beforeId")
+
+    // Paginated mode: limit specified
+    if (limitParam) {
+      const limit = Math.min(Math.max(1, parseInt(limitParam, 10) || 100), 500)
+      const beforeId = beforeIdParam ? parseInt(beforeIdParam, 10) : undefined
+      return runEffect(c,
+        getSessionLogsPaginated(deps.db, taskId, limit, beforeId).pipe(
+          Effect.map(({ logs, hasMore }) => ({
+            messages: [
+              ...logs.map(normalizeTimestamps),
+              // Only include transient messages when fetching latest (no beforeId)
+              ...(!beforeId ? getTransientSessionLogs(taskId).map(normalizeTimestamps) : []),
+            ],
+            hasMore,
+          }))
+        )
+      )
+    }
+
+    // Legacy mode: fetch all (for backwards compatibility)
     return runEffect(c,
       getSessionLogs(deps.db, taskId).pipe(
         Effect.map((rows) => [

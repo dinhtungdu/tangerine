@@ -224,6 +224,7 @@ export {
   updateTaskStatus,
   insertSessionLog,
   getSessionLogs,
+  getSessionLogsPaginated,
   createCron,
   getCron,
   listCrons,

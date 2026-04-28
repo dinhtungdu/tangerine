@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback, useRef } from "react"
 import type { AgentConfigOption, AgentContentBlock, AgentPlanEntry, AgentSlashCommand, WsServerMessage, TaskStatus, ActivityEntry, PromptImage, PromptQueueEntry } from "@tangerine/shared"
-import { fetchMessages, fetchActivities, fetchQueuedPrompts, fetchTaskConfigOptions, fetchTaskSlashCommands, removeQueuedPrompt, updateQueuedPrompt, type SessionLog } from "../lib/api"
+import { fetchMessagesPaginated, fetchActivities, fetchQueuedPrompts, fetchTaskConfigOptions, fetchTaskSlashCommands, removeQueuedPrompt, updateQueuedPrompt, type SessionLog } from "../lib/api"
 import { useWebSocket } from "./useWebSocket"
 
 export interface ChatMessageImage {
@@ -35,6 +35,9 @@ interface UseSessionResult {
   contextWindowMax: number | null
   configOptions: AgentConfigOption[]
   slashCommands: AgentSlashCommand[]
+  hasMoreMessages: boolean
+  loadingOlderMessages: boolean
+  loadOlderMessages: () => Promise<void>
 }
 
 export function applyAssistantStreamMessage(
@@ -219,6 +222,8 @@ export function useSession(taskId: string, initialContextTokens?: number, initia
   const [contextWindowMax, setContextWindowMax] = useState<number | null>(initialContextWindowMax ?? null)
   const [configOptions, setConfigOptions] = useState<AgentConfigOption[]>([])
   const [slashCommands, setSlashCommands] = useState<AgentSlashCommand[]>([])
+  const [hasMoreMessages, setHasMoreMessages] = useState(false)
+  const [loadingOlderMessages, setLoadingOlderMessages] = useState(false)
   const { connected, messages: wsMessages, send } = useWebSocket(taskId)
   const activeTaskIdRef = useRef(taskId)
   activeTaskIdRef.current = taskId
@@ -251,6 +256,8 @@ export function useSession(taskId: string, initialContextTokens?: number, initia
     setContextWindowMax(null)
     setConfigOptions([])
     setSlashCommands([])
+    setHasMoreMessages(false)
+    setLoadingOlderMessages(false)
     processedCountRef.current = 0
     activeAssistantStreamIdRef.current = null
     for (const pending of pendingOptimisticRef.current.values()) clearPendingOptimistic(pending)
@@ -307,15 +314,43 @@ export function useSession(taskId: string, initialContextTokens?: number, initia
     setQueueVisibilityNow(now)
   }
 
+  const INITIAL_MESSAGE_LIMIT = 100
+
+  function logToMessage(log: SessionLog, taskIdForImages: string): ChatMessage {
+    const msg: ChatMessage = {
+      id: String(log.id),
+      role: log.role,
+      content: log.content,
+      timestamp: log.timestamp,
+    }
+    if (log.role === "plan") {
+      try {
+        msg.planEntries = JSON.parse(log.content) as AgentPlanEntry[]
+      } catch { /* ignore malformed */ }
+    }
+    if (log.role === "content") {
+      try {
+        msg.contentBlock = JSON.parse(log.content) as AgentContentBlock
+      } catch { /* ignore malformed */ }
+    }
+    if (log.images) {
+      try {
+        const filenames = JSON.parse(log.images) as string[]
+        msg.images = filenames.map((f) => ({ src: `/api/tasks/${taskIdForImages}/images/${f}` }))
+      } catch { /* ignore malformed */ }
+    }
+    return msg
+  }
+
   // Load initial messages + activities via REST (parallelized for faster task switching)
   const refreshFromRest = useCallback(async () => {
     const refreshTaskId = taskId
     const isCurrentTask = () => activeTaskIdRef.current === refreshTaskId
     const messagesRequestedAtMs = Date.now()
 
-    // Fire all independent requests in parallel
-    const [logsResult, activitiesResult, optionsResult, commandsResult, queuedResult] = await Promise.all([
-      fetchMessages(refreshTaskId).catch(() => null),
+    // Fire all independent requests in parallel (fetch most recent N messages for fast initial load)
+    const [messagesResult, activitiesResult, optionsResult, commandsResult, queuedResult] = await Promise.all([
+      fetchMessagesPaginated(refreshTaskId, INITIAL_MESSAGE_LIMIT).catch(() => null),
       fetchActivities(refreshTaskId).catch(() => null),
       fetchTaskConfigOptions(refreshTaskId).catch(() => null),
       fetchTaskSlashCommands(refreshTaskId).catch(() => null),
@@ -325,33 +360,10 @@ export function useSession(taskId: string, initialContextTokens?: number, initia
     if (!isCurrentTask()) return
 
     // Apply messages
-    if (logsResult) {
-      const snapshot = logsResult.map((log: SessionLog) => {
-        const msg: ChatMessage = {
-          id: String(log.id),
-          role: log.role,
-          content: log.content,
-          timestamp: log.timestamp,
-        }
-        if (log.role === "plan") {
-          try {
-            msg.planEntries = JSON.parse(log.content) as AgentPlanEntry[]
-          } catch { /* ignore malformed */ }
-        }
-        if (log.role === "content") {
-          try {
-            msg.contentBlock = JSON.parse(log.content) as AgentContentBlock
-          } catch { /* ignore malformed */ }
-        }
-        if (log.images) {
-          try {
-            const filenames = JSON.parse(log.images) as string[]
-            msg.images = filenames.map((f) => ({ src: `/api/tasks/${refreshTaskId}/images/${f}` }))
-          } catch { /* ignore malformed */ }
-        }
-        return msg
-      })
+    if (messagesResult) {
+      const snapshot = messagesResult.messages.map((log) => logToMessage(log, refreshTaskId))
       setMessages((prev) => mergeMessageSnapshot(prev, snapshot, messagesRequestedAtMs))
+      setHasMoreMessages(messagesResult.hasMore)
     }
 
     // Apply activities
@@ -642,5 +654,28 @@ export function useSession(taskId: string, initialContextTokens?: number, initia
 
   const visibleQueuedPrompts = filterVisibleQueuedPrompts(queuedPrompts, pendingOptimisticRef.current, queueVisibilityNow)
 
-  return { messages, activities, agentStatus, queueLength: visibleQueuedPrompts.length, queuedPrompts: visibleQueuedPrompts, connected, taskStatus, sendPrompt, abort, updateQueuedPrompt: handleUpdateQueuedPrompt, removeQueuedPrompt: handleRemoveQueuedPrompt, clearAllQueuedPrompts: handleClearAllQueuedPrompts, sendNowQueuedPrompt: handleSendNowQueuedPrompt, contextTokens, contextWindowMax, configOptions, slashCommands }
+  const loadOlderMessages = useCallback(async () => {
+    if (!hasMoreMessages || loadingOlderMessages) return
+    setLoadingOlderMessages(true)
+    try {
+      // Find oldest non-transient message ID as cursor
+      const oldestId = messages.find((m) => !m.id.startsWith("user-") && !m.id.startsWith("assistant-") && !m.id.startsWith("thinking-"))?.id
+      const beforeId = oldestId ? parseInt(oldestId, 10) : undefined
+      if (!beforeId || isNaN(beforeId)) {
+        setHasMoreMessages(false)
+        return
+      }
+      const result = await fetchMessagesPaginated(taskId, INITIAL_MESSAGE_LIMIT, beforeId)
+      if (activeTaskIdRef.current !== taskId) return
+      const olderMessages = result.messages.map((log) => logToMessage(log, taskId))
+      setMessages((prev) => [...olderMessages, ...prev])
+      setHasMoreMessages(result.hasMore)
+    } catch {
+      // ignore
+    } finally {
+      setLoadingOlderMessages(false)
+    }
+  }, [taskId, messages, hasMoreMessages, loadingOlderMessages])
+
+  return { messages, activities, agentStatus, queueLength: visibleQueuedPrompts.length, queuedPrompts: visibleQueuedPrompts, connected, taskStatus, sendPrompt, abort, updateQueuedPrompt: handleUpdateQueuedPrompt, removeQueuedPrompt: handleRemoveQueuedPrompt, clearAllQueuedPrompts: handleClearAllQueuedPrompts, sendNowQueuedPrompt: handleSendNowQueuedPrompt, contextTokens, contextWindowMax, configOptions, slashCommands, hasMoreMessages, loadingOlderMessages, loadOlderMessages }
 }
