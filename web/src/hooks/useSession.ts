@@ -388,6 +388,29 @@ export function useSession(taskId: string, initialContextTokens?: number, initia
         setAgentStatus(msg.agentStatus)
         break
       case "queue":
+        // If queue contains a message we optimistically added to chat, remove from chat.
+        // This fixes the race where client thinks agent idle but server queues (agent busy).
+        // Only match against pendingOptimisticRef to avoid removing legitimate chat history
+        // (e.g. duplicate messages, or messages from reconnect).
+        setMessages((prev) => {
+          if (pendingOptimisticRef.current.size === 0) return prev
+          const toRemove = new Set<string>()
+          // Build list of queued texts for matching (handle duplicates with 1:1 matching)
+          const queuedTexts = msg.queuedPrompts.map((e) => e.text)
+          for (const optimisticId of [...pendingOptimisticRef.current]) {
+            const opt = prev.find((m) => m.id === optimisticId)
+            if (!opt) continue
+            const matchIdx = queuedTexts.indexOf(opt.content)
+            if (matchIdx !== -1) {
+              toRemove.add(optimisticId)
+              pendingOptimisticRef.current.delete(optimisticId)
+              // Remove matched text to handle duplicate sends correctly (1:1 matching)
+              queuedTexts.splice(matchIdx, 1)
+            }
+          }
+          if (toRemove.size === 0) return prev
+          return prev.filter((m) => !toRemove.has(m.id))
+        })
         setQueuedPrompts(msg.queuedPrompts)
         break
       case "error":
