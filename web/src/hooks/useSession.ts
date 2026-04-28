@@ -137,6 +137,35 @@ function activityStartMs(activity: ActivityEntry): number {
   return Number.isFinite(parsed) ? parsed : 0
 }
 
+export const QUEUE_FLASH_SUPPRESS_MS = 800
+
+interface PendingOptimisticPrompt {
+  acknowledged: boolean
+  content: string
+  sentAt: number
+  clearTimer: ReturnType<typeof setTimeout>
+}
+
+export function filterVisibleQueuedPrompts(
+  queuedPrompts: PromptQueueEntry[],
+  pendingOptimistic: ReadonlyMap<string, Pick<PendingOptimisticPrompt, "content" | "sentAt">>,
+  now: number,
+): PromptQueueEntry[] {
+  const suppressibleTexts = [...pendingOptimistic.values()]
+    .filter((entry) => now - entry.sentAt < QUEUE_FLASH_SUPPRESS_MS)
+    .map((entry) => entry.content)
+
+  if (suppressibleTexts.length === 0) return queuedPrompts
+
+  return queuedPrompts.filter((entry) => {
+    const displayText = entry.displayText ?? entry.text
+    const matchIndex = suppressibleTexts.indexOf(displayText)
+    if (matchIndex === -1) return true
+    suppressibleTexts.splice(matchIndex, 1)
+    return false
+  })
+}
+
 export interface UsageState {
   contextTokens: number
   contextWindowMax: number | null
@@ -154,6 +183,7 @@ export function useSession(taskId: string, initialContextTokens?: number, initia
   const [activities, setActivities] = useState<ActivityEntry[]>([])
   const [agentStatus, setAgentStatus] = useState<"idle" | "working">("idle")
   const [queuedPrompts, setQueuedPrompts] = useState<PromptQueueEntry[]>([])
+  const [queueVisibilityNow, setQueueVisibilityNow] = useState(() => Date.now())
   const [taskStatus, setTaskStatus] = useState<TaskStatus | null>(null)
   const [contextTokens, setContextTokens] = useState(initialContextTokens ?? 0)
   const [contextWindowMax, setContextWindowMax] = useState<number | null>(initialContextWindowMax ?? null)
@@ -164,10 +194,9 @@ export function useSession(taskId: string, initialContextTokens?: number, initia
   activeTaskIdRef.current = taskId
   const processedCountRef = useRef(0)
   const activeAssistantStreamIdRef = useRef<string | null>(null)
-  // Track optimistic user message IDs so we can deduplicate WS broadcasts
-  // without false-positives when the same text is sent twice.
-  // Map value: true = server-acknowledged (WS broadcast received), false = not yet
-  const pendingOptimisticRef = useRef<Map<string, boolean>>(new Map())
+  // Track optimistic user messages so WS broadcasts dedupe without hiding
+  // real queued messages forever when the server briefly queues an idle send.
+  const pendingOptimisticRef = useRef<Map<string, PendingOptimisticPrompt>>(new Map())
 
   // Sync context usage when persisted task values change (e.g. on initial load or poll).
   // Reset when switching tasks and new data hasn't loaded yet.
@@ -193,8 +222,17 @@ export function useSession(taskId: string, initialContextTokens?: number, initia
     setSlashCommands([])
     processedCountRef.current = 0
     activeAssistantStreamIdRef.current = null
+    for (const pending of pendingOptimisticRef.current.values()) clearTimeout(pending.clearTimer)
     pendingOptimisticRef.current.clear()
+    setQueueVisibilityNow(Date.now())
   }, [taskId])
+
+  useEffect(() => {
+    return () => {
+      for (const pending of pendingOptimisticRef.current.values()) clearTimeout(pending.clearTimer)
+      pendingOptimisticRef.current.clear()
+    }
+  }, [])
 
   // Clear stale stream ID when disconnected to prevent corrupted messages on reconnect
   useEffect(() => {
@@ -378,23 +416,13 @@ export function useSession(taskId: string, initialContextTokens?: number, initia
             // Mark as acknowledged (don't delete) so queue handler can check later.
             // Only match unacknowledged entries to avoid matching stale ones.
             if (newMsg.role === "user" && pendingOptimisticRef.current.size > 0) {
-              const matchId = [...pendingOptimisticRef.current.entries()].find(([id, acknowledged]) => {
-                if (acknowledged) return false
-                const opt = prev.find((m) => m.id === id)
-                return opt && opt.content === newMsg.content
+              const matchId = [...pendingOptimisticRef.current.entries()].find(([, pending]) => {
+                if (pending.acknowledged) return false
+                return pending.content === newMsg.content
               })?.[0]
               if (matchId) {
-                pendingOptimisticRef.current.set(matchId, true)
-                // Clear any stale acknowledged entries with same content to prevent buildup
-                const matchContent = prev.find((m) => m.id === matchId)?.content
-                for (const [id, ack] of pendingOptimisticRef.current) {
-                  if (id !== matchId && ack) {
-                    const entry = prev.find((m) => m.id === id)
-                    if (entry?.content === matchContent) {
-                      pendingOptimisticRef.current.delete(id)
-                    }
-                  }
-                }
+                const pending = pendingOptimisticRef.current.get(matchId)
+                if (pending) pending.acknowledged = true
                 return prev
               }
             }
@@ -463,15 +491,21 @@ export function useSession(taskId: string, initialContextTokens?: number, initia
     (text: string, images?: PromptImage[]) => {
       const shouldQueue = agentStatus === "working"
       if (!shouldQueue && (text || images?.length)) {
-        const optimisticId = `user-${Date.now()}`
-        pendingOptimisticRef.current.set(optimisticId, false)
+        const now = Date.now()
+        const optimisticId = `user-${now}`
+        const clearTimer = setTimeout(() => {
+          pendingOptimisticRef.current.delete(optimisticId)
+          setQueueVisibilityNow(Date.now())
+        }, QUEUE_FLASH_SUPPRESS_MS)
+        pendingOptimisticRef.current.set(optimisticId, { acknowledged: false, content: text, sentAt: now, clearTimer })
+        setQueueVisibilityNow(now)
         setMessages((prev) => [
           ...prev,
           {
             id: optimisticId,
             role: "user",
             content: text,
-            timestamp: new Date().toISOString(),
+            timestamp: new Date(now).toISOString(),
             images: images?.map((img) => ({ src: `data:${img.mediaType};base64,${img.data}` })),
           },
         ])
@@ -497,5 +531,7 @@ export function useSession(taskId: string, initialContextTokens?: number, initia
     setQueuedPrompts((prev) => prev.filter((entry) => entry.id !== promptId))
   }, [taskId])
 
-  return { messages, activities, agentStatus, queueLength: queuedPrompts.length, queuedPrompts, connected, taskStatus, sendPrompt, abort, updateQueuedPrompt: handleUpdateQueuedPrompt, removeQueuedPrompt: handleRemoveQueuedPrompt, contextTokens, contextWindowMax, configOptions, slashCommands }
+  const visibleQueuedPrompts = filterVisibleQueuedPrompts(queuedPrompts, pendingOptimisticRef.current, queueVisibilityNow)
+
+  return { messages, activities, agentStatus, queueLength: visibleQueuedPrompts.length, queuedPrompts: visibleQueuedPrompts, connected, taskStatus, sendPrompt, abort, updateQueuedPrompt: handleUpdateQueuedPrompt, removeQueuedPrompt: handleRemoveQueuedPrompt, contextTokens, contextWindowMax, configOptions, slashCommands }
 }

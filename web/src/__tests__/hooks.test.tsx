@@ -1,7 +1,7 @@
 import { describe, test, expect, mock, beforeEach, afterEach } from "bun:test"
 import { renderHook, act, waitFor } from "@testing-library/react"
 import { useTasks } from "../hooks/useTasks"
-import { applyActivityUpdate, applyAssistantStreamMessage, applyThinkingStreamMessage, applyUsageUpdate, mergeActivitySnapshot, useSession } from "../hooks/useSession"
+import { applyActivityUpdate, applyAssistantStreamMessage, applyThinkingStreamMessage, applyUsageUpdate, filterVisibleQueuedPrompts, mergeActivitySnapshot, QUEUE_FLASH_SUPPRESS_MS, useSession } from "../hooks/useSession"
 import { useMentionPicker } from "../hooks/useMentionPicker"
 import { useFileMentionPicker } from "../hooks/useFileMentionPicker"
 import { useSlashCommandPicker } from "../hooks/useSlashCommandPicker"
@@ -128,6 +128,23 @@ describe("mergeActivitySnapshot", () => {
     }]
 
     expect(mergeActivitySnapshot(current, snapshot)).toEqual(snapshot)
+  })
+})
+
+describe("filterVisibleQueuedPrompts", () => {
+  test("hides queued prompts that match recent optimistic messages", () => {
+    const queued = [{ id: "q-1", text: "hello", enqueuedAt: 1 }]
+    const pending = new Map([["m-1", { content: "hello", sentAt: 1000 }]])
+
+    expect(filterVisibleQueuedPrompts(queued, pending, 1000)).toEqual([])
+    expect(filterVisibleQueuedPrompts(queued, pending, 1000 + QUEUE_FLASH_SUPPRESS_MS + 1)).toEqual(queued)
+  })
+
+  test("uses displayText when server queued prompt includes system notes", () => {
+    const queued = [{ id: "q-1", text: "system notes\n\nhello", displayText: "hello", enqueuedAt: 1 }]
+    const pending = new Map([["m-1", { content: "hello", sentAt: 1000 }]])
+
+    expect(filterVisibleQueuedPrompts(queued, pending, 1000)).toEqual([])
   })
 })
 
@@ -305,10 +322,17 @@ describe("useSession", () => {
         }))
       })
 
-      // User message should stay in chat while also appearing in queue for editing.
+      // User message stays in chat; the matching queued entry is hidden to avoid idle-send flicker.
       expect(result.current.messages).toHaveLength(1)
       expect(result.current.messages[0].role).toBe("user")
       expect(result.current.messages[0].content).toBe("hello world")
+      expect(result.current.queuedPrompts).toHaveLength(0)
+      expect(result.current.queueLength).toBe(0)
+
+      await act(async () => {
+        await new Promise((resolve) => setTimeout(resolve, QUEUE_FLASH_SUPPRESS_MS + 20))
+      })
+
       expect(result.current.queuedPrompts).toHaveLength(1)
       expect(result.current.queuedPrompts[0].text).toBe("hello world")
     } finally {
