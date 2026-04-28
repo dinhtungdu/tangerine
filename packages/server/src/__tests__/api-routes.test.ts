@@ -901,6 +901,64 @@ describe("API routes", () => {
     })
   })
 
+  describe("GET /api/tasks/:id/permission", () => {
+    test("returns null when no pending permission request", async () => {
+      const row = seedTask(db)
+
+      const res = await app.fetch(new Request(`http://localhost/api/tasks/${row.id}/permission`))
+
+      expect(res.status).toBe(200)
+      expect(await res.json()).toEqual({ permissionRequest: null })
+    })
+
+    test("returns pending permission request when one exists", async () => {
+      const row = seedTask(db)
+      const pendingRequest = {
+        requestId: "perm-123",
+        toolName: "Bash",
+        toolCallId: "tool-456",
+        options: [
+          { optionId: "allow", name: "Allow", kind: "allow_once" as const },
+          { optionId: "deny", name: "Deny", kind: "reject_once" as const },
+        ],
+      }
+      ;(getTaskState(row.id) as { pendingPermissionRequest?: typeof pendingRequest }).pendingPermissionRequest = pendingRequest
+
+      const res = await app.fetch(new Request(`http://localhost/api/tasks/${row.id}/permission`))
+
+      expect(res.status).toBe(200)
+      expect(await res.json()).toEqual({ permissionRequest: pendingRequest })
+    })
+  })
+
+  describe("POST /api/tasks/:id/permission", () => {
+    test("returns 400 when requestId or optionId missing", async () => {
+      const row = seedTask(db)
+
+      const res = await app.fetch(new Request(`http://localhost/api/tasks/${row.id}/permission`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ requestId: "perm-123" }),
+      }))
+
+      expect(res.status).toBe(400)
+      expect(await res.json()).toEqual({ error: "requestId and optionId are required" })
+    })
+
+    test("returns 404 when no agent handle exists", async () => {
+      const row = seedTask(db)
+
+      const res = await app.fetch(new Request(`http://localhost/api/tasks/${row.id}/permission`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ requestId: "perm-123", optionId: "allow" }),
+      }))
+
+      expect(res.status).toBe(404)
+      expect(await res.json()).toEqual({ error: "No active agent handle for task" })
+    })
+  })
+
   describe("GET /api/tasks/:id/messages", () => {
     test("returns empty messages for new task", async () => {
       const row = seedTask(db)

@@ -420,6 +420,50 @@ describe("useSession", () => {
       globalThis.WebSocket = originalWebSocket
     }
   })
+
+  test("fetches pending permission request on initial load", async () => {
+    const originalWebSocket = globalThis.WebSocket
+    class TestWebSocket {
+      static readonly CLOSING = 2
+      readonly readyState = 0
+      onopen: ((event: Event) => void) | null = null
+      onmessage: ((event: MessageEvent) => void) | null = null
+      onerror: ((event: Event) => void) | null = null
+      onclose: ((event: CloseEvent) => void) | null = null
+      constructor(_url: string) { }
+      send(_data: string) { }
+      close() { }
+    }
+    globalThis.WebSocket = TestWebSocket as unknown as typeof WebSocket
+    globalThis.fetch = mock((url: string) => {
+      if (url.includes("/messages")) return Promise.resolve(new Response(JSON.stringify({ messages: [], hasMore: false }), { status: 200, headers: { "Content-Type": "application/json" } }))
+      if (url.includes("/activities")) return Promise.resolve(new Response(JSON.stringify([]), { status: 200, headers: { "Content-Type": "application/json" } }))
+      if (url.includes("/config-options")) return Promise.resolve(new Response(JSON.stringify({ configOptions: [] }), { status: 200, headers: { "Content-Type": "application/json" } }))
+      if (url.includes("/slash-commands")) return Promise.resolve(new Response(JSON.stringify({ commands: [] }), { status: 200, headers: { "Content-Type": "application/json" } }))
+      if (url.includes("/permission")) {
+        return Promise.resolve(new Response(JSON.stringify({
+          permissionRequest: {
+            requestId: "perm-123",
+            toolName: "Bash",
+            options: [{ optionId: "allow", name: "Allow", kind: "allow_once" }],
+          },
+        }), { status: 200, headers: { "Content-Type": "application/json" } }))
+      }
+      return Promise.resolve(new Response(JSON.stringify([]), { status: 200, headers: { "Content-Type": "application/json" } }))
+    }) as typeof fetch
+
+    try {
+      const { result } = renderHook(() => useSession("task-1"))
+
+      await waitFor(() => {
+        expect(result.current.permissionRequest).not.toBeNull()
+      })
+      expect(result.current.permissionRequest?.requestId).toBe("perm-123")
+      expect(result.current.permissionRequest?.toolName).toBe("Bash")
+    } finally {
+      globalThis.WebSocket = originalWebSocket
+    }
+  })
 })
 
 describe("useTasks", () => {
