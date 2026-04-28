@@ -523,6 +523,25 @@ describe("ModelEffortPopover", () => {
     expect(onMode).toHaveBeenCalledWith("code")
   })
 
+  test("shows ACP harness support summary", () => {
+    render(
+      <ModelEffortPopover
+        model="claude-opus-4-5-20251101"
+        models={["claude-opus-4-5-20251101"]}
+        onModelChange={() => {}}
+        mode="default"
+        modes={[{ value: "default", label: "Default", description: "Ask before writes" }]}
+        onModeChange={() => {}}
+        harnessSupport={{ model: true, effort: false, mode: true }}
+      />
+    )
+
+    expect(screen.getByText("Harness supports")).toBeTruthy()
+    expect(screen.getAllByText("Model").length).toBeGreaterThan(0)
+    expect(screen.getByText("No Effort")).toBeTruthy()
+    expect(screen.getAllByText("Mode").length).toBeGreaterThan(0)
+  })
+
   test("effort column hidden when onReasoningEffortChange not provided", () => {
     render(
       <ModelEffortPopover
@@ -675,6 +694,9 @@ describe("ChatInput", () => {
     )
 
     expect(screen.queryByText("High")).toBeNull()
+    expect(screen.getByText("Harness supports")).toBeTruthy()
+    expect(screen.getByText("No Effort")).toBeTruthy()
+    expect(screen.getByText("No Mode")).toBeTruthy()
   })
 
   test("shows quote chip when quotedMessage is provided", () => {

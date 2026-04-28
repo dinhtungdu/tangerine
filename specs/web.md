@@ -51,6 +51,7 @@ Current task-detail feature set includes:
 - streamed thinking merged into one Thought card per turn
 - tool call display
 - ACP config-option selectors for `model`, `thought_level`, and `mode`; legacy ACP `models` / `modes` state is normalized into the same UI, with legacy thinking/reasoning modes shown as `thought_level`
+- ACP harness support summary in the selector popover, showing which of Model, Effort, and Mode are advertised for the active session
 - ACP plan cards
 - ACP content-block cards, including resource, diff, and terminal blocks
 - diff / changes panel

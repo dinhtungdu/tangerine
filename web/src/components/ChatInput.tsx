@@ -527,6 +527,7 @@ export function ChatInput({ onSend, disabled, queueLength, taskId, isWorking, on
                   mode={displayedMode}
                   modes={configModes}
                   onModeChange={effectiveModeChange}
+                  harnessSupport={usesAcpOptions ? { model: !!modelOption, effort: !!thoughtOption, mode: !!modeOption } : undefined}
                 />
               )}
               {contextWindowLabel && (

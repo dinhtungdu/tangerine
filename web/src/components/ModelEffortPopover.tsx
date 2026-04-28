@@ -1,5 +1,6 @@
 import { useState } from "react"
 import { Check, ChevronDown } from "lucide-react"
+import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
 import { Separator } from "@/components/ui/separator"
@@ -10,6 +11,12 @@ export interface EffortOption {
   value: string
   label: string
   description: string
+}
+
+export interface HarnessSupport {
+  model: boolean
+  effort: boolean
+  mode: boolean
 }
 
 interface ModelEffortPopoverProps {
@@ -25,6 +32,8 @@ interface ModelEffortPopoverProps {
   onModeChange?: (mode: string) => void
   /** Whether the model list is interactive (vs read-only display) */
   canChangeModel?: boolean
+  /** ACP selectors advertised by the harness for this session. */
+  harnessSupport?: HarnessSupport
 }
 
 export function ModelEffortPopover({
@@ -38,20 +47,28 @@ export function ModelEffortPopover({
   modes,
   onModeChange,
   canChangeModel = true,
+  harnessSupport,
 }: ModelEffortPopoverProps) {
   const [open, setOpen] = useState(false)
 
   // Don't render if there's nothing to show
   const resolvedModel = model || models[0] || ""
   const efforts = propEfforts ?? []
-  if (!resolvedModel && (!onReasoningEffortChange || efforts.length === 0)) return null
+  const showEffort = !!onReasoningEffortChange && efforts.length > 0
+  const showMode = !!onModeChange && !!modes?.length
+  if (!resolvedModel && !showEffort && !showMode) return null
 
   // Normalize to an effective value so trigger and highlight stay in sync
   const effectiveEffort = (efforts.find((e) => e.value === reasoningEffort) ?? efforts[0])?.value
 
-  const showEffort = !!onReasoningEffortChange && efforts.length > 0
-  const showMode = !!onModeChange && !!modes?.length
   const effectiveMode = modes?.find((entry) => entry.value === mode)?.value ?? modes?.[0]?.value
+  const harnessSupportItems = harnessSupport
+    ? [
+      { label: "Model", supported: harnessSupport.model },
+      { label: "Effort", supported: harnessSupport.effort },
+      { label: "Mode", supported: harnessSupport.mode },
+    ]
+    : []
 
   return (
     <Popover open={open} onOpenChange={setOpen}>
@@ -73,6 +90,22 @@ export function ModelEffortPopover({
         sideOffset={6}
         className="w-lg max-w-[calc(100vw-16px)] overflow-hidden p-0"
       >
+        {harnessSupport && (
+          <div className="flex flex-wrap items-center gap-1.5 border-b border-border px-3 py-2">
+            <span className="mr-1 text-2xs font-medium uppercase tracking-wide text-muted-foreground">
+              Harness supports
+            </span>
+            {harnessSupportItems.map((item) => (
+              <Badge
+                key={item.label}
+                variant={item.supported ? "secondary" : "outline"}
+                className={cn("h-5 text-2xs", !item.supported && "text-muted-foreground")}
+              >
+                {item.supported ? item.label : `No ${item.label}`}
+              </Badge>
+            ))}
+          </div>
+        )}
         <div className="flex flex-wrap">
           {/* Model column */}
           {resolvedModel && (
