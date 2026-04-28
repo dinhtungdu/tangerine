@@ -44,53 +44,53 @@ function getToolSummary(toolName: string, toolData: ToolCallData): string | null
   const name = toolName.toLowerCase()
   const input = toolData.input
 
+  // Helper to safely get string value from arbitrary JSON
+  const str = (v: unknown): string | null => (typeof v === "string" && v ? v : null)
+
   if (name.includes("bash") || name.includes("shell") || name.includes("exec")) {
-    const cmd = toolData.command || (input?.command as string)
-    if (cmd) {
-      const oneLine = cmd.replace(/\s+/g, " ").trim()
-      return `$ ${oneLine}`
-    }
+    const cmd = str(toolData.command) ?? str(input?.command)
+    if (cmd) return `$ ${cmd.replace(/\s+/g, " ").trim()}`
   }
 
   if (name.includes("read")) {
-    const path = toolData.path || toolData.file_path || (input?.file_path as string)
+    const path = str(toolData.path) ?? str(toolData.file_path) ?? str(input?.file_path)
     if (path) return path
   }
 
   if (name.includes("write") || name.includes("edit")) {
-    const path = toolData.path || toolData.file_path || (input?.file_path as string)
+    const path = str(toolData.path) ?? str(toolData.file_path) ?? str(input?.file_path)
     if (path) return path
   }
 
   if (name.includes("grep")) {
-    const pattern = toolData.pattern || (input?.pattern as string)
-    const path = toolData.path || (input?.path as string)
+    const pattern = str(toolData.pattern) ?? str(input?.pattern)
+    const path = str(toolData.path) ?? str(input?.path)
     if (pattern) return `/${pattern}/${path ? ` in ${path}` : ""}`
   }
 
   if (name.includes("glob")) {
-    const pattern = (input?.pattern as string)
+    const pattern = str(input?.pattern)
     if (pattern) return pattern
   }
 
   if (name.includes("agent")) {
-    const desc = (input?.description as string)
+    const desc = str(input?.description)
     if (desc) return desc
   }
 
-  // Fallback: try common fields
-  const desc = (input?.description as string)
-  if (desc) return desc
+  // Fallback: try common fields (with type guards for arbitrary JSON)
+  const desc = input?.description
+  if (typeof desc === "string" && desc) return desc
 
   // Try file_path, path, command, pattern as generic fallbacks
-  const filePath = toolData.file_path || toolData.path || (input?.file_path as string) || (input?.path as string)
-  if (filePath) return filePath
+  const filePath = toolData.file_path ?? toolData.path ?? input?.file_path ?? input?.path
+  if (typeof filePath === "string" && filePath) return filePath
 
-  const cmd = toolData.command || (input?.command as string)
-  if (cmd) return `$ ${cmd.replace(/\s+/g, " ").trim()}`
+  const cmd = toolData.command ?? input?.command
+  if (typeof cmd === "string" && cmd) return `$ ${cmd.replace(/\s+/g, " ").trim()}`
 
-  const pattern = toolData.pattern || (input?.pattern as string)
-  if (pattern) return pattern
+  const pattern = toolData.pattern ?? input?.pattern
+  if (typeof pattern === "string" && pattern) return pattern
 
   return null
 }
@@ -153,8 +153,9 @@ export function ToolCallDisplay({ content, status = "success" }: ToolCallDisplay
 
   const toolName = toolData.tool || toolData.name || "Tool Call"
   const nameLower = toolName.toLowerCase()
-  // Detect shell by command field presence OR tool name pattern
-  const hasCommand = Boolean(toolData.command || toolData.input?.command)
+  // Detect shell by string command field presence OR tool name pattern
+  const cmd = toolData.command ?? toolData.input?.command
+  const hasCommand = typeof cmd === "string" && cmd.length > 0
   const isShell = hasCommand || nameLower.includes("shell") || nameLower.includes("bash") || nameLower.includes("exec")
   const { label } = isShell ? { label: "Bash" } : getToolIcon(toolName)
   const summary = isShell ? getToolSummary("bash", toolData) : getToolSummary(toolName, toolData)
