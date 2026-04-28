@@ -307,16 +307,26 @@ export function useSession(taskId: string, initialContextTokens?: number, initia
     setQueueVisibilityNow(now)
   }
 
-  // Load initial messages + activities via REST
+  // Load initial messages + activities via REST (parallelized for faster task switching)
   const refreshFromRest = useCallback(async () => {
     const refreshTaskId = taskId
     const isCurrentTask = () => activeTaskIdRef.current === refreshTaskId
+    const messagesRequestedAtMs = Date.now()
 
-    try {
-      const messagesRequestedAtMs = Date.now()
-      const logs = await fetchMessages(refreshTaskId)
-      if (!isCurrentTask()) return
-      const snapshot = logs.map((log: SessionLog) => {
+    // Fire all independent requests in parallel
+    const [logsResult, activitiesResult, optionsResult, commandsResult, queuedResult] = await Promise.all([
+      fetchMessages(refreshTaskId).catch(() => null),
+      fetchActivities(refreshTaskId).catch(() => null),
+      fetchTaskConfigOptions(refreshTaskId).catch(() => null),
+      fetchTaskSlashCommands(refreshTaskId).catch(() => null),
+      fetchQueuedPrompts(refreshTaskId).catch(() => null),
+    ])
+
+    if (!isCurrentTask()) return
+
+    // Apply messages
+    if (logsResult) {
+      const snapshot = logsResult.map((log: SessionLog) => {
         const msg: ChatMessage = {
           id: String(log.id),
           role: log.role,
@@ -342,40 +352,26 @@ export function useSession(taskId: string, initialContextTokens?: number, initia
         return msg
       })
       setMessages((prev) => mergeMessageSnapshot(prev, snapshot, messagesRequestedAtMs))
-    } catch {
-      // Messages may not be available yet
     }
-    if (!isCurrentTask()) return
-    try {
-      const data = await fetchActivities(refreshTaskId)
-      if (!isCurrentTask()) return
-      setActivities((prev) => mergeActivitySnapshot(prev, data))
-    } catch {
-      // Activities may not be available yet
+
+    // Apply activities
+    if (activitiesResult) {
+      setActivities((prev) => mergeActivitySnapshot(prev, activitiesResult))
     }
-    if (!isCurrentTask()) return
-    try {
-      const options = await fetchTaskConfigOptions(refreshTaskId)
-      if (!isCurrentTask()) return
-      setConfigOptions(options)
-    } catch {
-      // Session config may not be available yet
+
+    // Apply config options
+    if (optionsResult) {
+      setConfigOptions(optionsResult)
     }
-    if (!isCurrentTask()) return
-    try {
-      const commands = await fetchTaskSlashCommands(refreshTaskId)
-      if (!isCurrentTask()) return
-      setSlashCommands(commands)
-    } catch {
-      // Slash commands may not be available yet
+
+    // Apply slash commands
+    if (commandsResult) {
+      setSlashCommands(commandsResult)
     }
-    if (!isCurrentTask()) return
-    try {
-      const queued = await fetchQueuedPrompts(refreshTaskId)
-      if (!isCurrentTask()) return
-      applyQueuedPrompts(queued)
-    } catch {
-      // Queue may not be available yet
+
+    // Apply queued prompts
+    if (queuedResult) {
+      applyQueuedPrompts(queuedResult)
     }
   }, [taskId])
 
