@@ -671,6 +671,8 @@ export function TaskDetail() {
                 onAbort={session.abort}
                 onQueuedPromptUpdate={session.updateQueuedPrompt}
                 onQueuedPromptRemove={session.removeQueuedPrompt}
+                onQueuedPromptClearAll={session.clearAllQueuedPrompts}
+                onQueuedPromptSendNow={session.sendNowQueuedPrompt}
                 onModelChange={handleModelChange}
                 onReasoningEffortChange={handleReasoningEffortChange}
                 onModeChange={handleModeChange}

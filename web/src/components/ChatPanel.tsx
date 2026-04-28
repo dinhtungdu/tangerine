@@ -1,5 +1,7 @@
 import { useEffect, useRef, useState, useCallback } from "react"
+import { ChevronRight, Trash2, Pencil, X } from "lucide-react"
 import { Button } from "@/components/ui/button"
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible"
 import { TERMINAL_STATUSES } from "@tangerine/shared"
 import type { AgentConfigOption, AgentSlashCommand, PromptImage, PromptQueueEntry, PredefinedPrompt, TaskStatus, ProviderType, ActivityEntry } from "@tangerine/shared"
 import type { ChatMessage as ChatMessageType } from "../hooks/useSession"
@@ -26,6 +28,8 @@ interface ChatPanelProps {
   onAbort: () => void
   onQueuedPromptUpdate?: (promptId: string, text: string) => void | Promise<void>
   onQueuedPromptRemove?: (promptId: string) => void | Promise<void>
+  onQueuedPromptClearAll?: () => void | Promise<void>
+  onQueuedPromptSendNow?: (promptId: string) => void | Promise<void>
   onModelChange?: (model: string) => void
   onReasoningEffortChange?: (effort: string) => void
   onModeChange?: (mode: string) => void
@@ -48,84 +52,139 @@ function QueuedPromptList({
   queuedPrompts,
   onUpdate,
   onRemove,
+  onClearAll,
+  onSendNow,
 }: {
   queuedPrompts: PromptQueueEntry[]
   onUpdate?: (promptId: string, text: string) => void | Promise<void>
   onRemove?: (promptId: string) => void | Promise<void>
+  onClearAll?: () => void | Promise<void>
+  onSendNow?: (promptId: string) => void | Promise<void>
 }) {
-  const [drafts, setDrafts] = useState<Record<string, string>>({})
-  const textareaRefs = useRef<Record<string, HTMLTextAreaElement | null>>({})
+  const [isOpen, setIsOpen] = useState(true)
+  const [editingId, setEditingId] = useState<string | null>(null)
+  const [editDraft, setEditDraft] = useState("")
+  const inputRef = useRef<HTMLInputElement>(null)
 
-  useEffect(() => {
-    setDrafts((prev) => {
-      const next: Record<string, string> = {}
-      for (const entry of queuedPrompts) next[entry.id] = prev[entry.id] ?? entry.displayText ?? entry.text
-      return next
-    })
-  }, [queuedPrompts])
-
-  const handleResize = useCallback((id: string) => {
-    if (typeof CSS !== "undefined" && CSS.supports("field-sizing", "content")) return
-    const textarea = textareaRefs.current[id]
-    if (!textarea) return
-    textarea.style.height = "auto"
-    textarea.style.height = `${Math.min(textarea.scrollHeight, 144)}px`
+  const handleStartEdit = useCallback((entry: PromptQueueEntry) => {
+    setEditingId(entry.id)
+    setEditDraft(entry.displayText ?? entry.text)
+    requestAnimationFrame(() => inputRef.current?.focus())
   }, [])
+
+  const handleSaveEdit = useCallback(() => {
+    if (editingId && editDraft.trim()) {
+      void onUpdate?.(editingId, editDraft.trim())
+    }
+    setEditingId(null)
+    setEditDraft("")
+  }, [editingId, editDraft, onUpdate])
+
+  const handleCancelEdit = useCallback(() => {
+    setEditingId(null)
+    setEditDraft("")
+  }, [])
+
+  const handleEditKeyDown = useCallback((e: React.KeyboardEvent) => {
+    if (e.key === "Enter" && !e.shiftKey) {
+      e.preventDefault()
+      handleSaveEdit()
+    } else if (e.key === "Escape") {
+      handleCancelEdit()
+    }
+  }, [handleSaveEdit, handleCancelEdit])
 
   if (queuedPrompts.length === 0) return null
 
+  const count = queuedPrompts.length
+  const label = count === 1 ? "Queued Message" : "Queued Messages"
+
   return (
-    <div className="border-t border-border bg-muted/30 px-3 py-2 md:px-4">
-      <div className="mb-2 text-2xs font-medium uppercase tracking-wide text-muted-foreground">
-        Queued messages
-      </div>
-      <div className="space-y-2">
-        {queuedPrompts.map((entry, index) => {
-          const displayText = entry.displayText ?? entry.text
-          const draft = drafts[entry.id] ?? displayText
-          const isChanged = draft !== displayText
-          return (
-            <div key={entry.id} className="rounded-lg border border-border bg-background p-2 shadow-sm">
-              <textarea
-                ref={(el) => { textareaRefs.current[entry.id] = el; if (el) handleResize(entry.id) }}
-                aria-label={`Edit queued message ${index + 1}`}
-                value={draft}
-                onChange={(event) => {
-                  setDrafts((prev) => ({ ...prev, [entry.id]: event.target.value }))
-                  handleResize(entry.id)
-                }}
-                rows={1}
-                className="min-h-[1.75rem] max-h-36 w-full resize-none rounded-md border border-input bg-transparent px-2 py-1.5 text-xs outline-none [field-sizing:content] focus-visible:ring-1 focus-visible:ring-ring/50"
-              />
-              <div className="mt-1.5 flex items-center justify-between gap-2">
-                <span className="text-2xs text-muted-foreground">
-                  Sends after current turn
-                </span>
-                <div className="flex items-center gap-1.5">
-                  <Button
-                    type="button"
-                    variant="outline"
-                    size="xs"
-                    disabled={!isChanged || draft.trim().length === 0}
-                    onClick={() => { void onUpdate?.(entry.id, draft) }}
-                  >
-                    Save
-                  </Button>
-                  <Button
-                    type="button"
-                    variant="ghost"
-                    size="xs"
-                    aria-label={`Remove queued message ${index + 1}`}
-                    onClick={() => { void onRemove?.(entry.id) }}
-                  >
-                    Remove
-                  </Button>
+    <div className="border-t border-border bg-muted/30">
+      <Collapsible open={isOpen} onOpenChange={setIsOpen}>
+        <div className="flex items-center gap-2 px-3 py-2 md:px-4">
+          <CollapsibleTrigger className="flex items-center gap-1.5 text-sm font-medium text-foreground hover:text-foreground/80">
+            <ChevronRight className={`h-4 w-4 transition-transform ${isOpen ? "rotate-90" : ""}`} />
+            <span>{count} {label}</span>
+          </CollapsibleTrigger>
+          {onClearAll && (
+            <button
+              onClick={() => void onClearAll()}
+              className="text-sm text-muted-foreground hover:text-foreground"
+            >
+              Clear All
+            </button>
+          )}
+        </div>
+        <CollapsibleContent>
+          <div className="space-y-0.5 px-3 pb-2 md:px-4">
+            {queuedPrompts.map((entry) => {
+              const displayText = entry.displayText ?? entry.text
+              const isEditing = editingId === entry.id
+              return (
+                <div key={entry.id} className="flex items-center gap-2 py-1">
+                  <span className="h-2 w-2 shrink-0 rounded-full bg-blue-500" />
+                  {isEditing ? (
+                    <input
+                      ref={inputRef}
+                      type="text"
+                      value={editDraft}
+                      onChange={(e) => setEditDraft(e.target.value)}
+                      onKeyDown={handleEditKeyDown}
+                      onBlur={handleSaveEdit}
+                      className="min-w-0 flex-1 rounded border border-input bg-background px-2 py-1 text-sm outline-none focus-visible:ring-1 focus-visible:ring-ring/50"
+                    />
+                  ) : (
+                    <span className="min-w-0 flex-1 truncate text-sm">{displayText}</span>
+                  )}
+                  <div className="flex shrink-0 items-center gap-1">
+                    <Button
+                      variant="ghost"
+                      size="icon-xs"
+                      onClick={() => void onRemove?.(entry.id)}
+                      aria-label="Remove"
+                      className="text-muted-foreground hover:text-foreground"
+                    >
+                      <Trash2 className="h-3.5 w-3.5" />
+                    </Button>
+                    {isEditing ? (
+                      <Button
+                        variant="ghost"
+                        size="icon-xs"
+                        onClick={handleCancelEdit}
+                        aria-label="Cancel edit"
+                        className="text-muted-foreground hover:text-foreground"
+                      >
+                        <X className="h-3.5 w-3.5" />
+                      </Button>
+                    ) : (
+                      <Button
+                        variant="ghost"
+                        size="icon-xs"
+                        onClick={() => handleStartEdit(entry)}
+                        aria-label="Edit"
+                        className="text-muted-foreground hover:text-foreground"
+                      >
+                        <Pencil className="h-3.5 w-3.5" />
+                      </Button>
+                    )}
+                    {onSendNow && (
+                      <Button
+                        variant="outline"
+                        size="xs"
+                        onClick={() => void onSendNow(entry.id)}
+                        className="ml-1"
+                      >
+                        Send Now
+                      </Button>
+                    )}
+                  </div>
                 </div>
-              </div>
-            </div>
-          )
-        })}
-      </div>
+              )
+            })}
+          </div>
+        </CollapsibleContent>
+      </Collapsible>
     </div>
   )
 }
@@ -148,6 +207,8 @@ export function ChatPanel({
   onAbort,
   onQueuedPromptUpdate,
   onQueuedPromptRemove,
+  onQueuedPromptClearAll,
+  onQueuedPromptSendNow,
   onModelChange,
   onReasoningEffortChange,
   onModeChange,
@@ -348,6 +409,8 @@ export function ChatPanel({
             queuedPrompts={queuedPrompts}
             onUpdate={onQueuedPromptUpdate}
             onRemove={onQueuedPromptRemove}
+            onClearAll={onQueuedPromptClearAll}
+            onSendNow={onQueuedPromptSendNow}
           />
           <ChatInput
           key={taskId}

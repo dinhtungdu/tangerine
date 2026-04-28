@@ -29,6 +29,8 @@ interface UseSessionResult {
   abort: () => void
   updateQueuedPrompt: (promptId: string, text: string) => Promise<void>
   removeQueuedPrompt: (promptId: string) => Promise<void>
+  clearAllQueuedPrompts: () => Promise<void>
+  sendNowQueuedPrompt: (promptId: string) => Promise<void>
   contextTokens: number
   contextWindowMax: number | null
   configOptions: AgentConfigOption[]
@@ -607,7 +609,26 @@ export function useSession(taskId: string, initialContextTokens?: number, initia
     })
   }, [taskId])
 
+  const handleClearAllQueuedPrompts = useCallback(async () => {
+    const idsToRemove = queuedPromptsRef.current.map((entry) => entry.id)
+    await Promise.all(idsToRemove.map((id) => removeQueuedPrompt(taskId, id)))
+    setQueuedPrompts([])
+    queuedPromptsRef.current = []
+  }, [taskId])
+
+  const handleSendNowQueuedPrompt = useCallback(async (promptId: string) => {
+    const entry = queuedPromptsRef.current.find((e) => e.id === promptId)
+    if (!entry) return
+    await removeQueuedPrompt(taskId, promptId)
+    setQueuedPrompts((prev) => {
+      const next = prev.filter((e) => e.id !== promptId)
+      queuedPromptsRef.current = next
+      return next
+    })
+    sendPrompt(entry.text, entry.images)
+  }, [taskId, sendPrompt])
+
   const visibleQueuedPrompts = filterVisibleQueuedPrompts(queuedPrompts, pendingOptimisticRef.current, queueVisibilityNow)
 
-  return { messages, activities, agentStatus, queueLength: visibleQueuedPrompts.length, queuedPrompts: visibleQueuedPrompts, connected, taskStatus, sendPrompt, abort, updateQueuedPrompt: handleUpdateQueuedPrompt, removeQueuedPrompt: handleRemoveQueuedPrompt, contextTokens, contextWindowMax, configOptions, slashCommands }
+  return { messages, activities, agentStatus, queueLength: visibleQueuedPrompts.length, queuedPrompts: visibleQueuedPrompts, connected, taskStatus, sendPrompt, abort, updateQueuedPrompt: handleUpdateQueuedPrompt, removeQueuedPrompt: handleRemoveQueuedPrompt, clearAllQueuedPrompts: handleClearAllQueuedPrompts, sendNowQueuedPrompt: handleSendNowQueuedPrompt, contextTokens, contextWindowMax, configOptions, slashCommands }
 }

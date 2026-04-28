@@ -958,13 +958,18 @@ describe("ChatPanel", () => {
       </MemoryRouter>
     )
 
-    const editor = screen.getByLabelText("Edit queued message 1") as HTMLTextAreaElement
-    expect(editor.value).toBe("Original queued message")
-    fireEvent.change(editor, { target: { value: "Edited queued message" } })
-    fireEvent.click(screen.getByText("Save"))
+    // Message text is displayed
+    expect(screen.getByText("Original queued message")).toBeTruthy()
+
+    // Click edit icon to start editing
+    fireEvent.click(screen.getByLabelText("Edit"))
+    const input = screen.getByDisplayValue("Original queued message") as HTMLInputElement
+    fireEvent.change(input, { target: { value: "Edited queued message" } })
+    fireEvent.blur(input)
     expect(onUpdate).toHaveBeenCalledWith("q1", "Edited queued message")
 
-    fireEvent.click(screen.getByLabelText("Remove queued message 1"))
+    // Click remove icon
+    fireEvent.click(screen.getByLabelText("Remove"))
     expect(onRemove).toHaveBeenCalledWith("q1")
   })
 
