@@ -29,7 +29,7 @@ const defaultReviewerPrompts: z.infer<typeof predefinedPromptSchema>[] = [
   { label: "Approve", text: "Approve" },
 ]
 
-export const taskTypeConfigSchema = z.object({
+const taskTypeConfigObjectSchema = z.object({
   systemPrompt: z.string().optional(),
   predefinedPrompts: z.array(predefinedPromptSchema).optional(),
   agent: z.string().optional(),
@@ -38,6 +38,15 @@ export const taskTypeConfigSchema = z.object({
   /** Permission handling for ACP requests. `skipPermissions` applies the agent's full-access mode when exposed. */
   permissionMode: z.enum(["autoAccept", "skipPermissions"]).optional(),
 })
+
+export const taskTypeConfigSchema = z.unknown().superRefine((value, ctx) => {
+  if (value && typeof value === "object" && !Array.isArray(value) && "autoApprove" in value) {
+    ctx.addIssue({
+      code: z.ZodIssueCode.custom,
+      message: '`autoApprove` was replaced by `permissionMode`; use "autoAccept" or "skipPermissions"',
+    })
+  }
+}).pipe(taskTypeConfigObjectSchema)
 
 export const taskTypesSchema = z.object({
   worker: taskTypeConfigSchema.optional(),

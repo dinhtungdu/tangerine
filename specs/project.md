@@ -45,7 +45,7 @@ Stored in `tangerine.json` at the project root (or `~/.config/tangerine/config.j
 | `env` | object | no | Extra env vars passed to agent process |
 | `model` | string | no | Model override for this project |
 | `prMode` | `"ready" \| "draft" \| "none"` | no | How worker agents handle PRs. `ready`: normal PR, `draft`: draft PR, `none`: commit only, no push/PR. Default: `"none"` |
-| `taskTypes` | object | no | Per-task-type prompt, quick reply, agent, model, reasoning-effort, and permission defaults for `worker`, `reviewer`, and `runner`. `taskTypes.{type}.permissionMode` accepts `"skipPermissions"` (default) or `"autoAccept"`; skip mode applies the agent's full-access ACP mode when exposed, such as Claude `bypassPermissions` or Codex `full-access`, then still auto-accepts ACP permission requests as a fallback. |
+| `taskTypes` | object | no | Per-task-type prompt, quick reply, agent, model, reasoning-effort, and permission defaults for `worker`, `reviewer`, and `runner`. `taskTypes.{type}.permissionMode` accepts `"skipPermissions"` (default) or `"autoAccept"`; skip mode applies the agent's full-access ACP mode when exposed, such as Claude `bypassPermissions` or Codex `full-access`, then still auto-accepts ACP permission requests as a fallback. Legacy `autoApprove` is rejected; migrate it explicitly to `permissionMode`. |
 
 ### Top-Level Config
 

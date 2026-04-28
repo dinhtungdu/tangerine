@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, test } from "bun:test"
 import { Effect } from "effect"
-import { mkdtempSync, rmSync, writeFileSync, mkdirSync } from "node:fs"
+import { mkdtempSync, readFileSync, rmSync, writeFileSync, mkdirSync } from "node:fs"
 import { join } from "node:path"
 import { pathToFileURL } from "node:url"
 import { tmpdir } from "node:os"
@@ -22,6 +22,7 @@ const originalAcpCommand = process.env.TANGERINE_ACP_COMMAND
 afterEach(() => {
   if (originalAcpCommand === undefined) delete process.env.TANGERINE_ACP_COMMAND
   else process.env.TANGERINE_ACP_COMMAND = originalAcpCommand
+  delete process.env.TANGERINE_ACP_SET_CONFIG_COUNT_FILE
 })
 
 describe("resolveAcpCommand", () => {
@@ -734,6 +735,25 @@ describe("createAcpProvider", () => {
     rmSync(tempDir, { recursive: true, force: true })
   })
 
+  test("applies skipPermissions mode once during config option bursts", async () => {
+    const tempDir = mkdtempSync(join(tmpdir(), "tangerine-acp-skip-permissions-burst-"))
+    const scriptPath = join(tempDir, "mock-acp-agent.js")
+    const countPath = join(tempDir, "set-config-count.txt")
+    writeFileSync(scriptPath, mockBurstSkipPermissionsAcpAgentScript, "utf-8")
+
+    process.env.TANGERINE_ACP_COMMAND = `bun ${scriptPath}`
+    process.env.TANGERINE_ACP_SET_CONFIG_COUNT_FILE = countPath
+    const provider = createAcpProvider()
+    const handle = await Effect.runPromise(provider.start({ taskId: "task-acp", workdir: tempDir, title: "ACP test", permissionMode: "skipPermissions" }))
+
+    expect(handle.getConfigOptions?.()[0]?.currentValue).toBe("full-access")
+    expect(readFileSync(countPath, "utf-8")).toBe("1")
+
+    await Effect.runPromise(handle.shutdown())
+    delete process.env.TANGERINE_ACP_SET_CONFIG_COUNT_FILE
+    rmSync(tempDir, { recursive: true, force: true })
+  })
+
   test("sends ACP session/cancel on abort", async () => {
     const tempDir = mkdtempSync(join(tmpdir(), "tangerine-acp-cancel-"))
     const scriptPath = join(tempDir, "mock-acp-agent.js")
@@ -1155,6 +1175,48 @@ rl.on("line", (line) => {
   }
   if (msg.method === "session/set_config_option") {
     send({ jsonrpc: "2.0", id: msg.id, result: { configOptions: options(msg.params.value) } })
+    return
+  }
+  if (msg.method === "session/close") {
+    send({ jsonrpc: "2.0", id: msg.id, result: {} })
+  }
+})
+`
+
+const mockBurstSkipPermissionsAcpAgentScript = `
+const fs = require("node:fs")
+const readline = require("node:readline")
+const rl = readline.createInterface({ input: process.stdin })
+let setConfigCount = 0
+function writeCount() { fs.writeFileSync(process.env.TANGERINE_ACP_SET_CONFIG_COUNT_FILE, String(setConfigCount)) }
+function send(message) { process.stdout.write(JSON.stringify(message) + "\\n") }
+const options = (currentValue) => [{
+  id: "mode",
+  name: "Mode",
+  category: "mode",
+  type: "select",
+  currentValue,
+  options: [{ value: "auto", name: "Auto" }, { value: "full-access", name: "Full Access" }],
+}]
+writeCount()
+rl.on("line", (line) => {
+  const msg = JSON.parse(line)
+  if (msg.method === "initialize") {
+    send({ jsonrpc: "2.0", id: msg.id, result: { protocolVersion: 1, agentCapabilities: { sessionCapabilities: { close: {} } }, authMethods: [] } })
+    return
+  }
+  if (msg.method === "session/new") {
+    send({ jsonrpc: "2.0", id: msg.id, result: { sessionId: "sess-skip-burst", configOptions: options("auto") } })
+    return
+  }
+  if (msg.method === "session/set_config_option") {
+    setConfigCount++
+    writeCount()
+    send({ jsonrpc: "2.0", method: "session/update", params: { sessionId: "sess-skip-burst", update: { sessionUpdate: "config_option_update", configOptions: options("auto") } } })
+    send({ jsonrpc: "2.0", method: "session/update", params: { sessionId: "sess-skip-burst", update: { sessionUpdate: "config_option_update", configOptions: options("auto") } } })
+    setTimeout(() => {
+      send({ jsonrpc: "2.0", id: msg.id, result: { configOptions: options(msg.params.value) } })
+    }, 20)
     return
   }
   if (msg.method === "session/close") {

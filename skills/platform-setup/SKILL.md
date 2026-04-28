@@ -311,7 +311,7 @@ User wants to add a project to an already-running Tangerine instance. You help t
    - `model` — optional initial model hint for ACP agents that expose model config
    - `env` — key/value pairs injected into agent environment
    - `postUpdateCommand` — runs after `git pull` (install + build)
-   - `taskTypes` — per-task-type defaults. Use `taskTypes.runner.agent`, `taskTypes.runner.model`, and `taskTypes.runner.reasoningEffort` for runner tasks that need a specific ACP agent/model. `taskTypes.<type>.permissionMode` accepts `"skipPermissions"` (default) or `"autoAccept"`; skip mode asks ACP agents for their full-access/bypass mode when exposed. Explicit API values override these.
+   - `taskTypes` — per-task-type defaults. Use `taskTypes.runner.agent`, `taskTypes.runner.model`, and `taskTypes.runner.reasoningEffort` for runner tasks that need a specific ACP agent/model. `taskTypes.<type>.permissionMode` accepts `"skipPermissions"` (default) or `"autoAccept"`; skip mode asks ACP agents for their full-access/bypass mode when exposed. Do not write legacy `autoApprove`; migrate it to `permissionMode`. Explicit API values override these.
    - `predefinedPrompts` — legacy quick-send buttons; prefer `taskTypes.<type>.predefinedPrompts` for worker/runner/reviewer-specific prompts
 
    **Top-level optional fields** (outside `projects[]`):

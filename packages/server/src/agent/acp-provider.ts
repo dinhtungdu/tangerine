@@ -508,18 +508,33 @@ async function startAcpSession(ctx: AgentStartContext, config?: AcpProviderConfi
 
   const statusTracker = createPromptStatusTracker((status) => emit({ kind: "status", status }))
   let skipPermissionsPending = ctx.permissionMode === "skipPermissions"
+  let skipPermissionsApplyPromise: Promise<void> | null = null
 
   const tryApplySkipPermissionsMode = async () => {
     if (!skipPermissionsPending || !sessionId) return
-    const mode = selectSkipPermissionsMode(configOptions)
-    if (!mode) return
-    const applied = await setConfigOptionByCategory(rpc, sessionId, configOptions, "mode", mode, (options) => {
-      configOptions = options
-      emit({ kind: "config.options", options })
+    if (skipPermissionsApplyPromise) return skipPermissionsApplyPromise
+
+    skipPermissionsApplyPromise = (async () => {
+      if (!skipPermissionsPending || !sessionId) return
+      const mode = selectSkipPermissionsMode(configOptions)
+      if (!mode) return
+      const currentMode = configOptions.find((option) => option.category === "mode")?.currentValue
+      if (currentMode === mode) {
+        skipPermissionsPending = false
+        return
+      }
+      const applied = await setConfigOptionByCategory(rpc, sessionId, configOptions, "mode", mode, (options) => {
+        configOptions = options
+        emit({ kind: "config.options", options })
+      })
+      if (!applied) return
+      skipPermissionsPending = false
+      taskLog.debug("Applied skipPermissions mode", { mode })
+    })().finally(() => {
+      skipPermissionsApplyPromise = null
     })
-    if (!applied) return
-    skipPermissionsPending = false
-    taskLog.debug("Applied skipPermissions mode", { mode })
+
+    return skipPermissionsApplyPromise
   }
 
   const emitMapped = (event: AgentEvent) => {

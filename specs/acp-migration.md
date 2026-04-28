@@ -95,6 +95,7 @@ Tangerine background tasks need unattended execution. Current permission policy:
 
 - `taskTypes.{type}.permissionMode` defaults to `skipPermissions`
 - `skipPermissions` applies a matching ACP mode option at session start when exposed, such as Claude `bypassPermissions` or Codex `full-access`
+- legacy `taskTypes.{type}.autoApprove` is rejected so configs do not silently change behavior on upgrade
 - auto-select first `allow_once` or `allow_always` option
 - fallback to first option if no allow option exists
 - log permission decisions to the activity log
