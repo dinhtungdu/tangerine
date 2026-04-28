@@ -44,6 +44,7 @@ export function mapTaskRow(row: TaskRow): Task {
     branch: row.branch,
     worktreePath: row.worktree_path,
     prUrl: row.pr_url,
+    prStatus: row.pr_status as Task["prStatus"],
     parentTaskId: row.parent_task_id,
     userId: row.user_id,
     agentSessionId: row.agent_session_id,

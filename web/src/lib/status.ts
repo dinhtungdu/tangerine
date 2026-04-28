@@ -30,6 +30,20 @@ export function getStatusConfig(status: string): StatusConfig {
   return STATUS_CONFIG[status] ?? DEFAULT_STATUS
 }
 
+export const PR_STATUS_CONFIG: Record<string, StatusConfig> = {
+  open:   { label: "Open",   textClass: "text-status-success-text", bgClass: "bg-status-success-bg", color: "var(--color-status-success)" },
+  draft:  { label: "Draft",  textClass: "text-muted-foreground",    bgClass: "bg-muted",             color: "var(--color-muted-foreground)" },
+  merged: { label: "Merged", textClass: "text-status-info-text",    bgClass: "bg-status-info-bg",    color: "var(--color-status-info)" },
+  closed: { label: "Closed", textClass: "text-status-error-text",   bgClass: "bg-status-error-bg",   color: "var(--color-status-error)" },
+}
+
+const DEFAULT_PR_STATUS: StatusConfig = PR_STATUS_CONFIG.open!
+
+export function getPrStatusConfig(status: string | null): StatusConfig {
+  if (!status) return DEFAULT_PR_STATUS
+  return PR_STATUS_CONFIG[status] ?? DEFAULT_PR_STATUS
+}
+
 /** Returns true if the agent has produced a result since the user last viewed the task */
 export function hasUnseenUpdates(task: { lastResultAt: string | null; lastSeenAt: string | null; status: string }): boolean {
   // Only show for active tasks — completed/cancelled tasks don't need attention

@@ -25,7 +25,7 @@ import type { SchedulerDeps } from "../tasks/scheduler"
 import type { HealthCheckDeps } from "../tasks/health"
 import { reconnectSessionWithRetry } from "../tasks/retry"
 import { AgentError } from "../errors"
-import { extractPrUrl, verifyPrBranch, startPrMonitor } from "../tasks/pr-monitor"
+import { extractPrUrl, verifyPrBranch, startPrMonitor, checkPrState } from "../tasks/pr-monitor"
 import { isGithubRepo, resolveGithubSlug, getRepoForkInfo } from "../gh"
 import { applyLoginShellPath, checkSystemTools } from "./system-check"
 import { getStartupAuthError, getStartupAuthWarning } from "../auth"
@@ -93,7 +93,15 @@ function trySavePrUrl(
       Effect.tap((matches) => Effect.sync(() => {
         if (!matches) { log.warn("PR branch mismatch, ignoring", { taskId, prUrl, taskBranch }); return }
         getTaskState(taskId).prUrlSaved = true
-        Effect.runPromise(updateTask(db, taskId, { pr_url: prUrl }).pipe(Effect.catchAll(() => Effect.void)))
+        // Check PR state and save both URL and status
+        Effect.runPromise(
+          checkPrState(prUrl).pipe(
+            Effect.tap((prStatus) =>
+              updateTask(db, taskId, { pr_url: prUrl, pr_status: prStatus ?? "open" }).pipe(Effect.catchAll(() => Effect.void))
+            ),
+            Effect.catchAll(() => updateTask(db, taskId, { pr_url: prUrl, pr_status: "open" }).pipe(Effect.catchAll(() => Effect.void)))
+          )
+        )
         Effect.runPromise(logActivity(db, taskId, "lifecycle", "pr.created", `PR created: ${prUrl}`, { prUrl }).pipe(Effect.catchAll(() => Effect.void)))
         log.info(`PR URL detected from ${source}`, { taskId, prUrl })
       }))

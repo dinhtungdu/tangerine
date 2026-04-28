@@ -246,6 +246,7 @@ describe("tracer: config -> db -> api", () => {
       branch: "feat/test",
       worktree_path: null,
       pr_url: "https://github.com/owner/repo/pull/1",
+      pr_status: "open",
       parent_task_id: null,
       user_id: "user-1",
       agent_session_id: "session-1",
