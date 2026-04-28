@@ -35,9 +35,6 @@ interface UseSessionResult {
   contextWindowMax: number | null
   configOptions: AgentConfigOption[]
   slashCommands: AgentSlashCommand[]
-  hasMoreMessages: boolean
-  loadingOlderMessages: boolean
-  loadOlderMessages: () => Promise<void>
 }
 
 export function applyAssistantStreamMessage(
@@ -222,8 +219,6 @@ export function useSession(taskId: string, initialContextTokens?: number, initia
   const [contextWindowMax, setContextWindowMax] = useState<number | null>(initialContextWindowMax ?? null)
   const [configOptions, setConfigOptions] = useState<AgentConfigOption[]>([])
   const [slashCommands, setSlashCommands] = useState<AgentSlashCommand[]>([])
-  const [hasMoreMessages, setHasMoreMessages] = useState(false)
-  const [loadingOlderMessages, setLoadingOlderMessages] = useState(false)
   const { connected, messages: wsMessages, send } = useWebSocket(taskId)
   const activeTaskIdRef = useRef(taskId)
   activeTaskIdRef.current = taskId
@@ -256,8 +251,6 @@ export function useSession(taskId: string, initialContextTokens?: number, initia
     setContextWindowMax(null)
     setConfigOptions([])
     setSlashCommands([])
-    setHasMoreMessages(false)
-    setLoadingOlderMessages(false)
     processedCountRef.current = 0
     activeAssistantStreamIdRef.current = null
     for (const pending of pendingOptimisticRef.current.values()) clearPendingOptimistic(pending)
@@ -342,6 +335,32 @@ export function useSession(taskId: string, initialContextTokens?: number, initia
     return msg
   }
 
+  // Load remaining messages in background after initial load
+  async function loadRemainingMessages(
+    targetTaskId: string,
+    beforeId: number,
+    isCurrentTask: () => boolean
+  ) {
+    let cursor = beforeId
+    while (true) {
+      if (!isCurrentTask()) return
+      try {
+        const result = await fetchMessagesPaginated(targetTaskId, INITIAL_MESSAGE_LIMIT, cursor)
+        if (!isCurrentTask()) return
+        if (result.messages.length === 0) break
+        const olderMessages = result.messages.map((log) => logToMessage(log, targetTaskId))
+        setMessages((prev) => [...olderMessages, ...prev])
+        if (!result.hasMore) break
+        const firstOlder = olderMessages[0]
+        if (!firstOlder) break
+        cursor = parseInt(firstOlder.id, 10)
+        if (isNaN(cursor)) break
+      } catch {
+        break
+      }
+    }
+  }
+
   // Load initial messages + activities via REST (parallelized for faster task switching)
   const refreshFromRest = useCallback(async () => {
     const refreshTaskId = taskId
@@ -363,7 +382,15 @@ export function useSession(taskId: string, initialContextTokens?: number, initia
     if (messagesResult) {
       const snapshot = messagesResult.messages.map((log) => logToMessage(log, refreshTaskId))
       setMessages((prev) => mergeMessageSnapshot(prev, snapshot, messagesRequestedAtMs))
-      setHasMoreMessages(messagesResult.hasMore)
+
+      // If there are older messages, load them in background
+      const firstSnapshot = snapshot[0]
+      if (messagesResult.hasMore && firstSnapshot) {
+        const oldestId = parseInt(firstSnapshot.id, 10)
+        if (!isNaN(oldestId)) {
+          loadRemainingMessages(refreshTaskId, oldestId, isCurrentTask)
+        }
+      }
     }
 
     // Apply activities
@@ -654,28 +681,5 @@ export function useSession(taskId: string, initialContextTokens?: number, initia
 
   const visibleQueuedPrompts = filterVisibleQueuedPrompts(queuedPrompts, pendingOptimisticRef.current, queueVisibilityNow)
 
-  const loadOlderMessages = useCallback(async () => {
-    if (!hasMoreMessages || loadingOlderMessages) return
-    setLoadingOlderMessages(true)
-    try {
-      // Find oldest non-transient message ID as cursor
-      const oldestId = messages.find((m) => !m.id.startsWith("user-") && !m.id.startsWith("assistant-") && !m.id.startsWith("thinking-"))?.id
-      const beforeId = oldestId ? parseInt(oldestId, 10) : undefined
-      if (!beforeId || isNaN(beforeId)) {
-        setHasMoreMessages(false)
-        return
-      }
-      const result = await fetchMessagesPaginated(taskId, INITIAL_MESSAGE_LIMIT, beforeId)
-      if (activeTaskIdRef.current !== taskId) return
-      const olderMessages = result.messages.map((log) => logToMessage(log, taskId))
-      setMessages((prev) => [...olderMessages, ...prev])
-      setHasMoreMessages(result.hasMore)
-    } catch {
-      // ignore
-    } finally {
-      setLoadingOlderMessages(false)
-    }
-  }, [taskId, messages, hasMoreMessages, loadingOlderMessages])
-
-  return { messages, activities, agentStatus, queueLength: visibleQueuedPrompts.length, queuedPrompts: visibleQueuedPrompts, connected, taskStatus, sendPrompt, abort, updateQueuedPrompt: handleUpdateQueuedPrompt, removeQueuedPrompt: handleRemoveQueuedPrompt, clearAllQueuedPrompts: handleClearAllQueuedPrompts, sendNowQueuedPrompt: handleSendNowQueuedPrompt, contextTokens, contextWindowMax, configOptions, slashCommands, hasMoreMessages, loadingOlderMessages, loadOlderMessages }
+  return { messages, activities, agentStatus, queueLength: visibleQueuedPrompts.length, queuedPrompts: visibleQueuedPrompts, connected, taskStatus, sendPrompt, abort, updateQueuedPrompt: handleUpdateQueuedPrompt, removeQueuedPrompt: handleRemoveQueuedPrompt, clearAllQueuedPrompts: handleClearAllQueuedPrompts, sendNowQueuedPrompt: handleSendNowQueuedPrompt, contextTokens, contextWindowMax, configOptions, slashCommands }
 }

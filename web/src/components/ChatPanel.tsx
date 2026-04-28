@@ -43,9 +43,6 @@ interface ChatPanelProps {
   autoFocusKey?: string
   contextTokens?: number
   contextWindowMax?: number
-  hasMoreMessages?: boolean
-  loadingOlderMessages?: boolean
-  onLoadOlderMessages?: () => void
 }
 
 const EMPTY_ACTIVITIES: ActivityEntry[] = []
@@ -225,13 +222,9 @@ export function ChatPanel({
   autoFocusKey,
   contextTokens,
   contextWindowMax,
-  hasMoreMessages,
-  loadingOlderMessages,
-  onLoadOlderMessages,
 }: ChatPanelProps) {
   const scrollRef = useRef<HTMLDivElement>(null)
   const contentRef = useRef<HTMLDivElement>(null)
-  const prevScrollHeightRef = useRef<number>(0)
   const { navigate } = useProjectNav()
   const isTerminated = taskStatus ? TERMINAL_STATUSES.has(taskStatus) : false
   // pendingQuote is persisted per task so it survives page reloads
@@ -261,25 +254,6 @@ export function ChatPanel({
       } catch { /* ignore */ }
     }
   }, [isTerminated, taskId])
-
-  // Preserve scroll position when older messages are prepended
-  const wasLoadingRef = useRef(false)
-  useEffect(() => {
-    const el = scrollRef.current
-    if (!el) return
-    if (loadingOlderMessages && !wasLoadingRef.current) {
-      // Loading started - save current scroll height
-      prevScrollHeightRef.current = el.scrollHeight
-    } else if (!loadingOlderMessages && wasLoadingRef.current) {
-      // Loading ended - adjust scroll to keep content in place
-      const newScrollHeight = el.scrollHeight
-      const heightDiff = newScrollHeight - prevScrollHeightRef.current
-      if (heightDiff > 0) {
-        el.scrollTop += heightDiff
-      }
-    }
-    wasLoadingRef.current = loadingOlderMessages ?? false
-  }, [loadingOlderMessages])
 
   const effectivePendingQuote = pendingQuote
 
@@ -330,11 +304,7 @@ export function ChatPanel({
     if (!el) return
     const threshold = 80
     setIsAtBottom(el.scrollHeight - el.scrollTop - el.clientHeight < threshold)
-    // Load older messages when scrolled near top
-    if (el.scrollTop < 200 && hasMoreMessages && !loadingOlderMessages && onLoadOlderMessages) {
-      onLoadOlderMessages()
-    }
-  }, [hasMoreMessages, loadingOlderMessages, onLoadOlderMessages])
+  }, [])
 
   const scrollToBottom = useCallback(() => {
     const el = contentRef.current
@@ -390,11 +360,6 @@ export function ChatPanel({
             </div>
           ) : (
             <div ref={contentRef} className="px-4 pb-12 pt-4">
-              {loadingOlderMessages && (
-                <div className="mb-4 flex justify-center">
-                  <span className="text-sm text-muted-foreground">Loading older messages...</span>
-                </div>
-              )}
               <AssistantMessageGroups
                 messages={messages}
                 activities={activities}
