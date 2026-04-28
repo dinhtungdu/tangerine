@@ -8,7 +8,7 @@ import { normalizeTimestamps } from "../helpers"
 import { TaskNotFoundError } from "../../errors"
 import { getProjectConfig, getRepoDir, TANGERINE_HOME } from "../../config"
 import { getActiveStreamMessages, getTaskState } from "../../tasks/task-state"
-import { editQueuedPrompt, getQueuedPrompts, removeQueuedPrompt, takeQueuedPrompt } from "../../agent/prompt-queue"
+import { editQueuedPrompt, getQueuedPrompts, removeQueuedPrompt, takeQueuedPrompt, getAgentState } from "../../agent/prompt-queue"
 
 function gitDiff(cmd: string, cwd: string): Effect.Effect<string, never> {
   return Effect.tryPromise({
@@ -160,7 +160,10 @@ export function sessionRoutes(deps: AppDeps): Hono {
       Effect.gen(function* () {
         const entry = yield* takeQueuedPrompt(taskId, promptId)
         if (!entry) return yield* Effect.fail(new TaskNotFoundError({ taskId: promptId }))
-        yield* deps.taskManager.abortTask(taskId).pipe(Effect.catchAll(() => Effect.void))
+        const agentState = yield* getAgentState(taskId)
+        if (agentState === "busy") {
+          yield* deps.taskManager.abortTask(taskId).pipe(Effect.catchAll(() => Effect.void))
+        }
         yield* deps.taskManager.sendPrompt(taskId, entry.text, entry.images, entry.fromTaskId)
       }),
       { status: 204 },
