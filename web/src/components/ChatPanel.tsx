@@ -151,6 +151,7 @@ function QueuedPromptList({
                       <Button
                         variant="ghost"
                         size="icon-xs"
+                        onMouseDown={(e) => e.preventDefault()}
                         onClick={handleCancelEdit}
                         aria-label="Cancel edit"
                         className="text-muted-foreground hover:text-foreground"
