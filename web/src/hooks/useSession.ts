@@ -622,8 +622,8 @@ export function useSession(taskId: string, initialContextTokens?: number, initia
   }
 
   const sendPrompt = useCallback(
-    (text: string, images?: PromptImage[]) => {
-      const shouldQueue = agentStatus === "working"
+    (text: string, images?: PromptImage[], forceImmediate?: boolean) => {
+      const shouldQueue = !forceImmediate && agentStatus === "working"
       if (!shouldQueue && (text || images?.length)) {
         const now = Date.now()
         const optimisticId = `user-${now}`
@@ -696,7 +696,7 @@ export function useSession(taskId: string, initialContextTokens?: number, initia
     if (agentStatus === "working") {
       abort()
     }
-    sendPrompt(entry.text, entry.images)
+    sendPrompt(entry.text, entry.images, true)
   }, [taskId, sendPrompt, agentStatus, abort])
 
   const visibleQueuedPrompts = filterVisibleQueuedPrompts(queuedPrompts, pendingOptimisticRef.current, queueVisibilityNow)
