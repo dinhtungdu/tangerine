@@ -677,6 +677,7 @@ async function startAcpSession(ctx: AgentStartContext, config?: AcpProviderConfi
             })
             .catch((error: unknown) => {
               emitFlushedThoughts()
+              for (const event of mapper.flushAssistantMessage()) emit(event)
               const message = error instanceof Error ? error.message : String(error)
               emit({ kind: "error", message })
               // Clear tool state on error - cancelled/failed prompts may not send terminal tool events
