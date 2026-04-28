@@ -136,6 +136,7 @@ function makeTask(overrides?: Partial<Task>): Task {
     branch: null,
     worktreePath: null,
     prUrl: null,
+    prStatus: null,
     parentTaskId: null,
     userId: null,
     agentSessionId: null,
@@ -222,6 +223,15 @@ function mockStatusPageFetch() {
           providers: { acp: { available: true, cliCommand: "acp-agent" } },
         },
       }), {
+        status: 200,
+        headers: { "Content-Type": "application/json" },
+      })
+    }
+
+    if (url.startsWith("/api/tasks/counts")) {
+      const parsed = new URL(url, "http://localhost")
+      const status = parsed.searchParams.get("status")
+      return new Response(JSON.stringify({ "test-project": status === "running" ? 2 : 0 }), {
         status: 200,
         headers: { "Content-Type": "application/json" },
       })
@@ -609,6 +619,25 @@ describe("StatusPage", () => {
     )
 
     expect(await screen.findByText("System Status")).toBeTruthy()
+  })
+
+  test("labels lifecycle running count as active", async () => {
+    mockStatusPageFetch()
+
+    render(
+      <MemoryRouter initialEntries={["/status?project=test-project"]}>
+        <ProjectProvider>
+          <ToastProvider>
+            <Routes>
+              <Route path="/status" element={<StatusPage />} />
+            </Routes>
+          </ToastProvider>
+        </ProjectProvider>
+      </MemoryRouter>
+    )
+
+    expect(await screen.findByText("2 Active")).toBeTruthy()
+    expect(screen.queryByText("2 Running")).toBeNull()
   })
 })
 

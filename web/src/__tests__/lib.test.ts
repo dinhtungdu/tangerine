@@ -8,7 +8,7 @@ import {
   formatCronExpression,
   linkifyTaskIds,
 } from "../lib/format"
-import { getStatusConfig, getTaskDisplayStatus, STATUS_CONFIG } from "../lib/status"
+import { getStatusConfig, getTaskDisplayStatus, getTaskStatusText, STATUS_CONFIG } from "../lib/status"
 import { getActivityStyle, getActivityDetail, resolveToolInput } from "../lib/activity"
 import { searchModels } from "../lib/model-search"
 import { copyToClipboard } from "../lib/clipboard"
@@ -61,6 +61,7 @@ function makeTask(overrides: Partial<Task> = {}): Task {
     branch: null,
     worktreePath: null,
     prUrl: null,
+    prStatus: null,
     parentTaskId: null,
     userId: null,
     agentSessionId: null,
@@ -245,6 +246,30 @@ describe("status", () => {
     const config = getTaskDisplayStatus(makeTask({ status: "running", agentStatus: "idle" }))
     expect(config.label).toBe("Idle")
     expect(config.color).toBe("var(--color-status-warning)")
+  })
+
+  test("getTaskDisplayStatus shows waiting for PR instead of running for idle PR tasks", () => {
+    const task = makeTask({
+      status: "running",
+      agentStatus: "idle",
+      prUrl: "https://github.com/dinhtungdu/tangerine/pull/650",
+      prStatus: "open",
+    })
+
+    expect(getTaskDisplayStatus(task).label).toBe("Waiting for PR")
+    expect(getTaskStatusText(task)).toBe("waiting for PR")
+  })
+
+  test("getTaskDisplayStatus treats PR tasks as waiting before prStatus is polled", () => {
+    const task = makeTask({
+      status: "running",
+      agentStatus: "idle",
+      prUrl: "https://github.com/dinhtungdu/tangerine/pull/650",
+      prStatus: null,
+    })
+
+    expect(getTaskDisplayStatus(task).label).toBe("Waiting for PR")
+    expect(getTaskStatusText(task)).toBe("waiting for PR")
   })
 
   test("all statuses have color and textClass", () => {

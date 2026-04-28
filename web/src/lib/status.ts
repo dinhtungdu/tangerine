@@ -38,14 +38,57 @@ const IDLE_AGENT_STATUS: StatusConfig = {
   color: "var(--color-status-warning)",
 }
 
-export function getTaskDisplayStatus(task: Pick<Task, "status" | "agentStatus">): StatusConfig {
-  if (task.status === "running" && task.agentStatus === "idle") return IDLE_AGENT_STATUS
-  return getStatusConfig(task.status)
+const WORKING_AGENT_STATUS: StatusConfig = {
+  label: "Working",
+  textClass: "text-status-success-text",
+  bgClass: "bg-status-success-bg",
+  color: "var(--color-status-success)",
 }
 
-export function getTaskStatusText(task: Pick<Task, "status" | "agentStatus">): string {
-  if (task.status === "running" && task.agentStatus === "idle") return "idle"
-  return task.status
+const WAITING_FOR_PR_STATUS: StatusConfig = {
+  label: "Waiting for PR",
+  textClass: "text-status-info-text",
+  bgClass: "bg-status-info-bg",
+  color: "var(--color-status-info)",
+}
+
+const DISCONNECTED_AGENT_STATUS: StatusConfig = {
+  label: "Disconnected",
+  textClass: "text-status-error-text",
+  bgClass: "bg-status-error-bg",
+  color: "var(--color-status-error)",
+}
+
+const ACTIVE_TASK_STATUS: StatusConfig = {
+  label: "Active",
+  textClass: "text-status-success-text",
+  bgClass: "bg-status-success-bg",
+  color: "var(--color-status-success)",
+}
+
+type TaskDisplayStatusInput = Pick<Task, "status" | "agentStatus" | "prStatus" | "prUrl">
+
+function isWaitingForPr(task: TaskDisplayStatusInput): boolean {
+  return task.status === "running"
+    && (task.prStatus === "open" || task.prStatus === "draft" || (task.prStatus === null && Boolean(task.prUrl)))
+}
+
+export function getTaskDisplayStatus(task: TaskDisplayStatusInput): StatusConfig {
+  if (task.status !== "running") return getStatusConfig(task.status)
+  if (task.agentStatus === "disconnected") return DISCONNECTED_AGENT_STATUS
+  if (task.agentStatus === "working") return WORKING_AGENT_STATUS
+  if (isWaitingForPr(task)) return WAITING_FOR_PR_STATUS
+  if (task.agentStatus === "idle") return IDLE_AGENT_STATUS
+  return ACTIVE_TASK_STATUS
+}
+
+export function getTaskStatusText(task: TaskDisplayStatusInput): string {
+  if (task.status !== "running") return task.status
+  if (task.agentStatus === "disconnected") return "disconnected"
+  if (task.agentStatus === "working") return "working"
+  if (isWaitingForPr(task)) return "waiting for PR"
+  if (task.agentStatus === "idle") return "idle"
+  return "active"
 }
 
 export const PR_STATUS_CONFIG: Record<string, StatusConfig> = {
