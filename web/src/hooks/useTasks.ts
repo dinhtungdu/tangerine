@@ -2,6 +2,7 @@ import { useState, useEffect, useCallback, useRef } from "react"
 import type { Task, WsClientMessage, WsServerMessage } from "@tangerine/shared"
 import { fetchTasks, fetchTaskCounts } from "../lib/api"
 import { getAuthToken } from "../lib/auth"
+import { createHeartbeatMonitor, type HeartbeatMonitor } from "../lib/ws-heartbeat"
 
 const PAGE_SIZE = 50
 
@@ -125,6 +126,7 @@ export function useTasks(filter?: { status?: string; project?: string; search?: 
   // Subscribe to task list invalidations and agent status updates via WS.
   useEffect(() => {
     let ws: WebSocket | null = null
+    let heartbeat: HeartbeatMonitor | null = null
     let backoff = 1000
     let reconnectTimer: ReturnType<typeof setTimeout> | null = null
     let unmounted = false
@@ -132,20 +134,32 @@ export function useTasks(filter?: { status?: string; project?: string; search?: 
     function connect() {
       if (unmounted) return
       const protocol = window.location.protocol === "https:" ? "wss:" : "ws:"
-      ws = new WebSocket(`${protocol}//${window.location.host}/api/tasks/list/ws`)
+      const socket = new WebSocket(`${protocol}//${window.location.host}/api/tasks/list/ws`)
+      ws = socket
 
-      ws.onopen = () => {
+      heartbeat?.stop()
+      const socketHeartbeat = createHeartbeatMonitor(() => {
+        if (unmounted || ws !== socket) return
+        if (socket.readyState < WebSocket.CLOSING) socket.close()
+      })
+      heartbeat = socketHeartbeat
+
+      socket.onopen = () => {
+        socketHeartbeat.markAlive()
+        if (unmounted || ws !== socket) return
         backoff = 1000
         const token = getAuthToken()
-        if (token) ws?.send(JSON.stringify({ type: "auth", token }))
+        if (token) socket.send(JSON.stringify({ type: "auth", token }))
         requestRefetch()
       }
 
-      ws.onmessage = (event) => {
+      socket.onmessage = (event) => {
+        socketHeartbeat.markAlive()
+        if (unmounted || ws !== socket) return
         try {
           const msg = JSON.parse(event.data as string) as WsServerMessage
           if (msg.type === "ping") {
-            ws?.send(JSON.stringify({ type: "pong" } satisfies WsClientMessage))
+            socket.send(JSON.stringify({ type: "pong" } satisfies WsClientMessage))
             return
           }
           if (msg.type === "task_agent_status") {
@@ -166,17 +180,21 @@ export function useTasks(filter?: { status?: string; project?: string; search?: 
         } catch { /* ignore */ }
       }
 
-      ws.onclose = () => {
-        if (unmounted) return
+      socket.onclose = () => {
+        socketHeartbeat.stop()
+        if (heartbeat === socketHeartbeat) heartbeat = null
+        if (unmounted || ws !== socket) return
+        ws = null
         reconnectTimer = setTimeout(() => { backoff = Math.min(backoff * 2, 30000); connect() }, backoff)
       }
-      ws.onerror = () => ws?.close()
+      socket.onerror = () => socket.close()
     }
 
     connect()
     return () => {
       unmounted = true
       if (reconnectTimer) clearTimeout(reconnectTimer)
+      heartbeat?.stop()
       ws?.close()
     }
   }, [requestRefetch])

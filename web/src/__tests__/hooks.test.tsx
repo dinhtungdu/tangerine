@@ -10,8 +10,9 @@ import { useTaskActions } from "../hooks/useTaskActions"
 import { useResizable } from "../hooks/useResizable"
 import { getActions, getAction, setShortcutOverrides, _resetForTesting } from "../lib/actions"
 import { defaultShortcuts } from "../lib/default-shortcuts"
-import type { PromptImage, PromptQueueEntry, Task, WsServerMessage } from "@tangerine/shared"
+import { WS_HEARTBEAT_TIMEOUT_MS, type PromptImage, type PromptQueueEntry, type Task, type WsServerMessage } from "@tangerine/shared"
 import type { PointerEvent as ReactPointerEvent } from "react"
+import { createFakeTimeoutTimers } from "./fake-timeout-timers"
 const mockTasks = [
   {
     id: "1", projectId: "proj", source: "manual" as const, sourceId: null, sourceUrl: null,
@@ -558,6 +559,61 @@ describe("useTasks", () => {
       expect(result.current.tasks[0]?.title).toBe("Live task")
     } finally {
       globalThis.WebSocket = originalWebSocket
+    }
+  })
+
+  test("closes task list websocket when heartbeat pings stop", async () => {
+    const originalWebSocket = globalThis.WebSocket
+    const originalSetTimeout = globalThis.setTimeout
+    const originalClearTimeout = globalThis.clearTimeout
+    const fakeTimers = createFakeTimeoutTimers()
+
+    class TestWebSocket {
+      static instances: TestWebSocket[] = []
+      static readonly CONNECTING = 0
+      static readonly OPEN = 1
+      static readonly CLOSING = 2
+      static readonly CLOSED = 3
+      readyState = TestWebSocket.OPEN
+      onopen: ((event: Event) => void) | null = null
+      onmessage: ((event: MessageEvent) => void) | null = null
+      onerror: ((event: Event) => void) | null = null
+      onclose: ((event: CloseEvent) => void) | null = null
+      closeCount = 0
+      constructor(_url: string) {
+        TestWebSocket.instances.push(this)
+        queueMicrotask(() => this.onopen?.(new Event("open")))
+      }
+      send(_data: string) {}
+      close() {
+        this.readyState = TestWebSocket.CLOSED
+        this.closeCount++
+      }
+    }
+
+    globalThis.WebSocket = TestWebSocket as unknown as typeof WebSocket
+    globalThis.setTimeout = fakeTimers.timers.setTimeout as typeof globalThis.setTimeout
+    globalThis.clearTimeout = fakeTimers.timers.clearTimeout as typeof globalThis.clearTimeout
+
+    try {
+      const { unmount } = renderHook(() => useTasks())
+      await act(async () => {
+        await Promise.resolve()
+      })
+
+      expect(TestWebSocket.instances).toHaveLength(1)
+      const socket = TestWebSocket.instances[0]!
+      fakeTimers.advance(WS_HEARTBEAT_TIMEOUT_MS - 1)
+      expect(socket.closeCount).toBe(0)
+
+      fakeTimers.advance(1)
+      expect(socket.closeCount).toBe(1)
+
+      unmount()
+    } finally {
+      globalThis.WebSocket = originalWebSocket
+      globalThis.setTimeout = originalSetTimeout
+      globalThis.clearTimeout = originalClearTimeout
     }
   })
 
