@@ -197,15 +197,15 @@ export function cancelTask(
 export function restartTask(
   deps: TaskManagerDeps,
   taskId: string,
-): Effect.Effect<void, TaskNotFoundError | SessionCleanupError | DbError> {
+): Effect.Effect<void, TaskNotFoundError | DbError> {
   return Effect.gen(function* () {
     const task = yield* deps.getTask(taskId).pipe(
       Effect.mapError(() => new TaskNotFoundError({ taskId }))
     )
     if (!task) return yield* new TaskNotFoundError({ taskId })
 
-    // Only restart running/provisioning tasks
-    if (task.status !== "running" && task.status !== "provisioning") {
+    // Only restart running tasks (not provisioning - that's still setting up)
+    if (task.status !== "running") {
       log.warn("Cannot restart non-running task", { taskId, status: task.status })
       return
     }
@@ -217,22 +217,18 @@ export function restartTask(
 
     log.info("Restarting task with fresh agent", { taskId, title: task.title })
 
-    // Clean up current session (kill agent process)
-    yield* cleanupSession(taskId, deps.cleanupDeps).pipe(
-      Effect.catchTag("SessionCleanupError", (e) => {
-        log.warn("Cleanup before restart failed (continuing anyway)", { taskId, error: e.message })
-        return Effect.void
-      })
-    )
-
+    // Clear working state so UI shows transition
     clearAgentWorkingState(taskId)
-    clearTaskState(taskId)
 
     yield* deps.logActivity(taskId, "lifecycle", "task.restarted", "Task restarted with fresh agent").pipe(
       Effect.catchAll(() => Effect.succeed(undefined))
     )
 
-    // Start fresh session with reconnect (uses existing worktree, injects context)
+    // Lock reconnect BEFORE forking to prevent health monitor from racing
+    deps.retryDeps.lockReconnect?.(taskId)
+
+    // reconnectSession handles killing the old agent process (via killProcessTree)
+    // and spawns a new one with --resume to continue the session
     const taskLifecycleDeps = depsForProvider(deps, task.provider)
     yield* Effect.forkDaemon(
       reconnectSessionWithRetry(task, projectConfig, taskLifecycleDeps, deps.retryDeps)
