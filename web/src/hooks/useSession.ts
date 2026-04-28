@@ -693,8 +693,11 @@ export function useSession(taskId: string, initialContextTokens?: number, initia
       queuedPromptsRef.current = next
       return next
     })
+    if (agentStatus === "working") {
+      abort()
+    }
     sendPrompt(entry.text, entry.images)
-  }, [taskId, sendPrompt])
+  }, [taskId, sendPrompt, agentStatus, abort])
 
   const visibleQueuedPrompts = filterVisibleQueuedPrompts(queuedPrompts, pendingOptimisticRef.current, queueVisibilityNow)
 
