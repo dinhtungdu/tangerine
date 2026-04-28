@@ -90,12 +90,7 @@ const integrationsSchema = z.object({
   github: githubIntegrationSchema.optional(),
 })
 
-const defaultModels = [
-  "anthropic/claude-sonnet-4-6",
-  "anthropic/claude-opus-4-20250514",
-  "anthropic/claude-haiku-4-20250414",
-  "openai/gpt-5.4",
-]
+const defaultModels: string[] = []
 
 const sslConfigSchema = z.object({
   cert: z.string(),
@@ -108,7 +103,7 @@ export const tangerineConfigSchema = z.object({
   agents: z.array(agentConfigSchema).optional().default([]),
   defaultAgent: z.string().optional(),
   workspace: z.string().default("~/tangerine-workspace"),
-  model: z.string().default("anthropic/claude-sonnet-4-6"),
+  model: z.string().optional(),
   models: z.array(z.string()).default(defaultModels),
   integrations: integrationsSchema.optional(),
   sshHost: z.string().optional(),

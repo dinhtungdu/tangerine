@@ -1,6 +1,6 @@
 # Cross-Project Task Creation
 
-Agents inside VMs can create tasks in other projects. Preserves context that would be lost with manual creation.
+Agents can create tasks in other projects. Preserves context that would be lost with manual creation.
 
 ## Problem
 
@@ -11,14 +11,12 @@ Agent working on Project A discovers issue in Project B. Agent has full context 
 ### Communication Path
 
 ```
-Agent (VM-A) → reverse SSH tunnel → Tangerine server (host) → provisions task → VM-B
+Agent (Project A) → Tangerine API → provisions task → Agent (Project B)
 ```
 
-Agent never talks to VM-B directly. Server is the coordinator — same as web dashboard or API.
+Agent never talks to Project B's agent directly. Server is the coordinator — same as web dashboard or API.
 
-### Reverse Tunnel
-
-New reverse tunnel during session setup. Forwards the Tangerine API port into the VM:
+### API Access
 
 The server listens on `DEFAULT_API_PORT = 3456`. Agents access it at `http://127.0.0.1:3456`.
 
@@ -95,25 +93,24 @@ In `startSession` and `reconnectSession`:
 1. Inject `TANGERINE_TASK_ID=<task.id>` and `TANGERINE_SERVER_PORT=3456` as env vars
 2. If configured, also inject `TANGERINE_AUTH_TOKEN=<shared bearer token>`
 
-Reverse tunnel stored in `SessionInfo` alongside existing `proxyTunnel`. Killed on cleanup.
+### Agent Environment
 
-### Golden Image Changes
+Agents receive env vars for API access:
+- `TANGERINE_TASK_ID` — current task ID
+- `TANGERINE_SERVER_PORT` — API port (default 3456)
+- `TANGERINE_AUTH_TOKEN` — bearer token when configured
 
-Install `tangerine-task` script in base image build. Simple shell script (~30 lines):
+The `tangerine-task` CLI script (~30 lines) wraps these calls:
 - `projects`: `curl -s http://127.0.0.1:$TANGERINE_SERVER_PORT/api/projects | jq -r '.[].name'`
 - `create`: builds JSON payload, `curl -X POST http://127.0.0.1:$TANGERINE_SERVER_PORT/api/tasks`
-
-Use the same bearer token as the dashboard/API. Agent-side `curl` calls must send `Authorization: Bearer $TANGERINE_AUTH_TOKEN` when the token is present.
 
 ## Implementation Order
 
 1. Add `GET /api/projects` endpoint
 2. Add `"cross-project"` as valid task source
-3. Add reverse tunnel in `startSession` / `reconnectSession`
-4. Inject `TANGERINE_TASK_ID` + `TANGERINE_SERVER_PORT` env vars
-5. Write `tangerine-task` shell script
-6. Add script to base image build
-7. Tests: API route test for `/api/projects`, lifecycle test for reverse tunnel setup
+3. Inject `TANGERINE_TASK_ID` + `TANGERINE_SERVER_PORT` env vars
+4. Write `tangerine-task` shell script
+5. Tests: API route test for `/api/projects`
 
 ## Not In Scope (future)
 
