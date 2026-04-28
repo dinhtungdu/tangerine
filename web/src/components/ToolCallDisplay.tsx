@@ -181,7 +181,7 @@ export function ToolCallDisplay({ content, status = "success" }: ToolCallDisplay
         </svg>
         <span className="text-xs font-medium text-muted-foreground">{label}</span>
         {summary ? (
-          <span className="min-w-0 flex-1 truncate text-left font-mono text-xs text-foreground">{summary}</span>
+          <span className="min-w-0 flex-1 overflow-hidden whitespace-nowrap text-ellipsis text-left font-mono text-xs text-foreground">{summary}</span>
         ) : (
           <span className="flex-1" />
         )}
