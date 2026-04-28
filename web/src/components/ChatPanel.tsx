@@ -317,8 +317,8 @@ export function ChatPanel({
   // Scroll to bottom when switching tasks (clicking on a different chat)
   useEffect(() => {
     if (!taskId) return
-    const el = contentRef.current
-    if (el) el.scrollIntoView({ block: "end" })
+    const scroller = scrollRef.current
+    if (scroller) scroller.scrollTop = scroller.scrollHeight
     setIsAtBottom(true)
   }, [taskId])
 
@@ -330,8 +330,8 @@ export function ChatPanel({
   }, [])
 
   const scrollToBottom = useCallback(() => {
-    const el = contentRef.current
-    if (el) el.scrollIntoView({ block: "end", behavior: "smooth" })
+    const scroller = scrollRef.current
+    if (scroller) scroller.scrollTo({ top: scroller.scrollHeight, behavior: "smooth" })
   }, [])
 
   // Track virtual keyboard state via visualViewport resize events so the auto-scroll
@@ -361,8 +361,10 @@ export function ChatPanel({
         : (navigator.maxTouchPoints > 0 && inputFocused)
       const lastMessageIsUser = messagesGrew && messages[messages.length - 1]?.role === "user"
       if (!(inputFocused && keyboardOpen) || lastMessageIsUser) {
-        const el = contentRef.current
-        if (el) el.scrollIntoView({ block: "end" })
+        // Use direct scrollTop instead of scrollIntoView to avoid mobile Safari
+        // viewport repositioning when virtual keyboard is open
+        const scroller = scrollRef.current
+        if (scroller) scroller.scrollTop = scroller.scrollHeight
       }
     }
     prevCountRef.current = { messages: messages.length, activities: activities.length }
