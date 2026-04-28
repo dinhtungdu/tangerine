@@ -37,50 +37,60 @@ function getToolIcon(toolName: string): { icon: string; label: string } {
   if (name.includes("grep")) return { icon: "search", label: "Grep" }
   if (name.includes("glob")) return { icon: "folder", label: "Glob" }
   if (name.includes("agent")) return { icon: "agent", label: "Agent" }
-  return { icon: "tool", label: toolName }
+  return { icon: "tool", label: "Tool" }
 }
 
 function getToolSummary(toolName: string, toolData: ToolCallData): string | null {
   const name = toolName.toLowerCase()
   const input = toolData.input
 
+  // Helper to safely get string value from arbitrary JSON
+  const str = (v: unknown): string | null => (typeof v === "string" && v ? v : null)
+
   if (name.includes("bash") || name.includes("shell") || name.includes("exec")) {
-    const cmd = toolData.command || (input?.command as string)
-    if (cmd) {
-      const oneLine = cmd.replace(/\s+/g, " ").trim()
-      return `$ ${oneLine.length > 60 ? oneLine.slice(0, 60) + "…" : oneLine}`
-    }
+    const cmd = str(toolData.command) ?? str(input?.command)
+    if (cmd) return `$ ${cmd.replace(/\s+/g, " ").trim()}`
   }
 
   if (name.includes("read")) {
-    const path = toolData.path || toolData.file_path || (input?.file_path as string)
+    const path = str(toolData.path) ?? str(toolData.file_path) ?? str(input?.file_path)
     if (path) return path
   }
 
   if (name.includes("write") || name.includes("edit")) {
-    const path = toolData.path || toolData.file_path || (input?.file_path as string)
+    const path = str(toolData.path) ?? str(toolData.file_path) ?? str(input?.file_path)
     if (path) return path
   }
 
   if (name.includes("grep")) {
-    const pattern = toolData.pattern || (input?.pattern as string)
-    const path = toolData.path || (input?.path as string)
+    const pattern = str(toolData.pattern) ?? str(input?.pattern)
+    const path = str(toolData.path) ?? str(input?.path)
     if (pattern) return `/${pattern}/${path ? ` in ${path}` : ""}`
   }
 
   if (name.includes("glob")) {
-    const pattern = (input?.pattern as string)
+    const pattern = str(input?.pattern)
     if (pattern) return pattern
   }
 
   if (name.includes("agent")) {
-    const desc = (input?.description as string)
-    if (desc) return desc.length > 50 ? desc.slice(0, 50) + "…" : desc
+    const desc = str(input?.description)
+    if (desc) return desc
   }
 
-  // Fallback: show description for any tool that has one
-  const desc = (input?.description as string)
-  if (desc) return desc.length > 60 ? desc.slice(0, 60) + "…" : desc
+  // Fallback: try common fields (with type guards for arbitrary JSON)
+  const desc = input?.description
+  if (typeof desc === "string" && desc) return desc
+
+  // Try file_path, path, command, pattern as generic fallbacks
+  const filePath = toolData.file_path ?? toolData.path ?? input?.file_path ?? input?.path
+  if (typeof filePath === "string" && filePath) return filePath
+
+  const cmd = toolData.command ?? input?.command
+  if (typeof cmd === "string" && cmd) return `$ ${cmd.replace(/\s+/g, " ").trim()}`
+
+  const pattern = toolData.pattern ?? input?.pattern
+  if (typeof pattern === "string" && pattern) return pattern
 
   return null
 }
@@ -142,10 +152,13 @@ export function ToolCallDisplay({ content, status = "success" }: ToolCallDisplay
   }
 
   const toolName = toolData.tool || toolData.name || "Tool Call"
-  const { label } = getToolIcon(toolName)
-  const summary = getToolSummary(toolName, toolData)
   const nameLower = toolName.toLowerCase()
-  const isShell = nameLower.includes("shell") || nameLower.includes("bash") || nameLower.includes("exec")
+  // Detect shell by string command field presence OR tool name pattern
+  const cmd = toolData.command ?? toolData.input?.command
+  const hasCommand = typeof cmd === "string" && cmd.length > 0
+  const isShell = hasCommand || nameLower.includes("shell") || nameLower.includes("bash") || nameLower.includes("exec")
+  const { label } = isShell ? { label: "Bash" } : getToolIcon(toolName)
+  const summary = isShell ? getToolSummary("bash", toolData) : getToolSummary(toolName, toolData)
   const isEdit = nameLower.includes("edit")
   const isWrite = nameLower.includes("write") || isEdit
   const isRead = nameLower.includes("read")
@@ -163,7 +176,7 @@ export function ToolCallDisplay({ content, status = "success" }: ToolCallDisplay
         onClick={() => setExpanded(!expanded)}
         aria-expanded={expanded}
         aria-label={`${expanded ? "Collapse" : "Expand"} ${label}`}
-        className="flex w-full items-center gap-2 bg-muted px-3 py-1.5 outline-none focus-visible:ring-1 focus-visible:ring-ring/50"
+        className="flex w-full min-w-0 items-center gap-2 overflow-hidden bg-muted px-3 py-1.5 outline-none focus-visible:ring-1 focus-visible:ring-ring/50"
       >
         <StatusIndicator status={status} />
         <svg className="h-3.5 w-3.5 text-muted-foreground" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
@@ -181,7 +194,7 @@ export function ToolCallDisplay({ content, status = "success" }: ToolCallDisplay
         </svg>
         <span className="text-xs font-medium text-muted-foreground">{label}</span>
         {summary ? (
-          <span className="min-w-0 flex-1 truncate text-left font-mono text-xs text-foreground">{summary}</span>
+          <span className="min-w-0 flex-1 overflow-hidden whitespace-nowrap text-ellipsis text-left font-mono text-xs text-foreground">{summary}</span>
         ) : (
           <span className="flex-1" />
         )}
