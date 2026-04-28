@@ -150,6 +150,19 @@ describe("createAcpEventMapper", () => {
     expect(mapper.flushAssistantMessage()).toEqual([])
   })
 
+  test("completes active assistant text when the streamed message id changes", () => {
+    const mapper = createAcpEventMapper()
+
+    expect(mapper.mapSessionUpdate({ sessionUpdate: "agent_message_chunk", messageId: "msg-1", content: { type: "text", text: "First." } }))
+      .toEqual([{ kind: "message.streaming", content: "First.", messageId: "msg-1" }])
+    expect(mapper.mapSessionUpdate({ sessionUpdate: "agent_message_chunk", messageId: "msg-2", content: { type: "text", text: "Second." } }))
+      .toEqual([
+        { kind: "message.complete", role: "assistant", content: "First.", messageId: "msg-1" },
+        { kind: "message.streaming", content: "Second.", messageId: "msg-2" },
+      ])
+    expect(mapper.flushAssistantMessage()).toEqual([{ kind: "message.complete", role: "assistant", content: "Second.", messageId: "msg-2" }])
+  })
+
   test("streams thought chunks and flushes one complete thought", () => {
     const mapper = createAcpEventMapper()
 

@@ -278,9 +278,16 @@ export function createAcpEventMapper(): {
           const text = textFromContent(update.content)
           if (text) {
             const messageId = stringField(update, "messageId")
+            const events: AgentEvent[] = []
+            if (messageId && assistantMessageId && messageId !== assistantMessageId && assistantBuffer) {
+              events.push({ kind: "message.complete", role: "assistant", content: assistantBuffer, messageId: assistantMessageId })
+              assistantBuffer = ""
+              assistantMessageId = undefined
+            }
             if (messageId) assistantMessageId = messageId
             assistantBuffer += text
-            return [{ kind: "message.streaming", content: text, ...(messageId ? { messageId } : {}) }]
+            events.push({ kind: "message.streaming", content: text, ...(messageId ? { messageId } : {}) })
+            return events
           }
           const block = contentBlockFromContent(update.content)
           return block ? [{ kind: "content.block", block }] : []
