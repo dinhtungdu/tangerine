@@ -59,7 +59,7 @@ function QueuedPromptList({
   useEffect(() => {
     setDrafts((prev) => {
       const next: Record<string, string> = {}
-      for (const entry of queuedPrompts) next[entry.id] = prev[entry.id] ?? entry.text
+      for (const entry of queuedPrompts) next[entry.id] = prev[entry.id] ?? entry.displayText ?? entry.text
       return next
     })
   }, [queuedPrompts])
@@ -81,8 +81,9 @@ function QueuedPromptList({
       </div>
       <div className="space-y-2">
         {queuedPrompts.map((entry, index) => {
-          const draft = drafts[entry.id] ?? entry.text
-          const isChanged = draft !== entry.text
+          const displayText = entry.displayText ?? entry.text
+          const draft = drafts[entry.id] ?? displayText
+          const isChanged = draft !== displayText
           return (
             <div key={entry.id} className="rounded-lg border border-border bg-background p-2 shadow-sm">
               <textarea

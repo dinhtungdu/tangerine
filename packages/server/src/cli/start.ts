@@ -1046,7 +1046,7 @@ export async function start(): Promise<void> {
             }
 
             if (getAgentWorkingState(taskId) === "working") {
-              yield* enqueuePrompt(taskId, promptText, images, fromTaskId)
+              yield* enqueuePrompt(taskId, promptText, images, fromTaskId, text)
               return
             }
 
@@ -1095,7 +1095,7 @@ export async function start(): Promise<void> {
             }
 
             // Queue for delivery once the agent is ready
-            yield* enqueuePrompt(taskId, promptText, images, fromTaskId)
+            yield* enqueuePrompt(taskId, promptText, images, fromTaskId, text)
           }).pipe(
             Effect.catchAll((e) => {
               log.error("sendPrompt failed", { taskId, error: String(e) })

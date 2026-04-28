@@ -138,6 +138,7 @@ export interface PromptImage {
 export interface PromptQueueEntry {
   id: string
   text: string
+  displayText?: string
   images?: PromptImage[]
   fromTaskId?: string
   enqueuedAt: number

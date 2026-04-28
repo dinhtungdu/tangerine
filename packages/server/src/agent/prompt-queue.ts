@@ -15,6 +15,7 @@ type AgentState = "idle" | "busy"
 export interface PromptQueueEntry {
   id: string
   text: string
+  displayText?: string
   images?: PromptImage[]
   fromTaskId?: string
   enqueuedAt: number
@@ -73,10 +74,10 @@ export function onQueueChange(taskId: string, listener: QueueListener): () => vo
   }
 }
 
-export function enqueue(taskId: string, text: string, images?: PromptImage[], fromTaskId?: string): Effect.Effect<PromptQueueEntry, never> {
+export function enqueue(taskId: string, text: string, images?: PromptImage[], fromTaskId?: string, displayText?: string): Effect.Effect<PromptQueueEntry, never> {
   return Effect.sync(() => {
     const q = getQueue(taskId)
-    const entry: PromptQueueEntry = { id: crypto.randomUUID(), text, images, fromTaskId, enqueuedAt: Date.now() }
+    const entry: PromptQueueEntry = { id: crypto.randomUUID(), text, displayText, images, fromTaskId, enqueuedAt: Date.now() }
     q.entries.push(entry)
     log.debug("Prompt enqueued", { taskId, queueLength: q.entries.length, promptId: entry.id })
     notifyQueueChanged(taskId)
@@ -93,7 +94,10 @@ export function editQueuedPrompt(taskId: string, promptId: string, update: { tex
     const q = queues.get(taskId)
     const entry = q?.entries.find((item) => item.id === promptId)
     if (!entry) return null
-    if (update.text !== undefined) entry.text = update.text
+    if (update.text !== undefined) {
+      entry.text = update.text
+      entry.displayText = update.text
+    }
     if (update.images !== undefined) entry.images = update.images
     if (update.fromTaskId !== undefined) {
       if (update.fromTaskId === null) delete entry.fromTaskId
