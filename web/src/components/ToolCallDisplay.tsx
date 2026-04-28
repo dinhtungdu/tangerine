@@ -142,10 +142,12 @@ export function ToolCallDisplay({ content, status = "success" }: ToolCallDisplay
   }
 
   const toolName = toolData.tool || toolData.name || "Tool Call"
-  const { label } = getToolIcon(toolName)
-  const summary = getToolSummary(toolName, toolData)
   const nameLower = toolName.toLowerCase()
-  const isShell = nameLower.includes("shell") || nameLower.includes("bash") || nameLower.includes("exec")
+  // Detect shell by command field presence OR tool name pattern
+  const hasCommand = Boolean(toolData.command || toolData.input?.command)
+  const isShell = hasCommand || nameLower.includes("shell") || nameLower.includes("bash") || nameLower.includes("exec")
+  const { label } = isShell ? { label: "Bash" } : getToolIcon(toolName)
+  const summary = isShell ? getToolSummary("bash", toolData) : getToolSummary(toolName, toolData)
   const isEdit = nameLower.includes("edit")
   const isWrite = nameLower.includes("write") || isEdit
   const isRead = nameLower.includes("read")
