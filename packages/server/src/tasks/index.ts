@@ -1,6 +1,7 @@
 export {
   createTask,
   cancelTask,
+  restartTask,
   completeTask,
   abortAgent,
 } from "./manager"

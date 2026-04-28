@@ -1,6 +1,6 @@
 import { TERMINAL_STATUSES } from "@tangerine/shared"
 import type { Task } from "@tangerine/shared"
-import { MoreVertical, X, RefreshCw, Trash2 } from "lucide-react"
+import { MoreVertical, X, RefreshCw, Trash2, RotateCcw } from "lucide-react"
 import { executeAction } from "../lib/actions"
 import { useToast } from "../context/ToastContext"
 import {
@@ -58,6 +58,15 @@ export function TaskOverflowMenu({
         <MoreVertical className={`${iconCls} text-muted-foreground`} />
       </DropdownMenuTrigger>
       <DropdownMenuContent align="end" className="min-w-[120px]">
+        {isRunning && (
+          <DropdownMenuItem
+            onClick={(e) => { e.preventDefault(); e.stopPropagation(); handleAction("task.restart", "Failed to restart task") }}
+            className={`flex items-center gap-2 text-muted-foreground hover:text-foreground ${itemCls}`}
+          >
+            <RotateCcw className="h-3.5 w-3.5" />
+            Restart
+          </DropdownMenuItem>
+        )}
         {isRunning && (
           <DropdownMenuItem
             onClick={(e) => { e.preventDefault(); e.stopPropagation(); handleAction("task.cancel", "Failed to cancel task") }}

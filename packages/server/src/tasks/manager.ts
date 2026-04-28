@@ -194,6 +194,48 @@ export function cancelTask(
   })
 }
 
+export function restartTask(
+  deps: TaskManagerDeps,
+  taskId: string,
+): Effect.Effect<void, TaskNotFoundError | DbError> {
+  return Effect.gen(function* () {
+    const task = yield* deps.getTask(taskId).pipe(
+      Effect.mapError(() => new TaskNotFoundError({ taskId }))
+    )
+    if (!task) return yield* new TaskNotFoundError({ taskId })
+
+    // Only restart running tasks (not provisioning - that's still setting up)
+    if (task.status !== "running") {
+      log.warn("Cannot restart non-running task", { taskId, status: task.status })
+      return
+    }
+
+    const projectConfig = deps.getProjectConfig(task.project_id)
+    if (!projectConfig) {
+      return yield* Effect.fail(new DbError({ message: `Unknown project: ${task.project_id}` }))
+    }
+
+    log.info("Restarting task with fresh agent", { taskId, title: task.title })
+
+    // Clear working state so UI shows transition
+    clearAgentWorkingState(taskId)
+
+    yield* deps.logActivity(taskId, "lifecycle", "task.restarted", "Task restarted with fresh agent").pipe(
+      Effect.catchAll(() => Effect.succeed(undefined))
+    )
+
+    // Lock reconnect BEFORE forking to prevent health monitor from racing
+    deps.retryDeps.lockReconnect?.(taskId)
+
+    // reconnectSession handles killing the old agent process (via killProcessTree)
+    // and spawns a new one with --resume to continue the session
+    const taskLifecycleDeps = depsForProvider(deps, task.provider)
+    yield* Effect.forkDaemon(
+      reconnectSessionWithRetry(task, projectConfig, taskLifecycleDeps, deps.retryDeps)
+    )
+  })
+}
+
 export function completeTask(
   deps: TaskManagerDeps,
   taskId: string,

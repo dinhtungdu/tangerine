@@ -62,6 +62,7 @@ function createMockDeps(db: Database, configOverrides?: Partial<AppDeps["config"
       changeConfig() { return Effect.void },
       cleanupTask() { return Effect.void },
       startTask() { return Effect.void },
+      restartTask() { return Effect.void },
       onTaskEvent() { return () => {} },
       onStatusChange() { return () => {} },
     },

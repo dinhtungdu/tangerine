@@ -246,6 +246,10 @@ export async function abortTask(id: string): Promise<void> {
   return request<void>(`/api/tasks/${id}/abort`, { method: "POST" })
 }
 
+export async function restartTask(id: string): Promise<void> {
+  return request<void>(`/api/tasks/${id}/restart`, { method: "POST" })
+}
+
 export async function changeTaskConfig(id: string, config: { model?: string; reasoningEffort?: string; mode?: string }): Promise<void> {
   return request<void>(`/api/tasks/${id}/model`, {
     method: "POST",
