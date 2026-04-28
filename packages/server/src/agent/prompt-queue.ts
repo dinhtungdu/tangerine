@@ -120,6 +120,18 @@ export function removeQueuedPrompt(taskId: string, promptId: string): Effect.Eff
   })
 }
 
+export function takeQueuedPrompt(taskId: string, promptId: string): Effect.Effect<PromptQueueEntry | null, never> {
+  return Effect.sync(() => {
+    const q = queues.get(taskId)
+    if (!q) return null
+    const index = q.entries.findIndex((entry) => entry.id === promptId)
+    if (index === -1) return null
+    const [entry] = q.entries.splice(index, 1)
+    notifyQueueChanged(taskId)
+    return entry ? cloneEntry(entry) : null
+  })
+}
+
 export function setAgentState(taskId: string, state: AgentState): Effect.Effect<void, never> {
   return Effect.sync(() => {
     const q = getQueue(taskId)

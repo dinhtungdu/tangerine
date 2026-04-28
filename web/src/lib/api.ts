@@ -221,6 +221,10 @@ export async function removeQueuedPrompt(id: string, promptId: string): Promise<
   return request<void>(`/api/tasks/${id}/queue/${promptId}`, { method: "DELETE" })
 }
 
+export async function sendNowQueuedPrompt(id: string, promptId: string): Promise<void> {
+  return request<void>(`/api/tasks/${id}/queue/${promptId}/send-now`, { method: "POST" })
+}
+
 export async function fetchTaskSlashCommands(id: string): Promise<AgentSlashCommand[]> {
   const body = await request<{ commands?: AgentSlashCommand[] }>(`/api/tasks/${id}/slash-commands`)
   return Array.isArray(body?.commands) ? body.commands : []

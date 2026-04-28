@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback, useRef } from "react"
 import type { AgentConfigOption, AgentContentBlock, AgentPlanEntry, AgentSlashCommand, WsServerMessage, TaskStatus, ActivityEntry, PromptImage, PromptQueueEntry } from "@tangerine/shared"
-import { fetchMessagesPaginated, fetchActivities, fetchQueuedPrompts, fetchTaskConfigOptions, fetchTaskSlashCommands, removeQueuedPrompt, updateQueuedPrompt, type SessionLog } from "../lib/api"
+import { fetchMessagesPaginated, fetchActivities, fetchQueuedPrompts, fetchTaskConfigOptions, fetchTaskSlashCommands, removeQueuedPrompt, updateQueuedPrompt, sendNowQueuedPrompt, type SessionLog } from "../lib/api"
 import { useWebSocket } from "./useWebSocket"
 
 export interface ChatMessageImage {
@@ -685,19 +685,14 @@ export function useSession(taskId: string, initialContextTokens?: number, initia
   }, [taskId])
 
   const handleSendNowQueuedPrompt = useCallback(async (promptId: string) => {
-    const entry = queuedPromptsRef.current.find((e) => e.id === promptId)
-    if (!entry) return
-    await removeQueuedPrompt(taskId, promptId)
+    await sendNowQueuedPrompt(taskId, promptId)
     setQueuedPrompts((prev) => {
       const next = prev.filter((e) => e.id !== promptId)
       queuedPromptsRef.current = next
       return next
     })
-    if (agentStatus === "working") {
-      abort()
-    }
-    sendPrompt(entry.text, entry.images, true)
-  }, [taskId, sendPrompt, agentStatus, abort])
+    setAgentStatus("working")
+  }, [taskId])
 
   const visibleQueuedPrompts = filterVisibleQueuedPrompts(queuedPrompts, pendingOptimisticRef.current, queueVisibilityNow)
 
