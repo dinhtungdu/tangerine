@@ -301,7 +301,7 @@ function DiffContentBlockCard({ message, block }: { message: ChatMessageType; bl
     <ContentBlockFrame label="Diff" timestamp={message.timestamp} icon={<FileDiff />}>
       <div className="overflow-hidden rounded-md border border-border bg-background">
         <div className="flex flex-wrap items-center gap-2 px-2.5 py-2">
-          <div className="min-w-0 flex-1 break-all font-mono text-xs font-medium text-foreground">{diff.path}</div>
+          <div className="min-w-0 flex-1 break-words font-mono text-xs font-medium text-foreground">{diff.path}</div>
           <div className="flex items-center gap-1">
             <Badge variant="secondary">+{stats.additions}</Badge>
             <Badge variant="destructive">-{stats.deletions}</Badge>
@@ -344,7 +344,7 @@ function GenericContentBlockCard({ message, block }: { message: ChatMessageType;
     <ContentBlockFrame label={label} timestamp={message.timestamp} icon={<FileText />}>
       <div className="rounded-md border border-border bg-background px-2.5 py-2">
         <div className="text-xs font-medium text-foreground">{title}</div>
-        {uri && <div className="mt-1 break-all font-mono text-2xs text-muted-foreground">{uri}</div>}
+        {uri && <div className="mt-1 break-words font-mono text-2xs text-muted-foreground">{uri}</div>}
         {typeof block.mimeType === "string" && <div className="mt-1 text-2xs text-muted-foreground">{block.mimeType}</div>}
       </div>
     </ContentBlockFrame>

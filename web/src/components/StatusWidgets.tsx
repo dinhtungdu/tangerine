@@ -94,7 +94,7 @@ function LogContext({ context }: { context: Record<string, unknown> }) {
   const entries = Object.entries(context).filter(([k]) => !LOG_CONTEXT_SKIP_KEYS.has(k))
   if (entries.length === 0) return null
   return (
-    <span className="mt-0.5 block break-all font-mono text-xs text-muted-foreground">
+    <span className="mt-0.5 block break-words font-mono text-xs text-muted-foreground">
       {entries.map(([k, v], i) => (
         <span key={k}>
           {i > 0 && " "}
