@@ -1,4 +1,4 @@
-import { lazy, Suspense } from "react"
+import { lazy } from "react"
 import { Routes, Route } from "react-router-dom"
 import { Layout } from "./components/Layout"
 import { AuthGate } from "./components/AuthGate"
@@ -15,16 +15,14 @@ export function App() {
     <AuthProvider>
       <AuthGate>
         <ProjectProvider>
-          <Suspense>
-            <Routes>
-              <Route element={<Layout />}>
-                <Route index element={<RunsPage />} />
-                <Route path="crons" element={<CronsPage />} />
-                <Route path="status" element={<StatusPage />} />
-                <Route path="tasks/:id" element={<TaskDetail />} />
-              </Route>
-            </Routes>
-          </Suspense>
+          <Routes>
+            <Route element={<Layout />}>
+              <Route index element={<RunsPage />} />
+              <Route path="crons" element={<CronsPage />} />
+              <Route path="status" element={<StatusPage />} />
+              <Route path="tasks/:id" element={<TaskDetail />} />
+            </Route>
+          </Routes>
         </ProjectProvider>
       </AuthGate>
     </AuthProvider>
