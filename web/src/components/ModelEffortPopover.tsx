@@ -88,7 +88,7 @@ export function ModelEffortPopover({
         side="top"
         align="start"
         sideOffset={6}
-        className="w-lg max-w-[calc(100vw-16px)] overflow-hidden p-0"
+        className="w-lg max-w-[calc(100vw-16px)] gap-0 overflow-hidden p-0"
       >
         {harnessSupport && (
           <div className="flex flex-wrap items-center gap-1.5 border-b border-border px-3 py-2">
@@ -106,10 +106,10 @@ export function ModelEffortPopover({
             ))}
           </div>
         )}
-        <div className="flex flex-wrap">
+        <div data-testid="model-effort-columns" className="flex flex-nowrap">
           {/* Model column */}
           {resolvedModel && (
-            <div className="flex min-w-35 flex-1 flex-col">
+            <div className="flex min-w-0 flex-1 flex-col">
               <div className="border-b border-border px-3 py-2 text-2xs font-medium uppercase tracking-wide text-muted-foreground">
                 Model
               </div>
@@ -134,7 +134,7 @@ export function ModelEffortPopover({
                     <Check
                       className={cn("size-3 shrink-0", m !== resolvedModel && "invisible")}
                     />
-                    {formatModelName(m)}
+                    <span className="min-w-0 truncate">{formatModelName(m)}</span>
                   </Button>
                 ))}
               </div>
@@ -145,7 +145,7 @@ export function ModelEffortPopover({
           {showEffort && (
             <>
               {resolvedModel && <Separator orientation="vertical" />}
-              <div className="flex min-w-35 flex-1 flex-col">
+              <div className="flex min-w-0 flex-1 flex-col">
                 <div className="border-b border-border px-3 py-2 text-2xs font-medium uppercase tracking-wide text-muted-foreground">
                   Effort
                 </div>
@@ -167,7 +167,7 @@ export function ModelEffortPopover({
                       <Check
                         className={cn("size-3 shrink-0", e.value !== effectiveEffort && "invisible")}
                       />
-                      {e.label}
+                      <span className="min-w-0 truncate">{e.label}</span>
                     </Button>
                   ))}
                 </div>
@@ -179,7 +179,7 @@ export function ModelEffortPopover({
           {showMode && (
             <>
               {(resolvedModel || showEffort) && <Separator orientation="vertical" />}
-              <div className="flex min-w-35 flex-1 flex-col">
+              <div className="flex min-w-0 flex-1 flex-col">
                 <div className="border-b border-border px-3 py-2 text-2xs font-medium uppercase tracking-wide text-muted-foreground">
                   Mode
                 </div>
@@ -201,7 +201,7 @@ export function ModelEffortPopover({
                       <Check
                         className={cn("size-3 shrink-0", entry.value !== effectiveMode && "invisible")}
                       />
-                      {entry.label}
+                      <span className="min-w-0 truncate">{entry.label}</span>
                     </Button>
                   ))}
                 </div>

@@ -529,7 +529,7 @@ describe("ModelEffortPopover", () => {
   })
 
   test("shows ACP harness support summary", () => {
-    render(
+    const { container } = render(
       <ModelEffortPopover
         model="claude-opus-4-5-20251101"
         models={["claude-opus-4-5-20251101"]}
@@ -545,6 +545,25 @@ describe("ModelEffortPopover", () => {
     expect(screen.getAllByText("Model").length).toBeGreaterThan(0)
     expect(screen.getByText("No Effort")).toBeTruthy()
     expect(screen.getAllByText("Mode").length).toBeGreaterThan(0)
+    expect(container.querySelector("[data-slot='popover-content']")?.className).not.toContain("gap-2.5")
+  })
+
+  test("keeps model effort and mode columns in one row on mobile", () => {
+    const { container } = render(
+      <ModelEffortPopover
+        model="claude-opus-4-5-20251101"
+        models={["claude-opus-4-5-20251101", "sonnet"]}
+        onModelChange={() => {}}
+        reasoningEffort="medium"
+        efforts={[{ value: "low", label: "Low", description: "" }, { value: "medium", label: "Medium", description: "" }]}
+        onReasoningEffortChange={() => {}}
+        mode="default"
+        modes={[{ value: "default", label: "Default", description: "" }, { value: "plan", label: "Plan", description: "" }]}
+        onModeChange={() => {}}
+      />
+    )
+
+    expect(container.querySelector("[data-testid='model-effort-columns']")?.className).toContain("flex-nowrap")
   })
 
   test("effort column hidden when onReasoningEffortChange not provided", () => {

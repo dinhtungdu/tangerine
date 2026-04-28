@@ -150,6 +150,32 @@ playwright-cli -s=$SESSION close
 kill $VITE_PID 2>/dev/null
 ```
 
+## Component Preview Mode
+
+Use this when verifying one component or popover without needing full dashboard state.
+
+1. Create a temporary preview route, for example `web/acp-popover-preview.html` plus `web/src/acp-popover-preview.tsx`.
+2. Render the affected component with realistic props and enough surrounding layout to reproduce placement.
+3. If the component imports app hooks that fetch API data or open WebSockets, stub them in the preview file before rendering:
+   ```ts
+   globalThis.fetch = async (input) => {
+     const url = typeof input === "string" ? input : input.url
+     const body = url.includes("/api/tasks/counts") ? {} : []
+     return new Response(JSON.stringify(body), { headers: { "Content-Type": "application/json" } })
+   }
+   globalThis.WebSocket = PreviewWebSocket as unknown as typeof WebSocket
+   ```
+   Prefer Test Server Mode instead when the UI depends on real API contracts.
+4. Open the preview route with Vite, resize to target viewport, then capture a fresh snapshot before interacting:
+   ```bash
+   playwright-cli -s=$SESSION goto http://localhost:$VITE_PORT/acp-popover-preview.html
+   playwright-cli -s=$SESSION resize 375 812
+   playwright-cli -s=$SESSION snapshot
+   ```
+5. Click by current snapshot ref (`e16`, etc.) when text selectors are brittle or after resize/goto changed refs.
+6. Screenshot the open/interactive state and check console errors.
+7. Delete temporary preview files before finishing unless the preview is intentionally committed.
+
 ## Guidelines
 
 - **Screenshot what you changed**: If you modified a component on the Runs page, screenshot that page. If you changed a dialog, open it and screenshot it.
