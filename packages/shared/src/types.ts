@@ -73,6 +73,8 @@ export interface AgentConfigOption {
   type: string
   currentValue: string
   options: AgentConfigOptionValue[]
+  /** ACP source used for writes. Native config options use session/set_config_option; legacy model/mode state uses session/set_model or session/set_mode. */
+  source?: "config_option" | "model" | "mode"
 }
 
 export interface Cron {

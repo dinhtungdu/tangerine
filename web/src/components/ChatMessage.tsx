@@ -354,6 +354,7 @@ function GenericContentBlockCard({ message, block }: { message: ChatMessageType;
 function ContentBlockMessage({ message }: { message: ChatMessageType }) {
   const block = getContentBlock(message)
   if (!block) return null
+  if (block.type === "text") return null
   if (block.type === "diff") return <DiffContentBlockCard message={message} block={block} />
   if (block.type === "terminal") return <TerminalContentBlockCard message={message} block={block} />
   return <GenericContentBlockCard message={message} block={block} />

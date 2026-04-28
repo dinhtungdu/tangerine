@@ -70,7 +70,7 @@ type RequestResolver = {
   reject(error: Error): void
 }
 
-interface AcpAgentCapabilities {
+export interface AcpAgentCapabilities {
   loadSession: boolean
   imagePrompts: boolean
   resume: boolean
@@ -123,8 +123,13 @@ export function selectPermissionOption(options: PermissionOption[]): string | nu
 export function createAcpEventMapper(): {
   mapSessionUpdate(update: Record<string, unknown>): AgentEvent[]
   flushAssistantMessage(): AgentEvent[]
+  flushThoughtMessage(): AgentEvent[]
 } {
   let assistantBuffer = ""
+  let assistantMessageId: string | undefined
+  let thoughtBuffer = ""
+  let thoughtMessageId: string | undefined
+  let thoughtSequence = 0
   const toolNames = new Map<string, string>()
 
   return {
@@ -136,8 +141,10 @@ export function createAcpEventMapper(): {
         case "agent_message_chunk": {
           const text = textFromContent(update.content)
           if (text) {
+            const messageId = stringField(update, "messageId")
+            if (messageId) assistantMessageId = messageId
             assistantBuffer += text
-            return [{ kind: "message.streaming", content: text, messageId: stringField(update, "messageId") }]
+            return [{ kind: "message.streaming", content: text, ...(messageId ? { messageId } : {}) }]
           }
           const block = contentBlockFromContent(update.content)
           return block ? [{ kind: "content.block", block }] : []
@@ -145,7 +152,20 @@ export function createAcpEventMapper(): {
 
         case "agent_thought_chunk": {
           const text = textFromContent(update.content)
-          return text ? [{ kind: "thinking", content: truncate(text, 500) }] : []
+          if (!text) return []
+          const incomingMessageId = stringField(update, "messageId")
+          const events: AgentEvent[] = []
+          if (incomingMessageId && thoughtMessageId && incomingMessageId !== thoughtMessageId && thoughtBuffer) {
+            events.push({ kind: "thinking.complete", content: thoughtBuffer, messageId: thoughtMessageId })
+            thoughtBuffer = ""
+            thoughtMessageId = undefined
+          }
+          if (!thoughtMessageId) {
+            thoughtMessageId = incomingMessageId ?? `thought-${++thoughtSequence}`
+          }
+          thoughtBuffer += text
+          events.push({ kind: "thinking.streaming", content: text, messageId: thoughtMessageId })
+          return events
         }
 
         case "user_message_chunk": {
@@ -225,8 +245,19 @@ export function createAcpEventMapper(): {
     flushAssistantMessage(): AgentEvent[] {
       if (!assistantBuffer) return []
       const content = assistantBuffer
+      const messageId = assistantMessageId
       assistantBuffer = ""
-      return [{ kind: "message.complete", role: "assistant", content }]
+      assistantMessageId = undefined
+      return [{ kind: "message.complete", role: "assistant", content, ...(messageId ? { messageId } : {}) }]
+    },
+
+    flushThoughtMessage(): AgentEvent[] {
+      if (!thoughtBuffer) return []
+      const content = thoughtBuffer
+      const messageId = thoughtMessageId
+      thoughtBuffer = ""
+      thoughtMessageId = undefined
+      return [{ kind: "thinking.complete", content, messageId }]
     },
   }
 }
@@ -278,10 +309,24 @@ async function startAcpSession(ctx: AgentStartContext, config?: AcpProviderConfi
   }
 
   const applyConfigOptions = (value: unknown, shouldEmit: boolean) => {
-    const parsed = configOptionsFromResponse(value)
+    const parsed = configOptionsFromAcpResponse(value)
     if (!parsed) return
     configOptions = parsed
     if (shouldEmit) emit({ kind: "config.options", options: configOptions })
+  }
+
+  const emitFlushedThoughts = () => {
+    for (const event of mapper.flushThoughtMessage()) emit(event)
+  }
+
+  const updateModeFromNotification = (update: Record<string, unknown>) => {
+    if (stringField(update, "sessionUpdate") !== "current_mode_update") return
+    const modeId = stringField(update, "currentModeId") ?? stringField(update, "modeId")
+    if (!modeId) return
+    const updated = updateConfigOptionValue(configOptions, "mode", modeId)
+    if (updated === configOptions) return
+    configOptions = updated
+    emit({ kind: "config.options", options: configOptions })
   }
 
   const mapper = createAcpEventMapper()
@@ -305,6 +350,7 @@ async function startAcpSession(ctx: AgentStartContext, config?: AcpProviderConfi
       if (method !== "session/update" || !isRecord(params)) return
       const update = params.update
       if (!isRecord(update)) return
+      updateModeFromNotification(update)
       for (const event of mapper.mapSessionUpdate(update)) emitMapped(event)
     },
     onRequest: async (method, params) => {
@@ -333,7 +379,10 @@ async function startAcpSession(ctx: AgentStartContext, config?: AcpProviderConfi
       if (!shutdownCalled) emit({ kind: "error", message: error.message })
     },
     onEnd: () => {
-      if (!shutdownCalled) emit({ kind: "status", status: "idle" })
+      if (!shutdownCalled) {
+        emitFlushedThoughts()
+        emit({ kind: "status", status: "idle" })
+      }
     },
   })
 
@@ -344,7 +393,7 @@ async function startAcpSession(ctx: AgentStartContext, config?: AcpProviderConfi
     clientCapabilities: {},
     clientInfo: { name: "tangerine", title: "Tangerine", version: "0.0.8" },
   })
-  capabilities = parseCapabilities(initResult)
+  capabilities = parseAcpCapabilities(initResult)
 
   if (ctx.resumeSessionId && capabilities.resume) {
     try {
@@ -398,12 +447,14 @@ async function startAcpSession(ctx: AgentStartContext, config?: AcpProviderConfi
           emit({ kind: "status", status: "working" })
           rpc.request("session/prompt", { sessionId, prompt })
             .then((response) => {
+              emitFlushedThoughts()
               for (const event of mapper.flushAssistantMessage()) emit(event)
               const usage = parsePromptUsage(response)
               if (usage) emit(usage)
               emit({ kind: "status", status: "idle" })
             })
             .catch((error: unknown) => {
+              emitFlushedThoughts()
               const message = error instanceof Error ? error.message : String(error)
               emit({ kind: "error", message })
               emit({ kind: "status", status: "idle" })
@@ -527,7 +578,7 @@ async function startAcpSession(ctx: AgentStartContext, config?: AcpProviderConfi
   return handle
 }
 
-class AcpRpcConnection {
+export class AcpRpcConnection {
   private readonly pending = new Map<string, RequestResolver>()
   private nextId = 0
   private stopped = false
@@ -587,7 +638,11 @@ class AcpRpcConnection {
       if (!this.stopped) this.options.onError(error instanceof Error ? error : new Error(String(error)))
     } finally {
       if (!this.stopped && this.buffer.trim()) this.processLine(this.buffer.trim())
-      if (!this.stopped) this.options.onEnd()
+      if (!this.stopped) {
+        for (const resolver of this.pending.values()) resolver.reject(new Error("ACP connection ended"))
+        this.pending.clear()
+        this.options.onEnd()
+      }
     }
   }
 
@@ -663,19 +718,48 @@ async function setConfigOptionByCategory(
   const option = options.find((entry) => entry.category === category)
   if (!option) return false
   if (!option.options.some((entry) => entry.value === value)) return false
-  const response = await rpc.request("session/set_config_option", {
-    sessionId,
-    configId: option.id,
-    value,
-  })
-  const updated = configOptionsFromResponse(response)
-  if (updated) onOptions(updated)
+
+  const response = await rpc.request(configMethodForOption(option), configParamsForOption(option, sessionId, value))
+  const updated = configOptionsFromAcpResponse(response) ?? updateConfigOptionValue(options, category, value)
+  onOptions(updated)
   return true
 }
 
-function configOptionsFromResponse(value: unknown): AgentConfigOption[] | null {
-  if (!isRecord(value) || !("configOptions" in value)) return null
-  return parseConfigOptions(value.configOptions)
+function configMethodForOption(option: AgentConfigOption): string {
+  if (option.source === "model") return "session/set_model"
+  if (option.source === "mode") return "session/set_mode"
+  return "session/set_config_option"
+}
+
+function configParamsForOption(option: AgentConfigOption, sessionId: string, value: string): Record<string, string> {
+  if (option.source === "model") return { sessionId, modelId: value }
+  if (option.source === "mode") return { sessionId, modeId: value }
+  return { sessionId, configId: option.id, value }
+}
+
+function updateConfigOptionValue(options: AgentConfigOption[], category: string, value: string): AgentConfigOption[] {
+  let changed = false
+  const updated = options.map((option) => {
+    if (option.category !== category) return option
+    if (option.currentValue === value) return option
+    changed = true
+    return { ...option, currentValue: value }
+  })
+  return changed ? updated : options
+}
+
+export function configOptionsFromAcpResponse(value: unknown): AgentConfigOption[] | null {
+  if (!isRecord(value)) return null
+  const options = "configOptions" in value ? parseConfigOptions(value.configOptions) : []
+  if (!options.some((option) => option.category === "model")) {
+    const modelOption = modelConfigOptionFromResponse(value.models)
+    if (modelOption) options.push(modelOption)
+  }
+  if (!options.some((option) => option.category === "mode")) {
+    const modeOption = modeConfigOptionFromResponse(value.modes)
+    if (modeOption) options.push(modeOption)
+  }
+  return options.length > 0 ? options : null
 }
 
 function parseConfigOptions(value: unknown): AgentConfigOption[] {
@@ -697,6 +781,7 @@ function parseConfigOptions(value: unknown): AgentConfigOption[] {
       type,
       currentValue,
       options: values,
+      source: "config_option",
     })
   }
   return options
@@ -719,10 +804,67 @@ function parseConfigOptionValues(value: unknown): AgentConfigOption["options"] {
   return values
 }
 
+function modelConfigOptionFromResponse(value: unknown): AgentConfigOption | null {
+  if (!isRecord(value)) return null
+  const currentValue = stringField(value, "currentModelId")
+  const availableModels = Array.isArray(value.availableModels) ? value.availableModels : []
+  if (!currentValue || availableModels.length === 0) return null
+  const options = availableModels.flatMap((entry): AgentConfigOption["options"] => {
+    if (!isRecord(entry)) return []
+    const modelId = stringField(entry, "modelId")
+    const name = stringField(entry, "name") ?? modelId
+    if (!modelId || !name) return []
+    return [{
+      value: modelId,
+      name,
+      ...(stringOrNullField(entry, "description") ? { description: stringOrNullField(entry, "description")! } : {}),
+    }]
+  })
+  if (options.length === 0) return null
+  return {
+    id: "model",
+    name: "Model",
+    category: "model",
+    type: "select",
+    currentValue,
+    options,
+    source: "model",
+  }
+}
+
+function modeConfigOptionFromResponse(value: unknown): AgentConfigOption | null {
+  if (!isRecord(value)) return null
+  const currentValue = stringField(value, "currentModeId")
+  const availableModes = Array.isArray(value.availableModes) ? value.availableModes : []
+  if (!currentValue || availableModes.length === 0) return null
+  const options = availableModes.flatMap((entry): AgentConfigOption["options"] => {
+    if (!isRecord(entry)) return []
+    const modeId = stringField(entry, "id")
+    const name = stringField(entry, "name") ?? modeId
+    if (!modeId || !name) return []
+    return [{
+      value: modeId,
+      name,
+      ...(stringOrNullField(entry, "description") ? { description: stringOrNullField(entry, "description")! } : {}),
+    }]
+  })
+  if (options.length === 0) return null
+  return {
+    id: "mode",
+    name: "Mode",
+    category: "mode",
+    type: "select",
+    currentValue,
+    options,
+    source: "mode",
+  }
+}
+
 function contentBlockFromContent(content: unknown): AgentContentBlock | null {
   if (!isRecord(content)) return null
   const type = stringField(content, "type")
-  return type ? { ...content, type } : null
+  if (!type || type === "text") return null
+  return { ...content, type }
 }
 
 function contentBlocksFromToolContent(content: unknown): AgentEvent[] {
@@ -758,7 +900,7 @@ function parsePlanEntries(value: unknown): AgentPlanEntry[] {
     .filter((entry) => entry.content.trim().length > 0)
 }
 
-function parseCapabilities(value: unknown): AcpAgentCapabilities {
+export function parseAcpCapabilities(value: unknown): AcpAgentCapabilities {
   const result = isRecord(value) ? value : {}
   const agentCapabilities = isRecord(result.agentCapabilities) ? result.agentCapabilities : {}
   const promptCapabilities = isRecord(agentCapabilities.promptCapabilities) ? agentCapabilities.promptCapabilities : {}
@@ -788,7 +930,7 @@ function parsePromptUsage(value: unknown): AgentEvent | null {
   }
 }
 
-function isPermissionOption(value: unknown): value is PermissionOption {
+export function isPermissionOption(value: unknown): value is PermissionOption {
   if (!isRecord(value)) return false
   const kind = value.kind
   return typeof value.optionId === "string"
@@ -829,7 +971,7 @@ function requestIdToKey(value: unknown): string | null {
   return null
 }
 
-function stringField(record: Record<string, unknown>, key: string): string | undefined {
+export function stringField(record: Record<string, unknown>, key: string): string | undefined {
   const value = record[key]
   return typeof value === "string" ? value : undefined
 }
@@ -845,7 +987,7 @@ function numberField(record: Record<string, unknown>, key: string): number | und
   return typeof value === "number" ? value : undefined
 }
 
-function isRecord(value: unknown): value is Record<string, unknown> {
+export function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null && !Array.isArray(value)
 }
 
@@ -853,7 +995,7 @@ function truncate(text: string, maxLength: number): string {
   return text.length <= maxLength ? text : `${text.slice(0, maxLength)}\u2026`
 }
 
-function readStderr(stream: ReadableStream<Uint8Array>, onText: (text: string) => void): void {
+export function readStderr(stream: ReadableStream<Uint8Array>, onText: (text: string) => void): void {
   ;(async () => {
     try {
       const reader = stream.getReader()

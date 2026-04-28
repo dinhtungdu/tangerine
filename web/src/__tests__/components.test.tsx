@@ -1101,6 +1101,20 @@ describe("ChatMessage", async () => {
     expect(screen.getByText("file:///tmp/a.ts")).toBeTruthy()
   })
 
+  test("hides ACP text content block placeholders", () => {
+    const { container } = renderChat({
+      message: {
+        id: "content-text",
+        role: "content",
+        content: JSON.stringify({ type: "text", text: "" }),
+        timestamp: "2026-03-17T10:00:00Z",
+        contentBlock: { type: "text", text: "" },
+      },
+    })
+
+    expect(container.textContent).toBe("")
+  })
+
   test("renders ACP diff content block cards", () => {
     renderChat({
       message: {

@@ -5,6 +5,7 @@ import { join } from "node:path"
 import { tmpdir } from "node:os"
 import type { AgentEvent } from "../agent/provider"
 import {
+  AcpRpcConnection,
   buildAcpPromptBlocks,
   createAcpEventMapper,
   createAcpProvider,
@@ -70,19 +71,28 @@ describe("createAcpEventMapper", () => {
   test("streams and flushes assistant text", () => {
     const mapper = createAcpEventMapper()
 
-    expect(mapper.mapSessionUpdate({ sessionUpdate: "agent_message_chunk", content: { type: "text", text: "hel" } }))
-      .toEqual([{ kind: "message.streaming", content: "hel" }])
-    expect(mapper.mapSessionUpdate({ sessionUpdate: "agent_message_chunk", content: { type: "text", text: "lo" } }))
-      .toEqual([{ kind: "message.streaming", content: "lo" }])
-    expect(mapper.flushAssistantMessage()).toEqual([{ kind: "message.complete", role: "assistant", content: "hello" }])
+    expect(mapper.mapSessionUpdate({ sessionUpdate: "agent_message_chunk", messageId: "msg-1", content: { type: "text", text: "hel" } }))
+      .toEqual([{ kind: "message.streaming", content: "hel", messageId: "msg-1" }])
+    expect(mapper.mapSessionUpdate({ sessionUpdate: "agent_message_chunk", messageId: "msg-1", content: { type: "text", text: "lo" } }))
+      .toEqual([{ kind: "message.streaming", content: "lo", messageId: "msg-1" }])
+    expect(mapper.flushAssistantMessage()).toEqual([{ kind: "message.complete", role: "assistant", content: "hello", messageId: "msg-1" }])
     expect(mapper.flushAssistantMessage()).toEqual([])
   })
 
-  test("maps thought chunks, plans, tool calls, and usage updates", () => {
+  test("streams thought chunks and flushes one complete thought", () => {
     const mapper = createAcpEventMapper()
 
-    expect(mapper.mapSessionUpdate({ sessionUpdate: "agent_thought_chunk", content: { type: "text", text: "think" } }))
-      .toEqual([{ kind: "thinking", content: "think" }])
+    expect(mapper.mapSessionUpdate({ sessionUpdate: "agent_thought_chunk", content: { type: "text", text: "thi" } }))
+      .toEqual([{ kind: "thinking.streaming", content: "thi", messageId: "thought-1" }])
+    expect(mapper.mapSessionUpdate({ sessionUpdate: "agent_thought_chunk", content: { type: "text", text: "nk" } }))
+      .toEqual([{ kind: "thinking.streaming", content: "nk", messageId: "thought-1" }])
+    expect(mapper.flushThoughtMessage()).toEqual([{ kind: "thinking.complete", content: "think", messageId: "thought-1" }])
+    expect(mapper.flushThoughtMessage()).toEqual([])
+  })
+
+  test("maps plans, tool calls, and usage updates", () => {
+    const mapper = createAcpEventMapper()
+
     expect(mapper.mapSessionUpdate({
       sessionUpdate: "plan",
       entries: [
@@ -117,6 +127,15 @@ describe("createAcpEventMapper", () => {
       sessionUpdate: "agent_message_chunk",
       content: { type: "resource_link", uri: "file:///tmp/a.ts", name: "a.ts", mimeType: "text/typescript" },
     })).toEqual([{ kind: "content.block", block: { type: "resource_link", uri: "file:///tmp/a.ts", name: "a.ts", mimeType: "text/typescript" } }])
+  })
+
+  test("does not render malformed text chunks as content block cards", () => {
+    const mapper = createAcpEventMapper()
+
+    expect(mapper.mapSessionUpdate({
+      sessionUpdate: "agent_message_chunk",
+      content: { type: "text" },
+    })).toEqual([])
   })
 
   test("maps ACP diff and terminal tool content to native content blocks", () => {
@@ -156,7 +175,44 @@ describe("createAcpEventMapper", () => {
       type: "select",
       currentValue: "gpt-5",
       options: [{ value: "gpt-5", name: "GPT-5" }],
+      source: "config_option",
     }] }])
+  })
+})
+
+describe("AcpRpcConnection", () => {
+  test("rejects pending requests when stdout ends", async () => {
+    const holder: { close?: () => void } = {}
+    const stdout = new ReadableStream<Uint8Array>({
+      start(streamController) {
+        holder.close = () => streamController.close()
+      },
+    })
+    let ended = false
+    const rpc = new AcpRpcConnection({
+      stdout,
+      write: () => undefined,
+      onNotification: () => undefined,
+      onRequest: async () => ({}),
+      onError: () => undefined,
+      onEnd: () => {
+        ended = true
+      },
+    })
+
+    const pending = rpc.request("session/new", {})
+    holder.close?.()
+
+    let errorMessage = ""
+    try {
+      await pending
+    } catch (error) {
+      errorMessage = error instanceof Error ? error.message : String(error)
+    }
+
+    expect(errorMessage).toBe("ACP connection ended")
+    expect(ended).toBe(true)
+    rpc.stop()
   })
 })
 
@@ -273,6 +329,7 @@ describe("createAcpProvider", () => {
       type: "select",
       currentValue: "gpt-5",
       options: [{ value: "gpt-5", name: "GPT-5" }, { value: "gpt-5-large", name: "GPT-5 Large" }],
+      source: "config_option",
     }] })
     expect(events).toContainEqual({ kind: "config.options", options: [{
       id: "model",
@@ -281,7 +338,50 @@ describe("createAcpProvider", () => {
       type: "select",
       currentValue: "gpt-5-large",
       options: [{ value: "gpt-5", name: "GPT-5" }, { value: "gpt-5-large", name: "GPT-5 Large" }],
+      source: "config_option",
     }] })
+
+    await Effect.runPromise(handle.shutdown())
+    rmSync(tempDir, { recursive: true, force: true })
+  })
+
+  test("maps ACP model and mode state to config options", async () => {
+    const tempDir = mkdtempSync(join(tmpdir(), "tangerine-acp-models-modes-"))
+    const scriptPath = join(tempDir, "mock-acp-agent.js")
+    writeFileSync(scriptPath, mockModelsModesAcpAgentScript, "utf-8")
+
+    process.env.TANGERINE_ACP_COMMAND = `bun ${scriptPath}`
+    const provider = createAcpProvider()
+    const handle = await Effect.runPromise(provider.start({ taskId: "task-acp", workdir: tempDir, title: "ACP test" }))
+    const events: Record<string, unknown>[] = []
+    handle.subscribe((event) => events.push(event as unknown as Record<string, unknown>))
+
+    await waitFor(() => events.some((event) => event.kind === "config.options"))
+    expect(events).toContainEqual({ kind: "config.options", options: [
+      {
+        id: "model",
+        name: "Model",
+        category: "model",
+        type: "select",
+        currentValue: "sonnet",
+        options: [{ value: "sonnet", name: "Sonnet", description: "Fast" }, { value: "opus", name: "Opus", description: "Deep" }],
+        source: "model",
+      },
+      {
+        id: "mode",
+        name: "Mode",
+        category: "mode",
+        type: "select",
+        currentValue: "default",
+        options: [{ value: "default", name: "Default", description: "Ask" }, { value: "plan", name: "Plan", description: "Plan only" }],
+        source: "mode",
+      },
+    ] })
+
+    expect(await Effect.runPromise(handle.updateConfig?.({ model: "opus" }) ?? Effect.succeed(false))).toBe(true)
+    expect(await Effect.runPromise(handle.updateConfig?.({ mode: "plan" }) ?? Effect.succeed(false))).toBe(true)
+    await waitFor(() => events.some((event) => event.kind === "config.options" && Array.isArray(event.options) && event.options.some((option) => typeof option === "object" && option !== null && "currentValue" in option && option.currentValue === "opus")))
+    await waitFor(() => events.some((event) => event.kind === "config.options" && Array.isArray(event.options) && event.options.some((option) => typeof option === "object" && option !== null && "currentValue" in option && option.currentValue === "plan")))
 
     await Effect.runPromise(handle.shutdown())
     rmSync(tempDir, { recursive: true, force: true })
@@ -320,7 +420,7 @@ describe("createAcpProvider", () => {
     handle.subscribe((event) => events.push(event))
 
     await Effect.runPromise(handle.abort())
-    await waitFor(() => events.some((event) => event.kind === "thinking" && event.content === "cancelled"))
+    await waitFor(() => events.some((event) => event.kind === "thinking.streaming" && event.content === "cancelled"))
 
     await Effect.runPromise(handle.shutdown())
     rmSync(tempDir, { recursive: true, force: true })
@@ -444,6 +544,46 @@ rl.on("line", (line) => {
   }
   if (msg.method === "session/set_config_option") {
     send({ jsonrpc: "2.0", id: msg.id, result: { configOptions: options(msg.params.value) } })
+    return
+  }
+  if (msg.method === "session/close") {
+    send({ jsonrpc: "2.0", id: msg.id, result: {} })
+  }
+})
+`
+
+const mockModelsModesAcpAgentScript = `
+const readline = require("node:readline")
+const rl = readline.createInterface({ input: process.stdin })
+function send(message) { process.stdout.write(JSON.stringify(message) + "\\n") }
+rl.on("line", (line) => {
+  const msg = JSON.parse(line)
+  if (msg.method === "initialize") {
+    send({ jsonrpc: "2.0", id: msg.id, result: { protocolVersion: 1, agentCapabilities: { sessionCapabilities: { close: {} } }, authMethods: [] } })
+    return
+  }
+  if (msg.method === "session/new") {
+    send({ jsonrpc: "2.0", id: msg.id, result: {
+      sessionId: "sess-models-modes",
+      models: {
+        currentModelId: "sonnet",
+        availableModels: [
+          { modelId: "sonnet", name: "Sonnet", description: "Fast" },
+          { modelId: "opus", name: "Opus", description: "Deep" },
+        ],
+      },
+      modes: {
+        currentModeId: "default",
+        availableModes: [
+          { id: "default", name: "Default", description: "Ask" },
+          { id: "plan", name: "Plan", description: "Plan only" },
+        ],
+      },
+    } })
+    return
+  }
+  if (msg.method === "session/set_model" || msg.method === "session/set_mode") {
+    send({ jsonrpc: "2.0", id: msg.id, result: {} })
     return
   }
   if (msg.method === "session/close") {

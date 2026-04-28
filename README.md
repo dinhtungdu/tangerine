@@ -73,7 +73,14 @@ Configure at least one ACP agent command in `~/tangerine/config.json`. Common no
 }
 ```
 
-Authenticate the underlying agent CLI/config outside Tangerine, then ask your clanker to set up Tangerine and add projects using the `platform-setup` skill (`/platform-setup`).
+Authenticate the underlying agent CLI/config outside Tangerine. Probe configured adapters before starting tasks:
+
+```bash
+tangerine acp probe
+tangerine acp probe --agent claude --json
+```
+
+Then ask your clanker to set up Tangerine and add projects using the `platform-setup` skill (`/platform-setup`).
 
 Then start:
 ```bash

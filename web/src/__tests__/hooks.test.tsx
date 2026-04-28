@@ -1,6 +1,7 @@
 import { describe, test, expect, mock, beforeEach, afterEach } from "bun:test"
 import { renderHook, act, waitFor } from "@testing-library/react"
 import { useTasks } from "../hooks/useTasks"
+import { applyAssistantStreamMessage, applyThinkingStreamMessage } from "../hooks/useSession"
 import { useMentionPicker } from "../hooks/useMentionPicker"
 import { usePanelActions } from "../hooks/usePanelActions"
 import { useResizable } from "../hooks/useResizable"
@@ -48,6 +49,26 @@ beforeEach(() => {
 
 afterEach(() => {
   globalThis.fetch = originalFetch
+})
+
+describe("applyAssistantStreamMessage", () => {
+  test("merges streamed assistant chunks and replaces with final content", () => {
+    const first = applyAssistantStreamMessage([], { content: "hel", timestamp: "2026-04-27T10:00:00.000Z" }, "assistant-active", "append")
+    const second = applyAssistantStreamMessage(first, { content: "lo", timestamp: "2026-04-27T10:00:01.000Z" }, "assistant-active", "append")
+    const complete = applyAssistantStreamMessage(second, { content: "hello", timestamp: "2026-04-27T10:00:02.000Z" }, "assistant-active", "complete")
+
+    expect(complete).toEqual([{ id: "assistant-active", role: "assistant", content: "hello", timestamp: "2026-04-27T10:00:02.000Z" }])
+  })
+})
+
+describe("applyThinkingStreamMessage", () => {
+  test("merges streamed thinking chunks into one message", () => {
+    const first = applyThinkingStreamMessage([], { messageId: "thought-1", content: "thi", timestamp: "2026-04-27T10:00:00.000Z" }, "append")
+    const second = applyThinkingStreamMessage(first, { messageId: "thought-1", content: "nk", timestamp: "2026-04-27T10:00:01.000Z" }, "append")
+    const complete = applyThinkingStreamMessage(second, { messageId: "thought-1", content: "think", timestamp: "2026-04-27T10:00:02.000Z" }, "complete")
+
+    expect(complete).toEqual([{ id: "thinking-thought-1", role: "thinking", content: "think", timestamp: "2026-04-27T10:00:02.000Z" }])
+  })
 })
 
 describe("useTasks", () => {

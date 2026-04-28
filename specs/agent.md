@@ -2,7 +2,7 @@
 
 Tangerine's target agent integration is ACP-only. Tangerine is the ACP client; coding agents are external ACP-compatible commands reached over stdio.
 
-Legacy provider-specific implementations have been removed. See [ACP Migration](./acp-migration.md) for current migration status.
+Legacy provider-specific implementations have been removed. See [ACP Migration](./acp-migration.md) for current migration status and [ACP Adapter Matrix](./acp-adapter-matrix.md) for observed adapter behavior/probe workflow.
 
 ## ACP Runtime
 
@@ -19,7 +19,7 @@ Responsibilities:
 - cancel active work with `session/cancel`
 - close sessions with `session/close` when supported
 - handle `session/request_permission`
-- apply session configuration via `session/set_config_option`
+- apply session configuration via `session/set_config_option`, or compatibility `session/set_model` / `session/set_mode` for ACP agents that expose legacy model/mode state
 - expose session id and process pid for task persistence and cleanup
 
 ## Configured ACP Agents
@@ -60,27 +60,30 @@ Important ACP updates:
 | ACP update | Tangerine event |
 |------------|-----------------|
 | `agent_message_chunk` | `message.streaming`, then final assistant message on prompt completion |
-| `agent_thought_chunk` | `thinking` |
+| `agent_thought_chunk` | `thinking.streaming`, then one persisted `thinking` message on prompt completion |
 | `user_message_chunk` | user message log |
 | `tool_call` | `tool.start` |
 | `tool_call_update` | `tool.end` on completed/failed |
 | `tool_call_update` content `diff` / `terminal` | native diff/terminal content-block card |
 | `plan` | native plan card plus thinking text for compatibility |
+| `current_mode_update` | refresh synthetic mode config option |
 | `config_option_update` | refresh model/reasoning/mode options |
 | `usage_update` | context token usage |
 | non-text content block | generic ACP content-block card |
 
 ## Model, Reasoning, and Modes
 
-Tangerine must stop discovering models via provider-specific APIs.
+Tangerine must stop discovering models via provider-specific APIs. Learn adapter behavior from source and `tangerine acp probe`, then encode generic ACP compatibility rules.
 
-Use ACP session config options:
+Prefer ACP session config options:
 
 - `category: "model"` for model selection
 - `category: "thought_level"` for reasoning selection
 - `category: "mode"` for agent mode selection
 
-If an agent does not return relevant config options, hide or disable that selector.
+Compatibility: several public ACP adapters still return legacy `models` / `modes` session state instead of `configOptions`. Tangerine normalizes those into the same selector model and writes changes with `session/set_model` / `session/set_mode`.
+
+If an agent does not return relevant config options or legacy state, hide or disable that selector.
 
 ## Permissions
 

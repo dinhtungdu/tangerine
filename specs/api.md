@@ -98,7 +98,7 @@ Current task types:
 - `defaultAgent`: top-level default ACP agent ID, when set
 - `systemCapabilities`: installed/authenticated tool and ACP agent command status
 
-Provider metadata, model discovery, and context-window maps are not exposed. Model/reasoning/mode selectors use per-session ACP config options from `GET /api/tasks/:id/config-options` and `config.options` WebSocket events.
+Provider metadata, model discovery, and context-window maps are not exposed. Model/reasoning/mode selectors use per-session ACP config options from `GET /api/tasks/:id/config-options` and `config.options` WebSocket events. For ACP agents that expose legacy session `models` / `modes`, the server normalizes them into the same config-options shape.
 
 ### System
 
@@ -135,6 +135,8 @@ WS /api/tasks/:id/ws
 Task event payloads include legacy normalized chat/activity events plus ACP-derived events:
 
 - `{ event: "config.options", configOptions }` for ACP session config selectors
+- `{ event: "thinking.streaming", messageId, content }` for transient thought chunks
+- `{ event: "thinking.complete", messageId, role: "thinking", content }` for one persisted thought message
 - `{ event: "plan", entries }` for ACP plan cards
 - `{ event: "content.block", block }` for ACP non-text content blocks
 

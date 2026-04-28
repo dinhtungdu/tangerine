@@ -15,6 +15,8 @@ export type AgentEvent =
   | { kind: "tool.start"; toolName: string; toolInput?: string }
   | { kind: "tool.end"; toolName: string; toolResult?: string }
   | { kind: "thinking"; content: string }
+  | { kind: "thinking.streaming"; content: string; messageId?: string }
+  | { kind: "thinking.complete"; content: string; messageId?: string }
   /** Token usage — providers emit this when they have token data.
    *  Fields are undefined when the event only carries partial data (e.g. stream events).
    *  contextTokens = current context window usage for this turn (from message_start).

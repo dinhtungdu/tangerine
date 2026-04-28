@@ -30,6 +30,50 @@ interface UseSessionResult {
   configOptions: AgentConfigOption[]
 }
 
+export function applyAssistantStreamMessage(
+  messages: ChatMessage[],
+  event: { content: string; timestamp?: unknown; images?: ChatMessageImage[] },
+  id: string,
+  mode: "append" | "complete",
+): ChatMessage[] {
+  const timestamp = typeof event.timestamp === "string" ? event.timestamp : new Date().toISOString()
+  const existing = messages.findIndex((entry) => entry.id === id)
+  if (existing === -1) {
+    return [...messages, { id, role: "assistant", content: event.content, timestamp, ...(event.images ? { images: event.images } : {}) }]
+  }
+  return messages.map((entry, index) => {
+    if (index !== existing) return entry
+    return {
+      ...entry,
+      content: mode === "append" ? `${entry.content}${event.content}` : event.content,
+      ...(mode === "complete" ? { timestamp } : {}),
+      ...(event.images ? { images: event.images } : {}),
+    }
+  })
+}
+
+export function applyThinkingStreamMessage(
+  messages: ChatMessage[],
+  event: { messageId?: unknown; content: string; timestamp?: unknown },
+  mode: "append" | "complete",
+): ChatMessage[] {
+  const messageId = typeof event.messageId === "string" ? event.messageId : "active"
+  const id = `thinking-${messageId}`
+  const timestamp = typeof event.timestamp === "string" ? event.timestamp : new Date().toISOString()
+  const existing = messages.findIndex((entry) => entry.id === id)
+  if (existing === -1) {
+    return [...messages, { id, role: "thinking", content: event.content, timestamp }]
+  }
+  return messages.map((entry, index) => {
+    if (index !== existing) return entry
+    return {
+      ...entry,
+      content: mode === "append" ? `${entry.content}${event.content}` : event.content,
+      ...(mode === "complete" ? { timestamp } : {}),
+    }
+  })
+}
+
 export function useSession(taskId: string, initialContextTokens?: number): UseSessionResult {
   const [messages, setMessages] = useState<ChatMessage[]>([])
   const [activities, setActivities] = useState<ActivityEntry[]>([])
@@ -40,6 +84,7 @@ export function useSession(taskId: string, initialContextTokens?: number): UseSe
   const [configOptions, setConfigOptions] = useState<AgentConfigOption[]>([])
   const { connected, messages: wsMessages, send } = useWebSocket(taskId)
   const processedCountRef = useRef(0)
+  const activeAssistantStreamIdRef = useRef<string | null>(null)
   // Track optimistic user message IDs so we can deduplicate WS broadcasts
   // without false-positives when the same text is sent twice.
   const pendingOptimisticRef = useRef<Set<string>>(new Set())
@@ -65,6 +110,7 @@ export function useSession(taskId: string, initialContextTokens?: number): UseSe
     setContextTokens(0)
     setConfigOptions([])
     processedCountRef.current = 0
+    activeAssistantStreamIdRef.current = null
   }, [taskId])
 
   // Load initial messages + activities via REST
@@ -148,6 +194,21 @@ export function useSession(taskId: string, initialContextTokens?: number): UseSe
       case "event": {
         // Agent events may contain message data
         const data = msg.data as Record<string, unknown> | undefined
+        if (data && typeof data === "object" && data.event === "message.streaming" && typeof data.content === "string") {
+          const messageId = typeof data.messageId === "string" ? data.messageId : null
+          const id = messageId ? `assistant-${messageId}` : (activeAssistantStreamIdRef.current ?? `assistant-active-${Date.now()}-${Math.random().toString(36).slice(2)}`)
+          activeAssistantStreamIdRef.current = id
+          setMessages((prev) => applyAssistantStreamMessage(prev, { content: data.content as string, timestamp: data.timestamp }, id, "append"))
+          break
+        }
+        if (data && typeof data === "object" && data.event === "thinking.streaming" && typeof data.content === "string") {
+          setMessages((prev) => applyThinkingStreamMessage(prev, data as { messageId?: unknown; content: string; timestamp?: unknown }, "append"))
+          break
+        }
+        if (data && typeof data === "object" && data.event === "thinking.complete" && typeof data.content === "string") {
+          setMessages((prev) => applyThinkingStreamMessage(prev, data as { messageId?: unknown; content: string; timestamp?: unknown }, "complete"))
+          break
+        }
         if (data && typeof data === "object" && data.event === "content.block" && typeof data.block === "object" && data.block !== null) {
           const block = data.block as AgentContentBlock
           setMessages((prev) => [...prev, {
@@ -179,6 +240,17 @@ export function useSession(taskId: string, initialContextTokens?: number): UseSe
           const imgData = (data as Record<string, unknown>).images
           if (Array.isArray(imgData)) {
             newMsg.images = (imgData as string[]).map((f) => ({ src: `/api/tasks/${taskId}/images/${f}` }))
+          }
+          const messageId = typeof data.messageId === "string" ? data.messageId : null
+          if (newMsg.role === "assistant" && (messageId || activeAssistantStreamIdRef.current)) {
+            const streamId = messageId ? `assistant-${messageId}` : activeAssistantStreamIdRef.current!
+            activeAssistantStreamIdRef.current = null
+            setMessages((prev) => applyAssistantStreamMessage(prev, {
+              content: newMsg.content,
+              timestamp: newMsg.timestamp,
+              images: newMsg.images,
+            }, streamId, "complete"))
+            break
           }
           setMessages((prev) => {
             // Deduplicate: if this tab sent the message optimistically, skip

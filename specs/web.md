@@ -48,8 +48,9 @@ Current task-detail feature set includes:
 
 - chat panel
 - streamed messages
+- streamed thinking merged into one Thought card per turn
 - tool call display
-- ACP config-option selectors for `model`, `thought_level`, and `mode`
+- ACP config-option selectors for `model`, `thought_level`, and `mode`; legacy ACP `models` / `modes` state is normalized into the same UI
 - ACP plan cards
 - ACP content-block cards, including resource, diff, and terminal blocks
 - diff / changes panel
@@ -77,7 +78,7 @@ Current sections:
 - task lists and filtering come from hooks in `web/src/hooks/`
 - API access is centralized in `web/src/lib/api.ts`
 - per-task streaming uses WebSocket hooks
-- ACP `config.options`, `plan`, and `content.block` events are folded into per-task session state
+- ACP `config.options`, `thinking.streaming`, `thinking.complete`, `plan`, and `content.block` events are folded into per-task session state
 
 ## Shared Components
 

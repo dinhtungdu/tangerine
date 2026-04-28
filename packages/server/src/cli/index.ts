@@ -56,6 +56,11 @@ async function main(): Promise<void> {
       await install()
       break
     }
+    case "acp": {
+      const { runAcp } = await import("./acp.ts")
+      await runAcp(args.slice(1))
+      break
+    }
     case "logs": {
       const { runLogs } = await import("./logs.ts")
       await runLogs(args.slice(1))

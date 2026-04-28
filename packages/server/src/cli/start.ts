@@ -505,6 +505,7 @@ export async function start(): Promise<void> {
                     emitTaskEvent(taskId, {
                       role,
                       content: event.content,
+                      messageId: event.messageId,
                       timestamp: new Date().toISOString(),
                       images: imageFilenames,
                     })
@@ -697,9 +698,22 @@ export async function start(): Promise<void> {
                 }
                 break
               }
-              case "thinking": {
-                // Persist thinking to chat and emit via WebSocket
+              case "thinking.streaming": {
                 emitTaskEvent(taskId, {
+                  event: "thinking.streaming",
+                  messageId: event.messageId,
+                  content: event.content,
+                  timestamp: new Date().toISOString(),
+                })
+                break
+              }
+              case "thinking.complete":
+              case "thinking": {
+                // Persist only complete thoughts; streaming chunks stay transient.
+                if (!event.content.trim()) break
+                emitTaskEvent(taskId, {
+                  event: event.kind === "thinking.complete" ? "thinking.complete" : undefined,
+                  messageId: "messageId" in event ? event.messageId : undefined,
                   role: "thinking",
                   content: event.content,
                   timestamp: new Date().toISOString(),
