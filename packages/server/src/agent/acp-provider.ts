@@ -310,25 +310,16 @@ export function createAcpEventMapper(): {
         }
 
         case "tool_call": {
-          // Flush any buffered assistant text before the tool call so pre-tool
-          // and post-tool text appear as separate messages
-          const events: AgentEvent[] = []
-          if (assistantBuffer) {
-            events.push({ kind: "message.complete", role: "assistant", content: assistantBuffer, messageId: assistantMessageId })
-            assistantBuffer = ""
-            assistantMessageId = undefined
-          }
           const toolCallId = stringField(update, "toolCallId")
           const title = stringField(update, "title") ?? stringField(update, "kind") ?? toolCallId ?? "tool"
           const toolInput = stringifyForEvent(update.rawInput)
           if (toolCallId) toolStates.set(toolCallId, { name: title, ...(toolInput ? { input: toolInput } : {}) })
-          events.push({
+          return [{
             kind: "tool.start",
             ...(toolCallId ? { toolCallId } : {}),
             toolName: title,
             toolInput,
-          })
-          return events
+          }]
         }
 
         case "tool_call_update": {

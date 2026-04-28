@@ -355,9 +355,7 @@ describe("createAcpProvider", () => {
       optionKind: "allow_once",
     })
     expect(events).toContainEqual({ kind: "tool.end", toolCallId: "call-1", toolName: "Edit file", toolResult: "{\"permission\":\"allow\"}", status: "success" })
-    // Pre-tool and post-tool text now flush as separate messages (no concatenation)
-    expect(events).toContainEqual({ kind: "message.complete", role: "assistant", content: "hello ", messageId: undefined })
-    expect(events).toContainEqual({ kind: "message.complete", role: "assistant", content: "permission:allow" })
+    expect(events).toContainEqual({ kind: "message.complete", role: "assistant", content: "hello permission:allow" })
     expect(events).toContainEqual({ kind: "usage", inputTokens: 10, outputTokens: 5, contextTokens: 15, cumulative: true })
     expect(events).toContainEqual({ kind: "status", status: "idle" })
 
