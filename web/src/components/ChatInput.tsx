@@ -315,8 +315,8 @@ export function ChatInput({ onSend, disabled, queueLength, taskId, isWorking, on
     }
   }, [onSend])
 
-  // Chips are visible whenever the input is empty — hide once user starts typing
-  const showPrompts = !text.trim() && !!predefinedPrompts?.length
+  // Chips are visible whenever the input is empty and no queued messages — hide once user starts typing
+  const showPrompts = !text.trim() && !!predefinedPrompts?.length && queueLength === 0
 
   const modelOption = configOptions?.find((option) => option.category === "model" && option.type === "select")
   const thoughtOption = configOptions?.find((option) => isAgentEffortOption(option) && option.type === "select")

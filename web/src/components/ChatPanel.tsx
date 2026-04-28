@@ -53,6 +53,7 @@ function QueuedPromptList({
   onRemove?: (promptId: string) => void | Promise<void>
 }) {
   const [drafts, setDrafts] = useState<Record<string, string>>({})
+  const textareaRefs = useRef<Record<string, HTMLTextAreaElement | null>>({})
 
   useEffect(() => {
     setDrafts((prev) => {
@@ -61,6 +62,14 @@ function QueuedPromptList({
       return next
     })
   }, [queuedPrompts])
+
+  const handleResize = useCallback((id: string) => {
+    if (typeof CSS !== "undefined" && CSS.supports("field-sizing", "content")) return
+    const textarea = textareaRefs.current[id]
+    if (!textarea) return
+    textarea.style.height = "auto"
+    textarea.style.height = `${Math.min(textarea.scrollHeight, 144)}px`
+  }, [])
 
   if (queuedPrompts.length === 0) return null
 
@@ -76,11 +85,15 @@ function QueuedPromptList({
           return (
             <div key={entry.id} className="rounded-lg border border-border bg-background p-2 shadow-sm">
               <textarea
+                ref={(el) => { textareaRefs.current[entry.id] = el; if (el) handleResize(entry.id) }}
                 aria-label={`Edit queued message ${index + 1}`}
                 value={draft}
-                onChange={(event) => setDrafts((prev) => ({ ...prev, [entry.id]: event.target.value }))}
-                rows={2}
-                className="min-h-14 w-full resize-y rounded-md border border-input bg-transparent px-2 py-1.5 text-xs outline-none focus-visible:ring-1 focus-visible:ring-ring/50"
+                onChange={(event) => {
+                  setDrafts((prev) => ({ ...prev, [entry.id]: event.target.value }))
+                  handleResize(entry.id)
+                }}
+                rows={1}
+                className="min-h-[1.75rem] max-h-36 w-full resize-none rounded-md border border-input bg-transparent px-2 py-1.5 text-xs outline-none [field-sizing:content] focus-visible:ring-1 focus-visible:ring-ring/50"
               />
               <div className="mt-1.5 flex items-center justify-between gap-2">
                 <span className="text-2xs text-muted-foreground">
