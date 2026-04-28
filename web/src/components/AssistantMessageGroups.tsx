@@ -104,7 +104,7 @@ function groupItems(items: MergedItem[]): MessageGroup[] {
 
     const firstItem = currentGroup[0]!
     const lastItem = currentGroup[currentGroup.length - 1]!
-    const id = firstItem.kind === "message" ? firstItem.data.id : `activity-${firstItem.data.id}`
+    const id = firstItem.kind === "message" ? `msg-${firstItem.data.id}` : `activity-${firstItem.data.id}`
     const endTime = lastItem.kind === "message" ? lastItem.data.timestamp : lastItem.data.timestamp
 
     groups.push({
@@ -125,7 +125,7 @@ function groupItems(items: MergedItem[]): MessageGroup[] {
     if (item.kind === "message" && item.data.role === "user") {
       flushGroup()
       groups.push({
-        id: item.data.id,
+        id: `msg-${item.data.id}`,
         items: [item],
         startTime: item.data.timestamp,
         endTime: item.data.timestamp,
@@ -258,7 +258,7 @@ function AssistantGroup({
             )
           }
           return (
-            <div key={item.data.id} className="pb-6">
+            <div key={`msg-${item.data.id}`} className="pb-6">
               <ChatMessage message={item.data} tasks={tasks} onReply={onReply} />
             </div>
           )
@@ -298,7 +298,7 @@ function AssistantGroup({
                 item.data.role === "thinking" && isStreaming && idx === filteredItems.length - 1
               return (
                 <ChatMessage
-                  key={item.data.id}
+                  key={`msg-${item.data.id}`}
                   message={item.data}
                   tasks={tasks}
                   onReply={onReply}
@@ -322,7 +322,7 @@ function AssistantGroup({
       {textMessages.length > 0 && (
         <div className="flex flex-col gap-6">
           {textMessages.map((item) => (
-            <ChatMessage key={item.data.id} message={item.data} tasks={tasks} onReply={onReply} />
+            <ChatMessage key={`msg-${item.data.id}`} message={item.data} tasks={tasks} onReply={onReply} />
           ))}
         </div>
       )}
