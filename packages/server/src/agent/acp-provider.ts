@@ -277,10 +277,18 @@ export function createAcpEventMapper(): {
         case "agent_message_chunk": {
           const text = textFromContent(update.content)
           if (text) {
-            const messageId = stringField(update, "messageId")
-            if (messageId) assistantMessageId = messageId
-            assistantBuffer += text
-            return [{ kind: "message.streaming", content: text, ...(messageId ? { messageId } : {}) }]
+            const incomingMessageId = stringField(update, "messageId")
+            const events: AgentEvent[] = []
+            if (incomingMessageId && assistantMessageId && incomingMessageId !== assistantMessageId && assistantBuffer) {
+              events.push({ kind: "message.complete", role: "assistant", content: assistantBuffer, messageId: assistantMessageId })
+              assistantBuffer = ""
+              assistantMessageId = undefined
+            }
+            if (incomingMessageId && !assistantMessageId) assistantMessageId = incomingMessageId
+            const chunk = `${paragraphBoundaryPrefix(assistantBuffer, text)}${text}`
+            assistantBuffer += chunk
+            events.push({ kind: "message.streaming", content: chunk, ...(assistantMessageId ? { messageId: assistantMessageId } : {}) })
+            return events
           }
           const block = contentBlockFromContent(update.content)
           return block ? [{ kind: "content.block", block }] : []
@@ -429,6 +437,34 @@ export function createAcpEventMapper(): {
       return [{ kind: "thinking.complete", content, messageId }]
     },
   }
+}
+
+function paragraphBoundaryPrefix(previous: string, next: string): string {
+  if (!previous || !next) return ""
+  if (/^\s/.test(next)) return ""
+  if (!/[.!?]$/.test(previous)) return ""
+  if (!/^[A-Z]/.test(next)) return ""
+  if (wordCount(lastSentenceFragment(previous)) < 3) return ""
+  if (wordCount(firstSentenceFragment(next)) < 2) return ""
+  return "\n\n"
+}
+
+function lastSentenceFragment(text: string): string {
+  const line = text.slice(text.lastIndexOf("\n") + 1)
+  const body = line.slice(0, -1)
+  const previousBoundary = Math.max(body.lastIndexOf("."), body.lastIndexOf("!"), body.lastIndexOf("?"))
+  return body.slice(previousBoundary + 1)
+}
+
+function firstSentenceFragment(text: string): string {
+  const ends = [text.indexOf("."), text.indexOf("!"), text.indexOf("?"), text.indexOf("\n")]
+    .filter((index) => index >= 0)
+  const end = ends.length > 0 ? Math.min(...ends) : text.length
+  return text.slice(0, end)
+}
+
+function wordCount(text: string): number {
+  return text.trim().split(/\s+/).filter(Boolean).length
 }
 
 export function createAcpProvider(config?: AcpProviderConfig): AgentFactory {

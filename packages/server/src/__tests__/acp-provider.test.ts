@@ -150,6 +150,41 @@ describe("createAcpEventMapper", () => {
     expect(mapper.flushAssistantMessage()).toEqual([])
   })
 
+  test("keeps sentence-boundary chunks without message IDs in one assistant message as paragraphs", () => {
+    const mapper = createAcpEventMapper()
+
+    expect(mapper.mapSessionUpdate({ sessionUpdate: "agent_message_chunk", content: { type: "text", text: "Using test-driven-development. First: specs/tests, then implementation, then PR." } }))
+      .toEqual([{ kind: "message.streaming", content: "Using test-driven-development. First: specs/tests, then implementation, then PR." }])
+    expect(mapper.mapSessionUpdate({ sessionUpdate: "agent_message_chunk", content: { type: "text", text: "Setup done, worktree clean." } }))
+      .toEqual([
+        { kind: "message.streaming", content: "\n\nSetup done, worktree clean." },
+      ])
+    expect(mapper.flushAssistantMessage()).toEqual([{ kind: "message.complete", role: "assistant", content: "Using test-driven-development. First: specs/tests, then implementation, then PR.\n\nSetup done, worktree clean." }])
+  })
+
+  test("does not add paragraph breaks for dotted identifiers", () => {
+    const mapper = createAcpEventMapper()
+
+    expect(mapper.mapSessionUpdate({ sessionUpdate: "agent_message_chunk", content: { type: "text", text: "Use Foo." } }))
+      .toEqual([{ kind: "message.streaming", content: "Use Foo." }])
+    expect(mapper.mapSessionUpdate({ sessionUpdate: "agent_message_chunk", content: { type: "text", text: "Bar value" } }))
+      .toEqual([{ kind: "message.streaming", content: "Bar value" }])
+    expect(mapper.flushAssistantMessage()).toEqual([{ kind: "message.complete", role: "assistant", content: "Use Foo.Bar value" }])
+  })
+
+  test("starts a new assistant message when ACP messageId changes", () => {
+    const mapper = createAcpEventMapper()
+
+    expect(mapper.mapSessionUpdate({ sessionUpdate: "agent_message_chunk", messageId: "msg-1", content: { type: "text", text: "First." } }))
+      .toEqual([{ kind: "message.streaming", content: "First.", messageId: "msg-1" }])
+    expect(mapper.mapSessionUpdate({ sessionUpdate: "agent_message_chunk", messageId: "msg-2", content: { type: "text", text: "Second." } }))
+      .toEqual([
+        { kind: "message.complete", role: "assistant", content: "First.", messageId: "msg-1" },
+        { kind: "message.streaming", content: "Second.", messageId: "msg-2" },
+      ])
+    expect(mapper.flushAssistantMessage()).toEqual([{ kind: "message.complete", role: "assistant", content: "Second.", messageId: "msg-2" }])
+  })
+
   test("streams thought chunks and flushes one complete thought", () => {
     const mapper = createAcpEventMapper()
 
