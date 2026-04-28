@@ -3,7 +3,6 @@ import type { Task, WsServerMessage } from "@tangerine/shared"
 import { fetchTasks, fetchTaskCounts } from "../lib/api"
 import { getAuthToken } from "../lib/auth"
 
-const POLL_INTERVAL = 5000
 const PAGE_SIZE = 50
 
 interface UseTasksResult {
@@ -28,6 +27,8 @@ export function useTasks(filter?: { status?: string; project?: string; search?: 
   const loadedLimitsRef = useRef<Record<string, number>>({})
   // Track in-flight loads to prevent double-clicks
   const loadingRef = useRef<Set<string>>(new Set())
+  const refetchInFlightRef = useRef(false)
+  const refetchQueuedRef = useRef(false)
 
   const refetch = useCallback(async () => {
     try {
@@ -94,19 +95,34 @@ export function useTasks(filter?: { status?: string; project?: string; search?: 
     }
   }, [tasksByProject])
 
+  const requestRefetch = useCallback(() => {
+    if (refetchInFlightRef.current) {
+      refetchQueuedRef.current = true
+      return
+    }
+
+    refetchInFlightRef.current = true
+    void refetch().finally(() => {
+      refetchInFlightRef.current = false
+      if (refetchQueuedRef.current) {
+        refetchQueuedRef.current = false
+        requestRefetch()
+      }
+    })
+  }, [refetch])
+
   useEffect(() => {
     setLoading(true)
-    refetch()
+    requestRefetch()
 
-    const interval = setInterval(refetch, POLL_INTERVAL)
     function onVisibilityChange() {
-      if (document.visibilityState === "visible") refetch()
+      if (document.visibilityState === "visible") requestRefetch()
     }
     document.addEventListener("visibilitychange", onVisibilityChange)
-    return () => { clearInterval(interval); document.removeEventListener("visibilitychange", onVisibilityChange) }
-  }, [filter?.status, filter?.project, filter?.search, refetch])
+    return () => { document.removeEventListener("visibilitychange", onVisibilityChange) }
+  }, [filter?.status, filter?.project, filter?.search, requestRefetch])
 
-  // Subscribe to agent status updates via WS for instant UI refresh
+  // Subscribe to task list invalidations and agent status updates via WS.
   useEffect(() => {
     let ws: WebSocket | null = null
     let backoff = 1000
@@ -116,12 +132,13 @@ export function useTasks(filter?: { status?: string; project?: string; search?: 
     function connect() {
       if (unmounted) return
       const protocol = window.location.protocol === "https:" ? "wss:" : "ws:"
-      ws = new WebSocket(`${protocol}//${window.location.host}/api/tasks/agent-status/ws`)
+      ws = new WebSocket(`${protocol}//${window.location.host}/api/tasks/list/ws`)
 
       ws.onopen = () => {
         backoff = 1000
         const token = getAuthToken()
         if (token) ws?.send(JSON.stringify({ type: "auth", token }))
+        requestRefetch()
       }
 
       ws.onmessage = (event) => {
@@ -139,6 +156,8 @@ export function useTasks(filter?: { status?: string; project?: string; search?: 
               }
               return found ? next : prev
             })
+          } else if (msg.type === "task_changed") {
+            requestRefetch()
           }
         } catch { /* ignore */ }
       }
@@ -156,7 +175,7 @@ export function useTasks(filter?: { status?: string; project?: string; search?: 
       if (reconnectTimer) clearTimeout(reconnectTimer)
       ws?.close()
     }
-  }, [])
+  }, [requestRefetch])
 
   const tasks = Object.values(tasksByProject).flat()
   const loadedCounts: Record<string, number> = {}

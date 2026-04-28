@@ -132,6 +132,7 @@ export type WsServerMessage =
   | { type: "status"; status: TaskStatus }
   | { type: "agent_status"; agentStatus: "idle" | "working" }
   | { type: "task_agent_status"; taskId: string; agentStatus: "idle" | "working" }
+  | { type: "task_changed"; taskId: string; change: "created" | "updated" | "deleted" }
   | { type: "queue"; queuedPrompts: PromptQueueEntry[] }
   | { type: "permission_request"; request: PermissionRequest }
   | { type: "error"; message: string }

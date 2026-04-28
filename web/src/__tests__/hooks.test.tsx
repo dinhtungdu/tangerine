@@ -10,7 +10,7 @@ import { useTaskActions } from "../hooks/useTaskActions"
 import { useResizable } from "../hooks/useResizable"
 import { getActions, getAction, setShortcutOverrides, _resetForTesting } from "../lib/actions"
 import { defaultShortcuts } from "../lib/default-shortcuts"
-import type { PromptImage, PromptQueueEntry, Task } from "@tangerine/shared"
+import type { PromptImage, PromptQueueEntry, Task, WsServerMessage } from "@tangerine/shared"
 import type { PointerEvent as ReactPointerEvent } from "react"
 const mockTasks = [
   {
@@ -467,6 +467,95 @@ describe("useSession", () => {
 })
 
 describe("useTasks", () => {
+  test("does not poll tasks on an interval", async () => {
+    const originalSetInterval = globalThis.setInterval
+    const intervals: number[] = []
+    globalThis.setInterval = ((_: Parameters<typeof globalThis.setInterval>[0], timeout?: Parameters<typeof globalThis.setInterval>[1]) => {
+      intervals.push(typeof timeout === "number" ? timeout : 0)
+      return 0 as unknown as ReturnType<typeof globalThis.setInterval>
+    }) as typeof globalThis.setInterval
+
+    try {
+      const { unmount } = renderHook(() => useTasks())
+      await act(async () => {
+        await Promise.resolve()
+      })
+
+      expect(intervals).toEqual([])
+      unmount()
+    } finally {
+      globalThis.setInterval = originalSetInterval
+    }
+  })
+
+  test("refetches when task list websocket reports a task change", async () => {
+    const originalWebSocket = globalThis.WebSocket
+    class TestWebSocket {
+      static instances: TestWebSocket[] = []
+      static readonly CONNECTING = 0
+      static readonly OPEN = 1
+      static readonly CLOSING = 2
+      static readonly CLOSED = 3
+      readonly url: string
+      readyState = TestWebSocket.OPEN
+      onopen: ((event: Event) => void) | null = null
+      onmessage: ((event: MessageEvent) => void) | null = null
+      onerror: ((event: Event) => void) | null = null
+      onclose: ((event: CloseEvent) => void) | null = null
+      constructor(url: string) {
+        this.url = url
+        TestWebSocket.instances.push(this)
+        queueMicrotask(() => this.onopen?.(new Event("open")))
+      }
+      send(_data: string) { }
+      close() { this.readyState = TestWebSocket.CLOSED }
+      emit(message: WsServerMessage) {
+        this.onmessage?.(new MessageEvent("message", { data: JSON.stringify(message) }))
+      }
+    }
+    globalThis.WebSocket = TestWebSocket as unknown as typeof WebSocket
+
+    let currentTasks = mockTasks
+    globalThis.fetch = mock((url: string) => {
+      if (url.includes("/api/tasks/counts")) {
+        return Promise.resolve(new Response(JSON.stringify({ proj: currentTasks.length }), {
+          status: 200,
+          headers: { "Content-Type": "application/json" },
+        }))
+      }
+      return Promise.resolve(new Response(JSON.stringify(currentTasks), {
+        status: 200,
+        headers: { "Content-Type": "application/json" },
+      }))
+    }) as typeof fetch
+
+    try {
+      const { result } = renderHook(() => useTasks())
+
+      await waitFor(() => {
+        expect(result.current.tasks).toHaveLength(2)
+      })
+      await waitFor(() => {
+        expect(TestWebSocket.instances).toHaveLength(1)
+      })
+
+      const socket = TestWebSocket.instances[0]!
+      expect(socket.url).toContain("/api/tasks/list/ws")
+
+      currentTasks = [{ ...mockTasks[0]!, id: "3", title: "Live task" }]
+      act(() => {
+        socket.emit({ type: "task_changed", taskId: "3", change: "created" })
+      })
+
+      await waitFor(() => {
+        expect(result.current.tasks).toHaveLength(1)
+      })
+      expect(result.current.tasks[0]?.title).toBe("Live task")
+    } finally {
+      globalThis.WebSocket = originalWebSocket
+    }
+  })
+
   test("fetches tasks on mount", async () => {
     const { result } = renderHook(() => useTasks())
 
