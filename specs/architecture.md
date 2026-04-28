@@ -79,8 +79,9 @@ specs/
 2. `tasks/manager.ts` assigns task type capabilities and starts tasks.
 3. `tasks/lifecycle.ts` fetches the repo, allocates a worktree slot, creates a branch/worktree, and starts the configured ACP agent process locally.
 4. ACP `session/update` events are mapped and forwarded to WebSocket clients, activity logs, session logs, and in-memory active stream snapshots for mid-turn task reloads.
-5. The task can be prompted, aborted, reconfigured, retried, completed, cancelled, or reconnected after restart.
-6. Crons are separate entities that fire on a cron schedule, spawning regular worker tasks.
+5. Task row mutations emit task-list WebSocket invalidations so the dashboard refreshes runs/sidebar data without interval polling.
+6. The task can be prompted, aborted, reconfigured, retried, completed, cancelled, or reconnected after restart.
+7. Crons are separate entities that fire on a cron schedule, spawning regular worker tasks.
 
 ## Access Model
 

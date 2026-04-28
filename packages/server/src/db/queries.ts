@@ -3,6 +3,7 @@ import type { Database } from "bun:sqlite"
 import { DEFAULT_AGENT_ID } from "@tangerine/shared"
 import type { TaskRow, CronRow, SessionLogRow } from "./types"
 import { DbError } from "../errors"
+import { emitTaskListChange } from "../task-list-events"
 
 function dbTry<T>(op: () => T): Effect.Effect<T, DbError> {
   return Effect.try({
@@ -12,6 +13,37 @@ function dbTry<T>(op: () => T): Effect.Effect<T, DbError> {
 }
 
 // --- Tasks ---
+
+const TASK_LIST_VISIBLE_FIELDS = new Set<keyof TaskRow>([
+  "project_id",
+  "source",
+  "source_id",
+  "source_url",
+  "title",
+  "type",
+  "description",
+  "user_id",
+  "branch",
+  "pr_url",
+  "pr_status",
+  "provider",
+  "model",
+  "reasoning_effort",
+  "parent_task_id",
+  "worktree_path",
+  "status",
+  "suspended",
+  "error",
+  "started_at",
+  "completed_at",
+  "last_seen_at",
+  "last_result_at",
+  "capabilities",
+])
+
+function hasTaskListVisibleChange(fields: string[]): boolean {
+  return fields.some((field) => TASK_LIST_VISIBLE_FIELDS.has(field as keyof TaskRow))
+}
 
 export function createTask(
   db: Database,
@@ -41,7 +73,9 @@ export function createTask(
       $parent_task_id: task.parent_task_id ?? null,
       $capabilities: task.capabilities ?? null,
     })
-    return db.prepare("SELECT * FROM tasks WHERE id = ?").get(task.id) as TaskRow
+    const row = db.prepare("SELECT * FROM tasks WHERE id = ?").get(task.id) as TaskRow
+    emitTaskListChange(task.id, "created")
+    return row
   })
 }
 
@@ -97,7 +131,9 @@ export function updateTask(
 
     const updatedAtClause = opts?.skipUpdatedAt ? "" : ", updated_at = datetime('now')"
     db.prepare(`UPDATE tasks SET ${sets}${updatedAtClause} WHERE id = $id`).run(params)
-    return db.prepare("SELECT * FROM tasks WHERE id = ?").get(id) as TaskRow | null
+    const row = db.prepare("SELECT * FROM tasks WHERE id = ?").get(id) as TaskRow | null
+    if (row && hasTaskListVisibleChange(keys)) emitTaskListChange(id, "updated")
+    return row
   })
 }
 
@@ -302,5 +338,6 @@ export function deleteTask(db: Database, id: string): Effect.Effect<void, DbErro
     db.prepare("DELETE FROM activity_log WHERE task_id = ?").run(id)
     db.prepare("DELETE FROM session_logs WHERE task_id = ?").run(id)
     db.prepare("DELETE FROM tasks WHERE id = ?").run(id)
+    emitTaskListChange(id, "deleted")
   })
 }

@@ -160,6 +160,8 @@ type WsServerMessage =
   | { type: "activity"; entry: ActivityEntry }
   | { type: "status"; status: TaskStatus }
   | { type: "agent_status"; agentStatus: "idle" | "working" }
+  | { type: "task_agent_status"; taskId: string; agentStatus: "idle" | "working" }
+  | { type: "task_changed"; taskId: string; change: "created" | "updated" | "deleted" }
   | { type: "queue"; queuedPrompts: PromptQueueEntry[] }
   | { type: "error"; message: string }
   | { type: "ping" }
@@ -180,6 +182,18 @@ Prompt text may contain `@relative/path` file mentions. The server resolves exis
 When bearer auth is enabled, the client must send the auth message before any prompt or terminal input.
 
 The server also sends periodic `{ type: "ping" }` keepalives. Browser clients must reply with `{ type: "pong" }`. This keeps mobile/Tailscale HTTPS connections from going half-open silently and gives both sides a fast reconnect path.
+
+### Task List Stream
+
+```text
+WS /api/tasks/list/ws
+```
+
+The runs list/sidebar use this global stream for live invalidation instead of interval polling. It sends:
+
+- `{ type: "connected" }` on connection
+- `{ type: "task_agent_status", taskId, agentStatus }` for active agent status changes
+- `{ type: "task_changed", taskId, change }` for task row creates, list-visible updates, and deletes
 
 ### Terminal Stream
 

@@ -81,6 +81,7 @@ Current sections:
 - task lists and filtering come from hooks in `web/src/hooks/`
 - API access is centralized in `web/src/lib/api.ts`
 - per-task streaming uses WebSocket hooks
+- runs/sidebar task data loads from REST initially, then listens to `/api/tasks/list/ws` task-change invalidations and agent-status updates; it refetches on reconnect/visibility rather than interval polling
 - initial task-detail load uses `/api/tasks/:id/messages`, which includes persisted logs plus any transient active assistant/thinking stream so switching into a running task shows current output immediately
 - ACP `config.options`, `slash.commands`, `thinking.streaming`, `thinking.complete`, `plan`, and `content.block` events are folded into per-task session state
 - activity REST snapshots merge with WebSocket activity updates by id/freshness so stale fetch responses cannot overwrite live tool progress
