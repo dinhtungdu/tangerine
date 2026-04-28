@@ -9,7 +9,7 @@ import { usePanelActions } from "../hooks/usePanelActions"
 import { useResizable } from "../hooks/useResizable"
 import { getActions, getAction, setShortcutOverrides, _resetForTesting } from "../lib/actions"
 import { defaultShortcuts } from "../lib/default-shortcuts"
-import type { Task } from "@tangerine/shared"
+import type { PromptImage, PromptQueueEntry, Task } from "@tangerine/shared"
 import type { PointerEvent as ReactPointerEvent } from "react"
 const mockTasks = [
   {
@@ -146,6 +146,23 @@ describe("filterVisibleQueuedPrompts", () => {
 
     expect(filterVisibleQueuedPrompts(queued, pending, 1000)).toEqual([])
   })
+
+  test("hides queued prompt when matching text has matching images", () => {
+    const images: PromptImage[] = [{ mediaType: "image/png", data: "same-image" }]
+    const queued: PromptQueueEntry[] = [{ id: "q-1", text: "see screenshot", images, enqueuedAt: 1 }]
+    const pending = new Map([["m-1", { content: "see screenshot", images, sentAt: 1000 }]])
+
+    expect(filterVisibleQueuedPrompts(queued, pending, 1000)).toEqual([])
+  })
+
+  test("keeps queued prompt visible when matching text has different images", () => {
+    const queuedImages: PromptImage[] = [{ mediaType: "image/png", data: "queued-image" }]
+    const pendingImages: PromptImage[] = [{ mediaType: "image/png", data: "pending-image" }]
+    const queued: PromptQueueEntry[] = [{ id: "q-1", text: "see screenshot", images: queuedImages, enqueuedAt: 1 }]
+    const pending = new Map([["m-1", { content: "see screenshot", images: pendingImages, sentAt: 1000 }]])
+
+    expect(filterVisibleQueuedPrompts(queued, pending, 1000)).toEqual(queued)
+  })
 })
 
 describe("applyUsageUpdate", () => {
@@ -253,7 +270,7 @@ describe("useSession", () => {
     }
   })
 
-  test("keeps optimistic message in chat when queue update shows it was queued", async () => {
+  test("moves optimistic message from chat to queue when queue persists", async () => {
     const originalWebSocket = globalThis.WebSocket
     let wsInstance: { onmessage: ((event: MessageEvent) => void) | null; send: (data: string) => void } | null = null
     class TestWebSocket {
@@ -333,6 +350,7 @@ describe("useSession", () => {
         await new Promise((resolve) => setTimeout(resolve, QUEUE_FLASH_SUPPRESS_MS + 20))
       })
 
+      expect(result.current.messages).toHaveLength(0)
       expect(result.current.queuedPrompts).toHaveLength(1)
       expect(result.current.queuedPrompts[0].text).toBe("hello world")
     } finally {
