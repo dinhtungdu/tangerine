@@ -235,6 +235,71 @@ describe("useSession", () => {
       globalThis.WebSocket = originalWebSocket
     }
   })
+
+  test("removes optimistic message from chat when queue update shows it was queued", async () => {
+    const originalWebSocket = globalThis.WebSocket
+    let wsInstance: { onmessage: ((event: MessageEvent) => void) | null; send: (data: string) => void } | null = null
+    class TestWebSocket {
+      static readonly CLOSING = 2
+      readonly readyState = 1
+      onopen: ((event: Event) => void) | null = null
+      onmessage: ((event: MessageEvent) => void) | null = null
+      onerror: ((event: Event) => void) | null = null
+      onclose: ((event: CloseEvent) => void) | null = null
+      constructor(_url: string) {
+        wsInstance = this
+        setTimeout(() => this.onopen?.(new Event("open")), 0)
+      }
+      send(_data: string) { }
+      close() { }
+    }
+    globalThis.WebSocket = TestWebSocket as unknown as typeof WebSocket
+    globalThis.fetch = mock((url: string) => {
+      if (url.includes("/messages") || url.includes("/activities") || url.includes("/queued-prompts")) {
+        return Promise.resolve(new Response(JSON.stringify([]), { status: 200, headers: { "Content-Type": "application/json" } }))
+      }
+      if (url.includes("/config-options")) {
+        return Promise.resolve(new Response(JSON.stringify({ configOptions: [] }), { status: 200, headers: { "Content-Type": "application/json" } }))
+      }
+      if (url.includes("/slash-commands")) {
+        return Promise.resolve(new Response(JSON.stringify({ commands: [] }), { status: 200, headers: { "Content-Type": "application/json" } }))
+      }
+      return Promise.resolve(new Response(JSON.stringify([]), { status: 200, headers: { "Content-Type": "application/json" } }))
+    }) as typeof fetch
+
+    try {
+      const { result } = renderHook(() => useSession("task-1"))
+
+      await waitFor(() => expect(wsInstance).toBeTruthy())
+
+      // Simulate sending a message (client thinks agent is idle)
+      act(() => {
+        result.current.sendPrompt("hello world")
+      })
+
+      // Message should appear optimistically
+      expect(result.current.messages).toHaveLength(1)
+      expect(result.current.messages[0].role).toBe("user")
+      expect(result.current.messages[0].content).toBe("hello world")
+
+      // Simulate server queue update (agent was actually busy)
+      act(() => {
+        wsInstance?.onmessage?.(new MessageEvent("message", {
+          data: JSON.stringify({
+            type: "queue",
+            queuedPrompts: [{ id: "q-1", text: "hello world", enqueuedAt: Date.now() }],
+          }),
+        }))
+      })
+
+      // Optimistic message should be removed from chat (it's now in queue)
+      expect(result.current.messages).toHaveLength(0)
+      expect(result.current.queuedPrompts).toHaveLength(1)
+      expect(result.current.queuedPrompts[0].text).toBe("hello world")
+    } finally {
+      globalThis.WebSocket = originalWebSocket
+    }
+  })
 })
 
 describe("useTasks", () => {
