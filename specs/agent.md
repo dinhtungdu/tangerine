@@ -81,7 +81,7 @@ Prefer ACP session config options:
 - `category: "thought_level"` for reasoning selection
 - `category: "mode"` for agent mode selection
 
-Compatibility: several public ACP adapters still return legacy `models` / `modes` session state instead of `configOptions`. Tangerine normalizes those into the same selector model and writes changes with `session/set_model` / `session/set_mode`.
+Compatibility: several public ACP adapters still return legacy `models` / `modes` session state instead of `configOptions`. Tangerine normalizes those into the same selector model and writes changes with `session/set_model` / `session/set_mode`. Legacy `modes` become `category: "thought_level"` only when the advertised values are semantic thinking/reasoning levels; otherwise they remain `category: "mode"`.
 
 If an agent does not return relevant config options or legacy state, hide or disable that selector.
 

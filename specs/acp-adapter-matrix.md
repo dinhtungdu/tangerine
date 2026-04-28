@@ -21,6 +21,7 @@ Adapters normalize provider-specific SDK events into ACP. Tangerine still owns A
 - persist only final assistant/thinking messages after `session/prompt` completes
 - render non-text content blocks; do not render text chunks as generic content cards
 - map `models` / `modes` compatibility fields into selectors
+- map legacy `modes` to `thought_level` when the advertised values are semantic thinking/reasoning levels
 - call `session/set_model` / `session/set_mode` for those compatibility selectors
 - call `session/set_config_option` for real `configOptions`
 - choose unattended permission options for background tasks
@@ -31,16 +32,17 @@ Observed from installed/open adapter packages on 2026-04-28.
 
 | Adapter | Source | Session config shape | Stream shape | Notes |
 |---|---|---|---|---|
-| Claude Code ACP `@zed-industries/claude-code-acp@0.16.2` | TypeScript package source + local probe | legacy `models` + `modes`; no `configOptions` in current probe | `text`/`text_delta` -> `agent_message_chunk`; `thinking`/`thinking_delta` -> `agent_thought_chunk` | `session/set_model`, `session/set_mode`; modes include `default`, `acceptEdits`, `plan`, `dontAsk`, `bypassPermissions`; chunks have no `messageId`; local prompt probe emitted an empty text chunk before real text |
+| Claude Code ACP `@zed-industries/claude-code-acp@0.16.2` | TypeScript package source + local probe + Zed ACP client source | legacy `models` + permission `modes`; no `configOptions` / `thought_level` in current probe | `text`/`text_delta` -> `agent_message_chunk`; `thinking`/`thinking_delta` -> `agent_thought_chunk` | `session/set_model`, `session/set_mode`; modes include `default`, `acceptEdits`, `plan`, `dontAsk`, `bypassPermissions`; chunks have no `messageId`; local prompt probe emitted an empty text chunk before real text. Zed-like client capabilities do not change this adapter response. |
 | Codex ACP `@zed-industries/codex-acp@0.12.0` | Rust binary package + README + local probe | `configOptions` for `mode`, `model`, `thought_level`; also reports legacy `models` + `modes` | prompt probe on target machine required | supports `session/close`; package advertises images, tool calls, permission requests, following, edit review, TODOs, slash commands, MCP |
 | OpenCode `opencode acp` from `opencode-ai@1.14.28` | native command package + local probe | `configOptions` for `model`, `mode`; also reports legacy `models` + `modes` | prompt probe on target machine required | native ACP command, not Tangerine-owned runtime; local probe saw `available_commands_update` on session start |
-| Pi ACP `pi-acp@0.0.26` | JavaScript bundle source + local probe | legacy `models` + `modes`; Pi uses `modes` for thinking levels | Pi `text_delta` -> `agent_message_chunk`; Pi `thinking_delta` -> `agent_thought_chunk` | `session/set_model`, `session/set_mode`; thinking levels are `off`, `minimal`, `low`, `medium`, `high`, `xhigh`; local probe emits startup info as `agent_message_chunk` |
+| Pi ACP `pi-acp@0.0.26` | JavaScript bundle source + local probe | legacy `models` + `modes`; modes are semantically thinking levels, so Tangerine exposes them as `thought_level` while still writing with `session/set_mode` | Pi `text_delta` -> `agent_message_chunk`; Pi `thinking_delta` -> `agent_thought_chunk` | `session/set_model`, `session/set_mode`; thinking levels are `off`, `minimal`, `low`, `medium`, `high`, `xhigh`; local probe emits startup info as `agent_message_chunk` |
 
 ## Compatibility rules
 
 - If `configOptions` exist, expose those directly and write with `session/set_config_option`.
 - If legacy `models` exist, synthesize a `category: "model"` option and write with `session/set_model`.
-- If legacy `modes` exist, synthesize a `category: "mode"` option and write with `session/set_mode`.
+- If legacy `modes` exist and values are session behavior modes, synthesize `category: "mode"` and write with `session/set_mode`.
+- If legacy `modes` exist and all values are semantic thinking/reasoning levels, synthesize `category: "thought_level"` and write with `session/set_mode`.
 - If text chunks have no `messageId`, Tangerine creates one active assistant/thought stream id per turn.
 - If `type: "text"` content has empty/missing text, ignore it; it is not a content block card.
 - If an adapter emits invalid ACP, fix upstream or document a generic tolerance only when multiple adapters need it.

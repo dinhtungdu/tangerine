@@ -323,7 +323,7 @@ async function startAcpSession(ctx: AgentStartContext, config?: AcpProviderConfi
     if (stringField(update, "sessionUpdate") !== "current_mode_update") return
     const modeId = stringField(update, "currentModeId") ?? stringField(update, "modeId")
     if (!modeId) return
-    const updated = updateConfigOptionValue(configOptions, "mode", modeId)
+    const updated = updateLegacyModeOptionValue(configOptions, modeId)
     if (updated === configOptions) return
     configOptions = updated
     emit({ kind: "config.options", options: configOptions })
@@ -737,10 +737,22 @@ function configParamsForOption(option: AgentConfigOption, sessionId: string, val
   return { sessionId, configId: option.id, value }
 }
 
+function updateLegacyModeOptionValue(options: AgentConfigOption[], value: string): AgentConfigOption[] {
+  return updateConfigOptionValueByPredicate(options, (option) => option.source === "mode" || option.category === "mode", value)
+}
+
 function updateConfigOptionValue(options: AgentConfigOption[], category: string, value: string): AgentConfigOption[] {
+  return updateConfigOptionValueByPredicate(options, (option) => option.category === category, value)
+}
+
+function updateConfigOptionValueByPredicate(
+  options: AgentConfigOption[],
+  predicate: (option: AgentConfigOption) => boolean,
+  value: string,
+): AgentConfigOption[] {
   let changed = false
   const updated = options.map((option) => {
-    if (option.category !== category) return option
+    if (!predicate(option)) return option
     if (option.currentValue === value) return option
     changed = true
     return { ...option, currentValue: value }
@@ -755,9 +767,9 @@ export function configOptionsFromAcpResponse(value: unknown): AgentConfigOption[
     const modelOption = modelConfigOptionFromResponse(value.models)
     if (modelOption) options.push(modelOption)
   }
-  if (!options.some((option) => option.category === "mode")) {
-    const modeOption = modeConfigOptionFromResponse(value.modes)
-    if (modeOption) options.push(modeOption)
+  const modeOption = modeConfigOptionFromResponse(value.modes)
+  if (modeOption && !options.some((option) => option.category === modeOption.category)) {
+    options.push(modeOption)
   }
   return options.length > 0 ? options : null
 }
@@ -849,15 +861,31 @@ function modeConfigOptionFromResponse(value: unknown): AgentConfigOption | null 
     }]
   })
   if (options.length === 0) return null
+  const isThoughtLevel = legacyModesRepresentThoughtLevels(currentValue, options)
+  const category = isThoughtLevel ? "thought_level" : "mode"
   return {
-    id: "mode",
-    name: "Mode",
-    category: "mode",
+    id: category,
+    name: isThoughtLevel ? "Thought Level" : "Mode",
+    category,
     type: "select",
     currentValue,
     options,
     source: "mode",
   }
+}
+
+const LEGACY_THOUGHT_LEVEL_MODE_IDS = new Set(["off", "minimal", "low", "medium", "high", "xhigh"])
+
+function legacyModesRepresentThoughtLevels(currentValue: string, options: AgentConfigOption["options"]): boolean {
+  if (options.length < 2) return false
+  const values = options.map((option) => option.value.toLowerCase())
+  if (LEGACY_THOUGHT_LEVEL_MODE_IDS.has(currentValue.toLowerCase()) && values.every((value) => LEGACY_THOUGHT_LEVEL_MODE_IDS.has(value))) {
+    return true
+  }
+  return options.every((option) => {
+    const text = `${option.value} ${option.name} ${option.description ?? ""}`.toLowerCase()
+    return /\b(thinking|thought|reasoning)\b/.test(text)
+  })
 }
 
 function contentBlockFromContent(content: unknown): AgentContentBlock | null {

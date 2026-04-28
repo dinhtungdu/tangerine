@@ -98,7 +98,7 @@ Current task types:
 - `defaultAgent`: top-level default ACP agent ID, when set
 - `systemCapabilities`: installed/authenticated tool and ACP agent command status
 
-Provider metadata, model discovery, and context-window maps are not exposed. Model/reasoning/mode selectors use per-session ACP config options from `GET /api/tasks/:id/config-options` and `config.options` WebSocket events. For ACP agents that expose legacy session `models` / `modes`, the server normalizes them into the same config-options shape.
+Provider metadata, model discovery, and context-window maps are not exposed. Model/reasoning/mode selectors use per-session ACP config options from `GET /api/tasks/:id/config-options` and `config.options` WebSocket events. For ACP agents that expose legacy session `models` / `modes`, the server normalizes them into the same config-options shape. Legacy `modes` that are semantic thinking/reasoning levels are exposed as `category: "thought_level"` but still update through `session/set_mode`.
 
 ### System
 

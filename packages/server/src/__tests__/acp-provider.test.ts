@@ -7,6 +7,7 @@ import type { AgentEvent } from "../agent/provider"
 import {
   AcpRpcConnection,
   buildAcpPromptBlocks,
+  configOptionsFromAcpResponse,
   createAcpEventMapper,
   createAcpProvider,
   resolveAcpCommand,
@@ -387,6 +388,66 @@ describe("createAcpProvider", () => {
     rmSync(tempDir, { recursive: true, force: true })
   })
 
+  test("maps legacy thinking modes to ACP thought_level options", async () => {
+    expect(configOptionsFromAcpResponse({
+      modes: {
+        currentModeId: "medium",
+        availableModes: [
+          { id: "off", name: "Thinking: off" },
+          { id: "minimal", name: "Thinking: minimal" },
+          { id: "low", name: "Thinking: low" },
+          { id: "medium", name: "Thinking: medium" },
+          { id: "high", name: "Thinking: high" },
+          { id: "xhigh", name: "Thinking: xhigh" },
+        ],
+      },
+    })).toEqual([{
+      id: "thought_level",
+      name: "Thought Level",
+      category: "thought_level",
+      type: "select",
+      currentValue: "medium",
+      options: [
+        { value: "off", name: "Thinking: off" },
+        { value: "minimal", name: "Thinking: minimal" },
+        { value: "low", name: "Thinking: low" },
+        { value: "medium", name: "Thinking: medium" },
+        { value: "high", name: "Thinking: high" },
+        { value: "xhigh", name: "Thinking: xhigh" },
+      ],
+      source: "mode",
+    }])
+  })
+
+  test("applies legacy thinking modes through session/set_mode", async () => {
+    const tempDir = mkdtempSync(join(tmpdir(), "tangerine-acp-thinking-modes-"))
+    const scriptPath = join(tempDir, "mock-acp-agent.js")
+    writeFileSync(scriptPath, mockThinkingModesAcpAgentScript, "utf-8")
+
+    process.env.TANGERINE_ACP_COMMAND = `bun ${scriptPath}`
+    const provider = createAcpProvider()
+    const handle = await Effect.runPromise(provider.start({ taskId: "task-acp", workdir: tempDir, title: "ACP test" }))
+    const events: Record<string, unknown>[] = []
+    handle.subscribe((event) => events.push(event as unknown as Record<string, unknown>))
+
+    await waitFor(() => events.some((event) => event.kind === "config.options"))
+    expect(events).toContainEqual({ kind: "config.options", options: [{
+      id: "thought_level",
+      name: "Thought Level",
+      category: "thought_level",
+      type: "select",
+      currentValue: "medium",
+      options: [{ value: "low", name: "Thinking: low" }, { value: "medium", name: "Thinking: medium" }, { value: "high", name: "Thinking: high" }],
+      source: "mode",
+    }] })
+
+    expect(await Effect.runPromise(handle.updateConfig?.({ reasoningEffort: "high" }) ?? Effect.succeed(false))).toBe(true)
+    await waitFor(() => events.some((event) => event.kind === "config.options" && Array.isArray(event.options) && event.options.some((option) => typeof option === "object" && option !== null && "currentValue" in option && option.currentValue === "high")))
+
+    await Effect.runPromise(handle.shutdown())
+    rmSync(tempDir, { recursive: true, force: true })
+  })
+
   test("applies ACP mode config options", async () => {
     const tempDir = mkdtempSync(join(tmpdir(), "tangerine-acp-mode-"))
     const scriptPath = join(tempDir, "mock-acp-agent.js")
@@ -583,6 +644,41 @@ rl.on("line", (line) => {
     return
   }
   if (msg.method === "session/set_model" || msg.method === "session/set_mode") {
+    send({ jsonrpc: "2.0", id: msg.id, result: {} })
+    return
+  }
+  if (msg.method === "session/close") {
+    send({ jsonrpc: "2.0", id: msg.id, result: {} })
+  }
+})
+`
+
+const mockThinkingModesAcpAgentScript = `
+const readline = require("node:readline")
+const rl = readline.createInterface({ input: process.stdin })
+function send(message) { process.stdout.write(JSON.stringify(message) + "\\n") }
+rl.on("line", (line) => {
+  const msg = JSON.parse(line)
+  if (msg.method === "initialize") {
+    send({ jsonrpc: "2.0", id: msg.id, result: { protocolVersion: 1, agentCapabilities: { sessionCapabilities: { close: {} } }, authMethods: [] } })
+    return
+  }
+  if (msg.method === "session/new") {
+    send({ jsonrpc: "2.0", id: msg.id, result: {
+      sessionId: "sess-thinking-modes",
+      modes: {
+        currentModeId: "medium",
+        availableModes: [
+          { id: "low", name: "Thinking: low" },
+          { id: "medium", name: "Thinking: medium" },
+          { id: "high", name: "Thinking: high" },
+        ],
+      },
+    } })
+    return
+  }
+  if (msg.method === "session/set_mode") {
+    if (msg.params.modeId !== "high") throw new Error("expected modeId high")
     send({ jsonrpc: "2.0", id: msg.id, result: {} })
     return
   }
