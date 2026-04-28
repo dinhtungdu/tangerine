@@ -138,6 +138,8 @@ const DEFAULTS: Record<"worker" | "reviewer" | "runner", { predefinedPrompts: Pr
   reviewer: { predefinedPrompts: defaultReviewerPrompts },
 }
 
+export const DEFAULT_TASK_PERMISSION_MODE: TaskPermissionMode = "skipPermissions"
+
 /** Resolve per-task-type config from the taskTypes section, with defaults. */
 export function resolveTaskTypeConfig(
   project: ProjectConfig,
@@ -150,7 +152,7 @@ export function resolveTaskTypeConfig(
     agent: override?.agent,
     model: override?.model,
     reasoningEffort: override?.reasoningEffort,
-    permissionMode: override?.permissionMode,
+    permissionMode: override?.permissionMode ?? DEFAULT_TASK_PERMISSION_MODE,
   }
 }
 

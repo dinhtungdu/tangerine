@@ -93,7 +93,7 @@ On session creation/resume, store the returned `configOptions`. On model/reasoni
 
 Tangerine background tasks need unattended execution. Current permission policy:
 
-- `taskTypes.{type}.permissionMode` defaults to `autoAccept`
+- `taskTypes.{type}.permissionMode` defaults to `skipPermissions`
 - `skipPermissions` applies a matching ACP mode option at session start when exposed, such as Claude `bypassPermissions` or Codex `full-access`
 - auto-select first `allow_once` or `allow_always` option
 - fallback to first option if no allow option exists

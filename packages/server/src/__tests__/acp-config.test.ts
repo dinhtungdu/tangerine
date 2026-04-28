@@ -1,5 +1,6 @@
 import { describe, expect, test } from "bun:test"
 import { resolveTaskTypeConfig, tangerineConfigSchema } from "@tangerine/shared"
+import { resolveTaskPermissionMode } from "../tasks/lifecycle"
 
 describe("ACP agent config", () => {
   test("parses configured ACP agents and default agent", () => {
@@ -64,5 +65,7 @@ describe("ACP agent config", () => {
 
     expect(resolveTaskTypeConfig(config.projects[0]!, "worker").permissionMode).toBe("skipPermissions")
     expect(resolveTaskTypeConfig(config.projects[0]!, "reviewer").permissionMode).toBe("autoAccept")
+    expect(resolveTaskTypeConfig(config.projects[0]!, "runner").permissionMode).toBe("skipPermissions")
+    expect(resolveTaskPermissionMode(config.projects[0]!, "runner")).toBe("skipPermissions")
   })
 })

@@ -96,7 +96,7 @@ If an agent does not return relevant config options or legacy state, hide or dis
 
 Initial unattended policy:
 
-1. use `taskTypes.{type}.permissionMode`, defaulting to `autoAccept`
+1. use `taskTypes.{type}.permissionMode`, defaulting to `skipPermissions`
 2. for `skipPermissions`, apply a matching ACP mode option when exposed, such as Claude `bypassPermissions` or Codex `full-access`
 3. choose first `allow_once` / `allow_always` option
 4. otherwise choose first provided option

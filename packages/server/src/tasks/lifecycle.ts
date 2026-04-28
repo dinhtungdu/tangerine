@@ -7,7 +7,7 @@ import type { Database } from "bun:sqlite"
 import { createLogger } from "../logger"
 import { SessionStartError } from "../errors"
 import { getRepoDir, resolveWorkspace } from "../config"
-import { normalizeTaskType, resolveTaskTypeConfig, type TangerineConfig, type TaskPermissionMode } from "@tangerine/shared"
+import { normalizeTaskType, resolveTaskTypeConfig, DEFAULT_TASK_PERMISSION_MODE, type TangerineConfig, type TaskPermissionMode } from "@tangerine/shared"
 import type { TaskRow } from "../db/types"
 import { initPool, acquireSlot, acquireRootSlot } from "./worktree-pool"
 import { buildSystemNotes } from "./prompts"
@@ -61,9 +61,9 @@ function resolveCustomSystemPrompt(config: ProjectConfig, taskType: string | nul
 }
 
 /** Resolve permission handling for a task type from taskTypes config. */
-export function resolveTaskPermissionMode(config: ProjectConfig, taskType: string | null | undefined): TaskPermissionMode | undefined {
+export function resolveTaskPermissionMode(config: ProjectConfig, taskType: string | null | undefined): TaskPermissionMode {
   const tt = normalizeTaskType(taskType)
-  return config.taskTypes?.[tt]?.permissionMode
+  return config.taskTypes?.[tt]?.permissionMode ?? DEFAULT_TASK_PERMISSION_MODE
 }
 
 /** Clear transient autocomplete data before binding a fresh agent session. */

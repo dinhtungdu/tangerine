@@ -107,7 +107,7 @@ export interface AgentStartContext {
   model?: string
   /** Reasoning effort level: "low", "medium", "high" */
   reasoningEffort?: string
-  /** Permission handling mode for ACP requests (default: autoAccept). */
+  /** Permission handling mode for ACP requests (default: skipPermissions). */
   permissionMode?: TaskPermissionMode | "prompt"
   /** If set, resume an existing session instead of creating a new one */
   resumeSessionId?: string

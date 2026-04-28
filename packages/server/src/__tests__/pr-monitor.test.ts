@@ -822,6 +822,7 @@ describe("resolveTaskTypeConfig", () => {
   test("returns defaults when no taskTypes configured", () => {
     const result = resolveTaskTypeConfig(baseProject, "worker")
     expect(result.predefinedPrompts.length).toBeGreaterThan(0)
+    expect(result.permissionMode).toBe("skipPermissions")
     expect(result.systemPrompt).toBeUndefined()
   })
 

@@ -3,7 +3,7 @@ name: platform-setup
 description: Set up Tangerine on the host machine or inside a VM — install tools, configure projects, clone repos, and install agent skills.
 metadata:
   author: tung
-  version: "1.3.1"
+  version: "1.3.2"
 ---
 
 # Tangerine Init Skill
@@ -295,7 +295,7 @@ User wants to add a project to an already-running Tangerine instance. You help t
    - Test command
    - Post-update command (install deps + build, runs after git pull)
    - ACP agent commands to configure and chosen `defaultAgent`
-   - Optional runner `agent`, `model`, and `reasoningEffort` if the coordinator should differ from workers
+   - Optional runner `agent`, `model`, `reasoningEffort`, and `permissionMode` if the coordinator should differ from workers
 
 6. **Write config** to `~/tangerine/config.json`.
 
@@ -311,7 +311,7 @@ User wants to add a project to an already-running Tangerine instance. You help t
    - `model` — optional initial model hint for ACP agents that expose model config
    - `env` — key/value pairs injected into agent environment
    - `postUpdateCommand` — runs after `git pull` (install + build)
-   - `taskTypes` — per-task-type defaults. Use `taskTypes.runner.agent`, `taskTypes.runner.model`, and `taskTypes.runner.reasoningEffort` for runner tasks that need a specific ACP agent/model. Explicit API values override these.
+   - `taskTypes` — per-task-type defaults. Use `taskTypes.runner.agent`, `taskTypes.runner.model`, and `taskTypes.runner.reasoningEffort` for runner tasks that need a specific ACP agent/model. `taskTypes.<type>.permissionMode` accepts `"skipPermissions"` (default) or `"autoAccept"`; skip mode asks ACP agents for their full-access/bypass mode when exposed. Explicit API values override these.
    - `predefinedPrompts` — legacy quick-send buttons; prefer `taskTypes.<type>.predefinedPrompts` for worker/runner/reviewer-specific prompts
 
    **Top-level optional fields** (outside `projects[]`):
@@ -395,7 +395,7 @@ Tangerine does not configure or verify credentials — it relies on the agent's 
 Only ask if you can't determine from the codebase:
 - Repo URL (if no git remote found)
 - Which ACP agent command(s) to configure (Claude Agent, Codex, OpenCode, Pi, or custom ACP command) and which one should be `defaultAgent`
-- Whether runner tasks should use different `taskTypes.runner.agent`, `model`, or `reasoningEffort` defaults than worker tasks
+- Whether runner tasks should use different `taskTypes.runner.agent`, `model`, `reasoningEffort`, or `permissionMode` defaults than worker tasks
 
 ## After Init
 
