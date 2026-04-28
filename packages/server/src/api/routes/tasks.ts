@@ -38,7 +38,12 @@ export function taskRoutes(deps: AppDeps): Hono {
             // Suspended tasks are always idle — their agentWorkingState is lost on restart
             // but suspended=true in the DB is the authoritative source of truth.
             if (task.suspended) task.agentStatus = "idle"
-            else if (hasAgentWorkingState(task.id)) task.agentStatus = getEffectiveAgentStatus(task.id)
+            else if (hasAgentWorkingState(task.id)) {
+              // Check if agent is actually alive — stale handles can exist after process death
+              const handle = deps.getAgentHandle(task.id)
+              const isAlive = handle && (!handle.isAlive || handle.isAlive())
+              task.agentStatus = isAlive ? getEffectiveAgentStatus(task.id) : "disconnected"
+            }
           }
           return task
         }))
@@ -77,7 +82,11 @@ export function taskRoutes(deps: AppDeps): Hono {
           const task = mapTaskRow(row)
           if (task.status === "running") {
             if (task.suspended) task.agentStatus = "idle"
-            else if (hasAgentWorkingState(task.id)) task.agentStatus = getEffectiveAgentStatus(task.id)
+            else if (hasAgentWorkingState(task.id)) {
+              const handle = deps.getAgentHandle(task.id)
+              const isAlive = handle && (!handle.isAlive || handle.isAlive())
+              task.agentStatus = isAlive ? getEffectiveAgentStatus(task.id) : "disconnected"
+            }
           }
           return Effect.succeed(task)
         })

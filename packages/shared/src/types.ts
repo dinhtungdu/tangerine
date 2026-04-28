@@ -54,7 +54,7 @@ export interface Task {
   lastSeenAt: string | null
   lastResultAt: string | null
   capabilities: TaskCapability[]
-  agentStatus?: "idle" | "working"
+  agentStatus?: "idle" | "working" | "disconnected"
   contextTokens: number
   contextWindowMax: number | null
 }

@@ -13,6 +13,7 @@ import type { TaskRow } from "../db/types"
 import type { RawConfig } from "../config"
 import { createAgentFactories } from "../agent/factories"
 import { getTaskState } from "../tasks/task-state"
+import { setAgentWorkingState, clearAgentWorkingState } from "../tasks/events"
 import { clearQueue, enqueue } from "../agent/prompt-queue"
 import { cleanGitEnv } from "../git-env"
 
@@ -400,6 +401,22 @@ describe("API routes", () => {
       const tasks = await res.json() as Array<{ id: string; agentStatus?: string }>
       const task = tasks.find((t) => t.id === row.id)
       expect(task?.agentStatus).toBe("idle")
+    })
+
+    test("running task with agentWorkingState but no handle shows disconnected", async () => {
+      const row = seedTask(db, { title: "Disconnected Task" })
+      db.prepare("UPDATE tasks SET status = 'running', suspended = 0 WHERE id = ?").run(row.id)
+      // Simulate agent that went idle then process died (no handle, but state exists)
+      setAgentWorkingState(row.id, "idle")
+
+      const res = await app.fetch(new Request(`http://localhost/api/tasks/${row.id}`))
+      expect(res.status).toBe(200)
+      const body = await res.json() as { status: string; agentStatus?: string }
+      expect(body.status).toBe("running")
+      expect(body.agentStatus).toBe("disconnected")
+
+      // Cleanup
+      clearAgentWorkingState(row.id)
     })
   })
 

@@ -111,6 +111,7 @@ export function checkTask(
     // Check if agent process is alive (via PID or handle)
     const state = getTaskState(task.id)
     const alive = yield* deps.checkAgentAlive(task.id)
+    taskLog.debug("Health check", { alive, suspended: state.suspended, reconnecting: state.reconnecting })
     if (!alive) {
       // Skip restart for tasks intentionally suspended due to idle timeout
       if (state.suspended) {
@@ -318,7 +319,7 @@ export function checkAllTasks(
     const tasks = yield* deps.listRunningTasks().pipe(
       Effect.catchAll(() => Effect.succeed([] as TaskRow[]))
     )
-    log.debug("Health check started", { runningTaskCount: tasks.length })
+    log.debug("Health check cycle", { runningTaskCount: tasks.length })
 
     for (const task of tasks) {
       const result = yield* checkTask(task, deps).pipe(
