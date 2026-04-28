@@ -76,7 +76,7 @@ export function buildSystemLayer(taskId: string, info: SystemNotesInfo, port = a
   }
 
   if (info.taskType === "runner") {
-    notes.push(`[RUNNER TASK: This task runs without a dedicated worktree or branch. No PR creation needed. Complete the task when done by calling POST /api/tasks/${taskId}/done or by finishing your work.]`)
+    notes.push(`[RUNNER TASK: This task runs without a dedicated worktree or branch — no PR creation. You can run commands on the project root but CANNOT make code changes directly. For any implementation work (code changes, fixes, features), immediately create a worker sub-task via POST /api/tasks — do NOT ask for confirmation, just delegate. Complete the task when done by calling POST /api/tasks/${taskId}/done.]`)
   }
 
   return notes
