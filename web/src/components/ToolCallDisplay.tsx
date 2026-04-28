@@ -46,7 +46,10 @@ function getToolSummary(toolName: string, toolData: ToolCallData): string | null
 
   if (name.includes("bash") || name.includes("shell") || name.includes("exec")) {
     const cmd = toolData.command || (input?.command as string)
-    if (cmd) return `$ ${cmd.length > 60 ? cmd.slice(0, 60) + "…" : cmd}`
+    if (cmd) {
+      const oneLine = cmd.replace(/\s+/g, " ").trim()
+      return `$ ${oneLine.length > 60 ? oneLine.slice(0, 60) + "…" : oneLine}`
+    }
   }
 
   if (name.includes("read")) {
