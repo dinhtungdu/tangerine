@@ -21,6 +21,8 @@ export interface TaskState {
   hungToolAbortedAt?: number
   /** Current context window usage (persisted to DB, displayed as used/max) */
   contextTokens: number
+  /** Current context window capacity when ACP reports it. */
+  contextWindowMax: number | null
   /** Active ACP session configuration selectors. */
   configOptions: AgentConfigOption[]
   /** Latest ACP session metadata update. */
@@ -40,6 +42,7 @@ function defaultState(): TaskState {
     prNudgeSent: false,
     consecutiveRestarts: 0,
     contextTokens: 0,
+    contextWindowMax: null,
     configOptions: [],
     sessionInfo: {},
   }

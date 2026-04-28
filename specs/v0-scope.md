@@ -14,8 +14,8 @@ This file reflects the shipped baseline in the current codebase, not the origina
 
 ### Agents
 
-- [x] Provider abstraction with OpenCode, Claude Code, and Codex
-- [x] Normalized event stream for message, tool, status, and error events
+- [x] ACP-only agent runtime with configured ACP-compatible commands
+- [x] ACP event stream mapped to normalized task events
 - [x] Prompt queueing while tasks are busy
 - [x] Session resume across restart / reconnect flows
 - [x] Runtime model and reasoning-effort updates

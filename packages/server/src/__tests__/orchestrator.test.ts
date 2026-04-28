@@ -104,6 +104,36 @@ describe("ensureOrchestrator", () => {
     expect(task.provider).toBe("acp")
   })
 
+  test("uses orchestrator agent from taskTypes when no provider specified", async () => {
+    deps.getProjectConfig = (id) => id === PROJECT_ID
+      ? {
+          repo: "https://github.com/test/repo",
+          setup: "echo ok",
+          defaultBranch: "main",
+          defaultAgent: "acp",
+          taskTypes: { orchestrator: { agent: "codex" } },
+        }
+      : undefined
+
+    const task = await Effect.runPromise(ensureOrchestrator(deps, PROJECT_ID))
+    expect(task.provider).toBe("codex")
+  })
+
+  test("explicit agent id overrides orchestrator taskTypes agent", async () => {
+    deps.getProjectConfig = (id) => id === PROJECT_ID
+      ? {
+          repo: "https://github.com/test/repo",
+          setup: "echo ok",
+          defaultBranch: "main",
+          defaultAgent: "acp",
+          taskTypes: { orchestrator: { agent: "codex" } },
+        }
+      : undefined
+
+    const task = await Effect.runPromise(ensureOrchestrator(deps, PROJECT_ID, "custom-agent"))
+    expect(task.provider).toBe("custom-agent")
+  })
+
   test("explicit agent id overrides project default", async () => {
     const task = await Effect.runPromise(ensureOrchestrator(deps, PROJECT_ID, "custom-agent"))
     expect(task.provider).toBe("custom-agent")
@@ -115,9 +145,35 @@ describe("ensureOrchestrator", () => {
     expect(task.reasoning_effort).toBeNull()
   })
 
-  test("explicit model and reasoningEffort override defaults", async () => {
-    const task = await Effect.runPromise(ensureOrchestrator(deps, PROJECT_ID, undefined, "claude-sonnet-4-6", "medium"))
-    expect(task.model).toBe("claude-sonnet-4-6")
+  test("uses orchestrator model and reasoning effort from taskTypes", async () => {
+    deps.getProjectConfig = (id) => id === PROJECT_ID
+      ? {
+          repo: "https://github.com/test/repo",
+          setup: "echo ok",
+          defaultBranch: "main",
+          defaultAgent: "acp",
+          taskTypes: { orchestrator: { model: "gpt-5", reasoningEffort: "high" } },
+        }
+      : undefined
+
+    const task = await Effect.runPromise(ensureOrchestrator(deps, PROJECT_ID))
+    expect(task.model).toBe("gpt-5")
+    expect(task.reasoning_effort).toBe("high")
+  })
+
+  test("explicit model and reasoningEffort override taskTypes defaults", async () => {
+    deps.getProjectConfig = (id) => id === PROJECT_ID
+      ? {
+          repo: "https://github.com/test/repo",
+          setup: "echo ok",
+          defaultBranch: "main",
+          defaultAgent: "acp",
+          taskTypes: { orchestrator: { model: "gpt-5", reasoningEffort: "low" } },
+        }
+      : undefined
+
+    const task = await Effect.runPromise(ensureOrchestrator(deps, PROJECT_ID, undefined, "gpt-5-large", "medium"))
+    expect(task.model).toBe("gpt-5-large")
     expect(task.reasoning_effort).toBe("medium")
   })
 })
@@ -175,6 +231,12 @@ describe("createTask description storage", () => {
   test("orchestrator description is stored verbatim", async () => {
     const orchestrator = await Effect.runPromise(ensureOrchestrator(deps, PROJECT_ID))
     expect(orchestrator.description).not.toContain("Out-of-scope issues")
+  })
+
+  test("default orchestrator prompt uses provider-neutral model guidance", async () => {
+    const orchestrator = await Effect.runPromise(ensureOrchestrator(deps, PROJECT_ID))
+    expect(orchestrator.description?.toLowerCase()).not.toMatch(/claude|anthropic|opus|sonnet/)
+    expect(orchestrator.description).toContain("most capable configured model")
   })
 })
 

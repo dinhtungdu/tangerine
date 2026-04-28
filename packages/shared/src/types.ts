@@ -49,6 +49,7 @@ export interface Task {
   capabilities: TaskCapability[]
   agentStatus?: "idle" | "working"
   contextTokens: number
+  contextWindowMax: number | null
 }
 
 export type AgentContentBlock = Record<string, unknown> & { type: string }

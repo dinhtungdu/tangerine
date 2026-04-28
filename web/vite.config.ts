@@ -10,6 +10,18 @@ export default defineConfig({
       "@": path.resolve(__dirname, "./src"),
     },
   },
+  build: {
+    rollupOptions: {
+      output: {
+        manualChunks: {
+          "vendor-react": ["react", "react-dom", "react-router-dom"],
+          "vendor-ui": ["@base-ui/react", "cmdk", "sonner"],
+          "vendor-xterm": ["@xterm/xterm", "@xterm/addon-fit", "@xterm/addon-web-links"],
+          "vendor-markdown": ["react-markdown", "remark-gfm", "remark-breaks"],
+        },
+      },
+    },
+  },
   server: {
     host: true,
     proxy: {

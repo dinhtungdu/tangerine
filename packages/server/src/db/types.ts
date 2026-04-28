@@ -28,6 +28,7 @@ export interface TaskRow {
   last_result_at: string | null
   capabilities: string | null
   context_tokens: number
+  context_window_max?: number | null
 }
 
 export interface CronRow {

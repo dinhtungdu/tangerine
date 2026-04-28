@@ -97,6 +97,7 @@ export function startSession(
     const defaultBranch = config.defaultBranch ?? "main"
     const isOrchestrator = task.type === "orchestrator"
     const isRunner = task.type === "runner"
+    const isReviewer = task.type === "reviewer"
     // Orchestrator stays on the default branch in slot 0.
     // Runner tasks run on the project root without a dedicated worktree.
     // Regular tasks use pre-set branch (from PR/branch input) or generate one.
@@ -193,16 +194,23 @@ export function startSession(
         yield* activity("worktree.ready", "Task using slot 0", { worktreePath, branch, slot: slot.id })
       } else {
         // Checkout the task branch on the acquired slot
-        yield* localExec(
-          `cd ${worktreePath} && if git rev-parse --verify origin/${branch} >/dev/null 2>&1; then
-            git fetch origin && git checkout -B ${branch} origin/${branch}
-          else
-            git fetch origin && git checkout -B ${branch} origin/${baseBranch}
-          fi`,
-        ).pipe(
+        // Reviewers use detached HEAD to avoid "branch already used by worktree" error
+        // when the worker has the branch checked out in another worktree.
+        const checkoutCmd = isReviewer
+          ? `cd ${worktreePath} && git fetch origin && if git rev-parse --verify origin/${branch} >/dev/null 2>&1; then
+              git checkout --detach origin/${branch}
+            else
+              git checkout --detach origin/${baseBranch}
+            fi`
+          : `cd ${worktreePath} && if git rev-parse --verify origin/${branch} >/dev/null 2>&1; then
+              git fetch origin && git checkout -B ${branch} origin/${branch}
+            else
+              git fetch origin && git checkout -B ${branch} origin/${baseBranch}
+            fi`
+        yield* localExec(checkoutCmd).pipe(
           Effect.tap(() => activity("worktree.ready",
-            isExistingBranch ? `Checked out existing branch: ${branch}` : "Worktree ready",
-            { worktreePath, branch, slot: slot.id, isExistingBranch })),
+            isReviewer ? `Detached HEAD at ${branch}` : (isExistingBranch ? `Checked out existing branch: ${branch}` : "Worktree ready"),
+            { worktreePath, branch, slot: slot.id, isExistingBranch, isReviewer })),
           Effect.mapError((e) => new SessionStartError({
             message: `Branch checkout failed: ${e.message}`,
             taskId: task.id,

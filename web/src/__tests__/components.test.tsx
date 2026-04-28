@@ -15,7 +15,7 @@ function makeBaseUIMock() {
   return {
     Slot,
     Passthrough,
-    Root({ children, ...props }: Props) { return React.createElement("div", props, children) },
+    Root({ children, onOpenChange: _, open: _o, defaultOpen: _d, modal: _m, ...props }: Props) { return React.createElement("div", props, children) },
     Trigger({ children, className, ...props }: Props) {
       return React.createElement("button", { className, ...props }, children)
     },

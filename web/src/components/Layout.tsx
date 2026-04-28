@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from "react"
+import { useState, useEffect, useRef, Suspense } from "react"
 import { Link, Outlet, useLocation } from "react-router-dom"
 import type { Task } from "@tangerine/shared"
 import { Topbar } from "./Topbar"
@@ -142,7 +142,9 @@ export function Layout() {
         )}
 
         <div className={`min-w-0 flex-1 ${isRoot ? "order-2 md:overflow-hidden" : "overflow-hidden"}`}>
-          <Outlet context={{ sidebarOpen, tasks, tasksLoading, refetch } satisfies SidebarContext} />
+          <Suspense>
+            <Outlet context={{ sidebarOpen, tasks, tasksLoading, refetch } satisfies SidebarContext} />
+          </Suspense>
         </div>
       </main>
 

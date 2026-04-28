@@ -114,6 +114,8 @@ Notable task fields in the active schema:
 - `last_seen_at`
 - `last_result_at`
 - `capabilities`
+- `context_tokens` — current ACP-reported context usage
+- `context_window_max` — current ACP-reported context capacity when available
 
 ## Major Subsystems
 

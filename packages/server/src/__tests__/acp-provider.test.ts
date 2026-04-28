@@ -112,7 +112,7 @@ describe("createAcpEventMapper", () => {
     expect(mapper.mapSessionUpdate({ sessionUpdate: "tool_call_update", toolCallId: "call-1", status: "completed", rawOutput: { ok: true } }))
       .toEqual([{ kind: "tool.end", toolCallId: "call-1", toolName: "Read file", toolResult: "{\"ok\":true}", status: "success" }])
     expect(mapper.mapSessionUpdate({ sessionUpdate: "usage_update", used: 123, size: 1000 }))
-      .toEqual([{ kind: "usage", contextTokens: 123 }])
+      .toEqual([{ kind: "usage", contextTokens: 123, contextWindowMax: 1000 }])
     expect(mapper.mapSessionUpdate({
       sessionUpdate: "session_info_update",
       title: "Implement auth",

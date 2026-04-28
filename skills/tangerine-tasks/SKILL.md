@@ -3,7 +3,7 @@ name: tangerine-tasks
 description: Reference for agents running inside a Tangerine task — API endpoints, env vars, and common workflows.
 metadata:
   author: tung
-  version: "1.7.0"
+  version: "1.8.0"
 ---
 
 # Tangerine Agent Reference
@@ -48,7 +48,7 @@ Always include `-H "Authorization: Bearer $TANGERINE_AUTH_TOKEN"` on every Tange
 
 ```bash
 PROJECT_NAME=$(curl -s -H "Authorization: Bearer $TANGERINE_AUTH_TOKEN" "$API/api/tasks/$TANGERINE_TASK_ID" | jq -r '.projectId')
-PR_MODE=$(curl -s -H "Authorization: Bearer $TANGERINE_AUTH_TOKEN" "$API/api/projects/$PROJECT_NAME" | jq -r '.prMode // "draft"')
+PR_MODE=$(curl -s -H "Authorization: Bearer $TANGERINE_AUTH_TOKEN" "$API/api/projects/$PROJECT_NAME" | jq -r '.prMode // "none"')
 ```
 
 Act strictly according to `PR_MODE` — no exceptions:
@@ -58,7 +58,7 @@ Act strictly according to `PR_MODE` — no exceptions:
 gh pr create --title "..." --body "..."
 ```
 
-**`"draft"` (default)** — MUST use `--draft`:
+**`"draft"`** — MUST use `--draft`:
 ```bash
 gh pr create --draft --title "..." --body "..."
 ```
@@ -73,25 +73,27 @@ gh pr create --draft --title "..." --body "..."
 ### Tasks
 
 ```bash
-curl "$API/api/tasks"
-curl "$API/api/tasks?status=running&project=my-project"
-curl "$API/api/tasks/$TANGERINE_TASK_ID"
-curl "$API/api/tasks/$TANGERINE_TASK_ID/children"
-curl -X POST "$API/api/tasks/$TANGERINE_TASK_ID/cancel"
-curl -X POST "$API/api/tasks/$TANGERINE_TASK_ID/retry"
-curl -X POST "$API/api/tasks/$TANGERINE_TASK_ID/start"
-curl -X POST "$API/api/tasks/$TANGERINE_TASK_ID/seen"
-curl -X POST "$API/api/tasks/$TANGERINE_TASK_ID/done"
+curl -H "Authorization: Bearer $TANGERINE_AUTH_TOKEN" "$API/api/tasks"
+curl -H "Authorization: Bearer $TANGERINE_AUTH_TOKEN" "$API/api/tasks?status=running&project=my-project"
+curl -H "Authorization: Bearer $TANGERINE_AUTH_TOKEN" "$API/api/tasks/$TANGERINE_TASK_ID"
+curl -H "Authorization: Bearer $TANGERINE_AUTH_TOKEN" "$API/api/tasks/$TANGERINE_TASK_ID/children"
+curl -X POST -H "Authorization: Bearer $TANGERINE_AUTH_TOKEN" "$API/api/tasks/$TANGERINE_TASK_ID/cancel"
+curl -X POST -H "Authorization: Bearer $TANGERINE_AUTH_TOKEN" "$API/api/tasks/$TANGERINE_TASK_ID/retry"
+curl -X POST -H "Authorization: Bearer $TANGERINE_AUTH_TOKEN" "$API/api/tasks/$TANGERINE_TASK_ID/start"
+curl -X POST -H "Authorization: Bearer $TANGERINE_AUTH_TOKEN" "$API/api/tasks/$TANGERINE_TASK_ID/seen"
+curl -X POST -H "Authorization: Bearer $TANGERINE_AUTH_TOKEN" "$API/api/tasks/$TANGERINE_TASK_ID/done"
 ```
 
 > **IMPORTANT — when to call `/done`:**
 > - **Orchestrators**: call `/done` on yourself when ending the session.
-> - **Workers and reviewers**: Do NOT call `/done` proactively. After creating a PR, the agent auto-suspends. When the PR is merged, Tangerine will re-prompt you with post-merge instructions — call `/done` then (or `/cancel` if the PR was closed without merging).
+> - **Workers**: Do NOT call `/done` proactively after PR creation. The agent auto-suspends. When the PR is merged, Tangerine re-prompts you with post-merge instructions — call `/done` then (or `/cancel` if the PR was closed without merging).
+> - **Reviewers**: post the review summary in this task. Do NOT call `/done` unless post-merge/closure instructions say so.
 
 Create a worker task:
 
 ```bash
 curl -X POST "$API/api/tasks" \
+  -H "Authorization: Bearer $TANGERINE_AUTH_TOKEN" \
   -H "Content-Type: application/json" \
   -d '{
     "projectId": "my-project",
@@ -108,6 +110,7 @@ Create a reviewer task:
 
 ```bash
 curl -X POST "$API/api/tasks" \
+  -H "Authorization: Bearer $TANGERINE_AUTH_TOKEN" \
   -H "Content-Type: application/json" \
   -d '{
     "projectId": "my-project",
@@ -116,6 +119,7 @@ curl -X POST "$API/api/tasks" \
     "description": "Check for regressions",
     "provider": "acp",
     "branch": "tangerine/abc12345",
+    "prUrl": "https://github.com/org/repo/pull/123",
     "parentTaskId": "abc123",
     "source": "cross-project"
   }'
@@ -125,7 +129,7 @@ curl -X POST "$API/api/tasks" \
 > - Set `branch` to the **PR's source branch** (e.g. `tangerine/abc12345`), NOT the PR number shorthand (`#123`) or a new branch. The reviewer must check out the same branch as the PR.
 > - Always set `prUrl` to the full PR URL (e.g. `https://github.com/org/repo/pull/123`). The poller can discover it from the branch as a fallback, but setting it upfront ensures immediate tracking.
 
-Provider values are configured ACP agent IDs from `agents[]` (default: `acp`). Omit `provider` to use project/global `defaultAgent`.
+Provider values are configured ACP agent IDs from `agents[]` (default: `acp`). Omit `provider` to use project/global `defaultAgent`. Put durable custom instructions in `taskTypes.<type>.systemPrompt`, not provider names, task titles, or one-off prompts.
 
 Task types — **always pass the correct type**:
 
@@ -138,6 +142,7 @@ Example runner task (no worktree, no PR):
 
 ```bash
 curl -X POST "$API/api/tasks" \
+  -H "Authorization: Bearer $TANGERINE_AUTH_TOKEN" \
   -H "Content-Type: application/json" \
   -d '{
     "projectId": "my-project",
@@ -149,28 +154,61 @@ curl -X POST "$API/api/tasks" \
   }'
 ```
 
+## Task-Type Custom System Prompts
+
+Projects can define custom system prompts per task type. Use these for persistent custom instructions such as review focus, coding standards, orchestration policy, or reporting style.
+
+Supported task types: `worker`, `orchestrator`, `reviewer`.
+
+```json
+{
+  "projects": [{
+    "name": "my-project",
+    "repo": "org/repo",
+    "setup": "bun install",
+    "taskTypes": {
+      "worker": {
+        "systemPrompt": "Follow the project coding standards. Keep changes small."
+      },
+      "reviewer": {
+        "systemPrompt": "Review for regressions, security issues, and missing tests."
+      },
+      "orchestrator": {
+        "systemPrompt": "Keep tasks small. Send unrelated issues to triage."
+      }
+    }
+  }]
+}
+```
+
+Operational Tangerine notes still apply: auth, PR mode, branch workflow, and orchestrator delegation rules. A custom prompt replaces default user-layer notes such as terse style and setup-status reminder; include those explicitly if wanted.
+
 ### Session / Chat
 
 ```bash
-curl "$API/api/tasks/$TANGERINE_TASK_ID/messages"
-curl "$API/api/tasks/$TANGERINE_TASK_ID/activities"
-curl "$API/api/tasks/$TANGERINE_TASK_ID/diff"
+curl -H "Authorization: Bearer $TANGERINE_AUTH_TOKEN" "$API/api/tasks/$TANGERINE_TASK_ID/messages"
+curl -H "Authorization: Bearer $TANGERINE_AUTH_TOKEN" "$API/api/tasks/$TANGERINE_TASK_ID/activities"
+curl -H "Authorization: Bearer $TANGERINE_AUTH_TOKEN" "$API/api/tasks/$TANGERINE_TASK_ID/diff"
 
 curl -X POST "$API/api/tasks/$TANGERINE_TASK_ID/prompt" \
+  -H "Authorization: Bearer $TANGERINE_AUTH_TOKEN" \
   -H "Content-Type: application/json" \
   -d '{"text":"Continue from the latest failing test."}'
 
 curl -X POST "$API/api/tasks/$TANGERINE_TASK_ID/chat" \
+  -H "Authorization: Bearer $TANGERINE_AUTH_TOKEN" \
   -H "Content-Type: application/json" \
   -d '{"text":"Summarize what changed."}'
 
-curl -X POST "$API/api/tasks/$TANGERINE_TASK_ID/abort"
+curl -X POST -H "Authorization: Bearer $TANGERINE_AUTH_TOKEN" "$API/api/tasks/$TANGERINE_TASK_ID/abort"
 
 curl -X POST "$API/api/tasks/$TANGERINE_TASK_ID/model" \
+  -H "Authorization: Bearer $TANGERINE_AUTH_TOKEN" \
   -H "Content-Type: application/json" \
   -d '{"model":"gpt-5","reasoningEffort":"high","mode":"code"}'
 
 curl -X PATCH "$API/api/tasks/$TANGERINE_TASK_ID" \
+  -H "Authorization: Bearer $TANGERINE_AUTH_TOKEN" \
   -H "Content-Type: application/json" \
   -d '{"prUrl":"https://github.com/org/repo/pull/123"}'
 ```
@@ -178,15 +216,16 @@ curl -X PATCH "$API/api/tasks/$TANGERINE_TASK_ID" \
 ### Projects
 
 ```bash
-curl "$API/api/projects"
-curl "$API/api/projects/my-project"
+curl -H "Authorization: Bearer $TANGERINE_AUTH_TOKEN" "$API/api/projects"
+curl -H "Authorization: Bearer $TANGERINE_AUTH_TOKEN" "$API/api/projects/my-project"
 
 curl -X POST "$API/api/projects/my-project/orchestrator" \
+  -H "Authorization: Bearer $TANGERINE_AUTH_TOKEN" \
   -H "Content-Type: application/json" \
   -d '{"provider":"acp"}'
 
-curl "$API/api/projects/my-project/update-status"
-curl -X POST "$API/api/projects/my-project/update"
+curl -H "Authorization: Bearer $TANGERINE_AUTH_TOKEN" "$API/api/projects/my-project/update-status"
+curl -X POST -H "Authorization: Bearer $TANGERINE_AUTH_TOKEN" "$API/api/projects/my-project/update"
 ```
 
 ### Crons
@@ -195,11 +234,12 @@ curl -X POST "$API/api/projects/my-project/update"
 
 ```bash
 # List crons
-curl "$API/api/crons"
-curl "$API/api/crons?project=my-project"
+curl -H "Authorization: Bearer $TANGERINE_AUTH_TOKEN" "$API/api/crons"
+curl -H "Authorization: Bearer $TANGERINE_AUTH_TOKEN" "$API/api/crons?project=my-project"
 
 # Create a cron (cron expression is always UTC)
 curl -X POST "$API/api/crons" \
+  -H "Authorization: Bearer $TANGERINE_AUTH_TOKEN" \
   -H "Content-Type: application/json" \
   -d '{
     "projectId": "my-project",
@@ -214,11 +254,12 @@ curl -X POST "$API/api/crons" \
 
 # Update a cron
 curl -X PATCH "$API/api/crons/<id>" \
+  -H "Authorization: Bearer $TANGERINE_AUTH_TOKEN" \
   -H "Content-Type: application/json" \
   -d '{"enabled": false}'
 
 # Delete a cron
-curl -X DELETE "$API/api/crons/<id>"
+curl -X DELETE -H "Authorization: Bearer $TANGERINE_AUTH_TOKEN" "$API/api/crons/<id>"
 ```
 
 The `description` field becomes the **prompt** given to the spawned task — write it as a clear, self-contained instruction the agent can execute without extra context.
@@ -228,11 +269,11 @@ When converting user-specified local times to UTC cron expressions, always confi
 ### System
 
 ```bash
-curl "$API/api/health"
-curl "$API/api/logs?project=my-project&limit=100"
-curl "$API/api/cleanup/orphans"
-curl -X POST "$API/api/cleanup/orphans"
-curl "$API/api/config"
+curl -H "Authorization: Bearer $TANGERINE_AUTH_TOKEN" "$API/api/health"
+curl -H "Authorization: Bearer $TANGERINE_AUTH_TOKEN" "$API/api/logs?project=my-project&limit=100"
+curl -H "Authorization: Bearer $TANGERINE_AUTH_TOKEN" "$API/api/cleanup/orphans"
+curl -X POST -H "Authorization: Bearer $TANGERINE_AUTH_TOKEN" "$API/api/cleanup/orphans"
+curl -H "Authorization: Bearer $TANGERINE_AUTH_TOKEN" "$API/api/config"
 ```
 
 ## Useful Workflows
@@ -241,6 +282,7 @@ curl "$API/api/config"
 
 ```bash
 curl -X POST "$API/api/tasks/<target-task-id>/prompt" \
+  -H "Authorization: Bearer $TANGERINE_AUTH_TOKEN" \
   -H "Content-Type: application/json" \
   -d '{"text":"Discovered a failing edge case. Please investigate.","fromTaskId":"'"$TANGERINE_TASK_ID"'"}'
 ```
@@ -250,19 +292,19 @@ curl -X POST "$API/api/tasks/<target-task-id>/prompt" \
 ### Inspect your task metadata
 
 ```bash
-curl "$API/api/tasks/$TANGERINE_TASK_ID" | jq '{id, type, status, provider, branch, worktreePath, parentTaskId, capabilities}'
+curl -H "Authorization: Bearer $TANGERINE_AUTH_TOKEN" "$API/api/tasks/$TANGERINE_TASK_ID" | jq '{id, type, status, provider, branch, worktreePath, parentTaskId, capabilities}'
 ```
 
 ### Read parent task context
 
 ```bash
-PARENT=$(curl -s "$API/api/tasks/$TANGERINE_TASK_ID" | jq -r '.parentTaskId')
-test "$PARENT" != "null" && curl "$API/api/tasks/$PARENT/messages"
+PARENT=$(curl -s -H "Authorization: Bearer $TANGERINE_AUTH_TOKEN" "$API/api/tasks/$TANGERINE_TASK_ID" | jq -r '.parentTaskId')
+test "$PARENT" != "null" && curl -H "Authorization: Bearer $TANGERINE_AUTH_TOKEN" "$API/api/tasks/$PARENT/messages"
 ```
 
 ## Polling for Async Events
 
-Use polling to wait for PR reviews, CI completion, child task results, or external API responses. Tangerine has no push mechanism to agents — polling is the primary pattern.
+Use polling to wait for review task results, CI completion, child task results, or external API responses. Tangerine has no push mechanism to agents — polling is the primary pattern.
 
 ### Which fields to poll
 
@@ -311,7 +353,7 @@ Use this when you need to pause for a duration regardless of what you're waiting
 echo "Waiting 300s..."; sleep 300; echo "Resuming."
 ```
 
-Resume the same task after wake with the polling loop above. Use `270s` for CI checks and `1200s` for PR review waits.
+Resume the same task after wake with the polling loop above. Use `270s` for CI checks and `1200s` for review task waits.
 
 ### Recommended intervals
 
@@ -319,7 +361,7 @@ Resume the same task after wake with the polling loop above. Use `270s` for CI c
 |----------|----------|---------|
 | CI checks (fast repo) | 60s | 15–20 min |
 | CI checks (slow repo) | 270s | 60 min |
-| PR review by another agent | 120s | 30 min |
+| Review task result | 120s | 30 min |
 | External API / long job | 300s | hours |
 | Child task completion | 60–120s | task-dependent |
 
@@ -352,7 +394,7 @@ Use backoff when hitting external APIs or GitHub (rate-limited) rather than flat
 - Any scenario where you need a result before proceeding
 
 **Webhooks** (Tangerine handles these automatically — you do not need to poll):
-- PR merged → Tangerine re-prompts the worker automatically
+- PR merged → Tangerine re-prompts the PR-tracked task automatically
 - Post-merge re-prompt → call `/done` when finished
 
 In practice: agents always poll. Tangerine's webhook integration handles GitHub events and triggers re-prompts — agents just respond to those re-prompts rather than polling for merge events themselves.
@@ -377,6 +419,7 @@ Before creating a PR, rename your branch to something descriptive. Then push wit
 
 ```bash
 curl -X POST "$API/api/tasks/$TANGERINE_TASK_ID/rename-branch" \
+  -H "Authorization: Bearer $TANGERINE_AUTH_TOKEN" \
   -H "Content-Type: application/json" \
   -d "{\"branch\": \"fix/<descriptive-slug>\"}"
 ```

@@ -109,24 +109,46 @@ const PR_NUDGE_DELAY_MS = 15_000
 
 
 /**
- * Check if the task's branch has commits ahead of the default branch.
- * Returns true if there are commits that could warrant a PR.
+ * Check if the task's branch has work that warrants a PR.
+ * Returns true if there are commits ahead of the default branch OR uncommitted changes.
  */
-async function branchHasCommits(db: import("bun:sqlite").Database, taskId: string, projectConfig: { defaultBranch?: string } | undefined): Promise<boolean> {
+async function branchHasWork(db: import("bun:sqlite").Database, taskId: string, projectConfig: { defaultBranch?: string } | undefined): Promise<boolean> {
   const task = db.prepare("SELECT branch, worktree_path FROM tasks WHERE id = ?").get(taskId) as { branch: string | null; worktree_path: string | null } | null
   if (!task?.branch || !task?.worktree_path) return false
 
+  const worktreePath = task.worktree_path
   const defaultBranch = projectConfig?.defaultBranch ?? "main"
+
+  // Check for commits ahead of default branch
+  const hasCommits = await (async () => {
+    try {
+      const proc = Bun.spawn(["git", "rev-list", "--count", `origin/${defaultBranch}..HEAD`], {
+        cwd: worktreePath,
+        stdout: "pipe",
+        stderr: "pipe",
+      })
+      const stdout = await new Response(proc.stdout).text()
+      const exitCode = await proc.exited
+      if (exitCode !== 0) return false
+      return parseInt(stdout.trim(), 10) > 0
+    } catch {
+      return false
+    }
+  })()
+
+  if (hasCommits) return true
+
+  // Check for uncommitted changes (dirty worktree)
   try {
-    const proc = Bun.spawn(["git", "rev-list", "--count", `origin/${defaultBranch}..HEAD`], {
-      cwd: task.worktree_path,
+    const proc = Bun.spawn(["git", "status", "--porcelain"], {
+      cwd: worktreePath,
       stdout: "pipe",
       stderr: "pipe",
     })
     const stdout = await new Response(proc.stdout).text()
     const exitCode = await proc.exited
     if (exitCode !== 0) return false
-    return parseInt(stdout.trim(), 10) > 0
+    return stdout.trim().length > 0
   } catch {
     return false
   }
@@ -310,17 +332,10 @@ export async function start(): Promise<void> {
           }
 
           // Hydrate in-memory tracking from DB (lost on restart)
-          const taskMeta = db.prepare("SELECT pr_url, context_tokens FROM tasks WHERE id = ?").get(taskId) as { pr_url: string | null; context_tokens: number } | null
+          const taskMeta = db.prepare("SELECT pr_url, context_tokens, context_window_max FROM tasks WHERE id = ?").get(taskId) as { pr_url: string | null; context_tokens: number; context_window_max: number | null } | null
           const s = getTaskState(taskId)
           s.contextTokens = taskMeta?.context_tokens ?? 0
-          const taskRow = db.prepare("SELECT project_id, type FROM tasks WHERE id = ?").get(taskId) as { project_id: string | null; type: string | null } | null
-          const projConfig = taskRow?.project_id ? getProjectConfig(config.config, taskRow.project_id) : undefined
-          s.systemPromptApplied = buildSystemNotes(taskId, {
-            setupCommand: projConfig?.setup,
-            taskType: taskRow?.type ?? undefined,
-            prMode: projConfig?.prMode,
-            customSystemPrompt: resolveCustomSystemPrompt(projConfig, taskRow?.type),
-          }).length > 0
+          s.contextWindowMax = taskMeta?.context_window_max ?? null
           if (taskMeta?.pr_url) {
             s.prUrlSaved = true
             s.prNudgeSent = true
@@ -335,6 +350,13 @@ export async function start(): Promise<void> {
             ? db.prepare("SELECT 1 FROM session_logs WHERE task_id = ? AND role IN ('assistant', 'narration') LIMIT 1").get(taskId)
             : null
           const lastLog = hasLogs ? getLastConversationLog(db, taskId) : null
+
+          // If agent already responded at least once, system prompt was applied in a prior session.
+          // Set this for ALL resumed sessions, not just the reconnect-nudge path.
+          if (hasAssistantResponse) {
+            s.systemPromptApplied = true
+          }
+
           if (hasLogs && hasAssistantResponse && lastLog?.role === "user" && !getTaskState(taskId).idleWake) {
             // Reconnect after server restart or model change — agent had conversation context.
             // Skip for idle-wake: the user's new message is already queued via drainQueuedPrompts.
@@ -635,8 +657,8 @@ export async function start(): Promise<void> {
                       // Don't nudge if prMode is "none"
                       if (projConfig?.prMode === "none") return
 
-                      const hasCommits = await branchHasCommits(db, taskId, projConfig)
-                      if (!hasCommits || st.prUrlSaved) return
+                      const hasWork = await branchHasWork(db, taskId, projConfig)
+                      if (!hasWork || st.prUrlSaved) return
 
                       // Resolve upstream slug for fork repos
                       let nudgeUpstreamSlug: string | undefined
@@ -658,7 +680,8 @@ export async function start(): Promise<void> {
                         log.info("Nudging agent to create PR", { taskId })
                         Effect.runPromise(
                           handle.sendPrompt(
-                            `[TANGERINE: You have commits on your branch but no pull request has been created. ` +
+                            `[TANGERINE: You have uncommitted changes or commits on your branch but no pull request has been created. ` +
+                            `If you have uncommitted changes, commit them first. ` +
                             `${buildPrWorkflowNote(taskId, undefined, projConfig?.prMode, nudgeUpstreamSlug)} ` +
                             `A PR is required for the task to be considered complete.]`
                           ).pipe(Effect.catchAll(() => Effect.void))
@@ -835,10 +858,18 @@ export async function start(): Promise<void> {
               case "usage": {
                 // Context tokens = current context window usage (not cumulative)
                 const state = getTaskState(taskId)
+                const updates: Partial<TaskRow> = {}
                 if (event.contextTokens != null && event.contextTokens > 0) {
                   state.contextTokens = event.contextTokens
+                  updates.context_tokens = state.contextTokens
+                }
+                if (event.contextWindowMax != null && event.contextWindowMax > 0) {
+                  state.contextWindowMax = event.contextWindowMax
+                  updates.context_window_max = state.contextWindowMax
+                }
+                if (Object.keys(updates).length > 0) {
                   Effect.runPromise(
-                    updateTask(db, taskId, { context_tokens: state.contextTokens }, { skipUpdatedAt: true }).pipe(
+                    updateTask(db, taskId, updates, { skipUpdatedAt: true }).pipe(
                       Effect.catchAll(() => Effect.void)
                     )
                   )
@@ -846,6 +877,7 @@ export async function start(): Promise<void> {
                 emitTaskEvent(taskId, {
                   event: "usage",
                   contextTokens: state.contextTokens,
+                  contextWindowMax: state.contextWindowMax,
                 })
                 break
               }

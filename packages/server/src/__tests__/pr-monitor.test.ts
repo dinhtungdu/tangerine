@@ -817,6 +817,17 @@ describe("resolveTaskTypeConfig", () => {
     expect(result.systemPrompt).toBe("custom orch")
   })
 
+  test("returns orchestrator agent and model defaults from taskTypes", () => {
+    const project = {
+      ...baseProject,
+      taskTypes: { orchestrator: { agent: "codex", model: "gpt-5", reasoningEffort: "high" } },
+    } as ProjectConfig
+    const result = resolveTaskTypeConfig(project, "orchestrator")
+    expect(result.agent).toBe("codex")
+    expect(result.model).toBe("gpt-5")
+    expect(result.reasoningEffort).toBe("high")
+  })
+
   test("returns reviewer config from taskTypes", () => {
     const project = {
       ...baseProject,

@@ -14,7 +14,13 @@ Stored in `tangerine.json` at the project root (or `~/.config/tangerine/config.j
     "defaultBranch": "trunk",
     "setup": "npm install && npx wp-env start",
     "defaultAgent": "claude",
-    "previewCommand": "setup-vhost.sh $TANGERINE_PREVIEW_PORT",
+    "taskTypes": {
+      "orchestrator": {
+        "agent": "codex",
+        "model": "gpt-5",
+        "reasoningEffort": "high"
+      }
+    },
     "test": "npx wp-env run tests-wordpress phpunit",
     "env": {
       "PHP_VERSION": "8.2"
@@ -32,12 +38,11 @@ Stored in `tangerine.json` at the project root (or `~/.config/tangerine/config.j
 | `defaultBranch` | string | no | Default: `main` |
 | `setup` | string | yes | Shell commands to run in task worktrees |
 | `defaultAgent` | string | no | Configured ACP agent ID. Default: top-level `defaultAgent` or `acp` |
-| `previewCommand` | string | no | Command to run on first preview access (e.g. setup vhost, start server). Port available via `$TANGERINE_PREVIEW_PORT` |
 | `test` | string | no | Command to run tests |
-| `extraPorts` | number[] | no | Additional ports to forward |
-| `env` | object | no | Extra env vars passed to VM |
+| `env` | object | no | Extra env vars passed to agent process |
 | `model` | string | no | Model override for this project |
 | `prMode` | `"ready" \| "draft" \| "none"` | no | How worker agents handle PRs. `ready`: normal PR, `draft`: draft PR, `none`: commit only, no push/PR. Default: `"none"` |
+| `taskTypes` | object | no | Per-task-type prompt, quick reply, agent, model, and reasoning-effort defaults. `taskTypes.orchestrator.agent` lets the coordinator use a different ACP agent without hardcoding Claude. |
 
 ### Top-Level Config
 
@@ -97,48 +102,19 @@ Host dev-vm
   User tung.linux
 ```
 
-## Golden Images
-
-Base environments with common tooling pre-installed. Project-specific setup runs on top at session start.
-
-### Two-Layer Build
-
-1. **Base layer** (`tangerine-base`): built from `tangerine.yaml` with cloud-init. Contains Node.js, Docker, ACP agent commands, gh CLI, etc. Slow (~10 min), rarely rebuilt.
-2. **Project layer** (`tangerine-golden-<name>`): cloned from base via `limactl clone` (APFS CoW, instant). Runs project's `build.sh` for project-specific setup.
-
-### Image Assets
-
-Each image defines its build script in `~/.config/tangerine/images/<name>/`:
-
-```
-~/.config/tangerine/images/
-  wordpress-dev/
-    build.sh              # project-specific setup script
-```
-
-### Image Build
-
-```bash
-tangerine image build-base     # Build base VM (once, slow)
-tangerine image build           # Build project golden image (fast, from base clone)
-```
-
-API endpoints also available: `POST /api/images/build-base`, `POST /api/images/build`.
-
 ## Project Setup Flow
 
 When a task starts:
 
 ```
-1. Get or create persistent VM for the project (ProjectVmManager)
-2. Clone repo to /workspace/repo (or git fetch if already there)
-3. Create git worktree: /workspace/worktrees/<task-prefix>
-4. Run project.setup commands in worktree
-5. Start configured ACP agent in worktree
-6. Connect to ACP agent over stdio
-7. Session ready for chat
+1. Clone repo to workspace (or git fetch if already there)
+2. Create git worktree for task
+3. Run project.setup commands in worktree
+4. Start configured ACP agent in worktree
+5. Connect to ACP agent over stdio
+6. Session ready for chat
 ```
 
 ## Multiple Projects
 
-Config supports multiple projects in the `projects` array. Each project gets its own persistent VM. Dashboard shows project context.
+Config supports multiple projects in the `projects` array. Dashboard shows project context.
