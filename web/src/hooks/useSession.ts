@@ -253,6 +253,7 @@ export function useSession(taskId: string, initialContextTokens?: number, initia
     setSlashCommands([])
     processedCountRef.current = 0
     activeAssistantStreamIdRef.current = null
+    backfillInProgressRef.current = false
     for (const pending of pendingOptimisticRef.current.values()) clearPendingOptimistic(pending)
     pendingOptimisticRef.current.clear()
     setQueueVisibilityNow(Date.now())
@@ -335,50 +336,69 @@ export function useSession(taskId: string, initialContextTokens?: number, initia
     return msg
   }
 
+  // Track if backfill is in progress to prevent duplicate concurrent backfills
+  const backfillInProgressRef = useRef(false)
+
   // Load remaining messages in background after initial load
   async function loadRemainingMessages(
     targetTaskId: string,
     beforeId: number,
     isCurrentTask: () => boolean
   ) {
-    let cursor = beforeId
-    while (true) {
-      if (!isCurrentTask()) return
-      try {
-        const result = await fetchMessagesPaginated(targetTaskId, INITIAL_MESSAGE_LIMIT, cursor)
+    if (backfillInProgressRef.current) return
+    backfillInProgressRef.current = true
+    try {
+      let cursor = beforeId
+      while (true) {
         if (!isCurrentTask()) return
-        if (result.messages.length === 0) break
-        const olderMessages = result.messages.map((log) => logToMessage(log, targetTaskId))
-        setMessages((prev) => [...olderMessages, ...prev])
-        if (!result.hasMore) break
-        const firstOlder = olderMessages[0]
-        if (!firstOlder) break
-        cursor = parseInt(firstOlder.id, 10)
-        if (isNaN(cursor)) break
-      } catch {
-        break
+        try {
+          const result = await fetchMessagesPaginated(targetTaskId, INITIAL_MESSAGE_LIMIT, cursor)
+          if (!isCurrentTask()) return
+          if (result.messages.length === 0) break
+          const olderMessages = result.messages.map((log) => logToMessage(log, targetTaskId))
+          // Dedupe: filter out messages already in state
+          setMessages((prev) => {
+            const existingIds = new Set(prev.map((m) => m.id))
+            const newMessages = olderMessages.filter((m) => !existingIds.has(m.id))
+            return newMessages.length > 0 ? [...newMessages, ...prev] : prev
+          })
+          if (!result.hasMore) break
+          const firstOlder = olderMessages[0]
+          if (!firstOlder) break
+          cursor = parseInt(firstOlder.id, 10)
+          if (isNaN(cursor)) break
+        } catch {
+          break
+        }
       }
+    } finally {
+      backfillInProgressRef.current = false
     }
   }
 
-  // Load initial messages + activities via REST (parallelized for faster task switching)
+  // Load initial messages + activities via REST
+  // Messages fetch runs first and applies immediately for fast initial render
+  // Side fetches run in parallel and apply when done
   const refreshFromRest = useCallback(async () => {
     const refreshTaskId = taskId
     const isCurrentTask = () => activeTaskIdRef.current === refreshTaskId
     const messagesRequestedAtMs = Date.now()
 
-    // Fire all independent requests in parallel (fetch most recent N messages for fast initial load)
-    const [messagesResult, activitiesResult, optionsResult, commandsResult, queuedResult] = await Promise.all([
-      fetchMessagesPaginated(refreshTaskId, INITIAL_MESSAGE_LIMIT).catch(() => null),
+    // Fetch messages first for fast initial render
+    const messagesPromise = fetchMessagesPaginated(refreshTaskId, INITIAL_MESSAGE_LIMIT).catch(() => null)
+
+    // Fire side fetches in parallel (don't block messages)
+    const sidePromises = Promise.all([
       fetchActivities(refreshTaskId).catch(() => null),
       fetchTaskConfigOptions(refreshTaskId).catch(() => null),
       fetchTaskSlashCommands(refreshTaskId).catch(() => null),
       fetchQueuedPrompts(refreshTaskId).catch(() => null),
     ])
 
+    // Apply messages as soon as they arrive
+    const messagesResult = await messagesPromise
     if (!isCurrentTask()) return
 
-    // Apply messages
     if (messagesResult) {
       const snapshot = messagesResult.messages.map((log) => logToMessage(log, refreshTaskId))
       setMessages((prev) => mergeMessageSnapshot(prev, snapshot, messagesRequestedAtMs))
@@ -393,22 +413,19 @@ export function useSession(taskId: string, initialContextTokens?: number, initia
       }
     }
 
-    // Apply activities
+    // Apply side data when ready (non-blocking)
+    const [activitiesResult, optionsResult, commandsResult, queuedResult] = await sidePromises
+    if (!isCurrentTask()) return
+
     if (activitiesResult) {
       setActivities((prev) => mergeActivitySnapshot(prev, activitiesResult))
     }
-
-    // Apply config options
     if (optionsResult) {
       setConfigOptions(optionsResult)
     }
-
-    // Apply slash commands
     if (commandsResult) {
       setSlashCommands(commandsResult)
     }
-
-    // Apply queued prompts
     if (queuedResult) {
       applyQueuedPrompts(queuedResult)
     }
