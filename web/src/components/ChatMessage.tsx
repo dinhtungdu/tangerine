@@ -1,7 +1,6 @@
 import { memo, useState, useMemo, useCallback, useRef, useEffect, createContext, useContext } from "react"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
-import { Card, CardAction, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Separator } from "@/components/ui/separator"
 import type { Components } from "react-markdown"
 import ReactMarkdown from "react-markdown"
@@ -254,20 +253,16 @@ function ContentBlockFrame({ label, timestamp, icon, children }: {
   children: React.ReactNode
 }) {
   return (
-    <Card size="sm" className="animate-fade-in">
-      <CardHeader>
-        <CardTitle className="flex items-center gap-2">
-          <span className="flex size-5 items-center justify-center rounded-full bg-muted text-muted-foreground [&>svg]:size-3">
-            {icon}
-          </span>
-          {label}
-        </CardTitle>
-        <CardAction>
-          <CardDescription>{formatTimestamp(timestamp)}</CardDescription>
-        </CardAction>
-      </CardHeader>
-      <CardContent>{children}</CardContent>
-    </Card>
+    <div className="animate-fade-in overflow-hidden rounded-md border border-border bg-muted">
+      <div className="flex items-center gap-2 px-3 py-1.5">
+        <span className="h-2 w-2 rounded-full bg-status-success" />
+        <span className="h-3.5 w-3.5 text-muted-foreground [&>svg]:h-3.5 [&>svg]:w-3.5">{icon}</span>
+        <span className="text-xs font-medium text-muted-foreground">{label}</span>
+        <span className="flex-1" />
+        <span className="text-2xs text-muted-foreground">{formatTimestamp(timestamp)}</span>
+      </div>
+      <div className="border-t border-border p-3">{children}</div>
+    </div>
   )
 }
 
