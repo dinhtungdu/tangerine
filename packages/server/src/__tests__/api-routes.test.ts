@@ -1007,6 +1007,26 @@ describe("API routes", () => {
 
       Effect.runSync(clearQueue(row.id))
     })
+
+    test("send-now removes prompt from queue and sends to agent", async () => {
+      const row = seedTask(db)
+      const queued = Effect.runSync(enqueue(row.id, "Send this now"))
+
+      const sendNowRes = await app.fetch(new Request(`http://localhost/api/tasks/${row.id}/queue/${queued.id}/send-now`, { method: "POST" }))
+      expect(sendNowRes.status).toBe(204)
+
+      const emptyRes = await app.fetch(new Request(`http://localhost/api/tasks/${row.id}/queue`))
+      const empty = await emptyRes.json() as { queuedPrompts: unknown[] }
+      expect(empty.queuedPrompts).toEqual([])
+
+      Effect.runSync(clearQueue(row.id))
+    })
+
+    test("send-now returns 404 for unknown prompt", async () => {
+      const row = seedTask(db)
+      const sendNowRes = await app.fetch(new Request(`http://localhost/api/tasks/${row.id}/queue/nonexistent/send-now`, { method: "POST" }))
+      expect(sendNowRes.status).toBe(404)
+    })
   })
 
   describe("POST /api/tasks/:id/prompt", () => {

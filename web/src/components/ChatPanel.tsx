@@ -9,6 +9,7 @@ import { AssistantMessageGroups } from "./AssistantMessageGroups"
 import { ChatInput } from "./ChatInput"
 import { useProjectNav } from "../hooks/useProjectNav"
 import { getStatusConfig } from "../lib/status"
+import { useToast } from "../context/ToastContext"
 
 interface ChatPanelProps {
   messages: ChatMessageType[]
@@ -64,7 +65,21 @@ function QueuedPromptList({
   const [isOpen, setIsOpen] = useState(true)
   const [editingId, setEditingId] = useState<string | null>(null)
   const [editDraft, setEditDraft] = useState("")
+  const [sendingId, setSendingId] = useState<string | null>(null)
   const inputRef = useRef<HTMLInputElement>(null)
+  const { showToast } = useToast()
+
+  const handleSendNow = useCallback(async (promptId: string) => {
+    if (!onSendNow || sendingId) return
+    setSendingId(promptId)
+    try {
+      await onSendNow(promptId)
+    } catch (err) {
+      showToast(err instanceof Error ? err.message : "Failed to send prompt")
+    } finally {
+      setSendingId(null)
+    }
+  }, [onSendNow, sendingId, showToast])
 
   const handleStartEdit = useCallback((entry: PromptQueueEntry) => {
     setEditingId(entry.id)
@@ -174,10 +189,11 @@ function QueuedPromptList({
                       <Button
                         variant="outline"
                         size="xs"
-                        onClick={() => void onSendNow(entry.id)}
+                        onClick={() => void handleSendNow(entry.id)}
+                        disabled={sendingId === entry.id}
                         className="ml-1"
                       >
-                        Send Now
+                        {sendingId === entry.id ? "Sending..." : "Send Now"}
                       </Button>
                     )}
                   </div>

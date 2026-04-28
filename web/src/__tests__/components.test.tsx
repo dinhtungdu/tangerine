@@ -944,18 +944,20 @@ describe("ChatPanel", () => {
     const queuedPrompts: PromptQueueEntry[] = [{ id: "q1", text: "Original queued message", enqueuedAt: 1 }]
 
     render(
-      <MemoryRouter>
-        <ChatPanel
-          messages={[]}
-          agentStatus="working"
-          queueLength={1}
-          queuedPrompts={queuedPrompts}
-          onQueuedPromptUpdate={onUpdate}
-          onQueuedPromptRemove={onRemove}
-          onSend={() => {}}
-          onAbort={() => {}}
-        />
-      </MemoryRouter>
+      <ToastProvider>
+        <MemoryRouter>
+          <ChatPanel
+            messages={[]}
+            agentStatus="working"
+            queueLength={1}
+            queuedPrompts={queuedPrompts}
+            onQueuedPromptUpdate={onUpdate}
+            onQueuedPromptRemove={onRemove}
+            onSend={() => {}}
+            onAbort={() => {}}
+          />
+        </MemoryRouter>
+      </ToastProvider>
     )
 
     // Message text is displayed
@@ -975,15 +977,17 @@ describe("ChatPanel", () => {
 
   test("clicking Reply on a message shows the quote chip above the input", async () => {
     render(
-      <MemoryRouter>
-        <ChatPanel
-          messages={[{ id: "m1", role: "agent", content: "Quoted text", timestamp: "2026-03-17T10:00:00Z" }]}
-          agentStatus="idle"
-          queueLength={0}
-          onSend={() => {}}
-          onAbort={() => {}}
-        />
-      </MemoryRouter>
+      <ToastProvider>
+        <MemoryRouter>
+          <ChatPanel
+            messages={[{ id: "m1", role: "agent", content: "Quoted text", timestamp: "2026-03-17T10:00:00Z" }]}
+            agentStatus="idle"
+            queueLength={0}
+            onSend={() => {}}
+            onAbort={() => {}}
+          />
+        </MemoryRouter>
+      </ToastProvider>
     )
 
     // Wait for virtualized message to render
