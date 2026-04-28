@@ -518,6 +518,7 @@ export async function start(): Promise<void> {
                   taskType: normalizeTaskType(task?.type),
                   prMode: projConfig?.prMode,
                   customSystemPrompt: resolveCustomSystemPrompt(projConfig, task?.type),
+                  projectId: task?.project_id,
                 })
                 getTaskState(taskId).firstPromptSent = true
 
@@ -1043,6 +1044,7 @@ export async function start(): Promise<void> {
                 taskType: normalizeTaskType(task?.type),
                 prMode: projConfig?.prMode,
                 customSystemPrompt: resolveCustomSystemPrompt(projConfig, task?.type),
+                projectId: task?.project_id,
               })
 
               const taskState = getTaskState(taskId)
