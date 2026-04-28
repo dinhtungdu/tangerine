@@ -49,8 +49,9 @@ export function useTaskActions(
         description: `Cancel "${title}"`,
         section: "Task",
         context: ctx,
-        handler: async () => {
-          await cancelTask(task.id)
+        handler: async (args) => {
+          const targetId = (args?.taskId as string) ?? task.id
+          await cancelTask(targetId)
           onRefetch?.()
         },
       })
@@ -64,8 +65,9 @@ export function useTaskActions(
         description: `Abort "${title}"`,
         section: "Task",
         context: ctx,
-        handler: async () => {
-          await abortTask(task.id)
+        handler: async (args) => {
+          const targetId = (args?.taskId as string) ?? task.id
+          await abortTask(targetId)
           onRefetch?.()
         },
       })
@@ -79,8 +81,9 @@ export function useTaskActions(
         description: `Retry "${title}"`,
         section: "Task",
         context: ctx,
-        handler: async () => {
-          await retryTask(task.id)
+        handler: async (args) => {
+          const targetId = (args?.taskId as string) ?? task.id
+          await retryTask(targetId)
           onRefetch?.()
         },
       })
@@ -94,8 +97,9 @@ export function useTaskActions(
         description: `Mark "${title}" as resolved`,
         section: "Task",
         context: ctx,
-        handler: async () => {
-          await resolveTask(task.id)
+        handler: async (args) => {
+          const targetId = (args?.taskId as string) ?? task.id
+          await resolveTask(targetId)
           onRefetch?.()
         },
       })
@@ -109,8 +113,9 @@ export function useTaskActions(
         description: `Start "${title}"`,
         section: "Task",
         context: ctx,
-        handler: async () => {
-          await startTask(task.id)
+        handler: async (args) => {
+          const targetId = (args?.taskId as string) ?? task.id
+          await startTask(targetId)
           onRefetch?.()
         },
       })
@@ -124,8 +129,9 @@ export function useTaskActions(
         description: `Delete "${title}"`,
         section: "Task",
         context: ctx,
-        handler: async () => {
-          await deleteTask(task.id)
+        handler: async (args) => {
+          const targetId = (args?.taskId as string) ?? task.id
+          await deleteTask(targetId)
           onRefetch?.()
         },
       })
