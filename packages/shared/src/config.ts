@@ -35,8 +35,8 @@ export const taskTypeConfigSchema = z.object({
   agent: z.string().optional(),
   model: z.string().optional(),
   reasoningEffort: z.string().optional(),
-  /** Auto-approve agent permission requests without UI prompt (default: true) */
-  autoApprove: z.boolean().optional(),
+  /** Permission handling for ACP requests. `skipPermissions` applies the agent's full-access mode when exposed. */
+  permissionMode: z.enum(["autoAccept", "skipPermissions"]).optional(),
 })
 
 export const taskTypesSchema = z.object({
@@ -125,6 +125,7 @@ export type PredefinedPrompt = z.infer<typeof predefinedPromptSchema>
 export type ShortcutConfig = z.infer<typeof shortcutSchema>
 export type ActionCombo = z.infer<typeof actionComboSchema>
 export type AgentConfig = z.infer<typeof agentConfigSchema>
+export type TaskPermissionMode = NonNullable<z.infer<typeof taskTypeConfigSchema>["permissionMode"]>
 export type TaskTypeConfig = z.infer<typeof taskTypeConfigSchema>
 export type ProjectConfig = z.infer<typeof projectConfigSchema>
 export type ResolvedTaskTypeConfig = Omit<TaskTypeConfig, "predefinedPrompts"> & { predefinedPrompts: PredefinedPrompt[] }
@@ -149,7 +150,7 @@ export function resolveTaskTypeConfig(
     agent: override?.agent,
     model: override?.model,
     reasoningEffort: override?.reasoningEffort,
-    autoApprove: override?.autoApprove,
+    permissionMode: override?.permissionMode,
   }
 }
 

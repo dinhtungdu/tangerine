@@ -2,7 +2,7 @@
 
 import type { Effect } from "effect"
 import type { AgentError, PromptError, SessionStartError } from "../errors"
-import type { AgentConfigOption, AgentContentBlock, AgentPlanEntry, AgentSlashCommand, PromptImage, ProviderType } from "@tangerine/shared"
+import type { AgentConfigOption, AgentContentBlock, AgentPlanEntry, AgentSlashCommand, PromptImage, ProviderType, TaskPermissionMode } from "@tangerine/shared"
 
 export type { PromptImage, ProviderType }
 
@@ -60,7 +60,7 @@ export interface AgentMetadata {
 /** Handle to a running agent session — owns the process, tunnel, and event subscription */
 export interface AgentHandle {
   sendPrompt(text: string, images?: PromptImage[]): Effect.Effect<void, PromptError>
-  /** Respond to a pending permission request (when autoApprove is false) */
+  /** Respond to a pending permission request when the provider asks the UI. */
   respondToPermission?(requestId: string, optionId: string): void
   /**
    * Apply a system prompt to the current session before future user prompts.
@@ -107,8 +107,8 @@ export interface AgentStartContext {
   model?: string
   /** Reasoning effort level: "low", "medium", "high" */
   reasoningEffort?: string
-  /** Auto-approve permission requests without UI prompt (default: true) */
-  autoApprove?: boolean
+  /** Permission handling mode for ACP requests (default: autoAccept). */
+  permissionMode?: TaskPermissionMode | "prompt"
   /** If set, resume an existing session instead of creating a new one */
   resumeSessionId?: string
   /** Extra environment variables merged into the spawned process env */

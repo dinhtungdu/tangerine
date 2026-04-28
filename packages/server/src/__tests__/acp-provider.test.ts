@@ -13,6 +13,7 @@ import {
   createAcpProvider,
   createPromptStatusTracker,
   resolveAcpCommand,
+  selectSkipPermissionsMode,
   selectPermissionOption,
 } from "../agent/acp-provider"
 
@@ -135,6 +136,40 @@ describe("selectPermissionOption", () => {
     expect(selectPermissionOption([
       { optionId: "reject", name: "Reject", kind: "reject_once" },
     ])).toBe("reject")
+  })
+})
+
+describe("selectSkipPermissionsMode", () => {
+  test("selects Claude bypass permissions before Codex full access", () => {
+    expect(selectSkipPermissionsMode([
+      {
+        id: "mode",
+        name: "Mode",
+        category: "mode",
+        type: "select",
+        currentValue: "default",
+        options: [
+          { value: "full-access", name: "Full Access" },
+          { value: "bypassPermissions", name: "Bypass Permissions" },
+        ],
+      },
+    ])).toBe("bypassPermissions")
+  })
+
+  test("selects Codex full access when Claude bypass is unavailable", () => {
+    expect(selectSkipPermissionsMode([
+      {
+        id: "mode",
+        name: "Mode",
+        category: "mode",
+        type: "select",
+        currentValue: "auto",
+        options: [
+          { value: "read-only", name: "Read Only" },
+          { value: "full-access", name: "Full Access" },
+        ],
+      },
+    ])).toBe("full-access")
   })
 })
 
@@ -684,6 +719,21 @@ describe("createAcpProvider", () => {
     rmSync(tempDir, { recursive: true, force: true })
   })
 
+  test("applies skipPermissions mode at session start", async () => {
+    const tempDir = mkdtempSync(join(tmpdir(), "tangerine-acp-skip-permissions-"))
+    const scriptPath = join(tempDir, "mock-acp-agent.js")
+    writeFileSync(scriptPath, mockSkipPermissionsAcpAgentScript, "utf-8")
+
+    process.env.TANGERINE_ACP_COMMAND = `bun ${scriptPath}`
+    const provider = createAcpProvider()
+    const handle = await Effect.runPromise(provider.start({ taskId: "task-acp", workdir: tempDir, title: "ACP test", permissionMode: "skipPermissions" }))
+
+    expect(handle.getConfigOptions?.()[0]?.currentValue).toBe("full-access")
+
+    await Effect.runPromise(handle.shutdown())
+    rmSync(tempDir, { recursive: true, force: true })
+  })
+
   test("sends ACP session/cancel on abort", async () => {
     const tempDir = mkdtempSync(join(tmpdir(), "tangerine-acp-cancel-"))
     const scriptPath = join(tempDir, "mock-acp-agent.js")
@@ -1069,6 +1119,38 @@ rl.on("line", (line) => {
   }
   if (msg.method === "session/new") {
     send({ jsonrpc: "2.0", id: msg.id, result: { sessionId: "sess-mode", configOptions: options("ask") } })
+    return
+  }
+  if (msg.method === "session/set_config_option") {
+    send({ jsonrpc: "2.0", id: msg.id, result: { configOptions: options(msg.params.value) } })
+    return
+  }
+  if (msg.method === "session/close") {
+    send({ jsonrpc: "2.0", id: msg.id, result: {} })
+  }
+})
+`
+
+const mockSkipPermissionsAcpAgentScript = `
+const readline = require("node:readline")
+const rl = readline.createInterface({ input: process.stdin })
+function send(message) { process.stdout.write(JSON.stringify(message) + "\\n") }
+const options = (currentValue) => [{
+  id: "mode",
+  name: "Mode",
+  category: "mode",
+  type: "select",
+  currentValue,
+  options: [{ value: "auto", name: "Auto" }, { value: "full-access", name: "Full Access" }],
+}]
+rl.on("line", (line) => {
+  const msg = JSON.parse(line)
+  if (msg.method === "initialize") {
+    send({ jsonrpc: "2.0", id: msg.id, result: { protocolVersion: 1, agentCapabilities: { sessionCapabilities: { close: {} } }, authMethods: [] } })
+    return
+  }
+  if (msg.method === "session/new") {
+    send({ jsonrpc: "2.0", id: msg.id, result: { sessionId: "sess-skip", configOptions: options("auto") } })
     return
   }
   if (msg.method === "session/set_config_option") {

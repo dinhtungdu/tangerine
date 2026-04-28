@@ -183,6 +183,26 @@ export function selectPermissionOption(options: PermissionOption[]): string | nu
   return allow?.optionId ?? options[0]?.optionId ?? null
 }
 
+const SKIP_PERMISSION_MODE_MATCHES = ["bypasspermissions", "fullaccess", "dangerfullaccess"]
+
+export function selectSkipPermissionsMode(options: AgentConfigOption[]): string | null {
+  const modeOption = options.find((option) => option.category === "mode")
+  if (!modeOption) return null
+
+  for (const target of SKIP_PERMISSION_MODE_MATCHES) {
+    const match = modeOption.options.find((option) =>
+      normalizeModeToken(option.value) === target || normalizeModeToken(option.name) === target
+    )
+    if (match) return match.value
+  }
+
+  return null
+}
+
+function normalizeModeToken(value: string): string {
+  return value.toLowerCase().replace(/[^a-z0-9]/g, "")
+}
+
 export function createPromptStatusTracker(emit: (status: "idle" | "working") => void): {
   begin(): number
   end(turnId: number): void
@@ -470,7 +490,7 @@ async function startAcpSession(ctx: AgentStartContext, config?: AcpProviderConfi
     close: false,
   }
 
-  // Permission request tracking (when autoApprove=false)
+  // Permission request tracking for ACP agents that ask the client to decide.
   const PERMISSION_TIMEOUT_MS = 120_000 // 2 minutes
   let nextPermissionId = 0
   interface PendingPermission {
@@ -487,10 +507,29 @@ async function startAcpSession(ctx: AgentStartContext, config?: AcpProviderConfi
   }
 
   const statusTracker = createPromptStatusTracker((status) => emit({ kind: "status", status }))
+  let skipPermissionsPending = ctx.permissionMode === "skipPermissions"
+
+  const tryApplySkipPermissionsMode = async () => {
+    if (!skipPermissionsPending || !sessionId) return
+    const mode = selectSkipPermissionsMode(configOptions)
+    if (!mode) return
+    const applied = await setConfigOptionByCategory(rpc, sessionId, configOptions, "mode", mode, (options) => {
+      configOptions = options
+      emit({ kind: "config.options", options })
+    })
+    if (!applied) return
+    skipPermissionsPending = false
+    taskLog.debug("Applied skipPermissions mode", { mode })
+  }
 
   const emitMapped = (event: AgentEvent) => {
     if (event.kind === "config.options") {
       configOptions = event.options
+      if (skipPermissionsPending) {
+        tryApplySkipPermissionsMode().catch((error) => {
+          taskLog.warn("Failed to apply skipPermissions mode", { error: String(error) })
+        })
+      }
     }
     if (event.kind === "slash.commands") slashCommands = event.commands
     // Track tool lifecycle to prevent premature idle emission
@@ -568,9 +607,8 @@ async function startAcpSession(ctx: AgentStartContext, config?: AcpProviderConfi
         const toolName = stringField(toolCall, "title") ?? stringField(toolCall, "kind") ?? stringField(toolCall, "toolCallId")
         const toolCallId = stringField(toolCall, "toolCallId")
 
-        // Auto-approve mode (default): immediately select allow option
-        const autoApprove = ctx.autoApprove !== false
-        if (autoApprove) {
+        // Auto-accept mode (default): immediately select allow option.
+        if (ctx.permissionMode !== "prompt") {
           const optionId = selectPermissionOption(options)
           if (!optionId) return { outcome: { outcome: "cancelled" } }
           const selected = options.find((option) => option.optionId === optionId)
@@ -666,6 +704,10 @@ async function startAcpSession(ctx: AgentStartContext, config?: AcpProviderConfi
     sessionId = newSession.sessionId
     applyConfigOptions(newSession, false)
   }
+
+  await tryApplySkipPermissionsMode().catch((error) => {
+    taskLog.warn("Failed to apply skipPermissions mode", { error: String(error) })
+  })
 
   emit({ kind: "status", status: "idle" })
 

@@ -96,9 +96,11 @@ If an agent does not return relevant config options or legacy state, hide or dis
 
 Initial unattended policy:
 
-1. choose first `allow_once` / `allow_always` option
-2. otherwise choose first provided option
-3. record request and selected option in activity logs
+1. use `taskTypes.{type}.permissionMode`, defaulting to `autoAccept`
+2. for `skipPermissions`, apply a matching ACP mode option when exposed, such as Claude `bypassPermissions` or Codex `full-access`
+3. choose first `allow_once` / `allow_always` option
+4. otherwise choose first provided option
+5. record request and selected option in activity logs
 
 Do not show interactive permission prompts for unattended v0 tasks. Future foreground/manual task modes may add dashboard approval UI.
 

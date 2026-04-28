@@ -43,6 +43,7 @@ export type {
   ActionCombo,
   AgentConfig,
   PredefinedPrompt,
+  TaskPermissionMode,
   TaskTypeConfig,
   ProjectConfig,
   ShortcutConfig,

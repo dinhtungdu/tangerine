@@ -42,7 +42,7 @@ export interface TaskState {
   /** In-memory stream snapshots used when a browser switches into a running task mid-turn. */
   activeAssistantMessage?: ActiveStreamMessage
   activeThinkingMessage?: ActiveStreamMessage
-  /** Pending permission request awaiting user response (when autoApprove=false). */
+  /** Pending permission request awaiting user response. */
   pendingPermissionRequest?: PermissionRequest
 }
 

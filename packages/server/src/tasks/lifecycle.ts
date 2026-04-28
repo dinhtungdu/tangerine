@@ -7,7 +7,7 @@ import type { Database } from "bun:sqlite"
 import { createLogger } from "../logger"
 import { SessionStartError } from "../errors"
 import { getRepoDir, resolveWorkspace } from "../config"
-import { normalizeTaskType, resolveTaskTypeConfig, type TangerineConfig } from "@tangerine/shared"
+import { normalizeTaskType, resolveTaskTypeConfig, type TangerineConfig, type TaskPermissionMode } from "@tangerine/shared"
 import type { TaskRow } from "../db/types"
 import { initPool, acquireSlot, acquireRootSlot } from "./worktree-pool"
 import { buildSystemNotes } from "./prompts"
@@ -60,10 +60,10 @@ function resolveCustomSystemPrompt(config: ProjectConfig, taskType: string | nul
   return config.taskTypes?.[tt]?.systemPrompt
 }
 
-/** Resolve autoApprove setting for a task type from taskTypes config. */
-function resolveAutoApprove(config: ProjectConfig, taskType: string | null | undefined): boolean | undefined {
+/** Resolve permission handling for a task type from taskTypes config. */
+export function resolveTaskPermissionMode(config: ProjectConfig, taskType: string | null | undefined): TaskPermissionMode | undefined {
   const tt = normalizeTaskType(taskType)
-  return config.taskTypes?.[tt]?.autoApprove
+  return config.taskTypes?.[tt]?.permissionMode
 }
 
 /** Clear transient autocomplete data before binding a fresh agent session. */
@@ -319,7 +319,7 @@ export function startSession(
       systemPrompt: systemNotes.length > 0 ? systemNotes.join("\n") : undefined,
       model: task.model ?? undefined,
       reasoningEffort: task.reasoning_effort ?? undefined,
-      autoApprove: resolveAutoApprove(config, task.type),
+      permissionMode: resolveTaskPermissionMode(config, task.type),
       env: {
         TANGERINE_TASK_ID: task.id,
         ...(deps.authToken ? { TANGERINE_AUTH_TOKEN: deps.authToken } : {}),
@@ -444,7 +444,7 @@ export function reconnectSession(
       systemPrompt: systemNotes.length > 0 ? systemNotes.join("\n") : undefined,
       model: task.model ?? undefined,
       reasoningEffort: task.reasoning_effort ?? undefined,
-      autoApprove: resolved?.autoApprove,
+      permissionMode: resolved?.permissionMode,
       resumeSessionId: task.agent_session_id ?? undefined,
       env: {
         TANGERINE_TASK_ID: task.id,
