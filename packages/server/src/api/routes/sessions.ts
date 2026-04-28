@@ -7,7 +7,7 @@ import { runEffect, runEffectVoid } from "../effect-helpers"
 import { normalizeTimestamps } from "../helpers"
 import { TaskNotFoundError } from "../../errors"
 import { getProjectConfig, getRepoDir, TANGERINE_HOME } from "../../config"
-import { getTaskState } from "../../tasks/task-state"
+import { getActiveStreamMessages, getTaskState } from "../../tasks/task-state"
 
 function gitDiff(cmd: string, cwd: string): Effect.Effect<string, never> {
   return Effect.tryPromise({
@@ -29,6 +29,30 @@ function parseDiffChunks(raw: string): { path: string; diff: string }[] {
   return files
 }
 
+interface TransientSessionLogRow {
+  id: string
+  task_id: string
+  role: "assistant" | "thinking"
+  content: string
+  images: null
+  from_task_id: null
+  timestamp: string
+  transient: true
+}
+
+function getTransientSessionLogs(taskId: string): TransientSessionLogRow[] {
+  return getActiveStreamMessages(taskId).map((message) => ({
+    id: `${message.role}-${message.messageId}`,
+    task_id: taskId,
+    role: message.role,
+    content: message.content,
+    images: null,
+    from_task_id: null,
+    timestamp: message.timestamp,
+    transient: true,
+  }))
+}
+
 export function sessionRoutes(deps: AppDeps): Hono {
   const app = new Hono()
 
@@ -37,9 +61,13 @@ export function sessionRoutes(deps: AppDeps): Hono {
   })
 
   app.get("/:id/messages", (c) => {
+    const taskId = c.req.param("id")
     return runEffect(c,
-      getSessionLogs(deps.db, c.req.param("id")).pipe(
-        Effect.map((rows) => rows.map(normalizeTimestamps))
+      getSessionLogs(deps.db, taskId).pipe(
+        Effect.map((rows) => [
+          ...rows.map(normalizeTimestamps),
+          ...getTransientSessionLogs(taskId).map(normalizeTimestamps),
+        ])
       )
     )
   })

@@ -796,6 +796,32 @@ describe("API routes", () => {
       const body = await res.json() as unknown[]
       expect(body).toEqual([])
     })
+
+    test("includes in-flight ACP assistant stream after persisted logs", async () => {
+      const row = seedTask(db)
+      Effect.runSync(insertSessionLog(db, { task_id: row.id, role: "user", content: "Build it" }))
+      ;(getTaskState(row.id) as ReturnType<typeof getTaskState> & {
+        activeAssistantMessage?: { role: "assistant"; content: string; messageId: string; timestamp: string }
+      }).activeAssistantMessage = {
+        role: "assistant",
+        content: "Working on it...",
+        messageId: "stream-1",
+        timestamp: "2026-04-28T10:00:00.000Z",
+      }
+
+      const res = await app.fetch(new Request(`http://localhost/api/tasks/${row.id}/messages`))
+
+      expect(res.status).toBe(200)
+      const body = await res.json() as Array<{ id: number | string; role: string; content: string; transient?: boolean }>
+      expect(body).toHaveLength(2)
+      expect(body[0]).toMatchObject({ role: "user", content: "Build it" })
+      expect(body[1]).toMatchObject({
+        id: "assistant-stream-1",
+        role: "assistant",
+        content: "Working on it...",
+        transient: true,
+      })
+    })
   })
 
   describe("POST /api/tasks/:id/chat", () => {

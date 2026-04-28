@@ -3,6 +3,13 @@
 
 import type { AgentConfigOption } from "@tangerine/shared"
 
+export interface ActiveStreamMessage {
+  role: "assistant" | "thinking"
+  content: string
+  messageId: string
+  timestamp: string
+}
+
 /** Per-task coordination state tracked in memory (not persisted). */
 export interface TaskState {
   reconnecting: boolean
@@ -27,6 +34,9 @@ export interface TaskState {
   configOptions: AgentConfigOption[]
   /** Latest ACP session metadata update. */
   sessionInfo: { title?: string | null; updatedAt?: string | null; metadata?: Record<string, unknown> }
+  /** In-memory stream snapshots used when a browser switches into a running task mid-turn. */
+  activeAssistantMessage?: ActiveStreamMessage
+  activeThinkingMessage?: ActiveStreamMessage
 }
 
 const taskStates = new Map<string, TaskState>()
@@ -56,6 +66,48 @@ export function getTaskState(taskId: string): TaskState {
     taskStates.set(taskId, state)
   }
   return state
+}
+
+function activeField(role: ActiveStreamMessage["role"]): "activeAssistantMessage" | "activeThinkingMessage" {
+  return role === "assistant" ? "activeAssistantMessage" : "activeThinkingMessage"
+}
+
+function createSyntheticMessageId(): string {
+  return `active-${crypto.randomUUID()}`
+}
+
+export function appendActiveStreamMessage(
+  taskId: string,
+  role: ActiveStreamMessage["role"],
+  content: string,
+  messageId?: string,
+): ActiveStreamMessage {
+  const state = getTaskState(taskId)
+  const field = activeField(role)
+  const existing = state[field]
+  const resolvedMessageId = existing?.messageId ?? messageId ?? createSyntheticMessageId()
+  const next: ActiveStreamMessage = existing
+    ? { ...existing, content: `${existing.content}${content}` }
+    : { role, content, messageId: resolvedMessageId, timestamp: new Date().toISOString() }
+  state[field] = next
+  return next
+}
+
+export function completeActiveStreamMessage(
+  taskId: string,
+  role: ActiveStreamMessage["role"],
+): ActiveStreamMessage | undefined {
+  const state = getTaskState(taskId)
+  const field = activeField(role)
+  const existing = state[field]
+  state[field] = undefined
+  return existing
+}
+
+export function getActiveStreamMessages(taskId: string): ActiveStreamMessage[] {
+  const state = getTaskState(taskId)
+  return [state.activeThinkingMessage, state.activeAssistantMessage]
+    .filter((message): message is ActiveStreamMessage => Boolean(message?.content))
 }
 
 /** Remove all in-memory state for a task (call on termination/completion). */

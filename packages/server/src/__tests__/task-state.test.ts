@@ -1,0 +1,22 @@
+import { describe, expect, test } from "bun:test"
+import { appendActiveStreamMessage, clearTaskState, completeActiveStreamMessage, getActiveStreamMessages } from "../tasks/task-state"
+
+describe("task active stream state", () => {
+  test("buffers active assistant chunks under a stable message id", () => {
+    const taskId = crypto.randomUUID()
+    clearTaskState(taskId)
+
+    const first = appendActiveStreamMessage(taskId, "assistant", "hel", "msg-1")
+    const second = appendActiveStreamMessage(taskId, "assistant", "lo")
+
+    expect(first.messageId).toBe("msg-1")
+    expect(second).toMatchObject({ role: "assistant", messageId: "msg-1", content: "hello" })
+    expect(getActiveStreamMessages(taskId)).toEqual([second])
+
+    const completed = completeActiveStreamMessage(taskId, "assistant")
+    expect(completed).toMatchObject({ role: "assistant", messageId: "msg-1", content: "hello" })
+    expect(getActiveStreamMessages(taskId)).toEqual([])
+
+    clearTaskState(taskId)
+  })
+})

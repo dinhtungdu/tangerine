@@ -79,6 +79,7 @@ Current sections:
 - task lists and filtering come from hooks in `web/src/hooks/`
 - API access is centralized in `web/src/lib/api.ts`
 - per-task streaming uses WebSocket hooks
+- initial task-detail load uses `/api/tasks/:id/messages`, which includes persisted logs plus any transient active assistant/thinking stream so switching into a running task shows current output immediately
 - ACP `config.options`, `thinking.streaming`, `thinking.complete`, `plan`, and `content.block` events are folded into per-task session state
 
 ## Shared Components

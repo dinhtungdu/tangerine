@@ -20,12 +20,13 @@ export class ApiError extends Error {
 }
 
 export interface SessionLog {
-  id: number
+  id: number | string
   taskId: string
   role: string
   content: string
   images: string | null
   timestamp: string
+  transient?: boolean
 }
 
 export interface DiffFile {

@@ -78,7 +78,7 @@ specs/
 1. A task is created through the API, web UI, GitHub webhook/poller, or cross-project prompt.
 2. `tasks/manager.ts` assigns task type capabilities and starts non-orchestrator tasks immediately.
 3. `tasks/lifecycle.ts` fetches the repo, allocates a worktree slot, creates a branch/worktree, and starts the configured ACP agent process locally.
-4. ACP `session/update` events are mapped and forwarded to WebSocket clients, activity logs, and session logs.
+4. ACP `session/update` events are mapped and forwarded to WebSocket clients, activity logs, session logs, and in-memory active stream snapshots for mid-turn task reloads.
 5. The task can be prompted, aborted, reconfigured, retried, completed, cancelled, or reconnected after restart.
 6. Crons are separate entities that fire on a cron schedule, spawning regular worker tasks.
 

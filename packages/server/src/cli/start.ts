@@ -35,7 +35,7 @@ import { getAgentHandleMeta, type AgentHandle } from "../agent/provider"
 import { createAgentFactories } from "../agent/factories"
 import { enqueue as enqueuePrompt, drainAll as drainQueuedPrompts, clearQueue } from "../agent/prompt-queue"
 import { buildSystemNotes, buildEscalationBlock, buildPrWorkflowNote } from "../tasks/prompts"
-import { getTaskState, clearTaskState } from "../tasks/task-state"
+import { appendActiveStreamMessage, clearTaskState, completeActiveStreamMessage, getTaskState } from "../tasks/task-state"
 import { taskConfigUpdatesFromOptions } from "../agent/config-options"
 const log = createLogger("cli")
 
@@ -490,10 +490,11 @@ export async function start(): Promise<void> {
             switch (event.kind) {
               case "message.streaming": {
                 if (event.content) {
+                  const active = appendActiveStreamMessage(taskId, "assistant", event.content, event.messageId)
                   emitTaskEvent(taskId, {
                     event: "message.streaming",
                     content: event.content,
-                    messageId: event.messageId,
+                    messageId: active.messageId,
                   })
                 }
                 break
@@ -501,12 +502,14 @@ export async function start(): Promise<void> {
               case "message.complete": {
                 if ((event.role === "assistant" || event.role === "narration") && (event.content || event.imagePaths?.length || event.images?.length)) {
                   const role = event.role
+                  const completedActive = role === "assistant" ? completeActiveStreamMessage(taskId, "assistant") : undefined
+                  const messageId = event.messageId ?? completedActive?.messageId
 
                   const emitAndInsert = (imageFilenames?: string[]) => {
                     emitTaskEvent(taskId, {
                       role,
                       content: event.content,
-                      messageId: event.messageId,
+                      messageId,
                       timestamp: new Date().toISOString(),
                       images: imageFilenames,
                     })
@@ -700,9 +703,10 @@ export async function start(): Promise<void> {
                 break
               }
               case "thinking.streaming": {
+                const active = appendActiveStreamMessage(taskId, "thinking", event.content, event.messageId)
                 emitTaskEvent(taskId, {
                   event: "thinking.streaming",
-                  messageId: event.messageId,
+                  messageId: active.messageId,
                   content: event.content,
                   timestamp: new Date().toISOString(),
                 })
@@ -712,9 +716,10 @@ export async function start(): Promise<void> {
               case "thinking": {
                 // Persist only complete thoughts; streaming chunks stay transient.
                 if (!event.content.trim()) break
+                const completedActive = event.kind === "thinking.complete" ? completeActiveStreamMessage(taskId, "thinking") : undefined
                 emitTaskEvent(taskId, {
                   event: event.kind === "thinking.complete" ? "thinking.complete" : undefined,
-                  messageId: "messageId" in event ? event.messageId : undefined,
+                  messageId: event.kind === "thinking.complete" ? (event.messageId ?? completedActive?.messageId) : undefined,
                   role: "thinking",
                   content: event.content,
                   timestamp: new Date().toISOString(),

@@ -18,7 +18,7 @@ Adapters normalize provider-specific SDK events into ACP. Tangerine still owns A
 
 - merge `agent_message_chunk` into one live assistant message
 - merge `agent_thought_chunk` into one live Thought card
-- persist only final assistant/thinking messages after `session/prompt` completes
+- persist only final assistant/thinking messages after `session/prompt` completes while keeping in-memory active stream snapshots for task-switch reloads
 - render non-text content blocks; do not render text chunks as generic content cards
 - map `models` / `modes` compatibility fields into selectors
 - map config option categories `thought_level` and `effort` to the reasoning-effort selector

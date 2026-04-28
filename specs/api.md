@@ -67,7 +67,7 @@ Current task types:
 
 | Method | Path | Description |
 |--------|------|-------------|
-| GET | `/api/tasks/:id/messages` | List persisted session messages |
+| GET | `/api/tasks/:id/messages` | List persisted session messages plus any transient in-flight assistant/thinking stream snapshot |
 | GET | `/api/tasks/:id/images/:filename` | Serve stored task images |
 | POST | `/api/tasks/:id/prompt` | Send a prompt |
 | POST | `/api/tasks/:id/chat` | Send a prompt and return `202` immediately |
@@ -132,7 +132,7 @@ These routes follow the same bearer-token rules as the rest of `/api/*`.
 WS /api/tasks/:id/ws
 ```
 
-Task event payloads include legacy normalized chat/activity events plus ACP-derived events:
+Task event payloads include legacy normalized chat/activity events plus ACP-derived events. Streaming events always include a stable `messageId`; if the ACP adapter omits one, Tangerine generates one per active turn so REST snapshots and later WebSocket chunks merge in the UI.
 
 - `{ event: "config.options", configOptions }` for ACP session config selectors
 - `{ event: "thinking.streaming", messageId, content }` for transient thought chunks
