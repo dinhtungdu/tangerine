@@ -34,6 +34,7 @@ export interface Task {
   branch: string | null
   worktreePath: string | null
   prUrl: string | null
+  prStatus: "open" | "draft" | "merged" | "closed" | null
   parentTaskId: string | null
   userId: string | null
   agentSessionId: string | null

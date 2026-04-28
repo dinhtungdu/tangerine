@@ -17,6 +17,7 @@ export const SCHEMA = `
     branch TEXT,
     worktree_path TEXT,
     pr_url TEXT,
+    pr_status TEXT,
     parent_task_id TEXT,
     user_id TEXT,
     agent_session_id TEXT,

@@ -3,7 +3,7 @@ import { useParams, Link, useOutletContext } from "react-router-dom"
 import type { SidebarContext } from "../components/Layout"
 import { resolveTaskTypeConfig, TERMINAL_STATUSES, type Task } from "@tangerine/shared"
 import { fetchTask, fetchChildTasks, changeTaskConfig, markTaskSeen, resolveTask, startTask } from "../lib/api"
-import { getStatusConfig } from "../lib/status"
+import { getStatusConfig, getPrStatusConfig } from "../lib/status"
 import { useSession } from "../hooks/useSession"
 import { useProject } from "../context/ProjectContext"
 import { buildSshEditorUri, EDITOR_NAMES } from "../lib/ssh-editor"
@@ -525,16 +525,19 @@ export function TaskDetail() {
                 </a>
               )
             })()}
-            {task.prUrl && (
-              <a
-                href={task.prUrl}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="flex shrink-0 items-center gap-1 rounded bg-status-success-bg px-1.5 py-0.5 text-2xs font-medium text-status-success-text"
-              >
-                {formatPrNumber(task.prUrl)}
-              </a>
-            )}
+            {task.prUrl && (() => {
+              const prStatusConfig = getPrStatusConfig(task.prStatus)
+              return (
+                <a
+                  href={task.prUrl}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className={`flex shrink-0 items-center gap-1 rounded px-1.5 py-0.5 text-2xs font-medium ${prStatusConfig.bgClass} ${prStatusConfig.textClass}`}
+                >
+                  {formatPrNumber(task.prUrl)}
+                </a>
+              )
+            })()}
             <span
               className="flex shrink-0 items-center gap-1 rounded px-1.5 py-0.5 text-2xs font-medium"
               style={{ backgroundColor: `color-mix(in srgb, ${statusColor} 10%, transparent)`, color: statusColor }}

@@ -14,6 +14,7 @@ export interface TaskRow {
   branch: string | null
   worktree_path: string | null
   pr_url: string | null
+  pr_status: string | null
   parent_task_id: string | null
   user_id: string | null
   agent_session_id: string | null

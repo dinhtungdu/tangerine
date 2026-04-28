@@ -171,6 +171,7 @@ function makeTaskRow(overrides?: Partial<TaskRow>): TaskRow {
     branch: "tangerine/abc123",
     worktree_path: "/workspace/worktrees/test-slot-0",
     pr_url: null,
+    pr_status: null,
     parent_task_id: null,
     user_id: null,
     agent_session_id: null,
@@ -250,14 +251,25 @@ describe("pollPrStatuses", () => {
     expect(deps.activities).toHaveLength(0)
   })
 
-  test("does nothing for open PRs", async () => {
+  test("does nothing for open PRs when status already matches", async () => {
     const prUrl = "https://github.com/test/repo/pull/1"
-    const task = makeTaskRow({ pr_url: prUrl })
+    const task = makeTaskRow({ pr_url: prUrl, pr_status: "open" })
     const deps = makeDeps([task], { [prUrl]: "open" })
 
     await Effect.runPromise(pollPrStatuses(deps))
 
     expect(deps.updates).toHaveLength(0)
+  })
+
+  test("updates pr_status when status changes to open/draft", async () => {
+    const prUrl = "https://github.com/test/repo/pull/1"
+    const task = makeTaskRow({ pr_url: prUrl, pr_status: null })
+    const deps = makeDeps([task], { [prUrl]: "open" })
+
+    await Effect.runPromise(pollPrStatuses(deps))
+
+    expect(deps.updates).toHaveLength(1)
+    expect(deps.updates[0]!.updates.pr_status).toBe("open")
   })
 
   test("notifies agent when PR is merged", async () => {

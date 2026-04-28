@@ -36,20 +36,21 @@ interface PrListItem {
 const log = createLogger("pr-monitor")
 const PR_POLL_INTERVAL_MS = 60_000
 
-export type PrState = "open" | "merged" | "closed"
+export type PrState = "open" | "draft" | "merged" | "closed"
 
 /** Check PR state using `gh pr view`. Returns null if check fails. */
 export function checkPrState(prUrl: string): Effect.Effect<PrState | null, never> {
   return Effect.tryPromise({
     try: async () => {
-      const proc = Bun.spawn(["gh", "pr", "view", prUrl, "--json", "state", "--jq", ".state"], ghSpawnEnv())
+      const proc = Bun.spawn(["gh", "pr", "view", prUrl, "--json", "state,isDraft"], ghSpawnEnv())
       const text = await new Response(proc.stdout).text()
       const exitCode = await proc.exited
       if (exitCode !== 0) return null
-      const state = text.trim().toUpperCase()
+      const data = JSON.parse(text) as { state?: string; isDraft?: boolean }
+      const state = (data.state ?? "").toUpperCase()
       if (state === "MERGED") return "merged"
       if (state === "CLOSED") return "closed"
-      if (state === "OPEN") return "open"
+      if (state === "OPEN") return data.isDraft ? "draft" : "open"
       return null
     },
     catch: () => null,
@@ -305,12 +306,15 @@ export function pollPrStatuses(deps: PrMonitorDeps): Effect.Effect<void, never> 
         const prUrl = yield* lookup(repoUrl, task.branch!)
         if (prUrl) {
           log.info("Discovered PR for task branch", { taskId: task.id, branch: task.branch, prUrl })
-          yield* deps.updateTask(task.id, { pr_url: prUrl }).pipe(Effect.ignoreLogged)
+          const checker = deps.checkPrState ?? checkPrState
+          const initialStatus = yield* checker(prUrl)
+          yield* deps.updateTask(task.id, { pr_url: prUrl, pr_status: initialStatus }).pipe(Effect.ignoreLogged)
           yield* deps.logActivity(task.id, "lifecycle", "pr.discovered", `PR discovered for branch ${task.branch}: ${prUrl}`).pipe(
             Effect.catchAll(() => Effect.void)
           )
           // Update in-memory so Phase 2 picks it up this cycle
           task.pr_url = prUrl
+          task.pr_status = initialStatus
         }
       }
     }
@@ -325,8 +329,14 @@ export function pollPrStatuses(deps: PrMonitorDeps): Effect.Effect<void, never> 
     const checker = deps.checkPrState ?? checkPrState
     for (const task of withPr) {
       const state = yield* checker(task.pr_url!)
+      if (!state) continue
 
-      if (!state || state === "open") continue
+      // Always persist pr_status so UI reflects current state
+      if (state !== task.pr_status) {
+        yield* deps.updateTask(task.id, { pr_status: state }).pipe(Effect.ignoreLogged)
+      }
+
+      if (state === "open" || state === "draft") continue
 
       if (state === "merged") {
         // Check if we already handled this PR merge

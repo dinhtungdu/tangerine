@@ -29,6 +29,7 @@ export function makeTask(overrides?: Partial<Task>): Task {
     branch: null,
     worktreePath: null,
     prUrl: null,
+    prStatus: null,
     parentTaskId: null,
     userId: null,
     agentSessionId: null,
