@@ -190,9 +190,9 @@ function makeRemarkLinkifyTaskIds(tasks: ReadonlyArray<{ id: string }>) {
   }
 }
 
-const BASE_REMARK_PLUGINS = [remarkGfm]
-// User messages preserve single newlines (matching whitespace-pre-wrap semantics)
-const BASE_USER_REMARK_PLUGINS = [remarkGfm, remarkBreaks]
+// All messages preserve single newlines for readability during streaming
+const BASE_REMARK_PLUGINS = [remarkGfm, remarkBreaks]
+const BASE_USER_REMARK_PLUGINS = BASE_REMARK_PLUGINS
 
 const THINKING_TRUNCATE_LENGTH = 100
 

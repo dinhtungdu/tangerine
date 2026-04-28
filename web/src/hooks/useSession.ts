@@ -464,13 +464,29 @@ export function useSession(taskId: string, initialContextTokens?: number, initia
           const messageId = typeof data.messageId === "string" ? data.messageId : null
           // Prioritize existing stream ID to match streaming message, fall back to messageId
           const streamId = activeAssistantStreamIdRef.current ?? (messageId ? `assistant-${messageId}` : null)
-          if (newMsg.role === "assistant" && streamId) {
+          if (newMsg.role === "assistant") {
             activeAssistantStreamIdRef.current = null
-            setMessages((prev) => applyAssistantStreamMessage(prev, {
-              content: newMsg.content,
-              timestamp: newMsg.timestamp,
-              images: newMsg.images,
-            }, streamId, "complete"))
+            setMessages((prev) => {
+              // If we have a streamId, replace that message
+              if (streamId) {
+                return applyAssistantStreamMessage(prev, {
+                  content: newMsg.content,
+                  timestamp: newMsg.timestamp,
+                  images: newMsg.images,
+                }, streamId, "complete")
+              }
+              // Fallback: find recent incomplete streaming message (assistant-active-*) and replace it
+              const fallbackMsg = [...prev].reverse().find((m) => m.role === "assistant" && m.id.startsWith("assistant-active-"))
+              if (fallbackMsg) {
+                return applyAssistantStreamMessage(prev, {
+                  content: newMsg.content,
+                  timestamp: newMsg.timestamp,
+                  images: newMsg.images,
+                }, fallbackMsg.id, "complete")
+              }
+              // No streaming message found, add as new
+              return [...prev, newMsg]
+            })
             break
           }
           setMessages((prev) => {
