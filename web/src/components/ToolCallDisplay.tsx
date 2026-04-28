@@ -37,7 +37,7 @@ function getToolIcon(toolName: string): { icon: string; label: string } {
   if (name.includes("grep")) return { icon: "search", label: "Grep" }
   if (name.includes("glob")) return { icon: "folder", label: "Glob" }
   if (name.includes("agent")) return { icon: "agent", label: "Agent" }
-  return { icon: "tool", label: toolName }
+  return { icon: "tool", label: "Tool" }
 }
 
 function getToolSummary(toolName: string, toolData: ToolCallData): string | null {
@@ -78,9 +78,19 @@ function getToolSummary(toolName: string, toolData: ToolCallData): string | null
     if (desc) return desc
   }
 
-  // Fallback: show description for any tool that has one
+  // Fallback: try common fields
   const desc = (input?.description as string)
   if (desc) return desc
+
+  // Try file_path, path, command, pattern as generic fallbacks
+  const filePath = toolData.file_path || toolData.path || (input?.file_path as string) || (input?.path as string)
+  if (filePath) return filePath
+
+  const cmd = toolData.command || (input?.command as string)
+  if (cmd) return `$ ${cmd.replace(/\s+/g, " ").trim()}`
+
+  const pattern = toolData.pattern || (input?.pattern as string)
+  if (pattern) return pattern
 
   return null
 }
