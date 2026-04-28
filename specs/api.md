@@ -43,7 +43,8 @@ Tangerine uses a single shared bearer token for remote single-user access when `
   "model": "gpt-5",
   "reasoningEffort": "high",
   "source": "cross-project",
-  "branch": "#123",
+  "branch": "feature/pr-123",
+  "prUrl": "https://github.com/org/repo/pull/123",
   "parentTaskId": "task-abc"
 }
 ```

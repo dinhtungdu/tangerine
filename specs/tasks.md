@@ -47,7 +47,7 @@ Capabilities are derived from type in `tasks/manager.ts`:
 |------|--------------|
 | `worker` | `resolve`, `predefined-prompts`, `diff`, `continue` |
 | `orchestrator` | `resolve`, `predefined-prompts` |
-| `reviewer` | `resolve`, `predefined-prompts`, `diff` |
+| `reviewer` | `resolve`, `predefined-prompts`, `diff`, `pr-track` |
 
 Orchestrators are created lazily and started on demand. Other task types auto-start after creation.
 
@@ -72,7 +72,7 @@ At a high level:
 1. Read project config
 2. Fetch repo state
 3. Acquire or create a worktree slot
-4. Create branch/worktree
+4. Create branch/worktree; reviewer tasks check out the PR source branch as a normal branch (not detached HEAD) so PR monitoring can read the active branch
 5. Start local ACP agent process for the chosen agent ID/provider field
 6. Persist ACP session/process metadata
 7. Stream events to logs and WebSockets
