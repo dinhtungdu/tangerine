@@ -269,7 +269,9 @@ export function pollPrStatuses(deps: PrMonitorDeps): Effect.Effect<void, never> 
     // Phase 0: sync task.branch with the actual git HEAD branch for tasks with a worktree.
     // Agents sometimes rename their branch directly via git without going through the rename-branch
     // API, which causes task.branch to drift from the real branch the worktree is on.
-    const withWorktree = active.filter((t) => t.worktree_path && t.branch)
+    const withWorktree = active.filter((t) =>
+      t.worktree_path && t.branch && taskHasCapability(t.type, t.capabilities, "pr-create")
+    )
     if (withWorktree.length > 0) {
       const branchReader = deps.readWorktreeBranch ?? readWorktreeBranch
       for (const task of withWorktree) {

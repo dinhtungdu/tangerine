@@ -72,7 +72,7 @@ At a high level:
 1. Read project config
 2. Fetch repo state
 3. Acquire or create a worktree slot
-4. Create branch/worktree; reviewer tasks check out the PR source branch as a normal branch (not detached HEAD) so PR monitoring can read the active branch
+4. Create branch/worktree; reviewer tasks keep the PR source branch in `tasks.branch` for PR monitoring and check out a reviewer-local normal branch from that source (not detached HEAD) so they do not move an active worker branch ref
 5. Start local ACP agent process for the chosen agent ID/provider field
 6. Persist ACP session/process metadata
 7. Stream events to logs and WebSockets

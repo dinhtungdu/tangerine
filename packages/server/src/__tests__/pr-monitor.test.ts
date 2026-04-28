@@ -619,6 +619,21 @@ describe("pollPrStatuses", () => {
     expect(deps.updates).toHaveLength(0)
   })
 
+  test("skips branch sync for reviewer tasks so PR branch remains authoritative", async () => {
+    const task = makeTaskRow({
+      branch: "feature/review",
+      worktree_path: "/workspace/worktrees/slot-0",
+      pr_url: null,
+      type: "reviewer",
+    })
+    const deps = makeDeps([task], {})
+    deps.readWorktreeBranch = (_path) => Effect.succeed("tangerine/reviewer/review1")
+
+    await Effect.runPromise(pollPrStatuses(deps))
+
+    expect(deps.updates).toHaveLength(0)
+  })
+
   test("skips branch sync when readWorktreeBranch returns null (detached HEAD)", async () => {
     const task = makeTaskRow({ branch: "tangerine/abc123", worktree_path: "/workspace/worktrees/slot-0", pr_url: null })
     const deps = makeDeps([task], {})

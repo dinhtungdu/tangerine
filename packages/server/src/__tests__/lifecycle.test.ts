@@ -75,7 +75,7 @@ function makeAgentFactory(): AgentFactory {
   }
 }
 
-function createRepoFixture(root: string): { origin: string; workspace: string } {
+function createRepoFixture(root: string): { origin: string; workspace: string; repoDir: string } {
   const origin = join(root, "origin.git")
   const seed = join(root, "seed")
   const workspace = join(root, "workspace")
@@ -99,16 +99,22 @@ function createRepoFixture(root: string): { origin: string; workspace: string } 
 
   mkdirSync(projectDir, { recursive: true })
   git(["clone", "--branch", "main", origin, repoDir])
-  return { origin, workspace }
+  return { origin, workspace, repoDir }
 }
 
 describe("startSession", () => {
-  test("checks out reviewer worktrees on a normal branch for PR monitoring", async () => {
+  test("checks out reviewer worktrees on a local branch when a worker uses the PR branch", async () => {
     const root = mkdtempSync(join(tmpdir(), "tangerine-lifecycle-"))
     const previousGitDir = process.env["GIT_DIR"]
     const previousGitWorkTree = process.env["GIT_WORK_TREE"]
     try {
-      const { origin, workspace } = createRepoFixture(root)
+      const { origin, workspace, repoDir } = createRepoFixture(root)
+      const workerPath = join(workspace, "test-project", "worker")
+      git(["worktree", "add", "-b", "feature/review", workerPath, "origin/feature/review"], repoDir)
+      writeFileSync(join(workerPath, "local.txt"), "worker local\n")
+      git(["add", "local.txt"], workerPath)
+      git(["-c", "user.email=test@example.com", "-c", "user.name=Test", "commit", "-qm", "worker local"], workerPath)
+      const workerHeadBefore = git(["rev-parse", "HEAD"], workerPath)
       const trap = join(root, "trap")
       git(["init", trap])
       // Git hooks export repo-scoped env vars; lifecycle must ignore them for task repos.
@@ -153,7 +159,10 @@ describe("startSession", () => {
         prMode: "none",
       }, deps))
 
-      expect(git(["branch", "--show-current"], session.worktreePath)).toBe("feature/review")
+      expect(git(["branch", "--show-current"], session.worktreePath)).toBe("tangerine/reviewer/review-t")
+      expect(git(["rev-parse", "feature/review"], repoDir)).toBe(workerHeadBefore)
+      expect(git(["rev-parse", "HEAD"], workerPath)).toBe(workerHeadBefore)
+      expect(task.branch).toBe("feature/review")
     } finally {
       if (previousGitDir === undefined) delete process.env["GIT_DIR"]
       else process.env["GIT_DIR"] = previousGitDir
