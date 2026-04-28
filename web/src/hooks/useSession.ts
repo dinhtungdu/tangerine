@@ -75,6 +75,40 @@ export function applyThinkingStreamMessage(
   })
 }
 
+export function applyActivityUpdate(activities: ActivityEntry[], entry: ActivityEntry): ActivityEntry[] {
+  const existing = activities.findIndex((activity) => activity.id === entry.id)
+  if (existing === -1) return [...activities, entry]
+  return activities.map((activity, index) => index === existing ? entry : activity)
+}
+
+export function mergeActivitySnapshot(activities: ActivityEntry[], snapshot: ActivityEntry[]): ActivityEntry[] {
+  const byId = new Map<number, ActivityEntry>()
+  for (const activity of activities) byId.set(activity.id, activity)
+  for (const activity of snapshot) {
+    const existing = byId.get(activity.id)
+    if (!existing || isNewerActivity(activity, existing)) byId.set(activity.id, activity)
+  }
+  return [...byId.values()].sort((a, b) => activityStartMs(a) - activityStartMs(b) || a.id - b.id)
+}
+
+function isNewerActivity(candidate: ActivityEntry, current: ActivityEntry): boolean {
+  return activityFreshnessMs(candidate) > activityFreshnessMs(current)
+}
+
+function activityFreshnessMs(activity: ActivityEntry): number {
+  const progressAt = activity.metadata?.lastProgressAt
+  if (typeof progressAt === "string") {
+    const parsed = Date.parse(progressAt)
+    if (Number.isFinite(parsed)) return parsed
+  }
+  return activityStartMs(activity)
+}
+
+function activityStartMs(activity: ActivityEntry): number {
+  const parsed = Date.parse(activity.timestamp)
+  return Number.isFinite(parsed) ? parsed : 0
+}
+
 export interface UsageState {
   contextTokens: number
   contextWindowMax: number | null
@@ -164,7 +198,7 @@ export function useSession(taskId: string, initialContextTokens?: number, initia
     }
     try {
       const data = await fetchActivities(taskId)
-      setActivities(data)
+      setActivities((prev) => mergeActivitySnapshot(prev, data))
     } catch {
       // Activities may not be available yet
     }
@@ -303,7 +337,7 @@ export function useSession(taskId: string, initialContextTokens?: number, initia
         break
       }
       case "activity":
-        setActivities((prev) => [...prev, msg.entry])
+        setActivities((prev) => applyActivityUpdate(prev, msg.entry))
         break
       case "status":
         setTaskStatus(msg.status)

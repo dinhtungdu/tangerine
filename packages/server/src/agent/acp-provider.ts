@@ -130,7 +130,7 @@ export function createAcpEventMapper(): {
   let thoughtBuffer = ""
   let thoughtMessageId: string | undefined
   let thoughtSequence = 0
-  const toolNames = new Map<string, string>()
+  const toolStates = new Map<string, { name: string; input?: string }>()
 
   return {
     mapSessionUpdate(update: Record<string, unknown>): AgentEvent[] {
@@ -176,11 +176,13 @@ export function createAcpEventMapper(): {
         case "tool_call": {
           const toolCallId = stringField(update, "toolCallId")
           const title = stringField(update, "title") ?? stringField(update, "kind") ?? toolCallId ?? "tool"
-          if (toolCallId) toolNames.set(toolCallId, title)
+          const toolInput = stringifyForEvent(update.rawInput)
+          if (toolCallId) toolStates.set(toolCallId, { name: title, ...(toolInput ? { input: toolInput } : {}) })
           return [{
             kind: "tool.start",
+            ...(toolCallId ? { toolCallId } : {}),
             toolName: title,
-            toolInput: stringifyForEvent(update.rawInput),
+            toolInput,
           }]
         }
 
@@ -188,16 +190,37 @@ export function createAcpEventMapper(): {
           const toolCallId = stringField(update, "toolCallId")
           const status = stringField(update, "status")
           const contentBlockEvents = contentBlocksFromToolContent(update.content)
-          if (status !== "completed" && status !== "failed") return contentBlockEvents
-          const toolName = (toolCallId ? toolNames.get(toolCallId) : undefined) ?? stringField(update, "title") ?? toolCallId ?? "tool"
-          if (toolCallId) toolNames.delete(toolCallId)
+          const state = toolCallId ? toolStates.get(toolCallId) : undefined
+          const title = stringField(update, "title")
+          const toolName = title ?? state?.name ?? toolCallId ?? "tool"
+          const toolInput = stringifyForEvent(update.rawInput)
+          if (toolCallId && (title || toolInput)) {
+            toolStates.set(toolCallId, { name: toolName, ...(toolInput ?? state?.input ? { input: toolInput ?? state?.input } : {}) })
+          }
           const result = stringifyForEvent(update.rawOutput) ?? stringifyToolContent(update.content)
+          if (status !== "completed" && status !== "failed") {
+            const events: AgentEvent[] = [...contentBlockEvents]
+            if (toolInput || result || status || title) {
+              events.push({
+                kind: "tool.update",
+                ...(toolCallId ? { toolCallId } : {}),
+                toolName,
+                ...(toolInput ? { toolInput } : {}),
+                ...(result ? { toolResult: result } : {}),
+                ...(status === "pending" || status === "in_progress" ? { status: "running" } : {}),
+              })
+            }
+            return events
+          }
+          if (toolCallId) toolStates.delete(toolCallId)
           return [
             ...contentBlockEvents,
             {
               kind: "tool.end",
+              ...(toolCallId ? { toolCallId } : {}),
               toolName,
               toolResult: status === "failed" && result ? `[failed] ${result}` : result,
+              status: status === "failed" ? "error" : "success",
             },
           ]
         }
@@ -988,10 +1011,7 @@ function stringifyToolContent(content: unknown): string | undefined {
   if (!Array.isArray(content)) return undefined
   const parts = content
     .filter(isRecord)
-    .map((entry) => {
-      if (entry.type === "content") return textFromContent(entry.content)
-      return stringifyForEvent(entry)
-    })
+    .map((entry) => entry.type === "content" ? textFromContent(entry.content) : null)
     .filter((part): part is string => typeof part === "string" && part.length > 0)
   return parts.length > 0 ? truncate(parts.join("\n"), 500) : undefined
 }

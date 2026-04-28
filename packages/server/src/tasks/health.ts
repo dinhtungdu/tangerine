@@ -78,10 +78,9 @@ export interface HealthCheckDeps {
   /** Log an activity entry when an agent is suspended due to idle timeout. */
   logSuspend(taskId: string, idleMs: number): Effect.Effect<void, never>
   /**
-   * Returns the timestamp of the most recent activity for a task if that
+   * Returns the latest progress timestamp for the most recent activity if that
    * activity has metadata.status === "running" (i.e. a tool is in progress).
-   * Returns null if the last activity is not a running tool, or if there are
-   * no activities at all.
+   * Falls back to the activity start timestamp when no progress timestamp exists.
    */
   getLastRunningActivityTime(taskId: string): string | null
   /** Log an activity entry when an agent is aborted due to a hung tool. */
@@ -269,16 +268,15 @@ function checkHungTool(
   deps: HealthCheckDeps,
 ): Effect.Effect<void, never> {
   return Effect.gen(function* () {
-    // Only relevant when the agent is actively working — because tool.end is not
-    // persisted to activity_log, the last entry remains tool.start (status: "running")
-    // even after the tool completes. Without this guard a healthy agent that finishes
-    // a tool and sits idle for >5 min would be spuriously aborted.
+    // Only relevant when the agent is actively working — if an agent dies before
+    // sending a final tool update, stale status:"running" activity can remain.
+    // Without this guard a healthy idle agent could be spuriously aborted.
     if (!deps.isAgentWorking(task.id)) return
 
     const state = getTaskState(task.id)
 
-    // Apply cooldown: after a hung-tool abort the old tool.start entry stays in
-    // the DB, so we'd immediately re-trigger without this guard.
+    // Apply cooldown: after a hung-tool abort the old running tool activity can
+    // stay in the DB, so we'd immediately re-trigger without this guard.
     if (state.hungToolAbortedAt !== undefined) {
       if (Date.now() - state.hungToolAbortedAt < HUNG_TOOL_COOLDOWN_MS) return
     }

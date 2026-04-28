@@ -12,8 +12,9 @@ export type AgentEvent =
   | { kind: "message.complete"; role: "assistant" | "user" | "narration"; content: string; messageId?: string; images?: PromptImage[]; imagePaths?: string[] }
   | { kind: "status"; status: "idle" | "working" }
   | { kind: "error"; message: string }
-  | { kind: "tool.start"; toolName: string; toolInput?: string }
-  | { kind: "tool.end"; toolName: string; toolResult?: string }
+  | { kind: "tool.start"; toolName: string; toolCallId?: string; toolInput?: string }
+  | { kind: "tool.update"; toolName: string; toolCallId?: string; toolInput?: string; toolResult?: string; status?: "running" }
+  | { kind: "tool.end"; toolName: string; toolCallId?: string; toolResult?: string; status?: "success" | "error" }
   | { kind: "thinking"; content: string }
   | { kind: "thinking.streaming"; content: string; messageId?: string }
   | { kind: "thinking.complete"; content: string; messageId?: string }

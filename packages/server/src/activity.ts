@@ -17,6 +17,16 @@ export interface ActivityEntry {
   timestamp: string
 }
 
+export interface ToolActivityUpdate {
+  toolCallId?: string
+  toolName?: string
+  toolInput?: string
+  toolResult?: string
+  status?: "running" | "success" | "error"
+  activityType?: ActivityType
+  activityEvent?: string
+}
+
 interface ActivityLogRow {
   id: number
   task_id: string
@@ -73,6 +83,47 @@ export function getActivities(
   })
 }
 
+/** Merge ACP tool-call progress/result data into the existing tool activity row. */
+export function updateToolActivity(
+  db: Database,
+  taskId: string,
+  update: ToolActivityUpdate,
+): Effect.Effect<ActivityEntry | null, Error> {
+  return Effect.try({
+    try: () => {
+      const row = findToolActivityRow(db, taskId, update)
+      const metadata = mergeToolActivityMetadata(row ? parseMetadata(row.metadata) : {}, update, new Date().toISOString())
+      if (!row) {
+        if (!update.activityType || !update.activityEvent) return null
+        const result = db.prepare(`
+          INSERT INTO activity_log (task_id, type, event, content, metadata)
+          VALUES ($task_id, $type, $event, $content, $metadata)
+        `).run({
+          $task_id: taskId,
+          $type: update.activityType,
+          $event: update.activityEvent,
+          $content: update.toolName ?? update.activityEvent,
+          $metadata: JSON.stringify(metadata),
+        })
+        const insertedRow = db.prepare("SELECT * FROM activity_log WHERE id = ?").get(result.lastInsertRowid) as ActivityLogRow
+        const inserted = mapRow(insertedRow)
+        emitTaskEvent(taskId, { type: "activity", entry: inserted })
+        return inserted
+      }
+      const nextType = update.activityType ?? row.type
+      const nextEvent = update.activityEvent ?? row.event
+      const nextContent = update.toolName ?? row.content
+      db.prepare("UPDATE activity_log SET type = ?, event = ?, content = ?, metadata = ? WHERE id = ?")
+        .run(nextType, nextEvent, nextContent, JSON.stringify(metadata), row.id)
+      const updatedRow = db.prepare("SELECT * FROM activity_log WHERE id = ?").get(row.id) as ActivityLogRow
+      const entry = mapRow(updatedRow)
+      emitTaskEvent(taskId, { type: "activity", entry })
+      return entry
+    },
+    catch: (e) => new Error(`Failed to update tool activity: ${e}`),
+  })
+}
+
 /** Check if a specific activity event exists for a task. */
 export function hasActivityEvent(
   db: Database,
@@ -97,6 +148,56 @@ export function cleanupActivities(db: Database): void {
   }
 }
 
+function mergeToolActivityMetadata(previous: Record<string, unknown>, update: ToolActivityUpdate, lastProgressAt: string): Record<string, unknown> {
+  const next = {
+    ...previous,
+    ...(update.toolCallId !== undefined ? { toolCallId: update.toolCallId } : {}),
+    ...(update.toolName !== undefined ? { toolName: update.toolName } : {}),
+    ...(update.toolInput !== undefined ? { toolInput: update.toolInput } : {}),
+    ...(update.status !== undefined ? { status: mergeToolStatus(previous.status, update.status) } : {}),
+    ...(update.toolResult !== undefined ? { output: update.toolResult } : {}),
+  }
+  return update.toolInput !== undefined || update.toolResult !== undefined
+    ? { ...next, lastProgressAt }
+    : next
+}
+
+function mergeToolStatus(previous: unknown, next: NonNullable<ToolActivityUpdate["status"]>): ToolActivityUpdate["status"] {
+  if ((previous === "success" || previous === "error") && next === "running") return previous
+  return next
+}
+
+function findToolActivityRow(db: Database, taskId: string, update: ToolActivityUpdate): ActivityLogRow | null {
+  const rows = db.prepare(
+    "SELECT * FROM activity_log WHERE task_id = ? AND event LIKE 'tool.%' ORDER BY id DESC LIMIT 100"
+  ).all(taskId) as ActivityLogRow[]
+
+  if (update.toolCallId) {
+    const match = rows.find((row) => parseMetadata(row.metadata).toolCallId === update.toolCallId)
+    if (match) return match
+  }
+
+  if (update.toolName) {
+    const match = rows.find((row) => {
+      const metadata = parseMetadata(row.metadata)
+      return metadata.toolName === update.toolName && metadata.status === "running"
+    })
+    if (match) return match
+  }
+
+  return null
+}
+
+function parseMetadata(value: string | null): Record<string, unknown> {
+  if (!value) return {}
+  try {
+    const parsed = JSON.parse(value) as unknown
+    return parsed !== null && typeof parsed === "object" && !Array.isArray(parsed) ? parsed as Record<string, unknown> : {}
+  } catch {
+    return {}
+  }
+}
+
 function mapRow(row: ActivityLogRow): ActivityEntry {
   return {
     id: row.id,
@@ -104,7 +205,7 @@ function mapRow(row: ActivityLogRow): ActivityEntry {
     type: row.type as ActivityType,
     event: row.event,
     content: row.content,
-    metadata: row.metadata ? (JSON.parse(row.metadata) as Record<string, unknown>) : null,
+    metadata: row.metadata ? parseMetadata(row.metadata) : null,
     timestamp: utc(row.timestamp) ?? row.timestamp,
   }
 }

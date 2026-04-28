@@ -49,7 +49,7 @@ Current task-detail feature set includes:
 - chat panel
 - streamed messages
 - streamed thinking merged into one Thought card per turn
-- tool call display
+- tool call display, including ACP `tool_call_update` result text streamed into the matching tool block by `toolCallId` while preserving start-time ordering on reload
 - ACP config-option selectors for `model`, `thought_level`/`effort`, and `mode`; legacy ACP `models` / `modes` state is normalized into the same UI, with legacy thinking/reasoning modes shown as `thought_level`
 - ACP harness support summary in the selector popover, showing which of Model, Effort, and Mode are advertised for the active session
 - ACP plan cards
@@ -80,6 +80,7 @@ Current sections:
 - API access is centralized in `web/src/lib/api.ts`
 - per-task streaming uses WebSocket hooks
 - ACP `config.options`, `thinking.streaming`, `thinking.complete`, `plan`, and `content.block` events are folded into per-task session state
+- activity REST snapshots merge with WebSocket activity updates by id/freshness so stale fetch responses cannot overwrite live tool progress
 
 ## Shared Components
 

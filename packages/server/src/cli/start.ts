@@ -6,7 +6,7 @@ import { createLogger } from "../logger"
 import { loadConfig, getProjectConfig, TANGERINE_HOME, readRawConfig, writeRawConfig, isTestMode } from "../config"
 import { getDb } from "../db/index"
 import { createTask as dbCreateTask, getTask, listTasks, updateTask, insertSessionLog, markTaskResult, getDueCrons, hasActiveCronTask as dbHasActiveCronTask, updateCron } from "../db/queries"
-import { logActivity, cleanupActivities, hasActivityEvent } from "../activity"
+import { logActivity, cleanupActivities, hasActivityEvent, updateToolActivity } from "../activity"
 import type { TaskRow, CronRow } from "../db/types"
 import { taskHasCapability } from "../api/helpers"
 import { createApp } from "../api/app"
@@ -701,18 +701,46 @@ export async function start(): Promise<void> {
               case "tool.start": {
                 const { activityType, activityEvent } = classifyTool(event.toolName)
                 Effect.runPromise(
-                  logActivity(db, taskId, activityType, activityEvent, event.toolName, {
+                  updateToolActivity(db, taskId, {
+                    toolCallId: event.toolCallId,
                     toolName: event.toolName,
                     toolInput: event.toolInput,
                     status: "running",
+                    activityType,
+                    activityEvent,
                   }).pipe(Effect.catchAll(() => Effect.void))
                 )
                 break
               }
+              case "tool.update": {
+                const { activityType, activityEvent } = classifyTool(event.toolName)
+                Effect.runPromise(
+                  updateToolActivity(db, taskId, {
+                    toolCallId: event.toolCallId,
+                    toolName: event.toolName,
+                    toolInput: event.toolInput,
+                    toolResult: event.toolResult,
+                    status: event.status,
+                    activityType,
+                    activityEvent,
+                  }).pipe(Effect.catchAll(() => Effect.void))
+                )
+                emitTaskEvent(taskId, { event: "tool.update", toolCallId: event.toolCallId, toolName: event.toolName, toolResult: event.toolResult })
+                break
+              }
               case "tool.end": {
-                // Don't persist — tool.start already logged the action.
-                // Just emit for real-time WS updates (e.g. clearing "in progress").
-                emitTaskEvent(taskId, { event: "tool.end", toolName: event.toolName })
+                const { activityType, activityEvent } = classifyTool(event.toolName)
+                Effect.runPromise(
+                  updateToolActivity(db, taskId, {
+                    toolCallId: event.toolCallId,
+                    toolName: event.toolName,
+                    toolResult: event.toolResult,
+                    status: event.status,
+                    activityType,
+                    activityEvent,
+                  }).pipe(Effect.catchAll(() => Effect.void))
+                )
+                emitTaskEvent(taskId, { event: "tool.end", toolCallId: event.toolCallId, toolName: event.toolName, toolResult: event.toolResult })
 
                 // Detect PR URL from Bash tool results (e.g. `gh pr create` output)
                 if (event.toolResult && !getTaskState(taskId).prUrlSaved) {
@@ -1237,7 +1265,8 @@ export async function start(): Promise<void> {
           if (!row?.metadata) return null
           try {
             const meta = JSON.parse(row.metadata) as Record<string, unknown>
-            return meta.status === "running" ? row.timestamp : null
+            if (meta.status !== "running") return null
+            return typeof meta.lastProgressAt === "string" ? meta.lastProgressAt : row.timestamp
           } catch {
             return null
           }

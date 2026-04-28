@@ -64,8 +64,9 @@ Important ACP updates:
 | `agent_message_chunk` | `message.streaming`, then final assistant message on prompt completion |
 | `agent_thought_chunk` | `thinking.streaming`, then one persisted `thinking` message on prompt completion |
 | `user_message_chunk` | user message log |
-| `tool_call` | `tool.start` |
-| `tool_call_update` | `tool.end` on completed/failed |
+| `tool_call` | `tool.start` keyed by `toolCallId`; merges into an existing best-effort row if updates arrived first |
+| `tool_call_update` before completion | `tool.update` keyed by `toolCallId`; updates live activity metadata/result text and creates a tool activity if no `tool_call` arrived first |
+| `tool_call_update` completed/failed | `tool.end` keyed by `toolCallId`; final raw output/result text stored on the tool activity |
 | `tool_call_update` content `diff` / `terminal` | native diff/terminal content-block card |
 | `plan` | native plan card plus thinking text for compatibility |
 | `current_mode_update` | refresh synthetic mode config option |
