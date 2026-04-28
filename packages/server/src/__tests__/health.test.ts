@@ -264,6 +264,30 @@ describe("health check", () => {
       clearTaskState(taskId)
     }
   })
+
+  test("reconnecting flag skips health check without counting as restart", async () => {
+    const taskId = "reconnect-guard-test"
+    const task = makeTask({ id: taskId })
+    try {
+      const state = getTaskState(taskId)
+      state.reconnecting = true
+      state.consecutiveRestarts = 0
+
+      const restartFn = mock(() => Effect.void)
+      const deps = makeDeps({
+        checkAgentAlive: () => Effect.succeed(false),
+        restartAgent: restartFn,
+      })
+      const result = await Effect.runPromise(checkTask(task, deps))
+      expect(result).toBe("healthy")
+      // Should not have attempted restart
+      expect(restartFn).toHaveBeenCalledTimes(0)
+      // Counter should not have incremented
+      expect(state.consecutiveRestarts).toBe(0)
+    } finally {
+      clearTaskState(taskId)
+    }
+  })
 })
 
 describe("idle timeout", () => {

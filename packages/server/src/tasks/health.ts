@@ -116,6 +116,19 @@ export function checkTask(
         return "healthy"
       }
 
+      // Skip if a reconnect is already in progress — don't count this cycle
+      // as a failed restart attempt, since another fiber is handling recovery.
+      if (state.reconnecting) {
+        taskLog.debug("Reconnect in progress, skipping health check", { taskId: task.id })
+        return "healthy"
+      }
+
+      // Warn about zombie tasks (no PID tracked in DB) — helps diagnose edge cases
+      const taskRow = task as TaskRow & { agent_pid?: number | null }
+      if (!taskRow.agent_pid) {
+        taskLog.warn("Running task has no agent_pid in DB", { taskId: task.id })
+      }
+
       // Check if the agent reported an error before dying
       const lastError = deps.getLastAgentError(task.id)
 
