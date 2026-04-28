@@ -437,10 +437,11 @@ export const ChatMessage = memo(function ChatMessage({ message, tasks, onReply, 
   const isUser = message.role === "user"
   const isSystem = message.role === "system"
   const isThinking = message.role === "thinking"
-  const isNarration = message.role === "narration"
   const isPlan = message.role === "plan"
   const isContentBlock = message.role === "content"
-  const isTool = !isUser && !isSystem && !isThinking && !isNarration && !isPlan && !isContentBlock && isToolCall(message.content)
+  // Legacy narration rows from old providers — skip rendering (ACP doesn't emit these)
+  const isNarration = message.role === "narration"
+  const isTool = !isUser && !isSystem && !isThinking && !isPlan && !isContentBlock && !isNarration && isToolCall(message.content)
 
   const messageRef = useRef<HTMLDivElement>(null)
 
@@ -492,6 +493,9 @@ export const ChatMessage = memo(function ChatMessage({ message, tasks, onReply, 
       </div>
     )
   }
+
+  // Skip legacy narration rows from old providers
+  if (isNarration) return null
 
   if (isUser) {
     return (
@@ -557,42 +561,6 @@ export const ChatMessage = memo(function ChatMessage({ message, tasks, onReply, 
         isActive={isThinkingActive}
         duration={thinkingDuration}
       />
-    )
-  }
-
-  // Narration — per-turn agent text (collapsed alongside thinking)
-  if (isNarration) {
-    return (
-      <div className="animate-fade-in flex flex-col gap-1">
-        <div className="flex items-center gap-2">
-          <div className="flex h-5 w-5 items-center justify-center rounded-[10px] bg-blue-500/15">
-            <svg className="h-2.5 w-2.5 text-blue-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-              <path strokeLinecap="round" strokeLinejoin="round" d="M7.5 8.25h9m-9 3H12m-9.75 1.51c0 1.6 1.123 2.994 2.707 3.227 1.129.166 2.27.293 3.423.379.35.026.67.21.865.501L12 21l2.755-4.133a1.14 1.14 0 0 1 .865-.501 48.172 48.172 0 0 0 3.423-.379c1.584-.233 2.707-1.626 2.707-3.228V6.741c0-1.602-1.123-2.995-2.707-3.228A48.394 48.394 0 0 0 12 3c-2.392 0-4.744.175-7.043.513C3.373 3.746 2.25 5.14 2.25 6.741v6.018Z" />
-            </svg>
-          </div>
-          <span className="text-xs font-medium text-blue-500/70">Narration</span>
-          <span className="text-2xs text-muted-foreground/50">{formatTimestamp(message.timestamp)}</span>
-        </div>
-        <div className="rounded-lg border border-blue-500/10 bg-blue-500/5 px-3 py-2 text-xs leading-[1.6] text-muted-foreground break-words" onClick={handleLinkClick}>
-          <ReactMarkdown remarkPlugins={remarkPlugins} components={markdownComponents}>
-            {message.content}
-          </ReactMarkdown>
-        </div>
-        {message.images && message.images.length > 0 && (
-          <>
-            <div className="mt-1 flex flex-wrap gap-1">
-              {message.images.map((img, i) => (
-                <button key={i} onClick={() => setLightboxIndex(i)} className="cursor-zoom-in">
-                  <AuthenticatedImage src={img.src} alt="Agent image" className="h-16 w-16 rounded-md object-cover" />
-                </button>
-              ))}
-            </div>
-            {lightboxIndex !== null && (
-              <ImageLightbox images={message.images} initialIndex={lightboxIndex} onClose={() => setLightboxIndex(null)} />
-            )}
-          </>
-        )}
-      </div>
     )
   }
 

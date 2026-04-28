@@ -538,14 +538,13 @@ export async function start(): Promise<void> {
                 break
               }
               case "message.complete": {
-                if ((event.role === "assistant" || event.role === "narration") && (event.content || event.imagePaths?.length || event.images?.length)) {
-                  const role = event.role
-                  const completedActive = role === "assistant" ? completeActiveStreamMessage(taskId, "assistant") : undefined
+                if (event.role === "assistant" && (event.content || event.imagePaths?.length || event.images?.length)) {
+                  const completedActive = completeActiveStreamMessage(taskId, "assistant")
                   const messageId = event.messageId ?? completedActive?.messageId
 
                   const emitAndInsert = (imageFilenames?: string[]) => {
                     emitTaskEvent(taskId, {
-                      role,
+                      role: "assistant",
                       content: event.content,
                       messageId,
                       timestamp: new Date().toISOString(),
@@ -554,7 +553,7 @@ export async function start(): Promise<void> {
                     Effect.runPromise(
                       insertSessionLog(db, {
                         task_id: taskId,
-                        role,
+                        role: "assistant",
                         content: event.content,
                         images: imageFilenames ? JSON.stringify(imageFilenames) : null,
                       }).pipe(
@@ -614,14 +613,12 @@ export async function start(): Promise<void> {
                     emitAndInsert()
                   }
 
-                  // Track when agent produces a final result (not narration/thinking)
-                  if (role === "assistant") {
-                    Effect.runPromise(
-                      markTaskResult(db, taskId).pipe(Effect.catchAll(() => Effect.void))
-                    )
-                  }
+                  // Track when agent produces a final result
+                  Effect.runPromise(
+                    markTaskResult(db, taskId).pipe(Effect.catchAll(() => Effect.void))
+                  )
 
-                  // Fallback PR URL detection from assistant/narration message text
+                  // Fallback PR URL detection from assistant message text
                   if (!getTaskState(taskId).prUrlSaved) {
                     const prUrl = extractPrUrl(event.content)
                     if (prUrl) trySavePrUrl(db, taskId, prUrl, "message")
