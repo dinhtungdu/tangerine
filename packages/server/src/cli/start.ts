@@ -1349,7 +1349,7 @@ export async function start(): Promise<void> {
       abortHungTool: (taskId) => {
         const handle = agentHandles.get(taskId)
         if (!handle) return Effect.void
-        return handle.abort().pipe(Effect.catchAll(() => Effect.void))
+        return handle.abort(true).pipe(Effect.catchAll(() => Effect.void))
       },
       getLastUserMessageTime: (() => {
         const stmt = db.prepare(

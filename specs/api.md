@@ -79,6 +79,7 @@ Unknown persisted task-type values normalize to `runner` for legacy compatibilit
 | GET | `/api/tasks/:id/queue` | List queued prompts waiting for the current turn to finish; queued prompts are persisted to session logs only when delivered to the agent |
 | PATCH | `/api/tasks/:id/queue/:promptId` | Edit queued prompt text/images before delivery |
 | DELETE | `/api/tasks/:id/queue/:promptId` | Remove a queued prompt |
+| POST | `/api/tasks/:id/queue/:promptId/send-now` | Atomically remove queued prompt from queue and send immediately; aborts current work if agent is busy |
 | POST | `/api/tasks/:id/model` | Change model, reasoning effort, and/or ACP mode |
 | GET | `/api/tasks/:id/config-options` | Return active ACP session config options |
 | GET | `/api/tasks/:id/slash-commands` | Return active ACP slash commands for `/` autocomplete |

@@ -732,11 +732,14 @@ async function startAcpSession(ctx: AgentStartContext, config?: AcpProviderConfi
       }
     },
 
-    abort() {
+    abort(force = false) {
       return Effect.try({
         try: () => {
           if (!sessionId || shutdownCalled) return
-          killDescendants(proc.pid, "SIGTERM")
+          if (force) {
+            // Force kill for hung agents that won't respond to RPC
+            killDescendants(proc.pid, "SIGTERM")
+          }
           rpc.notify("session/cancel", { sessionId })
         },
         catch: (cause) => new AgentError({
