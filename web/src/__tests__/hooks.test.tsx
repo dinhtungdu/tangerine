@@ -236,7 +236,7 @@ describe("useSession", () => {
     }
   })
 
-  test("removes optimistic message from chat when queue update shows it was queued", async () => {
+  test("keeps optimistic message in chat when queue update shows it was queued", async () => {
     const originalWebSocket = globalThis.WebSocket
     let wsInstance: { onmessage: ((event: MessageEvent) => void) | null; send: (data: string) => void } | null = null
     class TestWebSocket {
@@ -305,10 +305,68 @@ describe("useSession", () => {
         }))
       })
 
-      // Optimistic message should be removed from chat (it's now in queue)
-      expect(result.current.messages).toHaveLength(0)
+      // User message should stay in chat while also appearing in queue for editing.
+      expect(result.current.messages).toHaveLength(1)
+      expect(result.current.messages[0].role).toBe("user")
+      expect(result.current.messages[0].content).toBe("hello world")
       expect(result.current.queuedPrompts).toHaveLength(1)
       expect(result.current.queuedPrompts[0].text).toBe("hello world")
+    } finally {
+      globalThis.WebSocket = originalWebSocket
+    }
+  })
+
+  test("keeps optimistic message when stale REST snapshot resolves after send", async () => {
+    const originalWebSocket = globalThis.WebSocket
+    let resolveMessages: (() => void) | null = null
+    class TestWebSocket {
+      static readonly CLOSING = 2
+      readonly readyState = 1
+      onopen: ((event: Event) => void) | null = null
+      onmessage: ((event: MessageEvent) => void) | null = null
+      onerror: ((event: Event) => void) | null = null
+      onclose: ((event: CloseEvent) => void) | null = null
+      constructor(_url: string) { }
+      send(_data: string) { }
+      close() { }
+    }
+    globalThis.WebSocket = TestWebSocket as unknown as typeof WebSocket
+    globalThis.fetch = mock((url: string) => {
+      if (url.includes("/messages")) {
+        return new Promise<Response>((resolve) => {
+          resolveMessages = () => resolve(new Response(JSON.stringify([]), { status: 200, headers: { "Content-Type": "application/json" } }))
+        })
+      }
+      if (url.includes("/activities") || url.includes("/queued-prompts")) {
+        return Promise.resolve(new Response(JSON.stringify([]), { status: 200, headers: { "Content-Type": "application/json" } }))
+      }
+      if (url.includes("/config-options")) {
+        return Promise.resolve(new Response(JSON.stringify({ configOptions: [] }), { status: 200, headers: { "Content-Type": "application/json" } }))
+      }
+      if (url.includes("/slash-commands")) {
+        return Promise.resolve(new Response(JSON.stringify({ commands: [] }), { status: 200, headers: { "Content-Type": "application/json" } }))
+      }
+      return Promise.resolve(new Response(JSON.stringify([]), { status: 200, headers: { "Content-Type": "application/json" } }))
+    }) as typeof fetch
+
+    try {
+      const { result } = renderHook(() => useSession("task-1"))
+      await waitFor(() => expect(resolveMessages).toBeTruthy())
+
+      act(() => {
+        result.current.sendPrompt("race message")
+      })
+      expect(result.current.messages).toHaveLength(1)
+      expect(result.current.messages[0].content).toBe("race message")
+
+      await act(async () => {
+        resolveMessages?.()
+        await new Promise((resolve) => setTimeout(resolve, 0))
+      })
+
+      expect(result.current.messages).toHaveLength(1)
+      expect(result.current.messages[0].role).toBe("user")
+      expect(result.current.messages[0].content).toBe("race message")
     } finally {
       globalThis.WebSocket = originalWebSocket
     }

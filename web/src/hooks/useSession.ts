@@ -95,6 +95,30 @@ export function mergeActivitySnapshot(activities: ActivityEntry[], snapshot: Act
   return [...byId.values()].sort((a, b) => activityStartMs(a) - activityStartMs(b) || a.id - b.id)
 }
 
+export function mergeMessageSnapshot(current: ChatMessage[], snapshot: ChatMessage[], requestedAtMs: number): ChatMessage[] {
+  const additions: ChatMessage[] = []
+  for (const message of current) {
+    if (messageTimestampMs(message) < requestedAtMs) continue
+    if (isMessageRepresented(message, snapshot) || isMessageRepresented(message, additions)) continue
+    additions.push(message)
+  }
+  return additions.length > 0 ? [...snapshot, ...additions] : snapshot
+}
+
+function isMessageRepresented(message: ChatMessage, candidates: ChatMessage[]): boolean {
+  const messageMs = messageTimestampMs(message)
+  return candidates.some((candidate) => {
+    if (candidate.role !== message.role || candidate.content !== message.content) return false
+    const candidateMs = messageTimestampMs(candidate)
+    return messageMs === 0 || candidateMs === 0 || candidateMs >= messageMs
+  })
+}
+
+function messageTimestampMs(message: Pick<ChatMessage, "timestamp">): number {
+  const parsed = Date.parse(message.timestamp)
+  return Number.isFinite(parsed) ? parsed : 0
+}
+
 function isNewerActivity(candidate: ActivityEntry, current: ActivityEntry): boolean {
   return activityFreshnessMs(candidate) > activityFreshnessMs(current)
 }
@@ -169,6 +193,7 @@ export function useSession(taskId: string, initialContextTokens?: number, initia
     setSlashCommands([])
     processedCountRef.current = 0
     activeAssistantStreamIdRef.current = null
+    pendingOptimisticRef.current.clear()
   }, [taskId])
 
   // Clear stale stream ID when disconnected to prevent corrupted messages on reconnect
@@ -184,35 +209,35 @@ export function useSession(taskId: string, initialContextTokens?: number, initia
     const isCurrentTask = () => activeTaskIdRef.current === refreshTaskId
 
     try {
+      const messagesRequestedAtMs = Date.now()
       const logs = await fetchMessages(refreshTaskId)
       if (!isCurrentTask()) return
-      setMessages(
-        logs.map((log: SessionLog) => {
-          const msg: ChatMessage = {
-            id: String(log.id),
-            role: log.role,
-            content: log.content,
-            timestamp: log.timestamp,
-          }
-          if (log.role === "plan") {
-            try {
-              msg.planEntries = JSON.parse(log.content) as AgentPlanEntry[]
-            } catch { /* ignore malformed */ }
-          }
-          if (log.role === "content") {
-            try {
-              msg.contentBlock = JSON.parse(log.content) as AgentContentBlock
-            } catch { /* ignore malformed */ }
-          }
-          if (log.images) {
-            try {
-              const filenames = JSON.parse(log.images) as string[]
-              msg.images = filenames.map((f) => ({ src: `/api/tasks/${refreshTaskId}/images/${f}` }))
-            } catch { /* ignore malformed */ }
-          }
-          return msg
-        }),
-      )
+      const snapshot = logs.map((log: SessionLog) => {
+        const msg: ChatMessage = {
+          id: String(log.id),
+          role: log.role,
+          content: log.content,
+          timestamp: log.timestamp,
+        }
+        if (log.role === "plan") {
+          try {
+            msg.planEntries = JSON.parse(log.content) as AgentPlanEntry[]
+          } catch { /* ignore malformed */ }
+        }
+        if (log.role === "content") {
+          try {
+            msg.contentBlock = JSON.parse(log.content) as AgentContentBlock
+          } catch { /* ignore malformed */ }
+        }
+        if (log.images) {
+          try {
+            const filenames = JSON.parse(log.images) as string[]
+            msg.images = filenames.map((f) => ({ src: `/api/tasks/${refreshTaskId}/images/${f}` }))
+          } catch { /* ignore malformed */ }
+        }
+        return msg
+      })
+      setMessages((prev) => mergeMessageSnapshot(prev, snapshot, messagesRequestedAtMs))
     } catch {
       // Messages may not be available yet
     }
@@ -413,34 +438,8 @@ export function useSession(taskId: string, initialContextTokens?: number, initia
         setAgentStatus(msg.agentStatus)
         break
       case "queue":
-        // If queue contains a message we optimistically added to chat, remove from chat.
-        // This fixes the race where client thinks agent idle but server queues (agent busy).
-        // Only match against server-acknowledged entries in pendingOptimisticRef to avoid
-        // removing legitimate chat history (e.g. duplicate messages, or messages from reconnect).
-        setMessages((prev) => {
-          if (pendingOptimisticRef.current.size === 0) return prev
-          const toRemove = new Set<string>()
-          // Build list of queued texts for matching (handle duplicates with 1:1 matching)
-          const queuedTexts = msg.queuedPrompts.map((e) => e.text)
-          for (const [optimisticId, acknowledged] of pendingOptimisticRef.current) {
-            // Only check acknowledged entries (server received, may have queued)
-            if (!acknowledged) continue
-            const opt = prev.find((m) => m.id === optimisticId)
-            if (!opt) continue
-            const matchIdx = queuedTexts.indexOf(opt.content)
-            if (matchIdx !== -1) {
-              toRemove.add(optimisticId)
-              pendingOptimisticRef.current.delete(optimisticId)
-              // Remove matched text to handle duplicate sends correctly (1:1 matching)
-              queuedTexts.splice(matchIdx, 1)
-            } else {
-              // Acknowledged but not in queue = message was processed, not queued. Clear tracking.
-              pendingOptimisticRef.current.delete(optimisticId)
-            }
-          }
-          if (toRemove.size === 0) return prev
-          return prev.filter((m) => !toRemove.has(m.id))
-        })
+        // Keep the chat transcript stable; queued prompts are an editable delivery state,
+        // not a reason to hide a message the user just sent.
         setQueuedPrompts(msg.queuedPrompts)
         break
       case "error":
