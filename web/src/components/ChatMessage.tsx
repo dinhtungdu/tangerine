@@ -195,6 +195,8 @@ const BASE_REMARK_PLUGINS = [remarkGfm]
 // User messages preserve single newlines (matching whitespace-pre-wrap semantics)
 const BASE_USER_REMARK_PLUGINS = [remarkGfm, remarkBreaks]
 
+const THINKING_TRUNCATE_LENGTH = 100
+
 function ThinkingMessage({ message, isActive, duration }: {
   message: ChatMessageType
   isActive: boolean
@@ -202,8 +204,15 @@ function ThinkingMessage({ message, isActive, duration }: {
 }) {
   const elapsed = useElapsedTime(message.timestamp, isActive)
   const displayDuration = duration ?? elapsed
+  const [expanded, setExpanded] = useState(false)
 
   if (!isActive && !message.content.trim()) return null
+
+  const content = message.content
+  const needsTruncation = content.length > THINKING_TRUNCATE_LENGTH
+  const displayContent = expanded || !needsTruncation
+    ? content
+    : content.slice(0, THINKING_TRUNCATE_LENGTH) + "…"
 
   return (
     <div className="animate-fade-in overflow-hidden flex flex-col gap-1">
@@ -229,7 +238,15 @@ function ThinkingMessage({ message, isActive, duration }: {
         <span className="text-2xs text-muted-foreground/50">{formatTimestamp(message.timestamp)}</span>
       </div>
       <div className="rounded-lg border border-amber-500/10 bg-amber-500/5 px-3 py-2 text-xs italic leading-[1.6] text-muted-foreground break-words">
-        {message.content}
+        {displayContent}
+        {needsTruncation && (
+          <button
+            onClick={() => setExpanded(!expanded)}
+            className="ml-1 text-amber-500/70 hover:text-amber-500 font-medium not-italic"
+          >
+            {expanded ? "show less" : "show more"}
+          </button>
+        )}
       </div>
     </div>
   )
