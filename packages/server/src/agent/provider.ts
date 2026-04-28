@@ -58,7 +58,11 @@ export interface AgentHandle {
    * Returns true if the provider applied it; false means caller should fallback.
    */
   setSystemPrompt?(text: string): Effect.Effect<boolean, AgentError>
-  abort(): Effect.Effect<void, AgentError>
+  /**
+   * Abort the current agent work.
+   * @param force If true, forcibly kill descendants (for hung agents). If false, use graceful RPC cancel.
+   */
+  abort(force?: boolean): Effect.Effect<void, AgentError>
   subscribe(onEvent: (e: AgentEvent) => void): { unsubscribe(): void }
   shutdown(): Effect.Effect<void, never>
   /**
