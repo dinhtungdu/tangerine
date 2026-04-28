@@ -1,7 +1,7 @@
 import { describe, test, expect, mock, beforeEach, afterEach } from "bun:test"
 import { renderHook, act, waitFor } from "@testing-library/react"
 import { useTasks } from "../hooks/useTasks"
-import { applyAssistantStreamMessage, applyThinkingStreamMessage } from "../hooks/useSession"
+import { applyAssistantStreamMessage, applyThinkingStreamMessage, applyUsageUpdate } from "../hooks/useSession"
 import { useMentionPicker } from "../hooks/useMentionPicker"
 import { usePanelActions } from "../hooks/usePanelActions"
 import { useResizable } from "../hooks/useResizable"
@@ -68,6 +68,22 @@ describe("applyThinkingStreamMessage", () => {
     const complete = applyThinkingStreamMessage(second, { messageId: "thought-1", content: "think", timestamp: "2026-04-27T10:00:02.000Z" }, "complete")
 
     expect(complete).toEqual([{ id: "thinking-thought-1", role: "thinking", content: "think", timestamp: "2026-04-27T10:00:02.000Z" }])
+  })
+})
+
+describe("applyUsageUpdate", () => {
+  test("updates context tokens and window max from ACP usage events", () => {
+    expect(applyUsageUpdate(
+      { contextTokens: 0, contextWindowMax: null },
+      { contextTokens: 123, contextWindowMax: 1000 },
+    )).toEqual({ contextTokens: 123, contextWindowMax: 1000 })
+  })
+
+  test("preserves previous values when usage event omits them", () => {
+    expect(applyUsageUpdate(
+      { contextTokens: 123, contextWindowMax: 1000 },
+      {},
+    )).toEqual({ contextTokens: 123, contextWindowMax: 1000 })
   })
 })
 

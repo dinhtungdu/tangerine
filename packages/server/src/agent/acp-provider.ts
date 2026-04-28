@@ -217,7 +217,13 @@ export function createAcpEventMapper(): {
 
         case "usage_update": {
           const used = numberField(update, "used")
-          return used && used > 0 ? [{ kind: "usage", contextTokens: used }] : []
+          const size = numberField(update, "size")
+          const usageEvent: AgentEvent = {
+            kind: "usage",
+            ...(used && used > 0 ? { contextTokens: used } : {}),
+            ...(size && size > 0 ? { contextWindowMax: size } : {}),
+          }
+          return usageEvent.contextTokens || usageEvent.contextWindowMax ? [usageEvent] : []
         }
 
         case "session_info_update": {

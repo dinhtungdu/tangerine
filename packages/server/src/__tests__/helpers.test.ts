@@ -64,9 +64,12 @@ describe("mapTaskRow", () => {
       last_seen_at: null,
       last_result_at: null,
       capabilities: null,
-      context_tokens: 0,
+      context_tokens: 123,
+      context_window_max: 1000,
     }
     const task = mapTaskRow(row)
+    expect(task.contextTokens).toBe(123)
+    expect(task.contextWindowMax).toBe(1000)
     expect(task.createdAt).toBe("2026-03-27T09:00:00Z")
     expect(task.updatedAt).toBe("2026-03-27T09:10:00Z")
     expect(task.startedAt).toBe("2026-03-27T09:01:00Z")

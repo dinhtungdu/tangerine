@@ -111,7 +111,7 @@ Map ACP updates to Tangerine events:
 | non-text content block | native `content.block` card |
 | `session_info_update` | `session.info` metadata + activity log |
 | `config_option_update` | `config.options` state/UI update |
-| `usage_update` | `usage.contextTokens` |
+| `usage_update` | `usage.contextTokens/contextWindowMax` |
 | prompt response usage | `usage.inputTokens/outputTokens/contextTokens` |
 
 Keep current WebSocket and dashboard event format while migrating so UI changes stay small.

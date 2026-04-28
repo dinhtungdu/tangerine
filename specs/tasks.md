@@ -118,6 +118,7 @@ CREATE TABLE tasks (
   user_id TEXT,
   agent_session_id TEXT,
   agent_pid INTEGER,
+  suspended INTEGER NOT NULL DEFAULT 0,
   error TEXT,
   created_at TEXT NOT NULL DEFAULT (datetime('now')),
   updated_at TEXT NOT NULL DEFAULT (datetime('now')),
@@ -125,7 +126,9 @@ CREATE TABLE tasks (
   completed_at TEXT,
   last_seen_at TEXT,
   last_result_at TEXT,
-  capabilities TEXT
+  capabilities TEXT,
+  context_tokens INTEGER NOT NULL DEFAULT 0,
+  context_window_max INTEGER
 )
 ```
 
