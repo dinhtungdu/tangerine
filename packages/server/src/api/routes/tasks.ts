@@ -11,6 +11,7 @@ import { getAgentWorkingState, hasAgentWorkingState } from "../../tasks/events"
 import { getRepoDir } from "../../config"
 import { ghSpawnEnv } from "../../gh"
 import { localExecStrict } from "./../../tasks/worktree-pool"
+import { listFilesForMention } from "../file-search"
 import { configuredProviderList, isConfiguredProvider } from "../provider-validation"
 
 const toWriteResponse = (row: { id: string; title: string; status: string }): TaskWriteResponse =>
@@ -49,6 +50,23 @@ export function taskRoutes(deps: AppDeps): Hono {
     const status = c.req.query("status") || undefined
     const search = c.req.query("search") || undefined
     return runEffect(c, countTasksByProject(deps.db, { status, search }))
+  })
+
+  app.get("/:id/files", (c) => {
+    const taskId = c.req.param("id")
+    return runEffect(c,
+      getTask(deps.db, taskId).pipe(
+        Effect.flatMap((task) => {
+          if (!task) return Effect.fail(new TaskNotFoundError({ taskId }))
+          const source = task.worktree_path ? "worktree" : "head"
+          const root = task.worktree_path ?? getRepoDir(deps.config.config, task.project_id)
+          return Effect.tryPromise({
+            try: async () => ({ files: await listFilesForMention(root, c.req.query("query") ?? "", { source }) }),
+            catch: (error) => error instanceof Error ? error : new Error(String(error)),
+          })
+        })
+      )
+    )
   })
 
   app.get("/:id", (c) => {

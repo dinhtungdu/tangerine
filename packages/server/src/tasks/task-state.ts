@@ -1,7 +1,7 @@
 // Consolidated per-task in-memory coordination state.
 // Replaces scattered Set/Map instances across start.ts and health.ts.
 
-import type { AgentConfigOption } from "@tangerine/shared"
+import type { AgentConfigOption, AgentSlashCommand } from "@tangerine/shared"
 
 export interface ActiveStreamMessage {
   role: "assistant" | "thinking"
@@ -33,6 +33,8 @@ export interface TaskState {
   contextWindowMax: number | null
   /** Active ACP session configuration selectors. */
   configOptions: AgentConfigOption[]
+  /** Active ACP slash commands for prompt autocomplete. */
+  slashCommands: AgentSlashCommand[]
   /** Latest ACP session metadata update. */
   sessionInfo: { title?: string | null; updatedAt?: string | null; metadata?: Record<string, unknown> }
   /** In-memory stream snapshots used when a browser switches into a running task mid-turn. */
@@ -56,6 +58,7 @@ function defaultState(): TaskState {
     contextTokens: 0,
     contextWindowMax: null,
     configOptions: [],
+    slashCommands: [],
     sessionInfo: {},
   }
 }

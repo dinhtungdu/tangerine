@@ -2,14 +2,16 @@ import React, { useState, useRef, useCallback, useEffect, type KeyboardEvent, ty
 import { ArrowUp, X, Quote, Paperclip } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Textarea } from "@/components/ui/textarea"
-import { isAgentEffortOption, type AgentConfigOption, type PromptImage, type PredefinedPrompt, type ProviderType, type Task } from "@tangerine/shared"
+import { isAgentEffortOption, type AgentConfigOption, type AgentSlashCommand, type PromptImage, type PredefinedPrompt, type ProviderType, type Task } from "@tangerine/shared"
 import { ModelEffortPopover, type EffortOption } from "./ModelEffortPopover"
+import { FileMentionPicker } from "./FileMentionPicker"
 import { MentionPicker } from "./MentionPicker"
 import { SlashCommandPicker } from "./SlashCommandPicker"
+import { useFileMentionPicker, type FileMention } from "../hooks/useFileMentionPicker"
 import { useMentionPicker } from "../hooks/useMentionPicker"
+import { useSlashCommandPicker } from "../hooks/useSlashCommandPicker"
 import { useTasks } from "../hooks/useTasks"
 import { formatTokens } from "../lib/format"
-import { buildAuthHeaders } from "../lib/auth"
 
 interface PendingImage extends PromptImage {
   dataUrl: string // for thumbnail preview only
@@ -30,6 +32,7 @@ interface ChatInputProps {
   onModeChange?: (mode: string) => void
   configOptions?: AgentConfigOption[]
   predefinedPrompts?: PredefinedPrompt[]
+  slashCommands?: AgentSlashCommand[]
   /** Raw message content to quote; shown as a chip above the input. Prepended as blockquote on send. */
   quotedMessage?: string | null
   onQuoteDismiss?: () => void
@@ -57,7 +60,7 @@ export function appendQuotedText(existingText: string, quotedText: string): stri
   return `${prefix}${quotedText}\n\n`
 }
 
-export function ChatInput({ onSend, disabled, queueLength, taskId, isWorking, onAbort, model, provider, reasoningEffort, onModelChange, onReasoningEffortChange, onModeChange, configOptions, predefinedPrompts, quotedMessage, onQuoteDismiss, selectedText, onQuoteSelection, autoFocusKey, contextTokens, contextWindowMax }: ChatInputProps) {
+export function ChatInput({ onSend, disabled, queueLength, taskId, isWorking, onAbort, model, provider, reasoningEffort, onModelChange, onReasoningEffortChange, onModeChange, configOptions, predefinedPrompts, slashCommands = [], quotedMessage, onQuoteDismiss, selectedText, onQuoteSelection, autoFocusKey, contextTokens, contextWindowMax }: ChatInputProps) {
   const draftKey = taskId ? `tangerine:chat-draft:${taskId}` : null
 
   const [text, setText] = useState(() => draftKey ? (loadChatDraft(draftKey).text ?? "") : "")
@@ -71,28 +74,15 @@ export function ChatInput({ onSend, disabled, queueLength, taskId, isWorking, on
   const mention = useMentionPicker(allTasks)
   const mentionRef = useRef(mention)
   mentionRef.current = mention
+  const fileMention = useFileMentionPicker({ taskId })
+  const fileMentionRef = useRef(fileMention)
+  fileMentionRef.current = fileMention
   const textRef = useRef(text)
   textRef.current = text
 
-  // Slash command (skill) picker state
-  const [skills, setSkills] = useState<string[]>([])
-  const [slashState, setSlashState] = useState<{ isOpen: boolean; query: string; selectedIndex: number; triggerStart: number }>({
-    isOpen: false, query: "", selectedIndex: 0, triggerStart: -1,
-  })
-  const slashStateRef = useRef(slashState)
-  slashStateRef.current = slashState
-  const skillsRef = useRef(skills)
-  skillsRef.current = skills
-
-  // Fetch skills on mount and whenever the agent finishes a turn (isWorking → false),
-  // because ACP agents may populate skills asynchronously.
-  useEffect(() => {
-    if (!taskId || isWorking) return
-    fetch(`/api/tasks/${taskId}/skills`, { headers: buildAuthHeaders() })
-      .then((r) => r.ok ? r.json() as Promise<{ skills: string[] }> : Promise.resolve({ skills: [] }))
-      .then((data) => { if (data.skills.length > 0) setSkills(data.skills) })
-      .catch(() => {})
-  }, [taskId, isWorking])
+  const slashCommand = useSlashCommandPicker(slashCommands)
+  const slashCommandRef = useRef(slashCommand)
+  slashCommandRef.current = slashCommand
 
   // Ref to latest draft state — used in the unmount cleanup to avoid stale closures
   const draftStateRef = useRef({ text, pendingImages })
@@ -113,30 +103,6 @@ export function ChatInput({ onSend, disabled, queueLength, taskId, isWorking, on
     }
   }, [draftKey])
 
-  const filteredSkills = slashState.isOpen
-    ? skills.filter((s) => s.toLowerCase().includes(slashState.query.toLowerCase())).slice(0, 8)
-    : []
-
-  const closeSlash = useCallback(() => {
-    setSlashState({ isOpen: false, query: "", selectedIndex: 0, triggerStart: -1 })
-  }, [])
-
-  const selectSkill = useCallback((skill: string) => {
-    const { triggerStart, query } = slashStateRef.current
-    const currentText = textRef.current
-    const before = currentText.slice(0, triggerStart)
-    const after = currentText.slice(triggerStart + 1 + query.length)
-    const newText = `${before}/${skill} ${after}`
-    setText(newText)
-    setSlashState({ isOpen: false, query: "", selectedIndex: 0, triggerStart: -1 })
-    requestAnimationFrame(() => {
-      const textarea = textareaRef.current
-      if (!textarea) return
-      const pos = before.length + skill.length + 2 // "/<skill> "
-      textarea.setSelectionRange(pos, pos)
-      textarea.focus()
-    })
-  }, [])
 
   const handleSend = useCallback(() => {
     const trimmed = text.trim()
@@ -170,6 +136,28 @@ export function ChatInput({ onSend, disabled, queueLength, taskId, isWorking, on
     })
   }, [])
 
+  const handleFileMentionSelect = useCallback((file: FileMention) => {
+    const { newText, cursorPos } = fileMentionRef.current.selectFile(file, textRef.current)
+    setText(newText)
+    requestAnimationFrame(() => {
+      const textarea = textareaRef.current
+      if (!textarea) return
+      textarea.setSelectionRange(cursorPos, cursorPos)
+      textarea.focus()
+    })
+  }, [])
+
+  const handleSlashCommandSelect = useCallback((command: AgentSlashCommand) => {
+    const { newText, cursorPos } = slashCommandRef.current.selectCommand(command, textRef.current)
+    setText(newText)
+    requestAnimationFrame(() => {
+      const textarea = textareaRef.current
+      if (!textarea) return
+      textarea.setSelectionRange(cursorPos, cursorPos)
+      textarea.focus()
+    })
+  }, [])
+
   const handleKeyDown = useCallback(
     (e: KeyboardEvent<HTMLTextAreaElement>) => {
       const m = mentionRef.current
@@ -183,43 +171,32 @@ export function ChatInput({ onSend, disabled, queueLength, taskId, isWorking, on
         }
         if (m.onKeyDown(e)) return
       }
-      // Slash command picker keys
-      const slash = slashStateRef.current
-      if (slash.isOpen) {
-        const filtered = skillsRef.current.filter((sk) => sk.toLowerCase().includes(slash.query.toLowerCase())).slice(0, 8)
-        // Only intercept navigation/selection keys when the picker is actually visible
-        if (filtered.length > 0) {
-          if (e.key === "Escape") {
-            e.preventDefault()
-            closeSlash()
-            return
-          }
-          if (e.key === "ArrowDown") {
-            e.preventDefault()
-            setSlashState((s) => ({ ...s, selectedIndex: Math.min(s.selectedIndex + 1, filtered.length - 1) }))
-            return
-          }
-          if (e.key === "ArrowUp") {
-            e.preventDefault()
-            setSlashState((s) => ({ ...s, selectedIndex: Math.max(s.selectedIndex - 1, 0) }))
-            return
-          }
-          if (e.key === "Enter" || e.key === "Tab") {
-            const skill = filtered[slash.selectedIndex]
-            if (skill) {
-              e.preventDefault()
-              selectSkill(skill)
-              return
-            }
-          }
+      const filePicker = fileMentionRef.current
+      if (filePicker.state.isOpen) {
+        const selectedFile = filePicker.filteredFiles[filePicker.state.selectedIndex]
+        if ((e.key === "Enter" || e.key === "Tab") && selectedFile) {
+          e.preventDefault()
+          handleFileMentionSelect(selectedFile)
+          return
         }
+        if (filePicker.onKeyDown(e)) return
+      }
+      const slash = slashCommandRef.current
+      if (slash.state.isOpen) {
+        const selectedCommand = slash.filteredCommands[slash.state.selectedIndex]
+        if ((e.key === "Enter" || e.key === "Tab") && selectedCommand) {
+          e.preventDefault()
+          handleSlashCommandSelect(selectedCommand)
+          return
+        }
+        if (slash.onKeyDown(e)) return
       }
       if (e.key === "Enter" && !e.shiftKey && !e.metaKey && !e.ctrlKey && !isTouchDevice.current) {
         e.preventDefault()
         handleSend()
       }
     },
-    [handleSend, handleMentionSelect, closeSlash, selectSkill],
+    [handleSend, handleMentionSelect, handleFileMentionSelect, handleSlashCommandSelect],
   )
 
   // JS fallback for browsers without field-sizing:content support (Chrome <123, Firefox <130, Safari <18)
@@ -438,12 +415,20 @@ export function ChatInput({ onSend, disabled, queueLength, taskId, isWorking, on
             onHover={(i) => mention.setSelectedIndex(i)}
           />
         )}
-        {slashState.isOpen && filteredSkills.length > 0 && (
+        {fileMention.state.isOpen && (
+          <FileMentionPicker
+            files={fileMention.filteredFiles}
+            selectedIndex={fileMention.state.selectedIndex}
+            onSelect={handleFileMentionSelect}
+            onHover={(i) => fileMention.setSelectedIndex(i)}
+          />
+        )}
+        {slashCommand.state.isOpen && slashCommand.filteredCommands.length > 0 && (
           <SlashCommandPicker
-            skills={filteredSkills}
-            selectedIndex={slashState.selectedIndex}
-            onSelect={selectSkill}
-            onHover={(i) => setSlashState((s) => ({ ...s, selectedIndex: i }))}
+            commands={slashCommand.filteredCommands}
+            selectedIndex={slashCommand.state.selectedIndex}
+            onSelect={handleSlashCommandSelect}
+            onHover={(i) => slashCommand.setSelectedIndex(i)}
           />
         )}
         <div className="rounded-lg border border-input bg-background transition-colors focus-within:border-ring focus-within:ring-1 focus-within:ring-ring/50 dark:bg-input/30">
@@ -456,32 +441,15 @@ export function ChatInput({ onSend, disabled, queueLength, taskId, isWorking, on
               setText(val)
               handleResize()
               mention.onTextChange(val, cursor)
-              // Detect slash trigger: `/` at start of text or after whitespace
-              let si = cursor - 1
-              while (si >= 0) {
-                const ch = val[si]
-                if (ch === "/") {
-                  if (si === 0 || val[si - 1] === " " || val[si - 1] === "\n") {
-                    const query = val.slice(si + 1, cursor)
-                    if (!query.includes(" ") && !query.includes("\n")) {
-                      setSlashState({ isOpen: true, query, selectedIndex: 0, triggerStart: si })
-                    } else {
-                      closeSlash()
-                    }
-                    break
-                  }
-                  break
-                }
-                if (ch === " " || ch === "\n") { closeSlash(); break }
-                si--
-              }
-              if (si < 0) closeSlash()
+              fileMention.onTextChange(val, cursor)
+              slashCommand.onTextChange(val, cursor)
             }}
             onKeyDown={handleKeyDown}
             onPaste={handlePaste}
             onBlur={() => {
               mention.close()
-              closeSlash()
+              fileMention.close()
+              slashCommand.close()
             }}
             placeholder={isWorking ? "Agent is working... (messages will be queued)" : "Message agent..."}
             disabled={disabled}

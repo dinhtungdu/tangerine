@@ -28,7 +28,7 @@ describe("probeAcpAgent", () => {
     expect(result.session?.hasLegacyModes).toBe(true)
     expect(result.session?.configOptionCategories).toEqual(["thought_level", "model", "mode"])
     expect(result.events.rawUpdateCounts).toEqual({ agent_thought_chunk: 1, agent_message_chunk: 2, available_commands_update: 1 })
-    expect(result.events.normalizedEventCounts).toEqual({ "thinking.streaming": 1, "message.streaming": 2, "thinking.complete": 1, "message.complete": 1 })
+    expect(result.events.normalizedEventCounts).toEqual({ "slash.commands": 1, "thinking.streaming": 1, "message.streaming": 2, "thinking.complete": 1, "message.complete": 1 })
     expect(result.events.samples).toContainEqual({ sessionUpdate: "agent_message_chunk", contentType: "text", textLength: 3, hasMessageId: true })
 
     rmSync(tempDir, { recursive: true, force: true })

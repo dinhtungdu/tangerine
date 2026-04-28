@@ -32,6 +32,7 @@ Implemented in `pages/NewAgentPage.tsx`.
 
 Current controls include:
 
+- `#` task mentions and `@` file mentions in prompt textareas
 - project selection
 - harness/provider selection
 - model selection
@@ -47,6 +48,7 @@ Implemented in `pages/TaskDetail.tsx`.
 Current task-detail feature set includes:
 
 - chat panel
+- `#` task mentions, `@` file mentions, and `/` slash-command autocomplete in prompt textareas
 - streamed messages
 - streamed thinking merged into one Thought card per turn
 - tool call display, including ACP `tool_call_update` result text streamed into the matching tool block by `toolCallId` while preserving start-time ordering on reload
@@ -81,7 +83,7 @@ Current sections:
 - API access is centralized in `web/src/lib/api.ts`
 - per-task streaming uses WebSocket hooks
 - initial task-detail load uses `/api/tasks/:id/messages`, which includes persisted logs plus any transient active assistant/thinking stream so switching into a running task shows current output immediately
-- ACP `config.options`, `thinking.streaming`, `thinking.complete`, `plan`, and `content.block` events are folded into per-task session state
+- ACP `config.options`, `slash.commands`, `thinking.streaming`, `thinking.complete`, `plan`, and `content.block` events are folded into per-task session state
 - activity REST snapshots merge with WebSocket activity updates by id/freshness so stale fetch responses cannot overwrite live tool progress
 - queued prompts come from `queue` WebSocket messages plus `/api/tasks/:id/queue` REST fallback; edits/removals call queue REST routes
 

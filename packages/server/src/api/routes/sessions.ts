@@ -58,7 +58,13 @@ export function sessionRoutes(deps: AppDeps): Hono {
   const app = new Hono()
 
   app.get("/:id/config-options", (c) => {
-    return c.json({ configOptions: getTaskState(c.req.param("id")).configOptions })
+    const handleOptions = deps.getAgentHandle(c.req.param("id"))?.getConfigOptions?.()
+    return c.json({ configOptions: handleOptions ?? getTaskState(c.req.param("id")).configOptions })
+  })
+
+  app.get("/:id/slash-commands", (c) => {
+    const handleCommands = deps.getAgentHandle(c.req.param("id"))?.getSlashCommands?.()
+    return c.json({ commands: handleCommands ?? getTaskState(c.req.param("id")).slashCommands })
   })
 
   app.get("/:id/messages", (c) => {

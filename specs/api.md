@@ -21,6 +21,7 @@ Tangerine uses a single shared bearer token for remote single-user access when `
 | GET | `/api/tasks/:id` | Get one task |
 | POST | `/api/tasks` | Create a task |
 | GET | `/api/tasks/:id/children` | List child tasks |
+| GET | `/api/tasks/:id/files` | List existing files in the task worktree for `@` file mentions. Falls back to committed project files before a worktree exists. Supports `query` |
 | POST | `/api/tasks/:id/cancel` | Cancel a task |
 | POST | `/api/tasks/:id/resolve` | Resolve a task |
 | POST | `/api/tasks/:id/retry` | Retry a failed or cancelled task by creating a new one |
@@ -77,6 +78,7 @@ Current task types:
 | DELETE | `/api/tasks/:id/queue/:promptId` | Remove a queued prompt |
 | POST | `/api/tasks/:id/model` | Change model, reasoning effort, and/or ACP mode |
 | GET | `/api/tasks/:id/config-options` | Return active ACP session config options |
+| GET | `/api/tasks/:id/slash-commands` | Return active ACP slash commands for `/` autocomplete |
 | GET | `/api/tasks/:id/diff` | Return parsed git diff files |
 | GET | `/api/tasks/:id/activities` | List activity log entries |
 
@@ -90,6 +92,7 @@ Current task types:
 | PUT | `/api/projects/:name` | Update a project |
 | DELETE | `/api/projects/:name` | Remove a project |
 | POST | `/api/projects/:name/orchestrator` | Ensure the project has an orchestrator task |
+| GET | `/api/projects/:name/files` | List committed project files for new-task `@` file mentions. Untracked slot-0 files are excluded because new task worktrees cannot resolve them. Supports `query` |
 | GET | `/api/projects/:name/update-status` | Read cached self-update status |
 | POST | `/api/projects/:name/update` | Pull latest and optionally run `postUpdateCommand` |
 
@@ -138,6 +141,7 @@ WS /api/tasks/:id/ws
 Task event payloads include legacy normalized chat/activity events plus ACP-derived events. Streaming events always include a stable `messageId`; if the ACP adapter omits one, Tangerine generates one per active turn so REST snapshots and later WebSocket chunks merge in the UI.
 
 - `{ event: "config.options", configOptions }` for ACP session config selectors
+- `{ event: "slash.commands", commands }` for ACP `/` slash-command autocomplete
 - `{ event: "thinking.streaming", messageId, content }` for transient thought chunks
 - `{ event: "thinking.complete", messageId, role: "thinking", content }` for one persisted thought message
 - `{ event: "plan", entries }` for ACP plan cards
@@ -167,6 +171,8 @@ type WsClientMessage =
   | { type: "abort" }
   | { type: "pong" }
 ```
+
+Prompt text may contain `@relative/path` file mentions. The server resolves existing files within the task worktree and sends them to ACP agents as `resource_link` prompt blocks.
 
 When bearer auth is enabled, the client must send the auth message before any prompt or terminal input.
 

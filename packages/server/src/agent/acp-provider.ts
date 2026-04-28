@@ -1,11 +1,13 @@
 import { Effect } from "effect"
-import { homedir } from "node:os"
-import { dirname, isAbsolute, join, relative, resolve } from "node:path"
+import { statSync } from "node:fs"
 import { mkdir } from "node:fs/promises"
+import { homedir } from "node:os"
+import { basename, dirname, isAbsolute, join, relative, resolve } from "node:path"
+import { pathToFileURL } from "node:url"
 import { createLogger } from "../logger"
 import { AgentError, PromptError, SessionStartError } from "../errors"
 import { killDescendants, killProcessTreeEscalated } from "./process-tree"
-import { isAgentEffortOption, type AgentConfigOption, type AgentContentBlock, type AgentPlanEntry } from "@tangerine/shared"
+import { isAgentEffortOption, type AgentConfigOption, type AgentContentBlock, type AgentPlanEntry, type AgentSlashCommand } from "@tangerine/shared"
 import type { AgentEvent, AgentFactory, AgentHandle, AgentStartContext, PromptImage, AgentMetadata } from "./provider"
 
 const log = createLogger("acp-provider")
@@ -36,7 +38,14 @@ export interface AcpImageContent {
   data: string
 }
 
-export type AcpPromptBlock = AcpTextContent | AcpImageContent
+export interface AcpResourceLinkContent {
+  type: "resource_link"
+  uri: string
+  name: string
+  title: string
+}
+
+export type AcpPromptBlock = AcpTextContent | AcpImageContent | AcpResourceLinkContent
 
 export interface PermissionOption {
   optionId: string
@@ -103,17 +112,70 @@ function extractCheckCommand(shellCommand: string): string {
   return match?.[1] ?? match?.[2] ?? match?.[3] ?? DEFAULT_ACP_COMMAND
 }
 
-export function buildAcpPromptBlocks(text: string, images: PromptImage[] = [], supportsImages: boolean): AcpPromptBlock[] {
+export function buildAcpPromptBlocks(text: string, images: PromptImage[] = [], supportsImages: boolean, workdir?: string): AcpPromptBlock[] {
   if (images.length > 0 && !supportsImages) {
     throw new Error("ACP agent does not support image prompts")
   }
 
   const blocks: AcpPromptBlock[] = []
   if (text.length > 0) blocks.push({ type: "text", text })
+  for (const file of extractFileMentionLinks(text, workdir)) blocks.push(file)
   for (const image of images) {
     blocks.push({ type: "image", mimeType: image.mediaType, data: image.data })
   }
   return blocks
+}
+
+const FILE_MENTION_TRIGGER_RE = /(^|[\s(])@/g
+
+interface ResolvedFileMention {
+  absolutePath: string
+  relativePath: string
+}
+
+function extractFileMentionLinks(text: string, workdir?: string): AcpResourceLinkContent[] {
+  if (!workdir) return []
+  const links: AcpResourceLinkContent[] = []
+  const seen = new Set<string>()
+  for (const match of text.matchAll(FILE_MENTION_TRIGGER_RE)) {
+    const prefix = match[1] ?? ""
+    const triggerStart = (match.index ?? 0) + prefix.length
+    const mention = resolveFileMentionSuffix(text.slice(triggerStart + 1), workdir)
+    if (!mention || seen.has(mention.absolutePath)) continue
+    seen.add(mention.absolutePath)
+    links.push({
+      type: "resource_link",
+      uri: pathToFileURL(mention.absolutePath).href,
+      name: basename(mention.absolutePath),
+      title: mention.relativePath,
+    })
+  }
+  return links
+}
+
+function resolveFileMentionSuffix(suffix: string, workdir: string): ResolvedFileMention | null {
+  if (!suffix || /\s/.test(suffix[0] ?? "")) return null
+  const lineEnd = suffix.search(/[\r\n]/)
+  const lineText = lineEnd === -1 ? suffix : suffix.slice(0, lineEnd)
+  for (let end = lineText.length; end > 0; end--) {
+    const mentionPath = lineText.slice(0, end)
+    const resolved = resolveFileMentionPath(mentionPath, workdir)
+    if (resolved) return resolved
+  }
+  return null
+}
+
+function resolveFileMentionPath(mentionPath: string, workdir: string): ResolvedFileMention | null {
+  if (!mentionPath || isAbsolute(mentionPath)) return null
+  const absolutePath = resolve(workdir, mentionPath)
+  const relativePath = relative(workdir, absolutePath)
+  if (!relativePath || relativePath.startsWith("..") || isAbsolute(relativePath)) return null
+  try {
+    if (!statSync(absolutePath).isFile()) return null
+  } catch {
+    return null
+  }
+  return { absolutePath, relativePath }
 }
 
 export function selectPermissionOption(options: PermissionOption[]): string | null {
@@ -298,6 +360,10 @@ export function createAcpEventMapper(): {
           return [{ kind: "config.options", options: parseConfigOptions(update.configOptions) }]
         }
 
+        case "available_commands_update": {
+          return [{ kind: "slash.commands", commands: parseAvailableCommands(update.availableCommands) }]
+        }
+
         default:
           return []
       }
@@ -354,6 +420,7 @@ async function startAcpSession(ctx: AgentStartContext, config?: AcpProviderConfi
   let lastStatus: "idle" | "working" | null = null
   let sessionId: string | null = null
   let configOptions: AgentConfigOption[] = []
+  let slashCommands: AgentSlashCommand[] = []
   let capabilities: AcpAgentCapabilities = {
     loadSession: false,
     imagePrompts: false,
@@ -370,6 +437,7 @@ async function startAcpSession(ctx: AgentStartContext, config?: AcpProviderConfi
 
   const emitMapped = (event: AgentEvent) => {
     if (event.kind === "config.options") configOptions = event.options
+    if (event.kind === "slash.commands") slashCommands = event.commands
     emit(event)
   }
 
@@ -511,7 +579,7 @@ async function startAcpSession(ctx: AgentStartContext, config?: AcpProviderConfi
         try: async () => {
           if (shutdownCalled) return
           if (!sessionId) throw new Error("ACP session is not ready")
-          const prompt = buildAcpPromptBlocks(text, images ?? [], capabilities.imagePrompts)
+          const prompt = buildAcpPromptBlocks(text, images ?? [], capabilities.imagePrompts, ctx.workdir)
           const turnId = statusTracker.begin()
           rpc.request("session/prompt", { sessionId, prompt })
             .then((response) => {
@@ -555,6 +623,7 @@ async function startAcpSession(ctx: AgentStartContext, config?: AcpProviderConfi
       subscribers.add(onEvent)
       if (lastStatus === "working") onEvent({ kind: "status", status: lastStatus })
       if (configOptions.length > 0) onEvent({ kind: "config.options", options: configOptions })
+      if (slashCommands.length > 0) onEvent({ kind: "slash.commands", commands: slashCommands })
       return {
         unsubscribe() {
           subscribers.delete(onEvent)
@@ -635,6 +704,10 @@ async function startAcpSession(ctx: AgentStartContext, config?: AcpProviderConfi
 
     getConfigOptions() {
       return configOptions
+    },
+
+    getSlashCommands() {
+      return slashCommands
     },
   }
 
@@ -890,6 +963,25 @@ function parseConfigOptionValues(value: unknown): AgentConfigOption["options"] {
     })
   }
   return values
+}
+
+function parseAvailableCommands(value: unknown): AgentSlashCommand[] {
+  if (!Array.isArray(value)) return []
+  const commands: AgentSlashCommand[] = []
+  for (const entry of value) {
+    if (!isRecord(entry)) continue
+    const name = stringField(entry, "name")
+    if (!name) continue
+    const description = stringField(entry, "description") ?? ""
+    const input = isRecord(entry.input) ? entry.input : null
+    const hint = input ? stringField(input, "hint") : undefined
+    commands.push({
+      name,
+      description,
+      ...(hint ? { input: { hint } } : {}),
+    })
+  }
+  return commands
 }
 
 function modelConfigOptionFromResponse(value: unknown): AgentConfigOption | null {

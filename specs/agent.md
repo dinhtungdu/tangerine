@@ -15,12 +15,13 @@ Responsibilities:
 - call `initialize` with ACP protocol version 1
 - create sessions with `session/new`
 - reconnect with `session/resume` when supported, then `session/load` when supported, otherwise create a fresh session and let Tangerine re-send the initial prompt when needed
-- send prompts with `session/prompt`
+- send prompts with `session/prompt`, including baseline `resource_link` blocks for file mentions
 - cancel active work with `session/cancel`
 - close sessions with `session/close` when supported
 - handle `session/request_permission`
 - advertise and serve ACP filesystem callbacks `fs/read_text_file` and `fs/write_text_file`, restricted to the task worktree
 - apply session configuration via `session/set_config_option`, or compatibility `session/set_model` / `session/set_mode` for ACP agents that expose legacy model/mode state
+- map `available_commands_update` into session slash-command state for dashboard autocomplete
 - expose session id and process pid for task persistence and cleanup
 
 ## Configured ACP Agents
@@ -62,6 +63,7 @@ Important ACP updates:
 
 | ACP update | Tangerine event |
 |------------|-----------------|
+| `session/prompt` `resource_link` blocks | file mentions extracted from `@relative/path` prompt text |
 | `agent_message_chunk` | `message.streaming`, then final assistant message on prompt completion |
 | `agent_thought_chunk` | `thinking.streaming`, then one persisted `thinking` message on prompt completion |
 | `user_message_chunk` | user message log |
@@ -72,6 +74,7 @@ Important ACP updates:
 | `plan` | native plan card plus thinking text for compatibility |
 | `current_mode_update` | refresh synthetic mode config option |
 | `config_option_update` | refresh model/reasoning/mode options |
+| `available_commands_update` | refresh `/` slash-command autocomplete options |
 | `usage_update` | context token usage |
 | non-text content block | generic ACP content-block card |
 
@@ -106,6 +109,7 @@ Current client capabilities:
 - filesystem callbacks: `fs.readTextFile` and `fs.writeTextFile` are advertised and sandboxed to the task worktree
 - terminal callbacks: not advertised
 - image prompts: only send images when agent advertises image support
+- file mentions: parse `@relative/path` in prompt text, validate the path inside the task worktree, and attach ACP `resource_link` blocks (baseline support; no capability flag required)
 
 Filesystem callbacks let ACP adapters request editor-style reads/writes through the client, matching ACP client behavior without giving dashboard access outside the session worktree.
 

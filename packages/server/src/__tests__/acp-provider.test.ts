@@ -1,7 +1,8 @@
 import { afterEach, describe, expect, test } from "bun:test"
 import { Effect } from "effect"
-import { mkdtempSync, rmSync, writeFileSync } from "node:fs"
+import { mkdtempSync, rmSync, writeFileSync, mkdirSync } from "node:fs"
 import { join } from "node:path"
+import { pathToFileURL } from "node:url"
 import { tmpdir } from "node:os"
 import type { AgentEvent } from "../agent/provider"
 import {
@@ -51,6 +52,57 @@ describe("buildAcpPromptBlocks", () => {
 
     expect(() => buildAcpPromptBlocks("look", [{ mediaType: "image/png", data: "abc" }], false))
       .toThrow("ACP agent does not support image prompts")
+  })
+
+  test("adds ACP resource links for existing @file mentions", () => {
+    const tempDir = mkdtempSync(join(tmpdir(), "tangerine-acp-files-"))
+    try {
+      mkdirSync(join(tempDir, "web", "src"), { recursive: true })
+      const filePath = join(tempDir, "web", "src", "ChatInput.tsx")
+      writeFileSync(filePath, "export const ok = true\n")
+
+      expect(buildAcpPromptBlocks("read @web/src/ChatInput.tsx", [], false, tempDir)).toEqual([
+        { type: "text", text: "read @web/src/ChatInput.tsx" },
+        {
+          type: "resource_link",
+          uri: pathToFileURL(filePath).href,
+          name: "ChatInput.tsx",
+          title: "web/src/ChatInput.tsx",
+        },
+      ])
+    } finally {
+      rmSync(tempDir, { recursive: true, force: true })
+    }
+  })
+
+  test("adds ACP resource links for selected file paths with spaces and brackets", () => {
+    const tempDir = mkdtempSync(join(tmpdir(), "tangerine-acp-special-files-"))
+    try {
+      mkdirSync(join(tempDir, "docs"), { recursive: true })
+      mkdirSync(join(tempDir, "app"), { recursive: true })
+      const notePath = join(tempDir, "docs", "My Note.md")
+      const routePath = join(tempDir, "app", "[id].tsx")
+      writeFileSync(notePath, "note\n")
+      writeFileSync(routePath, "route\n")
+
+      expect(buildAcpPromptBlocks("read @docs/My Note.md and @app/[id].tsx.", [], false, tempDir)).toEqual([
+        { type: "text", text: "read @docs/My Note.md and @app/[id].tsx." },
+        {
+          type: "resource_link",
+          uri: pathToFileURL(notePath).href,
+          name: "My Note.md",
+          title: "docs/My Note.md",
+        },
+        {
+          type: "resource_link",
+          uri: pathToFileURL(routePath).href,
+          name: "[id].tsx",
+          title: "app/[id].tsx",
+        },
+      ])
+    } finally {
+      rmSync(tempDir, { recursive: true, force: true })
+    }
   })
 })
 
@@ -210,6 +262,22 @@ describe("createAcpEventMapper", () => {
       options: [{ value: "gpt-5", name: "GPT-5" }],
       source: "config_option",
     }] }])
+  })
+
+  test("maps available command updates", () => {
+    const mapper = createAcpEventMapper()
+
+    expect(mapper.mapSessionUpdate({
+      sessionUpdate: "available_commands_update",
+      availableCommands: [
+        { name: "compact", description: "Compact conversation", input: { hint: "instructions" } },
+        { name: "help", description: "Show help" },
+        { name: "", description: "ignored" },
+      ],
+    })).toEqual([{ kind: "slash.commands", commands: [
+      { name: "compact", description: "Compact conversation", input: { hint: "instructions" } },
+      { name: "help", description: "Show help" },
+    ] }])
   })
 })
 

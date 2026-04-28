@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback, useRef } from "react"
-import type { AgentConfigOption, AgentContentBlock, AgentPlanEntry, WsServerMessage, TaskStatus, ActivityEntry, PromptImage, PromptQueueEntry } from "@tangerine/shared"
-import { fetchMessages, fetchActivities, fetchQueuedPrompts, fetchTaskConfigOptions, removeQueuedPrompt, updateQueuedPrompt, type SessionLog } from "../lib/api"
+import type { AgentConfigOption, AgentContentBlock, AgentPlanEntry, AgentSlashCommand, WsServerMessage, TaskStatus, ActivityEntry, PromptImage, PromptQueueEntry } from "@tangerine/shared"
+import { fetchMessages, fetchActivities, fetchQueuedPrompts, fetchTaskConfigOptions, fetchTaskSlashCommands, removeQueuedPrompt, updateQueuedPrompt, type SessionLog } from "../lib/api"
 import { useWebSocket } from "./useWebSocket"
 
 export interface ChatMessageImage {
@@ -32,6 +32,7 @@ interface UseSessionResult {
   contextTokens: number
   contextWindowMax: number | null
   configOptions: AgentConfigOption[]
+  slashCommands: AgentSlashCommand[]
 }
 
 export function applyAssistantStreamMessage(
@@ -133,7 +134,10 @@ export function useSession(taskId: string, initialContextTokens?: number, initia
   const [contextTokens, setContextTokens] = useState(initialContextTokens ?? 0)
   const [contextWindowMax, setContextWindowMax] = useState<number | null>(initialContextWindowMax ?? null)
   const [configOptions, setConfigOptions] = useState<AgentConfigOption[]>([])
+  const [slashCommands, setSlashCommands] = useState<AgentSlashCommand[]>([])
   const { connected, messages: wsMessages, send } = useWebSocket(taskId)
+  const activeTaskIdRef = useRef(taskId)
+  activeTaskIdRef.current = taskId
   const processedCountRef = useRef(0)
   const activeAssistantStreamIdRef = useRef<string | null>(null)
   // Track optimistic user message IDs so we can deduplicate WS broadcasts
@@ -161,14 +165,19 @@ export function useSession(taskId: string, initialContextTokens?: number, initia
     setContextTokens(0)
     setContextWindowMax(null)
     setConfigOptions([])
+    setSlashCommands([])
     processedCountRef.current = 0
     activeAssistantStreamIdRef.current = null
   }, [taskId])
 
   // Load initial messages + activities via REST
   const refreshFromRest = useCallback(async () => {
+    const refreshTaskId = taskId
+    const isCurrentTask = () => activeTaskIdRef.current === refreshTaskId
+
     try {
-      const logs = await fetchMessages(taskId)
+      const logs = await fetchMessages(refreshTaskId)
+      if (!isCurrentTask()) return
       setMessages(
         logs.map((log: SessionLog) => {
           const msg: ChatMessage = {
@@ -190,7 +199,7 @@ export function useSession(taskId: string, initialContextTokens?: number, initia
           if (log.images) {
             try {
               const filenames = JSON.parse(log.images) as string[]
-              msg.images = filenames.map((f) => ({ src: `/api/tasks/${taskId}/images/${f}` }))
+              msg.images = filenames.map((f) => ({ src: `/api/tasks/${refreshTaskId}/images/${f}` }))
             } catch { /* ignore malformed */ }
           }
           return msg
@@ -199,19 +208,35 @@ export function useSession(taskId: string, initialContextTokens?: number, initia
     } catch {
       // Messages may not be available yet
     }
+    if (!isCurrentTask()) return
     try {
-      const data = await fetchActivities(taskId)
+      const data = await fetchActivities(refreshTaskId)
+      if (!isCurrentTask()) return
       setActivities((prev) => mergeActivitySnapshot(prev, data))
     } catch {
       // Activities may not be available yet
     }
+    if (!isCurrentTask()) return
     try {
-      setConfigOptions(await fetchTaskConfigOptions(taskId))
+      const options = await fetchTaskConfigOptions(refreshTaskId)
+      if (!isCurrentTask()) return
+      setConfigOptions(options)
     } catch {
-      // Config options may not be available yet
+      // Session config may not be available yet
     }
+    if (!isCurrentTask()) return
     try {
-      setQueuedPrompts(await fetchQueuedPrompts(taskId))
+      const commands = await fetchTaskSlashCommands(refreshTaskId)
+      if (!isCurrentTask()) return
+      setSlashCommands(commands)
+    } catch {
+      // Slash commands may not be available yet
+    }
+    if (!isCurrentTask()) return
+    try {
+      const queued = await fetchQueuedPrompts(refreshTaskId)
+      if (!isCurrentTask()) return
+      setQueuedPrompts(queued)
     } catch {
       // Queue may not be available yet
     }
@@ -340,6 +365,9 @@ export function useSession(taskId: string, initialContextTokens?: number, initia
           } else if (eventType === "config.options") {
             const ev = data as { configOptions?: unknown }
             if (Array.isArray(ev.configOptions)) setConfigOptions(ev.configOptions as AgentConfigOption[])
+          } else if (eventType === "slash.commands") {
+            const ev = data as { commands?: unknown }
+            if (Array.isArray(ev.commands)) setSlashCommands(ev.commands as AgentSlashCommand[])
           }
         }
         break
@@ -417,5 +445,5 @@ export function useSession(taskId: string, initialContextTokens?: number, initia
     setQueuedPrompts((prev) => prev.filter((entry) => entry.id !== promptId))
   }, [taskId])
 
-  return { messages, activities, agentStatus, queueLength: queuedPrompts.length, queuedPrompts, connected, taskStatus, sendPrompt, abort, updateQueuedPrompt: handleUpdateQueuedPrompt, removeQueuedPrompt: handleRemoveQueuedPrompt, contextTokens, contextWindowMax, configOptions }
+  return { messages, activities, agentStatus, queueLength: queuedPrompts.length, queuedPrompts, connected, taskStatus, sendPrompt, abort, updateQueuedPrompt: handleUpdateQueuedPrompt, removeQueuedPrompt: handleRemoveQueuedPrompt, contextTokens, contextWindowMax, configOptions, slashCommands }
 }

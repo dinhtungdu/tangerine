@@ -13,6 +13,7 @@ export {
   type AgentPlanEntry,
   type AgentConfigOption,
   type AgentConfigOptionValue,
+  type AgentSlashCommand,
   type AgentId,
   type ProviderType,
   type ActivityType,
