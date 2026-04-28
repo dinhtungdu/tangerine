@@ -308,13 +308,13 @@ export function pollPrStatuses(deps: PrMonitorDeps): Effect.Effect<void, never> 
           log.info("Discovered PR for task branch", { taskId: task.id, branch: task.branch, prUrl })
           const checker = deps.checkPrState ?? checkPrState
           const initialStatus = yield* checker(prUrl)
-          yield* deps.updateTask(task.id, { pr_url: prUrl, pr_status: initialStatus ?? "open" }).pipe(Effect.ignoreLogged)
+          yield* deps.updateTask(task.id, { pr_url: prUrl, pr_status: initialStatus }).pipe(Effect.ignoreLogged)
           yield* deps.logActivity(task.id, "lifecycle", "pr.discovered", `PR discovered for branch ${task.branch}: ${prUrl}`).pipe(
             Effect.catchAll(() => Effect.void)
           )
           // Update in-memory so Phase 2 picks it up this cycle
           task.pr_url = prUrl
-          task.pr_status = initialStatus ?? "open"
+          task.pr_status = initialStatus
         }
       }
     }

@@ -93,13 +93,13 @@ function trySavePrUrl(
       Effect.tap((matches) => Effect.sync(() => {
         if (!matches) { log.warn("PR branch mismatch, ignoring", { taskId, prUrl, taskBranch }); return }
         getTaskState(taskId).prUrlSaved = true
-        // Check PR state and save both URL and status
+        // Check PR state and save both URL and status (null if lookup fails)
         Effect.runPromise(
           checkPrState(prUrl).pipe(
             Effect.tap((prStatus) =>
-              updateTask(db, taskId, { pr_url: prUrl, pr_status: prStatus ?? "open" }).pipe(Effect.catchAll(() => Effect.void))
+              updateTask(db, taskId, { pr_url: prUrl, pr_status: prStatus }).pipe(Effect.catchAll(() => Effect.void))
             ),
-            Effect.catchAll(() => updateTask(db, taskId, { pr_url: prUrl, pr_status: "open" }).pipe(Effect.catchAll(() => Effect.void)))
+            Effect.catchAll(() => updateTask(db, taskId, { pr_url: prUrl }).pipe(Effect.catchAll(() => Effect.void)))
           )
         )
         Effect.runPromise(logActivity(db, taskId, "lifecycle", "pr.created", `PR created: ${prUrl}`, { prUrl }).pipe(Effect.catchAll(() => Effect.void)))

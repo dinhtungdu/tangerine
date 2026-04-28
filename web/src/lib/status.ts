@@ -37,11 +37,16 @@ export const PR_STATUS_CONFIG: Record<string, StatusConfig> = {
   closed: { label: "Closed", textClass: "text-status-error-text",   bgClass: "bg-status-error-bg",   color: "var(--color-status-error)" },
 }
 
-const DEFAULT_PR_STATUS: StatusConfig = PR_STATUS_CONFIG.open!
+const UNKNOWN_PR_STATUS: StatusConfig = {
+  label: "PR",
+  textClass: "text-muted-foreground",
+  bgClass: "bg-muted",
+  color: "var(--color-muted-foreground)",
+}
 
 export function getPrStatusConfig(status: string | null): StatusConfig {
-  if (!status) return DEFAULT_PR_STATUS
-  return PR_STATUS_CONFIG[status] ?? DEFAULT_PR_STATUS
+  if (!status) return UNKNOWN_PR_STATUS
+  return PR_STATUS_CONFIG[status] ?? UNKNOWN_PR_STATUS
 }
 
 /** Returns true if the agent has produced a result since the user last viewed the task */
