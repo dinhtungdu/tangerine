@@ -339,7 +339,7 @@ describe("createAcpProvider", () => {
     handle.subscribe((event) => events.push(event))
 
     await Effect.runPromise(handle.sendPrompt("hi", [{ mediaType: "image/png", data: "abc" }]))
-    await waitFor(() => events.some((event) => event.kind === "status" && event.status === "idle"))
+    await waitFor(() => hasStatusTransition(events, "working", "idle"))
     await Effect.runPromise(handle.shutdown())
 
     expect((handle as { __meta?: { sessionId: string } }).__meta?.sessionId).toBe("sess-test")
@@ -409,6 +409,24 @@ describe("createAcpProvider", () => {
     rmSync(tempDir, { recursive: true, force: true })
   })
 
+  test("replays idle ACP status to late subscribers after session start", async () => {
+    const tempDir = mkdtempSync(join(tmpdir(), "tangerine-acp-idle-status-"))
+    const scriptPath = join(tempDir, "mock-acp-agent.js")
+    writeFileSync(scriptPath, mockFreshAcpAgentScript, "utf-8")
+
+    process.env.TANGERINE_ACP_COMMAND = `bun ${scriptPath}`
+    const provider = createAcpProvider()
+    const handle = await Effect.runPromise(provider.start({ taskId: "task-acp", workdir: tempDir, title: "ACP idle status" }))
+
+    const events: AgentEvent[] = []
+    handle.subscribe((event) => events.push(event))
+
+    expect(events).toContainEqual({ kind: "status", status: "idle" })
+
+    await Effect.runPromise(handle.shutdown())
+    rmSync(tempDir, { recursive: true, force: true })
+  })
+
   test("advertises ACP filesystem callbacks and handles read/write requests", async () => {
     const tempDir = mkdtempSync(join(tmpdir(), "tangerine-acp-fs-"))
     const scriptPath = join(tempDir, "mock-acp-agent.js")
@@ -421,7 +439,7 @@ describe("createAcpProvider", () => {
     handle.subscribe((event) => events.push(event))
 
     await Effect.runPromise(handle.sendPrompt("write and read"))
-    await waitFor(() => events.some((event) => event.kind === "status" && event.status === "idle"))
+    await waitFor(() => hasStatusTransition(events, "working", "idle"))
 
     expect(await Bun.file(join(tempDir, "edited.txt")).text()).toBe("edited content")
     expect(events).toContainEqual({ kind: "message.complete", role: "assistant", content: "fs:edited content" })
@@ -708,6 +726,16 @@ async function waitFor(condition: () => boolean): Promise<void> {
     if (Date.now() - startedAt > 2_000) throw new Error("Timed out waiting for condition")
     await new Promise((resolve) => setTimeout(resolve, 10))
   }
+}
+
+function hasStatusTransition(events: AgentEvent[], from: "idle" | "working", to: "idle" | "working"): boolean {
+  let seenFrom = false
+  for (const event of events) {
+    if (event.kind !== "status") continue
+    if (event.status === from) seenFrom = true
+    if (seenFrom && event.status === to) return true
+  }
+  return false
 }
 
 const mockSlowAcpAgentScript = `

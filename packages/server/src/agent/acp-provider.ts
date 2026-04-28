@@ -744,7 +744,7 @@ async function startAcpSession(ctx: AgentStartContext, config?: AcpProviderConfi
 
     subscribe(onEvent: (event: AgentEvent) => void) {
       subscribers.add(onEvent)
-      if (lastStatus === "working") onEvent({ kind: "status", status: lastStatus })
+      if (lastStatus) onEvent({ kind: "status", status: lastStatus })
       if (configOptions.length > 0) onEvent({ kind: "config.options", options: configOptions })
       if (slashCommands.length > 0) onEvent({ kind: "slash.commands", commands: slashCommands })
       return {
