@@ -3,7 +3,7 @@ import { Link, useParams } from "react-router-dom"
 import { TERMINAL_STATUSES } from "@tangerine/shared"
 import type { Task, ProjectConfig } from "@tangerine/shared"
 import { Search, Plus, X, ChevronDown } from "lucide-react"
-import { getStatusConfig, hasUnseenUpdates, getPrStatusConfig } from "../lib/status"
+import { getTaskDisplayStatus, getTaskStatusText, hasUnseenUpdates, getPrStatusConfig } from "../lib/status"
 import { formatRelativeTime, formatPrNumber } from "../lib/format"
 import { useProject } from "../context/ProjectContext"
 import { TaskOverflowMenu } from "./TaskListItem"
@@ -52,10 +52,7 @@ function TaskItem({
 }) {
   const { agents } = useProject()
   const agentLabel = agents.find((agent) => agent.id === task.provider)?.name ?? task.provider
-  const statusConfig = getStatusConfig(task.status)
-  const color = task.status === "running" && task.agentStatus === "idle"
-    ? "var(--color-status-warning)"
-    : statusConfig.color
+  const statusConfig = getTaskDisplayStatus(task)
   const unseen = !isActive && hasUnseenUpdates(task)
 
   return (
@@ -69,7 +66,7 @@ function TaskItem({
       style={isActive ? {} : { borderLeft: "3px solid transparent" }}
     >
       <div className="flex h-[18px] w-2 items-start pt-[5px]">
-        <div className="h-2 w-2 rounded-full" style={{ backgroundColor: color }} />
+        <div className="h-2 w-2 rounded-full" style={{ backgroundColor: statusConfig.color }} />
       </div>
       <div className="flex min-w-0 flex-1 flex-col gap-0.5">
         <div className="flex items-center gap-1.5">
@@ -81,7 +78,7 @@ function TaskItem({
           )}
         </div>
         <span className="font-mono text-xxs text-muted-foreground">
-          {formatRelativeTime(task.createdAt)} · {task.status === "running" && task.agentStatus === "idle" ? "idle" : task.status}
+          {formatRelativeTime(task.createdAt)} · {getTaskStatusText(task)}
           {" · "}
           <span className="rounded bg-muted px-1 py-px text-2xs">
             {agentLabel}

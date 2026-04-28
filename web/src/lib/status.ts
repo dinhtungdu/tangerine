@@ -1,5 +1,6 @@
-/** Unified status configuration — uses Tailwind class names for theming */
+import type { Task } from "@tangerine/shared"
 
+/** Unified status configuration — uses Tailwind class names for theming */
 export interface StatusConfig {
   label: string
   /** Tailwind text color class */
@@ -28,6 +29,23 @@ const DEFAULT_STATUS: StatusConfig = {
 
 export function getStatusConfig(status: string): StatusConfig {
   return STATUS_CONFIG[status] ?? DEFAULT_STATUS
+}
+
+const IDLE_AGENT_STATUS: StatusConfig = {
+  label: "Idle",
+  textClass: "text-status-warning-text",
+  bgClass: "bg-status-warning-bg",
+  color: "var(--color-status-warning)",
+}
+
+export function getTaskDisplayStatus(task: Pick<Task, "status" | "agentStatus">): StatusConfig {
+  if (task.status === "running" && task.agentStatus === "idle") return IDLE_AGENT_STATUS
+  return getStatusConfig(task.status)
+}
+
+export function getTaskStatusText(task: Pick<Task, "status" | "agentStatus">): string {
+  if (task.status === "running" && task.agentStatus === "idle") return "idle"
+  return task.status
 }
 
 export const PR_STATUS_CONFIG: Record<string, StatusConfig> = {

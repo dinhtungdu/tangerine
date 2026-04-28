@@ -8,7 +8,7 @@ import {
   formatCronExpression,
   linkifyTaskIds,
 } from "../lib/format"
-import { getStatusConfig, STATUS_CONFIG } from "../lib/status"
+import { getStatusConfig, getTaskDisplayStatus, STATUS_CONFIG } from "../lib/status"
 import { getActivityStyle, getActivityDetail, resolveToolInput } from "../lib/activity"
 import { searchModels } from "../lib/model-search"
 import { copyToClipboard } from "../lib/clipboard"
@@ -239,6 +239,12 @@ describe("status", () => {
     const config = getStatusConfig("unknown_status")
     expect(config.label).toBe("Unknown")
     expect(config.color).toBeTruthy()
+  })
+
+  test("getTaskDisplayStatus shows idle instead of running for idle agents", () => {
+    const config = getTaskDisplayStatus(makeTask({ status: "running", agentStatus: "idle" }))
+    expect(config.label).toBe("Idle")
+    expect(config.color).toBe("var(--color-status-warning)")
   })
 
   test("all statuses have color and textClass", () => {
@@ -1115,4 +1121,3 @@ describe("getDiffStats", () => {
     expect(stats.totalLines).toBeGreaterThan(0)
   })
 })
-

@@ -3,7 +3,7 @@ import { useParams, Link, useOutletContext } from "react-router-dom"
 import type { SidebarContext } from "../components/Layout"
 import { resolveTaskTypeConfig, type Task } from "@tangerine/shared"
 import { fetchTask, fetchChildTasks, changeTaskConfig, markTaskSeen, resolveTask, startTask } from "../lib/api"
-import { getStatusConfig, getPrStatusConfig } from "../lib/status"
+import { getTaskDisplayStatus, getPrStatusConfig } from "../lib/status"
 import { useSession } from "../hooks/useSession"
 import { useProject } from "../context/ProjectContext"
 import { buildSshEditorUri, EDITOR_NAMES } from "../lib/ssh-editor"
@@ -451,7 +451,7 @@ export function TaskDetail() {
     )
   }
 
-  const { color: statusColor, label: statusLabel } = getStatusConfig(task.status)
+  const { color: statusColor, label: statusLabel } = getTaskDisplayStatus(task)
   const isTerminated = task.status === "done" || task.status === "failed" || task.status === "cancelled"
 
   return (
