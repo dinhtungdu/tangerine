@@ -13,6 +13,7 @@ import { listTasks } from "../../db/queries"
 import { deletePoolForProject, localExec } from "../../tasks/worktree-pool"
 import type { WorktreeSlotRow } from "../../db/types"
 import { DAEMON_RESTART_EXIT_CODE } from "../../daemon-exit"
+import { listFilesForMention } from "../file-search"
 
 const log = createLogger("project-routes")
 
@@ -73,6 +74,18 @@ export function projectRoutes(deps: AppDeps): Hono {
   // List configured projects and ACP agent availability.
   app.get("/", (c) => {
     return c.json(buildProjectsResponse(deps))
+  })
+
+  app.get("/:name/files", (c) => {
+    const name = c.req.param("name")
+    const project = deps.config.config.projects.find((p) => p.name === name)
+    if (!project) return c.json({ error: "Project not found" }, 404)
+    return runEffect(c,
+      Effect.tryPromise({
+        try: async () => ({ files: await listFilesForMention(getRepoDir(deps.config.config, name), c.req.query("query") ?? "", { source: "head" }) }),
+        catch: (error) => error instanceof Error ? error : new Error(String(error)),
+      })
+    )
   })
 
   // Get a single project by name

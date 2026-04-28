@@ -14,9 +14,31 @@ import type { WsClientMessage, WsServerMessage, TaskStatus } from "@tangerine/sh
  * Creates WebSocket routes for task event streaming.
  * Receives upgradeWebSocket from the shared createBunWebSocket() in app.ts.
  */
+type InitialTaskSnapshot = { status: string } | null
+
+type SocketLike = { send(data: string): void; close(code?: number, reason?: string): void }
+
+export function initialTaskStreamMessages(taskId: string, task: InitialTaskSnapshot): WsServerMessage[] {
+  const messages: WsServerMessage[] = [{ type: "connected" }]
+  if (!task) return messages
+
+  messages.push({ type: "status", status: task.status as TaskStatus })
+
+  if (task.status === "running") {
+    messages.push({ type: "agent_status", agentStatus: getAgentWorkingState(taskId) })
+  }
+
+  const state = getTaskState(taskId)
+  if (state.configOptions.length > 0) {
+    messages.push({ type: "event", data: { event: "config.options", configOptions: state.configOptions } })
+  }
+  messages.push({ type: "event", data: { event: "slash.commands", commands: state.slashCommands } })
+
+  return messages
+}
+
 export function wsRoutes(deps: AppDeps, upgradeWebSocket: UpgradeWebSocket): Hono {
   const app = new Hono()
-  type SocketLike = { send(data: string): void; close(code?: number, reason?: string): void }
 
   app.get(
     "/:id/ws",
@@ -42,23 +64,11 @@ export function wsRoutes(deps: AppDeps, upgradeWebSocket: UpgradeWebSocket): Hon
 
         Effect.runPromise(getTask(deps.db, taskId)).then(
           (task) => {
-            const connected: WsServerMessage = { type: "connected" }
-            ws.send(JSON.stringify(connected))
+            for (const msg of initialTaskStreamMessages(taskId, task)) {
+              ws.send(JSON.stringify(msg))
+            }
 
             if (task) {
-              const statusMsg: WsServerMessage = { type: "status", status: task.status as TaskStatus }
-              ws.send(JSON.stringify(statusMsg))
-
-              if (task.status === "running") {
-                const agentMsg: WsServerMessage = { type: "agent_status", agentStatus: getAgentWorkingState(taskId) }
-                ws.send(JSON.stringify(agentMsg))
-              }
-
-              const configOptions = getTaskState(taskId).configOptions
-              if (configOptions.length > 0) {
-                ws.send(JSON.stringify({ type: "event", data: { event: "config.options", configOptions } } satisfies WsServerMessage))
-              }
-
               Effect.runPromise(getQueuedPrompts(taskId)).then((queuedPrompts) => {
                 const queueMsg: WsServerMessage = { type: "queue", queuedPrompts }
                 try { ws.send(JSON.stringify(queueMsg)) } catch { /* disconnected */ }

@@ -842,6 +842,14 @@ export async function start(): Promise<void> {
                 })
                 break
               }
+              case "slash.commands": {
+                getTaskState(taskId).slashCommands = event.commands
+                emitTaskEvent(taskId, {
+                  event: "slash.commands",
+                  commands: event.commands,
+                })
+                break
+              }
               case "session.info": {
                 const state = getTaskState(taskId)
                 state.sessionInfo = {

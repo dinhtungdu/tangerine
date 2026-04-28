@@ -1,12 +1,14 @@
 import { useState, useCallback, useMemo, useRef } from "react"
 import type { Task } from "@tangerine/shared"
 import { formatTaskTitle } from "../lib/format"
+import { resolvePickerKey } from "../lib/picker-keyboard"
+import { findTriggerToken } from "../lib/text-trigger"
 
 export interface MentionPickerState {
   isOpen: boolean
   query: string
   selectedIndex: number
-  /** Character index in textarea where the `@` trigger starts */
+  /** Character index in textarea where the `#` trigger starts */
   triggerStart: number
 }
 
@@ -60,55 +62,23 @@ export function useMentionPicker(tasks: Task[]): UseMentionPickerResult {
   const close = useCallback(() => setState(CLOSED), [])
 
   const onTextChange = useCallback((text: string, cursorPos: number) => {
-    // Scan backwards from cursor to find an unmatched `@`
-    let i = cursorPos - 1
-    while (i >= 0) {
-      const ch = text[i]
-      if (ch === "@") {
-        // Only trigger after whitespace or at start-of-line to avoid false positives (e.g. email@domain)
-        if (i > 0 && text[i - 1] !== " " && text[i - 1] !== "\n") break
-        const query = text.slice(i + 1, cursorPos)
-        if (query.includes("\n")) {
-          setState(CLOSED)
-          return
-        }
-        setState({ isOpen: true, query, selectedIndex: 0, triggerStart: i })
-        return
-      }
-      // Stop at whitespace or newline before finding @
-      if (ch === " " || ch === "\n") break
-      i--
+    const token = findTriggerToken(text, cursorPos, "#")
+    if (token) {
+      setState({ isOpen: true, query: token.query, selectedIndex: 0, triggerStart: token.triggerStart })
+      return
     }
     setState(CLOSED)
   }, [])
 
   const onKeyDown = useCallback((e: { key: string; preventDefault: () => void }): boolean => {
     if (!state.isOpen) return false
-
-    if (e.key === "Escape") {
-      e.preventDefault()
-      setState(CLOSED)
-      return true
-    }
-    if (e.key === "ArrowDown") {
-      e.preventDefault()
-      setState((s) => ({
-        ...s,
-        selectedIndex: Math.min(s.selectedIndex + 1, filteredCountRef.current - 1),
-      }))
-      return true
-    }
-    if (e.key === "ArrowUp") {
-      e.preventDefault()
-      setState((s) => ({
-        ...s,
-        selectedIndex: Math.max(s.selectedIndex - 1, 0),
-      }))
-      return true
-    }
-    // Enter/Tab are handled by the caller only when there's a valid selection
-    return false
-  }, [state.isOpen])
+    const action = resolvePickerKey(e.key, state.selectedIndex, filteredCountRef.current)
+    if (action.action === "none") return false
+    e.preventDefault()
+    if (action.action === "close") setState(CLOSED)
+    else setState((s) => ({ ...s, selectedIndex: action.selectedIndex }))
+    return true
+  }, [state.isOpen, state.selectedIndex])
 
   const selectTask = useCallback((task: Task, text: string): { newText: string; cursorPos: number } => {
     const { triggerStart } = state

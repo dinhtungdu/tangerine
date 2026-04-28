@@ -41,6 +41,8 @@ import {
 } from "../lib/actions"
 import { isGithubRepo, isProviderAvailable, type AgentConfig, type Task, type SystemCapabilities } from "@tangerine/shared"
 import { getConfiguredAgentIds, resolveAvailableAgent } from "../lib/agent-selection"
+import { findTriggerToken } from "../lib/text-trigger"
+import { resolvePickerKey } from "../lib/picker-keyboard"
 
 function makeTask(overrides: Partial<Task> = {}): Task {
   return {
@@ -75,6 +77,42 @@ function makeTask(overrides: Partial<Task> = {}): Task {
     ...overrides,
   }
 }
+
+describe("resolvePickerKey", () => {
+  test("moves selection within list bounds", () => {
+    expect(resolvePickerKey("ArrowDown", 0, 2)).toEqual({ action: "select", selectedIndex: 1 })
+    expect(resolvePickerKey("ArrowDown", 1, 2)).toEqual({ action: "select", selectedIndex: 1 })
+    expect(resolvePickerKey("ArrowUp", 1, 2)).toEqual({ action: "select", selectedIndex: 0 })
+  })
+
+  test("closes on escape and ignores other keys", () => {
+    expect(resolvePickerKey("Escape", 0, 2)).toEqual({ action: "close" })
+    expect(resolvePickerKey("Enter", 0, 2)).toEqual({ action: "none" })
+  })
+
+  test("does not consume arrow keys when list is empty", () => {
+    expect(resolvePickerKey("ArrowDown", 0, 0)).toEqual({ action: "none" })
+    expect(resolvePickerKey("ArrowUp", 0, 0)).toEqual({ action: "none" })
+  })
+})
+
+describe("findTriggerToken", () => {
+  test("finds triggers at start or after whitespace", () => {
+    expect(findTriggerToken("#auth", 5, "#")).toEqual({ triggerStart: 0, query: "auth" })
+    expect(findTriggerToken("see @web/src", 12, "@")).toEqual({ triggerStart: 4, query: "web/src" })
+  })
+
+  test("supports line-start-only triggers", () => {
+    expect(findTriggerToken("/compact", 8, "/", "line-start")).toEqual({ triggerStart: 0, query: "compact" })
+    expect(findTriggerToken("note\n/model", 11, "/", "line-start")).toEqual({ triggerStart: 5, query: "model" })
+    expect(findTriggerToken("see /tmp", 8, "/", "line-start")).toBeNull()
+  })
+
+  test("ignores triggers inside words", () => {
+    expect(findTriggerToken("email@test", 10, "@")).toBeNull()
+    expect(findTriggerToken("tag#task", 8, "#")).toBeNull()
+  })
+})
 
 describe("format", () => {
   describe("formatModelName", () => {

@@ -2,7 +2,9 @@ import { useState, useCallback, useEffect, useMemo, useRef, forwardRef, useImper
 import { isGithubRepo, isProviderAvailable, getCapabilitiesForType, type ProviderType, type PromptImage, type Task, type TaskType } from "@tangerine/shared"
 import { useProject } from "../context/ProjectContext"
 import { HarnessSelector } from "./HarnessSelector"
+import { FileMentionPicker } from "./FileMentionPicker"
 import { MentionPicker } from "./MentionPicker"
+import { useFileMentionPicker, type FileMention } from "../hooks/useFileMentionPicker"
 import { useMentionPicker } from "../hooks/useMentionPicker"
 import { useTasks } from "../hooks/useTasks"
 import { Button } from "@/components/ui/button"
@@ -102,6 +104,9 @@ export const NewAgentForm = forwardRef<NewAgentFormHandle, NewAgentFormProps>(fu
   const mention = useMentionPicker(allTasks)
   const mentionRef = useRef(mention)
   mentionRef.current = mention
+  const fileMention = useFileMentionPicker({ projectId: effectiveProject?.name })
+  const fileMentionRef = useRef(fileMention)
+  fileMentionRef.current = fileMention
   const descriptionRef = useRef(description)
   descriptionRef.current = description
 
@@ -142,6 +147,17 @@ export const NewAgentForm = forwardRef<NewAgentFormHandle, NewAgentFormProps>(fu
 
   const handleMentionSelect = useCallback((task: Task) => {
     const { newText, cursorPos } = mentionRef.current.selectTask(task, descriptionRef.current)
+    setDescription(newText)
+    requestAnimationFrame(() => {
+      const textarea = textareaRef.current
+      if (!textarea) return
+      textarea.setSelectionRange(cursorPos, cursorPos)
+      textarea.focus()
+    })
+  }, [])
+
+  const handleFileMentionSelect = useCallback((file: FileMention) => {
+    const { newText, cursorPos } = fileMentionRef.current.selectFile(file, descriptionRef.current)
     setDescription(newText)
     requestAnimationFrame(() => {
       const textarea = textareaRef.current
@@ -304,6 +320,14 @@ export const NewAgentForm = forwardRef<NewAgentFormHandle, NewAgentFormProps>(fu
                 onHover={(i) => mention.setSelectedIndex(i)}
               />
             )}
+            {fileMention.state.isOpen && (
+              <FileMentionPicker
+                files={fileMention.filteredFiles}
+                selectedIndex={fileMention.state.selectedIndex}
+                onSelect={handleFileMentionSelect}
+                onHover={(i) => fileMention.setSelectedIndex(i)}
+              />
+            )}
             <div className="overflow-hidden rounded-xl border border-border bg-background transition-colors focus-within:border-ring focus-within:ring-1 focus-within:ring-ring/50">
             {pendingImages.length > 0 && (
               <div className="flex flex-wrap gap-1.5 px-4 pt-3">
@@ -326,7 +350,9 @@ export const NewAgentForm = forwardRef<NewAgentFormHandle, NewAgentFormProps>(fu
                 value={description}
                 onChange={(e) => {
                   setDescription(e.target.value)
-                  mention.onTextChange(e.target.value, e.target.selectionStart ?? e.target.value.length)
+                  const cursor = e.target.selectionStart ?? e.target.value.length
+                  mention.onTextChange(e.target.value, cursor)
+                  fileMention.onTextChange(e.target.value, cursor)
                 }}
                 onKeyDown={(e: KeyboardEvent<HTMLTextAreaElement>) => {
                   const m = mentionRef.current
@@ -339,12 +365,25 @@ export const NewAgentForm = forwardRef<NewAgentFormHandle, NewAgentFormProps>(fu
                     }
                     if (m.onKeyDown(e)) return
                   }
+                  const filePicker = fileMentionRef.current
+                  if (filePicker.state.isOpen) {
+                    const selectedFile = filePicker.filteredFiles[filePicker.state.selectedIndex]
+                    if ((e.key === "Enter" || e.key === "Tab") && selectedFile) {
+                      e.preventDefault()
+                      handleFileMentionSelect(selectedFile)
+                      return
+                    }
+                    if (filePicker.onKeyDown(e)) return
+                  }
                   if (e.key === "Enter" && (e.metaKey || e.ctrlKey)) {
                     e.preventDefault()
                     handleSubmit()
                   }
                 }}
-                onBlur={() => mention.close()}
+                onBlur={() => {
+                  mention.close()
+                  fileMention.close()
+                }}
                 onPaste={handlePaste}
                 placeholder="Describe the task, paste an issue URL, or continue work on a branch/PR..."
                 rows={4}

@@ -89,6 +89,9 @@ import { NewAgentForm } from "../components/NewAgentForm"
 import { ChatInput, appendQuotedText } from "../components/ChatInput"
 import { ChatPanel } from "../components/ChatPanel"
 import { ModelEffortPopover } from "../components/ModelEffortPopover"
+import { FileMentionPicker } from "../components/FileMentionPicker"
+import { SlashCommandPicker } from "../components/SlashCommandPicker"
+import { SuggestionPicker } from "../components/SuggestionPicker"
 import { CommandPalette } from "../components/CommandPalette"
 import { StatusPage } from "../pages/StatusPage"
 import { TaskOverflowMenu } from "../components/TaskListItem"
@@ -609,7 +612,87 @@ describe("StatusPage", () => {
   })
 })
 
+describe("SuggestionPicker", () => {
+  test("shares selection, hover, and mouse selection behavior", () => {
+    let hovered = -1
+    let selected = ""
+    render(
+      <SuggestionPicker
+        items={["one", "two"]}
+        selectedIndex={1}
+        getKey={(item) => item}
+        onSelect={(item) => { selected = item }}
+        onHover={(index) => { hovered = index }}
+      >
+        {(item) => <span>{item}</span>}
+      </SuggestionPicker>
+    )
+
+    const option = screen.getByText("two").closest("button")
+    expect(option?.className).toContain("bg-muted")
+    fireEvent.mouseMove(option!)
+    expect(hovered).toBe(1)
+    fireEvent.mouseDown(option!)
+    expect(selected).toBe("two")
+  })
+})
+
+describe("FileMentionPicker", () => {
+  test("renders file suggestions and selects one", () => {
+    let selected = ""
+    render(
+      <FileMentionPicker
+        files={[{ path: "web/src/ChatInput.tsx" }]}
+        selectedIndex={0}
+        onSelect={(file) => { selected = file.path }}
+        onHover={() => {}}
+      />
+    )
+
+    const option = screen.getByText("ChatInput.tsx")
+    expect(option).toBeTruthy()
+    fireEvent.mouseDown(option)
+    expect(selected).toBe("web/src/ChatInput.tsx")
+  })
+})
+
+describe("SlashCommandPicker", () => {
+  test("renders slash command descriptions and input hints", () => {
+    let selected = ""
+    render(
+      <SlashCommandPicker
+        commands={[{ name: "compact", description: "Compact conversation", input: { hint: "instructions" } }]}
+        selectedIndex={0}
+        onSelect={(command) => { selected = command.name }}
+        onHover={() => {}}
+      />
+    )
+
+    expect(screen.getByText("compact")).toBeTruthy()
+    expect(screen.getByText("Compact conversation")).toBeTruthy()
+    expect(screen.getByText("instructions")).toBeTruthy()
+    fireEvent.mouseDown(screen.getByText("compact"))
+    expect(selected).toBe("compact")
+  })
+})
+
 describe("ChatInput", () => {
+  test("shows ACP slash commands from props", () => {
+    render(
+      <ChatInput
+        onSend={() => {}}
+        disabled={false}
+        queueLength={0}
+        slashCommands={[{ name: "compact", description: "Compact conversation", input: { hint: "instructions" } }]}
+      />
+    )
+
+    fireEvent.change(screen.getByPlaceholderText("Message agent..."), { target: { value: "/comp", selectionStart: 5 } })
+
+    expect(screen.getByText("compact")).toBeTruthy()
+    expect(screen.getByText("Compact conversation")).toBeTruthy()
+  })
+
   test("formats quoted text as a composer block", () => {
     expect(appendQuotedText("", "> quoted")).toBe("> quoted\n\n")
     expect(appendQuotedText("Already typing", "> quoted")).toBe("Already typing\n\n> quoted\n\n")

@@ -2,7 +2,7 @@
 
 import type { Effect } from "effect"
 import type { AgentError, PromptError, SessionStartError } from "../errors"
-import type { AgentConfigOption, AgentContentBlock, AgentPlanEntry, PromptImage, ProviderType } from "@tangerine/shared"
+import type { AgentConfigOption, AgentContentBlock, AgentPlanEntry, AgentSlashCommand, PromptImage, ProviderType } from "@tangerine/shared"
 
 export type { PromptImage, ProviderType }
 
@@ -26,6 +26,7 @@ export type AgentEvent =
    *  cumulative = true means values are already session totals (overwrite, don't add). */
   | { kind: "usage"; inputTokens?: number; outputTokens?: number; contextTokens?: number; contextWindowMax?: number; cumulative?: boolean }
   | { kind: "config.options"; options: AgentConfigOption[] }
+  | { kind: "slash.commands"; commands: AgentSlashCommand[] }
   | { kind: "plan"; entries: AgentPlanEntry[] }
   | { kind: "content.block"; block: AgentContentBlock }
   | { kind: "session.info"; title?: string | null; updatedAt?: string | null; metadata?: Record<string, unknown> }
@@ -78,6 +79,8 @@ export interface AgentHandle {
   getSkills?(): string[]
   /** Return latest ACP session config options, if the provider exposes them. */
   getConfigOptions?(): AgentConfigOption[]
+  /** Return latest ACP slash commands, if the provider exposes them. */
+  getSlashCommands?(): AgentSlashCommand[]
 }
 
 /** Context passed to AgentFactory.start() to bootstrap an agent session */

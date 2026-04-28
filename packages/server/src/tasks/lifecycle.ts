@@ -14,6 +14,8 @@ import { buildSystemNotes } from "./prompts"
 import { killProcessTree } from "../agent/process-tree"
 import { getAgentHandleMeta } from "../agent/provider"
 import { resolveGithubSlug, getRepoForkInfo } from "../gh"
+import { emitTaskEvent } from "./events"
+import { getTaskState } from "./task-state"
 
 const log = createLogger("lifecycle")
 
@@ -58,7 +60,12 @@ function resolveCustomSystemPrompt(config: ProjectConfig, taskType: string | nul
   return config.taskTypes?.[tt]?.systemPrompt
 }
 
-/** Run a local command via Bun.spawn, return stdout/stderr/exitCode */
+/** Clear transient autocomplete data before binding a fresh agent session. */
+export function resetSessionAutocompleteState(taskId: string): void {
+  getTaskState(taskId).slashCommands = []
+  emitTaskEvent(taskId, { event: "slash.commands", commands: [] })
+}
+
 function localExec(command: string, cwd?: string): Effect.Effect<{ stdout: string; stderr: string; exitCode: number }, Error> {
   return Effect.tryPromise({
     try: async () => {
@@ -299,6 +306,7 @@ export function startSession(
 
     // 5. Start agent locally (with timeout to prevent indefinite hangs)
     yield* activity("agent.starting", "Starting agent")
+    resetSessionAutocompleteState(task.id)
     const systemNotes = buildSystemNotes(task.id, {
       setupCommand: usesSlot0 ? undefined : config.setup, // slot 0 skips setup
       taskType: task.type ?? undefined,
@@ -400,6 +408,7 @@ export function reconnectSession(
 
     // 3. Start agent — resume session if we have a session ID (with timeout)
     yield* activity("agent.reconnecting", "Restarting agent process")
+    resetSessionAutocompleteState(task.id)
     const project = deps.tangerineConfig.projects.find((p) => p.name === task.project_id)
     const taskType = task.type as "worker" | "orchestrator" | "reviewer" | "runner" | undefined
     const resolved = project && taskType && taskType !== "runner" ? resolveTaskTypeConfig(project, taskType) : undefined

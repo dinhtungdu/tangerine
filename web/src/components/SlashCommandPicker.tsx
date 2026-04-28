@@ -1,42 +1,38 @@
-import { useRef, useEffect } from "react"
+import type { AgentSlashCommand } from "@tangerine/shared"
+import { SuggestionPicker } from "./SuggestionPicker"
 
 interface SlashCommandPickerProps {
-  skills: string[]
+  commands: AgentSlashCommand[]
   selectedIndex: number
-  onSelect: (skill: string) => void
+  onSelect: (command: AgentSlashCommand) => void
   onHover: (index: number) => void
 }
 
-export function SlashCommandPicker({ skills, selectedIndex, onSelect, onHover }: SlashCommandPickerProps) {
-  const listRef = useRef<HTMLDivElement>(null)
-
-  useEffect(() => {
-    const item = listRef.current?.children[selectedIndex] as HTMLElement | undefined
-    item?.scrollIntoView({ block: "nearest" })
-  }, [selectedIndex])
-
-  if (skills.length === 0) return null
-
+export function SlashCommandPicker({ commands, selectedIndex, onSelect, onHover }: SlashCommandPickerProps) {
   return (
-    <div className="absolute bottom-full left-0 right-0 z-50 mb-1">
-      <div ref={listRef} className="max-h-52 overflow-y-auto rounded-lg border border-border bg-background shadow-lg">
-        {skills.map((skill, i) => (
-          <button
-            key={skill}
-            onMouseDown={(e) => {
-              e.preventDefault()
-              onSelect(skill)
-            }}
-            onMouseMove={() => onHover(i)}
-            className={`flex w-full items-center gap-2 px-3 py-2 text-left outline-none transition-colors focus-visible:ring-1 focus-visible:ring-ring/50 ${
-              i === selectedIndex ? "bg-muted" : ""
-            }`}
-          >
-            <span className="shrink-0 font-mono text-xs text-orange-500">/</span>
-            <span className="min-w-0 flex-1 truncate text-sm text-foreground">{skill}</span>
-          </button>
-        ))}
-      </div>
-    </div>
+    <SuggestionPicker
+      items={commands}
+      selectedIndex={selectedIndex}
+      getKey={(command) => command.name}
+      onSelect={onSelect}
+      onHover={onHover}
+      maxHeightClassName="max-h-64"
+      itemAlignClassName="items-start"
+    >
+      {(command) => (
+        <>
+          <span className="mt-0.5 shrink-0 font-mono text-xs text-orange-500">/</span>
+          <span className="min-w-0 flex-1">
+            <span className="block truncate font-mono text-sm text-foreground">{command.name}</span>
+            {command.description && (
+              <span className="block truncate text-xs text-muted-foreground">{command.description}</span>
+            )}
+            {command.input?.hint && (
+              <span className="block truncate font-mono text-2xs text-muted-foreground/70">{command.input.hint}</span>
+            )}
+          </span>
+        </>
+      )}
+    </SuggestionPicker>
   )
 }

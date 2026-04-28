@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState, useCallback } from "react"
 import { Button } from "@/components/ui/button"
 import { TERMINAL_STATUSES } from "@tangerine/shared"
-import type { AgentConfigOption, PromptImage, PromptQueueEntry, PredefinedPrompt, TaskStatus, ProviderType, ActivityEntry } from "@tangerine/shared"
+import type { AgentConfigOption, AgentSlashCommand, PromptImage, PromptQueueEntry, PredefinedPrompt, TaskStatus, ProviderType, ActivityEntry } from "@tangerine/shared"
 import type { ChatMessage as ChatMessageType } from "../hooks/useSession"
 import { AssistantMessageGroups } from "./AssistantMessageGroups"
 import { ChatInput } from "./ChatInput"
@@ -30,6 +30,7 @@ interface ChatPanelProps {
   onReasoningEffortChange?: (effort: string) => void
   onModeChange?: (mode: string) => void
   configOptions?: AgentConfigOption[]
+  slashCommands?: AgentSlashCommand[]
   predefinedPrompts?: PredefinedPrompt[]
   onResolve?: () => Promise<void>
   canContinue?: boolean
@@ -150,6 +151,7 @@ export function ChatPanel({
   onReasoningEffortChange,
   onModeChange,
   configOptions,
+  slashCommands,
   predefinedPrompts,
   onResolve,
   canContinue,
@@ -361,6 +363,7 @@ export function ChatPanel({
           onReasoningEffortChange={onReasoningEffortChange}
           onModeChange={onModeChange}
           configOptions={configOptions}
+          slashCommands={slashCommands}
           predefinedPrompts={predefinedPrompts}
           quotedMessage={effectivePendingQuote}
           onQuoteDismiss={() => setPendingQuote(null)}

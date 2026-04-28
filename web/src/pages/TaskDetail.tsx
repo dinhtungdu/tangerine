@@ -672,6 +672,7 @@ export function TaskDetail() {
                 onReasoningEffortChange={handleReasoningEffortChange}
                 onModeChange={handleModeChange}
                 configOptions={session.configOptions}
+                slashCommands={session.slashCommands}
                 predefinedPrompts={resolvedPrompts}
                 onResolve={canResolve ? handleResolve : undefined}
                 canContinue={canContinue}

@@ -78,6 +78,12 @@ export interface AgentConfigOption {
   source?: "config_option" | "model" | "mode"
 }
 
+export interface AgentSlashCommand {
+  name: string
+  description: string
+  input?: { hint: string } | null
+}
+
 const AGENT_EFFORT_OPTION_KEYS = new Set(["thought_level", "effort", "reasoning_effort", "thinking_effort"])
 
 export function isAgentEffortOption(option: Pick<AgentConfigOption, "category" | "id">): boolean {

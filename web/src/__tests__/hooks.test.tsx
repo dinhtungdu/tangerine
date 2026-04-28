@@ -1,8 +1,10 @@
 import { describe, test, expect, mock, beforeEach, afterEach } from "bun:test"
 import { renderHook, act, waitFor } from "@testing-library/react"
 import { useTasks } from "../hooks/useTasks"
-import { applyActivityUpdate, applyAssistantStreamMessage, applyThinkingStreamMessage, applyUsageUpdate, mergeActivitySnapshot } from "../hooks/useSession"
+import { applyActivityUpdate, applyAssistantStreamMessage, applyThinkingStreamMessage, applyUsageUpdate, mergeActivitySnapshot, useSession } from "../hooks/useSession"
 import { useMentionPicker } from "../hooks/useMentionPicker"
+import { useFileMentionPicker } from "../hooks/useFileMentionPicker"
+import { useSlashCommandPicker } from "../hooks/useSlashCommandPicker"
 import { usePanelActions } from "../hooks/usePanelActions"
 import { useResizable } from "../hooks/useResizable"
 import { getActions, getAction, setShortcutOverrides, _resetForTesting } from "../lib/actions"
@@ -142,6 +144,96 @@ describe("applyUsageUpdate", () => {
       { contextTokens: 123, contextWindowMax: 1000 },
       {},
     )).toEqual({ contextTokens: 123, contextWindowMax: 1000 })
+  })
+})
+
+describe("useSession", () => {
+  test("keeps config options when slash-command fetch fails", async () => {
+    const originalWebSocket = globalThis.WebSocket
+    class TestWebSocket {
+      static readonly CLOSING = 2
+      readonly readyState = 0
+      onopen: ((event: Event) => void) | null = null
+      onmessage: ((event: MessageEvent) => void) | null = null
+      onerror: ((event: Event) => void) | null = null
+      onclose: ((event: CloseEvent) => void) | null = null
+      constructor(_url: string) { }
+      send(_data: string) { }
+      close() { }
+    }
+    globalThis.WebSocket = TestWebSocket as unknown as typeof WebSocket
+    globalThis.fetch = mock((url: string) => {
+      if (url.includes("/messages")) return Promise.resolve(new Response(JSON.stringify([]), { status: 200, headers: { "Content-Type": "application/json" } }))
+      if (url.includes("/activities")) return Promise.resolve(new Response(JSON.stringify([]), { status: 200, headers: { "Content-Type": "application/json" } }))
+      if (url.includes("/config-options")) {
+        return Promise.resolve(new Response(JSON.stringify({ configOptions: [{ id: "model", name: "Model", category: "model", type: "select", currentValue: "gpt-5", options: [{ value: "gpt-5", name: "GPT-5" }] }] }), { status: 200, headers: { "Content-Type": "application/json" } }))
+      }
+      if (url.includes("/slash-commands")) return Promise.resolve(new Response("not found", { status: 404 }))
+      return Promise.resolve(new Response(JSON.stringify([]), { status: 200, headers: { "Content-Type": "application/json" } }))
+    }) as typeof fetch
+
+    try {
+      const { result } = renderHook(() => useSession("task-1"))
+
+      await waitFor(() => {
+        expect(result.current.configOptions).toHaveLength(1)
+      })
+      expect(result.current.slashCommands).toEqual([])
+    } finally {
+      globalThis.WebSocket = originalWebSocket
+    }
+  })
+
+  test("ignores slash-command responses from a previous task", async () => {
+    const originalWebSocket = globalThis.WebSocket
+    class TestWebSocket {
+      static readonly CLOSING = 2
+      readonly readyState = 0
+      onopen: ((event: Event) => void) | null = null
+      onmessage: ((event: MessageEvent) => void) | null = null
+      onerror: ((event: Event) => void) | null = null
+      onclose: ((event: CloseEvent) => void) | null = null
+      constructor(_url: string) { }
+      send(_data: string) { }
+      close() { }
+    }
+    globalThis.WebSocket = TestWebSocket as unknown as typeof WebSocket
+
+    let resolveOldCommands: (() => void) | null = null
+    globalThis.fetch = mock((url: string) => {
+      if (url.includes("/messages") || url.includes("/activities")) {
+        return Promise.resolve(new Response(JSON.stringify([]), { status: 200, headers: { "Content-Type": "application/json" } }))
+      }
+      if (url.includes("/config-options")) {
+        return Promise.resolve(new Response(JSON.stringify({ configOptions: [] }), { status: 200, headers: { "Content-Type": "application/json" } }))
+      }
+      if (url.includes("/task-1/slash-commands")) {
+        return new Promise<Response>((resolve) => {
+          resolveOldCommands = () => resolve(new Response(JSON.stringify({ commands: [{ name: "old", description: "Old task command" }] }), { status: 200, headers: { "Content-Type": "application/json" } }))
+        })
+      }
+      if (url.includes("/task-2/slash-commands")) {
+        return new Promise<Response>(() => {})
+      }
+      return Promise.resolve(new Response(JSON.stringify([]), { status: 200, headers: { "Content-Type": "application/json" } }))
+    }) as typeof fetch
+
+    try {
+      const { result, rerender } = renderHook(({ taskId }) => useSession(taskId), { initialProps: { taskId: "task-1" } })
+
+      await waitFor(() => expect(resolveOldCommands).toBeTruthy())
+      rerender({ taskId: "task-2" })
+
+      await act(async () => {
+        resolveOldCommands?.()
+        await new Promise((resolve) => setTimeout(resolve, 0))
+      })
+      await new Promise((resolve) => setTimeout(resolve, 0))
+
+      expect(result.current.slashCommands).toEqual([])
+    } finally {
+      globalThis.WebSocket = originalWebSocket
+    }
   })
 })
 
@@ -350,16 +442,16 @@ describe("useMentionPicker", () => {
     expect(result.current.filteredTasks).toHaveLength(0)
   })
 
-  test("opens when @ is detected", () => {
+  test("opens when # is detected", () => {
     const { result } = renderHook(() => useMentionPicker(mentionTasks))
-    act(() => result.current.onTextChange("@", 1))
+    act(() => result.current.onTextChange("#", 1))
     expect(result.current.state.isOpen).toBe(true)
     expect(result.current.filteredTasks).toHaveLength(2)
   })
 
-  test("filters tasks by query after @", () => {
+  test("filters tasks by query after #", () => {
     const { result } = renderHook(() => useMentionPicker(mentionTasks))
-    act(() => result.current.onTextChange("@auth", 5))
+    act(() => result.current.onTextChange("#auth", 5))
     expect(result.current.state.isOpen).toBe(true)
     expect(result.current.filteredTasks).toHaveLength(1)
     expect(result.current.filteredTasks[0].title).toBe("Fix auth middleware")
@@ -367,7 +459,7 @@ describe("useMentionPicker", () => {
 
   test("closes on escape", () => {
     const { result } = renderHook(() => useMentionPicker(mentionTasks))
-    act(() => result.current.onTextChange("@", 1))
+    act(() => result.current.onTextChange("#", 1))
     expect(result.current.state.isOpen).toBe(true)
 
     const prevented = { called: false }
@@ -380,7 +472,7 @@ describe("useMentionPicker", () => {
 
   test("navigates with arrow keys", () => {
     const { result } = renderHook(() => useMentionPicker(mentionTasks))
-    act(() => result.current.onTextChange("@", 1))
+    act(() => result.current.onTextChange("#", 1))
     expect(result.current.state.selectedIndex).toBe(0)
 
     act(() => {
@@ -394,22 +486,22 @@ describe("useMentionPicker", () => {
     expect(result.current.state.selectedIndex).toBe(0)
   })
 
-  test("selectTask replaces @query with UUID", () => {
+  test("selectTask replaces #query with UUID", () => {
     const { result } = renderHook(() => useMentionPicker(mentionTasks))
-    act(() => result.current.onTextChange("hello @auth", 11))
+    act(() => result.current.onTextChange("hello #auth", 11))
 
     let res: { newText: string; cursorPos: number } = { newText: "", cursorPos: 0 }
     act(() => {
-      res = result.current.selectTask(mentionTasks[0], "hello @auth")
+      res = result.current.selectTask(mentionTasks[0], "hello #auth")
     })
     expect(res.newText).toBe("hello 6536bda8-c097-4ff9-9521-38145bc9001c")
     expect(res.cursorPos).toBe(42)
     expect(result.current.state.isOpen).toBe(false)
   })
 
-  test("closes when text has no @ trigger", () => {
+  test("closes when text has no # trigger", () => {
     const { result } = renderHook(() => useMentionPicker(mentionTasks))
-    act(() => result.current.onTextChange("@", 1))
+    act(() => result.current.onTextChange("#", 1))
     expect(result.current.state.isOpen).toBe(true)
 
     act(() => result.current.onTextChange("hello world", 11))
@@ -418,7 +510,7 @@ describe("useMentionPicker", () => {
 
   test("sorts active tasks before completed", () => {
     const { result } = renderHook(() => useMentionPicker(mentionTasks))
-    act(() => result.current.onTextChange("@", 1))
+    act(() => result.current.onTextChange("#", 1))
     // First task should be the running one
     expect(result.current.filteredTasks[0].status).toBe("running")
     expect(result.current.filteredTasks[1].status).toBe("done")
@@ -427,7 +519,7 @@ describe("useMentionPicker", () => {
   test("clamps arrow navigation to filtered list bounds", () => {
     const { result } = renderHook(() => useMentionPicker(mentionTasks))
     // Filter to single result
-    act(() => result.current.onTextChange("@auth", 5))
+    act(() => result.current.onTextChange("#auth", 5))
     expect(result.current.filteredTasks).toHaveLength(1)
 
     // ArrowDown should not go past last filtered item
@@ -439,7 +531,7 @@ describe("useMentionPicker", () => {
 
   test("does not consume Enter/Tab when no matches", () => {
     const { result } = renderHook(() => useMentionPicker(mentionTasks))
-    act(() => result.current.onTextChange("@zzzznotask", 11))
+    act(() => result.current.onTextChange("#zzzznotask", 11))
     expect(result.current.state.isOpen).toBe(true)
     expect(result.current.filteredTasks).toHaveLength(0)
 
@@ -448,17 +540,100 @@ describe("useMentionPicker", () => {
     expect(consumed).toBe(false)
   })
 
-  test("does not open for @ preceded by non-whitespace", () => {
+  test("does not open for # preceded by non-whitespace", () => {
     const { result } = renderHook(() => useMentionPicker(mentionTasks))
-    act(() => result.current.onTextChange("email@auth", 10))
+    act(() => result.current.onTextChange("tag#auth", 8))
     expect(result.current.state.isOpen).toBe(false)
   })
 
-  test("opens for @ after whitespace", () => {
+  test("opens for # after whitespace", () => {
     const { result } = renderHook(() => useMentionPicker(mentionTasks))
-    act(() => result.current.onTextChange("check @auth", 11))
+    act(() => result.current.onTextChange("check #auth", 11))
     expect(result.current.state.isOpen).toBe(true)
     expect(result.current.state.query).toBe("auth")
+  })
+})
+
+describe("useSlashCommandPicker", () => {
+  const commands = [
+    { name: "compact", description: "Compact conversation", input: { hint: "instructions" } },
+    { name: "model", description: "Switch model" },
+  ]
+
+  test("opens and filters slash commands", () => {
+    const { result } = renderHook(() => useSlashCommandPicker(commands))
+
+    act(() => result.current.onTextChange("/comp", 5))
+
+    expect(result.current.state.isOpen).toBe(true)
+    expect(result.current.filteredCommands).toEqual([commands[0]])
+  })
+
+  test("selectCommand replaces query with slash command", () => {
+    const { result } = renderHook(() => useSlashCommandPicker(commands))
+    act(() => result.current.onTextChange("/comp", 5))
+
+    let res: { newText: string; cursorPos: number } = { newText: "", cursorPos: 0 }
+    act(() => {
+      res = result.current.selectCommand(commands[0]!, "/comp")
+    })
+
+    expect(res.newText).toBe("/compact ")
+    expect(res.cursorPos).toBe(9)
+    expect(result.current.state.isOpen).toBe(false)
+  })
+
+  test("does not open for normal absolute paths", () => {
+    const { result } = renderHook(() => useSlashCommandPicker(commands))
+
+    act(() => result.current.onTextChange("see /tmp", 8))
+
+    expect(result.current.state.isOpen).toBe(false)
+  })
+
+  test("opens after a newline", () => {
+    const { result } = renderHook(() => useSlashCommandPicker(commands))
+
+    act(() => result.current.onTextChange("note\n/model", 11))
+
+    expect(result.current.state.isOpen).toBe(true)
+    expect(result.current.filteredCommands).toEqual([commands[1]])
+  })
+})
+
+describe("useFileMentionPicker", () => {
+  test("fetches task files when @ query opens", async () => {
+    globalThis.fetch = mock((url: string) => {
+      if (url === "/api/tasks/task-1/files?query=Chat") {
+        return Promise.resolve(new Response(JSON.stringify({ files: [{ path: "web/src/ChatInput.tsx" }] }), {
+          status: 200,
+          headers: { "Content-Type": "application/json" },
+        }))
+      }
+      return Promise.resolve(new Response(JSON.stringify({ files: [] }), { status: 200 }))
+    }) as typeof fetch
+
+    const { result } = renderHook(() => useFileMentionPicker({ taskId: "task-1" }))
+    act(() => result.current.onTextChange("see @Chat", 9))
+
+    await waitFor(() => {
+      expect(result.current.filteredFiles).toHaveLength(1)
+    })
+    expect(result.current.filteredFiles[0].path).toBe("web/src/ChatInput.tsx")
+  })
+
+  test("selectFile replaces @query with @path", () => {
+    const { result } = renderHook(() => useFileMentionPicker({}))
+    act(() => result.current.onTextChange("read @Chat", 10))
+
+    let res: { newText: string; cursorPos: number } = { newText: "", cursorPos: 0 }
+    act(() => {
+      res = result.current.selectFile({ path: "web/src/ChatInput.tsx" }, "read @Chat")
+    })
+
+    expect(res.newText).toBe("read @web/src/ChatInput.tsx ")
+    expect(res.cursorPos).toBe(28)
+    expect(result.current.state.isOpen).toBe(false)
   })
 })
 

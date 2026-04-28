@@ -1,5 +1,8 @@
 import { describe, test, expect, beforeEach } from "bun:test"
 import { Effect } from "effect"
+import { mkdirSync, writeFileSync, rmSync } from "node:fs"
+import { join } from "node:path"
+import { tmpdir } from "node:os"
 import type { Database } from "bun:sqlite"
 import { createTestDb } from "./helpers"
 import { isLoopbackHost, isPublicApiPath } from "../auth"
@@ -11,6 +14,7 @@ import type { RawConfig } from "../config"
 import { createAgentFactories } from "../agent/factories"
 import { getTaskState } from "../tasks/task-state"
 import { clearQueue, enqueue } from "../agent/prompt-queue"
+import { cleanGitEnv } from "../git-env"
 
 function createMockDeps(db: Database, configOverrides?: Partial<AppDeps["config"]["config"]>): AppDeps {
   const configData = {
@@ -174,6 +178,76 @@ describe("API routes", () => {
       expect(isLoopbackHost("0.0.0.0")).toBe(false)
       expect(isLoopbackHost("192.168.1.5")).toBe(false)
       expect(isLoopbackHost("example.com")).toBe(false)
+    })
+  })
+
+  describe("file mention routes", () => {
+    test("lists project repo files filtered by query", async () => {
+      const workspace = join(tmpdir(), `tangerine-files-${crypto.randomUUID()}`)
+      const repoDir = join(workspace, "test-project", "0")
+      try {
+        mkdirSync(join(repoDir, "web", "src"), { recursive: true })
+        writeFileSync(join(repoDir, "web", "src", "ChatInput.tsx"), "export const ok = true\n")
+        writeFileSync(join(repoDir, "README.md"), "docs\n")
+        Bun.spawnSync(["git", "init", repoDir], { env: cleanGitEnv() })
+        Bun.spawnSync(["git", "-C", repoDir, "add", "."], { env: cleanGitEnv() })
+        Bun.spawnSync(["git", "-C", repoDir, "-c", "user.email=test@example.com", "-c", "user.name=Test", "commit", "-qm", "init"], { env: cleanGitEnv() })
+        writeFileSync(join(repoDir, "web", "src", "UntrackedOnly.tsx"), "export const local = true\n")
+        deps = createMockDeps(db, { workspace })
+        app = createApp(deps).app
+
+        const res = await app.fetch(new Request("http://localhost/api/projects/test-project/files?query=Chat"))
+        expect(res.status).toBe(200)
+        const body = await res.json() as { files: Array<{ path: string }> }
+        expect(body.files).toEqual([{ path: "web/src/ChatInput.tsx" }])
+
+        const untrackedRes = await app.fetch(new Request("http://localhost/api/projects/test-project/files?query=UntrackedOnly"))
+        expect(untrackedRes.status).toBe(200)
+        const untrackedBody = await untrackedRes.json() as { files: Array<{ path: string }> }
+        expect(untrackedBody.files).toEqual([])
+      } finally {
+        rmSync(workspace, { recursive: true, force: true })
+      }
+    })
+
+    test("lists task worktree files", async () => {
+      const worktree = join(tmpdir(), `tangerine-task-files-${crypto.randomUUID()}`)
+      try {
+        mkdirSync(join(worktree, "packages", "server"), { recursive: true })
+        writeFileSync(join(worktree, "packages", "server", "index.ts"), "export {}\n")
+        Bun.spawnSync(["git", "init", worktree], { env: cleanGitEnv() })
+        const row = seedTask(db)
+        db.prepare("UPDATE tasks SET worktree_path = ? WHERE id = ?").run(worktree, row.id)
+
+        const res = await app.fetch(new Request(`http://localhost/api/tasks/${row.id}/files?query=server`))
+        expect(res.status).toBe(200)
+        const body = await res.json() as { files: Array<{ path: string }> }
+        expect(body.files).toEqual([{ path: "packages/server/index.ts" }])
+      } finally {
+        rmSync(worktree, { recursive: true, force: true })
+      }
+    })
+
+    test("falls back to project repo files when task has no worktree yet", async () => {
+      const workspace = join(tmpdir(), `tangerine-task-fallback-files-${crypto.randomUUID()}`)
+      const repoDir = join(workspace, "test-project", "0")
+      try {
+        mkdirSync(join(repoDir, "src"), { recursive: true })
+        writeFileSync(join(repoDir, "src", "RootFile.ts"), "export const root = true\n")
+        Bun.spawnSync(["git", "init", repoDir], { env: cleanGitEnv() })
+        Bun.spawnSync(["git", "-C", repoDir, "add", "."], { env: cleanGitEnv() })
+        Bun.spawnSync(["git", "-C", repoDir, "-c", "user.email=test@example.com", "-c", "user.name=Test", "commit", "-qm", "init"], { env: cleanGitEnv() })
+        deps = createMockDeps(db, { workspace })
+        app = createApp(deps).app
+        const row = seedTask(db)
+
+        const res = await app.fetch(new Request(`http://localhost/api/tasks/${row.id}/files?query=Root`))
+        expect(res.status).toBe(200)
+        const body = await res.json() as { files: Array<{ path: string }> }
+        expect(body.files).toEqual([{ path: "src/RootFile.ts" }])
+      } finally {
+        rmSync(workspace, { recursive: true, force: true })
+      }
     })
   })
 
@@ -664,20 +738,13 @@ describe("API routes", () => {
     })
 
     test("renames branch and updates task.branch in DB", async () => {
-      // Provide explicit clean env (no git env vars) so our Bun.spawnSync calls
-      // target the temp repo, not an inherited GIT_DIR from the husky hook.
-      // localExecStrict (called by the route) also strips git env vars — see worktree-pool.ts.
-      const cleanEnv = Object.fromEntries(
-        Object.entries(process.env).filter(([k]) => !["GIT_DIR", "GIT_WORK_TREE", "GIT_INDEX_FILE", "GIT_OBJECT_DIRECTORY", "GIT_COMMON_DIR"].includes(k))
-      ) as Record<string, string>
-
-      // Set up a real git repo so git branch -m succeeds
+      // Set up a real git repo so git branch -m succeeds.
       const repoDir = `/tmp/tangerine-test-rename-${crypto.randomUUID()}`
-      Bun.spawnSync(["git", "init", repoDir], { env: cleanEnv })
-      Bun.spawnSync(["git", "-C", repoDir, "config", "user.email", "test@test.com"], { env: cleanEnv })
-      Bun.spawnSync(["git", "-C", repoDir, "config", "user.name", "Test"], { env: cleanEnv })
-      Bun.spawnSync(["git", "-C", repoDir, "commit", "--allow-empty", "-m", "init"], { env: cleanEnv })
-      Bun.spawnSync(["git", "-C", repoDir, "checkout", "-b", "tangerine/old-branch"], { env: cleanEnv })
+      Bun.spawnSync(["git", "init", repoDir], { env: cleanGitEnv() })
+      Bun.spawnSync(["git", "-C", repoDir, "config", "user.email", "test@test.com"], { env: cleanGitEnv() })
+      Bun.spawnSync(["git", "-C", repoDir, "config", "user.name", "Test"], { env: cleanGitEnv() })
+      Bun.spawnSync(["git", "-C", repoDir, "commit", "--allow-empty", "-m", "init"], { env: cleanGitEnv() })
+      Bun.spawnSync(["git", "-C", repoDir, "checkout", "-b", "tangerine/old-branch"], { env: cleanGitEnv() })
 
       const row = seedTask(db)
       db.prepare("UPDATE tasks SET worktree_path = ?, branch = 'tangerine/old-branch' WHERE id = ?").run(repoDir, row.id)
@@ -786,6 +853,22 @@ describe("API routes", () => {
         currentValue: "gpt-5",
         options: [{ value: "gpt-5", name: "GPT-5" }],
       }] })
+    })
+  })
+
+  describe("GET /api/tasks/:id/slash-commands", () => {
+    test("returns active ACP slash commands", async () => {
+      const row = seedTask(db)
+      ;(getTaskState(row.id) as { slashCommands?: unknown[] }).slashCommands = [
+        { name: "compact", description: "Compact conversation", input: { hint: "instructions" } },
+      ]
+
+      const res = await app.fetch(new Request(`http://localhost/api/tasks/${row.id}/slash-commands`))
+
+      expect(res.status).toBe(200)
+      expect(await res.json()).toEqual({ commands: [
+        { name: "compact", description: "Compact conversation", input: { hint: "instructions" } },
+      ] })
     })
   })
 

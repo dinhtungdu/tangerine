@@ -1,4 +1,4 @@
-import type { AgentConfig, AgentConfigOption, Task, TaskWriteResponse, ProjectConfig, SystemLogEntry, ActivityEntry, ActionCombo, ShortcutConfig, SystemCapabilities, PromptImage, PromptQueueEntry } from "@tangerine/shared"
+import type { AgentConfig, AgentConfigOption, AgentSlashCommand, Task, TaskWriteResponse, ProjectConfig, SystemLogEntry, ActivityEntry, ActionCombo, ShortcutConfig, SystemCapabilities, PromptImage, PromptQueueEntry } from "@tangerine/shared"
 import { buildAuthHeaders, emitAuthFailure } from "./auth"
 
 const BASE = ""
@@ -183,13 +183,13 @@ export async function fetchMessages(id: string): Promise<SessionLog[]> {
 }
 
 export async function fetchTaskConfigOptions(id: string): Promise<AgentConfigOption[]> {
-  const body = await request<{ configOptions: AgentConfigOption[] }>(`/api/tasks/${id}/config-options`)
-  return body.configOptions
+  const body = await request<{ configOptions?: AgentConfigOption[] }>(`/api/tasks/${id}/config-options`)
+  return Array.isArray(body?.configOptions) ? body.configOptions : []
 }
 
 export async function fetchQueuedPrompts(id: string): Promise<PromptQueueEntry[]> {
-  const body = await request<{ queuedPrompts: PromptQueueEntry[] }>(`/api/tasks/${id}/queue`)
-  return body.queuedPrompts
+  const body = await request<{ queuedPrompts?: PromptQueueEntry[] }>(`/api/tasks/${id}/queue`)
+  return Array.isArray(body?.queuedPrompts) ? body.queuedPrompts : []
 }
 
 export async function updateQueuedPrompt(id: string, promptId: string, text: string, images?: PromptImage[]): Promise<PromptQueueEntry> {
@@ -202,6 +202,11 @@ export async function updateQueuedPrompt(id: string, promptId: string, text: str
 
 export async function removeQueuedPrompt(id: string, promptId: string): Promise<void> {
   return request<void>(`/api/tasks/${id}/queue/${promptId}`, { method: "DELETE" })
+}
+
+export async function fetchTaskSlashCommands(id: string): Promise<AgentSlashCommand[]> {
+  const body = await request<{ commands?: AgentSlashCommand[] }>(`/api/tasks/${id}/slash-commands`)
+  return Array.isArray(body?.commands) ? body.commands : []
 }
 
 export async function sendPrompt(id: string, text: string): Promise<void> {
