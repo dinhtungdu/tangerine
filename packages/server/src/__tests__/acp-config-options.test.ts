@@ -23,6 +23,19 @@ describe("taskConfigUpdatesFromOptions", () => {
     ])).toEqual({ model: "gpt-5", reasoning_effort: "high" })
   })
 
+  test("derives reasoning effort from ACP effort category", () => {
+    expect(taskConfigUpdatesFromOptions([
+      {
+        id: "effort",
+        name: "Effort",
+        category: "effort",
+        type: "select",
+        currentValue: "xhigh",
+        options: [{ value: "xhigh", name: "XHigh" }],
+      },
+    ])).toEqual({ reasoning_effort: "xhigh" })
+  })
+
   test("ignores unsupported categories", () => {
     expect(taskConfigUpdatesFromOptions([
       {

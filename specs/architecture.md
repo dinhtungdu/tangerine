@@ -105,7 +105,7 @@ Notable task fields in the active schema:
 - `type` — "worker" (worktree + branch + PR tracking), "orchestrator" (system coordinator), "reviewer" (PR review), "runner" (no worktree, runs on project root, no PR tracking, agent self-completes)
 - `provider` — migration-compatible selected ACP agent id
 - `model` — selected from ACP session config option category `model` when available
-- `reasoning_effort` — selected from ACP session config option category `thought_level` when available
+- `reasoning_effort` — selected from ACP session config option category `thought_level` or `effort` when available
 - `branch`
 - `worktree_path`
 - `parent_task_id`

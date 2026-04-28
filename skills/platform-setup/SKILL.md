@@ -82,7 +82,7 @@ User is on the machine where Tangerine will run — either their host or inside 
 
    | Agent | ACP package/path | Verify command |
    |-------|------------------|----------------|
-   | Claude Code | Zed adapter `@zed-industries/claude-code-acp` | `bunx --bun @zed-industries/claude-code-acp --help` |
+   | Claude Agent | ACP registry adapter `@agentclientprotocol/claude-agent-acp` | `bunx --bun @agentclientprotocol/claude-agent-acp --help` |
    | Codex | Zed adapter `@zed-industries/codex-acp` | `bunx --bun @zed-industries/codex-acp --help` |
    | OpenCode | native ACP in `opencode-ai` | `bunx --bun opencode-ai acp --help` |
    | Pi | adapter `pi-acp` | `bunx --bun pi-acp --help` |
@@ -91,7 +91,7 @@ User is on the machine where Tangerine will run — either their host or inside 
    ```json
    {
      "agents": [
-       { "id": "claude", "name": "Claude Code", "command": "bunx", "args": ["--bun", "@zed-industries/claude-code-acp"] },
+       { "id": "claude", "name": "Claude Agent", "command": "bunx", "args": ["--bun", "@agentclientprotocol/claude-agent-acp"] },
        { "id": "codex", "name": "Codex", "command": "bunx", "args": ["--bun", "@zed-industries/codex-acp"] },
        { "id": "opencode", "name": "OpenCode", "command": "bunx", "args": ["--bun", "opencode-ai", "acp"] },
        { "id": "pi", "name": "Pi", "command": "bunx", "args": ["--bun", "pi-acp"] }
@@ -102,8 +102,8 @@ User is on the machine where Tangerine will run — either their host or inside 
 
    Global install alternative:
    ```bash
-   bun add -g @zed-industries/claude-code-acp @zed-industries/codex-acp opencode-ai pi-acp
-   claude-code-acp --help
+   bun add -g @agentclientprotocol/claude-agent-acp @zed-industries/codex-acp opencode-ai pi-acp
+   claude-agent-acp --help
    codex-acp --help
    opencode acp --help
    pi-acp --help
@@ -113,7 +113,7 @@ User is on the machine where Tangerine will run — either their host or inside 
    ```json
    {
      "agents": [
-       { "id": "claude", "name": "Claude Code", "command": "claude-code-acp" },
+       { "id": "claude", "name": "Claude Agent", "command": "claude-agent-acp" },
        { "id": "codex", "name": "Codex", "command": "codex-acp" },
        { "id": "opencode", "name": "OpenCode", "command": "opencode", "args": ["acp"] },
        { "id": "pi", "name": "Pi", "command": "pi-acp" }
@@ -123,7 +123,7 @@ User is on the machine where Tangerine will run — either their host or inside 
    ```
 
    Authenticate each underlying agent before starting Tangerine:
-   - Claude Code adapter needs Claude Code CLI/auth configured.
+   - Claude Agent adapter needs Claude Code/Claude Agent auth configured.
    - Codex adapter needs Codex auth configured.
    - OpenCode needs provider auth configured via OpenCode.
    - Pi adapter needs Pi CLI/config/auth configured.
@@ -246,7 +246,7 @@ User wants a Lima VM to run Tangerine in. You help them create it, then they run
    ```bash
    limactl shell tangerine
    # Install/configure the ACP agent command(s) you want Tangerine to run.
-   bunx --bun @zed-industries/claude-code-acp --help
+   bunx --bun @agentclientprotocol/claude-agent-acp --help
    bunx --bun @zed-industries/codex-acp --help
    bunx --bun opencode-ai acp --help
    bunx --bun pi-acp --help
@@ -336,7 +336,7 @@ User wants to add a project to an already-running Tangerine instance. You help t
        }
      ],
      "agents": [
-       { "id": "claude", "name": "Claude Code", "command": "bunx", "args": ["--bun", "@zed-industries/claude-code-acp"] },
+       { "id": "claude", "name": "Claude Agent", "command": "bunx", "args": ["--bun", "@agentclientprotocol/claude-agent-acp"] },
        { "id": "codex", "name": "Codex", "command": "bunx", "args": ["--bun", "@zed-industries/codex-acp"] },
        { "id": "opencode", "name": "OpenCode", "command": "bunx", "args": ["--bun", "opencode-ai", "acp"] },
        { "id": "pi", "name": "Pi", "command": "bunx", "args": ["--bun", "pi-acp"] }
@@ -385,7 +385,7 @@ Tangerine does not configure or verify credentials — it relies on the agent's 
 
 Only ask if you can't determine from the codebase:
 - Repo URL (if no git remote found)
-- Which ACP agent command(s) to configure (Claude Code, Codex, OpenCode, Pi, or custom ACP command) and which one should be `defaultAgent`
+- Which ACP agent command(s) to configure (Claude Agent, Codex, OpenCode, Pi, or custom ACP command) and which one should be `defaultAgent`
 
 ## After Init
 

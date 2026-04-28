@@ -38,7 +38,7 @@ Configured ACP agent examples:
 
 | Agent | No-global-install command | Global command |
 |-------|---------------------------|----------------|
-| Claude Code | `bunx --bun @zed-industries/claude-code-acp` | `claude-code-acp` |
+| Claude Agent | `bunx --bun @agentclientprotocol/claude-agent-acp` | `claude-agent-acp` |
 | Codex | `bunx --bun @zed-industries/codex-acp` | `codex-acp` |
 | OpenCode | `bunx --bun opencode-ai acp` | `opencode acp` |
 | Pi | `bunx --bun pi-acp` | `pi-acp` |

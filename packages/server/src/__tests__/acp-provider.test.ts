@@ -346,6 +346,35 @@ describe("createAcpProvider", () => {
     rmSync(tempDir, { recursive: true, force: true })
   })
 
+  test("applies ACP effort config options", async () => {
+    const tempDir = mkdtempSync(join(tmpdir(), "tangerine-acp-effort-"))
+    const scriptPath = join(tempDir, "mock-acp-agent.js")
+    writeFileSync(scriptPath, mockEffortAcpAgentScript, "utf-8")
+
+    process.env.TANGERINE_ACP_COMMAND = `bun ${scriptPath}`
+    const provider = createAcpProvider()
+    const handle = await Effect.runPromise(provider.start({ taskId: "task-acp", workdir: tempDir, title: "ACP test" }))
+    const events: Record<string, unknown>[] = []
+    handle.subscribe((event) => events.push(event as unknown as Record<string, unknown>))
+
+    await waitFor(() => events.some((event) => event.kind === "config.options"))
+    expect(events).toContainEqual({ kind: "config.options", options: [{
+      id: "effort",
+      name: "Effort",
+      category: "effort",
+      type: "select",
+      currentValue: "medium",
+      options: [{ value: "low", name: "Low" }, { value: "medium", name: "Medium" }, { value: "high", name: "High" }, { value: "xhigh", name: "XHigh" }],
+      source: "config_option",
+    }] })
+
+    expect(await Effect.runPromise(handle.updateConfig?.({ reasoningEffort: "xhigh" }) ?? Effect.succeed(false))).toBe(true)
+    await waitFor(() => events.some((event) => event.kind === "config.options" && Array.isArray(event.options) && event.options.some((option) => typeof option === "object" && option !== null && "currentValue" in option && option.currentValue === "xhigh")))
+
+    await Effect.runPromise(handle.shutdown())
+    rmSync(tempDir, { recursive: true, force: true })
+  })
+
   test("maps ACP model and mode state to config options", async () => {
     const tempDir = mkdtempSync(join(tmpdir(), "tangerine-acp-models-modes-"))
     const scriptPath = join(tempDir, "mock-acp-agent.js")
@@ -604,6 +633,39 @@ rl.on("line", (line) => {
     return
   }
   if (msg.method === "session/set_config_option") {
+    send({ jsonrpc: "2.0", id: msg.id, result: { configOptions: options(msg.params.value) } })
+    return
+  }
+  if (msg.method === "session/close") {
+    send({ jsonrpc: "2.0", id: msg.id, result: {} })
+  }
+})
+`
+
+const mockEffortAcpAgentScript = `
+const readline = require("node:readline")
+const rl = readline.createInterface({ input: process.stdin })
+function send(message) { process.stdout.write(JSON.stringify(message) + "\\n") }
+const options = (currentValue) => [{
+  id: "effort",
+  name: "Effort",
+  category: "effort",
+  type: "select",
+  currentValue,
+  options: [{ value: "low", name: "Low" }, { value: "medium", name: "Medium" }, { value: "high", name: "High" }, { value: "xhigh", name: "XHigh" }],
+}]
+rl.on("line", (line) => {
+  const msg = JSON.parse(line)
+  if (msg.method === "initialize") {
+    send({ jsonrpc: "2.0", id: msg.id, result: { protocolVersion: 1, agentCapabilities: { sessionCapabilities: { close: {} } }, authMethods: [] } })
+    return
+  }
+  if (msg.method === "session/new") {
+    send({ jsonrpc: "2.0", id: msg.id, result: { sessionId: "sess-effort", configOptions: options("medium") } })
+    return
+  }
+  if (msg.method === "session/set_config_option") {
+    if (msg.params.configId !== "effort") throw new Error("expected effort config")
     send({ jsonrpc: "2.0", id: msg.id, result: { configOptions: options(msg.params.value) } })
     return
   }

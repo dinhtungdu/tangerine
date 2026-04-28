@@ -6,7 +6,7 @@ Local background coding agent platform. Tangerine runs as a local Bun server, sp
 
 - Single-machine runtime, use it on your host machine or inside a VM.
 - Shared bearer-token auth for dashboard, API, and task/terminal WebSockets when `TANGERINE_AUTH_TOKEN` is set
-- ACP-only agents: configured external ACP commands (for example Claude Code, Codex, OpenCode, or Pi adapters)
+- ACP-only agents: configured external ACP commands (for example Claude Agent, Codex, OpenCode, or Pi adapters)
 - Git worktrees per task under a shared workspace
 - Hono API server with REST + WebSocket endpoints
 - Vite + React dashboard served from `web/dist`
@@ -64,7 +64,7 @@ Configure at least one ACP agent command in `~/tangerine/config.json`. Common no
 ```json
 {
   "agents": [
-    { "id": "claude", "name": "Claude Code", "command": "bunx", "args": ["--bun", "@zed-industries/claude-code-acp"] },
+    { "id": "claude", "name": "Claude Agent", "command": "bunx", "args": ["--bun", "@agentclientprotocol/claude-agent-acp"] },
     { "id": "codex", "name": "Codex", "command": "bunx", "args": ["--bun", "@zed-industries/codex-acp"] },
     { "id": "opencode", "name": "OpenCode", "command": "bunx", "args": ["--bun", "opencode-ai", "acp"] },
     { "id": "pi", "name": "Pi", "command": "bunx", "args": ["--bun", "pi-acp"] }

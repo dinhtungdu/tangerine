@@ -4,7 +4,7 @@ import { join } from "node:path"
 import { createLogger } from "../logger"
 import { AgentError, PromptError, SessionStartError } from "../errors"
 import { killDescendants, killProcessTreeEscalated } from "./process-tree"
-import type { AgentConfigOption, AgentContentBlock, AgentPlanEntry } from "@tangerine/shared"
+import { isAgentEffortOption, type AgentConfigOption, type AgentContentBlock, type AgentPlanEntry } from "@tangerine/shared"
 import type { AgentEvent, AgentFactory, AgentHandle, AgentStartContext, PromptImage, AgentMetadata } from "./provider"
 
 const log = createLogger("acp-provider")
@@ -526,7 +526,7 @@ async function startAcpSession(ctx: AgentStartContext, config?: AcpProviderConfi
             changed = true
           }
           if (configUpdate.reasoningEffort !== undefined) {
-            const applied = await setConfigOptionByCategory(rpc, sessionId, configOptions, "thought_level", configUpdate.reasoningEffort, (options) => {
+            const applied = await setConfigOptionByPredicate(rpc, sessionId, configOptions, isAgentEffortOption, configUpdate.reasoningEffort, (options) => {
               configOptions = options
               emit({ kind: "config.options", options })
             })
@@ -715,12 +715,23 @@ async function setConfigOptionByCategory(
   value: string,
   onOptions: (options: AgentConfigOption[]) => void,
 ): Promise<boolean> {
-  const option = options.find((entry) => entry.category === category)
+  return setConfigOptionByPredicate(rpc, sessionId, options, (entry) => entry.category === category, value, onOptions)
+}
+
+async function setConfigOptionByPredicate(
+  rpc: AcpRpcConnection,
+  sessionId: string,
+  options: AgentConfigOption[],
+  predicate: (option: AgentConfigOption) => boolean,
+  value: string,
+  onOptions: (options: AgentConfigOption[]) => void,
+): Promise<boolean> {
+  const option = options.find(predicate)
   if (!option) return false
   if (!option.options.some((entry) => entry.value === value)) return false
 
   const response = await rpc.request(configMethodForOption(option), configParamsForOption(option, sessionId, value))
-  const updated = configOptionsFromAcpResponse(response) ?? updateConfigOptionValue(options, category, value)
+  const updated = configOptionsFromAcpResponse(response) ?? updateConfigOptionValueByPredicate(options, predicate, value)
   onOptions(updated)
   return true
 }
@@ -739,10 +750,6 @@ function configParamsForOption(option: AgentConfigOption, sessionId: string, val
 
 function updateLegacyModeOptionValue(options: AgentConfigOption[], value: string): AgentConfigOption[] {
   return updateConfigOptionValueByPredicate(options, (option) => option.source === "mode" || option.category === "mode", value)
-}
-
-function updateConfigOptionValue(options: AgentConfigOption[], category: string, value: string): AgentConfigOption[] {
-  return updateConfigOptionValueByPredicate(options, (option) => option.category === category, value)
 }
 
 function updateConfigOptionValueByPredicate(

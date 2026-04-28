@@ -77,6 +77,14 @@ export interface AgentConfigOption {
   source?: "config_option" | "model" | "mode"
 }
 
+const AGENT_EFFORT_OPTION_KEYS = new Set(["thought_level", "effort", "reasoning_effort", "thinking_effort"])
+
+export function isAgentEffortOption(option: Pick<AgentConfigOption, "category" | "id">): boolean {
+  const category = option.category?.toLowerCase()
+  if (category && AGENT_EFFORT_OPTION_KEYS.has(category)) return true
+  return AGENT_EFFORT_OPTION_KEYS.has(option.id.toLowerCase())
+}
+
 export interface Cron {
   id: string
   projectId: string

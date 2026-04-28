@@ -160,20 +160,14 @@ export function ModelEffortPopover({
                         setOpen(false)
                       }}
                       className={cn(
-                        "h-auto w-full justify-start items-start gap-1.5 px-2 py-1.5",
-                        e.value === effectiveEffort && "bg-accent/60"
+                        "h-auto w-full justify-start gap-1.5 px-2 py-1.5 text-xs",
+                        e.value === effectiveEffort && "bg-accent/60 font-medium"
                       )}
                     >
                       <Check
-                        className={cn(
-                          "mt-0.5 size-3 shrink-0",
-                          e.value !== effectiveEffort && "invisible"
-                        )}
+                        className={cn("size-3 shrink-0", e.value !== effectiveEffort && "invisible")}
                       />
-                      <span className="flex flex-col items-start gap-0">
-                        <span className="text-xs font-medium">{e.label}</span>
-                        <span className="text-2xs text-muted-foreground">{e.description}</span>
-                      </span>
+                      {e.label}
                     </Button>
                   ))}
                 </div>
@@ -200,20 +194,14 @@ export function ModelEffortPopover({
                         setOpen(false)
                       }}
                       className={cn(
-                        "h-auto w-full justify-start items-start gap-1.5 px-2 py-1.5",
-                        entry.value === effectiveMode && "bg-accent/60"
+                        "h-auto w-full justify-start gap-1.5 px-2 py-1.5 text-xs",
+                        entry.value === effectiveMode && "bg-accent/60 font-medium"
                       )}
                     >
                       <Check
-                        className={cn(
-                          "mt-0.5 size-3 shrink-0",
-                          entry.value !== effectiveMode && "invisible"
-                        )}
+                        className={cn("size-3 shrink-0", entry.value !== effectiveMode && "invisible")}
                       />
-                      <span className="flex flex-col items-start gap-0">
-                        <span className="text-xs font-medium">{entry.label}</span>
-                        <span className="text-2xs text-muted-foreground">{entry.description}</span>
-                      </span>
+                      {entry.label}
                     </Button>
                   ))}
                 </div>

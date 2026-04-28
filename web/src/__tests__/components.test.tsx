@@ -483,6 +483,9 @@ describe("ModelEffortPopover", () => {
     )
     const highBtn = screen.getAllByRole("button").find((b) => b.textContent?.includes("High"))
     expect(highBtn).toBeTruthy()
+    expect(screen.queryByText("Light reasoning")).toBeNull()
+    expect(screen.queryByText("Balanced reasoning")).toBeNull()
+    expect(screen.queryByText("Deep reasoning")).toBeNull()
     fireEvent.click(highBtn!)
     expect(onEffort).toHaveBeenCalledWith("high")
   })
@@ -519,6 +522,8 @@ describe("ModelEffortPopover", () => {
     )
     const codeBtn = screen.getAllByRole("button").find((b) => b.textContent?.includes("Code"))
     expect(codeBtn).toBeTruthy()
+    expect(screen.queryByText("Ask before writes")).toBeNull()
+    expect(screen.queryByText("Edit files")).toBeNull()
     fireEvent.click(codeBtn!)
     expect(onMode).toHaveBeenCalledWith("code")
   })
@@ -671,6 +676,32 @@ describe("ChatInput", () => {
     expect(screen.getAllByRole("button").some((button) => button.textContent?.includes("gpt-5"))).toBe(true)
     expect(screen.getByText("Think Hard")).toBeTruthy()
     expect(screen.getByText("Code")).toBeTruthy()
+  })
+
+  test("uses ACP effort category for reasoning controls", () => {
+    render(
+      <ChatInput
+        onSend={() => {}}
+        disabled={false}
+        queueLength={0}
+        onReasoningEffortChange={() => {}}
+        configOptions={[
+          {
+            id: "effort",
+            name: "Effort",
+            category: "effort",
+            type: "select",
+            currentValue: "medium",
+            options: [{ value: "low", name: "Low" }, { value: "medium", name: "Medium" }, { value: "high", name: "High" }],
+          },
+        ]}
+      />
+    )
+
+    expect(screen.getByText("Medium")).toBeTruthy()
+    expect(screen.getByText("High")).toBeTruthy()
+    expect(screen.getByText("No Model")).toBeTruthy()
+    expect(screen.getByText("No Mode")).toBeTruthy()
   })
 
   test("hides missing ACP option categories instead of showing legacy defaults", () => {

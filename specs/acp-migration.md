@@ -63,7 +63,7 @@ Replace hardcoded provider IDs with configured ACP agents:
 {
   "defaultAgent": "claude",
   "agents": [
-    { "id": "claude", "name": "Claude Code", "command": "bunx", "args": ["--bun", "@zed-industries/claude-code-acp"] },
+    { "id": "claude", "name": "Claude Agent", "command": "bunx", "args": ["--bun", "@agentclientprotocol/claude-agent-acp"] },
     { "id": "codex", "name": "Codex", "command": "bunx", "args": ["--bun", "@zed-industries/codex-acp"] },
     { "id": "opencode", "name": "OpenCode", "command": "bunx", "args": ["--bun", "opencode-ai", "acp"] },
     { "id": "pi", "name": "Pi", "command": "bunx", "args": ["--bun", "pi-acp"] }
@@ -80,7 +80,7 @@ Do not hardcode model lists per provider.
 Use ACP session config options:
 
 - category `model` -> Tangerine model selector
-- category `thought_level` -> Tangerine reasoning selector
+- category `thought_level` or `effort` -> Tangerine reasoning selector
 - category `mode` -> optional mode selector
 
 On session creation/resume, store the returned `configOptions`. On model/reasoning change, call `session/set_config_option`. If an agent lacks config options, hide or disable those controls.

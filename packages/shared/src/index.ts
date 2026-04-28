@@ -1,6 +1,7 @@
 export {
   isProviderAvailable,
   getCapabilitiesForType,
+  isAgentEffortOption,
   type TaskStatus,
   type TaskSource,
   type TaskType,

@@ -123,7 +123,7 @@ Example `config.json`:
     }
   ],
   "agents": [
-    { "id": "claude", "name": "Claude Code", "command": "bunx", "args": ["--bun", "@zed-industries/claude-code-acp"] },
+    { "id": "claude", "name": "Claude Agent", "command": "bunx", "args": ["--bun", "@agentclientprotocol/claude-agent-acp"] },
     { "id": "codex", "name": "Codex", "command": "bunx", "args": ["--bun", "@zed-industries/codex-acp"] },
     { "id": "opencode", "name": "OpenCode", "command": "bunx", "args": ["--bun", "opencode-ai", "acp"] },
     { "id": "pi", "name": "Pi", "command": "bunx", "args": ["--bun", "pi-acp"] }

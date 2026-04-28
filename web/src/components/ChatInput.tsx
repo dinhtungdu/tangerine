@@ -2,7 +2,7 @@ import React, { useState, useRef, useCallback, useEffect, type KeyboardEvent, ty
 import { ArrowUp, X, Quote, Paperclip } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Textarea } from "@/components/ui/textarea"
-import type { AgentConfigOption, PromptImage, PredefinedPrompt, ProviderType, Task } from "@tangerine/shared"
+import { isAgentEffortOption, type AgentConfigOption, type PromptImage, type PredefinedPrompt, type ProviderType, type Task } from "@tangerine/shared"
 import { ModelEffortPopover, type EffortOption } from "./ModelEffortPopover"
 import { MentionPicker } from "./MentionPicker"
 import { SlashCommandPicker } from "./SlashCommandPicker"
@@ -319,7 +319,7 @@ export function ChatInput({ onSend, disabled, queueLength, taskId, isWorking, on
   const showPrompts = !text.trim() && !!predefinedPrompts?.length
 
   const modelOption = configOptions?.find((option) => option.category === "model" && option.type === "select")
-  const thoughtOption = configOptions?.find((option) => option.category === "thought_level" && option.type === "select")
+  const thoughtOption = configOptions?.find((option) => isAgentEffortOption(option) && option.type === "select")
   const modeOption = configOptions?.find((option) => option.category === "mode" && option.type === "select")
   const usesAcpOptions = configOptions !== undefined
   const configModels = modelOption?.options.map((option) => option.value)

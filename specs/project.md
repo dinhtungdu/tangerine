@@ -45,7 +45,7 @@ Stored in `tangerine.json` at the project root (or `~/.config/tangerine/config.j
 {
   "projects": [...],
   "agents": [
-    { "id": "claude", "name": "Claude Code", "command": "bunx", "args": ["--bun", "@zed-industries/claude-code-acp"] },
+    { "id": "claude", "name": "Claude Agent", "command": "bunx", "args": ["--bun", "@agentclientprotocol/claude-agent-acp"] },
     { "id": "codex", "name": "Codex", "command": "bunx", "args": ["--bun", "@zed-industries/codex-acp"] },
     { "id": "opencode", "name": "OpenCode", "command": "bunx", "args": ["--bun", "opencode-ai", "acp"] },
     { "id": "pi", "name": "Pi", "command": "bunx", "args": ["--bun", "pi-acp"] }
@@ -80,7 +80,7 @@ Known ACP adapter examples:
 
 | Agent ID | Command config |
 |----------|----------------|
-| `claude` | `bunx --bun @zed-industries/claude-code-acp` or global `claude-code-acp` |
+| `claude` | `bunx --bun @agentclientprotocol/claude-agent-acp` or global `claude-agent-acp` |
 | `codex` | `bunx --bun @zed-industries/codex-acp` or global `codex-acp` |
 | `opencode` | `bunx --bun opencode-ai acp` or global `opencode acp` |
 | `pi` | `bunx --bun pi-acp` or global `pi-acp` |
@@ -134,8 +134,8 @@ When a task starts:
 2. Clone repo to /workspace/repo (or git fetch if already there)
 3. Create git worktree: /workspace/worktrees/<task-prefix>
 4. Run project.setup commands in worktree
-5. Start agent (OpenCode or Claude Code) in worktree
-6. Establish SSH tunnels (OpenCode) or pipe stdin/stdout (Claude Code)
+5. Start configured ACP agent in worktree
+6. Connect to ACP agent over stdio
 7. Session ready for chat
 ```
 
