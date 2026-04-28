@@ -14,6 +14,7 @@ import {
   resolveTask,
   abortTask,
   startTask,
+  restartTask,
 } from "../lib/api"
 import { formatTaskTitle } from "../lib/format"
 
@@ -40,6 +41,22 @@ export function useTaskActions(
     const defs: Action[] = []
     const ctx = task.id
     const title = formatTaskTitle(task)
+
+    // Restart — running tasks (kills agent, spawns fresh one on same worktree)
+    if (task.status === "running") {
+      defs.push({
+        id: "task.restart",
+        label: "Restart task",
+        description: `Restart "${title}" with fresh agent`,
+        section: "Task",
+        context: ctx,
+        handler: async (args) => {
+          const targetId = (args?.taskId as string) ?? task.id
+          await restartTask(targetId)
+          onRefetch?.()
+        },
+      })
+    }
 
     // Cancel — running tasks
     if (task.status === "running") {

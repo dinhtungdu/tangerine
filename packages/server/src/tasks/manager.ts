@@ -194,6 +194,52 @@ export function cancelTask(
   })
 }
 
+export function restartTask(
+  deps: TaskManagerDeps,
+  taskId: string,
+): Effect.Effect<void, TaskNotFoundError | SessionCleanupError | DbError> {
+  return Effect.gen(function* () {
+    const task = yield* deps.getTask(taskId).pipe(
+      Effect.mapError(() => new TaskNotFoundError({ taskId }))
+    )
+    if (!task) return yield* new TaskNotFoundError({ taskId })
+
+    // Only restart running/provisioning tasks
+    if (task.status !== "running" && task.status !== "provisioning") {
+      log.warn("Cannot restart non-running task", { taskId, status: task.status })
+      return
+    }
+
+    const projectConfig = deps.getProjectConfig(task.project_id)
+    if (!projectConfig) {
+      return yield* Effect.fail(new DbError({ message: `Unknown project: ${task.project_id}` }))
+    }
+
+    log.info("Restarting task with fresh agent", { taskId, title: task.title })
+
+    // Clean up current session (kill agent process)
+    yield* cleanupSession(taskId, deps.cleanupDeps).pipe(
+      Effect.catchTag("SessionCleanupError", (e) => {
+        log.warn("Cleanup before restart failed (continuing anyway)", { taskId, error: e.message })
+        return Effect.void
+      })
+    )
+
+    clearAgentWorkingState(taskId)
+    clearTaskState(taskId)
+
+    yield* deps.logActivity(taskId, "lifecycle", "task.restarted", "Task restarted with fresh agent").pipe(
+      Effect.catchAll(() => Effect.succeed(undefined))
+    )
+
+    // Start fresh session with reconnect (uses existing worktree, injects context)
+    const taskLifecycleDeps = depsForProvider(deps, task.provider)
+    yield* Effect.forkDaemon(
+      reconnectSessionWithRetry(task, projectConfig, taskLifecycleDeps, deps.retryDeps)
+    )
+  })
+}
+
 export function completeTask(
   deps: TaskManagerDeps,
   taskId: string,
