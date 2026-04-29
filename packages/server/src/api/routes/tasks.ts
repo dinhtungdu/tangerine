@@ -7,7 +7,7 @@ import { mapTaskRow } from "../helpers"
 import { runEffect, runEffectVoid } from "../effect-helpers"
 import { getTask, listTasks, updateTask, deleteTask, markTaskSeen, getChildTasks, countTasksByProject } from "../../db/queries"
 import { TaskNotFoundError, TaskNotTerminalError, PrCapabilityError, BranchRenameError } from "../../errors"
-import { getEffectiveAgentStatus, hasAgentWorkingState } from "../../tasks/events"
+import { resolveAgentStatus } from "../../tasks/agent-status"
 import { getRepoDir } from "../../config"
 import { ghSpawnEnv } from "../../gh"
 import { localExecStrict } from "./../../tasks/worktree-pool"
@@ -34,21 +34,7 @@ export function taskRoutes(deps: AppDeps): Hono {
       listTasks(deps.db, { status, projectId, search, limit, offset }).pipe(
         Effect.map(rows => rows.map(row => {
           const task = mapTaskRow(row)
-          if (task.status === "running") {
-            // Suspended tasks are always idle — their agentWorkingState is lost on restart
-            // but suspended=true in the DB is the authoritative source of truth.
-            if (task.suspended) task.agentStatus = "idle"
-            else if (hasAgentWorkingState(task.id)) {
-              // Check if agent is actually alive — stale handles can exist after process death
-              const handle = deps.getAgentHandle(task.id)
-              const isAlive = handle && (!handle.isAlive || handle.isAlive())
-              task.agentStatus = isAlive ? getEffectiveAgentStatus(task.id) : "disconnected"
-            } else {
-              // No state exists - check handle liveness
-              const handle = deps.getAgentHandle(task.id)
-              task.agentStatus = handle && (!handle.isAlive || handle.isAlive()) ? "idle" : "disconnected"
-            }
-          }
+          task.agentStatus = resolveAgentStatus(task, deps.getAgentHandle)
           return task
         }))
       )
@@ -84,18 +70,7 @@ export function taskRoutes(deps: AppDeps): Hono {
         Effect.flatMap((row) => {
           if (!row) return Effect.fail(new TaskNotFoundError({ taskId: c.req.param("id") }))
           const task = mapTaskRow(row)
-          if (task.status === "running") {
-            if (task.suspended) task.agentStatus = "idle"
-            else if (hasAgentWorkingState(task.id)) {
-              const handle = deps.getAgentHandle(task.id)
-              const isAlive = handle && (!handle.isAlive || handle.isAlive())
-              task.agentStatus = isAlive ? getEffectiveAgentStatus(task.id) : "disconnected"
-            } else {
-              // No state exists - check handle liveness
-              const handle = deps.getAgentHandle(task.id)
-              task.agentStatus = handle && (!handle.isAlive || handle.isAlive()) ? "idle" : "disconnected"
-            }
-          }
+          task.agentStatus = resolveAgentStatus(task, deps.getAgentHandle)
           return Effect.succeed(task)
         })
       )

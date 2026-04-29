@@ -5,7 +5,8 @@ import type { AppDeps } from "../app"
 import { createWebSocketHeartbeat, type WebSocketHeartbeat } from "../ws-heartbeat"
 import { isAuthEnabled, isRequestAuthenticated, isValidAuthToken } from "../../auth"
 import { getTask } from "../../db/queries"
-import { getAgentWorkingState, onAgentStatusChange } from "../../tasks/events"
+import { resolveAgentStatus } from "../../tasks/agent-status"
+import { onAgentStatusChange } from "../../tasks/events"
 import { onTaskListChange } from "../../task-list-events"
 import { getTaskState } from "../../tasks/task-state"
 import { getQueuedPrompts, onQueueChange } from "../../agent/prompt-queue"
@@ -15,7 +16,7 @@ import type { WsClientMessage, WsServerMessage, TaskStatus } from "@tangerine/sh
  * Creates WebSocket routes for task event streaming.
  * Receives upgradeWebSocket from the shared createBunWebSocket() in app.ts.
  */
-type InitialTaskSnapshot = { status: string } | null
+type InitialTaskSnapshot = { id?: string; status: string; suspended?: boolean | number | null } | null
 
 type SocketLike = { send(data: string): void; close(code?: number, reason?: string): void }
 type WebSocketMessageEvent = { data: string | { toString(): string } }
@@ -31,14 +32,19 @@ type TaskListStreamOptions = {
   createHeartbeat?: (ws: SocketLike) => WebSocketHeartbeat
 }
 
-export function initialTaskStreamMessages(taskId: string, task: InitialTaskSnapshot): WsServerMessage[] {
+export function initialTaskStreamMessages(
+  taskId: string,
+  task: InitialTaskSnapshot,
+  getAgentHandle: Parameters<typeof resolveAgentStatus>[1] = () => undefined,
+): WsServerMessage[] {
   const messages: WsServerMessage[] = [{ type: "connected" }]
   if (!task) return messages
 
   messages.push({ type: "status", status: task.status as TaskStatus })
 
-  if (task.status === "running") {
-    messages.push({ type: "agent_status", agentStatus: getAgentWorkingState(taskId) })
+  const agentStatus = resolveAgentStatus({ id: task.id ?? taskId, status: task.status, suspended: task.suspended }, getAgentHandle)
+  if (agentStatus) {
+    messages.push({ type: "agent_status", agentStatus })
   }
 
   const state = getTaskState(taskId)
@@ -169,7 +175,7 @@ export function wsRoutes(deps: AppDeps, upgradeWebSocket: UpgradeWebSocket): Hon
 
         Effect.runPromise(getTask(deps.db, taskId)).then(
           (task) => {
-            for (const msg of initialTaskStreamMessages(taskId, task)) {
+            for (const msg of initialTaskStreamMessages(taskId, task, deps.getAgentHandle)) {
               ws.send(JSON.stringify(msg))
             }
 
