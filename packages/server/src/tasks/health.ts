@@ -241,11 +241,13 @@ function checkIdleTimeout(
     // Already suspended — don't re-log or re-suspend
     if (state.suspended) return
 
-    // Don't suspend while an agent turn is still in flight. Use raw working
-    // state here: the stall-aware state flips to idle after a quiet period so
-    // the UI can show inactivity, but a quiet in-flight tool/prompt belongs to
-    // the hung-tool watchdog/recovery path, not idle suspension.
-    if (deps.isAgentWorkingRaw(task.id)) return
+    // Don't suspend while a live turn is still in flight. Raw working can stay
+    // true after the stall-aware status flips idle; only bypass suspension when
+    // there is active progress or a running tool for the hung-tool watchdog.
+    if (deps.isAgentWorkingRaw(task.id)) {
+      if (deps.isAgentWorking(task.id)) return
+      if (deps.getLastRunningActivityTime(task.id)) return
+    }
 
     const lastMsgTime = deps.getLastUserMessageTime(task.id)
     if (lastMsgTime) {
