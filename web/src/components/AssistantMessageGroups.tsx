@@ -22,6 +22,20 @@ interface AssistantMessageGroupsProps {
   isLastGroupStreaming: boolean
 }
 
+function toolSegmentId(items: ReadonlyArray<{ data: ActivityEntry }>): string {
+  return `tools-${items[0]?.data.id ?? "empty"}`
+}
+
+function isToolSegmentStreaming(
+  items: ReadonlyArray<{ data: ActivityEntry; index: number }>,
+  { isStreaming, lastToolIdx }: { isStreaming: boolean; lastToolIdx: number },
+): boolean {
+  return items.some((item) => deriveToolStatus(item.data, {
+    isStreaming,
+    isLastTool: item.index === lastToolIdx,
+  }) === "running")
+}
+
 function StreamingIndicator({ label }: { label: string }) {
   return (
     <div className="mt-6 flex items-center gap-2 text-muted-foreground">
@@ -46,10 +60,15 @@ function AssistantGroup({
   onReply?: (content: string) => void
   isStreaming: boolean
 }) {
-  const [expanded, setExpanded] = useState(false)
+  const [expandedSegmentIds, setExpandedSegmentIds] = useState<ReadonlySet<string>>(() => new Set())
 
-  const handleToggle = useCallback(() => {
-    setExpanded((value) => !value)
+  const handleToggle = useCallback((id: string) => {
+    setExpandedSegmentIds((current) => {
+      const next = new Set(current)
+      if (next.has(id)) next.delete(id)
+      else next.add(id)
+      return next
+    })
   }, [])
 
   const lastToolIdx = useMemo(() => getLastToolIndex(group.items), [group.items])
@@ -71,17 +90,21 @@ function AssistantGroup({
         }
 
         if (segment.kind === "tool-segment") {
+          const id = toolSegmentId(segment.items)
+          const expanded = expandedSegmentIds.has(id)
+          const segmentIsStreaming = isToolSegmentStreaming(segment.items, { isStreaming, lastToolIdx })
+
           return (
-            <div key={`tools-${segment.items[0]!.data.id}`} className="pb-6 flex flex-col gap-3">
+            <div key={id} className="pb-6 flex flex-col gap-3">
               <ToolCallsSummaryBar
-                isStreaming={isStreaming}
+                isStreaming={segmentIsStreaming}
                 startTime={segment.summary.startTime}
                 endTime={segment.summary.endTime}
                 toolCount={segment.summary.toolCount}
                 filesChanged={segment.summary.filesChanged}
                 errorCount={segment.summary.errorCount}
                 expanded={expanded}
-                onToggle={handleToggle}
+                onToggle={() => handleToggle(id)}
               />
               {expanded && (
                 <div className="flex flex-col gap-4 pl-2 border-l-2 border-border">
