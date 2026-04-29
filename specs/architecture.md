@@ -82,6 +82,10 @@ specs/
 5. Task row mutations emit task-list WebSocket invalidations so the dashboard refreshes runs/sidebar data without interval polling.
 6. The task can be prompted, aborted, reconfigured, retried, completed, cancelled, or reconnected after restart.
 7. Crons are separate entities that fire on a cron schedule, spawning regular worker tasks.
+8. When the dashboard needs to repair chat history after a user has been away from
+   the chat pane, Tangerine may run a short-lived ACP `session/load` import for
+   the task's `agent_session_id`. The import deduplicates into `session_logs`;
+   it does not replace the live task handle or use `session/resume`.
 
 ## Access Model
 
@@ -131,6 +135,11 @@ Tangerine should not maintain provider-specific agent protocols. The runtime own
 - handles permission callbacks using Tangerine's unattended policy
 - maps ACP streaming updates into Tangerine task events
 - applies model/reasoning/mode changes through ACP `session/set_config_option`
+
+ACP `session_logs` remain Tangerine's persisted chat source of truth. ACP
+`session/load` is an optional sync/repair source for existing sessions; ACP
+`session/resume` is only used to continue agent context and must not be treated
+as a history source.
 
 Legacy provider runtime files have been removed. See [ACP Migration](./acp-migration.md).
 

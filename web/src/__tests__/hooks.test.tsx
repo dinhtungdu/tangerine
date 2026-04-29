@@ -465,6 +465,61 @@ describe("useSession", () => {
       globalThis.WebSocket = originalWebSocket
     }
   })
+
+  test("syncs ACP history and refreshes messages", async () => {
+    const originalWebSocket = globalThis.WebSocket
+    class TestWebSocket {
+      static readonly CLOSING = 2
+      readonly readyState = 0
+      onopen: ((event: Event) => void) | null = null
+      onmessage: ((event: MessageEvent) => void) | null = null
+      onerror: ((event: Event) => void) | null = null
+      onclose: ((event: CloseEvent) => void) | null = null
+      constructor(_url: string) { }
+      send(_data: string) { }
+      close() { }
+    }
+    globalThis.WebSocket = TestWebSocket as unknown as typeof WebSocket
+    let messagesFetches = 0
+    let syncCalled = false
+    globalThis.fetch = mock((url: string, init?: RequestInit) => {
+      if (url.includes("/sync-session")) {
+        syncCalled = init?.method === "POST"
+        return Promise.resolve(new Response(JSON.stringify({ available: true, inserted: 1, skipped: 0 }), { status: 200, headers: { "Content-Type": "application/json" } }))
+      }
+      if (url.includes("/messages")) {
+        messagesFetches += 1
+        const messages = messagesFetches > 1
+          ? [{ id: 1, taskId: "task-1", role: "assistant", content: "Synced", images: null, timestamp: "2026-04-28T10:00:00.000Z" }]
+          : []
+        return Promise.resolve(new Response(JSON.stringify({ messages, hasMore: false }), { status: 200, headers: { "Content-Type": "application/json" } }))
+      }
+      if (url.includes("/activities")) return Promise.resolve(new Response(JSON.stringify([]), { status: 200, headers: { "Content-Type": "application/json" } }))
+      if (url.includes("/config-options")) return Promise.resolve(new Response(JSON.stringify({ configOptions: [] }), { status: 200, headers: { "Content-Type": "application/json" } }))
+      if (url.includes("/slash-commands")) return Promise.resolve(new Response(JSON.stringify({ commands: [] }), { status: 200, headers: { "Content-Type": "application/json" } }))
+      if (url.includes("/permission")) return Promise.resolve(new Response(JSON.stringify({ permissionRequest: null }), { status: 200, headers: { "Content-Type": "application/json" } }))
+      if (url.includes("/queue")) return Promise.resolve(new Response(JSON.stringify({ queuedPrompts: [] }), { status: 200, headers: { "Content-Type": "application/json" } }))
+      return Promise.resolve(new Response(JSON.stringify([]), { status: 200, headers: { "Content-Type": "application/json" } }))
+    }) as typeof fetch
+
+    try {
+      const { result } = renderHook(() => useSession("task-1"))
+      await waitFor(() => expect(messagesFetches).toBe(1))
+      const session = result.current as typeof result.current & { syncFromAgent?: () => Promise<unknown> }
+      expect(typeof session.syncFromAgent).toBe("function")
+
+      await act(async () => {
+        await session.syncFromAgent!()
+      })
+
+      expect(syncCalled).toBe(true)
+      expect(result.current.messages).toEqual([
+        { id: "1", role: "assistant", content: "Synced", timestamp: "2026-04-28T10:00:00.000Z" },
+      ])
+    } finally {
+      globalThis.WebSocket = originalWebSocket
+    }
+  })
 })
 
 describe("useTasks", () => {

@@ -115,10 +115,18 @@ export interface AgentStartContext {
   env?: Record<string, string>
 }
 
+export interface AgentHistoryLoadContext {
+  taskId: string
+  workdir: string
+  sessionId: string
+  env?: Record<string, string>
+}
+
 /** Factory that creates agent sessions — one implementation per provider */
 export interface AgentFactory {
   metadata: AgentMetadata
   start(ctx: AgentStartContext): Effect.Effect<AgentHandle, SessionStartError>
+  loadSessionHistory?(ctx: AgentHistoryLoadContext): Effect.Effect<AgentEvent[], SessionStartError>
 }
 
 export function getAgentHandleMeta(handle: AgentHandle): { sessionId: string | null; agentPort: number | null } | null {

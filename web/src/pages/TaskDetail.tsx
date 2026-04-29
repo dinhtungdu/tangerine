@@ -423,6 +423,17 @@ export function TaskDetail() {
     () => getResponsiveVisiblePanes(visiblePanes, desktopSyncPane),
     [desktopSyncPane, visiblePanes],
   )
+  const chatVisible = Boolean(chatTask && (mobilePane === "chat" || responsiveVisiblePanes.has("chat")))
+  const terminalVisible = mobilePane === "terminal" || responsiveVisiblePanes.has("terminal")
+  const terminalOnlyRef = useRef(false)
+
+  useEffect(() => {
+    if (chatVisible && terminalOnlyRef.current && chatTask?.agentSessionId) {
+      session.syncFromAgent().catch(() => {})
+    }
+    terminalOnlyRef.current = terminalVisible && !chatVisible
+  }, [chatVisible, terminalVisible, chatTask?.agentSessionId, session.syncFromAgent])
+
   const PANE_ORDER: PaneId[] = ["chat", "diff", "terminal", "activity"]
   const orderedVisible = PANE_ORDER.filter((p) => responsiveVisiblePanes.has(p) && (p !== "diff" || hasDiff))
   const desktopIsSolo = orderedVisible.length === 1

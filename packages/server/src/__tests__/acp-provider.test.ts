@@ -549,6 +549,28 @@ describe("createAcpProvider", () => {
     rmSync(tempDir, { recursive: true, force: true })
   })
 
+  test("loads ACP session history in a one-shot process", async () => {
+    const tempDir = mkdtempSync(join(tmpdir(), "tangerine-acp-history-"))
+    const scriptPath = join(tempDir, "mock-acp-agent.js")
+    writeFileSync(scriptPath, mockHistoryLoadAcpAgentScript, "utf-8")
+
+    process.env.TANGERINE_ACP_COMMAND = `bun ${scriptPath}`
+    const provider = createAcpProvider()
+    const loader = (provider as typeof provider & {
+      loadSessionHistory?: (ctx: { taskId: string; workdir: string; sessionId: string }) => Effect.Effect<AgentEvent[], unknown>
+    }).loadSessionHistory
+
+    expect(typeof loader).toBe("function")
+    const events = await Effect.runPromise(loader!({ taskId: "task-acp", workdir: tempDir, sessionId: "sess-old" }))
+
+    expect(events).toEqual([
+      { kind: "message.complete", role: "user", content: "Hi", messageId: "user-1" },
+      { kind: "message.complete", role: "assistant", content: "Hello", messageId: "assistant-1" },
+    ])
+
+    rmSync(tempDir, { recursive: true, force: true })
+  })
+
   test("falls back to fresh ACP sessions when resume and load are unsupported", async () => {
     const tempDir = mkdtempSync(join(tmpdir(), "tangerine-acp-fresh-"))
     const scriptPath = join(tempDir, "mock-acp-agent.js")
@@ -986,6 +1008,29 @@ rl.on("line", (line) => {
   }
   if (msg.method === "session/new") {
     send({ jsonrpc: "2.0", id: msg.id, result: { sessionId: "sess-new" } })
+    return
+  }
+  if (msg.method === "session/close") {
+    send({ jsonrpc: "2.0", id: msg.id, result: {} })
+  }
+})
+`
+
+const mockHistoryLoadAcpAgentScript = `
+const readline = require("node:readline")
+const rl = readline.createInterface({ input: process.stdin })
+function send(message) { process.stdout.write(JSON.stringify(message) + "\\n") }
+rl.on("line", (line) => {
+  const msg = JSON.parse(line)
+  if (msg.method === "initialize") {
+    send({ jsonrpc: "2.0", id: msg.id, result: { protocolVersion: 1, agentCapabilities: { loadSession: true, sessionCapabilities: { close: {} } }, authMethods: [] } })
+    return
+  }
+  if (msg.method === "session/load") {
+    send({ jsonrpc: "2.0", method: "session/update", params: { sessionId: "sess-old", update: { sessionUpdate: "user_message_chunk", messageId: "user-1", content: { type: "text", text: "Hi" } } } })
+    send({ jsonrpc: "2.0", method: "session/update", params: { sessionId: "sess-old", update: { sessionUpdate: "agent_message_chunk", messageId: "assistant-1", content: { type: "text", text: "Hel" } } } })
+    send({ jsonrpc: "2.0", method: "session/update", params: { sessionId: "sess-old", update: { sessionUpdate: "agent_message_chunk", messageId: "assistant-1", content: { type: "text", text: "lo" } } } })
+    send({ jsonrpc: "2.0", id: msg.id, result: {} })
     return
   }
   if (msg.method === "session/close") {

@@ -5,6 +5,7 @@ import { WebLinksAddon } from "@xterm/addon-web-links"
 import "@xterm/xterm/css/xterm.css"
 import { TerminalToolbar } from "./TerminalToolbar"
 import { emitAuthFailure, getAuthToken } from "../lib/auth"
+import { sendTerminalPong, sendTerminalResize } from "../lib/terminal-websocket"
 import { createHeartbeatMonitor, type HeartbeatMonitor } from "../lib/ws-heartbeat"
 
 type TerminalPaneProps =
@@ -87,7 +88,7 @@ export function TerminalPane(props: TerminalPaneProps) {
         const fit = fitRef.current
         if (fit) {
           fit.fit()
-          ws.send(JSON.stringify({ type: "resize", cols: term.cols, rows: term.rows }))
+          sendTerminalResize(ws, term)
         }
       })
     }
@@ -97,7 +98,7 @@ export function TerminalPane(props: TerminalPaneProps) {
       try {
         const msg = JSON.parse(event.data as string)
         if (msg.type === "ping") {
-          ws.send(JSON.stringify({ type: "pong" }))
+          sendTerminalPong(ws)
           return
         }
         if (msg.type === "connected") {
@@ -106,7 +107,7 @@ export function TerminalPane(props: TerminalPaneProps) {
           const fit = fitRef.current
           if (fit) {
             fit.fit()
-            ws.send(JSON.stringify({ type: "resize", cols: term.cols, rows: term.rows }))
+            sendTerminalResize(ws, term)
           }
         } else if (msg.type === "scrollback") {
           // Clear terminal before writing scrollback to avoid duplicating on reconnect
@@ -228,10 +229,7 @@ export function TerminalPane(props: TerminalPaneProps) {
     // Handle resize
     const resizeObserver = new ResizeObserver(() => {
       fitAddon.fit()
-      const ws = wsRef.current
-      if (ws?.readyState === WebSocket.OPEN) {
-        ws.send(JSON.stringify({ type: "resize", cols: term.cols, rows: term.rows }))
-      }
+      sendTerminalResize(wsRef.current, term)
     })
     resizeObserver.observe(containerRef.current)
 

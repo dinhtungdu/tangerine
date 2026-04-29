@@ -12,6 +12,7 @@ import { TaskNotFoundError } from "../errors"
 import type { TaskRow } from "../db/types"
 import type { RawConfig } from "../config"
 import { createAgentFactories } from "../agent/factories"
+import type { AgentEvent } from "../agent/provider"
 import { getTaskState } from "../tasks/task-state"
 import { setAgentWorkingState, clearAgentWorkingState } from "../tasks/events"
 import { clearQueue, enqueue } from "../agent/prompt-queue"
@@ -1012,6 +1013,42 @@ describe("API routes", () => {
         content: "Working on it...",
         transient: true,
       })
+    })
+  })
+
+  describe("POST /api/tasks/:id/sync-session", () => {
+    test("imports missing ACP history rows and deduplicates existing message ids", async () => {
+      const row = seedTask(db)
+      db.prepare("UPDATE tasks SET agent_session_id = ?, worktree_path = ? WHERE id = ?")
+        .run("sess-sync", "/tmp/tangerine-test-workspace/test-project/1", row.id)
+      Effect.runSync(insertSessionLog(db, {
+        task_id: row.id,
+        role: "user",
+        message_id: "user-1",
+        content: "Hi",
+      }))
+
+      ;(deps.agentFactories.acp as typeof deps.agentFactories.acp & {
+        loadSessionHistory?: (ctx: { taskId: string; workdir: string; sessionId: string }) => Effect.Effect<AgentEvent[], never>
+      }).loadSessionHistory = () => Effect.succeed([
+        { kind: "message.complete", role: "user", content: "Hi", messageId: "user-1" },
+        { kind: "message.complete", role: "assistant", content: "Hello", messageId: "assistant-1" },
+      ])
+
+      const res = await app.fetch(new Request(`http://localhost/api/tasks/${row.id}/sync-session`, {
+        method: "POST",
+      }))
+
+      expect(res.status).toBe(200)
+      const body = await res.json() as { available: boolean; inserted: number; skipped: number }
+      expect(body).toEqual({ available: true, inserted: 1, skipped: 1 })
+
+      const msgs = await app.fetch(new Request(`http://localhost/api/tasks/${row.id}/messages`))
+      const messages = await msgs.json() as Array<{ role: string; content: string; messageId?: string | null; message_id?: string | null }>
+      expect(messages.map((message) => ({ role: message.role, content: message.content }))).toEqual([
+        { role: "user", content: "Hi" },
+        { role: "assistant", content: "Hello" },
+      ])
     })
   })
 

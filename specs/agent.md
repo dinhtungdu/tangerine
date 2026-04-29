@@ -129,3 +129,22 @@ ACP events fan out to the existing Tangerine surfaces:
 Out-of-turn assistant text chunks (late adapter replay, resume/load history, or startup chatter) are ignored so stale text cannot be prepended to the next assistant completion. Assistant completions with a non-null `messageId` are persisted idempotently.
 
 The dashboard is a Tangerine task UI powered by ACP streams, not an embedded ACP UI.
+
+## Conversation Sync
+
+Tangerine persists chat history in `session_logs`; the dashboard reads that
+table for task messages. ACP sessions are not the canonical UI store.
+
+When a task has an `agent_session_id`, Tangerine can repair missing chat rows by
+starting a one-shot ACP process and calling `session/load` for that session. The
+loader collects replayed `session/update` events, converts completed
+user/assistant/thinking/content/plan output into `session_logs`, deduplicates
+against existing rows, and exits. It does not attach to the live task handle,
+send prompts, or affect the running agent state.
+
+Use `session/load` for sync because it replays conversation history. Use
+`session/resume` only for continuing a session without replaying history.
+
+The chat UI may request this sync when the user returns from the terminal pane
+to the chat pane. If no session id exists or the selected ACP agent cannot load
+history, the UI keeps showing existing `session_logs`.
