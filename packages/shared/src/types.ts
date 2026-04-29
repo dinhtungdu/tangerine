@@ -128,6 +128,7 @@ export interface ActivityEntry {
 export type WsServerMessage =
   | { type: "connected" }
   | { type: "event"; data: unknown }
+  | { type: "stream"; event: StreamEvent }  // chat v2 events
   | { type: "activity"; entry: ActivityEntry }
   | { type: "status"; status: TaskStatus }
   | { type: "agent_status"; agentStatus: "idle" | "working" }
@@ -137,6 +138,17 @@ export type WsServerMessage =
   | { type: "permission_request"; request: PermissionRequest }
   | { type: "error"; message: string }
   | { type: "ping" }
+
+// Chat v2 stream events
+export type StreamEvent =
+  | { type: "chunk.start"; messageId: string; chunkIndex: number; chunkType: "message" | "thought"; content: string }
+  | { type: "chunk.delta"; messageId: string; chunkIndex: number; content: string }
+  | { type: "assistant.done"; messageId: string }
+  | { type: "tool_call.start"; toolCallId: string; toolName: string; input: unknown }
+  | { type: "tool_call.update"; toolCallId: string; status: "pending_permission" | "running" | "done" | "error"; result?: string; permissionRequest?: { requestId: string; options: Array<{ id: string; name: string; description?: string }> } }
+  | { type: "user.message"; id: string; content: string; images?: Array<{ src: string; mediaType?: string }> }
+  | { type: "plan"; id: string; entries: Array<{ id: string; title: string; status: "pending" | "in_progress" | "done" }> }
+  | { type: "usage"; contextTokens?: number; contextWindowMax?: number }
 
 export interface PermissionRequestOption {
   optionId: string

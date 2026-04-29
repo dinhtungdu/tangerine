@@ -2,6 +2,7 @@
 // Based on Zed's handle_session_update pattern
 
 import type { PermissionOption } from "./acp-provider"
+import type { AgentEvent } from "./provider"
 
 export type StreamEvent =
   | ChunkStartEvent
@@ -322,5 +323,124 @@ function mapPlanStatus(status: string | undefined): "pending" | "in_progress" | 
       return "done"
     default:
       return "pending"
+  }
+}
+
+// Map AgentEvent (from provider.ts) to StreamEvent
+// Used by start.ts to emit v2 events alongside v1 events
+export function mapAgentEventToStream(
+  event: AgentEvent,
+  mapper: ReturnType<typeof createAcpStreamMapper>
+): StreamEvent[] {
+  switch (event.kind) {
+    case "message.streaming":
+      if (!event.content) return []
+      return mapper.mapSessionUpdate({
+        sessionUpdate: "agent_message_chunk",
+        content: event.content,
+        messageId: event.messageId,
+      })
+
+    case "message.complete":
+      if (event.role === "user") {
+        return [{
+          type: "user.message",
+          id: event.messageId ?? crypto.randomUUID(),
+          content: event.content,
+        }]
+      }
+      if (event.role === "assistant") {
+        return mapper.finishMessage()
+      }
+      return []
+
+    case "thinking.streaming":
+      if (!event.content) return []
+      return mapper.mapSessionUpdate({
+        sessionUpdate: "agent_thought_chunk",
+        content: event.content,
+        messageId: event.messageId,
+      })
+
+    case "thinking.complete":
+    case "thinking":
+      // Thinking complete doesn't need separate handling -
+      // finishMessage will be called on message.complete
+      return []
+
+    case "tool.start":
+      return [{
+        type: "tool_call.start",
+        toolCallId: event.toolCallId ?? crypto.randomUUID(),
+        toolName: event.toolName,
+        input: event.toolInput ? parseJsonSafe(event.toolInput) : undefined,
+      }]
+
+    case "tool.update":
+      if (!event.toolCallId) return []
+      return [{
+        type: "tool_call.update",
+        toolCallId: event.toolCallId,
+        status: event.status === "running" ? "running" : "running",
+        result: event.toolResult,
+      }]
+
+    case "tool.end":
+      if (!event.toolCallId) return []
+      return [{
+        type: "tool_call.update",
+        toolCallId: event.toolCallId,
+        status: event.status === "error" ? "error" : "done",
+        result: event.toolResult,
+      }]
+
+    case "plan":
+      if (!event.entries?.length) return []
+      return [{
+        type: "plan",
+        id: `plan-${Date.now()}`,
+        entries: event.entries.map((e, idx) => ({
+          id: `plan-item-${idx}`,
+          title: e.content,
+          status: mapPlanStatus(e.status),
+        })),
+      }]
+
+    case "usage":
+      if (!event.contextTokens && !event.contextWindowMax) return []
+      return [{
+        type: "usage",
+        ...(event.contextTokens ? { contextTokens: event.contextTokens } : {}),
+        ...(event.contextWindowMax ? { contextWindowMax: event.contextWindowMax } : {}),
+      }]
+
+    case "permission.request":
+      if (!event.requestId || !event.options) return []
+      // Find the most recent tool call to attach permission to
+      // This is emitted separately, client should correlate by pending_permission status
+      return [{
+        type: "tool_call.update",
+        toolCallId: event.toolCallId ?? "unknown",
+        status: "pending_permission",
+        permissionRequest: {
+          requestId: event.requestId,
+          options: event.options.map((opt) => ({
+            id: opt.optionId,
+            name: opt.name,
+            description: opt.kind,
+          })),
+        },
+      }]
+
+    default:
+      return []
+  }
+}
+
+function parseJsonSafe(str: string): unknown {
+  try {
+    return JSON.parse(str)
+  } catch {
+    return str
   }
 }

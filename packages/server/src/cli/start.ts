@@ -36,6 +36,7 @@ import { enqueue as enqueuePrompt, drainNext as drainQueuedPrompts, setAgentStat
 import { buildSystemNotes, buildPrWorkflowNote } from "../tasks/prompts"
 import { appendActiveStreamMessage, clearTaskState, completeActiveStreamMessage, getTaskState } from "../tasks/task-state"
 import { taskConfigUpdatesFromOptions } from "../agent/config-options"
+import { mapEventToV2, clearStreamMapper } from "../agent/stream-mappers"
 const log = createLogger("cli")
 
 /** Resolve custom system prompt for a task type from project config. */
@@ -573,6 +574,12 @@ export async function start(): Promise<void> {
 
           session.agentHandle.subscribe((event) => {
             try {
+            // Emit v2 stream events (chat v2 architecture)
+            const v2Events = mapEventToV2(taskId, event)
+            for (const v2Event of v2Events) {
+              emitTaskEvent(taskId, { type: "stream", event: v2Event })
+            }
+
             switch (event.kind) {
               case "message.streaming": {
                 recordAgentProgress(taskId)
@@ -1177,6 +1184,7 @@ export async function start(): Promise<void> {
             Effect.tap(() => clearQueue(taskId)),
             Effect.tap(() => Effect.sync(() => {
               clearTaskState(taskId)
+              clearStreamMapper(taskId)
               const hadHandle = agentHandles.has(taskId)
               agentHandles.delete(taskId)
               log.debug("Handle removed (cleanup)", { taskId, hadHandle, handleCount: agentHandles.size })

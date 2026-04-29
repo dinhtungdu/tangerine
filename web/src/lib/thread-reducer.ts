@@ -101,6 +101,10 @@ export function applyStreamEvent(
       }
       return [...entries, newEntry]
     }
+
+    case "usage":
+      // Usage events are handled separately (context window display)
+      return entries
   }
 }
 

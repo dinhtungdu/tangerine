@@ -1,5 +1,6 @@
 import { describe, expect, test } from "bun:test"
-import { createAcpStreamMapper } from "../agent/acp-stream-mapper"
+import { createAcpStreamMapper, mapAgentEventToStream } from "../agent/acp-stream-mapper"
+import type { AgentEvent } from "../agent/provider"
 
 describe("ACP stream mapper", () => {
   test("maps first message chunk to chunk.start", () => {
@@ -227,5 +228,150 @@ describe("ACP stream mapper", () => {
       sessionUpdate: "agent_message_chunk",
       content: "",
     })).toEqual([])
+  })
+})
+
+describe("mapAgentEventToStream", () => {
+  test("maps message.streaming to chunk events", () => {
+    const mapper = createAcpStreamMapper()
+    const event: AgentEvent = {
+      kind: "message.streaming",
+      content: "Hello",
+      messageId: "msg-1",
+    }
+
+    const events = mapAgentEventToStream(event, mapper)
+    expect(events).toHaveLength(1)
+    expect(events[0]).toMatchObject({
+      type: "chunk.start",
+      chunkType: "message",
+      content: "Hello",
+    })
+  })
+
+  test("maps thinking.streaming to thought chunk", () => {
+    const mapper = createAcpStreamMapper()
+    const event: AgentEvent = {
+      kind: "thinking.streaming",
+      content: "Thinking...",
+      messageId: "thought-1",
+    }
+
+    const events = mapAgentEventToStream(event, mapper)
+    expect(events).toHaveLength(1)
+    expect(events[0]).toMatchObject({
+      type: "chunk.start",
+      chunkType: "thought",
+      content: "Thinking...",
+    })
+  })
+
+  test("maps message.complete for assistant to assistant.done", () => {
+    const mapper = createAcpStreamMapper()
+
+    // First start a message
+    mapAgentEventToStream({ kind: "message.streaming", content: "Hello" }, mapper)
+
+    // Then complete it
+    const event: AgentEvent = {
+      kind: "message.complete",
+      role: "assistant",
+      content: "Hello world",
+      messageId: "msg-1",
+    }
+
+    const events = mapAgentEventToStream(event, mapper)
+    expect(events).toHaveLength(1)
+    expect(events[0]?.type).toBe("assistant.done")
+  })
+
+  test("maps message.complete for user to user.message", () => {
+    const mapper = createAcpStreamMapper()
+    const event: AgentEvent = {
+      kind: "message.complete",
+      role: "user",
+      content: "User input",
+      messageId: "user-1",
+    }
+
+    const events = mapAgentEventToStream(event, mapper)
+    expect(events).toHaveLength(1)
+    expect(events[0]).toMatchObject({
+      type: "user.message",
+      id: "user-1",
+      content: "User input",
+    })
+  })
+
+  test("maps tool.start", () => {
+    const mapper = createAcpStreamMapper()
+    const event: AgentEvent = {
+      kind: "tool.start",
+      toolCallId: "tc-1",
+      toolName: "Read",
+      toolInput: '{"file":"test.ts"}',
+    }
+
+    const events = mapAgentEventToStream(event, mapper)
+    expect(events).toHaveLength(1)
+    expect(events[0]).toMatchObject({
+      type: "tool_call.start",
+      toolCallId: "tc-1",
+      toolName: "Read",
+      input: { file: "test.ts" },
+    })
+  })
+
+  test("maps tool.end", () => {
+    const mapper = createAcpStreamMapper()
+    const event: AgentEvent = {
+      kind: "tool.end",
+      toolCallId: "tc-1",
+      toolName: "Read",
+      toolResult: "file contents",
+      status: "success",
+    }
+
+    const events = mapAgentEventToStream(event, mapper)
+    expect(events).toHaveLength(1)
+    expect(events[0]).toMatchObject({
+      type: "tool_call.update",
+      toolCallId: "tc-1",
+      status: "done",
+      result: "file contents",
+    })
+  })
+
+  test("maps plan", () => {
+    const mapper = createAcpStreamMapper()
+    const event: AgentEvent = {
+      kind: "plan",
+      entries: [
+        { content: "Step 1", status: "done" },
+        { content: "Step 2", status: "in_progress" },
+      ],
+    }
+
+    const events = mapAgentEventToStream(event, mapper)
+    expect(events).toHaveLength(1)
+    expect(events[0]?.type).toBe("plan")
+    expect((events[0] as { entries: unknown[] }).entries).toHaveLength(2)
+  })
+
+  test("maps usage", () => {
+    const mapper = createAcpStreamMapper()
+    const event: AgentEvent = {
+      kind: "usage",
+      contextTokens: 5000,
+      contextWindowMax: 200000,
+    }
+
+    const events = mapAgentEventToStream(event, mapper)
+    expect(events).toHaveLength(1)
+    expect(events[0]).toMatchObject({
+      type: "usage",
+      contextTokens: 5000,
+      contextWindowMax: 200000,
+    })
   })
 })
