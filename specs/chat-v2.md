@@ -3,6 +3,7 @@
 Rewrite of chat/message handling based on study of:
 - **zed-industries/zed** — primary reference (also uses ACP)
 - **formulahendry/vscode-acp** — ACP client reference
+- **RAIT-09/obsidian-agent-client** — ACP client with perf optimizations
 - **vercel-labs/open-agents** — parts-based model
 - **pingdotgg/t3code** — streaming flags, work log separation
 
@@ -35,6 +36,78 @@ Zed's approach: **direct mapping** from ACP events to internal model, no interme
 | Per-chunk expansion | zed | Yes |
 | Persist after completion | open-agents | Yes |
 | Thinking in collapsible with duration | vscode-acp | Yes |
+| RAF batching for streaming | obsidian-agent-client | Yes |
+| O(1) tool call lookup | obsidian-agent-client | Yes |
+| Domain/protocol separation | obsidian-agent-client | Yes |
+| Permission in tool_call | obsidian-agent-client | Yes |
+
+## Performance Patterns (from obsidian-agent-client)
+
+### RAF Batching
+
+High-frequency streaming updates batched via `requestAnimationFrame`:
+
+```typescript
+// hooks/useThread.ts
+
+const pendingUpdates = useRef<StreamEvent[]>([])
+const flushScheduled = useRef(false)
+
+function enqueueUpdate(event: StreamEvent) {
+  pendingUpdates.current.push(event)
+  if (!flushScheduled.current) {
+    flushScheduled.current = true
+    requestAnimationFrame(flushPendingUpdates)
+  }
+}
+
+function flushPendingUpdates() {
+  flushScheduled.current = false
+  const batch = pendingUpdates.current
+  pendingUpdates.current = []
+  
+  setEntries(prev => batch.reduce(applyStreamEvent, prev))
+}
+```
+
+### O(1) Tool Call Index
+
+Map for fast tool call updates in long conversations:
+
+```typescript
+// Maintain index alongside entries
+const toolCallIndex = useRef<Map<string, number>>(new Map())
+
+function findToolCallEntry(toolCallId: string): number {
+  const cached = toolCallIndex.current.get(toolCallId)
+  if (cached !== undefined) return cached
+  
+  // Fallback linear scan, update index
+  const idx = entries.findIndex(e => e.kind === "tool_call" && e.toolCallId === toolCallId)
+  if (idx >= 0) toolCallIndex.current.set(toolCallId, idx)
+  return idx
+}
+```
+
+### Domain/Protocol Separation
+
+ACP types vs internal types with converter:
+
+```typescript
+// types/thread.ts - domain types (ACP-agnostic)
+type ThreadEntry = ...
+
+// lib/acp-converter.ts - maps ACP → domain
+function convertToolCall(acpToolCall: AcpToolCall): ToolCallEntry {
+  return {
+    kind: "tool_call",
+    id: crypto.randomUUID(),
+    toolCallId: acpToolCall.toolCallId,
+    toolName: acpToolCall.toolName,
+    // ... normalize input, handle permission
+  }
+}
+```
 
 ## New Message Model (Zed-aligned)
 
@@ -50,8 +123,17 @@ type MessageChunk =
 type ThreadEntry =
   | { kind: "user"; id: string; content: string; timestamp: string; images?: MessageImage[] }
   | { kind: "assistant"; id: string; chunks: MessageChunk[]; timestamp: string; streaming: boolean }
-  | { kind: "tool_call"; id: string; toolCallId: string; toolName: string; input: unknown; status: "running" | "done" | "error"; result?: string }
+  | { kind: "tool_call"; id: string; toolCallId: string; toolName: string; input: unknown; status: ToolCallStatus; result?: string; permissionRequest?: PermissionRequest }
   | { kind: "plan"; id: string; entries: PlanEntry[]; timestamp: string }
+
+type ToolCallStatus = "pending_permission" | "running" | "done" | "error"
+
+// Permission embedded in tool_call (from obsidian-agent-client)
+// Simplifies UI correlation - no separate permission entry type
+interface PermissionRequest {
+  requestId: string
+  options: Array<{ id: string; name: string; description?: string }>
+}
 
 // Note: No messageId from ACP - we generate our own UUIDs
 ```
