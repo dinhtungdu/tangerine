@@ -31,50 +31,14 @@ export function getStatusConfig(status: string): StatusConfig {
   return STATUS_CONFIG[status] ?? DEFAULT_STATUS
 }
 
-const IDLE_AGENT_STATUS: StatusConfig = {
-  label: "Idle",
-  textClass: "text-status-warning-text",
-  bgClass: "bg-status-warning-bg",
-  color: "var(--color-status-warning)",
-}
-
-const WORKING_AGENT_STATUS: StatusConfig = {
-  label: "Working",
-  textClass: "text-status-success-text",
-  bgClass: "bg-status-success-bg",
-  color: "var(--color-status-success)",
-}
-
-const DISCONNECTED_AGENT_STATUS: StatusConfig = {
-  label: "Disconnected",
-  textClass: "text-status-error-text",
-  bgClass: "bg-status-error-bg",
-  color: "var(--color-status-error)",
-}
-
-const ACTIVE_TASK_STATUS: StatusConfig = {
-  label: "Active",
-  textClass: "text-status-success-text",
-  bgClass: "bg-status-success-bg",
-  color: "var(--color-status-success)",
-}
-
-type TaskDisplayStatusInput = Pick<Task, "status" | "agentStatus">
+type TaskDisplayStatusInput = Pick<Task, "status">
 
 export function getTaskDisplayStatus(task: TaskDisplayStatusInput): StatusConfig {
-  if (task.status !== "running") return getStatusConfig(task.status)
-  if (task.agentStatus === "disconnected") return DISCONNECTED_AGENT_STATUS
-  if (task.agentStatus === "working") return WORKING_AGENT_STATUS
-  if (task.agentStatus === "idle") return IDLE_AGENT_STATUS
-  return ACTIVE_TASK_STATUS
+  return getStatusConfig(task.status)
 }
 
 export function getTaskStatusText(task: TaskDisplayStatusInput): string {
-  if (task.status !== "running") return task.status
-  if (task.agentStatus === "disconnected") return "disconnected"
-  if (task.agentStatus === "working") return "working"
-  if (task.agentStatus === "idle") return "idle"
-  return "active"
+  return task.status
 }
 
 export const PR_STATUS_CONFIG: Record<string, StatusConfig> = {

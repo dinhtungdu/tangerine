@@ -234,71 +234,17 @@ describe("status", () => {
     expect(config.color).toBeTruthy()
   })
 
-  test("getTaskDisplayStatus shows idle instead of running for idle agents", () => {
+  test("getTaskDisplayStatus uses task lifecycle status for running tasks", () => {
     const config = getTaskDisplayStatus(makeTask({ status: "running", agentStatus: "idle" }))
-    expect(config.label).toBe("Idle")
-    expect(config.color).toBe("var(--color-status-warning)")
-  })
-
-  test("getTaskDisplayStatus shows idle for PR tasks (PR badge handles PR state)", () => {
-    const task = makeTask({
-      status: "running",
-      agentStatus: "idle",
-      prUrl: "https://github.com/dinhtungdu/tangerine/pull/650",
-      prStatus: "open",
-    })
-
-    expect(getTaskDisplayStatus(task).label).toBe("Idle")
-    expect(getTaskStatusText(task)).toBe("idle")
-  })
-
-  test("getTaskDisplayStatus shows idle for PR tasks before prStatus polled", () => {
-    const task = makeTask({
-      status: "running",
-      agentStatus: "idle",
-      prUrl: "https://github.com/dinhtungdu/tangerine/pull/650",
-      prStatus: null,
-    })
-
-    expect(getTaskDisplayStatus(task).label).toBe("Idle")
-    expect(getTaskStatusText(task)).toBe("idle")
-  })
-
-  test("getTaskDisplayStatus shows working for PR tasks when agent working", () => {
-    const task = makeTask({
-      status: "running",
-      agentStatus: "working",
-      prUrl: "https://github.com/dinhtungdu/tangerine/pull/650",
-      prStatus: "open",
-    })
-
-    const config = getTaskDisplayStatus(task)
-    expect(config.label).toBe("Working")
+    expect(config.label).toBe("Running")
     expect(config.color).toBe("var(--color-status-success)")
-    expect(getTaskStatusText(task)).toBe("working")
   })
 
-  test("getTaskDisplayStatus shows disconnected for PR tasks when agent disconnected", () => {
-    const task = makeTask({
-      status: "running",
-      agentStatus: "disconnected",
-      prUrl: "https://github.com/dinhtungdu/tangerine/pull/650",
-      prStatus: "open",
-    })
+  test("getTaskStatusText ignores agent status", () => {
+    const task = makeTask({ status: "running", agentStatus: "working" })
 
-    const config = getTaskDisplayStatus(task)
-    expect(config.label).toBe("Disconnected")
-    expect(config.color).toBe("var(--color-status-error)")
-    expect(getTaskStatusText(task)).toBe("disconnected")
-  })
-
-  test("getTaskDisplayStatus falls back to active for running tasks without agent state", () => {
-    const task = makeTask({ status: "running", agentStatus: undefined })
-
-    const config = getTaskDisplayStatus(task)
-    expect(config.label).toBe("Active")
-    expect(config.color).toBe("var(--color-status-success)")
-    expect(getTaskStatusText(task)).toBe("active")
+    expect(getTaskDisplayStatus(task).label).toBe("Running")
+    expect(getTaskStatusText(task)).toBe("running")
   })
 
   test("all statuses have color and textClass", () => {

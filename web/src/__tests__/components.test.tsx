@@ -304,7 +304,7 @@ function mockStatusPageFetch() {
 }
 
 describe("TaskDetail", () => {
-  test("updates header agent status from task websocket", async () => {
+  test("keeps header status on task lifecycle status when agent websocket changes", async () => {
     const originalWebSocket = globalThis.WebSocket
     const sockets: TestWebSocket[] = []
 
@@ -377,7 +377,7 @@ describe("TaskDetail", () => {
         </MemoryRouter>
       )
 
-      expect(await screen.findByText("Working")).toBeTruthy()
+      expect(await screen.findByText("Running")).toBeTruthy()
       const taskSocket = sockets.find((socket) => socket.url.endsWith("/api/tasks/t1/ws"))
       expect(taskSocket).toBeTruthy()
 
@@ -386,7 +386,8 @@ describe("TaskDetail", () => {
         await Promise.resolve()
       })
 
-      expect(screen.getByText("Idle")).toBeTruthy()
+      expect(screen.getByText("Running")).toBeTruthy()
+      expect(screen.queryByText("Idle")).toBeNull()
     } finally {
       globalThis.WebSocket = originalWebSocket
     }
