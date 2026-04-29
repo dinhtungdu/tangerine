@@ -211,7 +211,7 @@ describe("createAcpEventMapper", () => {
     const mapper = createAcpEventMapper()
 
     expect(mapper.mapSessionUpdate({ sessionUpdate: "agent_message_chunk", content: { type: "text", text: "Using test-driven-development. First: specs/tests, then implementation, then PR." } }))
-      .toEqual([{ kind: "message.streaming", content: "Using test-driven-development. First: specs/tests, then implementation, then PR." }])
+      .toEqual([{ kind: "message.streaming", role: "narration", content: "Using test-driven-development. First: specs/tests, then implementation, then PR." }])
     expect(mapper.mapSessionUpdate({ sessionUpdate: "agent_message_chunk", content: { type: "text", text: "Setup done, worktree clean." } }))
       .toEqual([
         { kind: "message.complete", role: "narration", content: "Using test-driven-development. First: specs/tests, then implementation, then PR." },
@@ -220,14 +220,22 @@ describe("createAcpEventMapper", () => {
     expect(mapper.flushAssistantMessage()).toEqual([{ kind: "message.complete", role: "narration", content: "Setup done, worktree clean." }])
   })
 
-  test("does not add paragraph breaks for dotted identifiers", () => {
+  test("flushes a single no-messageId prose chunk as narration", () => {
+    const mapper = createAcpEventMapper()
+
+    expect(mapper.mapSessionUpdate({ sessionUpdate: "agent_message_chunk", content: { type: "text", text: "Checking current task logs." } }))
+      .toEqual([{ kind: "message.streaming", role: "narration", content: "Checking current task logs." }])
+    expect(mapper.flushAssistantMessage()).toEqual([{ kind: "message.complete", role: "narration", content: "Checking current task logs." }])
+  })
+
+  test("does not split dotted identifiers across no-messageId chunks", () => {
     const mapper = createAcpEventMapper()
 
     expect(mapper.mapSessionUpdate({ sessionUpdate: "agent_message_chunk", content: { type: "text", text: "Use Foo." } }))
-      .toEqual([{ kind: "message.streaming", content: "Use Foo." }])
+      .toEqual([{ kind: "message.streaming", role: "narration", content: "Use Foo." }])
     expect(mapper.mapSessionUpdate({ sessionUpdate: "agent_message_chunk", content: { type: "text", text: "Bar value" } }))
-      .toEqual([{ kind: "message.streaming", content: "Bar value" }])
-    expect(mapper.flushAssistantMessage()).toEqual([{ kind: "message.complete", role: "assistant", content: "Use Foo.Bar value" }])
+      .toEqual([{ kind: "message.streaming", role: "narration", content: "Bar value" }])
+    expect(mapper.flushAssistantMessage()).toEqual([{ kind: "message.complete", role: "narration", content: "Use Foo.Bar value" }])
   })
 
   test("starts a new assistant message when ACP messageId changes", () => {
@@ -241,6 +249,32 @@ describe("createAcpEventMapper", () => {
         { kind: "message.streaming", content: "Second.", messageId: "msg-2" },
       ])
     expect(mapper.flushAssistantMessage()).toEqual([{ kind: "message.complete", role: "assistant", content: "Second.", messageId: "msg-2" }])
+  })
+
+  test("separates no-messageId narration before messageId assistant text", () => {
+    const mapper = createAcpEventMapper()
+
+    expect(mapper.mapSessionUpdate({ sessionUpdate: "agent_message_chunk", content: { type: "text", text: "Checking current task logs." } }))
+      .toEqual([{ kind: "message.streaming", role: "narration", content: "Checking current task logs." }])
+    expect(mapper.mapSessionUpdate({ sessionUpdate: "agent_message_chunk", messageId: "msg-1", content: { type: "text", text: "Done." } }))
+      .toEqual([
+        { kind: "message.complete", role: "narration", content: "Checking current task logs." },
+        { kind: "message.streaming", content: "Done.", messageId: "msg-1" },
+      ])
+    expect(mapper.flushAssistantMessage()).toEqual([{ kind: "message.complete", role: "assistant", content: "Done.", messageId: "msg-1" }])
+  })
+
+  test("separates messageId assistant text before no-messageId narration", () => {
+    const mapper = createAcpEventMapper()
+
+    expect(mapper.mapSessionUpdate({ sessionUpdate: "agent_message_chunk", messageId: "msg-1", content: { type: "text", text: "Done." } }))
+      .toEqual([{ kind: "message.streaming", content: "Done.", messageId: "msg-1" }])
+    expect(mapper.mapSessionUpdate({ sessionUpdate: "agent_message_chunk", content: { type: "text", text: "Checking current task logs." } }))
+      .toEqual([
+        { kind: "message.complete", role: "assistant", content: "Done.", messageId: "msg-1" },
+        { kind: "message.streaming", role: "narration", content: "Checking current task logs." },
+      ])
+    expect(mapper.flushAssistantMessage()).toEqual([{ kind: "message.complete", role: "narration", content: "Checking current task logs." }])
   })
 
   test("streams thought chunks and flushes one complete thought", () => {
@@ -437,8 +471,8 @@ describe("createAcpProvider", () => {
 
     expect((handle as { __meta?: { sessionId: string } }).__meta?.sessionId).toBe("sess-test")
     expect(events).toContainEqual({ kind: "status", status: "working" })
-    expect(events).toContainEqual({ kind: "message.streaming", content: "hello " })
-    expect(events).toContainEqual({ kind: "message.streaming", content: "permission:allow" })
+    expect(events).toContainEqual({ kind: "message.streaming", content: "hello ", messageId: "msg-test" })
+    expect(events).toContainEqual({ kind: "message.streaming", content: "permission:allow", messageId: "msg-test" })
     expect(events).toContainEqual({ kind: "tool.start", toolCallId: "call-1", toolName: "Edit file", toolInput: "{\"path\":\"/tmp/file\"}" })
     expect(events).toContainEqual({
       kind: "permission.decision",
@@ -448,7 +482,7 @@ describe("createAcpProvider", () => {
       optionKind: "allow_once",
     })
     expect(events).toContainEqual({ kind: "tool.end", toolCallId: "call-1", toolName: "Edit file", toolResult: "{\"permission\":\"allow\"}", status: "success" })
-    expect(events).toContainEqual({ kind: "message.complete", role: "assistant", content: "hello permission:allow" })
+    expect(events).toContainEqual({ kind: "message.complete", role: "assistant", content: "hello permission:allow", messageId: "msg-test" })
     expect(events).toContainEqual({ kind: "usage", inputTokens: 10, outputTokens: 5, cumulative: true })
     expect(events).toContainEqual({ kind: "status", status: "idle" })
 
@@ -558,7 +592,7 @@ describe("createAcpProvider", () => {
     await waitFor(() => hasStatusTransition(events, "working", "idle"))
 
     expect(await Bun.file(join(tempDir, "edited.txt")).text()).toBe("edited content")
-    expect(events).toContainEqual({ kind: "message.complete", role: "assistant", content: "fs:edited content" })
+    expect(events).toContainEqual({ kind: "message.complete", role: "assistant", content: "fs:edited content", messageId: "msg-fs" })
 
     await Effect.runPromise(handle.shutdown())
     rmSync(tempDir, { recursive: true, force: true })
@@ -1012,7 +1046,7 @@ rl.on("line", (line) => {
     return
   }
   if (msg.id === 202 && msg.result && wrote) {
-    send({ jsonrpc: "2.0", method: "session/update", params: { sessionId: "sess-fs", update: { sessionUpdate: "agent_message_chunk", content: { type: "text", text: "fs:" + msg.result.content } } } })
+    send({ jsonrpc: "2.0", method: "session/update", params: { sessionId: "sess-fs", update: { sessionUpdate: "agent_message_chunk", messageId: "msg-fs", content: { type: "text", text: "fs:" + msg.result.content } } } })
     send({ jsonrpc: "2.0", id: promptId, result: { stopReason: "end_turn" } })
     return
   }
@@ -1373,13 +1407,13 @@ rl.on("line", (line) => {
   }
   if (msg.method === "session/prompt") {
     pendingPromptId = msg.id
-    send({ jsonrpc: "2.0", method: "session/update", params: { sessionId: "sess-test", update: { sessionUpdate: "agent_message_chunk", content: { type: "text", text: "hello " } } } })
+    send({ jsonrpc: "2.0", method: "session/update", params: { sessionId: "sess-test", update: { sessionUpdate: "agent_message_chunk", messageId: "msg-test", content: { type: "text", text: "hello " } } } })
     send({ jsonrpc: "2.0", method: "session/update", params: { sessionId: "sess-test", update: { sessionUpdate: "tool_call", toolCallId: "call-1", title: "Edit file", status: "pending", rawInput: { path: "/tmp/file" } } } })
     send({ jsonrpc: "2.0", id: 99, method: "session/request_permission", params: { sessionId: "sess-test", toolCall: { toolCallId: "call-1", title: "Edit file", status: "pending" }, options: [{ optionId: "allow", name: "Allow", kind: "allow_once" }, { optionId: "reject", name: "Reject", kind: "reject_once" }] } })
     return
   }
   if (msg.id === 99 && msg.result) {
-    send({ jsonrpc: "2.0", method: "session/update", params: { sessionId: "sess-test", update: { sessionUpdate: "agent_message_chunk", content: { type: "text", text: "permission:" + msg.result.outcome.optionId } } } })
+    send({ jsonrpc: "2.0", method: "session/update", params: { sessionId: "sess-test", update: { sessionUpdate: "agent_message_chunk", messageId: "msg-test", content: { type: "text", text: "permission:" + msg.result.outcome.optionId } } } })
     send({ jsonrpc: "2.0", method: "session/update", params: { sessionId: "sess-test", update: { sessionUpdate: "tool_call_update", toolCallId: "call-1", status: "completed", rawOutput: { permission: msg.result.outcome.optionId } } } })
     send({ jsonrpc: "2.0", id: pendingPromptId, result: { stopReason: "end_turn", usage: { inputTokens: 10, outputTokens: 5, totalTokens: 15 } } })
     return

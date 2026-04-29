@@ -326,27 +326,19 @@ export function createAcpEventMapper(): {
           const text = textFromContent(update.content)
           if (text) {
             const incomingMessageId = stringField(update, "messageId")
+            const incomingRole: "assistant" | "narration" = incomingMessageId ? "assistant" : "narration"
             const events: AgentEvent[] = []
-            if (incomingMessageId && assistantMessageId && incomingMessageId !== assistantMessageId && assistantBuffer) {
-              events.push({ kind: "message.complete", role: assistantBufferRole, content: assistantBuffer, messageId: assistantMessageId })
+            const shouldFlushForRoleChange = assistantBuffer.length > 0 && assistantBufferRole !== incomingRole
+            const shouldFlushForMessageChange = incomingRole === "assistant" && !!incomingMessageId && !!assistantMessageId && incomingMessageId !== assistantMessageId && assistantBuffer.length > 0
+            const shouldFlushForNarrationBoundary = incomingRole === "narration" && assistantBufferRole === "narration" && isNarrationBoundary(assistantBuffer, text)
+            if (shouldFlushForRoleChange || shouldFlushForMessageChange || shouldFlushForNarrationBoundary) {
+              events.push({ kind: "message.complete", role: assistantBufferRole, content: assistantBuffer, ...(assistantMessageId ? { messageId: assistantMessageId } : {}) })
               assistantBuffer = ""
               assistantMessageId = undefined
-              assistantBufferRole = "assistant"
             }
-            if (!incomingMessageId && isNarrationBoundary(assistantBuffer, text)) {
-              events.push({
-                kind: "message.complete",
-                role: "narration",
-                content: assistantBuffer,
-                ...(assistantMessageId ? { messageId: assistantMessageId } : {}),
-              })
-              assistantBuffer = ""
-              assistantMessageId = undefined
-              assistantBufferRole = "narration"
-            }
-            if (incomingMessageId && !assistantMessageId) {
+            assistantBufferRole = incomingRole
+            if (incomingMessageId) {
               assistantMessageId = incomingMessageId
-              assistantBufferRole = "assistant"
             }
             const chunk = text
             assistantBuffer += chunk
