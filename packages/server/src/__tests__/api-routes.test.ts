@@ -1052,6 +1052,39 @@ describe("API routes", () => {
       ])
     })
 
+    test("backfills chat-authored user prompts instead of duplicating them", async () => {
+      const row = seedTask(db)
+      db.prepare("UPDATE tasks SET agent_session_id = ?, worktree_path = ? WHERE id = ?")
+        .run("sess-sync", "/tmp/tangerine-test-workspace/test-project/1", row.id)
+      Effect.runSync(insertSessionLog(db, {
+        task_id: row.id,
+        role: "user",
+        content: "Build it",
+      }))
+
+      ;(deps.agentFactories.acp as typeof deps.agentFactories.acp & {
+        loadSessionHistory?: () => Effect.Effect<AgentEvent[], never>
+      }).loadSessionHistory = () => Effect.succeed([
+        { kind: "message.complete", role: "user", content: "Build it", messageId: "user-1" },
+        { kind: "message.complete", role: "assistant", content: "Done", messageId: "assistant-1" },
+      ])
+
+      const res = await app.fetch(new Request(`http://localhost/api/tasks/${row.id}/sync-session`, {
+        method: "POST",
+      }))
+
+      expect(res.status).toBe(200)
+      const body = await res.json() as { available: boolean; inserted: number; skipped: number }
+      expect(body).toEqual({ available: true, inserted: 1, skipped: 1 })
+
+      const messages = db.prepare("SELECT role, content, message_id FROM session_logs WHERE task_id = ? ORDER BY id")
+        .all(row.id) as Array<{ role: string; content: string; message_id: string | null }>
+      expect(messages).toEqual([
+        { role: "user", content: "Build it", message_id: "user-1" },
+        { role: "assistant", content: "Done", message_id: "assistant-1" },
+      ])
+    })
+
     test("keeps repeated ACP history rows when message ids are missing", async () => {
       const row = seedTask(db)
       db.prepare("UPDATE tasks SET agent_session_id = ?, worktree_path = ? WHERE id = ?")

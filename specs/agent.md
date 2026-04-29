@@ -148,9 +148,11 @@ starting a one-shot ACP process and calling `session/load` for that session. The
 loader collects replayed `session/update` events, converts completed
 user/assistant/thinking/content/plan output into `session_logs`, and exits. Rows
 with non-null `messageId` dedupe against existing `(task_id, role, message_id)`;
+chat-authored user rows that were saved before an ACP message id existed are
+backfilled with the replayed id when the role and content match. Other
 message-id-less rows always insert so repeated prompts or replies are preserved.
-It does not attach to the live task handle, send prompts, or affect the running
-agent state.
+It does not attach to the live task handle, send prompts, expose file writes, or
+affect the running agent state.
 
 Use `session/load` for sync because it replays conversation history. Use
 `session/resume` only for continuing a session without replaying history.

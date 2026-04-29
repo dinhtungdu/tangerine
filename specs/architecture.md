@@ -84,9 +84,10 @@ specs/
 7. Crons are separate entities that fire on a cron schedule, spawning regular worker tasks.
 8. When the dashboard needs to repair chat history after a user has been away from
    the chat pane, Tangerine may run a short-lived ACP `session/load` import for
-   the task's `agent_session_id`. The import deduplicates only rows with stable
-   message IDs into `session_logs`; it does not replace the live task handle or
-   use `session/resume`.
+   the task's `agent_session_id`. The import deduplicates rows with stable
+   message IDs, backfills matching chat-authored user rows that lacked ACP ids,
+   and never exposes file writes; it does not replace the live task handle or use
+   `session/resume`.
 
 ## Access Model
 

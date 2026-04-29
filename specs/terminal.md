@@ -18,7 +18,8 @@ The command terminal pane uses `WS /api/tasks/:id/terminal` and always starts a
 shell in the worktree. The task-detail Chat/TUI switch uses
 `WS /api/tasks/:id/agent-terminal`; that route starts the selected agent's
 native TUI resume command for `agent_session_id`. These are separate PTY
-sessions and separate scrollback/PID files.
+sessions and separate scrollback/PID files. Agent TUI launches inherit the
+configured agent `env`, with `tui.env` overriding duplicate keys.
 
 ## Session lifecycle
 

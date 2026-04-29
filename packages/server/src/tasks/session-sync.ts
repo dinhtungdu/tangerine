@@ -61,14 +61,19 @@ export function syncConversationFromAcp(
       },
     })
 
-    const existingMessageKeys = loadExistingMessageKeys(deps.db, taskId)
+    const existingSyncState = loadExistingSyncState(deps.db, taskId)
     let inserted = 0
     let skipped = 0
     for (const event of events) {
       const entry = syncLogEntryFromEvent(event)
       if (!entry) continue
       const messageKey = syncMessageKey(entry)
-      if (messageKey && existingMessageKeys.has(messageKey)) {
+      if (messageKey && existingSyncState.messageKeys.has(messageKey)) {
+        skipped += 1
+        continue
+      }
+      if (messageKey && backfillChatAuthoredUserPrompt(deps.db, existingSyncState, entry)) {
+        existingSyncState.messageKeys.add(messageKey)
         skipped += 1
         continue
       }
@@ -78,7 +83,7 @@ export function syncConversationFromAcp(
         content: entry.content,
         message_id: entry.messageId ?? null,
       })
-      if (messageKey) existingMessageKeys.add(messageKey)
+      if (messageKey) existingSyncState.messageKeys.add(messageKey)
       inserted += 1
     }
 
@@ -107,11 +112,37 @@ function syncMessageKey(entry: SyncLogEntry): string | null {
   return messageId ? `${entry.role}:${messageId}` : null
 }
 
-function loadExistingMessageKeys(db: Database, taskId: string): Set<string> {
-  const rows = db.prepare("SELECT role, message_id FROM session_logs WHERE task_id = ? AND message_id IS NOT NULL")
-    .all(taskId) as Array<{ role: string; message_id: string | null }>
-  return new Set(rows.flatMap((row) => {
+interface ExistingSyncState {
+  messageKeys: Set<string>
+  chatAuthoredUserPrompts: Map<string, Array<{ id: number }>>
+}
+
+function loadExistingSyncState(db: Database, taskId: string): ExistingSyncState {
+  const rows = db.prepare("SELECT id, role, content, message_id FROM session_logs WHERE task_id = ? ORDER BY id ASC")
+    .all(taskId) as Array<{ id: number; role: string; content: string; message_id: string | null }>
+  const messageKeys = new Set<string>()
+  const chatAuthoredUserPrompts = new Map<string, Array<{ id: number }>>()
+  for (const row of rows) {
     const messageId = row.message_id?.trim()
-    return messageId ? [`${row.role}:${messageId}`] : []
-  }))
+    if (messageId) {
+      messageKeys.add(`${row.role}:${messageId}`)
+      continue
+    }
+    if (row.role !== "user") continue
+    const prompts = chatAuthoredUserPrompts.get(row.content) ?? []
+    prompts.push({ id: row.id })
+    chatAuthoredUserPrompts.set(row.content, prompts)
+  }
+  return { messageKeys, chatAuthoredUserPrompts }
+}
+
+function backfillChatAuthoredUserPrompt(db: Database, state: ExistingSyncState, entry: SyncLogEntry): boolean {
+  const messageId = entry.messageId?.trim()
+  if (entry.role !== "user" || !messageId) return false
+  const matches = state.chatAuthoredUserPrompts.get(entry.content)
+  const match = matches?.shift()
+  if (!match) return false
+  if (matches && matches.length === 0) state.chatAuthoredUserPrompts.delete(entry.content)
+  db.prepare("UPDATE session_logs SET message_id = ? WHERE id = ? AND message_id IS NULL").run(messageId, match.id)
+  return true
 }

@@ -1,7 +1,7 @@
 import { afterEach, describe, expect, mock, test } from "bun:test"
 import { cleanup, fireEvent, render, screen } from "@testing-library/react"
 
-import { TaskChatSurface, TaskViewModeToggle, shouldSyncAgentTuiOnChatReturn } from "../components/TaskViewMode"
+import { TaskChatSurface, TaskViewModeToggle, shouldSyncAgentTuiOnChatReturn, shouldTrackAgentTuiForTask } from "../components/TaskViewMode"
 
 afterEach(() => cleanup())
 
@@ -59,5 +59,14 @@ describe("shouldSyncAgentTuiOnChatReturn", () => {
     expect(shouldSyncAgentTuiOnChatReturn("running", false)).toBe(true)
     expect(shouldSyncAgentTuiOnChatReturn("failed", false)).toBe(false)
     expect(shouldSyncAgentTuiOnChatReturn("running", true)).toBe(false)
+    expect(shouldSyncAgentTuiOnChatReturn("running", false, true, "task-old", "task-new", "sess-1")).toBe(false)
+  })
+})
+
+describe("shouldTrackAgentTuiForTask", () => {
+  test("does not keep TUI active across task navigation", () => {
+    expect(shouldTrackAgentTuiForTask("tui", "task-old", "task-new")).toBe(false)
+    expect(shouldTrackAgentTuiForTask("tui", "task-1", "task-1")).toBe(true)
+    expect(shouldTrackAgentTuiForTask("chat", "task-1", "task-1")).toBe(false)
   })
 })

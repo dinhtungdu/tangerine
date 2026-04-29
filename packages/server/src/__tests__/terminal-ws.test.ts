@@ -68,27 +68,28 @@ describe("agent TUI launch", () => {
       id: "custom",
       name: "Custom",
       command: "custom-acp",
+      env: { BASE_SESSION: "{sessionId}", SHARED: "base" },
       tui: {
         command: "custom",
         args: ["resume", "{sessionId}", "--cwd", "{worktree}"],
-        env: { ACTIVE_SESSION: "{sessionId}", ACTIVE_WORKTREE: "{worktree}" },
+        env: { ACTIVE_SESSION: "{sessionId}", ACTIVE_WORKTREE: "{worktree}", SHARED: "tui" },
       },
     }
 
     expect(resolveAgentTuiLaunch(agent, "sess-123", "/tmp/worktree")).toEqual({
       command: "custom",
       args: ["resume", "sess-123", "--cwd", "/tmp/worktree"],
-      env: { ACTIVE_SESSION: "sess-123", ACTIVE_WORKTREE: "/tmp/worktree" },
+      env: { BASE_SESSION: "sess-123", ACTIVE_SESSION: "sess-123", ACTIVE_WORKTREE: "/tmp/worktree", SHARED: "tui" },
     })
   })
 
   test("infers Codex TUI resume from common ACP adapter command", () => {
-    const agent: AgentConfig = { id: "codex", name: "Codex", command: "codex-acp" }
+    const agent: AgentConfig = { id: "codex", name: "Codex", command: "codex-acp", env: { CODEX_HOME: "{worktree}/.codex" } }
 
     expect(resolveAgentTuiLaunch(agent, "sess-codex", "/tmp/worktree")).toEqual({
       command: "codex",
       args: ["resume", "sess-codex"],
-      env: undefined,
+      env: { CODEX_HOME: "/tmp/worktree/.codex" },
     })
   })
 

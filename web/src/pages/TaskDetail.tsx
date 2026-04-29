@@ -16,7 +16,7 @@ import { ActivityList } from "../components/ActivityList"
 import { ChangesPanel as DiffSidebar, type DiffComment } from "../components/ChangesPanel"
 import { ResizeHandle, PaneToggle } from "../components/PaneControls"
 import { TerminalPane } from "../components/TerminalPane"
-import { TaskChatSurface, TaskViewModeToggle, shouldSyncAgentTuiOnChatReturn, type TaskViewMode } from "../components/TaskViewMode"
+import { TaskChatSurface, TaskViewModeToggle, shouldSyncAgentTuiOnChatReturn, shouldTrackAgentTuiForTask, type TaskViewMode } from "../components/TaskViewMode"
 import { formatPrNumber, formatTaskTitle } from "../lib/format"
 import {
   getResponsiveVisiblePanes,
@@ -433,14 +433,29 @@ export function TaskDetail() {
     [desktopSyncPane, visiblePanes],
   )
   const agentTuiActiveRef = useRef(false)
-  const canSyncAgentTui = shouldSyncAgentTuiOnChatReturn(chatTask?.status, chatTask?.suspended)
+  const agentTuiTaskIdRef = useRef<string | null>(null)
+  const canSyncAgentTui = shouldSyncAgentTuiOnChatReturn(
+    chatTask?.status,
+    chatTask?.suspended,
+    agentTuiActiveRef.current,
+    agentTuiTaskIdRef.current,
+    id ?? null,
+    chatTask?.agentSessionId ?? null,
+  )
 
   useEffect(() => {
-    if (taskViewMode === "chat" && agentTuiActiveRef.current && chatTask?.agentSessionId && canSyncAgentTui) {
+    agentTuiActiveRef.current = false
+    agentTuiTaskIdRef.current = null
+  }, [id])
+
+  useEffect(() => {
+    if (taskViewMode === "chat" && canSyncAgentTui) {
       session.syncFromAgent().catch(() => {})
     }
-    agentTuiActiveRef.current = taskViewMode === "tui"
-  }, [taskViewMode, chatTask?.agentSessionId, canSyncAgentTui, session.syncFromAgent])
+    const isCurrentTaskTui = shouldTrackAgentTuiForTask(taskViewMode, chatTask?.id, id)
+    agentTuiActiveRef.current = isCurrentTaskTui
+    agentTuiTaskIdRef.current = isCurrentTaskTui ? id ?? null : null
+  }, [taskViewMode, id, chatTask?.id, canSyncAgentTui, session.syncFromAgent])
 
   const PANE_ORDER: PaneId[] = ["chat", "diff", "terminal", "activity"]
   const orderedVisible = PANE_ORDER.filter((p) => responsiveVisiblePanes.has(p) && (p !== "diff" || hasDiff))

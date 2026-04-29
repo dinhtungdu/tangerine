@@ -95,7 +95,7 @@ Known ACP adapter examples:
 
 These are examples only. Tangerine accepts any ACP-compatible command and expects each underlying agent to be installed/authenticated outside Tangerine.
 
-Agent entries may include `tui.command`, `tui.args`, and `tui.env` for task detail Chat/TUI handoff. Values support `{sessionId}` and `{worktree}` placeholders.
+Agent entries may include `tui.command`, `tui.args`, and `tui.env` for task detail Chat/TUI handoff. Values support `{sessionId}` and `{worktree}` placeholders. TUI launches inherit the base agent `env`; `tui.env` overrides duplicate keys.
 
 When `sshHost` and `editor` are set, the web dashboard shows "Open in {editor}" links on task cards and the task detail page for tasks with worktrees. `sshUser` is required for Zed links.
 

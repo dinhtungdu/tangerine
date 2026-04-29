@@ -559,7 +559,6 @@ function loadAcpSessionHistory(
         onRequest: async (method, params) => {
           if (!isRecord(params)) throw new Error(`Invalid ACP client request params: ${method}`)
           if (method === "fs/read_text_file") return readTextFileForAcp(ctx.workdir, params)
-          if (method === "fs/write_text_file") return writeTextFileForAcp(ctx.workdir, params)
           throw new Error(`Unsupported ACP client request: ${method}`)
         },
         onError: (error) => { rpcError = error },
@@ -570,7 +569,7 @@ function loadAcpSessionHistory(
         readStderr(proc.stderr as ReadableStream<Uint8Array>, (text) => taskLog.debug("acp stderr", { text }))
         const initResult = await rpc.request("initialize", {
           protocolVersion: ACP_PROTOCOL_VERSION,
-          clientCapabilities: { fs: { readTextFile: true, writeTextFile: true } },
+          clientCapabilities: { fs: { readTextFile: true } },
           clientInfo: { name: "tangerine", title: "Tangerine", version: "0.0.8" },
         })
         const capabilities = parseAcpCapabilities(initResult)

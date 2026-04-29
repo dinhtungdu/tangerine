@@ -92,6 +92,11 @@ function replaceLaunchEnv(env: Record<string, string> | undefined, sessionId: st
   return Object.fromEntries(entries)
 }
 
+function mergeLaunchEnv(baseEnv: Record<string, string> | undefined, tuiEnv: Record<string, string> | undefined, sessionId: string, worktree: string): Record<string, string> | undefined {
+  const merged = { ...(baseEnv ?? {}), ...(tuiEnv ?? {}) }
+  return Object.keys(merged).length > 0 ? replaceLaunchEnv(merged, sessionId, worktree) : undefined
+}
+
 function commandName(command: string): string {
   return basename(command).toLowerCase()
 }
@@ -117,27 +122,28 @@ export function resolveAgentTuiLaunch(agent: AgentConfig, sessionId: string, wor
     return {
       command: replaceLaunchPlaceholders(agent.tui.command, sessionId, worktree),
       args: (agent.tui.args ?? []).map((arg) => replaceLaunchPlaceholders(arg, sessionId, worktree)),
-      env: replaceLaunchEnv(agent.tui.env, sessionId, worktree),
+      env: mergeLaunchEnv(agent.env, agent.tui.env, sessionId, worktree),
     }
   }
 
   const name = commandName(agent.command)
   const args = agent.args ?? []
+  const env = mergeLaunchEnv(agent.env, undefined, sessionId, worktree)
   if (name === "codex" || name === "codex-acp" || tokenIncludes(agent, "@zed-industries/codex-acp")) {
-    return { command: "codex", args: ["resume", sessionId], env: undefined }
+    return { command: "codex", args: ["resume", sessionId], env }
   }
   if (name === "claude" || name === "claude-agent-acp" || tokenIncludes(agent, "claude-agent-acp")) {
-    return { command: "claude", args: ["--resume", sessionId], env: undefined }
+    return { command: "claude", args: ["--resume", sessionId], env }
   }
   if (name === "opencode" || tokenIncludes(agent, "opencode-ai")) {
-    return { command: "opencode", args: ["--session", sessionId], env: undefined }
+    return { command: "opencode", args: ["--session", sessionId], env }
   }
   if (name === "pi" || name === "pi-acp" || tokenIncludes(agent, "pi-acp")) {
-    return { command: "pi", args: ["--session", sessionId], env: undefined }
+    return { command: "pi", args: ["--session", sessionId], env }
   }
   if (name === "hermes") {
     const passthroughArgs = args.filter((arg) => arg !== "acp")
-    return { command: "hermes", args: ["--resume", sessionId, "--tui", ...passthroughArgs], env: undefined }
+    return { command: "hermes", args: ["--resume", sessionId, "--tui", ...passthroughArgs], env }
   }
 
   return null
