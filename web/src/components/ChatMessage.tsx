@@ -1,7 +1,5 @@
 import { memo, useState, useMemo, useCallback, useRef, useEffect, createContext, useContext } from "react"
-import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
-import { Separator } from "@/components/ui/separator"
 import type { Components } from "react-markdown"
 import ReactMarkdown from "react-markdown"
 import remarkGfm from "remark-gfm"
@@ -12,11 +10,10 @@ import type { AgentContentBlock, AgentPlanEntry } from "@tangerine/shared"
 import type { ChatMessage as ChatMessageType } from "../hooks/useSession"
 import { formatTimestamp } from "../lib/format"
 import { useNavigate } from "react-router-dom"
-import { DiffViewer, getDiffStats } from "./DiffViewer"
 import { AuthenticatedImage } from "./AuthenticatedImage"
 import { ImageLightbox } from "./ImageLightbox"
 import { copyToClipboard } from "../lib/clipboard"
-import { FileDiff, FileText, Terminal } from "lucide-react"
+import { FileText, Terminal } from "lucide-react"
 
 export interface MessageAction {
   key: string
@@ -306,44 +303,10 @@ function getStringField(block: AgentContentBlock, key: string): string | null {
   return typeof value === "string" ? value : null
 }
 
-function getDiffBlock(block: AgentContentBlock): { path: string; oldText: string; newText: string } | null {
-  if (block.type !== "diff") return null
-  const newText = getStringField(block, "newText")
-  if (newText === null) return null
-  return {
-    path: getStringField(block, "path") ?? "Untitled diff",
-    oldText: getStringField(block, "oldText") ?? "",
-    newText,
-  }
-}
-
 function getTerminalBlock(block: AgentContentBlock): { terminalId: string } | null {
   if (block.type !== "terminal") return null
   const terminalId = getStringField(block, "terminalId")
   return terminalId ? { terminalId } : null
-}
-
-function DiffContentBlockCard({ message, block }: { message: ChatMessageType; block: AgentContentBlock }) {
-  const diff = getDiffBlock(block)
-  if (!diff) return null
-  const stats = getDiffStats(diff.oldText, diff.newText)
-  return (
-    <ContentBlockFrame label="Diff" timestamp={message.timestamp} icon={<FileDiff />}>
-      <div className="overflow-hidden rounded-md border border-border bg-background">
-        <div className="flex flex-wrap items-center gap-2 px-2.5 py-2">
-          <div className="min-w-0 flex-1 break-words font-mono text-xs font-medium text-foreground">{diff.path}</div>
-          <div className="flex items-center gap-1">
-            <Badge variant="secondary">+{stats.additions}</Badge>
-            <Badge variant="destructive">-{stats.deletions}</Badge>
-          </div>
-        </div>
-        <Separator />
-        <div className="max-h-80 overflow-auto">
-          <DiffViewer oldString={diff.oldText} newString={diff.newText} className="rounded-none border-0" />
-        </div>
-      </div>
-    </ContentBlockFrame>
-  )
 }
 
 function GenericContentBlockCard({ message, block }: { message: ChatMessageType; block: AgentContentBlock }) {
@@ -385,7 +348,7 @@ function ContentBlockMessage({ message }: { message: ChatMessageType }) {
   const block = getContentBlock(message)
   if (!block) return null
   if (block.type === "text") return null
-  if (block.type === "diff") return <DiffContentBlockCard message={message} block={block} />
+  if (block.type === "diff") return null
   if (block.type === "terminal") return <TerminalContentBlockCard message={message} block={block} />
   return <GenericContentBlockCard message={message} block={block} />
 }
