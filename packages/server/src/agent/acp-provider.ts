@@ -305,7 +305,7 @@ export function createPromptStatusTracker(emit: (status: "idle" | "working") => 
 
 export function createAcpEventMapper(): {
   mapSessionUpdate(update: Record<string, unknown>): AgentEvent[]
-  flushAssistantMessage(): AgentEvent[]
+  flushAssistantMessage(roleOverride?: "assistant" | "narration"): AgentEvent[]
   flushThoughtMessage(): AgentEvent[]
 } {
   let assistantBuffer = ""
@@ -316,11 +316,11 @@ export function createAcpEventMapper(): {
   let thoughtSequence = 0
   const toolStates = new Map<string, { name: string; input?: string }>()
 
-  function flushAssistantEvents(): AgentEvent[] {
+  function flushAssistantEvents(roleOverride?: "assistant" | "narration"): AgentEvent[] {
     if (!assistantBuffer) return []
     const content = assistantBuffer
     const messageId = assistantMessageId
-    const role = assistantBufferRole
+    const role = roleOverride ?? assistantBufferRole
     assistantBuffer = ""
     assistantMessageId = undefined
     assistantBufferRole = "assistant"
@@ -334,6 +334,14 @@ export function createAcpEventMapper(): {
     thoughtBuffer = ""
     thoughtMessageId = undefined
     return [{ kind: "thinking.complete", content, messageId }]
+  }
+
+  function flushNarrationEvents(): AgentEvent[] {
+    return assistantBufferRole === "narration" ? flushAssistantEvents() : []
+  }
+
+  function flushVisibleInterleavingEvents(): AgentEvent[] {
+    return [...flushNarrationEvents(), ...flushThoughtEvents()]
   }
 
   return {
@@ -369,7 +377,7 @@ export function createAcpEventMapper(): {
             return events
           }
           const block = contentBlockFromContent(update.content)
-          return block ? [...flushThoughtEvents(), { kind: "content.block", block }] : flushThoughtEvents()
+          return block ? [...flushVisibleInterleavingEvents(), { kind: "content.block", block }] : flushThoughtEvents()
         }
 
         case "agent_thought_chunk": {
@@ -393,7 +401,7 @@ export function createAcpEventMapper(): {
 
         case "user_message_chunk": {
           const text = textFromContent(update.content)
-          return text ? [...flushThoughtEvents(), { kind: "message.complete", role: "user", content: text, messageId: stringField(update, "messageId") }] : flushThoughtEvents()
+          return text ? [...flushVisibleInterleavingEvents(), { kind: "message.complete", role: "user", content: text, messageId: stringField(update, "messageId") }] : flushThoughtEvents()
         }
 
         case "tool_call": {
@@ -401,7 +409,7 @@ export function createAcpEventMapper(): {
           const title = stringField(update, "title") ?? stringField(update, "kind") ?? toolCallId ?? "tool"
           const toolInput = stringifyForEvent(update.rawInput)
           if (toolCallId) toolStates.set(toolCallId, { name: title, ...(toolInput ? { input: toolInput } : {}) })
-          return [...flushThoughtEvents(), {
+          return [...flushVisibleInterleavingEvents(), {
             kind: "tool.start",
             ...(toolCallId ? { toolCallId } : {}),
             toolName: title,
@@ -422,7 +430,7 @@ export function createAcpEventMapper(): {
           }
           const result = stringifyForEvent(update.rawOutput) ?? stringifyToolContent(update.content)
           if (status !== "completed" && status !== "failed") {
-            const events: AgentEvent[] = [...flushThoughtEvents(), ...contentBlockEvents]
+            const events: AgentEvent[] = [...flushVisibleInterleavingEvents(), ...contentBlockEvents]
             if (toolInput || result || status || title) {
               events.push({
                 kind: "tool.update",
@@ -437,7 +445,7 @@ export function createAcpEventMapper(): {
           }
           if (toolCallId) toolStates.delete(toolCallId)
           return [
-            ...flushThoughtEvents(),
+            ...flushVisibleInterleavingEvents(),
             ...contentBlockEvents,
             {
               kind: "tool.end",
@@ -456,7 +464,7 @@ export function createAcpEventMapper(): {
             .filter((line) => line.trim().length > 0)
           return lines.length > 0
             ? [
-              ...flushThoughtEvents(),
+              ...flushVisibleInterleavingEvents(),
               { kind: "thinking", content: `Plan:\n${lines.join("\n")}` },
               { kind: "plan", entries },
             ]
@@ -500,8 +508,8 @@ export function createAcpEventMapper(): {
       }
     },
 
-    flushAssistantMessage(): AgentEvent[] {
-      return flushAssistantEvents()
+    flushAssistantMessage(roleOverride?: "assistant" | "narration"): AgentEvent[] {
+      return flushAssistantEvents(roleOverride)
     },
 
     flushThoughtMessage(): AgentEvent[] {
@@ -825,7 +833,7 @@ async function startAcpSession(ctx: AgentStartContext, config?: AcpProviderConfi
           rpc.request("session/prompt", { sessionId, prompt })
             .then((response) => {
               emitFlushedThoughts()
-              for (const event of mapper.flushAssistantMessage()) emit(event)
+              for (const event of mapper.flushAssistantMessage("assistant")) emit(event)
               const usage = parsePromptUsage(response)
               if (usage) emit(usage)
               statusTracker.end(turnId)

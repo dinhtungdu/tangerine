@@ -595,8 +595,9 @@ export async function start(): Promise<void> {
               case "message.complete": {
                 recordAgentProgress(taskId)
                 if (isStreamRole(event.role) && (event.content || event.imagePaths?.length || event.images?.length)) {
-                  const completedActive = completeActiveStreamMessage(taskId, event.role)
-                    ?? (event.role === "narration" ? completeActiveStreamMessage(taskId, "assistant") : undefined)
+                  const completedActive = event.role === "assistant"
+                    ? completeActiveStreamMessage(taskId, "assistant", "narration")
+                    : completeActiveStreamMessage(taskId, "narration", "assistant")
                   const messageId = event.messageId ?? completedActive?.messageId
                   if (!markStreamCompletionSeen(db, taskId, event.role, messageId)) break
 

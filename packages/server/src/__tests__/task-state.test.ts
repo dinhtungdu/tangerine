@@ -33,4 +33,16 @@ describe("task active stream state", () => {
 
     clearTaskState(taskId)
   })
+
+  test("can complete a provisional narration stream as assistant output", () => {
+    const taskId = crypto.randomUUID()
+    clearTaskState(taskId)
+
+    const narration = appendActiveStreamMessage(taskId, "narration", "final text", "active-1")
+
+    expect(completeActiveStreamMessage(taskId, "assistant", "narration")).toEqual(narration)
+    expect(getActiveStreamMessages(taskId)).toEqual([])
+
+    clearTaskState(taskId)
+  })
 })

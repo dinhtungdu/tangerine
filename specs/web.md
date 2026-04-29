@@ -49,7 +49,7 @@ Current task-detail feature set includes:
 - chat panel
 - `#` task mentions, `@` file mentions, and `/` slash-command autocomplete in prompt textareas
 - streamed messages
-- no-`messageId` ACP narration updates rendered as compact Narration cards with separate timestamps
+- no-`messageId` ACP prose rendered as compact Narration cards when separated by visible work events or sentence boundaries, while the final no-`messageId` prompt buffer renders as the assistant result
 - streamed thinking preserved as ordered Thought cards; contiguous deltas for one provider segment merge, but messageId changes, visible interleaving events, and no-`messageId` sentence boundaries start separate cards
 - tool activity tracked in the activity stream and used for compact streaming status; raw tool call cards are suppressed from the chat transcript
 - ACP config-option selectors for `model`, `thought_level`/`effort`, and `mode`; legacy ACP `models` / `modes` state is normalized into the same UI, with legacy thinking/reasoning modes shown as `thought_level`

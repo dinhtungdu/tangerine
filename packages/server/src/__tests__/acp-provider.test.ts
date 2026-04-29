@@ -228,6 +228,30 @@ describe("createAcpEventMapper", () => {
     expect(mapper.flushAssistantMessage()).toEqual([{ kind: "message.complete", role: "narration", content: "Checking current task logs." }])
   })
 
+  test("flushes remaining no-messageId prose as assistant on prompt completion", () => {
+    const mapper = createAcpEventMapper()
+
+    expect(mapper.mapSessionUpdate({ sessionUpdate: "agent_message_chunk", content: { type: "text", text: "PR #680 updates ACP stream mapping." } }))
+      .toEqual([{ kind: "message.streaming", role: "narration", content: "PR #680 updates ACP stream mapping." }])
+    expect(mapper.flushAssistantMessage("assistant")).toEqual([{ kind: "message.complete", role: "assistant", content: "PR #680 updates ACP stream mapping." }])
+  })
+
+  test("flushes no-messageId narration before visible tool events", () => {
+    const mapper = createAcpEventMapper()
+
+    mapper.mapSessionUpdate({ sessionUpdate: "agent_message_chunk", content: { type: "text", text: "Checking PR details." } })
+
+    expect(mapper.mapSessionUpdate({ sessionUpdate: "tool_call", toolCallId: "call-1", title: "GitHub" }))
+      .toEqual([
+        { kind: "message.complete", role: "narration", content: "Checking PR details." },
+        { kind: "tool.start", toolCallId: "call-1", toolName: "GitHub", toolInput: undefined },
+      ])
+
+    expect(mapper.mapSessionUpdate({ sessionUpdate: "agent_message_chunk", content: { type: "text", text: "PR #680 updates ACP stream mapping." } }))
+      .toEqual([{ kind: "message.streaming", role: "narration", content: "PR #680 updates ACP stream mapping." }])
+    expect(mapper.flushAssistantMessage("assistant")).toEqual([{ kind: "message.complete", role: "assistant", content: "PR #680 updates ACP stream mapping." }])
+  })
+
   test("does not split dotted identifiers across no-messageId chunks", () => {
     const mapper = createAcpEventMapper()
 

@@ -166,7 +166,7 @@ export async function probeAcpAgent(agent: AcpProbeAgentConfig, options: AcpProb
       })
       promptRan = true
       for (const event of mapper.flushThoughtMessage()) countEvent(event)
-      for (const event of mapper.flushAssistantMessage()) countEvent(event)
+      for (const event of mapper.flushAssistantMessage("assistant")) countEvent(event)
     }
 
     await closeProbeSession(rpc, sessionId, capabilities)

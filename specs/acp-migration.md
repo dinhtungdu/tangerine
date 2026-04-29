@@ -108,7 +108,7 @@ Map ACP updates to Tangerine events:
 
 | ACP update | Tangerine event |
 |------------|-----------------|
-| `agent_message_chunk` text | `message.streaming`, buffered to complete on prompt result; non-null `messageId` persists as assistant text; no-`messageId` prose persists as `narration`, split at sentence boundaries when possible |
+| `agent_message_chunk` text | `message.streaming`, buffered to complete on prompt result; non-null `messageId` persists as assistant text; no-`messageId` prose streams provisionally as `narration`; visible interleaving events or sentence boundaries persist that buffer as `narration`, while the remaining buffer at prompt completion persists as the final assistant result |
 | `agent_thought_chunk` text | `thinking.streaming`; complete/persist a `thinking` message at messageId changes, visible interleaving events, no-`messageId` sentence boundaries, or prompt completion |
 | `user_message_chunk` text | `message.complete` role `user` |
 | `tool_call` | `tool.start` |
