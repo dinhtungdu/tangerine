@@ -540,6 +540,24 @@ export async function start(): Promise<void> {
 
                 // Only save to session_logs and emit on first delivery — avoid duplicates on retry
                 if (!isRetry) {
+                  // Log system prompt before user message for transparency
+                  if (notes.length > 0) {
+                    const systemPromptContent = notes.join("\n")
+                    emitTaskEvent(taskId, {
+                      role: "system",
+                      content: systemPromptContent,
+                      timestamp: new Date().toISOString(),
+                    })
+                    await Effect.runPromise(
+                      insertSessionLog(db, {
+                        task_id: taskId,
+                        role: "system",
+                        content: systemPromptContent,
+                      }).pipe(
+                        Effect.catchAll(() => Effect.void)
+                      )
+                    )
+                  }
                   emitTaskEvent(taskId, {
                     role: "user",
                     content: initialPrompt,
