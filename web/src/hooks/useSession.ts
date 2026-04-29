@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback, useRef } from "react"
-import type { AgentConfigOption, AgentContentBlock, AgentPlanEntry, AgentSlashCommand, WsServerMessage, TaskStatus, ActivityEntry, PromptImage, PromptQueueEntry, PermissionRequest } from "@tangerine/shared"
+import type { AgentConfigOption, AgentContentBlock, AgentPlanEntry, AgentSlashCommand, WsServerMessage, TaskStatus, ActivityEntry, PromptImage, PromptQueueEntry, PermissionRequest, Task } from "@tangerine/shared"
 import { fetchMessagesPaginated, fetchActivities, fetchQueuedPrompts, fetchTaskConfigOptions, fetchTaskSlashCommands, fetchPendingPermission, removeQueuedPrompt, updateQueuedPrompt, sendNowQueuedPrompt, respondToPermission as apiRespondToPermission, type SessionLog } from "../lib/api"
 import { useWebSocket } from "./useWebSocket"
 
@@ -17,10 +17,12 @@ export interface ChatMessage {
   contentBlock?: AgentContentBlock
 }
 
+type SessionAgentStatus = NonNullable<Task["agentStatus"]>
+
 interface UseSessionResult {
   messages: ChatMessage[]
   activities: ActivityEntry[]
-  agentStatus: "idle" | "working"
+  agentStatus: SessionAgentStatus
   agentStatusKnown: boolean
   queueLength: number
   queuedPrompts: PromptQueueEntry[]
@@ -219,7 +221,7 @@ export function applyUsageUpdate(state: UsageState, event: { contextTokens?: num
 export function useSession(taskId: string, initialContextTokens?: number, initialContextWindowMax?: number | null): UseSessionResult {
   const [messages, setMessages] = useState<ChatMessage[]>([])
   const [activities, setActivities] = useState<ActivityEntry[]>([])
-  const [agentStatus, setAgentStatus] = useState<"idle" | "working">("idle")
+  const [agentStatus, setAgentStatus] = useState<SessionAgentStatus>("idle")
   const [agentStatusKnown, setAgentStatusKnown] = useState(false)
   const [queuedPrompts, setQueuedPrompts] = useState<PromptQueueEntry[]>([])
   const queuedPromptsRef = useRef<PromptQueueEntry[]>([])

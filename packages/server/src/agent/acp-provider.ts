@@ -316,6 +316,26 @@ export function createAcpEventMapper(): {
   let thoughtSequence = 0
   const toolStates = new Map<string, { name: string; input?: string }>()
 
+  function flushAssistantEvents(): AgentEvent[] {
+    if (!assistantBuffer) return []
+    const content = assistantBuffer
+    const messageId = assistantMessageId
+    const role = assistantBufferRole
+    assistantBuffer = ""
+    assistantMessageId = undefined
+    assistantBufferRole = "assistant"
+    return [{ kind: "message.complete", role, content, ...(messageId ? { messageId } : {}) }]
+  }
+
+  function flushThoughtEvents(): AgentEvent[] {
+    if (!thoughtBuffer) return []
+    const content = thoughtBuffer
+    const messageId = thoughtMessageId
+    thoughtBuffer = ""
+    thoughtMessageId = undefined
+    return [{ kind: "thinking.complete", content, messageId }]
+  }
+
   return {
     mapSessionUpdate(update: Record<string, unknown>): AgentEvent[] {
       const kind = stringField(update, "sessionUpdate")
@@ -327,14 +347,12 @@ export function createAcpEventMapper(): {
           if (text) {
             const incomingMessageId = stringField(update, "messageId")
             const incomingRole: "assistant" | "narration" = incomingMessageId ? "assistant" : "narration"
-            const events: AgentEvent[] = []
+            const events: AgentEvent[] = flushThoughtEvents()
             const shouldFlushForRoleChange = assistantBuffer.length > 0 && assistantBufferRole !== incomingRole
             const shouldFlushForMessageChange = incomingRole === "assistant" && !!incomingMessageId && !!assistantMessageId && incomingMessageId !== assistantMessageId && assistantBuffer.length > 0
             const shouldFlushForNarrationBoundary = incomingRole === "narration" && assistantBufferRole === "narration" && isNarrationBoundary(assistantBuffer, text)
             if (shouldFlushForRoleChange || shouldFlushForMessageChange || shouldFlushForNarrationBoundary) {
-              events.push({ kind: "message.complete", role: assistantBufferRole, content: assistantBuffer, ...(assistantMessageId ? { messageId: assistantMessageId } : {}) })
-              assistantBuffer = ""
-              assistantMessageId = undefined
+              events.push(...flushAssistantEvents())
             }
             assistantBufferRole = incomingRole
             if (incomingMessageId) {
@@ -351,18 +369,19 @@ export function createAcpEventMapper(): {
             return events
           }
           const block = contentBlockFromContent(update.content)
-          return block ? [{ kind: "content.block", block }] : []
+          return block ? [...flushThoughtEvents(), { kind: "content.block", block }] : flushThoughtEvents()
         }
 
         case "agent_thought_chunk": {
           const text = textFromContent(update.content)
           if (!text) return []
           const incomingMessageId = stringField(update, "messageId")
-          const events: AgentEvent[] = []
+          const events: AgentEvent[] = flushAssistantEvents()
           if (incomingMessageId && thoughtMessageId && incomingMessageId !== thoughtMessageId && thoughtBuffer) {
-            events.push({ kind: "thinking.complete", content: thoughtBuffer, messageId: thoughtMessageId })
-            thoughtBuffer = ""
-            thoughtMessageId = undefined
+            events.push(...flushThoughtEvents())
+          }
+          if (!incomingMessageId && isNarrationBoundary(thoughtBuffer, text)) {
+            events.push(...flushThoughtEvents())
           }
           if (!thoughtMessageId) {
             thoughtMessageId = incomingMessageId ?? `thought-${++thoughtSequence}`
@@ -374,7 +393,7 @@ export function createAcpEventMapper(): {
 
         case "user_message_chunk": {
           const text = textFromContent(update.content)
-          return text ? [{ kind: "message.complete", role: "user", content: text, messageId: stringField(update, "messageId") }] : []
+          return text ? [...flushThoughtEvents(), { kind: "message.complete", role: "user", content: text, messageId: stringField(update, "messageId") }] : flushThoughtEvents()
         }
 
         case "tool_call": {
@@ -382,7 +401,7 @@ export function createAcpEventMapper(): {
           const title = stringField(update, "title") ?? stringField(update, "kind") ?? toolCallId ?? "tool"
           const toolInput = stringifyForEvent(update.rawInput)
           if (toolCallId) toolStates.set(toolCallId, { name: title, ...(toolInput ? { input: toolInput } : {}) })
-          return [{
+          return [...flushThoughtEvents(), {
             kind: "tool.start",
             ...(toolCallId ? { toolCallId } : {}),
             toolName: title,
@@ -403,7 +422,7 @@ export function createAcpEventMapper(): {
           }
           const result = stringifyForEvent(update.rawOutput) ?? stringifyToolContent(update.content)
           if (status !== "completed" && status !== "failed") {
-            const events: AgentEvent[] = [...contentBlockEvents]
+            const events: AgentEvent[] = [...flushThoughtEvents(), ...contentBlockEvents]
             if (toolInput || result || status || title) {
               events.push({
                 kind: "tool.update",
@@ -418,6 +437,7 @@ export function createAcpEventMapper(): {
           }
           if (toolCallId) toolStates.delete(toolCallId)
           return [
+            ...flushThoughtEvents(),
             ...contentBlockEvents,
             {
               kind: "tool.end",
@@ -436,10 +456,11 @@ export function createAcpEventMapper(): {
             .filter((line) => line.trim().length > 0)
           return lines.length > 0
             ? [
+              ...flushThoughtEvents(),
               { kind: "thinking", content: `Plan:\n${lines.join("\n")}` },
               { kind: "plan", entries },
             ]
-            : []
+            : flushThoughtEvents()
         }
 
         case "usage_update": {
@@ -480,23 +501,11 @@ export function createAcpEventMapper(): {
     },
 
     flushAssistantMessage(): AgentEvent[] {
-      if (!assistantBuffer) return []
-      const content = assistantBuffer
-      const messageId = assistantMessageId
-      const role = assistantBufferRole
-      assistantBuffer = ""
-      assistantMessageId = undefined
-      assistantBufferRole = "assistant"
-      return [{ kind: "message.complete", role, content, ...(messageId ? { messageId } : {}) }]
+      return flushAssistantEvents()
     },
 
     flushThoughtMessage(): AgentEvent[] {
-      if (!thoughtBuffer) return []
-      const content = thoughtBuffer
-      const messageId = thoughtMessageId
-      thoughtBuffer = ""
-      thoughtMessageId = undefined
-      return [{ kind: "thinking.complete", content, messageId }]
+      return flushThoughtEvents()
     },
   }
 }
