@@ -1997,8 +1997,8 @@ describe("AssistantMessageGroups tool calls", () => {
     const label = screen.getByText(`Bash · ${longCommand}`)
     expect(label.className).toContain("block")
     expect(label.className).toContain("truncate")
-    expect(label.parentElement?.className).toContain("w-full")
-    expect(label.parentElement?.className).toContain("max-w-full")
+    expect(label.parentElement?.className).toContain("flex-1")
+    expect(label.parentElement?.className).toContain("min-w-0")
     expect(label.parentElement?.className).toContain("overflow-hidden")
   })
 
