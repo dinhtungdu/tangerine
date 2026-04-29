@@ -148,7 +148,7 @@ Task event payloads include legacy normalized chat/activity events plus ACP-deri
 - `{ event: "config.options", configOptions }` for ACP session config selectors
 - `{ event: "slash.commands", commands }` for ACP `/` slash-command autocomplete
 - `{ event: "thinking.streaming", messageId, content }` for transient thought chunks
-- `{ event: "thinking.complete", messageId, role: "thinking", content }` for one persisted thought message
+- `{ event: "thinking.complete", messageId, role: "thinking", content }` for persisted thought messages (one per provider segment; messageId changes, visible interleaving events, or no-`messageId` sentence boundaries start new segments)
 - `{ event: "plan", entries }` for ACP plan cards
 - `{ event: "content.block", block }` for ACP non-text content blocks
 - `{ event: "usage", contextTokens, contextWindowMax }` for ACP context-window usage

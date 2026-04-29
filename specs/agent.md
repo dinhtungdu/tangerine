@@ -65,7 +65,7 @@ Important ACP updates:
 |------------|-----------------|
 | `session/prompt` `resource_link` blocks | file mentions extracted from `@relative/path` prompt text |
 | `agent_message_chunk` | `message.streaming` only while a `session/prompt` turn is active; same-message chunks with a non-null `messageId` merge into one assistant completion; non-null `messageId` changes flush/start a new assistant message; no-`messageId` prose chunks split at clear sentence boundaries into separate `narration` messages so work updates keep individual timestamps |
-| `agent_thought_chunk` | `thinking.streaming`, then one persisted `thinking` message on prompt completion |
+| `agent_thought_chunk` | `thinking.streaming`; chunks with the same non-null `messageId` merge; messageId changes, visible non-thought events, or no-`messageId` sentence boundaries flush/start a new persisted `thinking` message so ordered thought blocks stay separate |
 | `user_message_chunk` | user message log |
 | `tool_call` | `tool.start` keyed by `toolCallId`; merges into an existing best-effort row if updates arrived first |
 | `tool_call_update` before completion | `tool.update` keyed by `toolCallId`; updates live activity metadata/result text, marks the task working, and creates a tool activity if no `tool_call` arrived first |
