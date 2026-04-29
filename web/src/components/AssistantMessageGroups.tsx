@@ -19,13 +19,13 @@ interface AssistantMessageGroupsProps {
 
 function StreamingIndicator({ label }: { label: string }) {
   return (
-    <div className="mt-6 flex min-w-0 items-center gap-2 text-muted-foreground">
+    <div className="mt-6 flex w-full max-w-full min-w-0 items-center gap-2 overflow-hidden text-muted-foreground">
       <span className="flex shrink-0 gap-0.5">
         <span className="h-1.5 w-1.5 rounded-full bg-current animate-bounce [animation-delay:-0.3s]" />
         <span className="h-1.5 w-1.5 rounded-full bg-current animate-bounce [animation-delay:-0.15s]" />
         <span className="h-1.5 w-1.5 rounded-full bg-current animate-bounce" />
       </span>
-      <span className="min-w-0 flex-1 truncate text-xs" title={label}>{label}</span>
+      <span className="block min-w-0 flex-1 truncate text-xs" title={label}>{label}</span>
     </div>
   )
 }
@@ -51,7 +51,7 @@ function AssistantGroup({
         const isWorkNote = segment.item.data.role === "thinking" || segment.item.data.role === "narration"
         const isLastThinking = isWorkNote && isStreaming && segment.index === group.items.length - 1
         return (
-          <div key={`msg-${segment.item.data.id}`} className="pb-6">
+          <div key={`msg-${segment.item.data.id}`} className="min-w-0 pb-6">
             <ChatMessage
               message={segment.item.data}
               tasks={tasks}
@@ -85,7 +85,7 @@ export const AssistantMessageGroups = memo(function AssistantMessageGroups({
 
         if (isUser && firstItem?.kind === "message") {
           return (
-            <div key={group.id} className="pb-6">
+            <div key={group.id} className="min-w-0 pb-6">
               <ChatMessage
                 message={firstItem.data}
                 tasks={tasks}
@@ -96,7 +96,7 @@ export const AssistantMessageGroups = memo(function AssistantMessageGroups({
         }
 
         return (
-          <div key={group.id} className="pb-6">
+          <div key={group.id} className="min-w-0 pb-6">
             <AssistantGroup
               group={group}
               tasks={tasks}

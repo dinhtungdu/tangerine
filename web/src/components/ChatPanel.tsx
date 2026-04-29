@@ -369,12 +369,12 @@ export function ChatPanel({
   }, [messages.length, activities.length, isAtBottom])
 
   return (
-    <div className="flex h-full flex-col bg-background text-sm">
+    <div className="flex h-full min-w-0 flex-col bg-background text-sm">
       {/* Messages */}
-      <div className="relative flex-1 overflow-hidden">
+      <div className="relative min-w-0 flex-1 overflow-hidden">
         <div
           ref={scrollRef}
-          className="h-full overflow-y-auto"
+          className="h-full min-w-0 overflow-x-hidden overflow-y-auto"
           onScroll={handleScroll}
         >
           {messages.length === 0 ? (
@@ -382,7 +382,7 @@ export function ChatPanel({
               No messages yet. Send a prompt to start.
             </div>
           ) : (
-            <div ref={contentRef} className="px-4 pb-12 pt-4">
+            <div ref={contentRef} className="min-w-0 px-4 pb-12 pt-4">
               <AssistantMessageGroups
                 messages={messages}
                 activities={activities}
