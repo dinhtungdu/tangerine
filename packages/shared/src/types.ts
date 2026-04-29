@@ -14,7 +14,7 @@ export function normalizeTaskType(type: string | null | undefined): TaskType {
 
 /** Returns canonical capabilities for a task type. Used to gate UI on capabilities, not type strings. */
 export function getCapabilitiesForType(type: TaskType): TaskCapability[] {
-  if (type === "runner") return ["resolve", "predefined-prompts", "diff", "continue"]
+  if (type === "runner") return ["resolve", "predefined-prompts", "continue"]
   if (type === "reviewer") return ["resolve", "predefined-prompts", "diff", "pr-track"]
   return ["resolve", "predefined-prompts", "diff", "continue", "pr-track", "pr-create"]
 }
