@@ -193,7 +193,7 @@ function makeRemarkLinkifyTaskIds(tasks: ReadonlyArray<{ id: string }>) {
 const BASE_REMARK_PLUGINS = [remarkGfm, remarkBreaks]
 const BASE_USER_REMARK_PLUGINS = BASE_REMARK_PLUGINS
 
-const THINKING_TRUNCATE_LENGTH = 100
+const THINKING_PREVIEW_CLASS = "line-clamp-2"
 
 function ThinkingMessage({ message, isActive, duration }: {
   message: ChatMessageType
@@ -203,14 +203,26 @@ function ThinkingMessage({ message, isActive, duration }: {
   const elapsed = useElapsedTime(message.timestamp, isActive)
   const displayDuration = duration ?? elapsed
   const [expanded, setExpanded] = useState(false)
-
-  if (!isActive && !message.content.trim()) return null
+  const [canExpand, setCanExpand] = useState(false)
+  const contentRef = useRef<HTMLDivElement>(null)
 
   const content = message.content
-  const needsTruncation = content.length > THINKING_TRUNCATE_LENGTH
-  const displayContent = expanded || !needsTruncation
-    ? content
-    : content.slice(0, THINKING_TRUNCATE_LENGTH) + "…"
+
+  useEffect(() => {
+    if (expanded) return
+    const element = contentRef.current
+    if (!element) return
+
+    const updateCanExpand = () => setCanExpand(element.scrollHeight > element.clientHeight + 1)
+    updateCanExpand()
+
+    if (typeof ResizeObserver === "undefined") return
+    const observer = new ResizeObserver(updateCanExpand)
+    observer.observe(element)
+    return () => observer.disconnect()
+  }, [content, expanded])
+
+  if (!isActive && !content.trim()) return null
 
   return (
     <div className="animate-fade-in overflow-hidden flex flex-col gap-1">
@@ -236,10 +248,12 @@ function ThinkingMessage({ message, isActive, duration }: {
         <span className="text-2xs text-muted-foreground/50">{formatTimestamp(message.timestamp)}</span>
       </div>
       <div className="rounded-lg border border-amber-500/10 bg-amber-500/5 px-3 py-2 text-xs italic leading-[1.6] text-muted-foreground break-words prose prose-sm prose-neutral dark:prose-invert max-w-none prose-p:my-1 prose-ul:my-1 prose-ol:my-1 prose-li:my-0">
-        <ReactMarkdown remarkPlugins={BASE_REMARK_PLUGINS} components={markdownComponents}>
-          {displayContent}
-        </ReactMarkdown>
-        {needsTruncation && (
+        <div ref={contentRef} className={expanded ? undefined : THINKING_PREVIEW_CLASS}>
+          <ReactMarkdown remarkPlugins={BASE_REMARK_PLUGINS} components={markdownComponents}>
+            {content}
+          </ReactMarkdown>
+        </div>
+        {canExpand && (
           <button
             onClick={() => setExpanded(!expanded)}
             className="ml-1 text-amber-500/70 hover:text-amber-500 font-medium not-italic"

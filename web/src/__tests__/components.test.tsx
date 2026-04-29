@@ -1416,6 +1416,28 @@ describe("ChatMessage", async () => {
     expect(screen.getByText("in_progress")).toBeTruthy()
   })
 
+  test("clamps thinking preview to two lines without character truncation", () => {
+    const content = [
+      `Line one ${"a".repeat(120)}`,
+      "Line two",
+      "Line three stays in DOM",
+    ].join("\n")
+
+    renderChat({
+      message: {
+        id: "thinking-1",
+        role: "thinking",
+        content,
+        timestamp: "2026-03-17T10:00:00Z",
+      },
+    })
+
+    const preview = document.querySelector(".line-clamp-2")
+    expect(preview).toBeTruthy()
+    expect(preview!.textContent).toContain("Line three stays in DOM")
+    expect(preview!.textContent).not.toContain("…")
+  })
+
   test("renders markdown tables as HTML tables", () => {
     const tableContent = "| Feature | Status |\n|---|---|\n| Tables | Yes |\n| Bold | Yes |"
     renderChat({
