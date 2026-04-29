@@ -1,4 +1,4 @@
-import { memo, useMemo } from "react"
+import { memo, useMemo, type ReactNode } from "react"
 import type { ChatMessage as ChatMessageType } from "../hooks/useSession"
 import { ChatMessage } from "./ChatMessage"
 import {
@@ -15,11 +15,12 @@ interface AssistantMessageGroupsProps {
   tasks?: ReadonlyArray<{ id: string }>
   onReply?: (content: string) => void
   isLastGroupStreaming: boolean
+  footerSlot?: ReactNode
 }
 
 function StreamingIndicator({ label }: { label: string }) {
   return (
-    <div className="mt-6 flex w-full max-w-full min-w-0 items-center gap-2 overflow-hidden text-muted-foreground">
+    <div className="flex min-w-0 flex-1 items-center gap-2 overflow-hidden text-muted-foreground">
       <span className="flex shrink-0 gap-0.5">
         <span className="h-1.5 w-1.5 rounded-full bg-current animate-bounce [animation-delay:-0.3s]" />
         <span className="h-1.5 w-1.5 rounded-full bg-current animate-bounce [animation-delay:-0.15s]" />
@@ -35,11 +36,13 @@ function AssistantGroup({
   tasks,
   onReply,
   isStreaming,
+  footerSlot,
 }: {
   group: TimelineGroup
   tasks?: ReadonlyArray<{ id: string }>
   onReply?: (content: string) => void
   isStreaming: boolean
+  footerSlot?: ReactNode
 }) {
   const segments = useMemo(() => splitTimelineItems(group.items), [group.items])
 
@@ -61,7 +64,12 @@ function AssistantGroup({
           </div>
         )
       })}
-      {isStreaming && <StreamingIndicator label={deriveStreamingStatusLabel(group)} />}
+      {(isStreaming || footerSlot) && (
+        <div className="mt-2 flex w-full items-center gap-4">
+          {isStreaming && <StreamingIndicator label={deriveStreamingStatusLabel(group)} />}
+          {footerSlot && <div className="ml-auto shrink-0">{footerSlot}</div>}
+        </div>
+      )}
     </>
   )
 }
@@ -72,6 +80,7 @@ export const AssistantMessageGroups = memo(function AssistantMessageGroups({
   tasks,
   onReply,
   isLastGroupStreaming,
+  footerSlot,
 }: AssistantMessageGroupsProps) {
   const groups = useMemo(() => deriveChatTimelineGroups({ messages, activities }), [messages, activities])
 
@@ -102,6 +111,7 @@ export const AssistantMessageGroups = memo(function AssistantMessageGroups({
               tasks={tasks}
               onReply={onReply}
               isStreaming={isStreaming}
+              footerSlot={isLast ? footerSlot : undefined}
             />
           </div>
         )
