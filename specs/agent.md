@@ -78,6 +78,8 @@ Important ACP updates:
 | `usage_update` | context token usage |
 | non-text content block | generic ACP content-block card |
 
+Agent status is inferred from ACP prompt/tool lifecycle, not an ACP status field. Tangerine marks `working` when a prompt turn or tool starts and marks `idle` only after no active turns/tools remain plus a short debounce, so adapters that emit final tool updates just after `session/prompt` resolves do not flicker `working → idle → working → idle`.
+
 ## Model, Reasoning, and Modes
 
 Tangerine must stop discovering models via provider-specific APIs. Learn adapter behavior from source and `tangerine acp probe`, then encode generic ACP compatibility rules.

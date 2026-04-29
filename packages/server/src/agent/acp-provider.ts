@@ -13,6 +13,7 @@ import type { AgentEvent, AgentFactory, AgentHandle, AgentStartContext, PromptIm
 const log = createLogger("acp-provider")
 const ACP_PROTOCOL_VERSION = 1
 const DEFAULT_ACP_COMMAND = "acp-agent"
+export const DEFAULT_AGENT_STATUS_IDLE_DEBOUNCE_MS = 300
 
 export interface AcpCommandConfig {
   shellCommand: string
@@ -203,7 +204,7 @@ function normalizeModeToken(value: string): string {
   return value.toLowerCase().replace(/[^a-z0-9]/g, "")
 }
 
-export function createPromptStatusTracker(emit: (status: "idle" | "working") => void): {
+export function createPromptStatusTracker(emit: (status: "idle" | "working") => void, idleDebounceMs = DEFAULT_AGENT_STATUS_IDLE_DEBOUNCE_MS): {
   begin(): number
   end(turnId: number): void
   reset(): void
@@ -213,23 +214,53 @@ export function createPromptStatusTracker(emit: (status: "idle" | "working") => 
   clearTools(): void
 } {
   let nextTurnId = 0
+  let visibleStatus: "idle" | "working" = "idle"
+  let idleTimer: ReturnType<typeof setTimeout> | undefined
   const activeTurns = new Set<number>()
   const activeTools = new Set<string>()
   const turnsPendingIdle = new Set<number>() // Turns waiting for tools to complete
 
+  const clearIdleTimer = () => {
+    if (!idleTimer) return
+    clearTimeout(idleTimer)
+    idleTimer = undefined
+  }
+
+  const hasActiveWork = () => activeTurns.size > 0 || activeTools.size > 0 || turnsPendingIdle.size > 0
+
+  const emitWorking = () => {
+    clearIdleTimer()
+    if (visibleStatus === "working") return
+    visibleStatus = "working"
+    emit("working")
+  }
+
+  const emitIdleNow = () => {
+    clearIdleTimer()
+    if (visibleStatus === "idle") return
+    visibleStatus = "idle"
+    emit("idle")
+  }
+
   const maybeEmitIdle = () => {
-    // Only emit idle when no active turns AND no active tools AND no turns waiting
-    if (activeTurns.size === 0 && activeTools.size === 0 && turnsPendingIdle.size === 0) {
-      emit("idle")
+    if (hasActiveWork() || visibleStatus === "idle" || idleTimer) return
+    if (idleDebounceMs <= 0) {
+      emitIdleNow()
+      return
     }
+
+    // ACP adapters can report final tool updates just after prompt RPC resolves.
+    idleTimer = setTimeout(() => {
+      idleTimer = undefined
+      if (!hasActiveWork()) emitIdleNow()
+    }, idleDebounceMs)
   }
 
   return {
     begin() {
       const turnId = ++nextTurnId
-      const wasIdle = activeTurns.size === 0 && activeTools.size === 0
       activeTurns.add(turnId)
-      if (wasIdle) emit("working")
+      emitWorking()
       return turnId
     },
     end(turnId: number) {
@@ -242,20 +273,18 @@ export function createPromptStatusTracker(emit: (status: "idle" | "working") => 
       maybeEmitIdle()
     },
     reset() {
-      const wasWorking = activeTurns.size > 0 || activeTools.size > 0
       activeTurns.clear()
       activeTools.clear()
       turnsPendingIdle.clear()
-      if (wasWorking) emit("idle")
+      emitIdleNow()
     },
     // Used for gating assistant chunks - only check prompt turns, not tools
     isWorking() {
       return activeTurns.size > 0
     },
     toolStart(toolCallId: string) {
-      const wasIdle = activeTurns.size === 0 && activeTools.size === 0
       activeTools.add(toolCallId)
-      if (wasIdle) emit("working")
+      emitWorking()
     },
     toolEnd(toolCallId: string) {
       if (!activeTools.delete(toolCallId)) return
@@ -268,10 +297,8 @@ export function createPromptStatusTracker(emit: (status: "idle" | "working") => 
     // Clear tool state on prompt error/cancel to prevent stuck "working" state
     clearTools() {
       activeTools.clear()
-      if (turnsPendingIdle.size > 0) {
-        turnsPendingIdle.clear()
-        maybeEmitIdle()
-      }
+      if (turnsPendingIdle.size > 0) turnsPendingIdle.clear()
+      maybeEmitIdle()
     },
   }
 }
