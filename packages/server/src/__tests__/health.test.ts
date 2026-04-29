@@ -57,6 +57,8 @@ function makeDeps(overrides?: Partial<HealthCheckDeps>): HealthCheckDeps {
     getLastRunningActivityTime: () => null,
     logHungTool: () => Effect.void,
     abortHungTool: () => Effect.void,
+    completeTask: () => Effect.void,
+    logOrphanComplete: () => Effect.void,
     cleanupDeps: {
       db: null as never,
       getTask: () => Effect.succeed(null),
@@ -284,6 +286,77 @@ describe("health check", () => {
       expect(restartFn).toHaveBeenCalledTimes(0)
       // Counter should not have incremented
       expect(state.consecutiveRestarts).toBe(0)
+    } finally {
+      clearTaskState(taskId)
+    }
+  })
+
+  test("orphaned task with PR auto-completes after max orphan checks", async () => {
+    const taskId = "orphan-pr-test"
+    const task = makeTask({ id: taskId, pr_url: "https://github.com/test/repo/pull/1" })
+    try {
+      const state = getTaskState(taskId)
+      // Simulate having already hit orphan check limit (from previous cycles)
+      // MAX_ORPHAN_CHECKS = 4, so 3 previous checks + this one = 4
+      state.orphanCheckCount = 3 // One more check will trigger
+      state.lastOrphanRecoveryAt = Date.now() - 120_000 // Cooldown expired
+
+      const completeFn = mock(() => Effect.void)
+      const logOrphanFn = mock(() => Effect.void)
+      const deps = makeDeps({
+        checkAgentAlive: () => Effect.succeed(false),
+        completeTask: completeFn,
+        logOrphanComplete: logOrphanFn,
+      })
+
+      const result = await Effect.runPromise(checkTask(task, deps))
+      expect(result).toBe("healthy") // Auto-complete returns healthy
+      expect(completeFn).toHaveBeenCalledTimes(1)
+      expect(logOrphanFn).toHaveBeenCalledTimes(1)
+    } finally {
+      clearTaskState(taskId)
+    }
+  })
+
+  test("orphaned task without PR fails after max orphan checks", async () => {
+    const taskId = "orphan-no-pr-test"
+    const task = makeTask({ id: taskId, pr_url: null })
+    try {
+      const state = getTaskState(taskId)
+      // Simulate having already hit orphan check limit
+      // MAX_ORPHAN_CHECKS = 4, so 3 previous checks + this one = 4
+      state.orphanCheckCount = 3 // One more check will trigger
+      state.lastOrphanRecoveryAt = Date.now() - 120_000 // Cooldown expired
+
+      const failFn = mock(() => Effect.void)
+      const deps = makeDeps({
+        checkAgentAlive: () => Effect.succeed(false),
+        failTask: failFn,
+      })
+
+      const result = await Effect.runPromise(checkTask(task, deps))
+      expect(result).toBe("failed")
+      expect(failFn).toHaveBeenCalledTimes(1)
+      const failReason = (failFn.mock.calls[0] as unknown as [string, string])[1]
+      expect(failReason).toContain("could not be recovered")
+    } finally {
+      clearTaskState(taskId)
+    }
+  })
+
+  test("orphan check count resets when agent becomes healthy", async () => {
+    const taskId = "orphan-recovery-test"
+    const task = makeTask({ id: taskId })
+    try {
+      const state = getTaskState(taskId)
+      state.orphanCheckCount = 3 // Simulate some failed checks
+
+      const deps = makeDeps({
+        checkAgentAlive: () => Effect.succeed(true), // Agent is alive now
+      })
+      const result = await Effect.runPromise(checkTask(task, deps))
+      expect(result).toBe("healthy")
+      expect(getTaskState(taskId).orphanCheckCount).toBe(0)
     } finally {
       clearTaskState(taskId)
     }
