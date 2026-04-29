@@ -115,11 +115,17 @@ export function appendActiveStreamMessage(
 export function completeActiveStreamMessage(
   taskId: string,
   role: ActiveStreamMessage["role"],
+  fallbackRole?: ActiveStreamMessage["role"],
 ): ActiveStreamMessage | undefined {
   const state = getTaskState(taskId)
   const field = activeField(role)
-  const existing = state[field]
-  state[field] = undefined
+  let existing = state[field]
+  let completedField = field
+  if (!existing && fallbackRole) {
+    completedField = activeField(fallbackRole)
+    existing = state[completedField]
+  }
+  state[completedField] = undefined
   return existing
 }
 
