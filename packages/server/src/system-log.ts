@@ -5,18 +5,13 @@ import type { Database } from "bun:sqlite"
 import type { LogLevel, SystemLogEntry } from "@tangerine/shared"
 
 export const INFRA_LOGGERS = new Set([
-  "pool",
-  "ssh",
   "health",
   "cleanup",
   "retry",
   "tasks",
   "cli",
-  "cli:pool",
-  "cli:image",
   "cli:task",
   "github",
-  "image:build",
 ])
 
 let _db: Database | null = null

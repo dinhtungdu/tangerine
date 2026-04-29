@@ -1,5 +1,4 @@
 // Retry wrapper using Effect.retry with exponential backoff.
-// v1: No tunnel cleanup between retries — just agent + worktree.
 
 import { Effect, Schedule } from "effect"
 import { createLogger } from "../logger"

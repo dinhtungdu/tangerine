@@ -62,13 +62,13 @@
     {
       "id": "test-task-done-002",
       "project_id": "tangerine",
-      "title": "Update README with installation instructions for Lima and Incus VM providers",
+      "title": "Update README with ACP agent setup instructions",
       "status": "done",
       "source": "github",
       "source_id": "github:dinhtungdu/tangerine#30",
       "source_url": "https://github.com/dinhtungdu/tangerine/issues/30",
       "provider": "acp",
-      "branch": "docs/readme-vm-providers",
+      "branch": "docs/acp-agent-setup",
       "pr_url": "https://github.com/dinhtungdu/tangerine/pull/65",
       "started_at": "2026-03-26T10:00:00.000Z",
       "completed_at": "2026-03-26T11:45:00.000Z"

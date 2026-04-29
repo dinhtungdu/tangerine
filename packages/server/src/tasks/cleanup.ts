@@ -1,5 +1,4 @@
-// Session cleanup: shutdown agent, release worktree slot.
-// v1: All local — no SSH, no tunnels.
+// Session cleanup: shutdown local ACP agent and release worktree slot.
 
 import { Effect } from "effect"
 import type { Database } from "bun:sqlite"

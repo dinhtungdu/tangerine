@@ -12,6 +12,7 @@ import {
   createAcpEventMapper,
   createAcpProvider,
   createPromptStatusTracker,
+  DEFAULT_AGENT_STATUS_IDLE_DEBOUNCE_MS,
   resolveAcpCommand,
   selectSkipPermissionsMode,
   selectPermissionOption,
@@ -25,6 +26,10 @@ afterEach(() => {
   delete process.env.TANGERINE_ACP_INIT_FILE
   delete process.env.TANGERINE_ACP_SET_CONFIG_COUNT_FILE
 })
+
+function delay(ms: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, ms))
+}
 
 describe("resolveAcpCommand", () => {
   test("defaults to acp-agent", () => {
@@ -112,7 +117,7 @@ describe("buildAcpPromptBlocks", () => {
 describe("createPromptStatusTracker", () => {
   test("stays working until all overlapping prompt turns finish", () => {
     const statuses: Array<"idle" | "working"> = []
-    const tracker = createPromptStatusTracker((status) => statuses.push(status))
+    const tracker = createPromptStatusTracker((status) => statuses.push(status), 0)
 
     const first = tracker.begin()
     const second = tracker.begin()
@@ -123,6 +128,22 @@ describe("createPromptStatusTracker", () => {
     tracker.end(second)
     expect(statuses).toEqual(["working", "idle"])
     expect(tracker.isWorking()).toBe(false)
+  })
+
+  test("debounces idle when a late tool update follows a prompt result", async () => {
+    const statuses: Array<"idle" | "working"> = []
+    const tracker = createPromptStatusTracker((status) => statuses.push(status), 10)
+
+    const turn = tracker.begin()
+    tracker.end(turn)
+    expect(statuses).toEqual(["working"])
+
+    tracker.toolStart("call-late")
+    tracker.toolEnd("call-late")
+    expect(statuses).toEqual(["working"])
+
+    await delay(20)
+    expect(statuses).toEqual(["working", "idle"])
   })
 })
 
@@ -398,7 +419,7 @@ describe("createAcpProvider", () => {
     expect(provider.metadata.cliCommand).toBe("codex-acp")
   })
 
-  test("runs an ACP stdio agent and maps prompt streaming, permissions, tool calls, and usage", async () => {
+  test("runs an ACP stdio agent without treating prompt token usage as context usage", async () => {
     const tempDir = mkdtempSync(join(tmpdir(), "tangerine-acp-provider-"))
     const scriptPath = join(tempDir, "mock-acp-agent.js")
     writeFileSync(scriptPath, mockAcpAgentScript, "utf-8")
@@ -428,7 +449,7 @@ describe("createAcpProvider", () => {
     })
     expect(events).toContainEqual({ kind: "tool.end", toolCallId: "call-1", toolName: "Edit file", toolResult: "{\"permission\":\"allow\"}", status: "success" })
     expect(events).toContainEqual({ kind: "message.complete", role: "assistant", content: "hello permission:allow" })
-    expect(events).toContainEqual({ kind: "usage", inputTokens: 10, outputTokens: 5, contextTokens: 15, cumulative: true })
+    expect(events).toContainEqual({ kind: "usage", inputTokens: 10, outputTokens: 5, cumulative: true })
     expect(events).toContainEqual({ kind: "status", status: "idle" })
 
     rmSync(tempDir, { recursive: true, force: true })
@@ -494,6 +515,29 @@ describe("createAcpProvider", () => {
     handle.subscribe((event) => events.push(event))
 
     expect(events).toContainEqual({ kind: "status", status: "idle" })
+
+    await Effect.runPromise(handle.shutdown())
+    rmSync(tempDir, { recursive: true, force: true })
+  })
+
+  test("keeps status working for late tool updates inside the idle debounce window", async () => {
+    const tempDir = mkdtempSync(join(tmpdir(), "tangerine-acp-late-tool-status-"))
+    const scriptPath = join(tempDir, "mock-acp-agent.js")
+    writeFileSync(scriptPath, mockLateToolUpdateAcpAgentScript, "utf-8")
+
+    process.env.TANGERINE_ACP_COMMAND = `bun ${scriptPath}`
+    const provider = createAcpProvider()
+    const handle = await Effect.runPromise(provider.start({ taskId: "task-acp", workdir: tempDir, title: "ACP late tool status" }))
+
+    const events: AgentEvent[] = []
+    handle.subscribe((event) => events.push(event))
+
+    await Effect.runPromise(handle.sendPrompt("run late tool"))
+    await waitFor(() => events.some((event) => event.kind === "tool.end"))
+    await delay(DEFAULT_AGENT_STATUS_IDLE_DEBOUNCE_MS + 50)
+
+    const statuses = events.filter((event): event is Extract<AgentEvent, { kind: "status" }> => event.kind === "status").map((event) => event.status)
+    expect(statuses).toEqual(["idle", "working", "idle"])
 
     await Effect.runPromise(handle.shutdown())
     rmSync(tempDir, { recursive: true, force: true })
@@ -907,6 +951,37 @@ rl.on("line", (line) => {
   if (msg.method === "session/prompt") {
     const id = msg.id
     setTimeout(() => send({ jsonrpc: "2.0", id, result: { stopReason: "end_turn" } }), 120)
+    return
+  }
+  if (msg.method === "session/close") {
+    send({ jsonrpc: "2.0", id: msg.id, result: {} })
+  }
+})
+`
+
+const mockLateToolUpdateAcpAgentScript = `
+const readline = require("node:readline")
+const rl = readline.createInterface({ input: process.stdin })
+function send(message) { process.stdout.write(JSON.stringify(message) + "\\n") }
+rl.on("line", (line) => {
+  const msg = JSON.parse(line)
+  if (msg.method === "initialize") {
+    send({ jsonrpc: "2.0", id: msg.id, result: { protocolVersion: 1, agentCapabilities: { sessionCapabilities: { close: {} } }, authMethods: [] } })
+    return
+  }
+  if (msg.method === "session/new") {
+    send({ jsonrpc: "2.0", id: msg.id, result: { sessionId: "sess-late-tool" } })
+    return
+  }
+  if (msg.method === "session/prompt") {
+    const promptId = msg.id
+    send({ jsonrpc: "2.0", id: promptId, result: { stopReason: "end_turn" } })
+    setTimeout(() => {
+      send({ jsonrpc: "2.0", method: "session/update", params: { sessionId: "sess-late-tool", update: { sessionUpdate: "tool_call_update", toolCallId: "call-late", title: "Bash", status: "in_progress", rawOutput: "running" } } })
+    }, 20)
+    setTimeout(() => {
+      send({ jsonrpc: "2.0", method: "session/update", params: { sessionId: "sess-late-tool", update: { sessionUpdate: "tool_call_update", toolCallId: "call-late", title: "Bash", status: "completed", rawOutput: "done" } } })
+    }, 60)
     return
   }
   if (msg.method === "session/close") {

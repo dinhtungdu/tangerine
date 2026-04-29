@@ -685,7 +685,6 @@ export function TaskDetail() {
                   queueLength={session.queueLength}
                   queuedPrompts={session.queuedPrompts}
                   model={chatTask.model}
-                  provider={chatTask.provider}
                   reasoningEffort={chatTask.reasoningEffort}
                   taskStatus={chatTask.status}
                   taskError={chatTask.error}

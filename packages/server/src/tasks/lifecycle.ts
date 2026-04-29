@@ -1,5 +1,4 @@
-// Session lifecycle: fetch repo, set up worktree, start agent locally.
-// v1: Tangerine runs inside the VM. No SSH, no tunnels, no VM management.
+// Session lifecycle: fetch repo, set up worktree, start local ACP agent.
 
 import { Effect, Duration } from "effect"
 import { resolve } from "node:path"

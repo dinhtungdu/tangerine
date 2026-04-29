@@ -76,7 +76,7 @@ Important ACP updates:
 | `agent_thought_chunk` | `thinking.streaming`, then one persisted `thinking` message on prompt completion |
 | `user_message_chunk` | user message log |
 | `tool_call` | `tool.start` keyed by `toolCallId`; merges into an existing best-effort row if updates arrived first |
-| `tool_call_update` before completion | `tool.update` keyed by `toolCallId`; updates live activity metadata/result text and creates a tool activity if no `tool_call` arrived first |
+| `tool_call_update` before completion | `tool.update` keyed by `toolCallId`; updates live activity metadata/result text, marks the task working, and creates a tool activity if no `tool_call` arrived first |
 | `tool_call_update` completed/failed | `tool.end` keyed by `toolCallId`; final raw output/result text stored on the tool activity |
 | `tool_call_update` content `diff` / `terminal` | native diff/terminal content-block card |
 | `plan` | native plan card plus thinking text for compatibility |
@@ -85,6 +85,8 @@ Important ACP updates:
 | `available_commands_update` | refresh `/` slash-command autocomplete options |
 | `usage_update` | context token usage |
 | non-text content block | generic ACP content-block card |
+
+Agent status is inferred from ACP prompt/tool lifecycle, not an ACP status field. Tangerine marks `working` when a prompt turn or tool starts and marks `idle` only after no active turns/tools remain plus a short debounce, so adapters that emit final tool updates just after `session/prompt` resolves do not flicker `working → idle → working → idle`.
 
 ## Model, Reasoning, and Modes
 

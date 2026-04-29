@@ -119,7 +119,7 @@ Map ACP updates to Tangerine events:
 | `session_info_update` | `session.info` metadata + activity log |
 | `config_option_update` | `config.options` state/UI update |
 | `usage_update` | `usage.contextTokens/contextWindowMax` |
-| prompt response usage | `usage.inputTokens/outputTokens/contextTokens` |
+| prompt response usage | `usage.inputTokens/outputTokens` only; context usage comes from `usage_update` |
 
 Keep current WebSocket and dashboard event format while migrating so UI changes stay small.
 

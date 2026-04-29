@@ -1,5 +1,4 @@
-// Health checker: periodically verifies running tasks are alive.
-// v1: Checks agent PID instead of SSH/tunnel health.
+// Health checker: periodically verifies running ACP agent processes are alive.
 
 import { Effect, Schedule } from "effect"
 import { createLogger } from "../logger"
@@ -241,8 +240,13 @@ function checkIdleTimeout(
     // Already suspended — don't re-log or re-suspend
     if (state.suspended) return
 
-    // Don't suspend if the agent is actively processing a request
-    if (deps.isAgentWorking(task.id)) return
+    // Don't suspend while a live turn is still in flight. Raw working can stay
+    // true after the stall-aware status flips idle; only bypass suspension when
+    // there is active progress or a running tool for the hung-tool watchdog.
+    if (deps.isAgentWorkingRaw(task.id)) {
+      if (deps.getLastRunningActivityTime(task.id)) return
+      if (deps.isAgentWorking(task.id)) return
+    }
 
     const lastMsgTime = deps.getLastUserMessageTime(task.id)
     if (lastMsgTime) {

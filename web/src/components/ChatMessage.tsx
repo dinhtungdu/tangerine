@@ -441,9 +441,7 @@ export const ChatMessage = memo(function ChatMessage({ message, tasks, onReply, 
   const isThinking = message.role === "thinking"
   const isPlan = message.role === "plan"
   const isContentBlock = message.role === "content"
-  // Legacy narration rows from old providers — skip rendering (ACP doesn't emit these)
-  const isNarration = message.role === "narration"
-  const isTool = !isUser && !isSystem && !isThinking && !isPlan && !isContentBlock && !isNarration && isToolCall(message.content)
+  const isTool = !isUser && !isSystem && !isThinking && !isPlan && !isContentBlock && isToolCall(message.content)
 
   const messageRef = useRef<HTMLDivElement>(null)
 
@@ -495,9 +493,6 @@ export const ChatMessage = memo(function ChatMessage({ message, tasks, onReply, 
       </div>
     )
   }
-
-  // Skip legacy narration rows from old providers
-  if (isNarration) return null
 
   if (isUser) {
     return (
