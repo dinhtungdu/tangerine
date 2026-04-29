@@ -43,6 +43,10 @@ export function taskRoutes(deps: AppDeps): Hono {
               const handle = deps.getAgentHandle(task.id)
               const isAlive = handle && (!handle.isAlive || handle.isAlive())
               task.agentStatus = isAlive ? getEffectiveAgentStatus(task.id) : "disconnected"
+            } else {
+              // No state exists - check handle liveness
+              const handle = deps.getAgentHandle(task.id)
+              task.agentStatus = handle && (!handle.isAlive || handle.isAlive()) ? "idle" : "disconnected"
             }
           }
           return task
@@ -86,6 +90,10 @@ export function taskRoutes(deps: AppDeps): Hono {
               const handle = deps.getAgentHandle(task.id)
               const isAlive = handle && (!handle.isAlive || handle.isAlive())
               task.agentStatus = isAlive ? getEffectiveAgentStatus(task.id) : "disconnected"
+            } else {
+              // No state exists - check handle liveness
+              const handle = deps.getAgentHandle(task.id)
+              task.agentStatus = handle && (!handle.isAlive || handle.isAlive()) ? "idle" : "disconnected"
             }
           }
           return Effect.succeed(task)

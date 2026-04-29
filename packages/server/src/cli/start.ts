@@ -14,7 +14,7 @@ import type { AppDeps } from "../api/app"
 import { normalizeTaskType, resolveDefaultAgentId, resolveTaskTypeConfig } from "@tangerine/shared"
 import * as taskManager from "../tasks/manager"
 import type { TaskManagerDeps } from "../tasks/manager"
-import { onTaskEvent, onStatusChange, emitTaskEvent, setAgentWorkingState, getAgentWorkingState, getEffectiveAgentStatus, recordAgentProgress } from "../tasks/events"
+import { onTaskEvent, onStatusChange, emitTaskEvent, setAgentWorkingState, getAgentWorkingState, getEffectiveAgentStatus, recordAgentProgress, hasAgentWorkingState } from "../tasks/events"
 import { cleanupSession } from "../tasks/cleanup"
 import type { CleanupDeps } from "../tasks/cleanup"
 import { startOrphanCleanup, findOrphans, cleanupOrphans } from "../tasks/orphan-cleanup"
@@ -573,6 +573,7 @@ export async function start(): Promise<void> {
           log.info("Subscribing to agent handle", { taskId, handleTaskId: subscribedHandleTaskId, pid: subscribedHandlePid })
 
           session.agentHandle.subscribe((event) => {
+            try {
             switch (event.kind) {
               case "message.streaming": {
                 recordAgentProgress(taskId)
@@ -990,7 +991,15 @@ export async function start(): Promise<void> {
                 break
               }
             }
+            } catch (err) {
+              log.error("Subscribe callback error", { taskId, kind: event.kind, error: String(err) })
+            }
           })
+
+          // Ensure agentWorkingState is initialized even if status event fails
+          if (!hasAgentWorkingState(taskId)) {
+            setAgentWorkingState(taskId, "idle")
+          }
         },
       },
       abortAgent: (taskId) => {
