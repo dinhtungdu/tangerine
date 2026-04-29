@@ -1369,15 +1369,13 @@ function resolveAcpFsPath(workdir: string, requestedPath: string): string {
 function parsePromptUsage(value: unknown): AgentEvent | null {
   if (!isRecord(value) || !isRecord(value.usage)) return null
   const usage = value.usage
-  const inputTokens = numberField(usage, "inputTokens")
-  const outputTokens = numberField(usage, "outputTokens")
-  const totalTokens = numberField(usage, "totalTokens")
-  if (!inputTokens && !outputTokens && !totalTokens) return null
+  const inputTokens = numberField(usage, "inputTokens") ?? numberField(usage, "input_tokens")
+  const outputTokens = numberField(usage, "outputTokens") ?? numberField(usage, "output_tokens")
+  if (!inputTokens && !outputTokens) return null
   return {
     kind: "usage",
     inputTokens,
     outputTokens,
-    contextTokens: totalTokens,
     cumulative: true,
   }
 }

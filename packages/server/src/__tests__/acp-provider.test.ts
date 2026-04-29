@@ -397,7 +397,7 @@ describe("createAcpProvider", () => {
     expect(provider.metadata.cliCommand).toBe("codex-acp")
   })
 
-  test("runs an ACP stdio agent and maps prompt streaming, permissions, tool calls, and usage", async () => {
+  test("runs an ACP stdio agent without treating prompt token usage as context usage", async () => {
     const tempDir = mkdtempSync(join(tmpdir(), "tangerine-acp-provider-"))
     const scriptPath = join(tempDir, "mock-acp-agent.js")
     writeFileSync(scriptPath, mockAcpAgentScript, "utf-8")
@@ -427,7 +427,7 @@ describe("createAcpProvider", () => {
     })
     expect(events).toContainEqual({ kind: "tool.end", toolCallId: "call-1", toolName: "Edit file", toolResult: "{\"permission\":\"allow\"}", status: "success" })
     expect(events).toContainEqual({ kind: "message.complete", role: "assistant", content: "hello permission:allow" })
-    expect(events).toContainEqual({ kind: "usage", inputTokens: 10, outputTokens: 5, contextTokens: 15, cumulative: true })
+    expect(events).toContainEqual({ kind: "usage", inputTokens: 10, outputTokens: 5, cumulative: true })
     expect(events).toContainEqual({ kind: "status", status: "idle" })
 
     rmSync(tempDir, { recursive: true, force: true })
