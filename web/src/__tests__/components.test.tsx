@@ -348,7 +348,7 @@ describe("NewAgentForm", () => {
 
     await screen.findByText("What should the agent work on?")
 
-    // HarnessSelector renders configured ACP agents, not hardcoded legacy providers.
+    // HarnessSelector renders configured ACP agents, not hardcoded provider IDs.
     await screen.findAllByText("ACP Agent")
     const comboboxes = screen.getAllByRole("combobox")
     const harnessCombobox = comboboxes.find((el) => el.textContent?.includes("ACP Agent"))
