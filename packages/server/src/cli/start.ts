@@ -4,7 +4,7 @@ import { Effect } from "effect"
 import { createLogger } from "../logger"
 import { loadConfig, getProjectConfig, TANGERINE_HOME, readRawConfig, writeRawConfig, isTestMode } from "../config"
 import { getDb } from "../db/index"
-import { createTask as dbCreateTask, getTask, listTasks, updateTask, insertSessionLog, markTaskResult, getDueCrons, hasActiveCronTask as dbHasActiveCronTask, updateCron } from "../db/queries"
+import { createTask as dbCreateTask, getTask, listTasks, updateTask, markTaskResult, getDueCrons, hasActiveCronTask as dbHasActiveCronTask, updateCron } from "../db/queries"
 import { logActivity, cleanupActivities, hasActivityEvent, updateToolActivity } from "../activity"
 import type { TaskRow, CronRow } from "../db/types"
 import { taskHasCapability } from "../api/helpers"
@@ -34,8 +34,9 @@ import { getAgentHandleMeta, type AgentHandle } from "../agent/provider"
 import { createAgentFactories } from "../agent/factories"
 import { enqueue as enqueuePrompt, drainNext as drainQueuedPrompts, setAgentState as setQueuedAgentState, clearQueue } from "../agent/prompt-queue"
 import { buildSystemNotes, buildPrWorkflowNote } from "../tasks/prompts"
-import { appendActiveStreamMessage, clearTaskState, completeActiveStreamMessage, getTaskState } from "../tasks/task-state"
+import { appendActiveStreamMessage, clearTaskState, getTaskState } from "../tasks/task-state"
 import { taskConfigUpdatesFromOptions } from "../agent/config-options"
+import { mapEventToV2, clearStreamMapper } from "../agent/stream-mappers"
 const log = createLogger("cli")
 
 /** Resolve custom system prompt for a task type from project config. */
@@ -159,33 +160,6 @@ async function branchHasWork(db: import("bun:sqlite").Database, taskId: string, 
   }
 }
 
-function getLastConversationLog(
-  db: import("bun:sqlite").Database,
-  taskId: string,
-): { role: string; content: string } | null {
-  return db.prepare(
-    "SELECT role, content FROM session_logs WHERE task_id = ? AND role != 'thinking' ORDER BY timestamp DESC, id DESC LIMIT 1"
-  ).get(taskId) as { role: string; content: string } | null
-}
-
-function markAssistantCompletionSeen(
-  db: import("bun:sqlite").Database,
-  taskId: string,
-  messageId: string | undefined,
-): boolean {
-  if (!messageId) return true
-  const state = getTaskState(taskId)
-  if (state.completedAssistantMessageIds.has(messageId)) return false
-  const exists = db.prepare(
-    "SELECT 1 FROM session_logs WHERE task_id = ? AND role = 'assistant' AND message_id = ? LIMIT 1"
-  ).get(taskId, messageId)
-  if (exists) {
-    state.completedAssistantMessageIds.add(messageId)
-    return false
-  }
-  state.completedAssistantMessageIds.add(messageId)
-  return true
-}
 
 /** Parse --config and --db flags from process.argv */
 function parseStartFlags(): { configPath?: string; dbPath?: string } {
@@ -296,7 +270,7 @@ export async function start(): Promise<void> {
     const getAgentFactory = (provider: string) =>
       factories[provider] ?? defaultFactory
 
-    const persistUserPrompt = (taskId: string, text: string, images?: import("../agent/provider").PromptImage[], fromTaskId?: string): Effect.Effect<void, never> =>
+    const persistUserPrompt = (taskId: string, text: string, images?: import("../agent/provider").PromptImage[], _fromTaskId?: string): Effect.Effect<void, never> =>
       Effect.gen(function* () {
         let imageFilenames: string[] | undefined
         if (images && images.length > 0) {
@@ -321,20 +295,18 @@ export async function start(): Promise<void> {
           }
         }
 
-        yield* insertSessionLog(db, {
-          task_id: taskId,
-          role: "user",
+        // Emit v2 user message event (agent stores history in files)
+        const userEvent: import("@tangerine/shared").StreamEvent = {
+          type: "user.message",
+          id: crypto.randomUUID(),
           content: text,
-          images: imageFilenames ? JSON.stringify(imageFilenames) : null,
-          from_task_id: fromTaskId ?? null,
-        }).pipe(Effect.catchAll(() => Effect.void))
-
-        emitTaskEvent(taskId, {
-          role: "user",
-          content: text,
-          timestamp: new Date().toISOString(),
-          images: imageFilenames,
-        })
+          images: imageFilenames?.map((f) => ({ src: `/api/tasks/${taskId}/images/${f}`, mediaType: "image/png" })),
+        }
+        emitTaskEvent(taskId, { type: "stream", event: userEvent })
+        // Track for reconnect logic
+        const ts = getTaskState(taskId)
+        ts.lastEventWasUser = true
+        ts.lastUserMessageAt = new Date().toISOString()
       })
 
     // Wire task manager — extract cleanupDeps so retryDeps can reference it
@@ -417,29 +389,21 @@ export async function start(): Promise<void> {
           }
 
           // Send initial prompt for new tasks, or reconnect nudge for existing ones.
-          // Key distinction: if the agent never responded (e.g. killed by rapid model
-          // change before processing the prompt), re-send the full initial prompt —
-          // a nudge won't work because the new session has no conversation context.
-          const hasLogs = db.prepare("SELECT 1 FROM session_logs WHERE task_id = ? LIMIT 1").get(taskId)
-          const hasAssistantResponse = hasLogs
-            ? db.prepare("SELECT 1 FROM session_logs WHERE task_id = ? AND role = 'assistant' LIMIT 1").get(taskId)
-            : null
-          const lastLog = hasLogs ? getLastConversationLog(db, taskId) : null
+          // Use agent_session_id to detect resumed tasks — agent stores history in files.
+          const taskSessionInfo = db.prepare("SELECT agent_session_id FROM tasks WHERE id = ?").get(taskId) as { agent_session_id: string | null } | null
+          const hadPriorSession = !!taskSessionInfo?.agent_session_id
 
-          // If agent already responded at least once, system prompt was applied in a prior session.
-          // Set this for ALL resumed sessions, not just the reconnect-nudge path.
-          if (hasAssistantResponse) {
+          // If task had prior session, assume system prompt was applied
+          if (hadPriorSession) {
             s.systemPromptApplied = true
           }
 
-          if (hasLogs && hasAssistantResponse && lastLog?.role === "user" && !getTaskState(taskId).idleWake) {
-            // Reconnect after server restart or model change — agent had conversation context.
+          if (hadPriorSession && !getTaskState(taskId).idleWake) {
+            // Reconnect after server restart or model change — agent has conversation context in files.
             // Skip for idle-wake: the user's new message is already queued via drainQueuedPrompts.
             const sendReconnectNudge = async () => {
               try {
                 // Wait for the ACP agent to finish resume/load before sending a prompt.
-                // Do NOT send abort here — an idle agent may interpret it as process termination,
-                // causing an immediate crash-restart loop.
                 await new Promise((r) => setTimeout(r, 1500))
 
                 const taskRow = db.prepare(
@@ -447,7 +411,6 @@ export async function start(): Promise<void> {
                 ).get(taskId) as { title: string; description: string | null; type: string | null; project_id: string | null } | null
 
                 const originalTask = taskRow?.description || taskRow?.title || ""
-                const unansweredUserMsg = lastLog?.role === "user" ? lastLog.content : null
                 const reconnectProjConfig = taskRow?.project_id ? getProjectConfig(config.config, taskRow.project_id) : undefined
 
                 const nudgeParts = [
@@ -456,11 +419,7 @@ export async function start(): Promise<void> {
                 if (normalizeTaskType(taskRow?.type) === "worker" && reconnectProjConfig?.prMode !== "none") {
                   nudgeParts.push(`[NOTE: When your work is complete: ${buildPrWorkflowNote(taskId, undefined, reconnectProjConfig?.prMode)}]`)
                 }
-                nudgeParts.push(
-                  unansweredUserMsg
-                    ? `The last message you had not yet responded to was: ${unansweredUserMsg}\n\nPlease continue.`
-                    : "Please continue where you left off.",
-                )
+                nudgeParts.push("Please continue where you left off.")
                 const nudge = nudgeParts.join("\n\n")
 
                 await Effect.runPromise(
@@ -473,19 +432,15 @@ export async function start(): Promise<void> {
             sendReconnectNudge()
             // Drain queued prompts for reconnect — agent already has conversation context
             drainQueuedOnce()
-          } else if (!hasLogs || (hasLogs && !hasAssistantResponse)) {
-            // No logs at all (fresh task) or logs exist but agent never responded
-            // (e.g. killed by model change before processing prompt). Either way,
-            // send the full initial prompt — don't resume a nonexistent conversation.
+          } else if (!hadPriorSession) {
+            // Fresh task — send the full initial prompt.
             // Queued prompts are drained AFTER the initial prompt so the agent gets
             // its task description first.
-            const isRetry = !!hasLogs // User message already saved, just re-deliver prompt
             const task = db.prepare("SELECT description, title, project_id, type FROM tasks WHERE id = ?").get(taskId) as { description: string | null; title: string; project_id: string; type: string | null } | null
             const initialPrompt = task?.description || task?.title
             if (initialPrompt) {
               // Load initial images saved during task creation (if any)
               const loadInitialImages = async () => {
-                if (isRetry) return { images: undefined, filenames: undefined } // images already saved
                 const manifestPath = `${TANGERINE_HOME}/images/${taskId}/initial.json`
                 const file = Bun.file(manifestPath)
                 if (!(await file.exists())) return { images: undefined, filenames: undefined }
@@ -534,24 +489,18 @@ export async function start(): Promise<void> {
                   session.agentHandle.sendPrompt(fullPrompt, images).pipe(Effect.catchAll(() => Effect.void))
                 )
 
-                // Only save to session_logs and emit on first delivery — avoid duplicates on retry
-                if (!isRetry) {
-                  emitTaskEvent(taskId, {
-                    role: "user",
-                    content: initialPrompt,
-                    timestamp: new Date().toISOString(),
-                  })
-                  await Effect.runPromise(
-                    insertSessionLog(db, {
-                      task_id: taskId,
-                      role: "user",
-                      content: initialPrompt,
-                      images: filenames ? JSON.stringify(filenames) : null,
-                    }).pipe(
-                      Effect.catchAll(() => Effect.void)
-                    )
-                  )
+                // Emit user message event (agent stores history in files)
+                const userEvent: import("@tangerine/shared").StreamEvent = {
+                  type: "user.message",
+                  id: crypto.randomUUID(),
+                  content: initialPrompt,
+                  images: filenames?.map((f) => ({ src: `/api/tasks/${taskId}/images/${f}`, mediaType: "image/png" as const })),
                 }
+                emitTaskEvent(taskId, { type: "stream", event: userEvent })
+                // Track for reconnect logic
+                const ts = getTaskState(taskId)
+                ts.lastEventWasUser = true
+                ts.lastUserMessageAt = new Date().toISOString()
 
                 // Now drain any queued prompts (e.g. user message sent while task was starting)
                 await drainQueuedOnce()
@@ -573,58 +522,36 @@ export async function start(): Promise<void> {
 
           session.agentHandle.subscribe((event) => {
             try {
+            // Emit v2 stream events (agent stores history in files)
+            const v2Events = mapEventToV2(taskId, event)
+            for (const v2Event of v2Events) {
+              emitTaskEvent(taskId, { type: "stream", event: v2Event })
+              // Track state for reconnect logic
+              if (v2Event.type === "chunk.start" || v2Event.type === "assistant.done") {
+                const ts = getTaskState(taskId)
+                ts.hasAssistantResponse = true
+                ts.lastEventWasUser = false
+              }
+            }
+
             switch (event.kind) {
               case "message.streaming": {
                 recordAgentProgress(taskId)
-                if (event.content) {
-                  const active = appendActiveStreamMessage(taskId, "assistant", event.content, event.messageId)
-                  emitTaskEvent(taskId, {
-                    event: "message.streaming",
-                    content: event.content,
-                    messageId: active.messageId,
-                  })
-                }
+                // v2 events emitted above via mapEventToV2
                 break
               }
               case "message.complete": {
                 recordAgentProgress(taskId)
+                // v2 events emitted above via mapEventToV2
                 if (event.role === "assistant" && (event.content || event.imagePaths?.length || event.images?.length)) {
-                  const completedActive = completeActiveStreamMessage(taskId, "assistant")
-                  const messageId = event.messageId ?? completedActive?.messageId
-                  if (!markAssistantCompletionSeen(db, taskId, messageId)) break
-
-                  const emitAndInsert = (imageFilenames?: string[]) => {
-                    emitTaskEvent(taskId, {
-                      role: "assistant",
-                      content: event.content,
-                      messageId,
-                      timestamp: new Date().toISOString(),
-                      images: imageFilenames,
-                    })
-                    Effect.runPromise(
-                      insertSessionLog(db, {
-                        task_id: taskId,
-                        role: "assistant",
-                        message_id: messageId,
-                        content: event.content,
-                        images: imageFilenames ? JSON.stringify(imageFilenames) : null,
-                      }).pipe(
-                        Effect.catchAll(() => Effect.void)
-                      )
-                    )
-                  }
-
+                  // Save images to serving directory (v2 events reference these URLs)
                   if (event.imagePaths?.length) {
-                    // Copy original full-size images from the worktree to the
-                    // serving directory when an ACP agent reports image paths.
                     const copyImages = async () => {
                       const imagesDir = `${TANGERINE_HOME}/images/${taskId}`
-                      // Resolve relative paths against the task's worktree
                       const taskRow = db.prepare("SELECT worktree_path FROM tasks WHERE id = ?").get(taskId) as { worktree_path: string | null } | null
                       const worktree = taskRow?.worktree_path
                       try {
                         await Bun.write(`${imagesDir}/.keep`, "")
-                        const filenames: string[] = []
                         for (const srcPath of event.imagePaths!) {
                           const resolvedPath = srcPath.startsWith("/") ? srcPath
                             : worktree ? `${worktree}/${srcPath}` : srcPath
@@ -633,36 +560,24 @@ export async function start(): Promise<void> {
                           const file = Bun.file(resolvedPath)
                           if (await file.exists()) {
                             await Bun.write(`${imagesDir}/${filename}`, file)
-                            filenames.push(filename)
                           }
                         }
-                        return filenames.length > 0 ? filenames : undefined
-                      } catch {
-                        return undefined
-                      }
+                      } catch { /* ignore */ }
                     }
-                    copyImages().then(emitAndInsert)
+                    copyImages()
                   } else if (event.images?.length) {
-                    // Fallback for ACP agents that send base64 images.
                     const saveImages = async () => {
                       const imagesDir = `${TANGERINE_HOME}/images/${taskId}`
                       try {
                         await Bun.write(`${imagesDir}/.keep`, "")
-                        const filenames: string[] = []
                         for (const img of event.images!) {
                           const ext = img.mediaType.split("/")[1] ?? "png"
                           const filename = `${Date.now()}-${Math.random().toString(36).slice(2, 8)}.${ext}`
                           await Bun.write(`${imagesDir}/${filename}`, Buffer.from(img.data, "base64"))
-                          filenames.push(filename)
                         }
-                        return filenames
-                      } catch {
-                        return undefined
-                      }
+                      } catch { /* ignore */ }
                     }
-                    saveImages().then(emitAndInsert)
-                  } else {
-                    emitAndInsert()
+                    saveImages()
                   }
 
                   // Track when agent produces a final result
@@ -839,52 +754,23 @@ export async function start(): Promise<void> {
               case "thinking.complete":
               case "thinking": {
                 recordAgentProgress(taskId)
-                // Persist only complete thoughts; streaming chunks stay transient.
-                if (!event.content.trim()) break
-                const completedActive = event.kind === "thinking.complete" ? completeActiveStreamMessage(taskId, "thinking") : undefined
-                emitTaskEvent(taskId, {
-                  event: event.kind === "thinking.complete" ? "thinking.complete" : undefined,
-                  messageId: event.kind === "thinking.complete" ? (event.messageId ?? completedActive?.messageId) : undefined,
-                  role: "thinking",
-                  content: event.content,
-                  timestamp: new Date().toISOString(),
-                })
-                Effect.runPromise(
-                  insertSessionLog(db, { task_id: taskId, role: "thinking", content: event.content }).pipe(
-                    Effect.catchAll(() => Effect.void)
+                // v2 events emitted above via mapEventToV2
+                // Keep activity logging for thinking
+                if (event.content.trim()) {
+                  Effect.runPromise(
+                    logActivity(db, taskId, "system", "agent.thinking", event.content).pipe(
+                      Effect.catchAll(() => Effect.void)
+                    )
                   )
-                )
-                Effect.runPromise(
-                  logActivity(db, taskId, "system", "agent.thinking", event.content).pipe(
-                    Effect.catchAll(() => Effect.void)
-                  )
-                )
+                }
                 break
               }
               case "content.block": {
-                emitTaskEvent(taskId, {
-                  event: "content.block",
-                  block: event.block,
-                  timestamp: new Date().toISOString(),
-                })
-                Effect.runPromise(
-                  insertSessionLog(db, { task_id: taskId, role: "content", content: JSON.stringify(event.block) }).pipe(
-                    Effect.catchAll(() => Effect.void)
-                  )
-                )
+                // v2 events emitted above via mapEventToV2
                 break
               }
               case "plan": {
-                emitTaskEvent(taskId, {
-                  event: "plan",
-                  entries: event.entries,
-                  timestamp: new Date().toISOString(),
-                })
-                Effect.runPromise(
-                  insertSessionLog(db, { task_id: taskId, role: "plan", content: JSON.stringify(event.entries) }).pipe(
-                    Effect.catchAll(() => Effect.void)
-                  )
-                )
+                // v2 events emitted above via mapEventToV2
                 break
               }
               case "config.options": {
@@ -1177,6 +1063,7 @@ export async function start(): Promise<void> {
             Effect.tap(() => clearQueue(taskId)),
             Effect.tap(() => Effect.sync(() => {
               clearTaskState(taskId)
+              clearStreamMapper(taskId)
               const hadHandle = agentHandles.has(taskId)
               agentHandles.delete(taskId)
               log.debug("Handle removed (cleanup)", { taskId, hadHandle, handleCount: agentHandles.size })
@@ -1387,15 +1274,7 @@ export async function start(): Promise<void> {
         if (!handle) return Effect.void
         return handle.abort(true).pipe(Effect.catchAll(() => Effect.void))
       },
-      getLastUserMessageTime: (() => {
-        const stmt = db.prepare(
-          "SELECT timestamp FROM session_logs WHERE task_id = ? AND role = 'user' ORDER BY id DESC LIMIT 1"
-        )
-        return (taskId: string) => {
-          const row = stmt.get(taskId) as { timestamp: string } | null
-          return row?.timestamp ?? null
-        }
-      })(),
+      getLastUserMessageTime: (taskId: string) => getTaskState(taskId).lastUserMessageAt ?? null,
       completeTask: (taskId) =>
         taskManager.completeTask(tmDeps, taskId).pipe(
           Effect.asVoid,

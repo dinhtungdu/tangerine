@@ -7,12 +7,11 @@ import type { Database } from "bun:sqlite"
 import { createTestDb } from "./helpers"
 import { isLoopbackHost, isPublicApiPath } from "../auth"
 import { createApp, type AppDeps } from "../api/app"
-import { createTask as dbCreateTask, updateTaskStatus, insertSessionLog, getTask as dbGetTask } from "../db/queries"
+import { createTask as dbCreateTask, updateTaskStatus, getTask as dbGetTask } from "../db/queries"
 import { TaskNotFoundError } from "../errors"
 import type { TaskRow } from "../db/types"
 import type { RawConfig } from "../config"
 import { createAgentFactories } from "../agent/factories"
-import type { AgentEvent } from "../agent/provider"
 import { getTaskState } from "../tasks/task-state"
 import { setAgentWorkingState, clearAgentWorkingState } from "../tasks/events"
 import { clearQueue, enqueue } from "../agent/prompt-queue"
@@ -80,8 +79,7 @@ function createMockDeps(db: Database, configOverrides?: Partial<AppDeps["config"
           yield* updateTaskStatus(db, taskId, "done")
         })
       },
-      sendPrompt(taskId, text) {
-        Effect.runSync(insertSessionLog(db, { task_id: taskId, role: "user", content: text }))
+      sendPrompt() {
         return Effect.succeed(undefined as void)
       },
       abortTask() { return Effect.succeed(undefined as void) },
@@ -298,7 +296,6 @@ describe("API routes", () => {
       expect(isPublicApiPath("/api/tasks/task-123/agent-terminal")).toBe(true)
       expect(isPublicApiPath("/api/tasks/list/ws")).toBe(true)
       expect(isPublicApiPath("/api/tasks/agent-status/ws")).toBe(true)
-      expect(isPublicApiPath("/api/tasks/task-123/messages")).toBe(false)
     })
   })
 
@@ -981,139 +978,6 @@ describe("API routes", () => {
     })
   })
 
-  describe("GET /api/tasks/:id/messages", () => {
-    test("returns empty messages for new task", async () => {
-      const row = seedTask(db)
-      const res = await app.fetch(new Request(`http://localhost/api/tasks/${row.id}/messages`))
-      expect(res.status).toBe(200)
-      const body = await res.json() as unknown[]
-      expect(body).toEqual([])
-    })
-
-    test("includes in-flight ACP assistant stream after persisted logs", async () => {
-      const row = seedTask(db)
-      Effect.runSync(insertSessionLog(db, { task_id: row.id, role: "user", content: "Build it" }))
-      ;(getTaskState(row.id) as ReturnType<typeof getTaskState> & {
-        activeAssistantMessage?: { role: "assistant"; content: string; messageId: string; timestamp: string }
-      }).activeAssistantMessage = {
-        role: "assistant",
-        content: "Working on it...",
-        messageId: "stream-1",
-        timestamp: "2026-04-28T10:00:00.000Z",
-      }
-
-      const res = await app.fetch(new Request(`http://localhost/api/tasks/${row.id}/messages`))
-
-      expect(res.status).toBe(200)
-      const body = await res.json() as Array<{ id: number | string; role: string; content: string; transient?: boolean }>
-      expect(body).toHaveLength(2)
-      expect(body[0]).toMatchObject({ role: "user", content: "Build it" })
-      expect(body[1]).toMatchObject({
-        id: "assistant-stream-1",
-        role: "assistant",
-        content: "Working on it...",
-        transient: true,
-      })
-    })
-  })
-
-  describe("POST /api/tasks/:id/sync-session", () => {
-    test("imports missing ACP history rows and deduplicates existing message ids", async () => {
-      const row = seedTask(db)
-      db.prepare("UPDATE tasks SET agent_session_id = ?, worktree_path = ? WHERE id = ?")
-        .run("sess-sync", "/tmp/tangerine-test-workspace/test-project/1", row.id)
-      Effect.runSync(insertSessionLog(db, {
-        task_id: row.id,
-        role: "user",
-        message_id: "user-1",
-        content: "Hi",
-      }))
-
-      ;(deps.agentFactories.acp as typeof deps.agentFactories.acp & {
-        loadSessionHistory?: (ctx: { taskId: string; workdir: string; sessionId: string }) => Effect.Effect<AgentEvent[], never>
-      }).loadSessionHistory = () => Effect.succeed([
-        { kind: "message.complete", role: "user", content: "Hi", messageId: "user-1" },
-        { kind: "message.complete", role: "assistant", content: "Hello", messageId: "assistant-1" },
-      ])
-
-      const res = await app.fetch(new Request(`http://localhost/api/tasks/${row.id}/sync-session`, {
-        method: "POST",
-      }))
-
-      expect(res.status).toBe(200)
-      const body = await res.json() as { available: boolean; inserted: number; skipped: number }
-      expect(body).toEqual({ available: true, inserted: 1, skipped: 1 })
-
-      const msgs = await app.fetch(new Request(`http://localhost/api/tasks/${row.id}/messages`))
-      const messages = await msgs.json() as Array<{ role: string; content: string; messageId?: string | null; message_id?: string | null }>
-      expect(messages.map((message) => ({ role: message.role, content: message.content }))).toEqual([
-        { role: "user", content: "Hi" },
-        { role: "assistant", content: "Hello" },
-      ])
-    })
-
-    test("backfills chat-authored user prompts instead of duplicating them", async () => {
-      const row = seedTask(db)
-      db.prepare("UPDATE tasks SET agent_session_id = ?, worktree_path = ? WHERE id = ?")
-        .run("sess-sync", "/tmp/tangerine-test-workspace/test-project/1", row.id)
-      Effect.runSync(insertSessionLog(db, {
-        task_id: row.id,
-        role: "user",
-        content: "Build it",
-      }))
-
-      ;(deps.agentFactories.acp as typeof deps.agentFactories.acp & {
-        loadSessionHistory?: () => Effect.Effect<AgentEvent[], never>
-      }).loadSessionHistory = () => Effect.succeed([
-        { kind: "message.complete", role: "user", content: "Build it", messageId: "user-1" },
-        { kind: "message.complete", role: "assistant", content: "Done", messageId: "assistant-1" },
-      ])
-
-      const res = await app.fetch(new Request(`http://localhost/api/tasks/${row.id}/sync-session`, {
-        method: "POST",
-      }))
-
-      expect(res.status).toBe(200)
-      const body = await res.json() as { available: boolean; inserted: number; skipped: number }
-      expect(body).toEqual({ available: true, inserted: 1, skipped: 1 })
-
-      const messages = db.prepare("SELECT role, content, message_id FROM session_logs WHERE task_id = ? ORDER BY id")
-        .all(row.id) as Array<{ role: string; content: string; message_id: string | null }>
-      expect(messages).toEqual([
-        { role: "user", content: "Build it", message_id: "user-1" },
-        { role: "assistant", content: "Done", message_id: "assistant-1" },
-      ])
-    })
-
-    test("keeps repeated ACP history rows when message ids are missing", async () => {
-      const row = seedTask(db)
-      db.prepare("UPDATE tasks SET agent_session_id = ?, worktree_path = ? WHERE id = ?")
-        .run("sess-sync", "/tmp/tangerine-test-workspace/test-project/1", row.id)
-
-      ;(deps.agentFactories.acp as typeof deps.agentFactories.acp & {
-        loadSessionHistory?: () => Effect.Effect<AgentEvent[], never>
-      }).loadSessionHistory = () => Effect.succeed([
-        { kind: "message.complete", role: "user", content: "OK" },
-        { kind: "message.complete", role: "user", content: "OK" },
-      ])
-
-      const res = await app.fetch(new Request(`http://localhost/api/tasks/${row.id}/sync-session`, {
-        method: "POST",
-      }))
-
-      expect(res.status).toBe(200)
-      const body = await res.json() as { available: boolean; inserted: number; skipped: number }
-      expect(body).toEqual({ available: true, inserted: 2, skipped: 0 })
-
-      const msgs = await app.fetch(new Request(`http://localhost/api/tasks/${row.id}/messages`))
-      const messages = await msgs.json() as Array<{ role: string; content: string }>
-      expect(messages.map((message) => ({ role: message.role, content: message.content }))).toEqual([
-        { role: "user", content: "OK" },
-        { role: "user", content: "OK" },
-      ])
-    })
-  })
-
   describe("POST /api/tasks/:id/chat", () => {
     test("sends a prompt and persists user message", async () => {
       const row = seedTask(db)
@@ -1127,13 +991,6 @@ describe("API routes", () => {
       const body = await res.json() as { ok: boolean; taskId: string }
       expect(body.ok).toBe(true)
       expect(body.taskId).toBe(row.id)
-
-      // Verify user message was persisted
-      const msgs = await app.fetch(new Request(`http://localhost/api/tasks/${row.id}/messages`))
-      const messages = await msgs.json() as Array<{ role: string; content: string }>
-      expect(messages).toHaveLength(1)
-      expect(messages[0]!.role).toBe("user")
-      expect(messages[0]!.content).toBe("Hello agent")
     })
 
     test("returns 400 without text", async () => {

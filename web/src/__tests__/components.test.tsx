@@ -87,7 +87,6 @@ import { ChatMessage } from "../components/ChatMessage"
 import { AssistantMessageGroups } from "../components/AssistantMessageGroups"
 import { NewAgentForm } from "../components/NewAgentForm"
 import { ChatInput, appendQuotedText } from "../components/ChatInput"
-import { ChatPanel } from "../components/ChatPanel"
 import { ModelEffortPopover } from "../components/ModelEffortPopover"
 import { FileMentionPicker } from "../components/FileMentionPicker"
 import { SlashCommandPicker } from "../components/SlashCommandPicker"
@@ -101,7 +100,7 @@ import { _resetForTesting as resetActions, registerActions, setShortcutOverrides
 import { defaultShortcuts } from "../lib/default-shortcuts"
 import { cancelTask, retryTask, deleteTask } from "../lib/api"
 import { useShortcuts } from "../hooks/useShortcuts"
-import type { Task, ActivityEntry, PromptQueueEntry } from "@tangerine/shared"
+import type { Task, ActivityEntry } from "@tangerine/shared"
 
 function WithShortcuts({ children }: { children: import("react").ReactNode }) {
   useShortcuts()
@@ -876,182 +875,7 @@ describe("ChatInput", () => {
   })
 })
 
-describe("ChatPanel", () => {
-  test("keeps terminal content blocks informational", () => {
-    render(
-      <ToastProvider>
-        <MemoryRouter>
-          <ChatPanel
-            messages={[{
-              id: "terminal-content",
-              role: "content",
-              content: "",
-              timestamp: "2026-03-17T10:00:00Z",
-              contentBlock: { type: "terminal", terminalId: "term-xyz" },
-            }]}
-            agentStatus="idle"
-            queueLength={0}
-            onSend={() => {}}
-            onAbort={() => {}}
-          />
-        </MemoryRouter>
-      </ToastProvider>
-    )
-
-    expect(screen.getByText("term-xyz")).toBeTruthy()
-    expect(screen.queryByRole("button", { name: "Open Terminal" })).toBeNull()
-  })
-
-  test("shows error message in terminated banner for failed tasks", () => {
-    render(
-      <MemoryRouter>
-        <ChatPanel
-          messages={[]}
-          agentStatus="idle"
-          queueLength={0}
-          taskStatus="failed"
-          taskError="Payment Required: deactivated_workspace"
-          onSend={() => {}}
-          onAbort={() => {}}
-        />
-      </MemoryRouter>
-    )
-
-    expect(screen.getByText("Payment Required: deactivated_workspace")).toBeTruthy()
-  })
-
-  test("shows Mark as done button for failed tasks when onResolve provided", () => {
-    render(
-      <MemoryRouter>
-        <ChatPanel
-          messages={[]}
-          agentStatus="idle"
-          queueLength={0}
-          taskStatus="failed"
-          onSend={() => {}}
-          onAbort={() => {}}
-          onResolve={async () => {}}
-        />
-      </MemoryRouter>
-    )
-
-    expect(screen.getByText("Mark as done")).toBeTruthy()
-  })
-
-  test("shows Mark as done button for cancelled tasks when onResolve provided", () => {
-    render(
-      <MemoryRouter>
-        <ChatPanel
-          messages={[]}
-          agentStatus="idle"
-          queueLength={0}
-          taskStatus="cancelled"
-          onSend={() => {}}
-          onAbort={() => {}}
-          onResolve={async () => {}}
-        />
-      </MemoryRouter>
-    )
-
-    expect(screen.getByText("Mark as done")).toBeTruthy()
-  })
-
-  test("does not show Mark as done button for done tasks", () => {
-    render(
-      <MemoryRouter>
-        <ChatPanel
-          messages={[]}
-          agentStatus="idle"
-          queueLength={0}
-          taskStatus="done"
-          onSend={() => {}}
-          onAbort={() => {}}
-          onResolve={async () => {}}
-        />
-      </MemoryRouter>
-    )
-
-    expect(screen.queryByText("Mark as done")).toBeNull()
-  })
-
-  test("does not show error in terminated banner for done tasks", () => {
-    render(
-      <MemoryRouter>
-        <ChatPanel
-          messages={[]}
-          agentStatus="idle"
-          queueLength={0}
-          taskStatus="done"
-          taskError="some error"
-          onSend={() => {}}
-          onAbort={() => {}}
-        />
-      </MemoryRouter>
-    )
-
-    expect(screen.queryByText("some error")).toBeNull()
-  })
-
-  test("renders editable queued prompts", () => {
-    const onUpdate = mock(async () => {})
-    const onRemove = mock(async () => {})
-    const queuedPrompts: PromptQueueEntry[] = [{ id: "q1", text: "Original queued message", enqueuedAt: 1 }]
-
-    render(
-      <ToastProvider>
-        <MemoryRouter>
-          <ChatPanel
-            messages={[]}
-            agentStatus="working"
-            queueLength={1}
-            queuedPrompts={queuedPrompts}
-            onQueuedPromptUpdate={onUpdate}
-            onQueuedPromptRemove={onRemove}
-            onSend={() => {}}
-            onAbort={() => {}}
-          />
-        </MemoryRouter>
-      </ToastProvider>
-    )
-
-    // Message text is displayed
-    expect(screen.getByText("Original queued message")).toBeTruthy()
-
-    // Click edit icon to start editing
-    fireEvent.click(screen.getByLabelText("Edit"))
-    const input = screen.getByDisplayValue("Original queued message") as HTMLInputElement
-    fireEvent.change(input, { target: { value: "Edited queued message" } })
-    fireEvent.blur(input)
-    expect(onUpdate).toHaveBeenCalledWith("q1", "Edited queued message")
-
-    // Click remove icon
-    fireEvent.click(screen.getByLabelText("Remove"))
-    expect(onRemove).toHaveBeenCalledWith("q1")
-  })
-
-  test("clicking Reply on a message shows the quote chip above the input", async () => {
-    render(
-      <ToastProvider>
-        <MemoryRouter>
-          <ChatPanel
-            messages={[{ id: "m1", role: "agent", content: "Quoted text", timestamp: "2026-03-17T10:00:00Z" }]}
-            agentStatus="idle"
-            queueLength={0}
-            onSend={() => {}}
-            onAbort={() => {}}
-          />
-        </MemoryRouter>
-      </ToastProvider>
-    )
-
-    // Wait for virtualized message to render
-    const replyBtn = await screen.findByLabelText("Reply")
-    fireEvent.click(replyBtn)
-
-    // Quote chip appears above the input
-    expect(screen.getByLabelText("Dismiss quote")).toBeTruthy()
-  })
-
+describe("ChatInput quote button", () => {
   test("Quote button appears when selectedText is passed to ChatInput", () => {
     render(
       <ChatInput

@@ -1,15 +1,14 @@
 import { Effect } from "effect"
 import { Hono } from "hono"
 import type { AppDeps } from "../app"
-import { getTask, getSessionLogs, getSessionLogsPaginated } from "../../db/queries"
+import { getTask } from "../../db/queries"
 import { getActivities } from "../../activity"
 import { runEffect, runEffectVoid } from "../effect-helpers"
 import { normalizeTimestamps } from "../helpers"
 import { TaskNotFoundError } from "../../errors"
 import { getProjectConfig, getRepoDir, TANGERINE_HOME } from "../../config"
-import { getActiveStreamMessages, getTaskState } from "../../tasks/task-state"
+import { getTaskState } from "../../tasks/task-state"
 import { editQueuedPrompt, getQueuedPrompts, removeQueuedPrompt, takeQueuedPrompt, getAgentState } from "../../agent/prompt-queue"
-import { syncConversationFromAcp } from "../../tasks/session-sync"
 
 function gitDiff(cmd: string, cwd: string): Effect.Effect<string, never> {
   return Effect.tryPromise({
@@ -31,32 +30,6 @@ function parseDiffChunks(raw: string): { path: string; diff: string }[] {
   return files
 }
 
-interface TransientSessionLogRow {
-  id: string
-  task_id: string
-  role: "assistant" | "thinking"
-  message_id: string
-  content: string
-  images: null
-  from_task_id: null
-  timestamp: string
-  transient: true
-}
-
-function getTransientSessionLogs(taskId: string): TransientSessionLogRow[] {
-  return getActiveStreamMessages(taskId).map((message) => ({
-    id: `${message.role}-${message.messageId}`,
-    task_id: taskId,
-    role: message.role,
-    message_id: message.messageId,
-    content: message.content,
-    images: null,
-    from_task_id: null,
-    timestamp: message.timestamp,
-    transient: true,
-  }))
-}
-
 export function sessionRoutes(deps: AppDeps): Hono {
   const app = new Hono()
 
@@ -68,40 +41,6 @@ export function sessionRoutes(deps: AppDeps): Hono {
   app.get("/:id/slash-commands", (c) => {
     const handleCommands = deps.getAgentHandle(c.req.param("id"))?.getSlashCommands?.()
     return c.json({ commands: handleCommands ?? getTaskState(c.req.param("id")).slashCommands })
-  })
-
-  app.get("/:id/messages", (c) => {
-    const taskId = c.req.param("id")
-    const limitParam = c.req.query("limit")
-    const beforeIdParam = c.req.query("beforeId")
-
-    // Paginated mode: limit specified
-    if (limitParam) {
-      const limit = Math.min(Math.max(1, parseInt(limitParam, 10) || 100), 500)
-      const beforeId = beforeIdParam ? parseInt(beforeIdParam, 10) : undefined
-      return runEffect(c,
-        getSessionLogsPaginated(deps.db, taskId, limit, beforeId).pipe(
-          Effect.map(({ logs, hasMore }) => ({
-            messages: [
-              ...logs.map(normalizeTimestamps),
-              // Only include transient messages when fetching latest (no beforeId)
-              ...(!beforeId ? getTransientSessionLogs(taskId).map(normalizeTimestamps) : []),
-            ],
-            hasMore,
-          }))
-        )
-      )
-    }
-
-    // Legacy mode: fetch all (for backwards compatibility)
-    return runEffect(c,
-      getSessionLogs(deps.db, taskId).pipe(
-        Effect.map((rows) => [
-          ...rows.map(normalizeTimestamps),
-          ...getTransientSessionLogs(taskId).map(normalizeTimestamps),
-        ])
-      )
-    )
   })
 
   app.get("/:id/images/:filename", async (c) => {
@@ -119,13 +58,6 @@ export function sessionRoutes(deps: AppDeps): Hono {
     return new Response(file, {
       headers: { "Content-Type": file.type, "Cache-Control": "public, max-age=31536000, immutable" },
     })
-  })
-
-  app.post("/:id/sync-session", (c) => {
-    return runEffect(c,
-      syncConversationFromAcp(deps, c.req.param("id")),
-      { errorMap: { SessionStartError: 502 } },
-    )
   })
 
   app.get("/:id/queue", (c) => {
