@@ -658,7 +658,6 @@ export function TaskDetail() {
               responsiveVisiblePanes.has("chat") ? "md:flex md:flex-1" : "md:hidden",
             ].join(" ")}>
               <TaskChatSurface
-                taskId={chatTaskId}
                 viewMode={taskViewMode}
                 agentSessionId={chatTask.agentSessionId}
                 terminal={<TerminalPane wsUrl={`/api/tasks/${chatTaskId}/agent-terminal`} />}

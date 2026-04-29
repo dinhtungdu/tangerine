@@ -15,7 +15,8 @@ import { spawn } from "bun-pty"
 import type { IPty } from "bun-pty"
 import { existsSync, readFileSync, unlinkSync, writeFileSync } from "fs"
 import { basename, join } from "path"
-import type { AgentConfig } from "@tangerine/shared"
+import { DEFAULT_AGENT_ID, type AgentConfig } from "@tangerine/shared"
+import { resolveAcpCommand } from "../../agent/acp-provider"
 import type { AppDeps } from "../app"
 import { createWebSocketHeartbeat, type WebSocketHeartbeat } from "../ws-heartbeat"
 import { isAuthEnabled, isRequestAuthenticated, isValidAuthToken } from "../../auth"
@@ -140,6 +141,22 @@ export function resolveAgentTuiLaunch(agent: AgentConfig, sessionId: string, wor
   }
 
   return null
+}
+
+export function resolveAgentTuiLaunchForProvider(agents: AgentConfig[], provider: string, sessionId: string, worktree: string): TerminalLaunch | null {
+  const configured = agents.find((entry) => entry.id === provider)
+  const agent = configured ?? (provider === DEFAULT_AGENT_ID ? defaultAcpAgentConfig() : null)
+  return agent ? resolveAgentTuiLaunch(agent, sessionId, worktree) : null
+}
+
+function defaultAcpAgentConfig(): AgentConfig {
+  const command = resolveAcpCommand(process.env)
+  return {
+    id: DEFAULT_AGENT_ID,
+    name: "ACP",
+    command: command.checkCommand,
+    args: command.shellCommand === command.checkCommand ? undefined : [command.shellCommand],
+  }
 }
 
 function appendScrollback(session: TerminalSession, data: string): void {
@@ -370,9 +387,7 @@ export function terminalWsRoutes(deps: AppDeps, upgradeWebSocket: UpgradeWebSock
               ? { command: "/bin/bash", args: ["--login"], cwd: task.worktree_path }
               : (() => {
                 if (!task.agent_session_id) throw new Error("Agent TUI not available: missing session id")
-                const agent = deps.config.config.agents.find((entry) => entry.id === task.provider)
-                if (!agent) throw new Error(`Agent TUI not available: unknown agent ${task.provider}`)
-                const agentLaunch = resolveAgentTuiLaunch(agent, task.agent_session_id, task.worktree_path)
+                const agentLaunch = resolveAgentTuiLaunchForProvider(deps.config.config.agents, task.provider, task.agent_session_id, task.worktree_path)
                 if (!agentLaunch) throw new Error(`Agent TUI not available: no TUI command configured for ${task.provider}`)
                 return { ...agentLaunch, cwd: task.worktree_path }
               })()

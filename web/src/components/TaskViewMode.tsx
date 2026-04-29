@@ -49,7 +49,6 @@ export function TaskChatSurface({
   terminal,
   children,
 }: {
-  taskId: string
   viewMode: TaskViewMode
   agentSessionId: string | null | undefined
   terminal: ReactNode

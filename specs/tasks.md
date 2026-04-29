@@ -134,7 +134,7 @@ CREATE TABLE tasks (
 
 Related tables:
 
-- `session_logs` — `task_id`, `role`, optional `message_id`, `content`, `images`, `from_task_id`, `timestamp`; non-null `(task_id, role, message_id)` is unique so replayed assistant completions persist once
+- `session_logs` — `task_id`, `role`, optional `message_id`, `content`, `images`, `from_task_id`, `timestamp`; non-null `(task_id, role, message_id)` is unique so replayed message-id-bearing completions persist once, while repeated rows without `message_id` are preserved
 - `activity_log`
 - `system_logs`
 - `worktree_slots`

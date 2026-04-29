@@ -1,6 +1,6 @@
 import { describe, expect, test } from "bun:test"
 import type { AgentConfig } from "@tangerine/shared"
-import { bufferTerminalOutput, drainPendingTerminalOutput, resolveAgentTuiLaunch, terminalSessionKey } from "../api/routes/terminal-ws"
+import { bufferTerminalOutput, drainPendingTerminalOutput, resolveAgentTuiLaunch, resolveAgentTuiLaunchForProvider, terminalSessionKey } from "../api/routes/terminal-ws"
 
 describe("bufferTerminalOutput", () => {
   test("buffers live shadow output while a reconnecting client is replaying scrollback", () => {
@@ -90,6 +90,24 @@ describe("agent TUI launch", () => {
       args: ["resume", "sess-codex"],
       env: undefined,
     })
+  })
+
+  test("resolves the default ACP provider from the inherited ACP command", () => {
+    const previous = process.env.TANGERINE_ACP_COMMAND
+    process.env.TANGERINE_ACP_COMMAND = "codex-acp --model gpt-5"
+    try {
+      expect(resolveAgentTuiLaunchForProvider([], "acp", "sess-codex", "/tmp/worktree")).toEqual({
+        command: "codex",
+        args: ["resume", "sess-codex"],
+        env: undefined,
+      })
+    } finally {
+      if (previous === undefined) {
+        delete process.env.TANGERINE_ACP_COMMAND
+      } else {
+        process.env.TANGERINE_ACP_COMMAND = previous
+      }
+    }
   })
 
   test("keeps shell and agent terminal sessions isolated", () => {

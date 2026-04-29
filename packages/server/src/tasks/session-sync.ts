@@ -61,12 +61,14 @@ export function syncConversationFromAcp(
       },
     })
 
+    const existingMessageKeys = loadExistingMessageKeys(deps.db, taskId)
     let inserted = 0
     let skipped = 0
     for (const event of events) {
       const entry = syncLogEntryFromEvent(event)
       if (!entry) continue
-      if (sessionLogExists(deps.db, taskId, entry)) {
+      const messageKey = syncMessageKey(entry)
+      if (messageKey && existingMessageKeys.has(messageKey)) {
         skipped += 1
         continue
       }
@@ -76,6 +78,7 @@ export function syncConversationFromAcp(
         content: entry.content,
         message_id: entry.messageId ?? null,
       })
+      if (messageKey) existingMessageKeys.add(messageKey)
       inserted += 1
     }
 
@@ -99,13 +102,16 @@ function syncLogEntryFromEvent(event: AgentEvent): SyncLogEntry | null {
   }
 }
 
-function sessionLogExists(db: Database, taskId: string, entry: SyncLogEntry): boolean {
-  if (entry.messageId?.trim()) {
-    const row = db.prepare("SELECT 1 FROM session_logs WHERE task_id = ? AND role = ? AND message_id = ? LIMIT 1")
-      .get(taskId, entry.role, entry.messageId)
-    return row != null
-  }
-  const row = db.prepare("SELECT 1 FROM session_logs WHERE task_id = ? AND role = ? AND content = ? LIMIT 1")
-    .get(taskId, entry.role, entry.content)
-  return row != null
+function syncMessageKey(entry: SyncLogEntry): string | null {
+  const messageId = entry.messageId?.trim()
+  return messageId ? `${entry.role}:${messageId}` : null
+}
+
+function loadExistingMessageKeys(db: Database, taskId: string): Set<string> {
+  const rows = db.prepare("SELECT role, message_id FROM session_logs WHERE task_id = ? AND message_id IS NOT NULL")
+    .all(taskId) as Array<{ role: string; message_id: string | null }>
+  return new Set(rows.flatMap((row) => {
+    const messageId = row.message_id?.trim()
+    return messageId ? [`${row.role}:${messageId}`] : []
+  }))
 }

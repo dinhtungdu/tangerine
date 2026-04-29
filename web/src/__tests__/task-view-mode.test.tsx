@@ -26,7 +26,6 @@ describe("TaskChatSurface", () => {
   test("replaces chat with agent terminal in TUI mode", () => {
     render(
       <TaskChatSurface
-        taskId="task-1"
         viewMode="tui"
         agentSessionId="sess-1"
         terminal={<div data-testid="agent-tui" data-ws-url="/api/tasks/task-1/agent-terminal">Agent TUI</div>}
@@ -42,7 +41,6 @@ describe("TaskChatSurface", () => {
   test("keeps chat visible in chat mode", () => {
     render(
       <TaskChatSurface
-        taskId="task-1"
         viewMode="chat"
         agentSessionId="sess-1"
         terminal={<div data-testid="agent-tui">Agent TUI</div>}
