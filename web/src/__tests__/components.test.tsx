@@ -80,6 +80,25 @@ mock.module("@base-ui/react/select", () => {
   }
 })
 
+mock.module("@xterm/xterm", () => ({
+  Terminal: class {
+    cols = 80
+    rows = 24
+    loadAddon() {}
+    open() {}
+    onData() { return { dispose() {} } }
+    write() {}
+    writeln() {}
+    clear() {}
+    dispose() {}
+  },
+}))
+mock.module("@xterm/addon-fit", () => ({ FitAddon: class { fit() {} } }))
+mock.module("@xterm/addon-web-links", () => ({ WebLinksAddon: class {} }))
+mock.module("../components/TerminalPane", () => ({
+  TerminalPane: () => React.createElement("div", { "data-testid": "terminal-pane" }),
+}))
+
 import { MemoryRouter, Route, Routes, useLocation } from "react-router-dom"
 import { ActivityList } from "../components/ActivityList"
 import { AuthenticatedImage } from "../components/AuthenticatedImage"
@@ -124,6 +143,7 @@ function makeTask(overrides?: Partial<Task>): Task {
   return {
     id: "t1",
     projectId: "test",
+    type: "worker",
     source: "manual",
     sourceId: null,
     sourceUrl: null,
@@ -195,6 +215,13 @@ function mockProjectsFetch() {
     },
   }), {
     status: 200,
+    headers: { "Content-Type": "application/json" },
+  })
+}
+
+function jsonResponse(data: unknown, status = 200): Response {
+  return new Response(JSON.stringify(data), {
+    status,
     headers: { "Content-Type": "application/json" },
   })
 }
@@ -275,6 +302,96 @@ function mockStatusPageFetch() {
     return new Response("Not found", { status: 404 })
   }
 }
+
+describe("TaskDetail", () => {
+  test("updates header agent status from task websocket", async () => {
+    const originalWebSocket = globalThis.WebSocket
+    const sockets: TestWebSocket[] = []
+
+    class TestWebSocket {
+      static CONNECTING = 0
+      static OPEN = 1
+      static CLOSING = 2
+      static CLOSED = 3
+      readyState = TestWebSocket.OPEN
+      onopen: ((event: Event) => void) | null = null
+      onmessage: ((event: MessageEvent) => void) | null = null
+      onclose: ((event: CloseEvent) => void) | null = null
+      onerror: ((event: Event) => void) | null = null
+
+      constructor(public url: string) {
+        sockets.push(this)
+        setTimeout(() => this.onopen?.(new Event("open")), 0)
+      }
+
+      send(_data: string) {}
+      close() {
+        this.readyState = TestWebSocket.CLOSED
+        this.onclose?.(new CloseEvent("close"))
+      }
+      emit(message: unknown) {
+        this.onmessage?.({ data: JSON.stringify(message) } as MessageEvent)
+      }
+    }
+
+    globalThis.WebSocket = TestWebSocket as unknown as typeof WebSocket
+    global.fetch = async (input) => {
+      const raw = typeof input === "string" ? input : input.url
+      const url = new URL(raw, "http://localhost").pathname + new URL(raw, "http://localhost").search
+      const task = makeTask({ id: "t1", projectId: "test-project", title: "Live status", status: "running", agentStatus: "working" })
+
+      if (url === "/api/projects") {
+        return jsonResponse({
+          projects: [{ name: "test-project", repo: "test/repo", defaultBranch: "main", setup: "echo ok" }],
+          model: "gpt-5",
+          agents: [{ id: "acp", name: "ACP Agent", command: "acp-agent" }],
+          defaultAgent: "acp",
+          actionCombos: [],
+        })
+      }
+      if (url === "/api/tasks/t1") return jsonResponse(task)
+      if (url === "/api/tasks/t1/seen") return new Response(null, { status: 204 })
+      if (url === "/api/tasks/t1/children") return jsonResponse([])
+      if (url.startsWith("/api/tasks/t1/messages")) return jsonResponse({ messages: [], hasMore: false })
+      if (url === "/api/tasks/t1/activities") return jsonResponse([])
+      if (url === "/api/tasks/t1/config-options") return jsonResponse({ configOptions: [] })
+      if (url === "/api/tasks/t1/slash-commands") return jsonResponse({ commands: [] })
+      if (url === "/api/tasks/t1/queue") return jsonResponse({ queuedPrompts: [] })
+      if (url === "/api/tasks/t1/permission") return jsonResponse({ permissionRequest: null })
+      if (url === "/api/tasks/t1/diff") return jsonResponse({ files: [] })
+      return new Response("Not found", { status: 404 })
+    }
+
+    try {
+      const { TaskDetail } = await import("../pages/TaskDetail")
+
+      render(
+        <MemoryRouter initialEntries={["/tasks/t1?project=test-project"]}>
+          <ProjectProvider>
+            <ToastProvider>
+              <Routes>
+                <Route path="/tasks/:id" element={<TaskDetail />} />
+              </Routes>
+            </ToastProvider>
+          </ProjectProvider>
+        </MemoryRouter>
+      )
+
+      expect(await screen.findByText("Working")).toBeTruthy()
+      const taskSocket = sockets.find((socket) => socket.url.endsWith("/api/tasks/t1/ws"))
+      expect(taskSocket).toBeTruthy()
+
+      await act(async () => {
+        taskSocket!.emit({ type: "agent_status", agentStatus: "idle" })
+        await Promise.resolve()
+      })
+
+      expect(screen.getByText("Idle")).toBeTruthy()
+    } finally {
+      globalThis.WebSocket = originalWebSocket
+    }
+  })
+})
 
 describe("ActivityList", () => {
   test("shows empty state", () => {

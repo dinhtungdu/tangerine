@@ -21,6 +21,7 @@ interface UseSessionResult {
   messages: ChatMessage[]
   activities: ActivityEntry[]
   agentStatus: "idle" | "working"
+  agentStatusKnown: boolean
   queueLength: number
   queuedPrompts: PromptQueueEntry[]
   connected: boolean
@@ -213,6 +214,7 @@ export function useSession(taskId: string, initialContextTokens?: number, initia
   const [messages, setMessages] = useState<ChatMessage[]>([])
   const [activities, setActivities] = useState<ActivityEntry[]>([])
   const [agentStatus, setAgentStatus] = useState<"idle" | "working">("idle")
+  const [agentStatusKnown, setAgentStatusKnown] = useState(false)
   const [queuedPrompts, setQueuedPrompts] = useState<PromptQueueEntry[]>([])
   const queuedPromptsRef = useRef<PromptQueueEntry[]>([])
   const [queueVisibilityNow, setQueueVisibilityNow] = useState(() => Date.now())
@@ -247,6 +249,7 @@ export function useSession(taskId: string, initialContextTokens?: number, initia
     setMessages([])
     setActivities([])
     setAgentStatus("idle")
+    setAgentStatusKnown(false)
     setQueuedPrompts([])
     queuedPromptsRef.current = []
     setTaskStatus(null)
@@ -565,8 +568,10 @@ export function useSession(taskId: string, initialContextTokens?: number, initia
           const eventType = String(data.event)
           if (eventType === "agent.start" || eventType === "tool.start") {
             setAgentStatus("working")
+            setAgentStatusKnown(true)
           } else if (eventType === "agent.end" || eventType === "agent.idle") {
             setAgentStatus("idle")
+            setAgentStatusKnown(true)
           } else if (eventType === "usage") {
             const ev = data as { contextTokens?: number; contextWindowMax?: number }
             setContextTokens((prev) => applyUsageUpdate({ contextTokens: prev, contextWindowMax: null }, ev).contextTokens)
@@ -605,6 +610,7 @@ export function useSession(taskId: string, initialContextTokens?: number, initia
         break
       case "agent_status":
         setAgentStatus(msg.agentStatus)
+        setAgentStatusKnown(true)
         break
       case "queue":
         // Suppress short idle-send queue flashes, then move persistent queued
@@ -644,6 +650,7 @@ export function useSession(taskId: string, initialContextTokens?: number, initia
         }, QUEUE_OPTIMISTIC_TTL_MS)
         pendingOptimisticRef.current.set(optimisticId, { acknowledged: false, content: text, images: optimisticImages, sentAt: now, revealTimer, cleanupTimer })
         setQueueVisibilityNow(now)
+        setAgentStatusKnown(true)
         setMessages((prev) => [
           ...prev,
           {
@@ -664,6 +671,7 @@ export function useSession(taskId: string, initialContextTokens?: number, initia
   const abort = useCallback(() => {
     send({ type: "abort" })
     setAgentStatus("idle")
+    setAgentStatusKnown(true)
   }, [send])
 
   const handleUpdateQueuedPrompt = useCallback(async (promptId: string, text: string) => {
@@ -699,6 +707,7 @@ export function useSession(taskId: string, initialContextTokens?: number, initia
       return next
     })
     setAgentStatus("working")
+    setAgentStatusKnown(true)
   }, [taskId])
 
   const visibleQueuedPrompts = filterVisibleQueuedPrompts(queuedPrompts, pendingOptimisticRef.current, queueVisibilityNow)
@@ -710,5 +719,5 @@ export function useSession(taskId: string, initialContextTokens?: number, initia
     await apiRespondToPermission(taskId, requestId, optionId)
   }, [taskId, permissionRequest])
 
-  return { messages, activities, agentStatus, queueLength: visibleQueuedPrompts.length, queuedPrompts: visibleQueuedPrompts, connected, taskStatus, sendPrompt, abort, updateQueuedPrompt: handleUpdateQueuedPrompt, removeQueuedPrompt: handleRemoveQueuedPrompt, clearAllQueuedPrompts: handleClearAllQueuedPrompts, sendNowQueuedPrompt: handleSendNowQueuedPrompt, contextTokens, contextWindowMax, configOptions, slashCommands, permissionRequest, respondToPermission: handleRespondToPermission }
+  return { messages, activities, agentStatus, agentStatusKnown, queueLength: visibleQueuedPrompts.length, queuedPrompts: visibleQueuedPrompts, connected, taskStatus, sendPrompt, abort, updateQueuedPrompt: handleUpdateQueuedPrompt, removeQueuedPrompt: handleRemoveQueuedPrompt, clearAllQueuedPrompts: handleClearAllQueuedPrompts, sendNowQueuedPrompt: handleSendNowQueuedPrompt, contextTokens, contextWindowMax, configOptions, slashCommands, permissionRequest, respondToPermission: handleRespondToPermission }
 }

@@ -451,7 +451,10 @@ export function TaskDetail() {
     )
   }
 
-  const { color: statusColor, label: statusLabel } = getTaskDisplayStatus(task)
+  const liveStatusTask = task.status === "running" && session.agentStatusKnown
+    ? { ...task, agentStatus: session.agentStatus }
+    : task
+  const { color: statusColor, label: statusLabel } = getTaskDisplayStatus(liveStatusTask)
   const isTerminated = task.status === "done" || task.status === "failed" || task.status === "cancelled"
 
   return (
