@@ -408,7 +408,7 @@ export function ChatPanel({
                 isLastGroupStreaming={agentStatus === "working"}
               />
               {thinkingCount > 0 && (
-                <div className="mt-4 flex justify-center">
+                <div className="mt-4 flex justify-end">
                   <Button
                     variant="ghost"
                     size="sm"
