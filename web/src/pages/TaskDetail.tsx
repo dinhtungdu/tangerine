@@ -640,7 +640,7 @@ export function TaskDetail() {
                 messages={session.messages}
                 activities={session.activities}
                 tasks={tasks}
-                agentStatus={session.agentStatus}
+                agentStatus={session.agentStatus === "working" ? "working" : "idle"}
                 queueLength={session.queueLength}
                 queuedPrompts={session.queuedPrompts}
                 model={chatTask.model}

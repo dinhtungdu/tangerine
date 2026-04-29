@@ -161,7 +161,7 @@ type WsServerMessage =
   | { type: "event"; data: unknown }
   | { type: "activity"; entry: ActivityEntry }
   | { type: "status"; status: TaskStatus }
-  | { type: "agent_status"; agentStatus: "idle" | "working" }
+  | { type: "agent_status"; agentStatus: "idle" | "working" | "disconnected" }
   | { type: "task_agent_status"; taskId: string; agentStatus: "idle" | "working" }
   | { type: "task_changed"; taskId: string; change: "created" | "updated" | "deleted" }
   | { type: "queue"; queuedPrompts: PromptQueueEntry[] }
