@@ -1,7 +1,7 @@
 import { Effect } from "effect"
 import { Hono } from "hono"
 import type { AppDeps } from "../app"
-import { getTask, getStreamEvents } from "../../db/queries"
+import { getTask } from "../../db/queries"
 import { getActivities } from "../../activity"
 import { runEffect, runEffectVoid } from "../effect-helpers"
 import { normalizeTimestamps } from "../helpers"
@@ -41,16 +41,6 @@ export function sessionRoutes(deps: AppDeps): Hono {
   app.get("/:id/slash-commands", (c) => {
     const handleCommands = deps.getAgentHandle(c.req.param("id"))?.getSlashCommands?.()
     return c.json({ commands: handleCommands ?? getTaskState(c.req.param("id")).slashCommands })
-  })
-
-  // Returns stream events for task (v2 chat)
-  app.get("/:id/events", (c) => {
-    const taskId = c.req.param("id")
-    return runEffect(c,
-      getStreamEvents(deps.db, taskId).pipe(
-        Effect.map((events) => ({ events }))
-      )
-    )
   })
 
   app.get("/:id/images/:filename", async (c) => {

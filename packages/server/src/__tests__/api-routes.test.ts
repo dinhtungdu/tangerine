@@ -7,7 +7,7 @@ import type { Database } from "bun:sqlite"
 import { createTestDb } from "./helpers"
 import { isLoopbackHost, isPublicApiPath } from "../auth"
 import { createApp, type AppDeps } from "../api/app"
-import { createTask as dbCreateTask, updateTaskStatus, insertStreamEvent, getTask as dbGetTask } from "../db/queries"
+import { createTask as dbCreateTask, updateTaskStatus, insertStreamEvent, getStreamEvents, getTask as dbGetTask } from "../db/queries"
 import type { StreamEvent } from "@tangerine/shared"
 import { TaskNotFoundError } from "../errors"
 import type { TaskRow } from "../db/types"
@@ -299,7 +299,6 @@ describe("API routes", () => {
       expect(isPublicApiPath("/api/tasks/task-123/agent-terminal")).toBe(true)
       expect(isPublicApiPath("/api/tasks/list/ws")).toBe(true)
       expect(isPublicApiPath("/api/tasks/agent-status/ws")).toBe(true)
-      expect(isPublicApiPath("/api/tasks/task-123/events")).toBe(false)
     })
   })
 
@@ -982,32 +981,6 @@ describe("API routes", () => {
     })
   })
 
-  describe("GET /api/tasks/:id/events", () => {
-    test("returns empty events for new task", async () => {
-      const row = seedTask(db)
-      const res = await app.fetch(new Request(`http://localhost/api/tasks/${row.id}/events`))
-      expect(res.status).toBe(200)
-      const body = await res.json() as { events: unknown[] }
-      expect(body.events).toEqual([])
-    })
-
-    test("returns stored stream events", async () => {
-      const row = seedTask(db)
-      const userEvent: StreamEvent = { type: "user.message", id: "u1", content: "Build it" }
-      const chunkEvent: StreamEvent = { type: "chunk.start", messageId: "m1", chunkIndex: 0, chunkType: "message", content: "Working..." }
-      Effect.runSync(insertStreamEvent(db, row.id, userEvent))
-      Effect.runSync(insertStreamEvent(db, row.id, chunkEvent))
-
-      const res = await app.fetch(new Request(`http://localhost/api/tasks/${row.id}/events`))
-
-      expect(res.status).toBe(200)
-      const body = await res.json() as { events: StreamEvent[] }
-      expect(body.events).toHaveLength(2)
-      expect(body.events[0]!.type).toBe("user.message")
-      expect(body.events[1]!.type).toBe("chunk.start")
-    })
-  })
-
   describe("POST /api/tasks/:id/chat", () => {
     test("sends a prompt and persists user message", async () => {
       const row = seedTask(db)
@@ -1022,12 +995,11 @@ describe("API routes", () => {
       expect(body.ok).toBe(true)
       expect(body.taskId).toBe(row.id)
 
-      // Verify user message was persisted as stream event
-      const eventsRes = await app.fetch(new Request(`http://localhost/api/tasks/${row.id}/events`))
-      const eventsBody = await eventsRes.json() as { events: Array<{ type: string; content?: string }> }
-      expect(eventsBody.events).toHaveLength(1)
-      expect(eventsBody.events[0]!.type).toBe("user.message")
-      expect(eventsBody.events[0]!.content).toBe("Hello agent")
+      // Verify user message was persisted as stream event (audit log)
+      const events = Effect.runSync(getStreamEvents(db, row.id))
+      expect(events).toHaveLength(1)
+      expect(events[0]!.type).toBe("user.message")
+      expect((events[0] as { content?: string }).content).toBe("Hello agent")
     })
 
     test("returns 400 without text", async () => {
