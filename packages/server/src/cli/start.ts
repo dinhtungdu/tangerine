@@ -1,5 +1,4 @@
-// CLI entrypoint: loads config, initializes subsystems, starts the server.
-// v1: No VM management. Server runs locally. Agents spawn as local processes.
+// CLI entrypoint: loads config, initializes subsystems, starts the local server.
 
 import { Effect } from "effect"
 import { createLogger } from "../logger"
@@ -423,7 +422,7 @@ export async function start(): Promise<void> {
           // a nudge won't work because the new session has no conversation context.
           const hasLogs = db.prepare("SELECT 1 FROM session_logs WHERE task_id = ? LIMIT 1").get(taskId)
           const hasAssistantResponse = hasLogs
-            ? db.prepare("SELECT 1 FROM session_logs WHERE task_id = ? AND role IN ('assistant', 'narration') LIMIT 1").get(taskId)
+            ? db.prepare("SELECT 1 FROM session_logs WHERE task_id = ? AND role = 'assistant' LIMIT 1").get(taskId)
             : null
           const lastLog = hasLogs ? getLastConversationLog(db, taskId) : null
 

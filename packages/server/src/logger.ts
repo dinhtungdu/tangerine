@@ -1,5 +1,5 @@
 // Structured logger with correlation IDs, operation spans, and child loggers
-// so AI agents can grep by taskId/vmId and reconstruct full timelines.
+// so AI agents can grep by taskId/op and reconstruct full timelines.
 
 import { INFRA_LOGGERS, writeSystemLog } from "./system-log"
 
@@ -39,11 +39,9 @@ function formatPrettyLine(level: LogLevel, loggerName: string, msg: string, cont
   const levelTag = level.toUpperCase().padEnd(5)
 
   // Pull out common correlation fields for the prefix
-  const { taskId, vmId, op, durationMs, ...rest } = context
+  const { taskId, op, durationMs, ...rest } = context
   const parts: string[] = []
-
   if (taskId) parts.push(`task=${taskId}`)
-  if (vmId) parts.push(`vm=${vmId}`)
   if (op) parts.push(`op=${op}`)
   if (durationMs !== undefined) parts.push(`${durationMs}ms`)
 

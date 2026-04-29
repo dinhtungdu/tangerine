@@ -961,7 +961,7 @@ async function startAcpSession(ctx: AgentStartContext, config?: AcpProviderConfi
   }
 
   Object.defineProperty(handle, "__meta", {
-    get: () => ({ sessionId, agentPort: null as number | null }),
+    get: () => ({ sessionId }),
   })
   ;(handle as { __pid?: number }).__pid = proc.pid
   ;(handle as { __taskId?: string }).__taskId = ctx.taskId

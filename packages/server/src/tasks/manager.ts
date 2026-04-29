@@ -1,5 +1,4 @@
-// Task manager: CRUD operations and state transitions for tasks.
-// v1: No VM management — agents run as local processes.
+// Task manager: CRUD operations and state transitions for local ACP-backed tasks.
 
 import { Effect } from "effect"
 import { createLogger } from "../logger"
@@ -431,7 +430,7 @@ export function changeConfig(
     // Only resume session if the agent actually had a conversation — otherwise
     // --resume wastes time on a nonexistent session file and falls back to fresh.
     const hasAssistantResponse = deps.cleanupDeps.db.prepare(
-      "SELECT 1 FROM session_logs WHERE task_id = ? AND role IN ('assistant', 'narration') LIMIT 1"
+      "SELECT 1 FROM session_logs WHERE task_id = ? AND role = 'assistant' LIMIT 1"
     ).get(taskId)
     const sessionId = hasAssistantResponse ? task.agent_session_id : null
     if (handle) {

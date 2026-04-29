@@ -2,7 +2,7 @@ import React, { useState, useRef, useCallback, useEffect, type KeyboardEvent, ty
 import { ArrowUp, X, Quote, Paperclip } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Textarea } from "@/components/ui/textarea"
-import { isAgentEffortOption, type AgentConfigOption, type AgentSlashCommand, type PromptImage, type PredefinedPrompt, type ProviderType, type Task } from "@tangerine/shared"
+import { isAgentEffortOption, type AgentConfigOption, type AgentSlashCommand, type PromptImage, type PredefinedPrompt, type Task } from "@tangerine/shared"
 import { ModelEffortPopover, type EffortOption } from "./ModelEffortPopover"
 import { FileMentionPicker } from "./FileMentionPicker"
 import { MentionPicker } from "./MentionPicker"
@@ -25,7 +25,6 @@ interface ChatInputProps {
   isWorking?: boolean
   onAbort?: () => void
   model?: string | null
-  provider?: ProviderType
   reasoningEffort?: string | null
   onModelChange?: (model: string) => void
   onReasoningEffortChange?: (effort: string) => void
@@ -60,7 +59,7 @@ export function appendQuotedText(existingText: string, quotedText: string): stri
   return `${prefix}${quotedText}\n\n`
 }
 
-export function ChatInput({ onSend, disabled, queueLength, taskId, isWorking, onAbort, model, provider, reasoningEffort, onModelChange, onReasoningEffortChange, onModeChange, configOptions, predefinedPrompts, slashCommands = [], quotedMessage, onQuoteDismiss, selectedText, onQuoteSelection, autoFocusKey, contextTokens, contextWindowMax }: ChatInputProps) {
+export function ChatInput({ onSend, disabled, queueLength, taskId, isWorking, onAbort, model, reasoningEffort, onModelChange, onReasoningEffortChange, onModeChange, configOptions, predefinedPrompts, slashCommands = [], quotedMessage, onQuoteDismiss, selectedText, onQuoteSelection, autoFocusKey, contextTokens, contextWindowMax }: ChatInputProps) {
   const draftKey = taskId ? `tangerine:chat-draft:${taskId}` : null
 
   const [text, setText] = useState(() => draftKey ? (loadChatDraft(draftKey).text ?? "") : "")
@@ -490,7 +489,6 @@ export function ChatInput({ onSend, disabled, queueLength, taskId, isWorking, on
                   canChangeModel={!!canChangeModel}
                   reasoningEffort={displayedReasoningEffort}
                   onReasoningEffortChange={effectiveReasoningChange}
-                  provider={provider}
                   efforts={configEfforts}
                   mode={displayedMode}
                   modes={configModes}

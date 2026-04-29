@@ -67,42 +67,6 @@ const LIFECYCLE_STYLES: Record<string, ActivityStyle> = {
     bg: "#8b5cf618",
     iconPaths: ["M6 1v10M1 6h10"], // plus
   },
-  "vm.acquiring": {
-    label: "Acquiring VM",
-    color: "#6b7280",
-    bg: "#6b728018",
-    iconPaths: ["M1 3h10v6a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V3z", "M4 1v2M8 1v2"], // server
-  },
-  "vm.acquired": {
-    label: "VM ready",
-    color: "#22c55e",
-    bg: "#22c55e18",
-    iconPaths: ["M1 3h10v6a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V3z", "M4 1v2M8 1v2"],
-  },
-  "ssh.waiting": {
-    label: "Connecting",
-    color: "#6b7280",
-    bg: "#6b728018",
-    iconPaths: ["M1 6h3M8 6h3", "M4 3l2 3-2 3M8 3l-2 3 2 3"], // arrows
-  },
-  "ssh.ready": {
-    label: "Connected",
-    color: "#22c55e",
-    bg: "#22c55e18",
-    iconPaths: ["M2 6l3 3 5-5"], // check
-  },
-  "creds.injected": {
-    label: "Credentials injected",
-    color: "#22c55e",
-    bg: "#22c55e18",
-    iconPaths: ["M4 1v4H1l5 5 5-5H8V1z"], // key/shield simplified
-  },
-  "creds.missing": {
-    label: "Credentials missing",
-    color: "#ef4444",
-    bg: "#ef444418",
-    iconPaths: ["M6 2v5M6 9v1"], // alert
-  },
   "repo.cloning": {
     label: "Cloning repo",
     color: "#3b82f6",

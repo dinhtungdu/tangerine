@@ -2,11 +2,11 @@
 
 import type { Effect } from "effect"
 import type { AgentError, PromptError, SessionStartError } from "../errors"
-import type { AgentConfigOption, AgentContentBlock, AgentPlanEntry, AgentSlashCommand, PromptImage, ProviderType, TaskPermissionMode } from "@tangerine/shared"
+import type { AgentConfigOption, AgentContentBlock, AgentPlanEntry, AgentSlashCommand, PromptImage, TaskPermissionMode } from "@tangerine/shared"
 
-export type { PromptImage, ProviderType }
+export type { PromptImage }
 
-/** Normalized events emitted by all agent providers */
+/** Normalized events emitted by configured ACP agents */
 export type AgentEvent =
   | { kind: "message.streaming"; content: string; messageId?: string }
   | { kind: "message.complete"; role: "assistant" | "user"; content: string; messageId?: string; images?: PromptImage[]; imagePaths?: string[] }
@@ -57,7 +57,7 @@ export interface AgentMetadata {
   }
 }
 
-/** Handle to a running agent session — owns the process, tunnel, and event subscription */
+/** Handle to a running ACP session — owns the process and event subscription */
 export interface AgentHandle {
   sendPrompt(text: string, images?: PromptImage[]): Effect.Effect<void, PromptError>
   /** Respond to a pending permission request when the provider asks the UI. */
@@ -115,17 +115,16 @@ export interface AgentStartContext {
   env?: Record<string, string>
 }
 
-/** Factory that creates agent sessions — one implementation per provider */
+/** Factory that creates sessions for a configured ACP agent command. */
 export interface AgentFactory {
   metadata: AgentMetadata
   start(ctx: AgentStartContext): Effect.Effect<AgentHandle, SessionStartError>
 }
 
-export function getAgentHandleMeta(handle: AgentHandle): { sessionId: string | null; agentPort: number | null } | null {
-  const meta = (handle as { __meta?: { sessionId?: string | null; agentPort?: number | null } }).__meta
+export function getAgentHandleMeta(handle: AgentHandle): { sessionId: string | null } | null {
+  const meta = (handle as { __meta?: { sessionId?: string | null } }).__meta
   if (!meta) return null
   return {
     sessionId: meta.sessionId ?? null,
-    agentPort: meta.agentPort ?? null,
   }
 }

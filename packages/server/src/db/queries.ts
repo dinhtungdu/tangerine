@@ -146,7 +146,7 @@ export function markTaskSeen(db: Database, id: string): Effect.Effect<TaskRow | 
   return updateTask(db, id, { last_seen_at: new Date().toISOString() }, { skipUpdatedAt: true })
 }
 
-/** Update last_result_at when the agent produces a final result (not narration/thinking) */
+/** Update last_result_at when the agent produces a final assistant result. */
 export function markTaskResult(db: Database, id: string): Effect.Effect<TaskRow | null, DbError> {
   return updateTask(db, id, { last_result_at: new Date().toISOString() }, { skipUpdatedAt: true })
 }

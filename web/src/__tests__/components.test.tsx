@@ -311,12 +311,12 @@ describe("ActivityList", () => {
 
   test("renders multiple activities", () => {
     const activities = [
-      makeActivity({ event: "vm.acquiring", content: "VM acquired" }),
+      makeActivity({ event: "repo.cloned", content: "Repository cloned" }),
       makeActivity({ event: "worktree.created", content: "Worktree created" }),
       makeActivity({ event: "agent.thinking", content: "Analyzing code" }),
     ]
     render(<ActivityList activities={activities} variant="compact" />)
-    expect(screen.getByText(/VM acquired/)).toBeTruthy()
+    expect(screen.getByText(/Repo ready/)).toBeTruthy()
     expect(screen.getByText(/Worktree created/)).toBeTruthy()
     expect(screen.getByText("Thinking")).toBeTruthy()
   })

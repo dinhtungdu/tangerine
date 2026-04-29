@@ -25,7 +25,6 @@ interface ModelEffortPopoverProps {
   onModelChange: (model: string) => void
   reasoningEffort?: string | null
   onReasoningEffortChange?: (effort: string) => void
-  provider?: string
   efforts?: EffortOption[]
   mode?: string | null
   modes?: EffortOption[]

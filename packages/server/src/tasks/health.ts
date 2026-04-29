@@ -1,5 +1,4 @@
-// Health checker: periodically verifies running tasks are alive.
-// v1: Checks agent PID instead of SSH/tunnel health.
+// Health checker: periodically verifies running ACP agent processes are alive.
 
 import { Effect, Schedule } from "effect"
 import { createLogger } from "../logger"

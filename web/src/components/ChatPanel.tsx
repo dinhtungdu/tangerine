@@ -3,7 +3,7 @@ import { ChevronRight, Trash2, Pencil, X } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible"
 import { TERMINAL_STATUSES } from "@tangerine/shared"
-import type { AgentConfigOption, AgentSlashCommand, PromptImage, PromptQueueEntry, PredefinedPrompt, TaskStatus, ProviderType, ActivityEntry, PermissionRequest } from "@tangerine/shared"
+import type { AgentConfigOption, AgentSlashCommand, PromptImage, PromptQueueEntry, PredefinedPrompt, TaskStatus, ActivityEntry, PermissionRequest } from "@tangerine/shared"
 import type { ChatMessage as ChatMessageType } from "../hooks/useSession"
 import { AssistantMessageGroups } from "./AssistantMessageGroups"
 import { ChatInput } from "./ChatInput"
@@ -20,7 +20,6 @@ interface ChatPanelProps {
   queueLength: number
   queuedPrompts?: PromptQueueEntry[]
   model?: string | null
-  provider?: ProviderType
   reasoningEffort?: string | null
   taskStatus?: TaskStatus | null
   taskError?: string | null
@@ -218,7 +217,6 @@ export function ChatPanel({
   queueLength,
   queuedPrompts = EMPTY_QUEUE,
   model,
-  provider,
   reasoningEffort,
   taskStatus,
   taskError,
@@ -454,7 +452,6 @@ export function ChatPanel({
           isWorking={agentStatus === "working"}
           onAbort={onAbort}
           model={model}
-          provider={provider}
           reasoningEffort={reasoningEffort}
           onModelChange={onModelChange}
           onReasoningEffortChange={onReasoningEffortChange}
