@@ -10,9 +10,10 @@ import {
   listTasks,
   updateTask,
   updateTaskStatus,
-  insertSessionLog,
-  getSessionLogs,
+  insertStreamEvent,
+  getStreamEvents,
 } from "../queries"
+import type { StreamEvent } from "@tangerine/shared"
 
 function freshDb(): Database {
   const db = new Database(":memory:")
@@ -108,44 +109,46 @@ describe("tasks", () => {
   })
 })
 
-describe("session logs", () => {
+describe("stream events", () => {
   let db: Database
 
   beforeEach(() => {
     db = freshDb()
   })
 
-  test("insert and retrieve session logs", () => {
-    Effect.runSync(createTask(db, { id: "task-log", source: "manual", project_id: "test", title: "Log test" }))
+  test("insert and retrieve stream events", () => {
+    Effect.runSync(createTask(db, { id: "task-ev", source: "manual", project_id: "test", title: "Event test" }))
 
-    Effect.runSync(insertSessionLog(db, { task_id: "task-log", role: "user", content: "Hello" }))
-    Effect.runSync(insertSessionLog(db, { task_id: "task-log", role: "assistant", content: "Hi there" }))
+    const userEvent: StreamEvent = { type: "user.message", id: "u1", content: "Hello" }
+    const chunkEvent: StreamEvent = { type: "chunk.start", messageId: "m1", chunkIndex: 0, chunkType: "message", content: "Hi" }
 
-    const logs = Effect.runSync(getSessionLogs(db, "task-log"))
-    expect(logs.length).toBe(2)
-    expect(logs[0]!.role).toBe("user")
-    expect(logs[0]!.content).toBe("Hello")
-    expect(logs[1]!.role).toBe("assistant")
-    expect(logs[1]!.content).toBe("Hi there")
+    Effect.runSync(insertStreamEvent(db, "task-ev", userEvent))
+    Effect.runSync(insertStreamEvent(db, "task-ev", chunkEvent))
+
+    const events = Effect.runSync(getStreamEvents(db, "task-ev"))
+    expect(events.length).toBe(2)
+    expect(events[0]!.type).toBe("user.message")
+    expect((events[0] as { content?: string }).content).toBe("Hello")
+    expect(events[1]!.type).toBe("chunk.start")
   })
 
-  test("deduplicates assistant session logs by message id", () => {
-    Effect.runSync(createTask(db, { id: "task-log-dedupe", source: "manual", project_id: "test", title: "Log dedupe" }))
+  test("assigns sequential seq numbers", () => {
+    Effect.runSync(createTask(db, { id: "task-seq", source: "manual", project_id: "test", title: "Seq test" }))
 
-    const first = Effect.runSync(insertSessionLog(db, { task_id: "task-log-dedupe", role: "assistant", content: "Same", message_id: "msg-1" }))
-    const second = Effect.runSync(insertSessionLog(db, { task_id: "task-log-dedupe", role: "assistant", content: "Same", message_id: "msg-1" }))
+    const e1: StreamEvent = { type: "user.message", id: "u1", content: "First" }
+    const e2: StreamEvent = { type: "user.message", id: "u2", content: "Second" }
 
-    const logs = Effect.runSync(getSessionLogs(db, "task-log-dedupe"))
-    expect(second.id).toBe(first.id)
-    expect(logs).toHaveLength(1)
-    expect(logs[0]!.content).toBe("Same")
-    expect(logs[0]!.message_id).toBe("msg-1")
+    const r1 = Effect.runSync(insertStreamEvent(db, "task-seq", e1))
+    const r2 = Effect.runSync(insertStreamEvent(db, "task-seq", e2))
+
+    expect(r1.seq).toBe(0)
+    expect(r2.seq).toBe(1)
   })
 
-  test("returns empty array for task with no logs", () => {
+  test("returns empty array for task with no events", () => {
     Effect.runSync(createTask(db, { id: "task-empty", source: "manual", project_id: "test", title: "Empty" }))
-    const logs = Effect.runSync(getSessionLogs(db, "task-empty"))
-    expect(logs.length).toBe(0)
+    const events = Effect.runSync(getStreamEvents(db, "task-empty"))
+    expect(events.length).toBe(0)
   })
 })
 

@@ -3,7 +3,8 @@ import { Effect } from "effect"
 import type { Database } from "bun:sqlite"
 import { createTestDb } from "./helpers"
 import { createApp, type AppDeps } from "../api/app"
-import { createTask as dbCreateTask, updateTaskStatus, insertSessionLog } from "../db/queries"
+import { createTask as dbCreateTask, updateTaskStatus, insertStreamEvent } from "../db/queries"
+import type { StreamEvent } from "@tangerine/shared"
 import type { RawConfig } from "../config"
 import { createAgentFactories } from "../agent/factories"
 
@@ -55,7 +56,8 @@ function createMockDeps(db: Database, configOverrides?: Partial<AppDeps["config"
         return Effect.sync(() => { Effect.runSync(updateTaskStatus(db, taskId, "done")) })
       },
       sendPrompt(taskId, text) {
-        Effect.runSync(insertSessionLog(db, { task_id: taskId, role: "user", content: text }))
+        const event: StreamEvent = { type: "user.message", id: crypto.randomUUID(), content: text }
+        Effect.runSync(insertStreamEvent(db, taskId, event))
         return Effect.succeed(undefined as void)
       },
       abortTask() { return Effect.succeed(undefined as void) },
@@ -197,25 +199,25 @@ describe("Test API routes", () => {
       expect(meta.path).toBe("file.ts")
     })
 
-    test("seeds session logs with preserved timestamps", async () => {
+    test("seeds stream events with preserved timestamps", async () => {
       await app.fetch(new Request("http://localhost/api/test/seed", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          tasks: [{ id: "session-task", project_id: "tangerine", title: "Session test", status: "running" }],
-          session_logs: [
-            { task_id: "session-task", role: "user", content: "Hello agent", timestamp: "2026-01-15T10:00:00.000Z" },
-            { task_id: "session-task", role: "assistant", content: "Hello! How can I help?", timestamp: "2026-01-15T10:00:05.000Z" },
+          tasks: [{ id: "stream-task", project_id: "tangerine", title: "Stream test", status: "running" }],
+          stream_events: [
+            { task_id: "stream-task", event_type: "user.message", event_json: JSON.stringify({ type: "user.message", id: "u1", content: "Hello agent" }), timestamp: "2026-01-15T10:00:00.000Z" },
+            { task_id: "stream-task", event_type: "assistant.done", event_json: JSON.stringify({ type: "assistant.done", messageId: "m1" }), timestamp: "2026-01-15T10:00:05.000Z" },
           ],
         }),
       }))
 
-      const logs = db.prepare("SELECT * FROM session_logs WHERE task_id = ? ORDER BY id").all("session-task") as Array<{ role: string; content: string; timestamp: string }>
-      expect(logs).toHaveLength(2)
-      expect(logs[0]!.role).toBe("user")
-      expect(logs[0]!.timestamp).toBe("2026-01-15T10:00:00.000Z")
-      expect(logs[1]!.role).toBe("assistant")
-      expect(logs[1]!.timestamp).toBe("2026-01-15T10:00:05.000Z")
+      const events = db.prepare("SELECT * FROM stream_events WHERE task_id = ? ORDER BY seq").all("stream-task") as Array<{ event_type: string; event_json: string; timestamp: string }>
+      expect(events).toHaveLength(2)
+      expect(events[0]!.event_type).toBe("user.message")
+      expect(events[0]!.timestamp).toBe("2026-01-15T10:00:00.000Z")
+      expect(events[1]!.event_type).toBe("assistant.done")
+      expect(events[1]!.timestamp).toBe("2026-01-15T10:00:05.000Z")
     })
 
     test("seeds empty payload without error", async () => {
@@ -225,10 +227,10 @@ describe("Test API routes", () => {
         body: JSON.stringify({}),
       }))
       expect(res.status).toBe(200)
-      const body = await res.json() as { seeded: { tasks: number; activity_log: number; session_logs: number } }
+      const body = await res.json() as { seeded: { tasks: number; activity_log: number; stream_events: number } }
       expect(body.seeded.tasks).toBe(0)
       expect(body.seeded.activity_log).toBe(0)
-      expect(body.seeded.session_logs).toBe(0)
+      expect(body.seeded.stream_events).toBe(0)
     })
   })
 
@@ -240,7 +242,7 @@ describe("Test API routes", () => {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           tasks: [{ id: "reset-task", project_id: "tangerine", title: "To be reset", status: "done" }],
-          session_logs: [{ task_id: "reset-task", role: "user", content: "test" }],
+          stream_events: [{ task_id: "reset-task", event_type: "user.message", event_json: JSON.stringify({ type: "user.message", id: "u1", content: "test" }) }],
           activity_log: [{ task_id: "reset-task", type: "lifecycle", event: "lifecycle:created", content: "created" }],
         }),
       }))
@@ -257,7 +259,7 @@ describe("Test API routes", () => {
       // Verify all tables are empty
       expect((db.prepare("SELECT COUNT(*) as c FROM tasks").get() as { c: number }).c).toBe(0)
       expect((db.prepare("SELECT COUNT(*) as c FROM activity_log").get() as { c: number }).c).toBe(0)
-      expect((db.prepare("SELECT COUNT(*) as c FROM session_logs").get() as { c: number }).c).toBe(0)
+      expect((db.prepare("SELECT COUNT(*) as c FROM stream_events").get() as { c: number }).c).toBe(0)
     })
   })
 

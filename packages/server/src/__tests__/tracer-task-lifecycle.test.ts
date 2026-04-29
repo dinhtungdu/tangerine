@@ -1,21 +1,22 @@
 import { describe, it, expect, beforeEach } from "bun:test"
 import type { Database } from "bun:sqlite"
 import { Effect } from "effect"
+import type { StreamEvent } from "@tangerine/shared"
 import { createTestDb } from "./helpers"
 import {
   createTask,
   getTask,
   updateTask,
   updateTaskStatus,
-  insertSessionLog,
-  getSessionLogs,
+  insertStreamEvent,
+  getStreamEvents,
 } from "../db/queries"
 
 /**
- * Tracer bullet: Task creation -> Status transitions -> Session logs
+ * Tracer bullet: Task creation -> Status transitions -> Stream events
  *
  * Validates the full task lifecycle through DB state transitions,
- * including session tracking and log retrieval.
+ * including stream event tracking and retrieval.
  */
 describe("tracer: task lifecycle", () => {
   let db: Database
@@ -54,33 +55,34 @@ describe("tracer: task lifecycle", () => {
     expect(running!.agent_pid).toBe(12345)
     expect(running!.started_at).toBeDefined()
 
-    // 4. Insert session logs (simulate chat messages)
-    Effect.runSync(insertSessionLog(db, {
-      task_id: "task-lifecycle",
-      role: "user",
+    // 4. Insert stream events (simulate chat messages)
+    const userEvent: StreamEvent = {
+      type: "user.message",
+      id: "u1",
       content: "Implement feature X with tests",
-    }))
-    Effect.runSync(insertSessionLog(db, {
-      task_id: "task-lifecycle",
-      role: "assistant",
+    }
+    const chunkStart: StreamEvent = {
+      type: "chunk.start",
+      messageId: "m1",
+      chunkIndex: 0,
+      chunkType: "message",
       content: "I'll start by creating the feature module...",
-    }))
-    Effect.runSync(insertSessionLog(db, {
-      task_id: "task-lifecycle",
-      role: "assistant",
-      content: "Feature implemented. Here's what I did...",
-    }))
+    }
+    const assistantDone: StreamEvent = {
+      type: "assistant.done",
+      messageId: "m1",
+    }
 
-    // 5. Retrieve session logs and verify order
-    const logs = Effect.runSync(getSessionLogs(db, "task-lifecycle"))
-    expect(logs).toHaveLength(3)
-    expect(logs[0]!.role).toBe("user")
-    expect(logs[0]!.content).toBe("Implement feature X with tests")
-    expect(logs[1]!.role).toBe("assistant")
-    expect(logs[2]!.role).toBe("assistant")
-    // Logs should be ordered by timestamp ascending
-    expect(logs[0]!.timestamp <= logs[1]!.timestamp).toBe(true)
-    expect(logs[1]!.timestamp <= logs[2]!.timestamp).toBe(true)
+    Effect.runSync(insertStreamEvent(db, "task-lifecycle", userEvent))
+    Effect.runSync(insertStreamEvent(db, "task-lifecycle", chunkStart))
+    Effect.runSync(insertStreamEvent(db, "task-lifecycle", assistantDone))
+
+    // 5. Retrieve stream events and verify order
+    const events = Effect.runSync(getStreamEvents(db, "task-lifecycle"))
+    expect(events).toHaveLength(3)
+    expect(events[0]!.type).toBe("user.message")
+    expect(events[1]!.type).toBe("chunk.start")
+    expect(events[2]!.type).toBe("assistant.done")
 
     // 6. Simulate completion (set status to done, set pr_url)
     const done = Effect.runSync(updateTask(db, "task-lifecycle", {
@@ -117,12 +119,13 @@ describe("tracer: task lifecycle", () => {
     // Move to running
     Effect.runSync(updateTaskStatus(db, "task-cancel", "running"))
 
-    // Insert a log before cancellation
-    Effect.runSync(insertSessionLog(db, {
-      task_id: "task-cancel",
-      role: "user",
+    // Insert an event before cancellation
+    const userEvent: StreamEvent = {
+      type: "user.message",
+      id: "u1",
       content: "Start working on this",
-    }))
+    }
+    Effect.runSync(insertStreamEvent(db, "task-cancel", userEvent))
 
     // Cancel the task
     const cancelled = Effect.runSync(updateTask(db, "task-cancel", {
@@ -132,10 +135,10 @@ describe("tracer: task lifecycle", () => {
     expect(cancelled!.status).toBe("cancelled")
     expect(cancelled!.completed_at).toBeDefined()
 
-    // Logs should still be retrievable after cancellation
-    const logs = Effect.runSync(getSessionLogs(db, "task-cancel"))
-    expect(logs).toHaveLength(1)
-    expect(logs[0]!.content).toBe("Start working on this")
+    // Events should still be retrievable after cancellation
+    const events = Effect.runSync(getStreamEvents(db, "task-cancel"))
+    expect(events).toHaveLength(1)
+    expect((events[0] as { content?: string }).content).toBe("Start working on this")
   })
 
   it("handles the failure flow with error message", () => {
@@ -182,20 +185,24 @@ describe("tracer: task lifecycle", () => {
     expect(t3.status).toBe("created")
   })
 
-  it("session logs are isolated per task", () => {
+  it("stream events are isolated per task", () => {
     Effect.runSync(createTask(db, { id: "ta", source: "manual", project_id: "test", title: "A" }))
     Effect.runSync(createTask(db, { id: "tb", source: "manual", project_id: "test", title: "B" }))
 
-    Effect.runSync(insertSessionLog(db, { task_id: "ta", role: "user", content: "Log for A" }))
-    Effect.runSync(insertSessionLog(db, { task_id: "tb", role: "user", content: "Log for B" }))
-    Effect.runSync(insertSessionLog(db, { task_id: "ta", role: "assistant", content: "Reply for A" }))
+    const evA1: StreamEvent = { type: "user.message", id: "ua1", content: "Event for A" }
+    const evB1: StreamEvent = { type: "user.message", id: "ub1", content: "Event for B" }
+    const evA2: StreamEvent = { type: "chunk.start", messageId: "ma1", chunkIndex: 0, chunkType: "message", content: "Reply for A" }
 
-    const logsA = Effect.runSync(getSessionLogs(db, "ta"))
-    const logsB = Effect.runSync(getSessionLogs(db, "tb"))
+    Effect.runSync(insertStreamEvent(db, "ta", evA1))
+    Effect.runSync(insertStreamEvent(db, "tb", evB1))
+    Effect.runSync(insertStreamEvent(db, "ta", evA2))
 
-    expect(logsA).toHaveLength(2)
-    expect(logsB).toHaveLength(1)
-    expect(logsA[0]!.content).toBe("Log for A")
-    expect(logsB[0]!.content).toBe("Log for B")
+    const eventsA = Effect.runSync(getStreamEvents(db, "ta"))
+    const eventsB = Effect.runSync(getStreamEvents(db, "tb"))
+
+    expect(eventsA).toHaveLength(2)
+    expect(eventsB).toHaveLength(1)
+    expect((eventsA[0] as { content?: string }).content).toBe("Event for A")
+    expect((eventsB[0] as { content?: string }).content).toBe("Event for B")
   })
 })

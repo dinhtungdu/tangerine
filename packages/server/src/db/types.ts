@@ -45,14 +45,12 @@ export interface CronRow {
   updated_at: string
 }
 
-export interface SessionLogRow {
+export interface StreamEventRow {
   id: number
   task_id: string
-  role: string
-  message_id: string | null
-  content: string
-  images: string | null
-  from_task_id: string | null
+  seq: number
+  event_type: string
+  event_json: string
   timestamp: string
 }
 

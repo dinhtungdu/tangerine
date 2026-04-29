@@ -1,7 +1,7 @@
 // Thread session hook - connects WebSocket to useThread for chat v2
 
 import { useEffect, useCallback, useRef } from "react"
-import type { WsServerMessage, StreamEvent } from "@tangerine/shared"
+import type { WsServerMessage, StreamEvent, PromptImage } from "@tangerine/shared"
 import { useThread } from "./useThread"
 import { useWebSocket } from "./useWebSocket"
 import type { ThreadEntry, MessageImage } from "@/types/thread"
@@ -14,7 +14,7 @@ interface UseThreadSessionOptions {
 interface UseThreadSessionResult {
   entries: ThreadEntry[]
   connected: boolean
-  sendPrompt: (content: string, images?: MessageImage[]) => void
+  sendPrompt: (content: string, images?: PromptImage[]) => void
   abort: () => void
 }
 
@@ -57,23 +57,26 @@ export function useThreadSession({
   )
 
   const sendPrompt = useCallback(
-    (content: string, images?: MessageImage[]) => {
+    (content: string, images?: PromptImage[]) => {
+      // Convert PromptImage to MessageImage for UI display
+      const uiImages: MessageImage[] | undefined = images?.map((img) => ({
+        src: `data:${img.mediaType};base64,${img.data}`,
+        mediaType: img.mediaType,
+      }))
+
       // Add optimistic user message
       enqueueEvent({
         type: "user.message",
         id: crypto.randomUUID(),
         content,
-        images,
+        images: uiImages,
       })
 
-      // Send to server
+      // Send to server (already in PromptImage format)
       send({
         type: "prompt",
         text: content,
-        images: images?.map((img) => ({
-          mediaType: (img.mediaType ?? "image/png") as "image/png" | "image/jpeg" | "image/gif" | "image/webp",
-          data: img.src.replace(/^data:[^;]+;base64,/, ""),
-        })),
+        images,
       })
     },
     [enqueueEvent, send]
