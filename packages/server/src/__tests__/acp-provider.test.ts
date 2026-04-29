@@ -254,6 +254,43 @@ describe("createAcpEventMapper", () => {
     expect(mapper.flushThoughtMessage()).toEqual([])
   })
 
+  test("splits no-id thought chunks at clear sentence boundaries", () => {
+    const mapper = createAcpEventMapper()
+
+    expect(mapper.mapSessionUpdate({ sessionUpdate: "agent_thought_chunk", content: { type: "text", text: "Inspecting current files." } }))
+      .toEqual([{ kind: "thinking.streaming", content: "Inspecting current files.", messageId: "thought-1" }])
+    expect(mapper.mapSessionUpdate({ sessionUpdate: "agent_thought_chunk", content: { type: "text", text: "Running focused tests." } }))
+      .toEqual([
+        { kind: "thinking.complete", content: "Inspecting current files.", messageId: "thought-1" },
+        { kind: "thinking.streaming", content: "Running focused tests.", messageId: "thought-2" },
+      ])
+    expect(mapper.flushThoughtMessage()).toEqual([{ kind: "thinking.complete", content: "Running focused tests.", messageId: "thought-2" }])
+  })
+
+  test("starts a new thought block after visible non-thought events", () => {
+    const mapper = createAcpEventMapper()
+
+    mapper.mapSessionUpdate({ sessionUpdate: "agent_thought_chunk", content: { type: "text", text: "I should inspect." } })
+    expect(mapper.mapSessionUpdate({ sessionUpdate: "tool_call", toolCallId: "call-1", title: "Read file" }))
+      .toEqual([
+        { kind: "thinking.complete", content: "I should inspect.", messageId: "thought-1" },
+        { kind: "tool.start", toolCallId: "call-1", toolName: "Read file", toolInput: undefined },
+      ])
+    expect(mapper.mapSessionUpdate({ sessionUpdate: "agent_thought_chunk", content: { type: "text", text: "Now review result." } }))
+      .toEqual([{ kind: "thinking.streaming", content: "Now review result.", messageId: "thought-2" }])
+  })
+
+  test("preserves order when thought follows assistant text", () => {
+    const mapper = createAcpEventMapper()
+
+    mapper.mapSessionUpdate({ sessionUpdate: "agent_message_chunk", messageId: "msg-1", content: { type: "text", text: "Result." } })
+    expect(mapper.mapSessionUpdate({ sessionUpdate: "agent_thought_chunk", content: { type: "text", text: "Double-checking." } }))
+      .toEqual([
+        { kind: "message.complete", role: "assistant", content: "Result.", messageId: "msg-1" },
+        { kind: "thinking.streaming", content: "Double-checking.", messageId: "thought-1" },
+      ])
+  })
+
   test("maps plans, tool calls, and usage updates", () => {
     const mapper = createAcpEventMapper()
 
