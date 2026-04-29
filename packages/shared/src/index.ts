@@ -9,7 +9,6 @@ export {
   type TaskCapability,
   type Task,
   type TaskWriteResponse,
-  type Cron,
   type AgentContentBlock,
   type AgentPlanEntry,
   type AgentConfigOption,

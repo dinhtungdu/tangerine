@@ -1,9 +1,10 @@
 import { describe, test, expect, beforeEach } from "bun:test"
 import { Database } from "bun:sqlite"
+import { rmSync } from "node:fs"
 import { Effect, Exit, Cause, Option } from "effect"
 import { DEFAULT_AGENT_ID } from "@tangerine/shared"
 import { SCHEMA } from "../schema"
-import { resetDb, autoMigrate } from "../index"
+import { resetDb, autoMigrate, getDb } from "../index"
 import {
   createTask,
   getTask,
@@ -278,5 +279,23 @@ describe("auto-migration", () => {
     const row = db.prepare("SELECT type FROM tasks WHERE id = ?").get("legacy-kind-task") as { type: string }
     expect(row.type).toBe("legacy-kind")
     db.close()
+  })
+
+  test("drops removed crons table on startup", () => {
+    const path = `/tmp/tangerine-db-${crypto.randomUUID()}.db`
+    try {
+      const legacyDb = new Database(path)
+      legacyDb.exec("CREATE TABLE crons (id TEXT PRIMARY KEY)")
+      legacyDb.close()
+
+      const db = getDb(path)
+      const rows = db.prepare("SELECT name FROM sqlite_master WHERE type='table' AND name='crons'").all() as { name: string }[]
+      expect(rows).toEqual([])
+    } finally {
+      resetDb()
+      rmSync(path, { force: true })
+      rmSync(`${path}-shm`, { force: true })
+      rmSync(`${path}-wal`, { force: true })
+    }
   })
 })

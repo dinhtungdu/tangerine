@@ -138,11 +138,6 @@ Related tables:
 - `activity_log`
 - `system_logs`
 - `worktree_slots`
-- `crons` — see `specs/crons.md`
-
-## Cron-Spawned Tasks
-
-Tasks with `source: "cron"` are regular workers spawned by the scheduler from cron records. They have `source_id: "cron:<cron_id>"` for linkage. The scheduler polls every 60 seconds and skips crons that already have an active task. See `specs/crons.md` for the full design.
 
 ## Worktree Isolation
 

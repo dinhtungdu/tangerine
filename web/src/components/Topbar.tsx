@@ -43,7 +43,6 @@ export function Topbar({ sidebarOpen, onToggleSidebar }: TopbarProps) {
   const location = useLocation()
   const [searchParams] = useSearchParams()
   const isRuns = location.pathname === "/" || location.pathname.startsWith("/tasks")
-  const isCrons = location.pathname === "/crons"
   const isStatus = location.pathname === "/status"
   const projectParam = searchParams.get("project")
   const qs = projectParam ? `?project=${encodeURIComponent(projectParam)}` : ""
@@ -90,14 +89,6 @@ export function Topbar({ sidebarOpen, onToggleSidebar }: TopbarProps) {
             }`}
           >
             Runs
-          </Link>
-          <Link
-            to={`/crons${qs}`}
-            className={`rounded-md px-3 py-1.5 text-sm font-medium outline-none focus-visible:ring-1 focus-visible:ring-ring/50 ${
-              isCrons ? "bg-primary text-primary-foreground" : "text-muted-foreground hover:text-foreground"
-            }`}
-          >
-            Crons
           </Link>
           <Link
             to={`/status${qs}`}

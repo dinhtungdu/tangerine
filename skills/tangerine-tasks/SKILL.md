@@ -221,44 +221,6 @@ curl -H "Authorization: Bearer $TANGERINE_AUTH_TOKEN" "$API/api/projects/my-proj
 curl -X POST -H "Authorization: Bearer $TANGERINE_AUTH_TOKEN" "$API/api/projects/my-project/update"
 ```
 
-### Crons
-
-> **IMPORTANT:** Never use Claude Code's built-in `CronCreate` tool — it is session-only and invisible to Tangerine. Always use the Tangerine cron API below.
-
-```bash
-# List crons
-curl -H "Authorization: Bearer $TANGERINE_AUTH_TOKEN" "$API/api/crons"
-curl -H "Authorization: Bearer $TANGERINE_AUTH_TOKEN" "$API/api/crons?project=my-project"
-
-# Create a cron (cron expression is always UTC)
-curl -X POST "$API/api/crons" \
-  -H "Authorization: Bearer $TANGERINE_AUTH_TOKEN" \
-  -H "Content-Type: application/json" \
-  -d '{
-    "projectId": "my-project",
-    "title": "Daily PR check",
-    "description": "The prompt that the spawned task will execute.",
-    "cron": "0 3 * * 1-5",
-    "enabled": true,
-    "taskDefaults": {
-      "provider": "acp"
-    }
-  }'
-
-# Update a cron
-curl -X PATCH "$API/api/crons/<id>" \
-  -H "Authorization: Bearer $TANGERINE_AUTH_TOKEN" \
-  -H "Content-Type: application/json" \
-  -d '{"enabled": false}'
-
-# Delete a cron
-curl -X DELETE -H "Authorization: Bearer $TANGERINE_AUTH_TOKEN" "$API/api/crons/<id>"
-```
-
-The `description` field becomes the **prompt** given to the spawned task — write it as a clear, self-contained instruction the agent can execute without extra context.
-
-When converting user-specified local times to UTC cron expressions, always confirm the conversion (e.g. "10am Vietnam = 3am UTC → `0 3 * * 1-5`").
-
 ### System
 
 ```bash

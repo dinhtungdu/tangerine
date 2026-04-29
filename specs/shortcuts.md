@@ -75,7 +75,6 @@ The registry is a plain module singleton (not React context), so it can be impor
 |----|-------|----------|---------|
 | `palette.open` | Open command palette | `Cmd+K` | (hidden) |
 | `navigate.runs` | Go to Runs | `g then r` | Navigation |
-| `navigate.crons` | Go to Crons | `g then c` | Navigation |
 | `navigate.status` | Go to Status | `g then s` | Navigation |
 | `theme.toggle` | Toggle dark mode | — | Preferences |
 | `task.create` | New task | — | Tasks |

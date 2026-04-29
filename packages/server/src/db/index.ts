@@ -154,6 +154,15 @@ function dropCumulativeTokenColumns(db: Database): void {
   }
 }
 
+/** Drop the crons table after cron scheduling feature removal. */
+function dropCronsTable(db: Database): void {
+  const tables = db.prepare("SELECT name FROM sqlite_master WHERE type='table' AND name='crons'").all() as { name: string }[]
+  if (tables.length === 0) return
+
+  db.exec("DROP TABLE IF EXISTS crons")
+  console.error("[db] Migrated: dropped removed crons table")
+}
+
 /** Returns a singleton DB connection, creating it if needed. Pass ":memory:" for tests.
  *  Respects TANGERINE_DB env var for path override. */
 export function getDb(path?: string): Database {
@@ -185,6 +194,9 @@ export function getDb(path?: string): Database {
   // Drop unused cumulative token columns — now only track context_tokens
   dropCumulativeTokenColumns(db)
 
+  // Drop cron scheduling table — feature removed
+  dropCronsTable(db)
+
   instance = db
   return db
 }
@@ -198,7 +210,7 @@ export function resetDb(): void {
 }
 
 export { SCHEMA } from "./schema"
-export type { TaskRow, CronRow, SessionLogRow } from "./types"
+export type { TaskRow, SessionLogRow } from "./types"
 export {
   createTask,
   getTask,
@@ -208,12 +220,5 @@ export {
   insertSessionLog,
   getSessionLogs,
   getSessionLogsPaginated,
-  createCron,
-  getCron,
-  listCrons,
-  updateCron,
-  deleteCron,
-  getDueCrons,
-  hasActiveCronTask,
   getChildTasks,
 } from "./queries"

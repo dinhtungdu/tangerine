@@ -41,7 +41,6 @@ specs/             # design and implementation docs
 - GitHub PR reference resolution from branch input like `#123` or full PR URLs
 - Self-update flow for project repos via `postUpdateCommand`
 - SSH editor deep-links to open task worktrees in VS Code, Cursor, or Zed (requires `sshHost`/`editor` in config and a matching `Host` entry in `~/.ssh/config` on the host machine)
-- Cron scheduling: create recurring agent tasks on a cron schedule via UI or API
 - GitHub fork sync: sync forked repos to upstream before running tasks
 - Watchdog: detects and restarts agents stuck on hung tools
 - Runtime system-tool detection: UI features gate on available tools (e.g. `dtach`, `gh`)

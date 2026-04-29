@@ -57,17 +57,13 @@ export function Layout() {
   const isRoot = location.pathname === "/"
   const isRuns = isRoot || location.pathname.startsWith("/tasks")
   const isStatus = location.pathname === "/status"
-  const isCrons = location.pathname === "/crons"
-
-  // Show sidebar on task-related routes (index, task detail, status)
-  const hasSidebar = !isCrons
 
   return (
     <ToastProvider>
     <div ref={rootRef} className={`flex flex-col bg-background md:h-screen md:overflow-hidden ${isRoot ? "min-h-[100dvh]" : "h-[100dvh]"}`}>
       {/* Desktop topbar */}
       <div className="hidden shrink-0 md:block">
-        <Topbar sidebarOpen={sidebarOpen} onToggleSidebar={hasSidebar ? () => setSidebarOpen((o) => !o) : undefined} />
+        <Topbar sidebarOpen={sidebarOpen} onToggleSidebar={() => setSidebarOpen((o) => !o)} />
       </div>
 
       {/* Mobile topbar — hidden on desktop and task detail (which has its own header) */}
@@ -92,14 +88,6 @@ export function Layout() {
                 Runs
               </Link>
               <Link
-                to={link("/crons")}
-                className={`rounded-md px-3 py-1.5 text-sm font-medium outline-none focus-visible:ring-1 focus-visible:ring-ring/50 ${
-                  isCrons ? "bg-muted text-foreground" : "text-muted-foreground hover:text-foreground"
-                }`}
-              >
-                Crons
-              </Link>
-              <Link
                 to={link("/status")}
                 className={`rounded-md px-3 py-1.5 text-sm font-medium outline-none focus-visible:ring-1 focus-visible:ring-ring/50 ${
                   isStatus ? "bg-muted text-foreground" : "text-muted-foreground hover:text-foreground"
@@ -115,31 +103,29 @@ export function Layout() {
       {/* On root: flex-col on mobile (sidebar above, form below), flex-row on desktop */}
       <main className={`flex-1 ${isRoot ? "flex flex-col md:flex-row md:min-h-0 md:overflow-hidden" : "min-h-0 overflow-hidden flex"}`}>
         {/* Sidebar — on root mobile: stacked above form; otherwise full-screen or hidden */}
-        {hasSidebar && (
-          <div className={`
-            ${isTaskDetail || isStatus ? "hidden md:block" : "block"}
-            ${isRoot ? "order-1 border-b border-border md:h-auto md:max-h-none md:overflow-hidden md:border-b-0" : "overflow-hidden"}
-            transition-[width] duration-200 ease-in-out ${sidebarOpen ? "md:w-[240px]" : "md:w-0"}
-          `} inert={sidebarOpen ? undefined : true}>
-            <TasksSidebar
-              tasks={tasks}
-              projects={projects}
-              searchQuery={query}
-              onSearchChange={setQuery}
-              onNewAgent={() => {
-                // Focus first (mobile keyboard needs this in gesture chain), then navigate
-                if (location.pathname === "/") {
-                  ;(document.getElementById("new-agent-textarea") as HTMLTextAreaElement | null)?.focus()
-                }
-                navigate("/#new-agent-textarea")
-              }}
-              onRefetch={refetch}
-              counts={counts}
-              loadedCounts={loadedCounts}
-              onLoadMore={loadMore}
-            />
-          </div>
-        )}
+        <div className={`
+          ${isTaskDetail || isStatus ? "hidden md:block" : "block"}
+          ${isRoot ? "order-1 border-b border-border md:h-auto md:max-h-none md:overflow-hidden md:border-b-0" : "overflow-hidden"}
+          transition-[width] duration-200 ease-in-out ${sidebarOpen ? "md:w-[240px]" : "md:w-0"}
+        `} inert={sidebarOpen ? undefined : true}>
+          <TasksSidebar
+            tasks={tasks}
+            projects={projects}
+            searchQuery={query}
+            onSearchChange={setQuery}
+            onNewAgent={() => {
+              // Focus first (mobile keyboard needs this in gesture chain), then navigate
+              if (location.pathname === "/") {
+                ;(document.getElementById("new-agent-textarea") as HTMLTextAreaElement | null)?.focus()
+              }
+              navigate("/#new-agent-textarea")
+            }}
+            onRefetch={refetch}
+            counts={counts}
+            loadedCounts={loadedCounts}
+            onLoadMore={loadMore}
+          />
+        </div>
 
         <div className={`min-w-0 flex-1 ${isRoot ? "order-2 md:overflow-hidden" : "overflow-hidden"}`}>
           <Suspense>

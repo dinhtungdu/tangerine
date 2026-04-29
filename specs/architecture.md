@@ -81,8 +81,7 @@ specs/
 4. ACP `session/update` events are mapped and forwarded to WebSocket clients, activity logs, session logs, and in-memory active stream snapshots for mid-turn task reloads.
 5. Task row mutations emit task-list WebSocket invalidations so the dashboard refreshes runs/sidebar data without interval polling.
 6. The task can be prompted, aborted, reconfigured, retried, completed, cancelled, or reconnected after restart.
-7. Crons are separate entities that fire on a cron schedule, spawning regular worker tasks.
-8. When the dashboard needs to repair chat history after a user has been away from
+7. When the dashboard needs to repair chat history after a user has been away from
    the chat pane, Tangerine may run a short-lived ACP `session/load` import for
    the task's `agent_session_id`. The import deduplicates rows with stable
    message IDs, backfills matching chat-authored user rows that lacked ACP ids,

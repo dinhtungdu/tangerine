@@ -13,6 +13,8 @@ Tangerine uses a single shared bearer token for remote single-user access when `
 
 ## REST Endpoints
 
+Unknown `/api/*` paths return JSON 404 responses and never fall through to the web app SPA fallback.
+
 ### Tasks
 
 | Method | Path | Description |

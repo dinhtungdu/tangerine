@@ -1,7 +1,7 @@
 import { Effect } from "effect"
 import type { Database } from "bun:sqlite"
 import { DEFAULT_AGENT_ID } from "@tangerine/shared"
-import type { TaskRow, CronRow, SessionLogRow } from "./types"
+import type { TaskRow, SessionLogRow } from "./types"
 import { DbError } from "../errors"
 import { emitTaskListChange } from "../task-list-events"
 
@@ -235,86 +235,6 @@ export function getSessionLogsPaginated(
     const logs = hasMore ? rows.slice(0, limit) : rows
     // Reverse to chronological order (oldest first)
     return { logs: logs.reverse(), hasMore }
-  })
-}
-
-// --- Crons ---
-
-export function createCron(
-  db: Database,
-  cron: Pick<CronRow, "id" | "project_id" | "title" | "cron"> &
-    Partial<Pick<CronRow, "description" | "enabled" | "next_run_at" | "task_defaults">>
-): Effect.Effect<CronRow, DbError> {
-  return dbTry(() => {
-    db.prepare(`
-      INSERT INTO crons (id, project_id, title, description, cron, enabled, next_run_at, task_defaults)
-      VALUES ($id, $project_id, $title, $description, $cron, $enabled, $next_run_at, $task_defaults)
-    `).run({
-      $id: cron.id,
-      $project_id: cron.project_id,
-      $title: cron.title,
-      $description: cron.description ?? null,
-      $cron: cron.cron,
-      $enabled: cron.enabled ?? 1,
-      $next_run_at: cron.next_run_at ?? null,
-      $task_defaults: cron.task_defaults ?? null,
-    })
-    return db.prepare("SELECT * FROM crons WHERE id = ?").get(cron.id) as CronRow
-  })
-}
-
-export function getCron(db: Database, id: string): Effect.Effect<CronRow | null, DbError> {
-  return dbTry(() => db.prepare("SELECT * FROM crons WHERE id = ?").get(id) as CronRow | null)
-}
-
-export function listCrons(db: Database, filter?: { projectId?: string }): Effect.Effect<CronRow[], DbError> {
-  return dbTry(() => {
-    if (filter?.projectId) {
-      return db.prepare("SELECT * FROM crons WHERE project_id = $project_id ORDER BY created_at DESC").all({ $project_id: filter.projectId }) as CronRow[]
-    }
-    return db.prepare("SELECT * FROM crons ORDER BY created_at DESC").all() as CronRow[]
-  })
-}
-
-export function updateCron(
-  db: Database,
-  id: string,
-  fields: Partial<Omit<CronRow, "id">>,
-): Effect.Effect<CronRow | null, DbError> {
-  return dbTry(() => {
-    const keys = Object.keys(fields).filter((k) => k !== "id")
-    if (keys.length === 0) return db.prepare("SELECT * FROM crons WHERE id = ?").get(id) as CronRow | null
-    const sets = keys.map((k) => `${k} = $${k}`).join(", ")
-    const params: Record<string, string | number | null> = { $id: id }
-    for (const k of keys) {
-      const val = fields[k as keyof typeof fields]
-      params[`$${k}`] = val === undefined ? null : (val as string | number | null)
-    }
-    db.prepare(`UPDATE crons SET ${sets}, updated_at = datetime('now') WHERE id = $id`).run(params)
-    return db.prepare("SELECT * FROM crons WHERE id = ?").get(id) as CronRow | null
-  })
-}
-
-export function deleteCron(db: Database, id: string): Effect.Effect<void, DbError> {
-  return dbTry(() => {
-    db.prepare("DELETE FROM crons WHERE id = ?").run(id)
-  })
-}
-
-export function getDueCrons(db: Database): Effect.Effect<CronRow[], DbError> {
-  return dbTry(() => {
-    return db.prepare(
-      `SELECT * FROM crons WHERE enabled = 1 AND next_run_at <= strftime('%Y-%m-%dT%H:%M:%fZ', 'now')`
-    ).all() as CronRow[]
-  })
-}
-
-export function hasActiveCronTask(db: Database, cronId: string): Effect.Effect<boolean, DbError> {
-  return dbTry(() => {
-    const row = db.prepare(
-      `SELECT 1 FROM tasks WHERE source = 'cron' AND source_id = $source_id AND status NOT IN ('done', 'failed', 'cancelled') LIMIT 1`
-    ).get({ $source_id: `cron:${cronId}` })
-    return row != null
   })
 }
 

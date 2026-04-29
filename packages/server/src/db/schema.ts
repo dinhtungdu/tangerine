@@ -38,21 +38,6 @@ export const SCHEMA = `
   CREATE INDEX IF NOT EXISTS idx_tasks_status ON tasks(status);
   CREATE INDEX IF NOT EXISTS idx_tasks_project_status ON tasks(project_id, status);
 
-  CREATE TABLE IF NOT EXISTS crons (
-    id TEXT PRIMARY KEY,
-    project_id TEXT NOT NULL,
-    title TEXT NOT NULL,
-    description TEXT,
-    cron TEXT NOT NULL,
-    enabled INTEGER NOT NULL DEFAULT 1,
-    next_run_at TEXT,
-    task_defaults TEXT,
-    created_at TEXT NOT NULL DEFAULT (datetime('now')),
-    updated_at TEXT NOT NULL DEFAULT (datetime('now'))
-  );
-
-  CREATE INDEX IF NOT EXISTS idx_crons_enabled ON crons(enabled);
-
   CREATE TABLE IF NOT EXISTS session_logs (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     task_id TEXT NOT NULL,

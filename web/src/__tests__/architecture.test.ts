@@ -81,4 +81,27 @@ describe("architecture", () => {
 
     expect(violations).toEqual([])
   })
+
+  test("cron feature is absent from web code", async () => {
+    const files = await getAllFiles(WEB_SRC)
+    const violations: string[] = []
+
+    for (const file of files) {
+      if (file.includes("__tests__")) continue
+      const content = await Bun.file(file).text()
+      const relativePath = file.replace(WEB_SRC + "/", "")
+      const patterns = [
+        { regex: /CronsPage|CronList|CronRow|CronForm/g, label: "cron UI" },
+        { regex: /\/api\/crons/g, label: "cron API client" },
+        { regex: /navigate\.crons/g, label: "cron action" },
+        { regex: /formatCronExpression/g, label: "cron formatter" },
+      ]
+
+      for (const { regex, label } of patterns) {
+        if (regex.test(content)) violations.push(`${relativePath}: uses ${label}`)
+      }
+    }
+
+    expect(violations).toEqual([])
+  })
 })

@@ -32,19 +32,6 @@ export interface TaskRow {
   context_window_max?: number | null
 }
 
-export interface CronRow {
-  id: string
-  project_id: string
-  title: string
-  description: string | null
-  cron: string
-  enabled: number
-  next_run_at: string | null
-  task_defaults: string | null
-  created_at: string
-  updated_at: string
-}
-
 export interface SessionLogRow {
   id: number
   task_id: string

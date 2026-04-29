@@ -31,12 +31,6 @@ export function useAppActions() {
         handler: () => navigate(link("/")),
       },
       {
-        id: "navigate.crons",
-        label: "Go to Crons",
-        section: "Navigation",
-        handler: () => navigate(link("/crons")),
-      },
-      {
         id: "navigate.status",
         label: "Go to Status",
         section: "Navigation",

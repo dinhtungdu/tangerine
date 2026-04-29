@@ -1,5 +1,5 @@
-import { getCapabilitiesForType, normalizeTaskType, type Task, type Cron, type TaskSource, type TaskStatus, type ProviderType, type TaskCapability } from "@tangerine/shared"
-import type { TaskRow, CronRow } from "../db/types"
+import { getCapabilitiesForType, normalizeTaskType, type Task, type TaskSource, type TaskStatus, type ProviderType, type TaskCapability } from "@tangerine/shared"
+import type { TaskRow } from "../db/types"
 
 /**
  * SQLite datetime('now') produces UTC timestamps without a Z suffix
@@ -55,22 +55,6 @@ export function mapTaskRow(row: TaskRow): Task {
     capabilities: mergeCapabilities(row.capabilities, row),
     contextTokens: row.context_tokens ?? 0,
     contextWindowMax: row.context_window_max ?? null,
-  }
-}
-
-/** Maps a snake_case CronRow from SQLite to a camelCase Cron for API responses */
-export function mapCronRow(row: CronRow): Cron {
-  return {
-    id: row.id,
-    projectId: row.project_id,
-    title: row.title,
-    description: row.description,
-    cron: row.cron,
-    enabled: row.enabled === 1,
-    nextRunAt: utc(row.next_run_at),
-    taskDefaults: row.task_defaults ? JSON.parse(row.task_defaults) : null,
-    createdAt: utc(row.created_at)!,
-    updatedAt: utc(row.updated_at)!,
   }
 }
 

@@ -1,7 +1,7 @@
 export type TaskStatus = "created" | "provisioning" | "running" | "done" | "failed" | "cancelled"
 export type AgentId = string
 export type ProviderType = AgentId
-export type TaskSource = "github" | "linear" | "manual" | "cross-project" | "cron"
+export type TaskSource = "github" | "linear" | "manual" | "cross-project"
 export type TaskType = "worker" | "reviewer" | "runner"
 export type TaskCapability = "resolve" | "predefined-prompts" | "diff" | "continue" | "pr-track" | "pr-create"
 
@@ -97,19 +97,6 @@ export function isAgentEffortOption(option: Pick<AgentConfigOption, "category" |
   const category = option.category?.toLowerCase()
   if (category && AGENT_EFFORT_OPTION_KEYS.has(category)) return true
   return AGENT_EFFORT_OPTION_KEYS.has(option.id.toLowerCase())
-}
-
-export interface Cron {
-  id: string
-  projectId: string
-  title: string
-  description: string | null
-  cron: string
-  enabled: boolean
-  nextRunAt: string | null
-  taskDefaults: { provider?: string; model?: string; reasoningEffort?: string; branch?: string } | null
-  createdAt: string
-  updatedAt: string
 }
 
 export type ActivityType = "lifecycle" | "file" | "system"

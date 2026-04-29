@@ -1284,64 +1284,20 @@ describe("API routes", () => {
     })
   })
 
-  describe("POST /api/crons", () => {
-    test("accepts configured ACP agent ids in task defaults", async () => {
-      deps.config.config.agents = [{ id: "nightly-agent", name: "Nightly Agent", command: "nightly-acp" }]
+  describe("cron API", () => {
+    test("returns 404 after cron feature removal", async () => {
+      const paths = ["/api/crons", "/api/crons/cron-1"]
+      for (const path of paths) {
+        const res = await app.fetch(new Request(`http://localhost${path}`))
+        expect(res.status).toBe(404)
+      }
 
-      const res = await app.fetch(new Request("http://localhost/api/crons", {
+      const postRes = await app.fetch(new Request("http://localhost/api/crons", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          projectId: "test-project",
-          title: "Nightly",
-          cron: "0 9 * * 1",
-          taskDefaults: { provider: "nightly-agent" },
-        }),
+        body: JSON.stringify({ projectId: "test-project", title: "Nightly", cron: "0 9 * * 1" }),
       }))
-
-      expect(res.status).toBe(201)
-      const body = await res.json() as { taskDefaults: { provider?: string } | null }
-      expect(body.taskDefaults?.provider).toBe("nightly-agent")
-    })
-
-    test("creates crons with explicit titles", async () => {
-      const res = await app.fetch(new Request("http://localhost/api/crons", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          projectId: "test-project",
-          title: "Nightly run",
-          cron: "0 9 * * 1",
-        }),
-      }))
-
-      expect(res.status).toBe(201)
-      const body = await res.json() as { title: string }
-      expect(body.title).toBe("Nightly run")
-    })
-
-    test("PATCH keeps existing title when title is null", async () => {
-      const createRes = await app.fetch(new Request("http://localhost/api/crons", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          projectId: "test-project",
-          title: "Nightly",
-          cron: "0 9 * * 1",
-        }),
-      }))
-      expect(createRes.status).toBe(201)
-      const created = await createRes.json() as { id: string }
-
-      const patchRes = await app.fetch(new Request(`http://localhost/api/crons/${created.id}`, {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ title: null }),
-      }))
-
-      expect(patchRes.status).toBe(200)
-      const patched = await patchRes.json() as { title: string }
-      expect(patched.title).toBe("Nightly")
+      expect(postRes.status).toBe(404)
     })
   })
 
