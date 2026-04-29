@@ -19,4 +19,18 @@ describe("task active stream state", () => {
 
     clearTaskState(taskId)
   })
+
+  test("buffers active narration separately from assistant text", () => {
+    const taskId = crypto.randomUUID()
+    clearTaskState(taskId)
+
+    const assistant = appendActiveStreamMessage(taskId, "assistant", "reply", "msg-1")
+    const narration = appendActiveStreamMessage(taskId, "narration", "checking", "note-1")
+
+    expect(getActiveStreamMessages(taskId)).toEqual([narration, assistant])
+    expect(completeActiveStreamMessage(taskId, "narration")).toEqual(narration)
+    expect(getActiveStreamMessages(taskId)).toEqual([assistant])
+
+    clearTaskState(taskId)
+  })
 })

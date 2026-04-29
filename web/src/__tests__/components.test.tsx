@@ -1555,6 +1555,20 @@ describe("ChatMessage", async () => {
     expect(preview!.textContent).not.toContain("…")
   })
 
+  test("renders narration updates with compact narration styling", () => {
+    renderChat({
+      message: {
+        id: "narration-1",
+        role: "narration",
+        content: "Reading files and checking tests.",
+        timestamp: "2026-03-17T10:00:00Z",
+      },
+    })
+
+    expect(screen.getByText("Narration")).toBeTruthy()
+    expect(screen.queryByText("Agent")).toBeNull()
+  })
+
   test("renders markdown tables as HTML tables", () => {
     const tableContent = "| Feature | Status |\n|---|---|\n| Tables | Yes |\n| Bold | Yes |"
     renderChat({

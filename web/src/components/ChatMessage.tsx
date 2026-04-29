@@ -195,10 +195,11 @@ const BASE_USER_REMARK_PLUGINS = BASE_REMARK_PLUGINS
 
 const THINKING_PREVIEW_CLASS = "line-clamp-2"
 
-function ThinkingMessage({ message, isActive, duration }: {
+function ThinkingMessage({ message, isActive, duration, variant = "thinking" }: {
   message: ChatMessageType
   isActive: boolean
   duration?: number
+  variant?: "thinking" | "narration"
 }) {
   const elapsed = useElapsedTime(message.timestamp, isActive)
   const displayDuration = duration ?? elapsed
@@ -240,7 +241,7 @@ function ThinkingMessage({ message, isActive, duration }: {
           )}
         </div>
         <span className="text-xs font-medium text-amber-500/70">
-          {isActive ? "Thinking" : "Thought"}
+          {variant === "narration" ? "Narration" : isActive ? "Thinking" : "Thought"}
         </span>
         <span className="text-2xs text-amber-500/50">
           {isActive ? `${formatElapsed(elapsed)}` : formatElapsed(displayDuration)}
@@ -452,9 +453,10 @@ export const ChatMessage = memo(function ChatMessage({ message, tasks, onReply, 
   const isUser = message.role === "user"
   const isSystem = message.role === "system"
   const isThinking = message.role === "thinking"
+  const isNarration = message.role === "narration"
   const isPlan = message.role === "plan"
   const isContentBlock = message.role === "content"
-  const isTool = !isUser && !isSystem && !isThinking && !isPlan && !isContentBlock && isToolCall(message.content)
+  const isTool = !isUser && !isSystem && !isThinking && !isNarration && !isPlan && !isContentBlock && isToolCall(message.content)
 
   const messageRef = useRef<HTMLDivElement>(null)
 
@@ -557,13 +559,14 @@ export const ChatMessage = memo(function ChatMessage({ message, tasks, onReply, 
     )
   }
 
-  // Thinking message
-  if (isThinking) {
+  // Compact agent narration/thinking note
+  if (isThinking || isNarration) {
     return (
       <ThinkingMessage
         message={message}
         isActive={isThinkingActive}
         duration={thinkingDuration}
+        variant={isNarration ? "narration" : "thinking"}
       />
     )
   }

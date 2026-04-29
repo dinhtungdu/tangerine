@@ -64,7 +64,7 @@ Important ACP updates:
 | ACP update | Tangerine event |
 |------------|-----------------|
 | `session/prompt` `resource_link` blocks | file mentions extracted from `@relative/path` prompt text |
-| `agent_message_chunk` | `message.streaming` only while a `session/prompt` turn is active; same-message chunks merge into one assistant completion, non-null `messageId` changes flush/start a new assistant message, and multi-word prose chunks without adapter whitespace get `\n\n` paragraph separators within the same message |
+| `agent_message_chunk` | `message.streaming` only while a `session/prompt` turn is active; same-message chunks with a non-null `messageId` merge into one assistant completion; non-null `messageId` changes flush/start a new assistant message; no-`messageId` prose chunks split at clear sentence boundaries into separate `narration` messages so work updates keep individual timestamps |
 | `agent_thought_chunk` | `thinking.streaming`, then one persisted `thinking` message on prompt completion |
 | `user_message_chunk` | user message log |
 | `tool_call` | `tool.start` keyed by `toolCallId`; merges into an existing best-effort row if updates arrived first |

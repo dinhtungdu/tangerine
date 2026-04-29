@@ -16,7 +16,7 @@ Default probe behavior only runs `initialize` and `session/new`. Add `--prompt` 
 
 Adapters normalize provider-specific SDK events into ACP. Tangerine still owns ACP-client responsibilities:
 
-- merge prompt-active `agent_message_chunk` into one live assistant message; ignore assistant chunks outside an active prompt turn
+- merge prompt-active `agent_message_chunk` with stable `messageId` into one live assistant message; split no-`messageId` sentence-boundary prose into separate narration messages; ignore assistant chunks outside an active prompt turn
 - merge `agent_thought_chunk` into one live Thought card
 - persist only final assistant/thinking messages after `session/prompt` completes while keeping in-memory active stream snapshots for task-switch reloads
 - render non-text content blocks; do not render text chunks as generic content cards

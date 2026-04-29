@@ -4,7 +4,7 @@
 import type { AgentConfigOption, AgentSlashCommand, PermissionRequest } from "@tangerine/shared"
 
 export interface ActiveStreamMessage {
-  role: "assistant" | "thinking"
+  role: "assistant" | "thinking" | "narration"
   content: string
   messageId: string
   timestamp: string
@@ -47,6 +47,7 @@ export interface TaskState {
   /** In-memory stream snapshots used when a browser switches into a running task mid-turn. */
   activeAssistantMessage?: ActiveStreamMessage
   activeThinkingMessage?: ActiveStreamMessage
+  activeNarrationMessage?: ActiveStreamMessage
   /** Pending permission request awaiting user response. */
   pendingPermissionRequest?: PermissionRequest
 }
@@ -84,8 +85,10 @@ export function getTaskState(taskId: string): TaskState {
   return state
 }
 
-function activeField(role: ActiveStreamMessage["role"]): "activeAssistantMessage" | "activeThinkingMessage" {
-  return role === "assistant" ? "activeAssistantMessage" : "activeThinkingMessage"
+function activeField(role: ActiveStreamMessage["role"]): "activeAssistantMessage" | "activeThinkingMessage" | "activeNarrationMessage" {
+  if (role === "assistant") return "activeAssistantMessage"
+  if (role === "narration") return "activeNarrationMessage"
+  return "activeThinkingMessage"
 }
 
 function createSyntheticMessageId(): string {
@@ -122,7 +125,7 @@ export function completeActiveStreamMessage(
 
 export function getActiveStreamMessages(taskId: string): ActiveStreamMessage[] {
   const state = getTaskState(taskId)
-  return [state.activeThinkingMessage, state.activeAssistantMessage]
+  return [state.activeThinkingMessage, state.activeNarrationMessage, state.activeAssistantMessage]
     .filter((message): message is ActiveStreamMessage => Boolean(message?.content))
 }
 

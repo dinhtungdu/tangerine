@@ -310,6 +310,7 @@ export function createAcpEventMapper(): {
 } {
   let assistantBuffer = ""
   let assistantMessageId: string | undefined
+  let assistantBufferRole: "assistant" | "narration" = "assistant"
   let thoughtBuffer = ""
   let thoughtMessageId: string | undefined
   let thoughtSequence = 0
@@ -327,14 +328,34 @@ export function createAcpEventMapper(): {
             const incomingMessageId = stringField(update, "messageId")
             const events: AgentEvent[] = []
             if (incomingMessageId && assistantMessageId && incomingMessageId !== assistantMessageId && assistantBuffer) {
-              events.push({ kind: "message.complete", role: "assistant", content: assistantBuffer, messageId: assistantMessageId })
+              events.push({ kind: "message.complete", role: assistantBufferRole, content: assistantBuffer, messageId: assistantMessageId })
               assistantBuffer = ""
               assistantMessageId = undefined
+              assistantBufferRole = "assistant"
             }
-            if (incomingMessageId && !assistantMessageId) assistantMessageId = incomingMessageId
-            const chunk = `${paragraphBoundaryPrefix(assistantBuffer, text)}${text}`
+            if (!incomingMessageId && isNarrationBoundary(assistantBuffer, text)) {
+              events.push({
+                kind: "message.complete",
+                role: "narration",
+                content: assistantBuffer,
+                ...(assistantMessageId ? { messageId: assistantMessageId } : {}),
+              })
+              assistantBuffer = ""
+              assistantMessageId = undefined
+              assistantBufferRole = "narration"
+            }
+            if (incomingMessageId && !assistantMessageId) {
+              assistantMessageId = incomingMessageId
+              assistantBufferRole = "assistant"
+            }
+            const chunk = text
             assistantBuffer += chunk
-            events.push({ kind: "message.streaming", content: chunk, ...(assistantMessageId ? { messageId: assistantMessageId } : {}) })
+            events.push({
+              kind: "message.streaming",
+              content: chunk,
+              ...(assistantBufferRole === "narration" ? { role: assistantBufferRole } : {}),
+              ...(assistantMessageId ? { messageId: assistantMessageId } : {}),
+            })
             return events
           }
           const block = contentBlockFromContent(update.content)
@@ -470,9 +491,11 @@ export function createAcpEventMapper(): {
       if (!assistantBuffer) return []
       const content = assistantBuffer
       const messageId = assistantMessageId
+      const role = assistantBufferRole
       assistantBuffer = ""
       assistantMessageId = undefined
-      return [{ kind: "message.complete", role: "assistant", content, ...(messageId ? { messageId } : {}) }]
+      assistantBufferRole = "assistant"
+      return [{ kind: "message.complete", role, content, ...(messageId ? { messageId } : {}) }]
     },
 
     flushThoughtMessage(): AgentEvent[] {
@@ -486,14 +509,14 @@ export function createAcpEventMapper(): {
   }
 }
 
-function paragraphBoundaryPrefix(previous: string, next: string): string {
-  if (!previous || !next) return ""
-  if (/^\s/.test(next)) return ""
-  if (!/[.!?]$/.test(previous)) return ""
-  if (!/^[A-Z]/.test(next)) return ""
-  if (wordCount(lastSentenceFragment(previous)) < 3) return ""
-  if (wordCount(firstSentenceFragment(next)) < 2) return ""
-  return "\n\n"
+function isNarrationBoundary(previous: string, next: string): boolean {
+  if (!previous || !next) return false
+  if (/^\s/.test(next)) return false
+  if (!/[.!?]$/.test(previous)) return false
+  if (!/^[A-Z]/.test(next)) return false
+  if (wordCount(lastSentenceFragment(previous)) < 3) return false
+  if (wordCount(firstSentenceFragment(next)) < 2) return false
+  return true
 }
 
 function lastSentenceFragment(text: string): string {

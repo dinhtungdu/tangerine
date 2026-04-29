@@ -28,7 +28,7 @@ import { applyLoginShellPath, checkSystemTools } from "./system-check"
 import { getStartupAuthError, getStartupAuthWarning } from "../auth"
 import type { PrMonitorDeps } from "../tasks/pr-monitor"
 import { initSystemLog, cleanupSystemLogs } from "../system-log"
-import { getAgentHandleMeta, type AgentHandle } from "../agent/provider"
+import { getAgentHandleMeta, type AgentHandle, type AgentStreamRole } from "../agent/provider"
 import { createAgentFactories } from "../agent/factories"
 import { enqueue as enqueuePrompt, drainNext as drainQueuedPrompts, setAgentState as setQueuedAgentState, clearQueue } from "../agent/prompt-queue"
 import { buildSystemNotes, buildPrWorkflowNote } from "../tasks/prompts"
@@ -162,27 +162,33 @@ function getLastConversationLog(
   taskId: string,
 ): { role: string; content: string } | null {
   return db.prepare(
-    "SELECT role, content FROM session_logs WHERE task_id = ? AND role != 'thinking' ORDER BY timestamp DESC, id DESC LIMIT 1"
+    "SELECT role, content FROM session_logs WHERE task_id = ? AND role IN ('user', 'assistant') ORDER BY timestamp DESC, id DESC LIMIT 1"
   ).get(taskId) as { role: string; content: string } | null
 }
 
-function markAssistantCompletionSeen(
+function markStreamCompletionSeen(
   db: import("bun:sqlite").Database,
   taskId: string,
+  role: AgentStreamRole,
   messageId: string | undefined,
 ): boolean {
   if (!messageId) return true
+  const completionKey = `${role}:${messageId}`
   const state = getTaskState(taskId)
-  if (state.completedAssistantMessageIds.has(messageId)) return false
+  if (state.completedAssistantMessageIds.has(completionKey)) return false
   const exists = db.prepare(
-    "SELECT 1 FROM session_logs WHERE task_id = ? AND role = 'assistant' AND message_id = ? LIMIT 1"
-  ).get(taskId, messageId)
+    "SELECT 1 FROM session_logs WHERE task_id = ? AND role = ? AND message_id = ? LIMIT 1"
+  ).get(taskId, role, messageId)
   if (exists) {
-    state.completedAssistantMessageIds.add(messageId)
+    state.completedAssistantMessageIds.add(completionKey)
     return false
   }
-  state.completedAssistantMessageIds.add(messageId)
+  state.completedAssistantMessageIds.add(completionKey)
   return true
+}
+
+function isStreamRole(role: string): role is AgentStreamRole {
+  return role === "assistant" || role === "narration"
 }
 
 /** Parse --config and --db flags from process.argv */
@@ -575,25 +581,28 @@ export async function start(): Promise<void> {
               case "message.streaming": {
                 recordAgentProgress(taskId)
                 if (event.content) {
-                  const active = appendActiveStreamMessage(taskId, "assistant", event.content, event.messageId)
+                  const role = event.role ?? "assistant"
+                  const active = appendActiveStreamMessage(taskId, role, event.content, event.messageId)
                   emitTaskEvent(taskId, {
                     event: "message.streaming",
                     content: event.content,
                     messageId: active.messageId,
+                    ...(role !== "assistant" ? { role } : {}),
                   })
                 }
                 break
               }
               case "message.complete": {
                 recordAgentProgress(taskId)
-                if (event.role === "assistant" && (event.content || event.imagePaths?.length || event.images?.length)) {
-                  const completedActive = completeActiveStreamMessage(taskId, "assistant")
+                if (isStreamRole(event.role) && (event.content || event.imagePaths?.length || event.images?.length)) {
+                  const completedActive = completeActiveStreamMessage(taskId, event.role)
+                    ?? (event.role === "narration" ? completeActiveStreamMessage(taskId, "assistant") : undefined)
                   const messageId = event.messageId ?? completedActive?.messageId
-                  if (!markAssistantCompletionSeen(db, taskId, messageId)) break
+                  if (!markStreamCompletionSeen(db, taskId, event.role, messageId)) break
 
                   const emitAndInsert = (imageFilenames?: string[]) => {
                     emitTaskEvent(taskId, {
-                      role: "assistant",
+                      role: event.role,
                       content: event.content,
                       messageId,
                       timestamp: new Date().toISOString(),
@@ -602,7 +611,7 @@ export async function start(): Promise<void> {
                     Effect.runPromise(
                       insertSessionLog(db, {
                         task_id: taskId,
-                        role: "assistant",
+                        role: event.role,
                         message_id: messageId,
                         content: event.content,
                         images: imageFilenames ? JSON.stringify(imageFilenames) : null,
@@ -664,11 +673,13 @@ export async function start(): Promise<void> {
                   }
 
                   // Track when agent produces a final result
-                  Effect.runPromise(
-                    markTaskResult(db, taskId).pipe(Effect.catchAll(() => Effect.void))
-                  )
+                  if (event.role === "assistant") {
+                    Effect.runPromise(
+                      markTaskResult(db, taskId).pipe(Effect.catchAll(() => Effect.void))
+                    )
+                  }
 
-                  // Fallback PR URL detection from assistant message text
+                  // Fallback PR URL detection from agent message text
                   if (!getTaskState(taskId).prUrlSaved) {
                     const prUrl = extractPrUrl(event.content)
                     if (prUrl) trySavePrUrl(db, taskId, prUrl, "message")

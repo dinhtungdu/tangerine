@@ -48,7 +48,8 @@ function AssistantGroup({
       {segments.map((segment) => {
         if (segment.kind === "tool") return null
 
-        const isLastThinking = segment.item.data.role === "thinking" && isStreaming && segment.index === group.items.length - 1
+        const isWorkNote = segment.item.data.role === "thinking" || segment.item.data.role === "narration"
+        const isLastThinking = isWorkNote && isStreaming && segment.index === group.items.length - 1
         return (
           <div key={`msg-${segment.item.data.id}`} className="pb-6">
             <ChatMessage

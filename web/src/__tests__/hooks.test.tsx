@@ -63,6 +63,13 @@ describe("applyAssistantStreamMessage", () => {
 
     expect(complete).toEqual([{ id: "assistant-active", role: "assistant", content: "hello", timestamp: "2026-04-27T10:00:02.000Z" }])
   })
+
+  test("preserves narration role for streamed work updates", () => {
+    const first = applyAssistantStreamMessage([], { role: "narration", content: "Reading files.", timestamp: "2026-04-27T10:00:00.000Z" }, "assistant-active", "append")
+    const complete = applyAssistantStreamMessage(first, { role: "narration", content: "Reading files.", timestamp: "2026-04-27T10:00:01.000Z" }, "assistant-active", "complete")
+
+    expect(complete).toEqual([{ id: "assistant-active", role: "narration", content: "Reading files.", timestamp: "2026-04-27T10:00:01.000Z" }])
+  })
 })
 
 describe("applyThinkingStreamMessage", () => {

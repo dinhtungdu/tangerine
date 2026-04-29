@@ -33,7 +33,7 @@ function parseDiffChunks(raw: string): { path: string; diff: string }[] {
 interface TransientSessionLogRow {
   id: string
   task_id: string
-  role: "assistant" | "thinking"
+  role: "assistant" | "thinking" | "narration"
   message_id: string
   content: string
   images: null

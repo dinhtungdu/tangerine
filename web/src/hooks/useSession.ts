@@ -42,19 +42,21 @@ interface UseSessionResult {
 
 export function applyAssistantStreamMessage(
   messages: ChatMessage[],
-  event: { content: string; timestamp?: unknown; images?: ChatMessageImage[] },
+  event: { role?: unknown; content: string; timestamp?: unknown; images?: ChatMessageImage[] },
   id: string,
   mode: "append" | "complete",
 ): ChatMessage[] {
   const timestamp = typeof event.timestamp === "string" ? event.timestamp : new Date().toISOString()
+  const role = typeof event.role === "string" ? event.role : undefined
   const existing = messages.findIndex((entry) => entry.id === id)
   if (existing === -1) {
-    return [...messages, { id, role: "assistant", content: event.content, timestamp, ...(event.images ? { images: event.images } : {}) }]
+    return [...messages, { id, role: role ?? "assistant", content: event.content, timestamp, ...(event.images ? { images: event.images } : {}) }]
   }
   return messages.map((entry, index) => {
     if (index !== existing) return entry
     return {
       ...entry,
+      ...(role ? { role } : {}),
       content: mode === "append" ? `${entry.content}${event.content}` : event.content,
       ...(mode === "complete" ? { timestamp } : {}),
       ...(event.images ? { images: event.images } : {}),
@@ -140,6 +142,10 @@ function activityFreshnessMs(activity: ActivityEntry): number {
 function activityStartMs(activity: ActivityEntry): number {
   const parsed = Date.parse(activity.timestamp)
   return Number.isFinite(parsed) ? parsed : 0
+}
+
+function isStreamedAgentRole(role: string): boolean {
+  return role === "assistant" || role === "narration"
 }
 
 export const QUEUE_FLASH_SUPPRESS_MS = 800
@@ -478,12 +484,13 @@ export function useSession(taskId: string, initialContextTokens?: number, initia
         const data = msg.data as Record<string, unknown> | undefined
         if (data && typeof data === "object" && data.event === "message.streaming" && typeof data.content === "string") {
           const messageId = typeof data.messageId === "string" ? data.messageId : null
+          const role = typeof data.role === "string" ? data.role : undefined
           const currentStreamId = activeAssistantStreamIdRef.current
           // Reuse existing stream ID only if: (1) no messageId (continuation), or (2) messageId matches current stream
           const shouldReuseStreamId = currentStreamId && (!messageId || currentStreamId === `assistant-${messageId}`)
           const id = shouldReuseStreamId ? currentStreamId : (messageId ? `assistant-${messageId}` : `assistant-active-${Date.now()}-${Math.random().toString(36).slice(2)}`)
           activeAssistantStreamIdRef.current = id
-          setMessages((prev) => applyAssistantStreamMessage(prev, { content: data.content as string, timestamp: data.timestamp }, id, "append"))
+          setMessages((prev) => applyAssistantStreamMessage(prev, { role, content: data.content as string, timestamp: data.timestamp }, id, "append"))
           break
         }
         if (data && typeof data === "object" && data.event === "thinking.streaming" && typeof data.content === "string") {
@@ -526,7 +533,7 @@ export function useSession(taskId: string, initialContextTokens?: number, initia
           if (Array.isArray(imgData)) {
             newMsg.images = (imgData as string[]).map((f) => ({ src: `/api/tasks/${taskId}/images/${f}` }))
           }
-          if (newMsg.role === "assistant") {
+          if (isStreamedAgentRole(newMsg.role)) {
             const streamId = activeAssistantStreamIdRef.current
             activeAssistantStreamIdRef.current = null
             const messageId = typeof data.messageId === "string" ? data.messageId : null
@@ -534,6 +541,7 @@ export function useSession(taskId: string, initialContextTokens?: number, initia
             const targetId = streamId ?? (messageId ? `assistant-${messageId}` : null)
             if (targetId) {
               setMessages((prev) => applyAssistantStreamMessage(prev, {
+                role: newMsg.role,
                 content: newMsg.content,
                 timestamp: newMsg.timestamp,
                 images: newMsg.images,

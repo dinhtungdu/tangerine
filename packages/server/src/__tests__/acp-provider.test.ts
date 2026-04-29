@@ -207,16 +207,17 @@ describe("createAcpEventMapper", () => {
     expect(mapper.flushAssistantMessage()).toEqual([])
   })
 
-  test("keeps sentence-boundary chunks without message IDs in one assistant message as paragraphs", () => {
+  test("splits sentence-boundary chunks without message IDs into narration messages", () => {
     const mapper = createAcpEventMapper()
 
     expect(mapper.mapSessionUpdate({ sessionUpdate: "agent_message_chunk", content: { type: "text", text: "Using test-driven-development. First: specs/tests, then implementation, then PR." } }))
       .toEqual([{ kind: "message.streaming", content: "Using test-driven-development. First: specs/tests, then implementation, then PR." }])
     expect(mapper.mapSessionUpdate({ sessionUpdate: "agent_message_chunk", content: { type: "text", text: "Setup done, worktree clean." } }))
       .toEqual([
-        { kind: "message.streaming", content: "\n\nSetup done, worktree clean." },
+        { kind: "message.complete", role: "narration", content: "Using test-driven-development. First: specs/tests, then implementation, then PR." },
+        { kind: "message.streaming", role: "narration", content: "Setup done, worktree clean." },
       ])
-    expect(mapper.flushAssistantMessage()).toEqual([{ kind: "message.complete", role: "assistant", content: "Using test-driven-development. First: specs/tests, then implementation, then PR.\n\nSetup done, worktree clean." }])
+    expect(mapper.flushAssistantMessage()).toEqual([{ kind: "message.complete", role: "narration", content: "Setup done, worktree clean." }])
   })
 
   test("does not add paragraph breaks for dotted identifiers", () => {

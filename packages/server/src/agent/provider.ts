@@ -6,10 +6,12 @@ import type { AgentConfigOption, AgentContentBlock, AgentPlanEntry, AgentSlashCo
 
 export type { PromptImage }
 
+export type AgentStreamRole = "assistant" | "narration"
+
 /** Normalized events emitted by configured ACP agents */
 export type AgentEvent =
-  | { kind: "message.streaming"; content: string; messageId?: string }
-  | { kind: "message.complete"; role: "assistant" | "user"; content: string; messageId?: string; images?: PromptImage[]; imagePaths?: string[] }
+  | { kind: "message.streaming"; role?: AgentStreamRole; content: string; messageId?: string }
+  | { kind: "message.complete"; role: AgentStreamRole | "user"; content: string; messageId?: string; images?: PromptImage[]; imagePaths?: string[] }
   | { kind: "status"; status: "idle" | "working" }
   | { kind: "error"; message: string }
   | { kind: "tool.start"; toolName: string; toolCallId?: string; toolInput?: string }

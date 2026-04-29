@@ -152,6 +152,7 @@ export function deriveStreamingStatusLabel(group: TimelineGroup): string {
     }
 
     if (item.data.role === "thinking") return "Thinking"
+    if (item.data.role === "narration") return "Narration"
     if (item.data.role === "assistant" && item.data.content.trim().length > 0) return "Writing response"
   }
 
