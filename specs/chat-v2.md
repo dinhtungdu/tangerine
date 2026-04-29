@@ -1,6 +1,10 @@
 # Chat V2 Architecture
 
-Rewrite of chat/message handling based on study of open-agents, t3code, and zed.
+Rewrite of chat/message handling based on study of:
+- **zed-industries/zed** — primary reference (also uses ACP)
+- **formulahendry/vscode-acp** — ACP client reference
+- **vercel-labs/open-agents** — parts-based model
+- **pingdotgg/t3code** — streaming flags, work log separation
 
 ## Current Problems
 
@@ -9,162 +13,232 @@ Rewrite of chat/message handling based on study of open-agents, t3code, and zed.
 3. **No clear boundary** between streaming and persisted state
 4. **Mixing concerns**: timeline merges messages + activities with timestamp sorting
 
+## ACP Event Types (Reference)
+
+From ACP protocol, the key session update events:
+- `AgentMessageChunk` — assistant text delta
+- `AgentThoughtChunk` — thinking delta
+- `ToolCall` — tool use started
+- `ToolCallUpdate` — tool status/result
+- `UserMessageChunk` — user message (echo)
+
+Zed's approach: **direct mapping** from ACP events to internal model, no intermediate buffering.
+
 ## Design Principles (from research)
 
 | Pattern | Source | Adopt? |
 |---------|--------|--------|
-| Parts/blocks in message | open-agents, zed | Yes |
-| Thinking as separate activity | t3code | No - keep in message |
+| Direct ACP event mapping | zed | Yes |
+| Chunks in message (Message/Thought) | zed | Yes |
 | Adjacent same-type coalescing | zed | Yes |
-| Streaming state on part | open-agents | Yes |
-| Per-block expansion | zed | Yes |
+| Generate own messageIds | zed, vscode-acp | Yes |
+| Per-chunk expansion | zed | Yes |
 | Persist after completion | open-agents | Yes |
+| Thinking in collapsible with duration | vscode-acp | Yes |
 
-## New Message Model
+## New Message Model (Zed-aligned)
 
 ```typescript
 // shared/types.ts
 
-type MessagePart =
-  | { type: "text"; content: string }
-  | { type: "thinking"; content: string; signature?: string }
-  | { type: "tool_use"; toolName: string; toolUseId: string; input: unknown }
-  | { type: "tool_result"; toolUseId: string; content: string; isError?: boolean }
+// Matches Zed's AssistantMessageChunk
+type MessageChunk =
+  | { type: "message"; content: string }   // AgentMessageChunk
+  | { type: "thought"; content: string }   // AgentThoughtChunk
 
-type PartState = "streaming" | "done"
+// Thread entry types (like Zed's AgentThreadEntry)
+type ThreadEntry =
+  | { kind: "user"; id: string; content: string; timestamp: string; images?: MessageImage[] }
+  | { kind: "assistant"; id: string; chunks: MessageChunk[]; timestamp: string; streaming: boolean }
+  | { kind: "tool_call"; id: string; toolCallId: string; toolName: string; input: unknown; status: "running" | "done" | "error"; result?: string }
+  | { kind: "plan"; id: string; entries: PlanEntry[]; timestamp: string }
 
-interface ChatMessage {
-  id: string
-  role: "user" | "assistant" | "system"
-  parts: MessagePart[]
-  partStates: PartState[]  // parallel array, same length as parts
-  timestamp: string
-  images?: MessageImage[]
-}
+// Note: No messageId from ACP - we generate our own UUIDs
 ```
 
-## Streaming Model
+Key differences from current:
+- **Chunks not parts** — closer to Zed terminology
+- **`message` vs `thought`** — matches ACP event names
+- **`streaming` flag on entry** — not per-chunk state
+- **Tool calls as separate entries** — like Zed's `ToolCall` entry type
 
-Single source of truth: **client accumulates parts, server persists on completion**.
+## Streaming Model (Zed-aligned)
 
-### Server → Client Events
+**Direct ACP event mapping** — no intermediate server-side buffering.
+
+### ACP Event → Internal Event
 
 ```typescript
-// New event types (replace current thinking.streaming etc)
+// acp-provider.ts - direct mapping like Zed's handle_session_update()
 
-type StreamEvent =
-  | { type: "part.delta"; messageId: string; partIndex: number; partType: MessagePart["type"]; delta: string }
-  | { type: "part.done"; messageId: string; partIndex: number }
-  | { type: "message.done"; messageId: string; parts: MessagePart[] }
+function handleSessionUpdate(update: AcpSessionUpdate, state: StreamState): InternalEvent[] {
+  switch (update.type) {
+    case "agent_message_chunk":
+      return [pushAssistantChunk(state, "message", update.content)]
+    
+    case "agent_thought_chunk":
+      return [pushAssistantChunk(state, "thought", update.content)]
+    
+    case "tool_call":
+      return [{ kind: "tool_call.start", ...update }]
+    
+    case "tool_call_update":
+      return [{ kind: "tool_call.update", ...update }]
+    
+    case "prompt_end":
+      return [{ kind: "assistant.done", messageId: state.messageId }]
+  }
+}
 ```
 
 ### Coalescing Rule (from Zed)
 
-When receiving `part.delta`:
-1. If `partIndex` matches last part AND same `partType` → append to existing
-2. Else → create new part at `partIndex`
+```typescript
+// Like Zed's push_assistant_content_block()
 
-This means server assigns `partIndex` and client trusts it. Server increments `partIndex` when:
-- Part type changes (text → thinking → text)
-- Tool boundary (tool_use, tool_result are always new parts)
+function pushAssistantChunk(
+  state: StreamState,
+  chunkType: "message" | "thought",
+  delta: string
+): InternalEvent {
+  // If last chunk same type → append, else new chunk
+  if (state.lastChunkType === chunkType) {
+    return { kind: "chunk.delta", messageId: state.messageId, chunkIndex: state.chunkIndex, delta }
+  }
+  
+  // Type changed → new chunk
+  state.chunkIndex++
+  state.lastChunkType = chunkType
+  return { kind: "chunk.start", messageId: state.messageId, chunkIndex: state.chunkIndex, chunkType, delta }
+}
+```
 
-### Server-Side (Simplified)
-
-Remove `task-state.ts` active stream buffering. ACP provider emits events with `partIndex`:
+### Server → Client Events
 
 ```typescript
-// acp-provider.ts - event mapper
+// Simplified event types
 
-interface StreamState {
-  messageId: string
-  partIndex: number
-  lastPartType: MessagePart["type"] | null
-}
-
-function nextPartIndex(state: StreamState, partType: MessagePart["type"]): number {
-  if (state.lastPartType === partType && partType !== "tool_use" && partType !== "tool_result") {
-    return state.partIndex  // same part, append
-  }
-  state.partIndex++
-  state.lastPartType = partType
-  return state.partIndex
-}
+type StreamEvent =
+  | { type: "chunk.start"; messageId: string; chunkIndex: number; chunkType: "message" | "thought"; content: string }
+  | { type: "chunk.delta"; messageId: string; chunkIndex: number; content: string }
+  | { type: "assistant.done"; messageId: string }
+  | { type: "tool_call.start"; toolCallId: string; toolName: string; input: unknown }
+  | { type: "tool_call.update"; toolCallId: string; status: string; result?: string }
 ```
 
 ### Client-Side
 
 ```typescript
-// hooks/useMessageParts.ts
+// hooks/useThread.ts - like Zed's handle for AcpThreadEvent
 
-function applyPartDelta(
-  messages: ChatMessage[],
-  event: { messageId: string; partIndex: number; partType: string; delta: string }
-): ChatMessage[] {
-  const msgIdx = messages.findIndex(m => m.id === event.messageId)
-  if (msgIdx === -1) {
-    // New message
-    return [...messages, {
-      id: event.messageId,
-      role: "assistant",
-      parts: [{ type: event.partType, content: event.delta }],
-      partStates: ["streaming"],
-      timestamp: new Date().toISOString(),
-    }]
-  }
-  
-  return messages.map((msg, i) => {
-    if (i !== msgIdx) return msg
-    const parts = [...msg.parts]
-    const states = [...msg.partStates]
-    
-    if (event.partIndex < parts.length) {
-      // Append to existing part
-      parts[event.partIndex] = {
-        ...parts[event.partIndex],
-        content: parts[event.partIndex].content + event.delta,
-      }
-    } else {
-      // New part
-      parts.push({ type: event.partType, content: event.delta })
-      states.push("streaming")
+function applyStreamEvent(entries: ThreadEntry[], event: StreamEvent): ThreadEntry[] {
+  switch (event.type) {
+    case "chunk.start": {
+      const entry = findOrCreateAssistant(entries, event.messageId)
+      entry.chunks.push({ type: event.chunkType, content: event.content })
+      entry.streaming = true
+      return [...entries]
     }
     
-    return { ...msg, parts, partStates: states }
-  })
+    case "chunk.delta": {
+      const entry = findAssistant(entries, event.messageId)
+      if (!entry) return entries
+      const chunk = entry.chunks[event.chunkIndex]
+      if (chunk) chunk.content += event.content
+      return [...entries]
+    }
+    
+    case "assistant.done": {
+      const entry = findAssistant(entries, event.messageId)
+      if (entry) entry.streaming = false
+      return [...entries]
+    }
+    
+    // ... tool_call handlers
+  }
 }
 ```
+
+### No Server-Side Buffering
+
+Remove `task-state.ts` active stream tracking entirely. The acp-provider:
+1. Receives ACP events
+2. Maps directly to internal events
+3. Emits to WebSocket
+4. Client accumulates
+
+Persistence happens only on `assistant.done` or `tool_call.update` with final status.
 
 ## UI Rendering
 
 ### Timeline Structure
 
-Keep current `TimelineGroup` concept but simplify:
+Simplified — entries are the timeline:
 
 ```typescript
-type TimelineItem =
-  | { kind: "message"; data: ChatMessage }
-  | { kind: "activity"; data: ActivityEntry }  // tool calls stay as activities
+// ThreadEntry[] IS the timeline
+// No separate TimelineGroup/TimelineItem abstraction needed
 
-// Group: user message OR assistant message + its activities
+// Render order: entries in array order (server maintains correct order)
+entries.map(entry => {
+  switch (entry.kind) {
+    case "user": return <UserMessage entry={entry} />
+    case "assistant": return <AssistantMessage entry={entry} />
+    case "tool_call": return <ToolCallDisplay entry={entry} />
+    case "plan": return <PlanDisplay entry={entry} />
+  }
+})
 ```
 
-### Thinking Block Expansion
+### Thinking Chunk Rendering (Zed + vscode-acp hybrid)
 
-Per-part expansion state (like Zed):
+Per-chunk expansion state with duration display:
 
 ```typescript
 // In AssistantMessage component
-const [expandedParts, setExpandedParts] = useState<Set<number>>(new Set())
+interface ThoughtState {
+  expanded: boolean
+  startTime: number | null
+  duration: number | null  // seconds, set when streaming ends
+}
 
-// Auto-expand streaming thinking, collapse when done
+const [thoughtStates, setThoughtStates] = useState<Map<number, ThoughtState>>(new Map())
+
+// Auto-expand streaming thought, track duration
 useEffect(() => {
-  const streamingThinkingIdx = message.parts.findIndex(
-    (p, i) => p.type === "thinking" && message.partStates[i] === "streaming"
-  )
-  if (streamingThinkingIdx >= 0) {
-    setExpandedParts(prev => new Set([...prev, streamingThinkingIdx]))
-  }
-}, [message.parts, message.partStates])
+  entry.chunks.forEach((chunk, idx) => {
+    if (chunk.type !== "thought") return
+    
+    const state = thoughtStates.get(idx)
+    if (!state && entry.streaming) {
+      // New streaming thought → expand, start timer
+      setThoughtStates(prev => new Map(prev).set(idx, {
+        expanded: true,
+        startTime: Date.now(),
+        duration: null,
+      }))
+    } else if (state?.startTime && !entry.streaming && state.duration === null) {
+      // Streaming ended → calculate duration, collapse
+      setThoughtStates(prev => new Map(prev).set(idx, {
+        expanded: false,
+        startTime: state.startTime,
+        duration: Math.round((Date.now() - state.startTime) / 1000),
+      }))
+    }
+  })
+}, [entry.chunks, entry.streaming])
+
+// Render: "Thought for 5s" (collapsed) or full content (expanded)
+```
+
+### Expansion Modes (from Zed)
+
+```typescript
+type ThinkingDisplayMode = "auto" | "preview" | "always_expanded" | "always_collapsed"
+
+// auto: expand while streaming, collapse after
+// preview: show first N lines always
+// always_expanded/collapsed: user preference
 ```
 
 ## Persistence
