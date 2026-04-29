@@ -183,4 +183,5 @@ Notable UI features:
 - [tasks.md](./tasks.md)
 - [web.md](./web.md)
 - [cli.md](./cli.md)
+- [chat-streaming-improvement-plan.md](./chat-streaming-improvement-plan.md)
 - [v1-local-server.md](./v1-local-server.md)
