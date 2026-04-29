@@ -15,16 +15,11 @@ History + PID files (tmpdir, per-task)
 ```
 
 The command terminal pane uses `WS /api/tasks/:id/terminal` and always starts a
-shell in the worktree. The task-detail Chat/TUI switch uses
-`WS /api/tasks/:id/agent-terminal`; that route starts the selected agent's
-native TUI resume command for `agent_session_id`. These are separate PTY
-sessions and separate scrollback/PID files. Agent TUI launches inherit the
-configured agent `env`, with `tui.env` overriding duplicate keys.
+shell in the worktree.
 
 ## Session lifecycle
 
-- One `TerminalSession` per task and terminal kind, keyed by `taskId` plus
-  either `shell` or `agent`.
+- One `TerminalSession` per task, keyed by `taskId`.
 - Session is created on first WebSocket connect for a task. Subsequent connects reuse it.
 - Session stays alive when all WebSocket clients disconnect — the shell is kept running so state (cwd, env, running commands) is preserved across browser tab closes.
 - Session is destroyed only by `clearTerminalSession(taskId)`, called during task cleanup.
@@ -63,8 +58,7 @@ configured agent `env`, with `tui.env` overriding duplicate keys.
 ## Connection flow
 
 1. WebSocket opens → if auth enabled, client sends `auth` (5s timeout)
-2. Server calls `getOrCreateSession(taskId, kind, launch)` — spawns shell or
-   agent TUI if not running
+2. Server calls `getOrCreateSession(taskId, launch)` — spawns shell if not running
 3. Server sends `scrollback` with history, then marks client ready
 4. Server sends any buffered output that arrived during step 3, then `connected`
 5. Live `output` messages stream in real-time

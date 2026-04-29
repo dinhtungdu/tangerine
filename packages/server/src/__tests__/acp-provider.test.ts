@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, test } from "bun:test"
 import { Effect } from "effect"
-import { existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync, mkdirSync } from "node:fs"
+import { mkdtempSync, readFileSync, rmSync, writeFileSync, mkdirSync } from "node:fs"
 import { join } from "node:path"
 import { pathToFileURL } from "node:url"
 import { tmpdir } from "node:os"
@@ -23,7 +23,6 @@ const originalAcpCommand = process.env.TANGERINE_ACP_COMMAND
 afterEach(() => {
   if (originalAcpCommand === undefined) delete process.env.TANGERINE_ACP_COMMAND
   else process.env.TANGERINE_ACP_COMMAND = originalAcpCommand
-  delete process.env.TANGERINE_ACP_INIT_FILE
   delete process.env.TANGERINE_ACP_SET_CONFIG_COUNT_FILE
 })
 
@@ -594,52 +593,6 @@ describe("createAcpProvider", () => {
     rmSync(tempDir, { recursive: true, force: true })
   })
 
-  test("loads ACP session history in a one-shot process", async () => {
-    const tempDir = mkdtempSync(join(tmpdir(), "tangerine-acp-history-"))
-    const scriptPath = join(tempDir, "mock-acp-agent.js")
-    writeFileSync(scriptPath, mockHistoryLoadAcpAgentScript, "utf-8")
-
-    process.env.TANGERINE_ACP_COMMAND = `bun ${scriptPath}`
-    const provider = createAcpProvider()
-    const loader = (provider as typeof provider & {
-      loadSessionHistory?: (ctx: { taskId: string; workdir: string; sessionId: string }) => Effect.Effect<AgentEvent[], unknown>
-    }).loadSessionHistory
-
-    expect(typeof loader).toBe("function")
-    const events = await Effect.runPromise(loader!({ taskId: "task-acp", workdir: tempDir, sessionId: "sess-old" }))
-
-    expect(events).toEqual([
-      { kind: "message.complete", role: "user", content: "Hi", messageId: "user-1" },
-      { kind: "message.complete", role: "assistant", content: "Hello", messageId: "assistant-1" },
-    ])
-
-    rmSync(tempDir, { recursive: true, force: true })
-  })
-
-  test("history loading does not advertise or service file writes", async () => {
-    const tempDir = mkdtempSync(join(tmpdir(), "tangerine-acp-history-readonly-"))
-    const scriptPath = join(tempDir, "mock-acp-agent.js")
-    const initPath = join(tempDir, "init.json")
-    const mutatedPath = join(tempDir, "history-load-mutated.txt")
-    writeFileSync(scriptPath, mockHistoryLoadWriteProbeAcpAgentScript, "utf-8")
-
-    process.env.TANGERINE_ACP_COMMAND = `bun ${scriptPath}`
-    process.env.TANGERINE_ACP_INIT_FILE = initPath
-    const provider = createAcpProvider()
-    const loader = (provider as typeof provider & {
-      loadSessionHistory?: (ctx: { taskId: string; workdir: string; sessionId: string }) => Effect.Effect<AgentEvent[], unknown>
-    }).loadSessionHistory
-
-    expect(typeof loader).toBe("function")
-    await Effect.runPromise(loader!({ taskId: "task-acp", workdir: tempDir, sessionId: "sess-old" }))
-
-    const init = JSON.parse(readFileSync(initPath, "utf-8")) as { clientCapabilities?: { fs?: Record<string, boolean> } }
-    expect(init.clientCapabilities?.fs).toEqual({ readTextFile: true })
-    expect(existsSync(mutatedPath)).toBe(false)
-
-    rmSync(tempDir, { recursive: true, force: true })
-  })
-
   test("falls back to fresh ACP sessions when resume and load are unsupported", async () => {
     const tempDir = mkdtempSync(join(tmpdir(), "tangerine-acp-fresh-"))
     const scriptPath = join(tempDir, "mock-acp-agent.js")
@@ -1112,53 +1065,6 @@ rl.on("line", (line) => {
   }
   if (msg.method === "session/close") {
     send({ jsonrpc: "2.0", id: msg.id, result: {} })
-  }
-})
-`
-
-const mockHistoryLoadAcpAgentScript = `
-const readline = require("node:readline")
-const rl = readline.createInterface({ input: process.stdin })
-function send(message) { process.stdout.write(JSON.stringify(message) + "\\n") }
-rl.on("line", (line) => {
-  const msg = JSON.parse(line)
-  if (msg.method === "initialize") {
-    send({ jsonrpc: "2.0", id: msg.id, result: { protocolVersion: 1, agentCapabilities: { loadSession: true, sessionCapabilities: { close: {} } }, authMethods: [] } })
-    return
-  }
-  if (msg.method === "session/load") {
-    send({ jsonrpc: "2.0", method: "session/update", params: { sessionId: "sess-old", update: { sessionUpdate: "user_message_chunk", messageId: "user-1", content: { type: "text", text: "Hi" } } } })
-    send({ jsonrpc: "2.0", method: "session/update", params: { sessionId: "sess-old", update: { sessionUpdate: "agent_message_chunk", messageId: "assistant-1", content: { type: "text", text: "Hel" } } } })
-    send({ jsonrpc: "2.0", method: "session/update", params: { sessionId: "sess-old", update: { sessionUpdate: "agent_message_chunk", messageId: "assistant-1", content: { type: "text", text: "lo" } } } })
-    send({ jsonrpc: "2.0", id: msg.id, result: {} })
-    return
-  }
-  if (msg.method === "session/close") {
-    send({ jsonrpc: "2.0", id: msg.id, result: {} })
-  }
-})
-`
-
-const mockHistoryLoadWriteProbeAcpAgentScript = `
-const fs = require("node:fs")
-const readline = require("node:readline")
-const rl = readline.createInterface({ input: process.stdin })
-function send(message) { process.stdout.write(JSON.stringify(message) + "\\n") }
-let loadId = null
-rl.on("line", (line) => {
-  const msg = JSON.parse(line)
-  if (msg.id === "write-probe") {
-    send({ jsonrpc: "2.0", id: loadId, result: {} })
-    return
-  }
-  if (msg.method === "initialize") {
-    fs.writeFileSync(process.env.TANGERINE_ACP_INIT_FILE, JSON.stringify(msg.params))
-    send({ jsonrpc: "2.0", id: msg.id, result: { protocolVersion: 1, agentCapabilities: { loadSession: true }, authMethods: [] } })
-    return
-  }
-  if (msg.method === "session/load") {
-    loadId = msg.id
-    send({ jsonrpc: "2.0", id: "write-probe", method: "fs/write_text_file", params: { path: "history-load-mutated.txt", content: "mutated" } })
   }
 })
 `

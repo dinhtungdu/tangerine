@@ -29,7 +29,6 @@ describe("ACP agent config", () => {
         command: "codex-acp",
         args: ["--model", "gpt-5"],
         env: { FOO: "bar" },
-        tui: { command: "codex", args: ["resume", "{sessionId}"], env: { SESSION: "{sessionId}" } },
       },
     ])
     expect(config.projects[0]?.defaultAgent).toBe("codex")

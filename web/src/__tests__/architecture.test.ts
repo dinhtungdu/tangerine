@@ -104,4 +104,27 @@ describe("architecture", () => {
 
     expect(violations).toEqual([])
   })
+
+  test("chat to agent TUI handoff is absent from web code", async () => {
+    const files = await getAllFiles(WEB_SRC)
+    const violations: string[] = []
+
+    for (const file of files) {
+      if (file.includes("__tests__")) continue
+      const content = await Bun.file(file).text()
+      const relativePath = file.replace(WEB_SRC + "/", "")
+      const patterns = [
+        { regex: /TaskViewMode/g, label: "task view mode switch" },
+        { regex: /TaskChatSurface/g, label: "chat/TUI surface swap" },
+        { regex: /agent-terminal/g, label: "agent terminal handoff" },
+        { regex: /syncFromAgent|syncTaskSession/g, label: "agent TUI return sync" },
+      ]
+
+      for (const { regex, label } of patterns) {
+        if (regex.test(content)) violations.push(`${relativePath}: uses ${label}`)
+      }
+    }
+
+    expect(violations).toEqual([])
+  })
 })

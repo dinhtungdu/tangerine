@@ -81,12 +81,6 @@ specs/
 4. ACP `session/update` events are mapped and forwarded to WebSocket clients, activity logs, session logs, and in-memory active stream snapshots for mid-turn task reloads.
 5. Task row mutations emit task-list WebSocket invalidations so the dashboard refreshes runs/sidebar data without interval polling.
 6. The task can be prompted, aborted, reconfigured, retried, completed, cancelled, or reconnected after restart.
-7. When the dashboard needs to repair chat history after a user has been away from
-   the chat pane, Tangerine may run a short-lived ACP `session/load` import for
-   the task's `agent_session_id`. The import deduplicates rows with stable
-   message IDs, backfills matching chat-authored user rows that lacked ACP ids,
-   and never exposes file writes; it does not replace the live task handle or use
-   `session/resume`.
 
 ## Access Model
 
@@ -138,9 +132,8 @@ Tangerine should not maintain provider-specific agent protocols. The runtime own
 - applies model/reasoning/mode changes through ACP `session/set_config_option`
 
 ACP `session_logs` remain Tangerine's persisted chat source of truth. ACP
-`session/load` is an optional sync/repair source for existing sessions; ACP
-`session/resume` is only used to continue agent context and must not be treated
-as a history source.
+`session/load` may be used only as a session-continuation fallback when
+`session/resume` is unavailable; it is not a dashboard history-repair path.
 
 Legacy provider runtime files have been removed. See [ACP Migration](./acp-migration.md).
 

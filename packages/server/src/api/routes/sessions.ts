@@ -9,7 +9,6 @@ import { TaskNotFoundError } from "../../errors"
 import { getProjectConfig, getRepoDir, TANGERINE_HOME } from "../../config"
 import { getActiveStreamMessages, getTaskState } from "../../tasks/task-state"
 import { editQueuedPrompt, getQueuedPrompts, removeQueuedPrompt, takeQueuedPrompt, getAgentState } from "../../agent/prompt-queue"
-import { syncConversationFromAcp } from "../../tasks/session-sync"
 
 function gitDiff(cmd: string, cwd: string): Effect.Effect<string, never> {
   return Effect.tryPromise({
@@ -119,13 +118,6 @@ export function sessionRoutes(deps: AppDeps): Hono {
     return new Response(file, {
       headers: { "Content-Type": file.type, "Cache-Control": "public, max-age=31536000, immutable" },
     })
-  })
-
-  app.post("/:id/sync-session", (c) => {
-    return runEffect(c,
-      syncConversationFromAcp(deps, c.req.param("id")),
-      { errorMap: { SessionStartError: 502 } },
-    )
   })
 
   app.get("/:id/queue", (c) => {

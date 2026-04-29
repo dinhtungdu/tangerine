@@ -53,8 +53,8 @@ Stored in `tangerine.json` at the project root (or `~/.config/tangerine/config.j
 {
   "projects": [...],
   "agents": [
-    { "id": "claude", "name": "Claude Agent", "command": "bunx", "args": ["--bun", "@agentclientprotocol/claude-agent-acp"], "tui": { "command": "claude", "args": ["--resume", "{sessionId}"] } },
-    { "id": "codex", "name": "Codex", "command": "bunx", "args": ["--bun", "@zed-industries/codex-acp"], "tui": { "command": "codex", "args": ["resume", "{sessionId}"] } },
+    { "id": "claude", "name": "Claude Agent", "command": "bunx", "args": ["--bun", "@agentclientprotocol/claude-agent-acp"] },
+    { "id": "codex", "name": "Codex", "command": "bunx", "args": ["--bun", "@zed-industries/codex-acp"] },
     { "id": "opencode", "name": "OpenCode", "command": "bunx", "args": ["--bun", "opencode-ai", "acp"] },
     { "id": "pi", "name": "Pi", "command": "bunx", "args": ["--bun", "pi-acp"] }
   ],
@@ -94,8 +94,6 @@ Known ACP adapter examples:
 | `pi` | `bunx --bun pi-acp` or global `pi-acp` |
 
 These are examples only. Tangerine accepts any ACP-compatible command and expects each underlying agent to be installed/authenticated outside Tangerine.
-
-Agent entries may include `tui.command`, `tui.args`, and `tui.env` for task detail Chat/TUI handoff. Values support `{sessionId}` and `{worktree}` placeholders. TUI launches inherit the base agent `env`; `tui.env` overrides duplicate keys.
 
 When `sshHost` and `editor` are set, the web dashboard shows "Open in {editor}" links on task cards and the task detail page for tasks with worktrees. `sshUser` is required for Zed links.
 

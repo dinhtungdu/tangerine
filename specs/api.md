@@ -201,12 +201,9 @@ The runs list/sidebar use this global stream for live invalidation instead of in
 
 ```text
 WS /api/tasks/:id/terminal
-WS /api/tasks/:id/agent-terminal
 ```
 
-`/terminal` backs the dashboard command terminal pane. `/agent-terminal` backs
-the task-detail Chat/TUI switch and resumes the selected agent's native TUI for
-the task `agentSessionId`.
+`/terminal` backs the dashboard command terminal pane and starts a shell in the task worktree.
 
 Server messages:
 
