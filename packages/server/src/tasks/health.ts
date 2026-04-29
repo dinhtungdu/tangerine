@@ -245,8 +245,8 @@ function checkIdleTimeout(
     // true after the stall-aware status flips idle; only bypass suspension when
     // there is active progress or a running tool for the hung-tool watchdog.
     if (deps.isAgentWorkingRaw(task.id)) {
-      if (deps.isAgentWorking(task.id)) return
       if (deps.getLastRunningActivityTime(task.id)) return
+      if (deps.isAgentWorking(task.id)) return
     }
 
     const lastMsgTime = deps.getLastUserMessageTime(task.id)

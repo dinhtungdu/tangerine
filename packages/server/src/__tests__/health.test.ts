@@ -434,6 +434,30 @@ describe("idle timeout", () => {
     clearTaskState(taskId)
   })
 
+  test("stalled raw-working tool is still aborted after effective status reset", async () => {
+    const taskId = "hung-tool-after-effective-reset-test"
+    const task = makeTask({ id: taskId })
+    const suspendFn = mock(() => Effect.void)
+    const abortFn = mock(() => Effect.void)
+    let rawWorking = true
+    const deps = makeDeps({
+      listRunningTasks: () => Effect.succeed([task]),
+      suspendAgent: suspendFn,
+      abortHungTool: abortFn,
+      isAgentWorkingRaw: () => rawWorking,
+      isAgentWorking: () => {
+        rawWorking = false
+        return false
+      },
+      getLastUserMessageTime: () => new Date(Date.now() - 660_000).toISOString(),
+      getLastRunningActivityTime: () => new Date(Date.now() - 360_000).toISOString(),
+    })
+    await Effect.runPromise(checkAllTasks(deps))
+    expect(suspendFn).toHaveBeenCalledTimes(0)
+    expect(abortFn).toHaveBeenCalledTimes(1)
+    clearTaskState(taskId)
+  })
+
   test("stalled raw-working prompt without running tool can idle-suspend", async () => {
     const taskId = "idle-stalled-prompt-test"
     const task = makeTask({ id: taskId })
