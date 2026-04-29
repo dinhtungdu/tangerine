@@ -30,7 +30,6 @@ interface ChatMessageProps {
   message: ChatMessageType
   tasks?: ReadonlyArray<{ id: string }>
   onReply?: (content: string) => void
-  onOpenTerminal?: () => void
   isThinkingActive?: boolean
   thinkingDuration?: number
 }
@@ -353,39 +352,25 @@ function GenericContentBlockCard({ message, block }: { message: ChatMessageType;
   )
 }
 
-function TerminalContentBlockCard({ message, block, onOpenTerminal }: { message: ChatMessageType; block: AgentContentBlock; onOpenTerminal?: () => void }) {
+function TerminalContentBlockCard({ message, block }: { message: ChatMessageType; block: AgentContentBlock }) {
   const terminal = getTerminalBlock(block)
   if (!terminal) return null
   return (
     <ContentBlockFrame label="Terminal" timestamp={message.timestamp} icon={<Terminal />}>
-      <div className="flex flex-wrap items-center gap-2 rounded-md border border-border bg-background px-2.5 py-2">
-        <div className="min-w-0 flex-1">
-          <div className="break-words font-mono text-xs font-medium text-foreground">{terminal.terminalId}</div>
-          <div className="mt-1 text-2xs text-muted-foreground">Live terminal output is available in the terminal pane when attached.</div>
-        </div>
-        {onOpenTerminal && (
-          <Button
-            type="button"
-            variant="outline"
-            size="xs"
-            onClick={onOpenTerminal}
-            className="shrink-0 gap-1"
-          >
-            <Terminal className="h-3.5 w-3.5" aria-hidden="true" />
-            Open Terminal
-          </Button>
-        )}
+      <div className="rounded-md border border-border bg-background px-2.5 py-2">
+        <div className="break-words font-mono text-xs font-medium text-foreground">{terminal.terminalId}</div>
+        <div className="mt-1 text-2xs text-muted-foreground">Agent terminal session recorded by the provider.</div>
       </div>
     </ContentBlockFrame>
   )
 }
 
-function ContentBlockMessage({ message, onOpenTerminal }: { message: ChatMessageType; onOpenTerminal?: () => void }) {
+function ContentBlockMessage({ message }: { message: ChatMessageType }) {
   const block = getContentBlock(message)
   if (!block) return null
   if (block.type === "text") return null
   if (block.type === "diff") return <DiffContentBlockCard message={message} block={block} />
-  if (block.type === "terminal") return <TerminalContentBlockCard message={message} block={block} onOpenTerminal={onOpenTerminal} />
+  if (block.type === "terminal") return <TerminalContentBlockCard message={message} block={block} />
   return <GenericContentBlockCard message={message} block={block} />
 }
 
@@ -427,7 +412,7 @@ function PlanMessage({ message }: { message: ChatMessageType }) {
   )
 }
 
-export const ChatMessage = memo(function ChatMessage({ message, tasks, onReply, onOpenTerminal, isThinkingActive = false, thinkingDuration }: ChatMessageProps) {
+export const ChatMessage = memo(function ChatMessage({ message, tasks, onReply, isThinkingActive = false, thinkingDuration }: ChatMessageProps) {
   const navigate = useNavigate()
   const [lightboxIndex, setLightboxIndex] = useState<number | null>(null)
   const handleLinkClick = useCallback(
@@ -586,7 +571,7 @@ export const ChatMessage = memo(function ChatMessage({ message, tasks, onReply, 
   }
 
   if (isContentBlock) {
-    return <ContentBlockMessage message={message} onOpenTerminal={onOpenTerminal} />
+    return <ContentBlockMessage message={message} />
   }
 
   // Agent message

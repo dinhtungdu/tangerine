@@ -54,12 +54,19 @@ export const taskTypesSchema = z.object({
   reviewer: taskTypeConfigSchema.optional(),
 })
 
+const agentTuiConfigSchema = z.object({
+  command: z.string().min(1),
+  args: z.array(z.string()).optional(),
+  env: z.record(z.string()).optional(),
+})
+
 export const agentConfigSchema = z.object({
   id: z.string().min(1),
   name: z.string().min(1),
   command: z.string().min(1),
   args: z.array(z.string()).optional(),
   env: z.record(z.string()).optional(),
+  tui: agentTuiConfigSchema.optional(),
 })
 
 export const projectConfigSchema = z.object({

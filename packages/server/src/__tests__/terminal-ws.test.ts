@@ -1,5 +1,6 @@
 import { describe, expect, test } from "bun:test"
-import { bufferTerminalOutput, drainPendingTerminalOutput } from "../api/routes/terminal-ws"
+import type { AgentConfig } from "@tangerine/shared"
+import { bufferTerminalOutput, drainPendingTerminalOutput, resolveAgentTuiLaunch, terminalSessionKey } from "../api/routes/terminal-ws"
 
 describe("bufferTerminalOutput", () => {
   test("buffers live shadow output while a reconnecting client is replaying scrollback", () => {
@@ -58,5 +59,41 @@ describe("reconnect sequencing", () => {
 
     expect(bufferTerminalOutput(client, "after ready\r\n")).toBe("after ready\r\n")
     expect(client.pendingOutput).toBe("")
+  })
+})
+
+describe("agent TUI launch", () => {
+  test("uses explicit agent TUI config with placeholders", () => {
+    const agent: AgentConfig = {
+      id: "custom",
+      name: "Custom",
+      command: "custom-acp",
+      tui: {
+        command: "custom",
+        args: ["resume", "{sessionId}", "--cwd", "{worktree}"],
+        env: { ACTIVE_SESSION: "{sessionId}", ACTIVE_WORKTREE: "{worktree}" },
+      },
+    }
+
+    expect(resolveAgentTuiLaunch(agent, "sess-123", "/tmp/worktree")).toEqual({
+      command: "custom",
+      args: ["resume", "sess-123", "--cwd", "/tmp/worktree"],
+      env: { ACTIVE_SESSION: "sess-123", ACTIVE_WORKTREE: "/tmp/worktree" },
+    })
+  })
+
+  test("infers Codex TUI resume from common ACP adapter command", () => {
+    const agent: AgentConfig = { id: "codex", name: "Codex", command: "codex-acp" }
+
+    expect(resolveAgentTuiLaunch(agent, "sess-codex", "/tmp/worktree")).toEqual({
+      command: "codex",
+      args: ["resume", "sess-codex"],
+      env: undefined,
+    })
+  })
+
+  test("keeps shell and agent terminal sessions isolated", () => {
+    expect(terminalSessionKey("task-1", "shell")).toBe("shell:task-1")
+    expect(terminalSessionKey("task-1", "agent")).toBe("agent:task-1")
   })
 })

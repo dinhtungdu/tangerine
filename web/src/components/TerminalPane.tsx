@@ -118,7 +118,7 @@ export function TerminalPane(props: TerminalPaneProps) {
         } else if (msg.type === "exit") {
           term.writeln(`\r\n[Process exited with code ${msg.code}]`)
         } else if (msg.type === "error") {
-          if (msg.message?.includes("no worktree")) {
+          if (msg.message?.includes("no worktree") || msg.message?.includes("not available") || msg.message?.includes("missing session id")) {
             permanentErrorRef.current = true
             setConnState("unavailable")
           } else {

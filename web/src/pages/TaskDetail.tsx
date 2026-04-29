@@ -16,6 +16,7 @@ import { ActivityList } from "../components/ActivityList"
 import { ChangesPanel as DiffSidebar, type DiffComment } from "../components/ChangesPanel"
 import { ResizeHandle, PaneToggle } from "../components/PaneControls"
 import { TerminalPane } from "../components/TerminalPane"
+import { TaskChatSurface, TaskViewModeToggle, shouldSyncAgentTuiOnChatReturn, type TaskViewMode } from "../components/TaskViewMode"
 import { formatPrNumber, formatTaskTitle } from "../lib/format"
 import {
   getResponsiveVisiblePanes,
@@ -63,6 +64,7 @@ export function TaskDetail() {
   const [childTasks, setChildTasks] = useState<Task[]>([])
   const [loading, setLoading] = useState(true)
   const [paneState, setPaneState] = useState<ResponsivePaneState>(() => loadPaneState(id))
+  const [taskViewMode, setTaskViewMode] = useState<TaskViewMode>("chat")
   const { visiblePanes, mobilePane, desktopSyncPane } = paneState
 
   const { current, sshHost, sshUser, editor } = useProject()
@@ -201,27 +203,6 @@ export function TaskDetail() {
 
     setPaneState((prev) => {
       const next = toggleMobilePaneActionState(prev, pane)
-      persistVisiblePanes(next.visiblePanes)
-      return next
-    })
-  }, [persistVisiblePanes])
-
-  const showTerminalPane = useCallback(() => {
-    const isDesktopLayout = desktopPaneProbeRef.current != null && desktopPaneProbeRef.current.offsetParent !== null
-    const isMobileLayout = mobilePaneProbeRef.current != null && mobilePaneProbeRef.current.offsetParent !== null
-    if (isDesktopLayout || !isMobileLayout) {
-      setPaneState((prev) => {
-        if (prev.visiblePanes.has("terminal")) return prev
-        const visiblePanes = new Set(prev.visiblePanes)
-        visiblePanes.add("terminal")
-        persistVisiblePanes(visiblePanes)
-        return { ...prev, visiblePanes }
-      })
-      return
-    }
-
-    setPaneState((prev) => {
-      const next = selectMobilePane(prev, "terminal")
       persistVisiblePanes(next.visiblePanes)
       return next
     })
@@ -408,7 +389,14 @@ export function TaskDetail() {
 
   useEffect(() => {
     setPaneState(loadPaneState(id))
+    setTaskViewMode("chat")
   }, [id])
+
+  useEffect(() => {
+    if (!chatTask?.agentSessionId && taskViewMode !== "chat") {
+      setTaskViewMode("chat")
+    }
+  }, [chatTask?.agentSessionId, taskViewMode])
 
   // Mark task as seen on view, whenever it updates while viewing, and on leave
   useEffect(() => {
@@ -444,16 +432,15 @@ export function TaskDetail() {
     () => getResponsiveVisiblePanes(visiblePanes, desktopSyncPane),
     [desktopSyncPane, visiblePanes],
   )
-  const chatVisible = Boolean(chatTask && (mobilePane === "chat" || responsiveVisiblePanes.has("chat")))
-  const terminalVisible = mobilePane === "terminal" || responsiveVisiblePanes.has("terminal")
-  const terminalOnlyRef = useRef(false)
+  const agentTuiActiveRef = useRef(false)
+  const canSyncAgentTui = shouldSyncAgentTuiOnChatReturn(chatTask?.status, chatTask?.suspended)
 
   useEffect(() => {
-    if (chatVisible && terminalOnlyRef.current && chatTask?.agentSessionId) {
+    if (taskViewMode === "chat" && agentTuiActiveRef.current && chatTask?.agentSessionId && canSyncAgentTui) {
       session.syncFromAgent().catch(() => {})
     }
-    terminalOnlyRef.current = terminalVisible && !chatVisible
-  }, [chatVisible, terminalVisible, chatTask?.agentSessionId, session.syncFromAgent])
+    agentTuiActiveRef.current = taskViewMode === "tui"
+  }, [taskViewMode, chatTask?.agentSessionId, canSyncAgentTui, session.syncFromAgent])
 
   const PANE_ORDER: PaneId[] = ["chat", "diff", "terminal", "activity"]
   const orderedVisible = PANE_ORDER.filter((p) => responsiveVisiblePanes.has(p) && (p !== "diff" || hasDiff))
@@ -558,6 +545,11 @@ export function TaskDetail() {
               {statusLabel}
             </span>
             <div className="ml-auto flex items-center gap-2">
+              <TaskViewModeToggle
+                value={taskViewMode}
+                agentSessionId={task.agentSessionId}
+                onChange={setTaskViewMode}
+              />
               <div className="flex items-center gap-0.5 rounded-lg bg-muted p-[3px]">
                 <PaneToggle
                   desktopActive={responsiveVisiblePanes.has("chat")}
@@ -665,43 +657,49 @@ export function TaskDetail() {
               mobilePane === "chat" ? "flex-1" : "hidden",
               responsiveVisiblePanes.has("chat") ? "md:flex md:flex-1" : "md:hidden",
             ].join(" ")}>
-              <ChatPanel
-                messages={session.messages}
-                activities={session.activities}
-                tasks={tasks}
-                agentStatus={session.agentStatus}
-                queueLength={session.queueLength}
-                queuedPrompts={session.queuedPrompts}
-                model={chatTask.model}
-                provider={chatTask.provider}
-                reasoningEffort={chatTask.reasoningEffort}
-                taskStatus={chatTask.status}
-                taskError={chatTask.error}
+              <TaskChatSurface
                 taskId={chatTaskId}
-                taskTitle={chatTask.title}
-                onSend={handleSend}
-                onAbort={session.abort}
-                onQueuedPromptUpdate={session.updateQueuedPrompt}
-                onQueuedPromptRemove={session.removeQueuedPrompt}
-                onQueuedPromptClearAll={session.clearAllQueuedPrompts}
-                onQueuedPromptSendNow={session.sendNowQueuedPrompt}
-                onModelChange={handleModelChange}
-                onReasoningEffortChange={handleReasoningEffortChange}
-                onModeChange={handleModeChange}
-                configOptions={session.configOptions}
-                slashCommands={session.slashCommands}
-                predefinedPrompts={resolvedPrompts}
-                onResolve={canResolve ? handleResolve : undefined}
-                canContinue={canContinue}
-                taskBranch={chatTask.status === "cancelled" ? (chatTask.branch ?? undefined) : undefined}
-                taskProjectId={chatTask.projectId}
-                autoFocusKey={chatTaskId}
-                contextTokens={session.contextTokens || undefined}
-                contextWindowMax={session.contextWindowMax ?? undefined}
-                permissionRequest={session.permissionRequest}
-                onPermissionRespond={session.respondToPermission}
-                onOpenTerminal={showTerminalPane}
-              />
+                viewMode={taskViewMode}
+                agentSessionId={chatTask.agentSessionId}
+                terminal={<TerminalPane wsUrl={`/api/tasks/${chatTaskId}/agent-terminal`} />}
+              >
+                <ChatPanel
+                  messages={session.messages}
+                  activities={session.activities}
+                  tasks={tasks}
+                  agentStatus={session.agentStatus}
+                  queueLength={session.queueLength}
+                  queuedPrompts={session.queuedPrompts}
+                  model={chatTask.model}
+                  provider={chatTask.provider}
+                  reasoningEffort={chatTask.reasoningEffort}
+                  taskStatus={chatTask.status}
+                  taskError={chatTask.error}
+                  taskId={chatTaskId}
+                  taskTitle={chatTask.title}
+                  onSend={handleSend}
+                  onAbort={session.abort}
+                  onQueuedPromptUpdate={session.updateQueuedPrompt}
+                  onQueuedPromptRemove={session.removeQueuedPrompt}
+                  onQueuedPromptClearAll={session.clearAllQueuedPrompts}
+                  onQueuedPromptSendNow={session.sendNowQueuedPrompt}
+                  onModelChange={handleModelChange}
+                  onReasoningEffortChange={handleReasoningEffortChange}
+                  onModeChange={handleModeChange}
+                  configOptions={session.configOptions}
+                  slashCommands={session.slashCommands}
+                  predefinedPrompts={resolvedPrompts}
+                  onResolve={canResolve ? handleResolve : undefined}
+                  canContinue={canContinue}
+                  taskBranch={chatTask.status === "cancelled" ? (chatTask.branch ?? undefined) : undefined}
+                  taskProjectId={chatTask.projectId}
+                  autoFocusKey={chatTaskId}
+                  contextTokens={session.contextTokens || undefined}
+                  contextWindowMax={session.contextWindowMax ?? undefined}
+                  permissionRequest={session.permissionRequest}
+                  onPermissionRespond={session.respondToPermission}
+                />
+              </TaskChatSurface>
             </div>
           )}
 

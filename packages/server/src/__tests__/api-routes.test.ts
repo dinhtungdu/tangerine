@@ -295,6 +295,7 @@ describe("API routes", () => {
     test("websocket endpoints stay public for in-band auth", () => {
       expect(isPublicApiPath("/api/tasks/task-123/ws")).toBe(true)
       expect(isPublicApiPath("/api/tasks/task-123/terminal")).toBe(true)
+      expect(isPublicApiPath("/api/tasks/task-123/agent-terminal")).toBe(true)
       expect(isPublicApiPath("/api/tasks/list/ws")).toBe(true)
       expect(isPublicApiPath("/api/tasks/agent-status/ws")).toBe(true)
       expect(isPublicApiPath("/api/tasks/task-123/messages")).toBe(false)

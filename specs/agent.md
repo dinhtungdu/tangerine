@@ -34,8 +34,8 @@ Config shape:
 {
   "defaultAgent": "claude",
   "agents": [
-    { "id": "claude", "name": "Claude Agent", "command": "bunx", "args": ["--bun", "@agentclientprotocol/claude-agent-acp"] },
-    { "id": "codex", "name": "Codex", "command": "bunx", "args": ["--bun", "@zed-industries/codex-acp"] },
+    { "id": "claude", "name": "Claude Agent", "command": "bunx", "args": ["--bun", "@agentclientprotocol/claude-agent-acp"], "tui": { "command": "claude", "args": ["--resume", "{sessionId}"] } },
+    { "id": "codex", "name": "Codex", "command": "bunx", "args": ["--bun", "@zed-industries/codex-acp"], "tui": { "command": "codex", "args": ["resume", "{sessionId}"] } },
     { "id": "opencode", "name": "OpenCode", "command": "bunx", "args": ["--bun", "opencode-ai", "acp"] },
     { "id": "pi", "name": "Pi", "command": "bunx", "args": ["--bun", "pi-acp"] }
   ]
@@ -54,6 +54,12 @@ Known commands:
 No hardcoded provider list should remain after the migration. These are documented setup examples only; users can configure any ACP-compatible command.
 
 Projects can override the default ACP agent per task type. `taskTypes.<type>.agent` resolves before project/global `defaultAgent`. The same task-type config may provide initial `model` and `reasoningEffort` hints without coupling Tangerine to a provider-specific model name.
+
+Agents may define optional `tui` launch settings for dashboard handoff into the
+agent's native terminal UI. `tui.command`, `tui.args`, and `tui.env` support
+`{sessionId}` and `{worktree}` placeholders. If `tui` is missing, Tangerine may
+infer known local TUI commands from common ACP adapter command names, but the
+explicit config remains the portable path.
 
 ## Streaming
 
@@ -145,10 +151,12 @@ send prompts, or affect the running agent state.
 Use `session/load` for sync because it replays conversation history. Use
 `session/resume` only for continuing a session without replaying history.
 
-The chat UI may request this sync when the user returns from the terminal pane
-to the chat pane. If no session id exists or the selected ACP agent cannot load
-history, the UI keeps showing existing `session_logs`.
+The chat UI may request this sync when the user returns from the agent TUI to
+the Tangerine chat UI. The task command terminal pane is a worktree shell and
+must not trigger ACP conversation sync. If no session id exists or the selected
+ACP agent cannot load history, the UI keeps showing existing `session_logs`.
 
-ACP terminal content blocks in chat include an action to open the task terminal
-pane. On mobile this switches to the terminal pane; on desktop it ensures the
-terminal pane is visible.
+Task detail exposes a Chat/TUI switch only after `agent_session_id` exists. TUI
+mode replaces the chat surface with a dedicated agent terminal connected to the
+selected agent's native resume command for that session id; it is separate from
+the command terminal pane.

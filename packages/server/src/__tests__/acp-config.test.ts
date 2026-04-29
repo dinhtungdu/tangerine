@@ -7,7 +7,14 @@ describe("ACP agent config", () => {
     const config = tangerineConfigSchema.parse({
       defaultAgent: "codex",
       agents: [
-        { id: "codex", name: "Codex", command: "codex-acp", args: ["--model", "gpt-5"], env: { FOO: "bar" } },
+        {
+          id: "codex",
+          name: "Codex",
+          command: "codex-acp",
+          args: ["--model", "gpt-5"],
+          env: { FOO: "bar" },
+          tui: { command: "codex", args: ["resume", "{sessionId}"], env: { SESSION: "{sessionId}" } },
+        },
       ],
       projects: [
         { name: "app", repo: "org/app", setup: "bun install", defaultAgent: "codex" },
@@ -16,7 +23,14 @@ describe("ACP agent config", () => {
 
     expect(config.defaultAgent).toBe("codex")
     expect(config.agents).toEqual([
-      { id: "codex", name: "Codex", command: "codex-acp", args: ["--model", "gpt-5"], env: { FOO: "bar" } },
+      {
+        id: "codex",
+        name: "Codex",
+        command: "codex-acp",
+        args: ["--model", "gpt-5"],
+        env: { FOO: "bar" },
+        tui: { command: "codex", args: ["resume", "{sessionId}"], env: { SESSION: "{sessionId}" } },
+      },
     ])
     expect(config.projects[0]?.defaultAgent).toBe("codex")
   })

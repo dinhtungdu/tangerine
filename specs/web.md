@@ -47,6 +47,8 @@ Implemented in `pages/TaskDetail.tsx`.
 Current task-detail feature set includes:
 
 - chat panel
+- Chat/TUI switch after an agent session id exists; TUI mode replaces the chat
+  surface with the selected agent's native terminal UI resumed for that session
 - `#` task mentions, `@` file mentions, and `/` slash-command autocomplete in prompt textareas
 - streamed messages
 - streamed thinking merged into one Thought card per turn
@@ -86,6 +88,9 @@ Current sections:
 - ACP `config.options`, `slash.commands`, `thinking.streaming`, `thinking.complete`, `plan`, and `content.block` events are folded into per-task session state
 - activity REST snapshots merge with WebSocket activity updates by id/freshness so stale fetch responses cannot overwrite live tool progress
 - queued prompts come from `queue` WebSocket messages plus `/api/tasks/:id/queue` REST fallback; edits/removals call queue REST routes; queued prompts stay in the queue UI, not the transcript, until delivered to the agent
+- returning from task-detail TUI mode to Chat can request ACP `session/load`
+  sync and refresh messages; switching to or from the command terminal pane does
+  not trigger chat sync
 
 ## Shared Components
 

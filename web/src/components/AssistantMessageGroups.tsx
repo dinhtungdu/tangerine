@@ -11,7 +11,6 @@ interface AssistantMessageGroupsProps {
   activities: ActivityEntry[]
   tasks?: ReadonlyArray<{ id: string }>
   onReply?: (content: string) => void
-  onOpenTerminal?: () => void
   isLastGroupStreaming: boolean
 }
 
@@ -175,13 +174,11 @@ function AssistantGroup({
   group,
   tasks,
   onReply,
-  onOpenTerminal,
   isStreaming,
 }: {
   group: MessageGroup
   tasks?: ReadonlyArray<{ id: string }>
   onReply?: (content: string) => void
-  onOpenTerminal?: () => void
   isStreaming: boolean
 }) {
   const [expanded, setExpanded] = useState(false)
@@ -226,7 +223,7 @@ function AssistantGroup({
           }
           return (
             <div key={`msg-${item.data.id}`} className="pb-6">
-              <ChatMessage message={item.data} tasks={tasks} onReply={onReply} onOpenTerminal={onOpenTerminal} />
+              <ChatMessage message={item.data} tasks={tasks} onReply={onReply} />
             </div>
           )
         })}
@@ -280,7 +277,6 @@ function AssistantGroup({
                   message={item.data}
                   tasks={tasks}
                   onReply={onReply}
-                  onOpenTerminal={onOpenTerminal}
                   isThinkingActive={isLastThinking}
                 />
               )
@@ -302,7 +298,7 @@ function AssistantGroup({
       {textMessages.length > 0 && (
         <div className="flex flex-col gap-6">
           {textMessages.map((item) => (
-            <ChatMessage key={`msg-${item.data.id}`} message={item.data} tasks={tasks} onReply={onReply} onOpenTerminal={onOpenTerminal} />
+            <ChatMessage key={`msg-${item.data.id}`} message={item.data} tasks={tasks} onReply={onReply} />
           ))}
         </div>
       )}
@@ -326,7 +322,6 @@ export const AssistantMessageGroups = memo(function AssistantMessageGroups({
   activities,
   tasks,
   onReply,
-  onOpenTerminal,
   isLastGroupStreaming,
 }: AssistantMessageGroupsProps) {
   const groups = useMemo(() => {
@@ -349,7 +344,6 @@ export const AssistantMessageGroups = memo(function AssistantMessageGroups({
                 message={firstItem.data}
                 tasks={tasks}
                 onReply={onReply}
-                onOpenTerminal={onOpenTerminal}
               />
             </div>
           )
@@ -361,7 +355,6 @@ export const AssistantMessageGroups = memo(function AssistantMessageGroups({
               group={group}
               tasks={tasks}
               onReply={onReply}
-              onOpenTerminal={onOpenTerminal}
               isStreaming={isStreaming}
             />
           </div>

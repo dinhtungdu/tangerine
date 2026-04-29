@@ -877,9 +877,7 @@ describe("ChatInput", () => {
 })
 
 describe("ChatPanel", () => {
-  test("opens terminal pane from terminal content blocks", () => {
-    const onOpenTerminal = mock(() => {})
-
+  test("keeps terminal content blocks informational", () => {
     render(
       <ToastProvider>
         <MemoryRouter>
@@ -895,15 +893,13 @@ describe("ChatPanel", () => {
             queueLength={0}
             onSend={() => {}}
             onAbort={() => {}}
-            onOpenTerminal={onOpenTerminal}
           />
         </MemoryRouter>
       </ToastProvider>
     )
 
-    fireEvent.click(screen.getByRole("button", { name: "Open Terminal" }))
-
-    expect(onOpenTerminal).toHaveBeenCalledTimes(1)
+    expect(screen.getByText("term-xyz")).toBeTruthy()
+    expect(screen.queryByRole("button", { name: "Open Terminal" })).toBeNull()
   })
 
   test("shows error message in terminated banner for failed tasks", () => {
@@ -1398,7 +1394,7 @@ describe("ChatMessage", async () => {
 
     expect(screen.getByText("Terminal")).toBeTruthy()
     expect(screen.getByText("term-xyz")).toBeTruthy()
-    expect(screen.getByText("Live terminal output is available in the terminal pane when attached.")).toBeTruthy()
+    expect(screen.getByText("Agent terminal session recorded by the provider.")).toBeTruthy()
   })
 
   test("renders ACP plan cards", () => {

@@ -1,8 +1,8 @@
 // WebSocket route for interactive terminal access to a task's worktree.
 // Uses bun-pty directly (no dtach) for persistent shell sessions per task.
 //
-// One TerminalSession per task: shell spawned on first connect, kept alive
-// across WebSocket disconnects so cwd/env/running processes are preserved.
+// One TerminalSession per task/kind: shell or agent TUI spawned on first
+// connect, kept alive across WebSocket disconnects so cwd/env/running processes are preserved.
 // Session is destroyed only when the task is cleaned up (clearTerminalSession).
 //
 // Scrollback is stored in memory and persisted to disk (debounced 40ms writes).
@@ -14,13 +14,14 @@ import type { UpgradeWebSocket } from "hono/ws"
 import { spawn } from "bun-pty"
 import type { IPty } from "bun-pty"
 import { existsSync, readFileSync, unlinkSync, writeFileSync } from "fs"
+import { basename, join } from "path"
+import type { AgentConfig } from "@tangerine/shared"
 import type { AppDeps } from "../app"
 import { createWebSocketHeartbeat, type WebSocketHeartbeat } from "../ws-heartbeat"
 import { isAuthEnabled, isRequestAuthenticated, isValidAuthToken } from "../../auth"
 import { getTask } from "../../db/queries"
 import { createLogger } from "../../logger"
 import { tmpdir } from "os"
-import { join } from "path"
 
 const log = createLogger("terminal-ws")
 
@@ -39,19 +40,36 @@ interface TerminalSession {
   histPath: string
 }
 
+type TerminalKind = "shell" | "agent"
+
+interface TerminalLaunch {
+  command: string
+  args: string[]
+  env?: Record<string, string>
+}
+
+interface TerminalProcessLaunch extends TerminalLaunch {
+  cwd: string
+}
+
 const SCROLLBACK_LIMIT = 500 * 1024 // 500KB per task
 const PERSIST_DEBOUNCE_MS = 40
 const PENDING_OUTPUT_LIMIT = SCROLLBACK_LIMIT
+const TERMINAL_KINDS: TerminalKind[] = ["shell", "agent"]
 
 const sessions = new Map<string, TerminalSession>()
 const terminalClients = new Map<string, Set<BufferedTerminalClient>>()
 
-function historyPath(taskId: string): string {
-  return join(tmpdir(), `tng-${taskId}.hist`)
+export function terminalSessionKey(taskId: string, kind: TerminalKind): string {
+  return `${kind}:${taskId}`
 }
 
-function pidPath(taskId: string): string {
-  return join(tmpdir(), `tng-${taskId}.pid`)
+function historyPath(taskId: string, kind: TerminalKind): string {
+  return join(tmpdir(), kind === "shell" ? `tng-${taskId}.hist` : `tng-${taskId}.agent.hist`)
+}
+
+function pidPath(taskId: string, kind: TerminalKind): string {
+  return join(tmpdir(), kind === "shell" ? `tng-${taskId}.pid` : `tng-${taskId}.agent.pid`)
 }
 
 function loadHistorySync(histPath: string): string {
@@ -61,6 +79,67 @@ function loadHistorySync(histPath: string): string {
     }
   } catch { /* non-fatal */ }
   return ""
+}
+
+function replaceLaunchPlaceholders(value: string, sessionId: string, worktree: string): string {
+  return value.replaceAll("{sessionId}", sessionId).replaceAll("{worktree}", worktree)
+}
+
+function replaceLaunchEnv(env: Record<string, string> | undefined, sessionId: string, worktree: string): Record<string, string> | undefined {
+  if (!env) return undefined
+  const entries = Object.entries(env).map(([key, value]) => [key, replaceLaunchPlaceholders(value, sessionId, worktree)] as const)
+  return Object.fromEntries(entries)
+}
+
+function commandName(command: string): string {
+  return basename(command).toLowerCase()
+}
+
+function commandTokens(agent: AgentConfig): string[] {
+  return [agent.command, ...(agent.args ?? [])].map((token) => token.toLowerCase())
+}
+
+function tokenIncludes(agent: AgentConfig, value: string): boolean {
+  return commandTokens(agent).some((token) => token.includes(value))
+}
+
+function buildTerminalEnv(extraEnv: Record<string, string> | undefined): Record<string, string> {
+  const env: Record<string, string> = {}
+  for (const [key, value] of Object.entries(process.env)) {
+    if (typeof value === "string") env[key] = value
+  }
+  return extraEnv ? { ...env, ...extraEnv } : env
+}
+
+export function resolveAgentTuiLaunch(agent: AgentConfig, sessionId: string, worktree: string): TerminalLaunch | null {
+  if (agent.tui) {
+    return {
+      command: replaceLaunchPlaceholders(agent.tui.command, sessionId, worktree),
+      args: (agent.tui.args ?? []).map((arg) => replaceLaunchPlaceholders(arg, sessionId, worktree)),
+      env: replaceLaunchEnv(agent.tui.env, sessionId, worktree),
+    }
+  }
+
+  const name = commandName(agent.command)
+  const args = agent.args ?? []
+  if (name === "codex" || name === "codex-acp" || tokenIncludes(agent, "@zed-industries/codex-acp")) {
+    return { command: "codex", args: ["resume", sessionId], env: undefined }
+  }
+  if (name === "claude" || name === "claude-agent-acp" || tokenIncludes(agent, "claude-agent-acp")) {
+    return { command: "claude", args: ["--resume", sessionId], env: undefined }
+  }
+  if (name === "opencode" || tokenIncludes(agent, "opencode-ai")) {
+    return { command: "opencode", args: ["--session", sessionId], env: undefined }
+  }
+  if (name === "pi" || name === "pi-acp" || tokenIncludes(agent, "pi-acp")) {
+    return { command: "pi", args: ["--session", sessionId], env: undefined }
+  }
+  if (name === "hermes") {
+    const passthroughArgs = args.filter((arg) => arg !== "acp")
+    return { command: "hermes", args: ["--resume", sessionId, "--tui", ...passthroughArgs], env: undefined }
+  }
+
+  return null
 }
 
 function appendScrollback(session: TerminalSession, data: string): void {
@@ -106,29 +185,29 @@ export function drainPendingTerminalOutput(client: BufferedTerminalClient): stri
   return pendingOutput
 }
 
-function addTerminalClient(taskId: string, socket: TerminalSocket): BufferedTerminalClient {
+function addTerminalClient(sessionKey: string, socket: TerminalSocket): BufferedTerminalClient {
   const client: BufferedTerminalClient = { socket, ready: false, pendingOutput: "" }
-  const clients = terminalClients.get(taskId)
+  const clients = terminalClients.get(sessionKey)
   if (clients) {
     clients.add(client)
   } else {
-    terminalClients.set(taskId, new Set([client]))
+    terminalClients.set(sessionKey, new Set([client]))
   }
   return client
 }
 
-function removeTerminalClient(taskId: string, client: BufferedTerminalClient | null): void {
+function removeTerminalClient(sessionKey: string, client: BufferedTerminalClient | null): void {
   if (!client) return
-  const clients = terminalClients.get(taskId)
+  const clients = terminalClients.get(sessionKey)
   if (!clients) return
   clients.delete(client)
   if (clients.size === 0) {
-    terminalClients.delete(taskId)
+    terminalClients.delete(sessionKey)
   }
 }
 
-function broadcastTerminalOutput(taskId: string, data: string): void {
-  const clients = terminalClients.get(taskId)
+function broadcastTerminalOutput(sessionKey: string, data: string): void {
+  const clients = terminalClients.get(sessionKey)
   if (!clients || !data) return
 
   for (const client of clients) {
@@ -137,13 +216,13 @@ function broadcastTerminalOutput(taskId: string, data: string): void {
     try {
       client.socket.send(JSON.stringify({ type: "output", data: output }))
     } catch {
-      removeTerminalClient(taskId, client)
+      removeTerminalClient(sessionKey, client)
     }
   }
 }
 
-function broadcastTerminalExit(taskId: string, exitCode: number): void {
-  const clients = terminalClients.get(taskId)
+function broadcastTerminalExit(sessionKey: string, exitCode: number): void {
+  const clients = terminalClients.get(sessionKey)
   if (!clients) return
   for (const client of clients) {
     try {
@@ -152,50 +231,73 @@ function broadcastTerminalExit(taskId: string, exitCode: number): void {
   }
 }
 
-function getOrCreateSession(taskId: string, worktree: string): TerminalSession {
-  const existing = sessions.get(taskId)
+function getOrCreateSession(taskId: string, kind: TerminalKind, launch: TerminalProcessLaunch): TerminalSession {
+  const sessionKey = terminalSessionKey(taskId, kind)
+  const existing = sessions.get(sessionKey)
   if (existing) return existing
 
-  const histPath = historyPath(taskId)
+  const histPath = historyPath(taskId, kind)
   const scrollback = loadHistorySync(histPath)
 
-  const pty = spawn("/bin/bash", ["--login"], {
+  const pty = spawn(launch.command, launch.args, {
     cols: 80,
     rows: 24,
     name: "xterm-256color",
-    cwd: worktree,
+    cwd: launch.cwd,
+    env: buildTerminalEnv(launch.env),
   })
 
   const session: TerminalSession = { pty, scrollback, writeTimer: null, histPath }
-  sessions.set(taskId, session)
+  sessions.set(sessionKey, session)
 
   // Persist PID so cleanup can kill the process after a server restart
-  try { writeFileSync(pidPath(taskId), String(pty.pid)) } catch { /* non-fatal */ }
+  try {
+    const pidRecord = kind === "agent" ? `${pty.pid}\n${launch.command}\n` : String(pty.pid)
+    writeFileSync(pidPath(taskId, kind), pidRecord)
+  } catch { /* non-fatal */ }
 
   pty.onData((data) => {
     appendScrollback(session, data)
     schedulePersist(session)
-    broadcastTerminalOutput(taskId, data)
+    broadcastTerminalOutput(sessionKey, data)
   })
 
   pty.onExit(({ exitCode }) => {
-    if (sessions.get(taskId) === session) {
+    if (sessions.get(sessionKey) === session) {
       // Flush before removing so history is available for next reconnect
       flushPersistSync(session)
-      sessions.delete(taskId)
+      sessions.delete(sessionKey)
     }
-    try { unlinkSync(pidPath(taskId)) } catch { /* already gone */ }
-    broadcastTerminalExit(taskId, exitCode)
+    try { unlinkSync(pidPath(taskId, kind)) } catch { /* already gone */ }
+    broadcastTerminalExit(sessionKey, exitCode)
   })
 
-  log.debug("Terminal session started", { taskId, worktree })
+  log.debug("Terminal session started", { taskId, kind, worktree: launch.cwd, command: launch.command })
   return session
 }
 
 /** Kill shell and delete persisted history for a task (call on task cleanup) */
 export function clearTerminalSession(taskId: string): void {
-  const session = sessions.get(taskId)
-  sessions.delete(taskId)
+  for (const kind of TERMINAL_KINDS) clearTerminalSessionKind(taskId, kind)
+}
+
+function readPersistedPid(pp: string): { pid: number; command?: string } | null {
+  const content = readFileSync(pp, "utf-8").trim()
+  const [pidLine, command] = content.split("\n")
+  const pid = parseInt(pidLine ?? "", 10)
+  return Number.isNaN(pid) ? null : { pid, command }
+}
+
+function isExpectedPersistedProcess(kind: TerminalKind, cmdline: string, command?: string): boolean {
+  if (kind === "shell") return cmdline.includes("bash") || cmdline.includes("sh")
+  if (!command) return false
+  return cmdline.includes(basename(command))
+}
+
+function clearTerminalSessionKind(taskId: string, kind: TerminalKind): void {
+  const sessionKey = terminalSessionKey(taskId, kind)
+  const session = sessions.get(sessionKey)
+  sessions.delete(sessionKey)
 
   if (session) {
     if (session.writeTimer) {
@@ -204,34 +306,35 @@ export function clearTerminalSession(taskId: string): void {
     }
     try { session.pty.kill() } catch { /* already dead */ }
     try { unlinkSync(session.histPath) } catch { /* no file */ }
-    try { unlinkSync(pidPath(taskId)) } catch { /* no file */ }
+    try { unlinkSync(pidPath(taskId, kind)) } catch { /* no file */ }
   } else {
-    // Server may have restarted — recover shell PID from disk and kill it.
+    // Server may have restarted — recover terminal PID from disk and kill it.
     // Validate via /proc/<pid>/cmdline before killing to avoid hitting a
     // reused PID that belongs to an unrelated process.
-    const pp = pidPath(taskId)
+    const pp = pidPath(taskId, kind)
     try {
-      const pid = parseInt(readFileSync(pp, "utf-8").trim(), 10)
-      if (!isNaN(pid)) {
+      const record = readPersistedPid(pp)
+      if (record) {
+        const { pid, command } = record
         process.kill(pid, 0) // throws ESRCH if process is gone
         const cmdline = readFileSync(`/proc/${pid}/cmdline`, "utf-8")
-        if (cmdline.includes("bash") || cmdline.includes("sh")) {
+        if (isExpectedPersistedProcess(kind, cmdline, command)) {
           process.kill(pid, "SIGKILL")
         }
       }
     } catch { /* process gone, /proc unavailable, or not a shell — skip */ }
     try { unlinkSync(pp) } catch { /* no file */ }
-    try { unlinkSync(historyPath(taskId)) } catch { /* no file */ }
+    try { unlinkSync(historyPath(taskId, kind)) } catch { /* no file */ }
   }
 }
 
 export function terminalWsRoutes(deps: AppDeps, upgradeWebSocket: UpgradeWebSocket): Hono {
   const app = new Hono()
 
-  app.get(
-    "/:id/terminal",
+  const socketRoute = (kind: TerminalKind) =>
     upgradeWebSocket((c) => {
       const taskId = c.req.param("id")!
+      const sessionKey = terminalSessionKey(taskId, kind)
       const authEnabled = isAuthEnabled(deps.config)
       const requestAuthenticated = isRequestAuthenticated(c, deps.config)
       let client: BufferedTerminalClient | null = null
@@ -263,8 +366,19 @@ export function terminalWsRoutes(deps: AppDeps, upgradeWebSocket: UpgradeWebSock
               }
             }
 
-            const session = getOrCreateSession(taskId, task.worktree_path)
-            client = addTerminalClient(taskId, ws)
+            const launch: TerminalProcessLaunch = kind === "shell"
+              ? { command: "/bin/bash", args: ["--login"], cwd: task.worktree_path }
+              : (() => {
+                if (!task.agent_session_id) throw new Error("Agent TUI not available: missing session id")
+                const agent = deps.config.config.agents.find((entry) => entry.id === task.provider)
+                if (!agent) throw new Error(`Agent TUI not available: unknown agent ${task.provider}`)
+                const agentLaunch = resolveAgentTuiLaunch(agent, task.agent_session_id, task.worktree_path)
+                if (!agentLaunch) throw new Error(`Agent TUI not available: no TUI command configured for ${task.provider}`)
+                return { ...agentLaunch, cwd: task.worktree_path }
+              })()
+
+            const session = getOrCreateSession(taskId, kind, launch)
+            client = addTerminalClient(sessionKey, ws)
 
             // Replay scrollback, then enable live output. Set ready=true before
             // draining so any output that arrives during replay is either:
@@ -281,7 +395,7 @@ export function terminalWsRoutes(deps: AppDeps, upgradeWebSocket: UpgradeWebSock
               }
               ws.send(JSON.stringify({ type: "connected" }))
             } catch {
-              removeTerminalClient(taskId, client)
+              removeTerminalClient(sessionKey, client)
             }
           }),
         ).catch((err) => {
@@ -289,9 +403,9 @@ export function terminalWsRoutes(deps: AppDeps, upgradeWebSocket: UpgradeWebSock
           // at debug so it doesn't flood the error log on client reconnect loops.
           const msg = String(err)
           if (msg.includes("no worktree")) {
-            log.debug("Terminal unavailable: task has no worktree", { taskId })
+            log.debug("Terminal unavailable: task has no worktree", { taskId, kind })
           } else {
-            log.error("Terminal session failed", { taskId, error: msg })
+            log.error("Terminal session failed", { taskId, kind, error: msg })
           }
           try {
             ws.send(JSON.stringify({ type: "error", message: msg }))
@@ -348,7 +462,7 @@ export function terminalWsRoutes(deps: AppDeps, upgradeWebSocket: UpgradeWebSock
 
           if (!authenticated) return
 
-          const session = sessions.get(taskId)
+          const session = sessions.get(sessionKey)
           if (!session) return
 
           heartbeat?.markAlive()
@@ -363,12 +477,14 @@ export function terminalWsRoutes(deps: AppDeps, upgradeWebSocket: UpgradeWebSock
         onClose() {
           if (authTimer) clearTimeout(authTimer)
           heartbeat?.stop()
-          removeTerminalClient(taskId, client)
-          log.debug("Terminal client detached (session continues)", { taskId })
+          removeTerminalClient(sessionKey, client)
+          log.debug("Terminal client detached (session continues)", { taskId, kind })
         },
       }
     })
-  )
+
+  app.get("/:id/terminal", socketRoute("shell"))
+  app.get("/:id/agent-terminal", socketRoute("agent"))
 
   return app
 }
