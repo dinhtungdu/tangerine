@@ -115,12 +115,7 @@ export function mergeMessageSnapshot(current: ChatMessage[], snapshot: ChatMessa
 }
 
 function isMessageRepresented(message: ChatMessage, candidates: ChatMessage[]): boolean {
-  const messageMs = messageTimestampMs(message)
-  return candidates.some((candidate) => {
-    if (candidate.role !== message.role || candidate.content !== message.content) return false
-    const candidateMs = messageTimestampMs(candidate)
-    return messageMs === 0 || candidateMs === 0 || candidateMs >= messageMs
-  })
+  return candidates.some((candidate) => candidate.role === message.role && candidate.content === message.content)
 }
 
 function messageTimestampMs(message: Pick<ChatMessage, "timestamp">): number {
