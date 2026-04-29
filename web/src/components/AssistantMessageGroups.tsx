@@ -19,13 +19,13 @@ interface AssistantMessageGroupsProps {
 
 function StreamingIndicator({ label }: { label: string }) {
   return (
-    <div className="mt-6 flex items-center gap-2 text-muted-foreground">
-      <span className="flex gap-0.5">
+    <div className="mt-6 flex min-w-0 items-center gap-2 text-muted-foreground">
+      <span className="flex shrink-0 gap-0.5">
         <span className="h-1.5 w-1.5 rounded-full bg-current animate-bounce [animation-delay:-0.3s]" />
         <span className="h-1.5 w-1.5 rounded-full bg-current animate-bounce [animation-delay:-0.15s]" />
         <span className="h-1.5 w-1.5 rounded-full bg-current animate-bounce" />
       </span>
-      <span className="text-xs">{label}</span>
+      <span className="min-w-0 flex-1 truncate text-xs" title={label}>{label}</span>
     </div>
   )
 }

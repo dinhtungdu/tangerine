@@ -1962,6 +1962,32 @@ describe("AssistantMessageGroups tool calls", () => {
     expect(screen.getByText("Write · web/src/four.tsx")).toBeTruthy()
   })
 
+  test("truncates the streaming tool status to one line", () => {
+    const longCommand = "rtk rg -n \"frontend.test.ts|jest.*product-filters|test:unit\" plugins/woocommerce/client/blocks/package.json plugins/woocommerce/package.json package.json .github -g '*.json' -g '*.yml' -g '*.yaml'"
+    const activities = [
+      makeActivity({
+        id: 104,
+        event: "tool.bash",
+        content: "Bash",
+        metadata: { toolName: "Bash", toolInput: { command: longCommand }, status: "running" },
+        timestamp: "2026-04-18T12:00:05.000Z",
+      }),
+    ]
+
+    render(
+      <MemoryRouter>
+        <AssistantMessageGroups
+          messages={[]}
+          activities={activities}
+          isLastGroupStreaming={true}
+        />
+      </MemoryRouter>
+    )
+
+    const label = screen.getByText(`Bash · ${longCommand}`)
+    expect(label.className).toContain("truncate")
+  })
+
   test("keeps diff content blocks visible when tool calls are hidden", () => {
     const messages = [
       { id: "assistant-1", role: "assistant", content: "Reviewing changes", timestamp: "2026-04-18T12:00:00.000Z" },
