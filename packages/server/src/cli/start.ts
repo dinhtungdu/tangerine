@@ -1275,6 +1275,16 @@ export async function start(): Promise<void> {
         return handle.abort(true).pipe(Effect.catchAll(() => Effect.void))
       },
       getLastUserMessageTime: (taskId: string) => getTaskState(taskId).lastUserMessageAt ?? null,
+      completeTask: (taskId) =>
+        taskManager.completeTask(tmDeps, taskId).pipe(
+          Effect.asVoid,
+          Effect.mapError((e) => new Error(e.message)),
+        ),
+      logOrphanComplete: (taskId) =>
+        logActivity(db, taskId, "lifecycle", "task.orphan_completed", "Task auto-completed: agent lost but work finished (PR exists)").pipe(
+          Effect.asVoid,
+          Effect.catchAll(() => Effect.void),
+        ),
       cleanupDeps,
     }
     await Effect.runPromise(startHealthMonitor(healthDeps))

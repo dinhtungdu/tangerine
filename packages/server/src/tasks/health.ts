@@ -7,7 +7,7 @@ import { DEFAULT_IDLE_TIMEOUT_MS } from "@tangerine/shared"
 import type { TaskRow } from "../db/types"
 import type { CleanupDeps } from "./cleanup"
 import { cleanupSession } from "./cleanup"
-import { getTaskState, clearTaskState } from "./task-state"
+import { getTaskState, clearTaskState, resetOrphanState } from "./task-state"
 import { clearQueue } from "../agent/prompt-queue"
 import { utc } from "../api/helpers"
 
@@ -17,6 +17,11 @@ const HEALTH_CHECK_INTERVAL_MS = 30_000
 // After this many consecutive failed restarts, give up and mark the task failed.
 // Prevents infinite restart loops if a new bug causes every restart to fail immediately.
 const MAX_CONSECUTIVE_RESTARTS = 3
+// After this many health checks without an agent handle, consider the task orphaned.
+// Must be <= MAX_CONSECUTIVE_RESTARTS + 1 so orphan handling fires before restart limit.
+const MAX_ORPHAN_CHECKS = 4
+// Cooldown between orphan recovery attempts (ms). Prevents spamming reconnects.
+const ORPHAN_RECOVERY_COOLDOWN_MS = 60_000
 // A tool that has been "running" in the DB for longer than this is considered hung.
 const HUNG_TOOL_TIMEOUT_MS = 5 * 60 * 1000
 // After aborting for a hung tool, don't re-abort for this long — the old
@@ -90,14 +95,20 @@ export interface HealthCheckDeps {
   abortHungTool(taskId: string): Effect.Effect<void, never>
   /** Persist suspended flag to DB so it survives server restarts. */
   persistSuspended(taskId: string, suspended: boolean): Effect.Effect<void, never>
+  /** Complete task when work is done but agent orphaned (e.g. PR exists). */
+  completeTask(taskId: string): Effect.Effect<void, Error>
+  /** Log activity when auto-completing orphaned task. */
+  logOrphanComplete(taskId: string): Effect.Effect<void, never>
   cleanupDeps: CleanupDeps
 }
 
-/** Reset the restart counter and hung-tool cooldown when the task has real agent activity. */
+/** Reset the restart counter, hung-tool cooldown, and orphan tracking when the task has real agent activity. */
 export function resetRestartCount(taskId: string): void {
   const state = getTaskState(taskId)
   state.consecutiveRestarts = 0
   state.hungToolAbortedAt = undefined
+  // Also reset orphan tracking — agent is confirmed working
+  resetOrphanState(taskId)
 }
 
 export function checkTask(
@@ -125,10 +136,51 @@ export function checkTask(
         return "healthy"
       }
 
+      // Track orphan state — task has no handle and is not recovering.
+      // After multiple checks without recovery, handle as orphaned.
+      state.orphanCheckCount += 1
+      const now = Date.now()
+      const orphanCooldownActive = state.lastOrphanRecoveryAt !== undefined &&
+        (now - state.lastOrphanRecoveryAt) < ORPHAN_RECOVERY_COOLDOWN_MS
+
       // Warn about zombie tasks (no PID tracked in DB) — helps diagnose edge cases
-      const taskRow = task as TaskRow & { agent_pid?: number | null }
+      const taskRow = task as TaskRow & { agent_pid?: number | null; pr_url?: string | null }
       if (!taskRow.agent_pid) {
-        taskLog.warn("Running task has no agent_pid in DB", { taskId: task.id })
+        taskLog.warn("Running task has no agent_pid in DB", { taskId: task.id, orphanCheckCount: state.orphanCheckCount })
+      }
+
+      // Check if task is orphaned (multiple health checks without recovery)
+      if (state.orphanCheckCount >= MAX_ORPHAN_CHECKS && !orphanCooldownActive) {
+        // Task has been orphaned for too long — try to auto-complete if PR exists
+        if (taskRow.pr_url) {
+          taskLog.info("Orphaned task has PR, auto-completing", {
+            taskId: task.id,
+            prUrl: taskRow.pr_url,
+            orphanCheckCount: state.orphanCheckCount,
+          })
+          yield* deps.logOrphanComplete(task.id).pipe(Effect.ignoreLogged)
+          yield* deps.completeTask(task.id).pipe(
+            Effect.tap(() => Effect.sync(() => {
+              clearTaskState(task.id)
+            })),
+            Effect.catchAll((err) => {
+              taskLog.error("Failed to auto-complete orphaned task", { error: String(err) })
+              return Effect.void
+            }),
+          )
+          return "healthy"
+        }
+
+        // No PR — mark failed after max orphan checks
+        taskLog.error("Orphaned task with no PR, marking failed after max orphan checks", {
+          taskId: task.id,
+          orphanCheckCount: state.orphanCheckCount,
+        })
+        yield* deps.failTask(task.id, "Agent lost connection and could not be recovered").pipe(Effect.ignoreLogged)
+        yield* cleanupSession(task.id, deps.cleanupDeps).pipe(Effect.ignoreLogged)
+        yield* clearQueue(task.id)
+        clearTaskState(task.id)
+        return "failed"
       }
 
       // Check if the agent reported an error before dying
@@ -184,6 +236,10 @@ export function checkTask(
       state.suspended = false
       yield* deps.persistSuspended(task.id, false)
     }
+    // Reset orphan tracking — agent is alive and healthy
+    if (state.orphanCheckCount > 0) {
+      resetOrphanState(task.id)
+    }
     taskLog.debug("Task healthy")
     return "healthy"
   })
@@ -195,6 +251,10 @@ function attemptRestart(
   taskLog: ReturnType<typeof log.child>,
   reason: "agent_dead",
 ): Effect.Effect<"recovered" | "failed", HealthCheckError> {
+  // Record recovery attempt time for orphan cooldown tracking
+  const state = getTaskState(task.id)
+  state.lastOrphanRecoveryAt = Date.now()
+
   return deps.restartAgent(task).pipe(
     // restartAgent succeeds → agent process spawned (lifecycle has a 60s startup timeout).
     // Don't reset consecutiveRestarts here — the agent may die again immediately.

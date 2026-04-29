@@ -33,6 +33,11 @@ export interface TaskState {
    *  apply a cooldown so we don't re-abort immediately after restart when the
    *  old tool.start entry is still the most recent activity in the DB. */
   hungToolAbortedAt?: number
+  /** Number of consecutive health checks where task had no agent handle.
+   *  Used to detect zombie tasks orphaned by server restart. */
+  orphanCheckCount: number
+  /** Timestamp (ms) of last orphan recovery attempt. Used for cooldown. */
+  lastOrphanRecoveryAt?: number
   /** Current context window usage (persisted to DB, displayed as used/max) */
   contextTokens: number
   /** Current context window capacity when ACP reports it. */
@@ -67,6 +72,7 @@ function defaultState(): TaskState {
     prUrlSaved: false,
     prNudgeSent: false,
     consecutiveRestarts: 0,
+    orphanCheckCount: 0,
     contextTokens: 0,
     contextWindowMax: null,
     configOptions: [],
@@ -126,6 +132,13 @@ export function getActiveStreamMessages(taskId: string): ActiveStreamMessage[] {
   const state = getTaskState(taskId)
   return [state.activeThinkingMessage, state.activeAssistantMessage]
     .filter((message): message is ActiveStreamMessage => Boolean(message?.content))
+}
+
+/** Reset orphan tracking when agent handle is restored. */
+export function resetOrphanState(taskId: string): void {
+  const state = getTaskState(taskId)
+  state.orphanCheckCount = 0
+  state.lastOrphanRecoveryAt = undefined
 }
 
 /** Remove all in-memory state for a task (call on termination/completion). */
