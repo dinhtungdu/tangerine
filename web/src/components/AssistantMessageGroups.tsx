@@ -65,7 +65,7 @@ function AssistantGroup({
         )
       })}
       {(isStreaming || footerSlot) && (
-        <div className="mt-6 flex w-full items-center gap-4">
+        <div className="mt-2 flex w-full items-center gap-4">
           {isStreaming && <StreamingIndicator label={deriveStreamingStatusLabel(group)} />}
           {footerSlot && <div className="ml-auto shrink-0">{footerSlot}</div>}
         </div>
