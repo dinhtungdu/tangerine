@@ -404,10 +404,34 @@ describe("idle timeout", () => {
       // Idle for 11 minutes but agent is actively working
       getLastUserMessageTime: () => new Date(Date.now() - 660_000).toISOString(),
       isAgentWorking: () => true,
+      isAgentWorkingRaw: () => true,
     })
     await Effect.runPromise(checkAllTasks(deps))
     expect(suspendFn).toHaveBeenCalledTimes(0)
     expect(isTaskSuspended(task.id)).toBe(false)
+  })
+
+  test("quiet in-flight work is not suspended before hung-tool timeout", async () => {
+    const taskId = "idle-raw-working-test"
+    const task = makeTask({ id: taskId })
+    const suspendFn = mock(() => Effect.void)
+    const abortFn = mock(() => Effect.void)
+    const deps = makeDeps({
+      listRunningTasks: () => Effect.succeed([task]),
+      suspendAgent: suspendFn,
+      abortHungTool: abortFn,
+      // Effective status can be idle after the 2 minute stall threshold, but
+      // raw working means a prompt/tool is still in flight.
+      isAgentWorking: () => false,
+      isAgentWorkingRaw: () => true,
+      getLastUserMessageTime: () => new Date(Date.now() - 660_000).toISOString(),
+      getLastRunningActivityTime: () => new Date(Date.now() - 180_000).toISOString(),
+    })
+    await Effect.runPromise(checkAllTasks(deps))
+    expect(suspendFn).toHaveBeenCalledTimes(0)
+    expect(abortFn).toHaveBeenCalledTimes(0)
+    expect(isTaskSuspended(taskId)).toBe(false)
+    clearTaskState(taskId)
   })
 
   test("ACP tasks are suspended after idle timeout", async () => {
