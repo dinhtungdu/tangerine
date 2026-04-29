@@ -1747,6 +1747,38 @@ describe("AssistantMessageGroups tool summaries", () => {
     expect(screen.getAllByText(/web\/src\/one\.tsx/).length).toBeGreaterThan(0)
     expect(screen.getAllByText(/web\/src\/two\.tsx/).length).toBeGreaterThan(0)
   })
+
+  test("shows specific streaming status instead of generic working text", () => {
+    const messages = [
+      { id: "assistant-1", role: "assistant", content: "Working", timestamp: "2026-04-18T12:00:00.000Z" },
+    ]
+    const activities = [
+      makeActivity({
+        id: 101,
+        event: "tool.bash",
+        content: "Bash",
+        metadata: {
+          toolName: "Bash",
+          toolInput: { command: "bun test" },
+          status: "running",
+        },
+        timestamp: "2026-04-18T12:00:01.000Z",
+      }),
+    ]
+
+    render(
+      <MemoryRouter>
+        <AssistantMessageGroups
+          messages={messages}
+          activities={activities}
+          isLastGroupStreaming={true}
+        />
+      </MemoryRouter>
+    )
+
+    expect(screen.getByText("Bash · bun test")).toBeTruthy()
+    expect(screen.queryByText("Agent is working...")).toBeNull()
+  })
 })
 
 describe("ChatInput quote chip", () => {
