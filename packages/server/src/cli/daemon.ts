@@ -85,7 +85,7 @@ export async function daemonStart(): Promise<void> {
   // Run system checks before spawning so errors and warnings appear in the
   // user's terminal — the detached server process writes to the log file.
   applyLoginShellPath()
-  const factories = createAgentFactories()
+  const factories = createAgentFactories({ agents: config.config.agents })
   const { errors, warnings } = checkSystemTools({
     hasGithubProject: config.config.projects.some((p) => isGithubRepo(p.repo)),
     providers: Object.entries(factories).map(([id, factory]) => ({ id, cliCommand: factory.metadata.cliCommand })),
