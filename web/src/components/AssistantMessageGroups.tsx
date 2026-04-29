@@ -1,15 +1,14 @@
-import { memo, useState, useCallback, useMemo } from "react"
+import { memo, useMemo } from "react"
 import type { ChatMessage as ChatMessageType } from "../hooks/useSession"
 import { ChatMessage } from "./ChatMessage"
 import { ToolCallDisplay } from "./ToolCallDisplay"
-import { ToolCallsSummaryBar } from "./ToolCallsSummaryBar"
 import {
   buildToolContent,
   deriveChatTimelineGroups,
   deriveStreamingStatusLabel,
   deriveToolStatus,
   getLastToolIndex,
-  splitToolSegments,
+  splitTimelineItems,
   type TimelineGroup,
 } from "../lib/timeline"
 import type { ActivityEntry } from "@tangerine/shared"
@@ -20,20 +19,6 @@ interface AssistantMessageGroupsProps {
   tasks?: ReadonlyArray<{ id: string }>
   onReply?: (content: string) => void
   isLastGroupStreaming: boolean
-}
-
-function toolSegmentId(items: ReadonlyArray<{ data: ActivityEntry }>): string {
-  return `tools-${items[0]?.data.id ?? "empty"}`
-}
-
-function isToolSegmentStreaming(
-  items: ReadonlyArray<{ data: ActivityEntry; index: number }>,
-  { isStreaming, lastToolIdx }: { isStreaming: boolean; lastToolIdx: number },
-): boolean {
-  return items.some((item) => deriveToolStatus(item.data, {
-    isStreaming,
-    isLastTool: item.index === lastToolIdx,
-  }) === "running")
 }
 
 function StreamingIndicator({ label }: { label: string }) {
@@ -60,19 +45,8 @@ function AssistantGroup({
   onReply?: (content: string) => void
   isStreaming: boolean
 }) {
-  const [expandedSegmentIds, setExpandedSegmentIds] = useState<ReadonlySet<string>>(() => new Set())
-
-  const handleToggle = useCallback((id: string) => {
-    setExpandedSegmentIds((current) => {
-      const next = new Set(current)
-      if (next.has(id)) next.delete(id)
-      else next.add(id)
-      return next
-    })
-  }, [])
-
   const lastToolIdx = useMemo(() => getLastToolIndex(group.items), [group.items])
-  const segments = useMemo(() => splitToolSegments(group.items), [group.items])
+  const segments = useMemo(() => splitTimelineItems(group.items), [group.items])
 
   return (
     <>
@@ -85,44 +59,6 @@ function AssistantGroup({
           return (
             <div key={`tool-${segment.item.data.id}`} className="pb-6">
               <ToolCallDisplay content={buildToolContent(segment.item.data)} status={status} />
-            </div>
-          )
-        }
-
-        if (segment.kind === "tool-segment") {
-          const id = toolSegmentId(segment.items)
-          const expanded = expandedSegmentIds.has(id)
-          const segmentIsStreaming = isToolSegmentStreaming(segment.items, { isStreaming, lastToolIdx })
-
-          return (
-            <div key={id} className="pb-6 flex flex-col gap-3">
-              <ToolCallsSummaryBar
-                isStreaming={segmentIsStreaming}
-                startTime={segment.summary.startTime}
-                endTime={segment.summary.endTime}
-                toolCount={segment.summary.toolCount}
-                filesChanged={segment.summary.filesChanged}
-                errorCount={segment.summary.errorCount}
-                expanded={expanded}
-                onToggle={() => handleToggle(id)}
-              />
-              {expanded && (
-                <div className="flex flex-col gap-4 pl-2 border-l-2 border-border">
-                  {segment.items.map((item) => {
-                    const status = deriveToolStatus(item.data, {
-                      isStreaming,
-                      isLastTool: item.index === lastToolIdx,
-                    })
-                    return (
-                      <ToolCallDisplay
-                        key={`tool-${item.data.id}`}
-                        content={buildToolContent(item.data)}
-                        status={status}
-                      />
-                    )
-                  })}
-                </div>
-              )}
             </div>
           )
         }

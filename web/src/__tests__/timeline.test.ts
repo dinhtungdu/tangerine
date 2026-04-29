@@ -6,7 +6,7 @@ import {
   deriveChatTimelineGroups,
   deriveStreamingStatusLabel,
   deriveToolStatus,
-  splitToolSegments,
+  splitTimelineItems,
 } from "../lib/timeline"
 
 function message(overrides: Partial<ChatMessage>): ChatMessage {
@@ -65,7 +65,7 @@ describe("timeline derivation", () => {
     expect(groups.map((group) => group.id)).toEqual(["msg-user-1", "msg-assistant-1", "msg-user-2"])
   })
 
-  test("summarizes consecutive tool segments only", () => {
+  test("keeps consecutive tool calls separate for inline rendering", () => {
     const group = deriveChatTimelineGroups({
       messages: [
         message({ id: "assistant-1", timestamp: "2026-04-18T12:00:00.000Z" }),
@@ -78,13 +78,9 @@ describe("timeline derivation", () => {
       ],
     })[0]!
 
-    const segments = splitToolSegments(group.items)
+    const segments = splitTimelineItems(group.items)
 
-    expect(segments).toHaveLength(4)
-    expect(segments[1]!.kind).toBe("tool-segment")
-    if (segments[1]!.kind !== "tool-segment") throw new Error("expected tool segment")
-    expect(segments[1]!.summary).toMatchObject({ toolCount: 2, filesChanged: 2, errorCount: 1 })
-    expect(segments[3]!.kind).toBe("tool")
+    expect(segments.map((segment) => segment.kind)).toEqual(["message", "tool", "tool", "message", "tool"])
   })
 
   test("marks only the latest running tool as running while streaming", () => {
