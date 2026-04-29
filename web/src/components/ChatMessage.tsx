@@ -225,30 +225,32 @@ function ThinkingMessage({ message, isActive, duration, variant = "thinking" }: 
 
   if (!isActive && !content.trim()) return null
 
+  const isNarration = variant === "narration"
+
   return (
     <div className="animate-fade-in overflow-hidden flex flex-col gap-1">
       <div className="flex items-center gap-2">
-        <div className="flex h-5 w-5 items-center justify-center rounded-[10px] bg-amber-500/15">
+        <div className={`flex h-5 w-5 items-center justify-center rounded-[10px] ${isNarration ? "bg-sky-500/15" : "bg-amber-500/15"}`}>
           {isActive ? (
-            <svg className="h-2.5 w-2.5 animate-spin text-amber-500" viewBox="0 0 24 24" fill="none">
+            <svg className={`h-2.5 w-2.5 animate-spin ${isNarration ? "text-sky-500" : "text-amber-500"}`} viewBox="0 0 24 24" fill="none">
               <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="3" />
               <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
             </svg>
           ) : (
-            <svg className="h-2.5 w-2.5 text-amber-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+            <svg className={`h-2.5 w-2.5 ${isNarration ? "text-sky-500" : "text-amber-500"}`} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
               <path strokeLinecap="round" strokeLinejoin="round" d="M12 18v-5.25m0 0a6.01 6.01 0 0 0 1.5-.189m-1.5.189a6.01 6.01 0 0 1-1.5-.189m3.75 7.478a12.06 12.06 0 0 1-4.5 0m3.75 2.383a14.406 14.406 0 0 1-3 0M14.25 18v-.192c0-.983.658-1.823 1.508-2.316a7.5 7.5 0 1 0-7.517 0c.85.493 1.509 1.333 1.509 2.316V18" />
             </svg>
           )}
         </div>
-        <span className="text-xs font-medium text-amber-500/70">
-          {variant === "narration" ? "Narration" : isActive ? "Thinking" : "Thought"}
+        <span className={`text-xs font-medium ${isNarration ? "text-sky-500/70" : "text-amber-500/70"}`}>
+          {isNarration ? "Narration" : isActive ? "Thinking" : "Thought"}
         </span>
-        <span className="text-2xs text-amber-500/50">
+        <span className={`text-2xs ${isNarration ? "text-sky-500/50" : "text-amber-500/50"}`}>
           {isActive ? `${formatElapsed(elapsed)}` : formatElapsed(displayDuration)}
         </span>
         <span className="text-2xs text-muted-foreground/50">{formatTimestamp(message.timestamp)}</span>
       </div>
-      <div className="rounded-lg border border-amber-500/10 bg-amber-500/5 px-3 py-2 text-xs italic leading-[1.6] text-muted-foreground break-words prose prose-sm prose-neutral dark:prose-invert max-w-none prose-p:my-1 prose-ul:my-1 prose-ol:my-1 prose-li:my-0">
+      <div className={`rounded-lg border px-3 py-2 text-xs italic leading-[1.6] text-muted-foreground break-words prose prose-sm prose-neutral dark:prose-invert max-w-none prose-p:my-1 prose-ul:my-1 prose-ol:my-1 prose-li:my-0 ${isNarration ? "border-sky-500/10 bg-sky-500/5" : "border-amber-500/10 bg-amber-500/5"}`}>
         <div ref={contentRef} className={expanded ? undefined : THINKING_PREVIEW_CLASS}>
           <ReactMarkdown remarkPlugins={BASE_REMARK_PLUGINS} components={markdownComponents}>
             {content}
@@ -257,7 +259,7 @@ function ThinkingMessage({ message, isActive, duration, variant = "thinking" }: 
         {canExpand && (
           <button
             onClick={() => setExpanded(!expanded)}
-            className="ml-1 text-amber-500/70 hover:text-amber-500 font-medium not-italic"
+            className={`ml-1 font-medium not-italic ${isNarration ? "text-sky-500/70 hover:text-sky-500" : "text-amber-500/70 hover:text-amber-500"}`}
           >
             {expanded ? "show less" : "show more"}
           </button>
