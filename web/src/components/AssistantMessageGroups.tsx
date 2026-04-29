@@ -1,13 +1,9 @@
 import { memo, useMemo } from "react"
 import type { ChatMessage as ChatMessageType } from "../hooks/useSession"
 import { ChatMessage } from "./ChatMessage"
-import { ToolCallDisplay } from "./ToolCallDisplay"
 import {
-  buildToolContent,
   deriveChatTimelineGroups,
   deriveStreamingStatusLabel,
-  deriveToolStatus,
-  getLastToolIndex,
   splitTimelineItems,
   type TimelineGroup,
 } from "../lib/timeline"
@@ -45,23 +41,12 @@ function AssistantGroup({
   onReply?: (content: string) => void
   isStreaming: boolean
 }) {
-  const lastToolIdx = useMemo(() => getLastToolIndex(group.items), [group.items])
   const segments = useMemo(() => splitTimelineItems(group.items), [group.items])
 
   return (
     <>
       {segments.map((segment) => {
-        if (segment.kind === "tool") {
-          const status = deriveToolStatus(segment.item.data, {
-            isStreaming,
-            isLastTool: segment.index === lastToolIdx,
-          })
-          return (
-            <div key={`tool-${segment.item.data.id}`} className="pb-6">
-              <ToolCallDisplay content={buildToolContent(segment.item.data)} status={status} />
-            </div>
-          )
-        }
+        if (segment.kind === "tool") return null
 
         const isLastThinking = segment.item.data.role === "thinking" && isStreaming && segment.index === group.items.length - 1
         return (

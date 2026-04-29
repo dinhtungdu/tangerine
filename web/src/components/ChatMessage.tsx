@@ -12,7 +12,6 @@ import type { AgentContentBlock, AgentPlanEntry } from "@tangerine/shared"
 import type { ChatMessage as ChatMessageType } from "../hooks/useSession"
 import { formatTimestamp } from "../lib/format"
 import { useNavigate } from "react-router-dom"
-import { ToolCallDisplay } from "./ToolCallDisplay"
 import { DiffViewer, getDiffStats } from "./DiffViewer"
 import { AuthenticatedImage } from "./AuthenticatedImage"
 import { ImageLightbox } from "./ImageLightbox"
@@ -486,13 +485,7 @@ export const ChatMessage = memo(function ChatMessage({ message, tasks, onReply, 
     }] : []),
   ] : []
 
-  if (isTool) {
-    return (
-      <div className="animate-fade-in">
-        <ToolCallDisplay content={message.content} />
-      </div>
-    )
-  }
+  if (isTool) return null
 
   if (isUser) {
     return (

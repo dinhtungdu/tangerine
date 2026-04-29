@@ -52,7 +52,7 @@ Current task-detail feature set includes:
 - `#` task mentions, `@` file mentions, and `/` slash-command autocomplete in prompt textareas
 - streamed messages
 - streamed thinking merged into one Thought card per turn
-- tool call display, including ACP `tool_call_update` result text streamed into the matching tool block by `toolCallId` while preserving start-time ordering on reload
+- tool activity tracked in the activity stream and used for compact streaming status; raw tool call cards are suppressed from the chat transcript
 - ACP config-option selectors for `model`, `thought_level`/`effort`, and `mode`; legacy ACP `models` / `modes` state is normalized into the same UI, with legacy thinking/reasoning modes shown as `thought_level`
 - ACP harness support summary in the selector popover, showing which of Model, Effort, and Mode are advertised for the active session
 - ACP plan cards

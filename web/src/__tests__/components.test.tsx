@@ -1666,8 +1666,9 @@ describe("ChatMessage inline actions", () => {
     expect(screen.queryByLabelText("Reply")).toBeNull()
   })
 
-  test("does not render actions for tool call messages", () => {
-    renderMsg({ message: makeMsg({ role: "agent", content: JSON.stringify({ tool: "bash", input: {} }) }), onReply: () => {} })
+  test("hides serialized tool call messages", () => {
+    const { container } = renderMsg({ message: makeMsg({ role: "agent", content: JSON.stringify({ tool: "bash", input: { command: "bun test" } }) }), onReply: () => {} })
+    expect(container.textContent).toBe("")
     expect(screen.queryByLabelText("Reply")).toBeNull()
   })
 
@@ -1683,7 +1684,7 @@ describe("ChatMessage inline actions", () => {
 })
 
 describe("AssistantMessageGroups tool calls", () => {
-  test("keeps assistant messages in timeline order around inline tool calls", () => {
+  test("keeps assistant messages while hiding inline tool calls", () => {
     const messages = [
       { id: "assistant-1", role: "assistant", content: "First answer", timestamp: "2026-04-18T12:00:00.000Z" },
       { id: "assistant-2", role: "assistant", content: "Second answer", timestamp: "2026-04-18T12:00:10.000Z" },
@@ -1722,13 +1723,14 @@ describe("AssistantMessageGroups tool calls", () => {
     )
 
     const content = container.textContent || ""
-    expect(content.indexOf("First answer")).toBeLessThan(content.indexOf("web/src/one.tsx"))
-    expect(content.indexOf("web/src/one.tsx")).toBeLessThan(content.indexOf("web/src/two.tsx"))
-    expect(content.indexOf("web/src/two.tsx")).toBeLessThan(content.indexOf("Second answer"))
+    expect(content).toContain("First answer")
+    expect(content).toContain("Second answer")
+    expect(content).not.toContain("web/src/one.tsx")
+    expect(content).not.toContain("web/src/two.tsx")
     expect(content).not.toContain("2 tools")
   })
 
-  test("renders consecutive tool calls inline without summary controls", () => {
+  test("hides consecutive tool calls from chat", () => {
     const timestamp = "2026-04-18T12:00:00.000Z"
     const messages = [
       { id: "assistant-1", role: "assistant", content: "Done", timestamp },
@@ -1766,12 +1768,13 @@ describe("AssistantMessageGroups tool calls", () => {
       </MemoryRouter>
     )
 
+    expect(screen.getByText("Done")).toBeTruthy()
     expect(screen.queryAllByRole("button", { name: /2 tools/i })).toHaveLength(0)
-    expect(screen.getAllByText(/web\/src\/one\.tsx/).length).toBeGreaterThan(0)
-    expect(screen.getAllByText(/web\/src\/two\.tsx/).length).toBeGreaterThan(0)
+    expect(screen.queryAllByText(/web\/src\/one\.tsx/)).toHaveLength(0)
+    expect(screen.queryAllByText(/web\/src\/two\.tsx/)).toHaveLength(0)
   })
 
-  test("renders completed and running tool calls inline", () => {
+  test("hides completed and running tool call cards from chat", () => {
     const messages = [
       { id: "assistant-1", role: "assistant", content: "First work done", timestamp: "2026-04-18T12:00:03.000Z" },
     ]
@@ -1812,11 +1815,48 @@ describe("AssistantMessageGroups tool calls", () => {
       </MemoryRouter>
     )
 
-    expect(screen.queryAllByRole("button", { name: /2 tools/i })).toHaveLength(0)
-    expect(screen.getAllByText(/web\/src\/one\.tsx/).length).toBeGreaterThan(0)
-    expect(screen.getAllByText(/web\/src\/two\.tsx/).length).toBeGreaterThan(0)
-    expect(screen.getAllByText(/web\/src\/three\.tsx/).length).toBeGreaterThan(0)
-    expect(screen.getAllByText(/web\/src\/four\.tsx/).length).toBeGreaterThan(0)
+    expect(screen.getByText("First work done")).toBeTruthy()
+    expect(screen.queryAllByRole("button", { name: /Write/i })).toHaveLength(0)
+    expect(screen.queryAllByText(/web\/src\/one\.tsx/)).toHaveLength(0)
+    expect(screen.queryAllByText(/web\/src\/two\.tsx/)).toHaveLength(0)
+    expect(screen.queryAllByText(/web\/src\/three\.tsx/)).toHaveLength(0)
+    expect(screen.getByText("Write · web/src/four.tsx")).toBeTruthy()
+  })
+
+  test("keeps diff content blocks visible when tool calls are hidden", () => {
+    const messages = [
+      { id: "assistant-1", role: "assistant", content: "Reviewing changes", timestamp: "2026-04-18T12:00:00.000Z" },
+      {
+        id: "diff-1",
+        role: "content",
+        content: JSON.stringify({ type: "diff", path: "/repo/src/a.ts", oldText: "const a = 1", newText: "const a = 2" }),
+        timestamp: "2026-04-18T12:00:02.000Z",
+        contentBlock: { type: "diff", path: "/repo/src/a.ts", oldText: "const a = 1", newText: "const a = 2" },
+      },
+    ]
+    const activities = [
+      makeActivity({
+        id: 101,
+        event: "tool.write",
+        metadata: { toolName: "Write", toolInput: { file_path: "web/src/hidden.tsx" }, status: "success" },
+        timestamp: "2026-04-18T12:00:01.000Z",
+      }),
+    ]
+
+    render(
+      <MemoryRouter>
+        <AssistantMessageGroups
+          messages={messages}
+          activities={activities}
+          isLastGroupStreaming={false}
+        />
+      </MemoryRouter>
+    )
+
+    expect(screen.getByText("Diff")).toBeTruthy()
+    expect(screen.getByText("/repo/src/a.ts")).toBeTruthy()
+    expect(screen.getByText("const a = 2")).toBeTruthy()
+    expect(screen.queryAllByText(/web\/src\/hidden\.tsx/)).toHaveLength(0)
   })
 
   test("shows specific streaming status instead of generic working text", () => {
