@@ -1,6 +1,5 @@
 // Periodic orphan cleanup: finds terminal tasks with worktree_path still set
 // and cleans them up. Safety net for crashes or bugs in transition hooks.
-// v1: All local — no SSH-based cleanup.
 
 import { Effect, Schedule } from "effect"
 import { createLogger } from "../logger"

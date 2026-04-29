@@ -2,8 +2,8 @@
   "action": "labeled",
   "issue": {
     "number": 103,
-    "title": "Improve error messages in agent provider abstraction",
-    "body": "Error messages from agent providers are sometimes cryptic. We should improve them to include:\n- The provider type (OpenCode vs Claude Code)\n- The specific operation that failed\n- Suggested remediation steps",
+    "title": "Improve error messages in ACP agent sessions",
+    "body": "ACP agent errors are sometimes cryptic. We should improve them to include:\n- The configured agent id\n- The specific operation that failed\n- Suggested remediation steps",
     "html_url": "https://github.com/dinhtungdu/tangerine/issues/103",
     "labels": [
       { "name": "tangerine" },

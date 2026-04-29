@@ -31,7 +31,7 @@
     "lint": "eslint 'packages/*/src/**/*.ts' 'web/src/**/*.{ts,tsx}'",
     "build:cli": "bun build packages/server/src/cli/index.ts --target bun --outfile dist/cli.js --external 'bun:*' --external bun-pty --external effect --external hono --external 'hono/*' --external cron-parser --external zod",
     "check": "bun run --filter '*' check && bun run lint",
-    "test": "bun run --filter '*' test",
+    "test": "bun run --filter tangerine-server test && bun run --filter tangerine-web test",
     "prepublishOnly": "bun run build:cli",
     "prepare": "husky"
   },
