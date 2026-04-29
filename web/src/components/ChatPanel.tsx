@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState, useCallback } from "react"
+import { useEffect, useRef, useState, useCallback, useMemo } from "react"
 import { ChevronRight, Trash2, Pencil, X } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible"
@@ -248,6 +248,23 @@ export function ChatPanel({
   const contentRef = useRef<HTMLDivElement>(null)
   const { navigate } = useProjectNav()
   const isTerminated = taskStatus ? TERMINAL_STATUSES.has(taskStatus) : false
+  const [showThinking, setShowThinking] = useState(() => {
+    try { return localStorage.getItem("showThinking") === "true" } catch { return false }
+  })
+  useEffect(() => {
+    try { localStorage.setItem("showThinking", String(showThinking)) } catch { /* storage unavailable */ }
+  }, [showThinking])
+
+  const thinkingCount = useMemo(
+    () => messages.filter((m) => m.role === "thinking" || m.role === "narration").length,
+    [messages],
+  )
+
+  const visibleMessages = useMemo(
+    () => (showThinking ? messages : messages.filter((m) => m.role !== "thinking" && m.role !== "narration")),
+    [messages, showThinking],
+  )
+
   // pendingQuote is persisted per task so it survives page reloads
   const quoteKey = taskId ? `tangerine:chat-quote:${taskId}` : null
   const [pendingQuote, setPendingQuote] = useState<string | null>(null)
@@ -384,12 +401,27 @@ export function ChatPanel({
           ) : (
             <div ref={contentRef} className="min-w-0 px-4 pb-12 pt-4">
               <AssistantMessageGroups
-                messages={messages}
+                messages={visibleMessages}
                 activities={activities}
                 tasks={tasks}
                 onReply={handleReply}
                 isLastGroupStreaming={agentStatus === "working"}
               />
+              {thinkingCount > 0 && (
+                <div className="mt-4 flex justify-center">
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => setShowThinking((prev) => !prev)}
+                    className="text-muted-foreground"
+                  >
+                    <svg className="h-3 w-3 text-amber-500/70" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                      <path strokeLinecap="round" strokeLinejoin="round" d="M12 18v-5.25m0 0a6.01 6.01 0 0 0 1.5-.189m-1.5.189a6.01 6.01 0 0 1-1.5-.189m3.75 7.478a12.06 12.06 0 0 1-4.5 0m3.75 2.383a14.406 14.406 0 0 1-3 0M14.25 18v-.192c0-.983.658-1.823 1.508-2.316a7.5 7.5 0 1 0-7.517 0c.85.493 1.509 1.333 1.509 2.316V18" />
+                    </svg>
+                    {showThinking ? "Hide" : "Show"} reasoning ({thinkingCount})
+                  </Button>
+                </div>
+              )}
             </div>
           )}
         </div>
