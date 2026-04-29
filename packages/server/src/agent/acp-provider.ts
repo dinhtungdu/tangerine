@@ -585,7 +585,7 @@ async function startAcpSession(ctx: AgentStartContext, config?: AcpProviderConfi
     if (event.kind === "slash.commands") slashCommands = event.commands
     // Track tool lifecycle to prevent premature idle emission
     // For tool.end: emit event first, then update tracker (which may emit idle)
-    if (event.kind === "tool.start" && event.toolCallId) {
+    if ((event.kind === "tool.start" || (event.kind === "tool.update" && event.status === "running")) && event.toolCallId) {
       statusTracker.toolStart(event.toolCallId)
       emit(event)
     } else if (event.kind === "tool.end" && event.toolCallId) {

@@ -498,6 +498,28 @@ describe("createAcpProvider", () => {
     rmSync(tempDir, { recursive: true, force: true })
   })
 
+  test("marks late in-progress tool updates as working", async () => {
+    const tempDir = mkdtempSync(join(tmpdir(), "tangerine-acp-late-tool-status-"))
+    const scriptPath = join(tempDir, "mock-acp-agent.js")
+    writeFileSync(scriptPath, mockLateToolUpdateAcpAgentScript, "utf-8")
+
+    process.env.TANGERINE_ACP_COMMAND = `bun ${scriptPath}`
+    const provider = createAcpProvider()
+    const handle = await Effect.runPromise(provider.start({ taskId: "task-acp", workdir: tempDir, title: "ACP late tool status" }))
+
+    const events: AgentEvent[] = []
+    handle.subscribe((event) => events.push(event))
+
+    await Effect.runPromise(handle.sendPrompt("run late tool"))
+    await waitFor(() => events.some((event) => event.kind === "tool.end"))
+
+    const statuses = events.filter((event): event is Extract<AgentEvent, { kind: "status" }> => event.kind === "status").map((event) => event.status)
+    expect(statuses).toEqual(["idle", "working", "idle", "working", "idle"])
+
+    await Effect.runPromise(handle.shutdown())
+    rmSync(tempDir, { recursive: true, force: true })
+  })
+
   test("advertises ACP filesystem callbacks and handles read/write requests", async () => {
     const tempDir = mkdtempSync(join(tmpdir(), "tangerine-acp-fs-"))
     const scriptPath = join(tempDir, "mock-acp-agent.js")
@@ -860,6 +882,37 @@ rl.on("line", (line) => {
   if (msg.method === "session/prompt") {
     const id = msg.id
     setTimeout(() => send({ jsonrpc: "2.0", id, result: { stopReason: "end_turn" } }), 120)
+    return
+  }
+  if (msg.method === "session/close") {
+    send({ jsonrpc: "2.0", id: msg.id, result: {} })
+  }
+})
+`
+
+const mockLateToolUpdateAcpAgentScript = `
+const readline = require("node:readline")
+const rl = readline.createInterface({ input: process.stdin })
+function send(message) { process.stdout.write(JSON.stringify(message) + "\\n") }
+rl.on("line", (line) => {
+  const msg = JSON.parse(line)
+  if (msg.method === "initialize") {
+    send({ jsonrpc: "2.0", id: msg.id, result: { protocolVersion: 1, agentCapabilities: { sessionCapabilities: { close: {} } }, authMethods: [] } })
+    return
+  }
+  if (msg.method === "session/new") {
+    send({ jsonrpc: "2.0", id: msg.id, result: { sessionId: "sess-late-tool" } })
+    return
+  }
+  if (msg.method === "session/prompt") {
+    const promptId = msg.id
+    send({ jsonrpc: "2.0", id: promptId, result: { stopReason: "end_turn" } })
+    setTimeout(() => {
+      send({ jsonrpc: "2.0", method: "session/update", params: { sessionId: "sess-late-tool", update: { sessionUpdate: "tool_call_update", toolCallId: "call-late", title: "Bash", status: "in_progress", rawOutput: "running" } } })
+    }, 20)
+    setTimeout(() => {
+      send({ jsonrpc: "2.0", method: "session/update", params: { sessionId: "sess-late-tool", update: { sessionUpdate: "tool_call_update", toolCallId: "call-late", title: "Bash", status: "completed", rawOutput: "done" } } })
+    }, 60)
     return
   }
   if (msg.method === "session/close") {
