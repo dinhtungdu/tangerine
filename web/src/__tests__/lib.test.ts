@@ -43,6 +43,7 @@ import { isGithubRepo, isProviderAvailable, type AgentConfig, type Task, type Sy
 import { getConfiguredAgentIds, resolveAvailableAgent } from "../lib/agent-selection"
 import { findTriggerToken } from "../lib/text-trigger"
 import { resolvePickerKey } from "../lib/picker-keyboard"
+import { sendTerminalResize } from "../lib/terminal-websocket"
 
 function makeTask(overrides: Partial<Task> = {}): Task {
   return {
@@ -94,6 +95,24 @@ describe("resolvePickerKey", () => {
   test("does not consume arrow keys when list is empty", () => {
     expect(resolvePickerKey("ArrowDown", 0, 0)).toEqual({ action: "none" })
     expect(resolvePickerKey("ArrowUp", 0, 0)).toEqual({ action: "none" })
+  })
+})
+
+describe("terminal websocket helpers", () => {
+  test("skips resize messages after socket closes", () => {
+    const sent: string[] = []
+
+    sendTerminalResize({ readyState: 3, send: (message) => sent.push(message) }, { cols: 80, rows: 24 })
+
+    expect(sent).toEqual([])
+  })
+
+  test("sends resize messages while socket is open", () => {
+    const sent: string[] = []
+
+    sendTerminalResize({ readyState: 1, send: (message) => sent.push(message) }, { cols: 80, rows: 24 })
+
+    expect(sent).toEqual([JSON.stringify({ type: "resize", cols: 80, rows: 24 })])
   })
 })
 

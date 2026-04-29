@@ -199,6 +199,17 @@ export async function fetchMessagesPaginated(
   return request<PaginatedMessages>(`/api/tasks/${id}/messages?${params}`)
 }
 
+export interface SessionSyncResult {
+  available: boolean
+  inserted: number
+  skipped: number
+  reason?: "missing-session-id" | "history-load-unsupported"
+}
+
+export async function syncTaskSession(id: string): Promise<SessionSyncResult> {
+  return request<SessionSyncResult>(`/api/tasks/${id}/sync-session`, { method: "POST" })
+}
+
 export async function fetchTaskConfigOptions(id: string): Promise<AgentConfigOption[]> {
   const body = await request<{ configOptions?: AgentConfigOption[] }>(`/api/tasks/${id}/config-options`)
   return Array.isArray(body?.configOptions) ? body.configOptions : []

@@ -8,7 +8,7 @@ import { createLogger } from "../logger"
 import { AgentError, PromptError, SessionStartError } from "../errors"
 import { killDescendants, killProcessTreeEscalated } from "./process-tree"
 import { isAgentEffortOption, type AgentConfigOption, type AgentContentBlock, type AgentPlanEntry, type AgentSlashCommand } from "@tangerine/shared"
-import type { AgentEvent, AgentFactory, AgentHandle, AgentStartContext, PromptImage, AgentMetadata } from "./provider"
+import type { AgentEvent, AgentFactory, AgentHandle, AgentHistoryLoadContext, AgentStartContext, PromptImage, AgentMetadata } from "./provider"
 
 const log = createLogger("acp-provider")
 const ACP_PROTOCOL_VERSION = 1
@@ -523,6 +523,9 @@ export function createAcpProvider(config?: AcpProviderConfig): AgentFactory {
       abbreviation: config?.name ?? ACP_AGENT_METADATA.abbreviation,
       cliCommand: command.checkCommand,
     },
+    loadSessionHistory(ctx: AgentHistoryLoadContext): Effect.Effect<AgentEvent[], SessionStartError> {
+      return loadAcpSessionHistory(config, ctx)
+    },
     start(ctx: AgentStartContext): Effect.Effect<AgentHandle, SessionStartError> {
       return Effect.tryPromise({
         try: () => startAcpSession(ctx, config),
@@ -535,6 +538,106 @@ export function createAcpProvider(config?: AcpProviderConfig): AgentFactory {
       })
     },
   }
+}
+
+function loadAcpSessionHistory(
+  config: AcpProviderConfig | undefined,
+  ctx: AgentHistoryLoadContext,
+): Effect.Effect<AgentEvent[], SessionStartError> {
+  return Effect.tryPromise({
+    try: async () => {
+      const taskLog = log.child({ taskId: ctx.taskId, phase: "history-load" })
+      const command = resolveProviderCommand(config, process.env)
+      const proc = Bun.spawn(["bash", "-lc", command.shellCommand], {
+        cwd: ctx.workdir,
+        stdin: "pipe",
+        stdout: "pipe",
+        stderr: "pipe",
+        env: { ...process.env, ...config?.env, ...ctx.env },
+      })
+      taskLog.info("ACP history loader spawned", { pid: proc.pid, command: command.checkCommand })
+
+      const mapper = createAcpEventMapper()
+      const events: AgentEvent[] = []
+      let rpcError: Error | null = null
+
+      const flushBuffered = () => {
+        for (const event of mapper.flushThoughtMessage()) events.push(event)
+        for (const event of mapper.flushAssistantMessage()) events.push(event)
+      }
+
+      const rpc = new AcpRpcConnection({
+        stdout: proc.stdout as ReadableStream<Uint8Array>,
+        write: (line) => {
+          proc.stdin.write(line)
+          proc.stdin.flush()
+        },
+        onNotification: (method, params) => {
+          if (method !== "session/update" || !isRecord(params)) return
+          const update = params.update
+          if (!isRecord(update)) return
+          for (const event of mapper.mapSessionUpdate(update)) {
+            if (event.kind === "message.streaming" || event.kind === "thinking.streaming") continue
+            if (event.kind === "message.complete" && event.role === "user") flushBuffered()
+            if (event.kind === "content.block" || event.kind === "plan") flushBuffered()
+            if (isSessionHistoryEvent(event)) events.push(event)
+          }
+        },
+        onRequest: async (method, params) => {
+          if (!isRecord(params)) throw new Error(`Invalid ACP client request params: ${method}`)
+          if (method === "fs/read_text_file") return readTextFileForAcp(ctx.workdir, params)
+          throw new Error(`Unsupported ACP client request: ${method}`)
+        },
+        onError: (error) => { rpcError = error },
+        onEnd: () => { /* one-shot loader owns process shutdown */ },
+      })
+
+      try {
+        readStderr(proc.stderr as ReadableStream<Uint8Array>, (text) => taskLog.debug("acp stderr", { text }))
+        const initResult = await rpc.request("initialize", {
+          protocolVersion: ACP_PROTOCOL_VERSION,
+          clientCapabilities: { fs: { readTextFile: true } },
+          clientInfo: { name: "tangerine", title: "Tangerine", version: "0.0.8" },
+        })
+        const capabilities = parseAcpCapabilities(initResult)
+        if (!capabilities.loadSession) return []
+
+        await rpc.request("session/load", {
+          sessionId: ctx.sessionId,
+          cwd: ctx.workdir,
+          mcpServers: [],
+        })
+        flushBuffered()
+        if (rpcError) throw rpcError
+        if (capabilities.close) {
+          await rpc.request("session/close", { sessionId: ctx.sessionId }).catch(() => undefined)
+        }
+        return events
+      } finally {
+        rpc.stop()
+        try {
+          proc.stdin.end()
+        } catch {
+          // stdin may already be closed
+        }
+        killProcessTreeEscalated(proc.pid)
+      }
+    },
+    catch: (cause) => new SessionStartError({
+      message: `ACP session history load failed: ${cause instanceof Error ? cause.message : String(cause)}`,
+      taskId: ctx.taskId,
+      phase: "history-load",
+      cause,
+    }),
+  })
+}
+
+function isSessionHistoryEvent(event: AgentEvent): boolean {
+  return event.kind === "message.complete"
+    || event.kind === "thinking"
+    || event.kind === "thinking.complete"
+    || event.kind === "content.block"
+    || event.kind === "plan"
 }
 
 async function startAcpSession(ctx: AgentStartContext, config?: AcpProviderConfig): Promise<AgentHandle> {

@@ -12,6 +12,7 @@ import { TaskNotFoundError } from "../errors"
 import type { TaskRow } from "../db/types"
 import type { RawConfig } from "../config"
 import { createAgentFactories } from "../agent/factories"
+import type { AgentEvent } from "../agent/provider"
 import { getTaskState } from "../tasks/task-state"
 import { setAgentWorkingState, clearAgentWorkingState } from "../tasks/events"
 import { clearQueue, enqueue } from "../agent/prompt-queue"
@@ -294,6 +295,7 @@ describe("API routes", () => {
     test("websocket endpoints stay public for in-band auth", () => {
       expect(isPublicApiPath("/api/tasks/task-123/ws")).toBe(true)
       expect(isPublicApiPath("/api/tasks/task-123/terminal")).toBe(true)
+      expect(isPublicApiPath("/api/tasks/task-123/agent-terminal")).toBe(true)
       expect(isPublicApiPath("/api/tasks/list/ws")).toBe(true)
       expect(isPublicApiPath("/api/tasks/agent-status/ws")).toBe(true)
       expect(isPublicApiPath("/api/tasks/task-123/messages")).toBe(false)
@@ -1012,6 +1014,103 @@ describe("API routes", () => {
         content: "Working on it...",
         transient: true,
       })
+    })
+  })
+
+  describe("POST /api/tasks/:id/sync-session", () => {
+    test("imports missing ACP history rows and deduplicates existing message ids", async () => {
+      const row = seedTask(db)
+      db.prepare("UPDATE tasks SET agent_session_id = ?, worktree_path = ? WHERE id = ?")
+        .run("sess-sync", "/tmp/tangerine-test-workspace/test-project/1", row.id)
+      Effect.runSync(insertSessionLog(db, {
+        task_id: row.id,
+        role: "user",
+        message_id: "user-1",
+        content: "Hi",
+      }))
+
+      ;(deps.agentFactories.acp as typeof deps.agentFactories.acp & {
+        loadSessionHistory?: (ctx: { taskId: string; workdir: string; sessionId: string }) => Effect.Effect<AgentEvent[], never>
+      }).loadSessionHistory = () => Effect.succeed([
+        { kind: "message.complete", role: "user", content: "Hi", messageId: "user-1" },
+        { kind: "message.complete", role: "assistant", content: "Hello", messageId: "assistant-1" },
+      ])
+
+      const res = await app.fetch(new Request(`http://localhost/api/tasks/${row.id}/sync-session`, {
+        method: "POST",
+      }))
+
+      expect(res.status).toBe(200)
+      const body = await res.json() as { available: boolean; inserted: number; skipped: number }
+      expect(body).toEqual({ available: true, inserted: 1, skipped: 1 })
+
+      const msgs = await app.fetch(new Request(`http://localhost/api/tasks/${row.id}/messages`))
+      const messages = await msgs.json() as Array<{ role: string; content: string; messageId?: string | null; message_id?: string | null }>
+      expect(messages.map((message) => ({ role: message.role, content: message.content }))).toEqual([
+        { role: "user", content: "Hi" },
+        { role: "assistant", content: "Hello" },
+      ])
+    })
+
+    test("backfills chat-authored user prompts instead of duplicating them", async () => {
+      const row = seedTask(db)
+      db.prepare("UPDATE tasks SET agent_session_id = ?, worktree_path = ? WHERE id = ?")
+        .run("sess-sync", "/tmp/tangerine-test-workspace/test-project/1", row.id)
+      Effect.runSync(insertSessionLog(db, {
+        task_id: row.id,
+        role: "user",
+        content: "Build it",
+      }))
+
+      ;(deps.agentFactories.acp as typeof deps.agentFactories.acp & {
+        loadSessionHistory?: () => Effect.Effect<AgentEvent[], never>
+      }).loadSessionHistory = () => Effect.succeed([
+        { kind: "message.complete", role: "user", content: "Build it", messageId: "user-1" },
+        { kind: "message.complete", role: "assistant", content: "Done", messageId: "assistant-1" },
+      ])
+
+      const res = await app.fetch(new Request(`http://localhost/api/tasks/${row.id}/sync-session`, {
+        method: "POST",
+      }))
+
+      expect(res.status).toBe(200)
+      const body = await res.json() as { available: boolean; inserted: number; skipped: number }
+      expect(body).toEqual({ available: true, inserted: 1, skipped: 1 })
+
+      const messages = db.prepare("SELECT role, content, message_id FROM session_logs WHERE task_id = ? ORDER BY id")
+        .all(row.id) as Array<{ role: string; content: string; message_id: string | null }>
+      expect(messages).toEqual([
+        { role: "user", content: "Build it", message_id: "user-1" },
+        { role: "assistant", content: "Done", message_id: "assistant-1" },
+      ])
+    })
+
+    test("keeps repeated ACP history rows when message ids are missing", async () => {
+      const row = seedTask(db)
+      db.prepare("UPDATE tasks SET agent_session_id = ?, worktree_path = ? WHERE id = ?")
+        .run("sess-sync", "/tmp/tangerine-test-workspace/test-project/1", row.id)
+
+      ;(deps.agentFactories.acp as typeof deps.agentFactories.acp & {
+        loadSessionHistory?: () => Effect.Effect<AgentEvent[], never>
+      }).loadSessionHistory = () => Effect.succeed([
+        { kind: "message.complete", role: "user", content: "OK" },
+        { kind: "message.complete", role: "user", content: "OK" },
+      ])
+
+      const res = await app.fetch(new Request(`http://localhost/api/tasks/${row.id}/sync-session`, {
+        method: "POST",
+      }))
+
+      expect(res.status).toBe(200)
+      const body = await res.json() as { available: boolean; inserted: number; skipped: number }
+      expect(body).toEqual({ available: true, inserted: 2, skipped: 0 })
+
+      const msgs = await app.fetch(new Request(`http://localhost/api/tasks/${row.id}/messages`))
+      const messages = await msgs.json() as Array<{ role: string; content: string }>
+      expect(messages.map((message) => ({ role: message.role, content: message.content }))).toEqual([
+        { role: "user", content: "OK" },
+        { role: "user", content: "OK" },
+      ])
     })
   })
 

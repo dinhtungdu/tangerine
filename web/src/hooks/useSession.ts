@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback, useRef } from "react"
 import type { AgentConfigOption, AgentContentBlock, AgentPlanEntry, AgentSlashCommand, WsServerMessage, TaskStatus, ActivityEntry, PromptImage, PromptQueueEntry, PermissionRequest } from "@tangerine/shared"
-import { fetchMessagesPaginated, fetchActivities, fetchQueuedPrompts, fetchTaskConfigOptions, fetchTaskSlashCommands, fetchPendingPermission, removeQueuedPrompt, updateQueuedPrompt, sendNowQueuedPrompt, respondToPermission as apiRespondToPermission, type SessionLog } from "../lib/api"
+import { fetchMessagesPaginated, fetchActivities, fetchQueuedPrompts, fetchTaskConfigOptions, fetchTaskSlashCommands, fetchPendingPermission, removeQueuedPrompt, updateQueuedPrompt, sendNowQueuedPrompt, respondToPermission as apiRespondToPermission, syncTaskSession, type SessionLog, type SessionSyncResult } from "../lib/api"
 import { useWebSocket } from "./useWebSocket"
 
 export interface ChatMessageImage {
@@ -37,6 +37,7 @@ interface UseSessionResult {
   slashCommands: AgentSlashCommand[]
   permissionRequest: PermissionRequest | null
   respondToPermission: (optionId: string) => Promise<void>
+  syncFromAgent: () => Promise<SessionSyncResult>
 }
 
 export function applyAssistantStreamMessage(
@@ -710,5 +711,11 @@ export function useSession(taskId: string, initialContextTokens?: number, initia
     await apiRespondToPermission(taskId, requestId, optionId)
   }, [taskId, permissionRequest])
 
-  return { messages, activities, agentStatus, queueLength: visibleQueuedPrompts.length, queuedPrompts: visibleQueuedPrompts, connected, taskStatus, sendPrompt, abort, updateQueuedPrompt: handleUpdateQueuedPrompt, removeQueuedPrompt: handleRemoveQueuedPrompt, clearAllQueuedPrompts: handleClearAllQueuedPrompts, sendNowQueuedPrompt: handleSendNowQueuedPrompt, contextTokens, contextWindowMax, configOptions, slashCommands, permissionRequest, respondToPermission: handleRespondToPermission }
+  const syncFromAgent = useCallback(async () => {
+    const result = await syncTaskSession(taskId)
+    await refreshFromRest()
+    return result
+  }, [taskId, refreshFromRest])
+
+  return { messages, activities, agentStatus, queueLength: visibleQueuedPrompts.length, queuedPrompts: visibleQueuedPrompts, connected, taskStatus, sendPrompt, abort, updateQueuedPrompt: handleUpdateQueuedPrompt, removeQueuedPrompt: handleRemoveQueuedPrompt, clearAllQueuedPrompts: handleClearAllQueuedPrompts, sendNowQueuedPrompt: handleSendNowQueuedPrompt, contextTokens, contextWindowMax, configOptions, slashCommands, permissionRequest, respondToPermission: handleRespondToPermission, syncFromAgent }
 }

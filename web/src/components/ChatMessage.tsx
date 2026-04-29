@@ -330,19 +330,6 @@ function DiffContentBlockCard({ message, block }: { message: ChatMessageType; bl
   )
 }
 
-function TerminalContentBlockCard({ message, block }: { message: ChatMessageType; block: AgentContentBlock }) {
-  const terminal = getTerminalBlock(block)
-  if (!terminal) return null
-  return (
-    <ContentBlockFrame label="Terminal" timestamp={message.timestamp} icon={<Terminal />}>
-      <div className="rounded-md border border-border bg-background px-2.5 py-2">
-        <div className="font-mono text-xs font-medium text-foreground">{terminal.terminalId}</div>
-        <div className="mt-1 text-2xs text-muted-foreground">Live terminal output is available in the terminal pane when attached.</div>
-      </div>
-    </ContentBlockFrame>
-  )
-}
-
 function GenericContentBlockCard({ message, block }: { message: ChatMessageType; block: AgentContentBlock }) {
   const title = typeof block.title === "string" ? block.title
     : typeof block.name === "string" ? block.name
@@ -360,6 +347,19 @@ function GenericContentBlockCard({ message, block }: { message: ChatMessageType;
         <div className="text-xs font-medium text-foreground">{title}</div>
         {uri && <div className="mt-1 break-words font-mono text-2xs text-muted-foreground">{uri}</div>}
         {typeof block.mimeType === "string" && <div className="mt-1 text-2xs text-muted-foreground">{block.mimeType}</div>}
+      </div>
+    </ContentBlockFrame>
+  )
+}
+
+function TerminalContentBlockCard({ message, block }: { message: ChatMessageType; block: AgentContentBlock }) {
+  const terminal = getTerminalBlock(block)
+  if (!terminal) return null
+  return (
+    <ContentBlockFrame label="Terminal" timestamp={message.timestamp} icon={<Terminal />}>
+      <div className="rounded-md border border-border bg-background px-2.5 py-2">
+        <div className="break-words font-mono text-xs font-medium text-foreground">{terminal.terminalId}</div>
+        <div className="mt-1 text-2xs text-muted-foreground">Agent terminal session recorded by the provider.</div>
       </div>
     </ContentBlockFrame>
   )
