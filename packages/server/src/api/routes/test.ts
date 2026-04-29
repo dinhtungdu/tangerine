@@ -44,6 +44,13 @@ export interface SeedPayload {
     metadata?: Record<string, unknown>
     timestamp?: string
   }>
+  session_logs?: Array<{
+    task_id: string
+    role: string
+    content: string
+    images?: string
+    timestamp?: string
+  }>
 }
 
 export function testRoutes(deps: AppDeps): Hono {
@@ -63,6 +70,7 @@ export function testRoutes(deps: AppDeps): Hono {
     const db = deps.db
     let taskCount = 0
     let activityCount = 0
+    let sessionCount = 0
 
     if (payload.tasks) {
       for (const t of payload.tasks) {
@@ -102,9 +110,9 @@ export function testRoutes(deps: AppDeps): Hono {
       }
     }
 
-    // Direct DB inserts for activity_log to preserve fixture timestamps.
-    // We bypass logActivity() because it uses DB-default timestamps
-    // and emits WebSocket events (not wanted during bulk seeding).
+    // Direct DB inserts for activity_log and session_logs to preserve fixture timestamps.
+    // We bypass logActivity()/insertSessionLog() because they use DB-default timestamps
+    // and logActivity() emits WebSocket events (not wanted during bulk seeding).
     if (payload.activity_log) {
       const stmt = db.prepare(`
         INSERT INTO activity_log (task_id, type, event, content, metadata, timestamp)
@@ -123,13 +131,31 @@ export function testRoutes(deps: AppDeps): Hono {
       }
     }
 
-    log.info("Seeded test data", { taskCount, activityCount })
-    return c.json({ ok: true, seeded: { tasks: taskCount, activity_log: activityCount } })
+    if (payload.session_logs) {
+      const stmt = db.prepare(`
+        INSERT INTO session_logs (task_id, role, content, images, timestamp)
+        VALUES ($task_id, $role, $content, $images, $timestamp)
+      `)
+      for (const s of payload.session_logs) {
+        stmt.run({
+          $task_id: s.task_id,
+          $role: s.role,
+          $content: s.content,
+          $images: s.images ?? null,
+          $timestamp: s.timestamp ?? new Date().toISOString(),
+        })
+        sessionCount++
+      }
+    }
+
+    log.info("Seeded test data", { taskCount, activityCount, sessionCount })
+    return c.json({ ok: true, seeded: { tasks: taskCount, activity_log: activityCount, session_logs: sessionCount } })
   })
 
-  // Wipe all data from tasks and activity_log
+  // Wipe all data from tasks, activity_log, and session_logs
   app.post("/reset", (c) => {
     const db = deps.db
+    db.run("DELETE FROM session_logs")
     db.run("DELETE FROM activity_log")
     db.run("DELETE FROM tasks")
     log.info("Reset test data — all tables truncated")

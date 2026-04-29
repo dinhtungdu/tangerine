@@ -10,6 +10,8 @@ import {
   listTasks,
   updateTask,
   updateTaskStatus,
+  insertSessionLog,
+  getSessionLogs,
 } from "../queries"
 
 function freshDb(): Database {
@@ -103,6 +105,47 @@ describe("tasks", () => {
     const running = Effect.runSync(listTasks(db, { status: "running" }))
     expect(running.length).toBe(1)
     expect(running[0]!.id).toBe("t-b")
+  })
+})
+
+describe("session logs", () => {
+  let db: Database
+
+  beforeEach(() => {
+    db = freshDb()
+  })
+
+  test("insert and retrieve session logs", () => {
+    Effect.runSync(createTask(db, { id: "task-log", source: "manual", project_id: "test", title: "Log test" }))
+
+    Effect.runSync(insertSessionLog(db, { task_id: "task-log", role: "user", content: "Hello" }))
+    Effect.runSync(insertSessionLog(db, { task_id: "task-log", role: "assistant", content: "Hi there" }))
+
+    const logs = Effect.runSync(getSessionLogs(db, "task-log"))
+    expect(logs.length).toBe(2)
+    expect(logs[0]!.role).toBe("user")
+    expect(logs[0]!.content).toBe("Hello")
+    expect(logs[1]!.role).toBe("assistant")
+    expect(logs[1]!.content).toBe("Hi there")
+  })
+
+  test("deduplicates assistant session logs by message id", () => {
+    Effect.runSync(createTask(db, { id: "task-log-dedupe", source: "manual", project_id: "test", title: "Log dedupe" }))
+
+    const first = Effect.runSync(insertSessionLog(db, { task_id: "task-log-dedupe", role: "assistant", content: "Same", message_id: "msg-1" }))
+    const second = Effect.runSync(insertSessionLog(db, { task_id: "task-log-dedupe", role: "assistant", content: "Same", message_id: "msg-1" }))
+
+    const logs = Effect.runSync(getSessionLogs(db, "task-log-dedupe"))
+    expect(second.id).toBe(first.id)
+    expect(logs).toHaveLength(1)
+    expect(logs[0]!.content).toBe("Same")
+    expect(logs[0]!.message_id).toBe("msg-1")
+  })
+
+  test("returns empty array for task with no logs", () => {
+    Effect.runSync(createTask(db, { id: "task-empty", source: "manual", project_id: "test", title: "Empty" }))
+    const logs = Effect.runSync(getSessionLogs(db, "task-empty"))
+    expect(logs.length).toBe(0)
   })
 })
 

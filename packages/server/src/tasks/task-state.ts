@@ -19,12 +19,6 @@ export interface TaskState {
   lastError?: string
   firstPromptSent: boolean
   systemPromptApplied: boolean
-  /** True once agent has emitted at least one response (chunk). */
-  hasAssistantResponse: boolean
-  /** True if the last event was a user message. */
-  lastEventWasUser: boolean
-  /** ISO timestamp of the last user message. */
-  lastUserMessageAt?: string
   prUrlSaved: boolean
   prNudgeSent: boolean
   prNudgeTimer?: Timer
@@ -67,8 +61,6 @@ function defaultState(): TaskState {
     queuePaused: false,
     firstPromptSent: false,
     systemPromptApplied: false,
-    hasAssistantResponse: false,
-    lastEventWasUser: false,
     prUrlSaved: false,
     prNudgeSent: false,
     consecutiveRestarts: 0,

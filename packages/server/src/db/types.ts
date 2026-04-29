@@ -45,6 +45,17 @@ export interface CronRow {
   updated_at: string
 }
 
+export interface SessionLogRow {
+  id: number
+  task_id: string
+  role: string
+  message_id: string | null
+  content: string
+  images: string | null
+  from_task_id: string | null
+  timestamp: string
+}
+
 export type WorktreeSlotStatus = "available" | "bound" | "initializing"
 
 export interface WorktreeSlotRow {

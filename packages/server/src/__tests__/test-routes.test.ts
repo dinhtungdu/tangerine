@@ -3,7 +3,7 @@ import { Effect } from "effect"
 import type { Database } from "bun:sqlite"
 import { createTestDb } from "./helpers"
 import { createApp, type AppDeps } from "../api/app"
-import { createTask as dbCreateTask, updateTaskStatus } from "../db/queries"
+import { createTask as dbCreateTask, updateTaskStatus, insertSessionLog } from "../db/queries"
 import type { RawConfig } from "../config"
 import { createAgentFactories } from "../agent/factories"
 
@@ -54,7 +54,8 @@ function createMockDeps(db: Database, configOverrides?: Partial<AppDeps["config"
       resolveTask(taskId) {
         return Effect.sync(() => { Effect.runSync(updateTaskStatus(db, taskId, "done")) })
       },
-      sendPrompt() {
+      sendPrompt(taskId, text) {
+        Effect.runSync(insertSessionLog(db, { task_id: taskId, role: "user", content: text }))
         return Effect.succeed(undefined as void)
       },
       abortTask() { return Effect.succeed(undefined as void) },
@@ -196,6 +197,27 @@ describe("Test API routes", () => {
       expect(meta.path).toBe("file.ts")
     })
 
+    test("seeds session logs with preserved timestamps", async () => {
+      await app.fetch(new Request("http://localhost/api/test/seed", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          tasks: [{ id: "session-task", project_id: "tangerine", title: "Session test", status: "running" }],
+          session_logs: [
+            { task_id: "session-task", role: "user", content: "Hello agent", timestamp: "2026-01-15T10:00:00.000Z" },
+            { task_id: "session-task", role: "assistant", content: "Hello! How can I help?", timestamp: "2026-01-15T10:00:05.000Z" },
+          ],
+        }),
+      }))
+
+      const logs = db.prepare("SELECT * FROM session_logs WHERE task_id = ? ORDER BY id").all("session-task") as Array<{ role: string; content: string; timestamp: string }>
+      expect(logs).toHaveLength(2)
+      expect(logs[0]!.role).toBe("user")
+      expect(logs[0]!.timestamp).toBe("2026-01-15T10:00:00.000Z")
+      expect(logs[1]!.role).toBe("assistant")
+      expect(logs[1]!.timestamp).toBe("2026-01-15T10:00:05.000Z")
+    })
+
     test("seeds empty payload without error", async () => {
       const res = await app.fetch(new Request("http://localhost/api/test/seed", {
         method: "POST",
@@ -203,9 +225,10 @@ describe("Test API routes", () => {
         body: JSON.stringify({}),
       }))
       expect(res.status).toBe(200)
-      const body = await res.json() as { seeded: { tasks: number; activity_log: number } }
+      const body = await res.json() as { seeded: { tasks: number; activity_log: number; session_logs: number } }
       expect(body.seeded.tasks).toBe(0)
       expect(body.seeded.activity_log).toBe(0)
+      expect(body.seeded.session_logs).toBe(0)
     })
   })
 
@@ -217,6 +240,7 @@ describe("Test API routes", () => {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           tasks: [{ id: "reset-task", project_id: "tangerine", title: "To be reset", status: "done" }],
+          session_logs: [{ task_id: "reset-task", role: "user", content: "test" }],
           activity_log: [{ task_id: "reset-task", type: "lifecycle", event: "lifecycle:created", content: "created" }],
         }),
       }))
@@ -233,6 +257,7 @@ describe("Test API routes", () => {
       // Verify all tables are empty
       expect((db.prepare("SELECT COUNT(*) as c FROM tasks").get() as { c: number }).c).toBe(0)
       expect((db.prepare("SELECT COUNT(*) as c FROM activity_log").get() as { c: number }).c).toBe(0)
+      expect((db.prepare("SELECT COUNT(*) as c FROM session_logs").get() as { c: number }).c).toBe(0)
     })
   })
 

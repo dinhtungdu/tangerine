@@ -1,7 +1,7 @@
 import { Effect } from "effect"
 import type { Database } from "bun:sqlite"
 import { DEFAULT_AGENT_ID } from "@tangerine/shared"
-import type { TaskRow, CronRow } from "./types"
+import type { TaskRow, CronRow, SessionLogRow } from "./types"
 import { DbError } from "../errors"
 import { emitTaskListChange } from "../task-list-events"
 
@@ -178,6 +178,66 @@ export function countTasksByProject(db: Database, filter?: { status?: string; se
   })
 }
 
+// --- Session Logs ---
+
+export function insertSessionLog(
+  db: Database,
+  log: Pick<SessionLogRow, "task_id" | "role" | "content"> & { message_id?: string | null; images?: string | null; from_task_id?: string | null }
+): Effect.Effect<SessionLogRow, DbError> {
+  return dbTry(() => {
+    const messageId = log.message_id?.trim() ? log.message_id : null
+    const stmt = db.prepare(`
+      INSERT ${messageId ? "OR IGNORE" : ""} INTO session_logs (task_id, role, message_id, content, images, from_task_id)
+      VALUES ($task_id, $role, $message_id, $content, $images, $from_task_id)
+    `)
+    const result = stmt.run({
+      $task_id: log.task_id,
+      $role: log.role,
+      $message_id: messageId,
+      $content: log.content,
+      $images: log.images ?? null,
+      $from_task_id: log.from_task_id ?? null,
+    })
+    if (messageId && result.changes === 0) {
+      return db.prepare(
+        "SELECT * FROM session_logs WHERE task_id = ? AND role = ? AND message_id = ? ORDER BY id ASC LIMIT 1"
+      ).get(log.task_id, log.role, messageId) as SessionLogRow
+    }
+    return db.prepare("SELECT * FROM session_logs WHERE id = ?").get(result.lastInsertRowid) as SessionLogRow
+  })
+}
+
+export function getSessionLogs(db: Database, taskId: string): Effect.Effect<SessionLogRow[], DbError> {
+  return dbTry(() => {
+    return db.prepare("SELECT * FROM session_logs WHERE task_id = ? ORDER BY timestamp ASC").all(taskId) as SessionLogRow[]
+  })
+}
+
+export interface PaginatedSessionLogs {
+  logs: SessionLogRow[]
+  hasMore: boolean
+}
+
+export function getSessionLogsPaginated(
+  db: Database,
+  taskId: string,
+  limit: number,
+  beforeId?: number
+): Effect.Effect<PaginatedSessionLogs, DbError> {
+  return dbTry(() => {
+    // Fetch most recent N logs (or N before cursor), then reverse for chronological order
+    const query = beforeId
+      ? "SELECT * FROM session_logs WHERE task_id = ? AND id < ? ORDER BY id DESC LIMIT ?"
+      : "SELECT * FROM session_logs WHERE task_id = ? ORDER BY id DESC LIMIT ?"
+    const params = beforeId ? [taskId, beforeId, limit + 1] : [taskId, limit + 1]
+    const rows = db.prepare(query).all(...params) as SessionLogRow[]
+    const hasMore = rows.length > limit
+    const logs = hasMore ? rows.slice(0, limit) : rows
+    // Reverse to chronological order (oldest first)
+    return { logs: logs.reverse(), hasMore }
+  })
+}
+
 // --- Crons ---
 
 export function createCron(
@@ -276,6 +336,7 @@ export function deleteTask(db: Database, id: string): Effect.Effect<void, DbErro
       throw new Error(`Task ${id} is not terminal (status: ${task.status})`)
     }
     db.prepare("DELETE FROM activity_log WHERE task_id = ?").run(id)
+    db.prepare("DELETE FROM session_logs WHERE task_id = ?").run(id)
     db.prepare("DELETE FROM tasks WHERE id = ?").run(id)
     emitTaskListChange(id, "deleted")
   })

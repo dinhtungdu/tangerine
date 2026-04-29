@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback, useRef, useMemo } from "react"
-import { useParams, Link } from "react-router-dom"
+import { useParams, Link, useOutletContext } from "react-router-dom"
+import type { SidebarContext } from "../components/Layout"
 import { resolveTaskTypeConfig, type Task } from "@tangerine/shared"
 import { fetchTask, fetchChildTasks, changeTaskConfig, markTaskSeen, resolveTask, startTask } from "../lib/api"
 import { getTaskDisplayStatus, getPrStatusConfig } from "../lib/status"
@@ -9,7 +10,7 @@ import { buildSshEditorUri, EDITOR_NAMES } from "../lib/ssh-editor"
 import { useProjectNav } from "../hooks/useProjectNav"
 import { useDiffFiles } from "../hooks/useDiffFiles"
 import { useResizable } from "../hooks/useResizable"
-import { ChatPanelV2 } from "../components/ChatPanelV2"
+import { ChatPanel } from "../components/ChatPanel"
 import { DiffView } from "../components/DiffView"
 import { ActivityList } from "../components/ActivityList"
 import { ChangesPanel as DiffSidebar, type DiffComment } from "../components/ChangesPanel"
@@ -56,6 +57,8 @@ function loadPaneState(taskId: string | undefined): ResponsivePaneState {
 export function TaskDetail() {
   const { id } = useParams<{ id: string }>()
   const { navigate, link } = useProjectNav()
+  const outletCtx = useOutletContext<SidebarContext | null>()
+  const tasks = outletCtx?.tasks ?? []
   const [task, setTask] = useState<Task | null>(null)
   const [parentTask, setParentTask] = useState<Task | null>(null)
   const [childTasks, setChildTasks] = useState<Task[]>([])
@@ -317,6 +320,18 @@ export function TaskDetail() {
   useTaskActions(task, handleRefetch)
   // Register panel toggle actions colocated with the pane state they control
   usePanelActions(task, togglePaneFromAction)
+
+  // Start the task on first prompt if it's still in "created" status
+  const handleSend = useCallback(
+    async (text: string, images?: import("@tangerine/shared").PromptImage[]) => {
+      if (chatTask?.status === "created") {
+        await startTask(chatTask.id)
+        setTask((prev) => prev ? { ...prev, status: "provisioning" } : prev)
+      }
+      sendPromptRef.current(text, images)
+    },
+    [chatTask?.status, chatTask?.id],
+  )
 
   // Fetch parent and children once per task ID (not on every poll)
   useEffect(() => {
@@ -647,7 +662,7 @@ export function TaskDetail() {
         {/* Pane layout — single flex container, responsive direction.
              Mobile (flex-col): one pane at a time via mobilePane.
              Desktop (md:flex-row): multi-pane with resize handles via visiblePanes.
-             ChatPanelV2 is rendered ONCE to avoid duplicate ChatInput draft saves. */}
+             ChatPanel is rendered ONCE to avoid duplicate ChatInput draft saves. */}
         <div ref={containerRef} className="flex min-h-0 flex-1 flex-col md:flex-row">
           {/* Chat pane — single instance for both breakpoints.
                Unmount when hidden at both breakpoints to avoid focusing an invisible input. */}
@@ -662,13 +677,25 @@ export function TaskDetail() {
                 agentSessionId={chatTask.agentSessionId}
                 terminal={<TerminalPane wsUrl={`/api/tasks/${chatTaskId}/agent-terminal`} />}
               >
-                <ChatPanelV2
-                  taskId={chatTaskId}
-                  taskStatus={chatTask.status}
-                  taskError={chatTask.error}
-                  taskTitle={chatTask.title}
+                <ChatPanel
+                  messages={session.messages}
+                  activities={session.activities}
+                  tasks={tasks}
+                  agentStatus={session.agentStatus}
+                  queueLength={session.queueLength}
+                  queuedPrompts={session.queuedPrompts}
                   model={chatTask.model}
                   reasoningEffort={chatTask.reasoningEffort}
+                  taskStatus={chatTask.status}
+                  taskError={chatTask.error}
+                  taskId={chatTaskId}
+                  taskTitle={chatTask.title}
+                  onSend={handleSend}
+                  onAbort={session.abort}
+                  onQueuedPromptUpdate={session.updateQueuedPrompt}
+                  onQueuedPromptRemove={session.removeQueuedPrompt}
+                  onQueuedPromptClearAll={session.clearAllQueuedPrompts}
+                  onQueuedPromptSendNow={session.sendNowQueuedPrompt}
                   onModelChange={handleModelChange}
                   onReasoningEffortChange={handleReasoningEffortChange}
                   onModeChange={handleModeChange}
@@ -682,10 +709,8 @@ export function TaskDetail() {
                   autoFocusKey={chatTaskId}
                   contextTokens={session.contextTokens || undefined}
                   contextWindowMax={session.contextWindowMax ?? undefined}
-                  onTaskStart={async () => {
-                    await startTask(chatTask.id)
-                    setTask((prev) => prev ? { ...prev, status: "provisioning" } : prev)
-                  }}
+                  permissionRequest={session.permissionRequest}
+                  onPermissionRespond={session.respondToPermission}
                 />
               </TaskChatSurface>
             </div>

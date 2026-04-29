@@ -21,7 +21,6 @@ export {
   type ActivityEntry,
   type WsServerMessage,
   type WsClientMessage,
-  type StreamEvent,
   type PromptImage,
   type PromptQueueEntry,
   type LogLevel,

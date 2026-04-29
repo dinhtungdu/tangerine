@@ -9,7 +9,6 @@ import { getAgentWorkingState, onAgentStatusChange } from "../../tasks/events"
 import { onTaskListChange } from "../../task-list-events"
 import { getTaskState } from "../../tasks/task-state"
 import { getQueuedPrompts, onQueueChange } from "../../agent/prompt-queue"
-import { mapEventToV2 } from "../../agent/stream-mappers"
 import type { WsClientMessage, WsServerMessage, TaskStatus } from "@tangerine/shared"
 
 /**
@@ -184,28 +183,6 @@ export function wsRoutes(deps: AppDeps, upgradeWebSocket: UpgradeWebSocket): Hon
                 const queueMsg: WsServerMessage = { type: "queue", queuedPrompts }
                 try { ws.send(JSON.stringify(queueMsg)) } catch { /* disconnected */ }
               })
-
-              // Load conversation history from agent if session exists
-              if (task.agent_session_id && task.worktree_path) {
-                const factory = deps.agentFactories[task.provider]
-                if (factory?.loadSessionHistory) {
-                  Effect.runPromise(
-                    factory.loadSessionHistory({
-                      taskId,
-                      workdir: task.worktree_path,
-                      sessionId: task.agent_session_id,
-                    })
-                  ).then((events) => {
-                    for (const event of events) {
-                      const v2Events = mapEventToV2(taskId, event)
-                      for (const v2Event of v2Events) {
-                        const msg: WsServerMessage = { type: "stream", event: v2Event }
-                        try { ws.send(JSON.stringify(msg)) } catch { /* disconnected */ }
-                      }
-                    }
-                  }).catch(() => { /* history load failed, continue without */ })
-                }
-              }
             }
 
             unsubEvent = deps.taskManager.onTaskEvent(taskId, (data: unknown) => {

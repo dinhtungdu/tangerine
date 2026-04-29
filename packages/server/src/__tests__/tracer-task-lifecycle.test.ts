@@ -7,13 +7,15 @@ import {
   getTask,
   updateTask,
   updateTaskStatus,
+  insertSessionLog,
+  getSessionLogs,
 } from "../db/queries"
 
 /**
- * Tracer bullet: Task creation -> Status transitions
+ * Tracer bullet: Task creation -> Status transitions -> Session logs
  *
- * Validates the full task lifecycle through DB state transitions.
- * Stream events are stored in agent session files, not DB.
+ * Validates the full task lifecycle through DB state transitions,
+ * including session tracking and log retrieval.
  */
 describe("tracer: task lifecycle", () => {
   let db: Database
@@ -52,7 +54,35 @@ describe("tracer: task lifecycle", () => {
     expect(running!.agent_pid).toBe(12345)
     expect(running!.started_at).toBeDefined()
 
-    // 4. Simulate completion (set status to done, set pr_url)
+    // 4. Insert session logs (simulate chat messages)
+    Effect.runSync(insertSessionLog(db, {
+      task_id: "task-lifecycle",
+      role: "user",
+      content: "Implement feature X with tests",
+    }))
+    Effect.runSync(insertSessionLog(db, {
+      task_id: "task-lifecycle",
+      role: "assistant",
+      content: "I'll start by creating the feature module...",
+    }))
+    Effect.runSync(insertSessionLog(db, {
+      task_id: "task-lifecycle",
+      role: "assistant",
+      content: "Feature implemented. Here's what I did...",
+    }))
+
+    // 5. Retrieve session logs and verify order
+    const logs = Effect.runSync(getSessionLogs(db, "task-lifecycle"))
+    expect(logs).toHaveLength(3)
+    expect(logs[0]!.role).toBe("user")
+    expect(logs[0]!.content).toBe("Implement feature X with tests")
+    expect(logs[1]!.role).toBe("assistant")
+    expect(logs[2]!.role).toBe("assistant")
+    // Logs should be ordered by timestamp ascending
+    expect(logs[0]!.timestamp <= logs[1]!.timestamp).toBe(true)
+    expect(logs[1]!.timestamp <= logs[2]!.timestamp).toBe(true)
+
+    // 6. Simulate completion (set status to done, set pr_url)
     const done = Effect.runSync(updateTask(db, "task-lifecycle", {
       status: "done",
       pr_url: "https://github.com/test/repo/pull/42",
@@ -64,7 +94,7 @@ describe("tracer: task lifecycle", () => {
     expect(done!.branch).toBe("feat/feature-x")
     expect(done!.completed_at).toBeDefined()
 
-    // 5. Verify full task history is retrievable
+    // 7. Verify full task history is retrievable
     const final = Effect.runSync(getTask(db, "task-lifecycle"))!
     expect(final.source).toBe("github")
     expect(final.source_id).toBe("test/repo#1")
@@ -87,6 +117,13 @@ describe("tracer: task lifecycle", () => {
     // Move to running
     Effect.runSync(updateTaskStatus(db, "task-cancel", "running"))
 
+    // Insert a log before cancellation
+    Effect.runSync(insertSessionLog(db, {
+      task_id: "task-cancel",
+      role: "user",
+      content: "Start working on this",
+    }))
+
     // Cancel the task
     const cancelled = Effect.runSync(updateTask(db, "task-cancel", {
       status: "cancelled",
@@ -94,6 +131,11 @@ describe("tracer: task lifecycle", () => {
     }))
     expect(cancelled!.status).toBe("cancelled")
     expect(cancelled!.completed_at).toBeDefined()
+
+    // Logs should still be retrievable after cancellation
+    const logs = Effect.runSync(getSessionLogs(db, "task-cancel"))
+    expect(logs).toHaveLength(1)
+    expect(logs[0]!.content).toBe("Start working on this")
   })
 
   it("handles the failure flow with error message", () => {
@@ -138,5 +180,22 @@ describe("tracer: task lifecycle", () => {
     expect(t1.status).toBe("running")
     expect(t2.status).toBe("done")
     expect(t3.status).toBe("created")
+  })
+
+  it("session logs are isolated per task", () => {
+    Effect.runSync(createTask(db, { id: "ta", source: "manual", project_id: "test", title: "A" }))
+    Effect.runSync(createTask(db, { id: "tb", source: "manual", project_id: "test", title: "B" }))
+
+    Effect.runSync(insertSessionLog(db, { task_id: "ta", role: "user", content: "Log for A" }))
+    Effect.runSync(insertSessionLog(db, { task_id: "tb", role: "user", content: "Log for B" }))
+    Effect.runSync(insertSessionLog(db, { task_id: "ta", role: "assistant", content: "Reply for A" }))
+
+    const logsA = Effect.runSync(getSessionLogs(db, "ta"))
+    const logsB = Effect.runSync(getSessionLogs(db, "tb"))
+
+    expect(logsA).toHaveLength(2)
+    expect(logsB).toHaveLength(1)
+    expect(logsA[0]!.content).toBe("Log for A")
+    expect(logsB[0]!.content).toBe("Log for B")
   })
 })
