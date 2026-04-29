@@ -7,5 +7,6 @@
 - [x] Implement one-shot ACP history loader.
 - [x] Persist deduped replay rows into `session_logs`.
 - [x] Add sync API route.
+- [x] Add in-chat terminal block action to open the terminal pane.
 - [x] Trigger sync when switching from Terminal back to Chat.
 - [x] Run server, web, build, and browser verification.

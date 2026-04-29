@@ -148,3 +148,7 @@ Use `session/load` for sync because it replays conversation history. Use
 The chat UI may request this sync when the user returns from the terminal pane
 to the chat pane. If no session id exists or the selected ACP agent cannot load
 history, the UI keeps showing existing `session_logs`.
+
+ACP terminal content blocks in chat include an action to open the task terminal
+pane. On mobile this switches to the terminal pane; on desktop it ensures the
+terminal pane is visible.

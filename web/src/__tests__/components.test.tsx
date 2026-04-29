@@ -877,6 +877,35 @@ describe("ChatInput", () => {
 })
 
 describe("ChatPanel", () => {
+  test("opens terminal pane from terminal content blocks", () => {
+    const onOpenTerminal = mock(() => {})
+
+    render(
+      <ToastProvider>
+        <MemoryRouter>
+          <ChatPanel
+            messages={[{
+              id: "terminal-content",
+              role: "content",
+              content: "",
+              timestamp: "2026-03-17T10:00:00Z",
+              contentBlock: { type: "terminal", terminalId: "term-xyz" },
+            }]}
+            agentStatus="idle"
+            queueLength={0}
+            onSend={() => {}}
+            onAbort={() => {}}
+            onOpenTerminal={onOpenTerminal}
+          />
+        </MemoryRouter>
+      </ToastProvider>
+    )
+
+    fireEvent.click(screen.getByRole("button", { name: "Open Terminal" }))
+
+    expect(onOpenTerminal).toHaveBeenCalledTimes(1)
+  })
+
   test("shows error message in terminated banner for failed tasks", () => {
     render(
       <MemoryRouter>

@@ -47,6 +47,7 @@ interface ChatPanelProps {
   contextWindowMax?: number
   permissionRequest?: PermissionRequest | null
   onPermissionRespond?: (optionId: string) => void | Promise<void>
+  onOpenTerminal?: () => void
 }
 
 const EMPTY_ACTIVITIES: ActivityEntry[] = []
@@ -245,6 +246,7 @@ export function ChatPanel({
   contextWindowMax,
   permissionRequest,
   onPermissionRespond,
+  onOpenTerminal,
 }: ChatPanelProps) {
   const scrollRef = useRef<HTMLDivElement>(null)
   const contentRef = useRef<HTMLDivElement>(null)
@@ -390,6 +392,7 @@ export function ChatPanel({
                 activities={activities}
                 tasks={tasks}
                 onReply={handleReply}
+                onOpenTerminal={onOpenTerminal}
                 isLastGroupStreaming={agentStatus === "working"}
               />
             </div>

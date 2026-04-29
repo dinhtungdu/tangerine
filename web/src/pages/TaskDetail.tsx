@@ -206,6 +206,27 @@ export function TaskDetail() {
     })
   }, [persistVisiblePanes])
 
+  const showTerminalPane = useCallback(() => {
+    const isDesktopLayout = desktopPaneProbeRef.current != null && desktopPaneProbeRef.current.offsetParent !== null
+    const isMobileLayout = mobilePaneProbeRef.current != null && mobilePaneProbeRef.current.offsetParent !== null
+    if (isDesktopLayout || !isMobileLayout) {
+      setPaneState((prev) => {
+        if (prev.visiblePanes.has("terminal")) return prev
+        const visiblePanes = new Set(prev.visiblePanes)
+        visiblePanes.add("terminal")
+        persistVisiblePanes(visiblePanes)
+        return { ...prev, visiblePanes }
+      })
+      return
+    }
+
+    setPaneState((prev) => {
+      const next = selectMobilePane(prev, "terminal")
+      persistVisiblePanes(next.visiblePanes)
+      return next
+    })
+  }, [persistVisiblePanes])
+
   const handleAddComment = useCallback((comment: DiffComment) => {
     setDiffCommentsAndPersist((prev) => [...prev, comment])
   }, [setDiffCommentsAndPersist])
@@ -679,6 +700,7 @@ export function TaskDetail() {
                 contextWindowMax={session.contextWindowMax ?? undefined}
                 permissionRequest={session.permissionRequest}
                 onPermissionRespond={session.respondToPermission}
+                onOpenTerminal={showTerminalPane}
               />
             </div>
           )}
