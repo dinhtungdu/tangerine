@@ -135,7 +135,7 @@ function dropCheckpointsTable(db: Database): void {
 }
 
 /**
- * Drop legacy session_logs table — replaced by stream_events.
+ * Drop legacy session_logs table — agent stores session history in files.
  */
 function dropSessionLogsTable(db: Database): void {
   const tables = db.prepare(
@@ -144,7 +144,20 @@ function dropSessionLogsTable(db: Database): void {
   if (tables.length === 0) return
 
   db.exec("DROP TABLE IF EXISTS session_logs")
-  console.error("[db] Migrated: dropped legacy session_logs table (replaced by stream_events)")
+  console.error("[db] Migrated: dropped legacy session_logs table")
+}
+
+/**
+ * Drop stream_events table — agent stores session history in files, not DB.
+ */
+function dropStreamEventsTable(db: Database): void {
+  const tables = db.prepare(
+    "SELECT name FROM sqlite_master WHERE type='table' AND name='stream_events'"
+  ).all() as { name: string }[]
+  if (tables.length === 0) return
+
+  db.exec("DROP TABLE IF EXISTS stream_events")
+  console.error("[db] Migrated: dropped stream_events table (agent stores history in files)")
 }
 
 /**
@@ -198,8 +211,9 @@ export function getDb(path?: string): Database {
   // Drop unused cumulative token columns — now only track context_tokens
   dropCumulativeTokenColumns(db)
 
-  // Drop legacy session_logs — replaced by stream_events
+  // Drop legacy session tables — agent stores history in files
   dropSessionLogsTable(db)
+  dropStreamEventsTable(db)
 
   instance = db
   return db
@@ -214,17 +228,13 @@ export function resetDb(): void {
 }
 
 export { SCHEMA } from "./schema"
-export type { TaskRow, CronRow, StreamEventRow } from "./types"
+export type { TaskRow, CronRow } from "./types"
 export {
   createTask,
   getTask,
   listTasks,
   updateTask,
   updateTaskStatus,
-  insertStreamEvent,
-  getStreamEvents,
-  getStreamEventsSince,
-  getLastStreamEventSeq,
   createCron,
   getCron,
   listCrons,

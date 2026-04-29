@@ -1,8 +1,7 @@
 import { Effect } from "effect"
 import type { Database } from "bun:sqlite"
 import { DEFAULT_AGENT_ID } from "@tangerine/shared"
-import type { TaskRow, CronRow, StreamEventRow } from "./types"
-import type { StreamEvent } from "@tangerine/shared"
+import type { TaskRow, CronRow } from "./types"
 import { DbError } from "../errors"
 import { emitTaskListChange } from "../task-list-events"
 
@@ -179,65 +178,6 @@ export function countTasksByProject(db: Database, filter?: { status?: string; se
   })
 }
 
-// --- Stream Events ---
-
-export function insertStreamEvent(
-  db: Database,
-  taskId: string,
-  event: StreamEvent
-): Effect.Effect<StreamEventRow, DbError> {
-  return dbTry(() => {
-    // Get next sequence number for this task
-    const lastSeq = db.prepare(
-      "SELECT MAX(seq) as max_seq FROM stream_events WHERE task_id = ?"
-    ).get(taskId) as { max_seq: number | null } | null
-    const seq = (lastSeq?.max_seq ?? -1) + 1
-
-    const stmt = db.prepare(`
-      INSERT INTO stream_events (task_id, seq, event_type, event_json)
-      VALUES ($task_id, $seq, $event_type, $event_json)
-    `)
-    const result = stmt.run({
-      $task_id: taskId,
-      $seq: seq,
-      $event_type: event.type,
-      $event_json: JSON.stringify(event),
-    })
-    return db.prepare("SELECT * FROM stream_events WHERE id = ?").get(result.lastInsertRowid) as StreamEventRow
-  })
-}
-
-export function getStreamEvents(db: Database, taskId: string): Effect.Effect<StreamEvent[], DbError> {
-  return dbTry(() => {
-    const rows = db.prepare(
-      "SELECT * FROM stream_events WHERE task_id = ? ORDER BY seq ASC"
-    ).all(taskId) as StreamEventRow[]
-    return rows.map((row) => JSON.parse(row.event_json) as StreamEvent)
-  })
-}
-
-export function getStreamEventsSince(
-  db: Database,
-  taskId: string,
-  afterSeq: number
-): Effect.Effect<StreamEvent[], DbError> {
-  return dbTry(() => {
-    const rows = db.prepare(
-      "SELECT * FROM stream_events WHERE task_id = ? AND seq > ? ORDER BY seq ASC"
-    ).all(taskId, afterSeq) as StreamEventRow[]
-    return rows.map((row) => JSON.parse(row.event_json) as StreamEvent)
-  })
-}
-
-export function getLastStreamEventSeq(db: Database, taskId: string): Effect.Effect<number, DbError> {
-  return dbTry(() => {
-    const row = db.prepare(
-      "SELECT MAX(seq) as max_seq FROM stream_events WHERE task_id = ?"
-    ).get(taskId) as { max_seq: number | null } | null
-    return row?.max_seq ?? -1
-  })
-}
-
 // --- Crons ---
 
 export function createCron(
@@ -336,7 +276,6 @@ export function deleteTask(db: Database, id: string): Effect.Effect<void, DbErro
       throw new Error(`Task ${id} is not terminal (status: ${task.status})`)
     }
     db.prepare("DELETE FROM activity_log WHERE task_id = ?").run(id)
-    db.prepare("DELETE FROM stream_events WHERE task_id = ?").run(id)
     db.prepare("DELETE FROM tasks WHERE id = ?").run(id)
     emitTaskListChange(id, "deleted")
   })

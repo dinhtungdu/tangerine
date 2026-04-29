@@ -7,8 +7,7 @@ import type { Database } from "bun:sqlite"
 import { createTestDb } from "./helpers"
 import { isLoopbackHost, isPublicApiPath } from "../auth"
 import { createApp, type AppDeps } from "../api/app"
-import { createTask as dbCreateTask, updateTaskStatus, insertStreamEvent, getStreamEvents, getTask as dbGetTask } from "../db/queries"
-import type { StreamEvent } from "@tangerine/shared"
+import { createTask as dbCreateTask, updateTaskStatus, getTask as dbGetTask } from "../db/queries"
 import { TaskNotFoundError } from "../errors"
 import type { TaskRow } from "../db/types"
 import type { RawConfig } from "../config"
@@ -80,9 +79,7 @@ function createMockDeps(db: Database, configOverrides?: Partial<AppDeps["config"
           yield* updateTaskStatus(db, taskId, "done")
         })
       },
-      sendPrompt(taskId, text) {
-        const event: StreamEvent = { type: "user.message", id: crypto.randomUUID(), content: text }
-        Effect.runSync(insertStreamEvent(db, taskId, event))
+      sendPrompt() {
         return Effect.succeed(undefined as void)
       },
       abortTask() { return Effect.succeed(undefined as void) },
@@ -994,12 +991,6 @@ describe("API routes", () => {
       const body = await res.json() as { ok: boolean; taskId: string }
       expect(body.ok).toBe(true)
       expect(body.taskId).toBe(row.id)
-
-      // Verify user message was persisted as stream event (audit log)
-      const events = Effect.runSync(getStreamEvents(db, row.id))
-      expect(events).toHaveLength(1)
-      expect(events[0]!.type).toBe("user.message")
-      expect((events[0] as { content?: string }).content).toBe("Hello agent")
     })
 
     test("returns 400 without text", async () => {

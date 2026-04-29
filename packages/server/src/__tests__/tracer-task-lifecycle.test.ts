@@ -1,22 +1,19 @@
 import { describe, it, expect, beforeEach } from "bun:test"
 import type { Database } from "bun:sqlite"
 import { Effect } from "effect"
-import type { StreamEvent } from "@tangerine/shared"
 import { createTestDb } from "./helpers"
 import {
   createTask,
   getTask,
   updateTask,
   updateTaskStatus,
-  insertStreamEvent,
-  getStreamEvents,
 } from "../db/queries"
 
 /**
- * Tracer bullet: Task creation -> Status transitions -> Stream events
+ * Tracer bullet: Task creation -> Status transitions
  *
- * Validates the full task lifecycle through DB state transitions,
- * including stream event tracking and retrieval.
+ * Validates the full task lifecycle through DB state transitions.
+ * Stream events are stored in agent session files, not DB.
  */
 describe("tracer: task lifecycle", () => {
   let db: Database
@@ -55,36 +52,7 @@ describe("tracer: task lifecycle", () => {
     expect(running!.agent_pid).toBe(12345)
     expect(running!.started_at).toBeDefined()
 
-    // 4. Insert stream events (simulate chat messages)
-    const userEvent: StreamEvent = {
-      type: "user.message",
-      id: "u1",
-      content: "Implement feature X with tests",
-    }
-    const chunkStart: StreamEvent = {
-      type: "chunk.start",
-      messageId: "m1",
-      chunkIndex: 0,
-      chunkType: "message",
-      content: "I'll start by creating the feature module...",
-    }
-    const assistantDone: StreamEvent = {
-      type: "assistant.done",
-      messageId: "m1",
-    }
-
-    Effect.runSync(insertStreamEvent(db, "task-lifecycle", userEvent))
-    Effect.runSync(insertStreamEvent(db, "task-lifecycle", chunkStart))
-    Effect.runSync(insertStreamEvent(db, "task-lifecycle", assistantDone))
-
-    // 5. Retrieve stream events and verify order
-    const events = Effect.runSync(getStreamEvents(db, "task-lifecycle"))
-    expect(events).toHaveLength(3)
-    expect(events[0]!.type).toBe("user.message")
-    expect(events[1]!.type).toBe("chunk.start")
-    expect(events[2]!.type).toBe("assistant.done")
-
-    // 6. Simulate completion (set status to done, set pr_url)
+    // 4. Simulate completion (set status to done, set pr_url)
     const done = Effect.runSync(updateTask(db, "task-lifecycle", {
       status: "done",
       pr_url: "https://github.com/test/repo/pull/42",
@@ -96,7 +64,7 @@ describe("tracer: task lifecycle", () => {
     expect(done!.branch).toBe("feat/feature-x")
     expect(done!.completed_at).toBeDefined()
 
-    // 7. Verify full task history is retrievable
+    // 5. Verify full task history is retrievable
     const final = Effect.runSync(getTask(db, "task-lifecycle"))!
     expect(final.source).toBe("github")
     expect(final.source_id).toBe("test/repo#1")
@@ -119,14 +87,6 @@ describe("tracer: task lifecycle", () => {
     // Move to running
     Effect.runSync(updateTaskStatus(db, "task-cancel", "running"))
 
-    // Insert an event before cancellation
-    const userEvent: StreamEvent = {
-      type: "user.message",
-      id: "u1",
-      content: "Start working on this",
-    }
-    Effect.runSync(insertStreamEvent(db, "task-cancel", userEvent))
-
     // Cancel the task
     const cancelled = Effect.runSync(updateTask(db, "task-cancel", {
       status: "cancelled",
@@ -134,11 +94,6 @@ describe("tracer: task lifecycle", () => {
     }))
     expect(cancelled!.status).toBe("cancelled")
     expect(cancelled!.completed_at).toBeDefined()
-
-    // Events should still be retrievable after cancellation
-    const events = Effect.runSync(getStreamEvents(db, "task-cancel"))
-    expect(events).toHaveLength(1)
-    expect((events[0] as { content?: string }).content).toBe("Start working on this")
   })
 
   it("handles the failure flow with error message", () => {
@@ -183,26 +138,5 @@ describe("tracer: task lifecycle", () => {
     expect(t1.status).toBe("running")
     expect(t2.status).toBe("done")
     expect(t3.status).toBe("created")
-  })
-
-  it("stream events are isolated per task", () => {
-    Effect.runSync(createTask(db, { id: "ta", source: "manual", project_id: "test", title: "A" }))
-    Effect.runSync(createTask(db, { id: "tb", source: "manual", project_id: "test", title: "B" }))
-
-    const evA1: StreamEvent = { type: "user.message", id: "ua1", content: "Event for A" }
-    const evB1: StreamEvent = { type: "user.message", id: "ub1", content: "Event for B" }
-    const evA2: StreamEvent = { type: "chunk.start", messageId: "ma1", chunkIndex: 0, chunkType: "message", content: "Reply for A" }
-
-    Effect.runSync(insertStreamEvent(db, "ta", evA1))
-    Effect.runSync(insertStreamEvent(db, "tb", evB1))
-    Effect.runSync(insertStreamEvent(db, "ta", evA2))
-
-    const eventsA = Effect.runSync(getStreamEvents(db, "ta"))
-    const eventsB = Effect.runSync(getStreamEvents(db, "tb"))
-
-    expect(eventsA).toHaveLength(2)
-    expect(eventsB).toHaveLength(1)
-    expect((eventsA[0] as { content?: string }).content).toBe("Event for A")
-    expect((eventsB[0] as { content?: string }).content).toBe("Event for B")
   })
 })

@@ -53,19 +53,6 @@ export const SCHEMA = `
 
   CREATE INDEX IF NOT EXISTS idx_crons_enabled ON crons(enabled);
 
-  CREATE TABLE IF NOT EXISTS stream_events (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    task_id TEXT NOT NULL,
-    seq INTEGER NOT NULL,
-    event_type TEXT NOT NULL,
-    event_json TEXT NOT NULL,
-    timestamp TEXT NOT NULL DEFAULT (datetime('now')),
-    FOREIGN KEY (task_id) REFERENCES tasks(id)
-  );
-
-  CREATE INDEX IF NOT EXISTS idx_stream_events_task_id ON stream_events(task_id);
-  CREATE UNIQUE INDEX IF NOT EXISTS idx_stream_events_task_seq ON stream_events(task_id, seq);
-
   CREATE TABLE IF NOT EXISTS activity_log (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     task_id TEXT NOT NULL,

@@ -10,10 +10,7 @@ import {
   listTasks,
   updateTask,
   updateTaskStatus,
-  insertStreamEvent,
-  getStreamEvents,
 } from "../queries"
-import type { StreamEvent } from "@tangerine/shared"
 
 function freshDb(): Database {
   const db = new Database(":memory:")
@@ -106,49 +103,6 @@ describe("tasks", () => {
     const running = Effect.runSync(listTasks(db, { status: "running" }))
     expect(running.length).toBe(1)
     expect(running[0]!.id).toBe("t-b")
-  })
-})
-
-describe("stream events", () => {
-  let db: Database
-
-  beforeEach(() => {
-    db = freshDb()
-  })
-
-  test("insert and retrieve stream events", () => {
-    Effect.runSync(createTask(db, { id: "task-ev", source: "manual", project_id: "test", title: "Event test" }))
-
-    const userEvent: StreamEvent = { type: "user.message", id: "u1", content: "Hello" }
-    const chunkEvent: StreamEvent = { type: "chunk.start", messageId: "m1", chunkIndex: 0, chunkType: "message", content: "Hi" }
-
-    Effect.runSync(insertStreamEvent(db, "task-ev", userEvent))
-    Effect.runSync(insertStreamEvent(db, "task-ev", chunkEvent))
-
-    const events = Effect.runSync(getStreamEvents(db, "task-ev"))
-    expect(events.length).toBe(2)
-    expect(events[0]!.type).toBe("user.message")
-    expect((events[0] as { content?: string }).content).toBe("Hello")
-    expect(events[1]!.type).toBe("chunk.start")
-  })
-
-  test("assigns sequential seq numbers", () => {
-    Effect.runSync(createTask(db, { id: "task-seq", source: "manual", project_id: "test", title: "Seq test" }))
-
-    const e1: StreamEvent = { type: "user.message", id: "u1", content: "First" }
-    const e2: StreamEvent = { type: "user.message", id: "u2", content: "Second" }
-
-    const r1 = Effect.runSync(insertStreamEvent(db, "task-seq", e1))
-    const r2 = Effect.runSync(insertStreamEvent(db, "task-seq", e2))
-
-    expect(r1.seq).toBe(0)
-    expect(r2.seq).toBe(1)
-  })
-
-  test("returns empty array for task with no events", () => {
-    Effect.runSync(createTask(db, { id: "task-empty", source: "manual", project_id: "test", title: "Empty" }))
-    const events = Effect.runSync(getStreamEvents(db, "task-empty"))
-    expect(events.length).toBe(0)
   })
 })
 

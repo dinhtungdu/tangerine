@@ -4,7 +4,7 @@ import { Effect } from "effect"
 import { createLogger } from "../logger"
 import { loadConfig, getProjectConfig, TANGERINE_HOME, readRawConfig, writeRawConfig, isTestMode } from "../config"
 import { getDb } from "../db/index"
-import { createTask as dbCreateTask, getTask, listTasks, updateTask, insertStreamEvent, markTaskResult, getDueCrons, hasActiveCronTask as dbHasActiveCronTask, updateCron } from "../db/queries"
+import { createTask as dbCreateTask, getTask, listTasks, updateTask, markTaskResult, getDueCrons, hasActiveCronTask as dbHasActiveCronTask, updateCron } from "../db/queries"
 import { logActivity, cleanupActivities, hasActivityEvent, updateToolActivity } from "../activity"
 import type { TaskRow, CronRow } from "../db/types"
 import { taskHasCapability } from "../api/helpers"
@@ -160,31 +160,6 @@ async function branchHasWork(db: import("bun:sqlite").Database, taskId: string, 
   }
 }
 
-function getLastUserEvent(
-  db: import("bun:sqlite").Database,
-  taskId: string,
-): boolean {
-  const row = db.prepare(
-    "SELECT event_type FROM stream_events WHERE task_id = ? ORDER BY seq DESC LIMIT 1"
-  ).get(taskId) as { event_type: string } | null
-  return row?.event_type === "user.message"
-}
-
-function getLastUserMessageContent(
-  db: import("bun:sqlite").Database,
-  taskId: string,
-): string | null {
-  const row = db.prepare(
-    "SELECT event_json FROM stream_events WHERE task_id = ? AND event_type = 'user.message' ORDER BY seq DESC LIMIT 1"
-  ).get(taskId) as { event_json: string } | null
-  if (!row) return null
-  try {
-    const event = JSON.parse(row.event_json) as { content?: string }
-    return event.content ?? null
-  } catch {
-    return null
-  }
-}
 
 /** Parse --config and --db flags from process.argv */
 function parseStartFlags(): { configPath?: string; dbPath?: string } {
@@ -320,15 +295,18 @@ export async function start(): Promise<void> {
           }
         }
 
-        // Emit v2 user message event and persist
+        // Emit v2 user message event (agent stores history in files)
         const userEvent: import("@tangerine/shared").StreamEvent = {
           type: "user.message",
           id: crypto.randomUUID(),
           content: text,
           images: imageFilenames?.map((f) => ({ src: `/api/tasks/${taskId}/images/${f}`, mediaType: "image/png" })),
         }
-        yield* insertStreamEvent(db, taskId, userEvent).pipe(Effect.catchAll(() => Effect.void))
         emitTaskEvent(taskId, { type: "stream", event: userEvent })
+        // Track for reconnect logic
+        const ts = getTaskState(taskId)
+        ts.lastEventWasUser = true
+        ts.lastUserMessageAt = new Date().toISOString()
       })
 
     // Wire task manager — extract cleanupDeps so retryDeps can reference it
@@ -411,29 +389,21 @@ export async function start(): Promise<void> {
           }
 
           // Send initial prompt for new tasks, or reconnect nudge for existing ones.
-          // Key distinction: if the agent never responded (e.g. killed by rapid model
-          // change before processing the prompt), re-send the full initial prompt —
-          // a nudge won't work because the new session has no conversation context.
-          const hasEvents = db.prepare("SELECT 1 FROM stream_events WHERE task_id = ? LIMIT 1").get(taskId)
-          const hasAssistantResponse = hasEvents
-            ? db.prepare("SELECT 1 FROM stream_events WHERE task_id = ? AND event_type LIKE 'chunk.%' LIMIT 1").get(taskId)
-            : null
-          const lastWasUser = hasEvents ? getLastUserEvent(db, taskId) : false
+          // Use agent_session_id to detect resumed tasks — agent stores history in files.
+          const taskSessionInfo = db.prepare("SELECT agent_session_id FROM tasks WHERE id = ?").get(taskId) as { agent_session_id: string | null } | null
+          const hadPriorSession = !!taskSessionInfo?.agent_session_id
 
-          // If agent already responded at least once, system prompt was applied in a prior session.
-          // Set this for ALL resumed sessions, not just the reconnect-nudge path.
-          if (hasAssistantResponse) {
+          // If task had prior session, assume system prompt was applied
+          if (hadPriorSession) {
             s.systemPromptApplied = true
           }
 
-          if (hasEvents && hasAssistantResponse && lastWasUser && !getTaskState(taskId).idleWake) {
-            // Reconnect after server restart or model change — agent had conversation context.
+          if (hadPriorSession && !getTaskState(taskId).idleWake) {
+            // Reconnect after server restart or model change — agent has conversation context in files.
             // Skip for idle-wake: the user's new message is already queued via drainQueuedPrompts.
             const sendReconnectNudge = async () => {
               try {
                 // Wait for the ACP agent to finish resume/load before sending a prompt.
-                // Do NOT send abort here — an idle agent may interpret it as process termination,
-                // causing an immediate crash-restart loop.
                 await new Promise((r) => setTimeout(r, 1500))
 
                 const taskRow = db.prepare(
@@ -441,7 +411,6 @@ export async function start(): Promise<void> {
                 ).get(taskId) as { title: string; description: string | null; type: string | null; project_id: string | null } | null
 
                 const originalTask = taskRow?.description || taskRow?.title || ""
-                const unansweredUserMsg = lastWasUser ? getLastUserMessageContent(db, taskId) : null
                 const reconnectProjConfig = taskRow?.project_id ? getProjectConfig(config.config, taskRow.project_id) : undefined
 
                 const nudgeParts = [
@@ -450,11 +419,7 @@ export async function start(): Promise<void> {
                 if (normalizeTaskType(taskRow?.type) === "worker" && reconnectProjConfig?.prMode !== "none") {
                   nudgeParts.push(`[NOTE: When your work is complete: ${buildPrWorkflowNote(taskId, undefined, reconnectProjConfig?.prMode)}]`)
                 }
-                nudgeParts.push(
-                  unansweredUserMsg
-                    ? `The last message you had not yet responded to was: ${unansweredUserMsg}\n\nPlease continue.`
-                    : "Please continue where you left off.",
-                )
+                nudgeParts.push("Please continue where you left off.")
                 const nudge = nudgeParts.join("\n\n")
 
                 await Effect.runPromise(
@@ -467,19 +432,15 @@ export async function start(): Promise<void> {
             sendReconnectNudge()
             // Drain queued prompts for reconnect — agent already has conversation context
             drainQueuedOnce()
-          } else if (!hasEvents || (hasEvents && !hasAssistantResponse)) {
-            // No events at all (fresh task) or events exist but agent never responded
-            // (e.g. killed by model change before processing prompt). Either way,
-            // send the full initial prompt — don't resume a nonexistent conversation.
+          } else if (!hadPriorSession) {
+            // Fresh task — send the full initial prompt.
             // Queued prompts are drained AFTER the initial prompt so the agent gets
             // its task description first.
-            const isRetry = !!hasEvents // User message already saved, just re-deliver prompt
             const task = db.prepare("SELECT description, title, project_id, type FROM tasks WHERE id = ?").get(taskId) as { description: string | null; title: string; project_id: string; type: string | null } | null
             const initialPrompt = task?.description || task?.title
             if (initialPrompt) {
               // Load initial images saved during task creation (if any)
               const loadInitialImages = async () => {
-                if (isRetry) return { images: undefined, filenames: undefined } // images already saved
                 const manifestPath = `${TANGERINE_HOME}/images/${taskId}/initial.json`
                 const file = Bun.file(manifestPath)
                 if (!(await file.exists())) return { images: undefined, filenames: undefined }
@@ -528,19 +489,18 @@ export async function start(): Promise<void> {
                   session.agentHandle.sendPrompt(fullPrompt, images).pipe(Effect.catchAll(() => Effect.void))
                 )
 
-                // Only emit on first delivery — avoid duplicates on retry
-                if (!isRetry) {
-                  const userEvent: import("@tangerine/shared").StreamEvent = {
-                    type: "user.message",
-                    id: crypto.randomUUID(),
-                    content: initialPrompt,
-                    images: filenames?.map((f) => ({ src: `/api/tasks/${taskId}/images/${f}`, mediaType: "image/png" as const })),
-                  }
-                  await Effect.runPromise(
-                    insertStreamEvent(db, taskId, userEvent).pipe(Effect.catchAll(() => Effect.void))
-                  )
-                  emitTaskEvent(taskId, { type: "stream", event: userEvent })
+                // Emit user message event (agent stores history in files)
+                const userEvent: import("@tangerine/shared").StreamEvent = {
+                  type: "user.message",
+                  id: crypto.randomUUID(),
+                  content: initialPrompt,
+                  images: filenames?.map((f) => ({ src: `/api/tasks/${taskId}/images/${f}`, mediaType: "image/png" as const })),
                 }
+                emitTaskEvent(taskId, { type: "stream", event: userEvent })
+                // Track for reconnect logic
+                const ts = getTaskState(taskId)
+                ts.lastEventWasUser = true
+                ts.lastUserMessageAt = new Date().toISOString()
 
                 // Now drain any queued prompts (e.g. user message sent while task was starting)
                 await drainQueuedOnce()
@@ -562,15 +522,15 @@ export async function start(): Promise<void> {
 
           session.agentHandle.subscribe((event) => {
             try {
-            // Emit and persist v2 stream events
+            // Emit v2 stream events (agent stores history in files)
             const v2Events = mapEventToV2(taskId, event)
             for (const v2Event of v2Events) {
               emitTaskEvent(taskId, { type: "stream", event: v2Event })
-              // Persist events (except deltas which are ephemeral)
-              if (v2Event.type !== "chunk.delta") {
-                Effect.runPromise(
-                  insertStreamEvent(db, taskId, v2Event).pipe(Effect.catchAll(() => Effect.void))
-                )
+              // Track state for reconnect logic
+              if (v2Event.type === "chunk.start" || v2Event.type === "assistant.done") {
+                const ts = getTaskState(taskId)
+                ts.hasAssistantResponse = true
+                ts.lastEventWasUser = false
               }
             }
 
@@ -1314,15 +1274,7 @@ export async function start(): Promise<void> {
         if (!handle) return Effect.void
         return handle.abort(true).pipe(Effect.catchAll(() => Effect.void))
       },
-      getLastUserMessageTime: (() => {
-        const stmt = db.prepare(
-          "SELECT timestamp FROM stream_events WHERE task_id = ? AND event_type = 'user.message' ORDER BY seq DESC LIMIT 1"
-        )
-        return (taskId: string) => {
-          const row = stmt.get(taskId) as { timestamp: string } | null
-          return row?.timestamp ?? null
-        }
-      })(),
+      getLastUserMessageTime: (taskId: string) => getTaskState(taskId).lastUserMessageAt ?? null,
       cleanupDeps,
     }
     await Effect.runPromise(startHealthMonitor(healthDeps))
