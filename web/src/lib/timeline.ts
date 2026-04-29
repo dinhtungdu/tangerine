@@ -27,37 +27,31 @@ function activityStatus(activity: ActivityEntry): string | undefined {
   return (activity.metadata as { status?: string } | null)?.status
 }
 
+interface OrderedTimelineItem {
+  item: TimelineItem
+  order: number
+  kindRank: number
+}
+
+function timelineTimestampMs(item: TimelineItem): number {
+  const parsed = Date.parse(item.data.timestamp)
+  return Number.isFinite(parsed) ? parsed : 0
+}
+
 export function mergeMessagesAndActivities(
   messages: ChatMessage[],
   activities: ActivityEntry[],
 ): TimelineItem[] {
-  const merged: TimelineItem[] = []
-  const messageItems: TimelineItem[] = messages.map((message) => ({ kind: "message", data: message }))
-  const activityItems: TimelineItem[] = activities
-    .filter(isToolActivity)
-    .map((activity) => ({ kind: "tool", data: activity }))
+  const orderedItems: OrderedTimelineItem[] = [
+    ...messages.map((message, order) => ({ item: { kind: "message" as const, data: message }, order, kindRank: 0 })),
+    ...activities
+      .filter(isToolActivity)
+      .map((activity, order) => ({ item: { kind: "tool" as const, data: activity }, order, kindRank: 1 })),
+  ]
 
-  let messageIndex = 0
-  let activityIndex = 0
-
-  while (messageIndex < messageItems.length || activityIndex < activityItems.length) {
-    const messageTime = messageIndex < messageItems.length
-      ? new Date(messageItems[messageIndex]!.data.timestamp).getTime()
-      : Infinity
-    const activityTime = activityIndex < activityItems.length
-      ? new Date(activityItems[activityIndex]!.data.timestamp).getTime()
-      : Infinity
-
-    if (messageTime <= activityTime) {
-      merged.push(messageItems[messageIndex]!)
-      messageIndex++
-    } else {
-      merged.push(activityItems[activityIndex]!)
-      activityIndex++
-    }
-  }
-
-  return merged
+  return orderedItems
+    .sort((a, b) => timelineTimestampMs(a.item) - timelineTimestampMs(b.item) || a.kindRank - b.kindRank || a.order - b.order)
+    .map(({ item }) => item)
 }
 
 export function groupTimelineItems(items: TimelineItem[]): TimelineGroup[] {

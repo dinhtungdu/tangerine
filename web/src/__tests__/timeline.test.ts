@@ -52,6 +52,24 @@ describe("timeline derivation", () => {
     ])
   })
 
+  test("sorts out-of-order transient stream messages before grouping", () => {
+    const groups = deriveChatTimelineGroups({
+      messages: [
+        message({ id: "user-1", role: "user", timestamp: "2026-04-18T12:00:00.000Z" }),
+        message({ id: "thinking-1", role: "thinking", timestamp: "2026-04-18T12:00:05.000Z" }),
+        message({ id: "assistant-active", role: "assistant", timestamp: "2026-04-18T12:00:01.000Z" }),
+      ],
+      activities: [
+        activity({ id: 101, timestamp: "2026-04-18T12:00:03.000Z" }),
+      ],
+    })
+
+    expect(groups.map((group) => group.items.map((item) => item.kind === "message" ? item.data.id : item.data.id))).toEqual([
+      ["user-1"],
+      ["assistant-active", 101, "thinking-1"],
+    ])
+  })
+
   test("starts a new group at each user message", () => {
     const groups = deriveChatTimelineGroups({
       messages: [
