@@ -4,6 +4,8 @@
 
 Make Tangerine chat feel less like an append-only debug log and more like a readable agent timeline: clear turns, compact work narration, inspectable thinking, first-class tool state, and stable streaming without scroll/re-render noise.
 
+Visual mockup: [chat-streaming-mockup.html](./chat-streaming-mockup.html)
+
 ## What was studied
 
 - `pingdotgg/t3code`

@@ -1,0 +1,234 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Tangerine Chat Timeline Mockup</title>
+  <style>
+    :root {
+      color-scheme: dark;
+      --bg: #09090b;
+      --panel: #111113;
+      --panel-2: #17171a;
+      --panel-3: #1f1f23;
+      --border: #2a2a30;
+      --border-soft: #222228;
+      --text: #f4f4f5;
+      --muted: #a1a1aa;
+      --faint: #71717a;
+      --accent: #f59e0b;
+      --accent-soft: rgba(245, 158, 11, .14);
+      --green: #22c55e;
+      --red: #ef4444;
+      --blue: #60a5fa;
+      --radius: 18px;
+      font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    }
+
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      min-height: 100vh;
+      background:
+        radial-gradient(circle at 26% 0%, rgba(245, 158, 11, .12), transparent 32rem),
+        linear-gradient(180deg, #0c0c0f 0%, var(--bg) 46%);
+      color: var(--text);
+      display: grid;
+      place-items: center;
+      padding: 28px;
+    }
+
+    .frame {
+      width: min(1120px, 100%);
+      height: min(760px, calc(100vh - 56px));
+      border: 1px solid var(--border);
+      border-radius: 26px;
+      background: rgba(17, 17, 19, .92);
+      box-shadow: 0 24px 80px rgba(0, 0, 0, .45);
+      overflow: hidden;
+      display: grid;
+      grid-template-columns: 270px 1fr;
+    }
+
+    aside {
+      border-right: 1px solid var(--border-soft);
+      background: rgba(12, 12, 14, .75);
+      padding: 18px;
+    }
+
+    .brand { display: flex; align-items: center; gap: 10px; font-weight: 700; }
+    .dot { width: 12px; height: 12px; border-radius: 999px; background: var(--accent); box-shadow: 0 0 26px var(--accent); }
+    .side-title { margin: 28px 0 10px; color: var(--faint); font-size: 12px; text-transform: uppercase; letter-spacing: .08em; }
+    .task { border: 1px solid var(--border-soft); background: var(--panel); border-radius: 16px; padding: 12px; margin-bottom: 10px; }
+    .task.active { border-color: rgba(245, 158, 11, .45); background: var(--accent-soft); }
+    .task strong { display: block; font-size: 13px; margin-bottom: 6px; }
+    .task span { color: var(--muted); font-size: 12px; }
+
+    main { display: grid; grid-template-rows: auto 1fr auto; min-width: 0; }
+    header {
+      padding: 17px 22px;
+      border-bottom: 1px solid var(--border-soft);
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 16px;
+    }
+    h1 { margin: 0; font-size: 16px; }
+    .sub { color: var(--muted); font-size: 12px; margin-top: 4px; }
+    .pill { border: 1px solid var(--border); border-radius: 999px; padding: 7px 10px; color: var(--muted); font-size: 12px; background: var(--panel-2); }
+
+    .timeline { padding: 24px 30px 18px; overflow: auto; }
+    .turn { display: grid; grid-template-columns: 72px 1fr; gap: 16px; margin-bottom: 24px; }
+    .time { color: var(--faint); font-size: 12px; padding-top: 14px; text-align: right; }
+    .stack { min-width: 0; }
+    .bubble {
+      border-radius: var(--radius);
+      border: 1px solid var(--border-soft);
+      background: var(--panel-2);
+      padding: 15px 16px;
+      margin-bottom: 10px;
+    }
+    .bubble.user { background: #202024; border-color: #313139; }
+    .bubble.assistant { background: #141416; }
+    .role { display: flex; align-items: center; justify-content: space-between; margin-bottom: 9px; color: var(--muted); font-size: 12px; }
+    .role b { color: var(--text); font-size: 13px; }
+    p { margin: 0; line-height: 1.55; font-size: 14px; color: #e7e7ea; }
+
+    .work-strip {
+      border: 1px solid rgba(245, 158, 11, .3);
+      background: rgba(245, 158, 11, .08);
+      border-radius: 16px;
+      padding: 11px 12px;
+      margin-bottom: 10px;
+    }
+    .work-head { display: flex; justify-content: space-between; align-items: center; gap: 12px; margin-bottom: 10px; }
+    .live { display: flex; align-items: center; gap: 8px; color: #fbbf24; font-size: 13px; font-weight: 650; }
+    .spinner { width: 8px; height: 8px; border-radius: 999px; background: var(--accent); animation: pulse 1.2s infinite; }
+    @keyframes pulse { 50% { opacity: .25; transform: scale(.7); } }
+    .chips { display: flex; gap: 7px; flex-wrap: wrap; }
+    .chip { border: 1px solid var(--border); background: rgba(255,255,255,.035); border-radius: 999px; padding: 6px 9px; color: var(--muted); font-size: 12px; }
+    .chip.good { color: #86efac; border-color: rgba(34, 197, 94, .26); }
+    .chip.warn { color: #fbbf24; border-color: rgba(245, 158, 11, .3); }
+
+    details { border: 1px solid var(--border-soft); border-radius: 14px; background: rgba(255,255,255,.025); margin-top: 9px; overflow: hidden; }
+    summary { cursor: pointer; padding: 10px 12px; color: var(--muted); font-size: 12px; list-style: none; display: flex; justify-content: space-between; }
+    summary::-webkit-details-marker { display: none; }
+    .tool-list { padding: 0 12px 12px; display: grid; gap: 8px; }
+    .tool { display: grid; grid-template-columns: 18px 1fr auto; gap: 9px; align-items: center; font-size: 12px; color: var(--muted); }
+    .status { width: 8px; height: 8px; border-radius: 999px; background: var(--green); justify-self: center; }
+    .status.run { background: var(--accent); box-shadow: 0 0 16px rgba(245, 158, 11, .8); }
+    .path { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; color: #d4d4d8; }
+    .duration { color: var(--faint); }
+
+    .file-card { border: 1px solid var(--border-soft); background: #121214; border-radius: 15px; padding: 12px; margin-bottom: 10px; }
+    .file-row { display: flex; align-items: center; justify-content: space-between; gap: 10px; font-size: 12px; padding: 7px 0; color: var(--muted); border-top: 1px solid var(--border-soft); }
+    .file-row:first-of-type { border-top: 0; }
+    .diff { color: #86efac; }
+
+    .footer { padding: 14px 22px; border-top: 1px solid var(--border-soft); display: flex; align-items: center; gap: 10px; }
+    .composer { flex: 1; border: 1px solid var(--border); background: #0f0f11; border-radius: 16px; min-height: 44px; display: flex; align-items: center; padding: 0 14px; color: var(--faint); font-size: 13px; }
+    button { border: 0; background: var(--accent); color: #111; border-radius: 13px; padding: 12px 15px; font-weight: 700; }
+
+    @media (max-width: 820px) {
+      body { padding: 0; }
+      .frame { height: 100vh; border-radius: 0; grid-template-columns: 1fr; }
+      aside { display: none; }
+      .turn { grid-template-columns: 1fr; gap: 5px; }
+      .time { text-align: left; padding-top: 0; }
+      .timeline { padding: 18px; }
+    }
+  </style>
+</head>
+<body>
+  <div class="frame">
+    <aside>
+      <div class="brand"><span class="dot"></span> Tangerine</div>
+      <div class="side-title">Runs</div>
+      <div class="task active"><strong>Improve chat streaming</strong><span>Working · 2m 14s</span></div>
+      <div class="task"><strong>Review PR #661</strong><span>Queued</span></div>
+      <div class="task"><strong>Fix webhook retry</strong><span>Done</span></div>
+    </aside>
+
+    <main>
+      <header>
+        <div>
+          <h1>Improve chat streaming</h1>
+          <div class="sub">Normalized turn timeline · branch fix/chat-streaming-improvement-plan</div>
+        </div>
+        <div class="pill">42k / 200k tokens</div>
+      </header>
+
+      <section class="timeline">
+        <div class="turn">
+          <div class="time">13:40</div>
+          <div class="stack">
+            <div class="bubble user">
+              <div class="role"><b>You</b><span>Prompt</span></div>
+              <p>Study t3code and Zed chat streaming. Suggest how Tangerine chat should improve.</p>
+            </div>
+          </div>
+        </div>
+
+        <div class="turn">
+          <div class="time">13:41</div>
+          <div class="stack">
+            <div class="work-strip">
+              <div class="work-head">
+                <div class="live"><span class="spinner"></span> Inspecting references</div>
+                <span class="duration">1m 32s</span>
+              </div>
+              <div class="chips">
+                <span class="chip">Read 8 files</span>
+                <span class="chip">Searched chat streams</span>
+                <span class="chip good">Mapped ACP events</span>
+                <span class="chip warn">2 ideas promoted</span>
+              </div>
+              <details>
+                <summary><span>Work log</span><span>expand</span></summary>
+                <div class="tool-list">
+                  <div class="tool"><span class="status"></span><span>Read <span class="path">MessagesTimeline.logic.ts</span></span><span class="duration">120ms</span></div>
+                  <div class="tool"><span class="status"></span><span>Read <span class="path">zed/crates/agent/thread.rs</span></span><span class="duration">230ms</span></div>
+                  <div class="tool"><span class="status run"></span><span>Searching Tangerine ACP mapper</span><span class="duration">running</span></div>
+                </div>
+              </details>
+            </div>
+
+            <div class="bubble assistant">
+              <div class="role"><b>Assistant</b><span>Answer</span></div>
+              <p>Tangerine should move from timestamp-merged messages + activities to ordered turn blocks: text, thinking, tools, plan, file changes, permissions. Default view stays compact; expansion reveals raw detail.</p>
+            </div>
+
+            <div class="file-card">
+              <div class="role"><b>Changed files</b><span>2 files</span></div>
+              <div class="file-row"><span class="path">specs/chat-streaming-improvement-plan.md</span><span class="diff">+315</span></div>
+              <div class="file-row"><span class="path">specs/architecture.md</span><span class="diff">+1</span></div>
+            </div>
+          </div>
+        </div>
+
+        <div class="turn">
+          <div class="time">now</div>
+          <div class="stack">
+            <div class="work-strip">
+              <div class="work-head">
+                <div class="live"><span class="spinner"></span> Writing PR summary</div>
+                <span class="duration">live</span>
+              </div>
+              <div class="chips">
+                <span class="chip">Tests passed</span>
+                <span class="chip good">Ready PR</span>
+                <span class="chip">Jump to latest enabled</span>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <div class="footer">
+        <div class="composer">Ask a follow-up… supports #tasks, @files, /commands</div>
+        <button>Send</button>
+      </div>
+    </main>
+  </div>
+</body>
+</html>
