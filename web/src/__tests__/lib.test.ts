@@ -44,6 +44,7 @@ import { getConfiguredAgentIds, resolveAvailableAgent } from "../lib/agent-selec
 import { findTriggerToken } from "../lib/text-trigger"
 import { resolvePickerKey } from "../lib/picker-keyboard"
 import { sendTerminalResize } from "../lib/terminal-websocket"
+import { stripSystemContent } from "../lib/strip-system-content"
 
 function makeTask(overrides: Partial<Task> = {}): Task {
   return {
@@ -1200,5 +1201,40 @@ describe("getDiffStats", () => {
     const stats = getDiffStats(oldStr, newStr)
     expect(stats.additions + stats.deletions).toBeGreaterThan(0)
     expect(stats.totalLines).toBeGreaterThan(0)
+  })
+})
+
+describe("stripSystemContent", () => {
+  test("strips bracketed system notes", () => {
+    const content = "[TANGERINE: You are running inside a task]\n[AUTH: Always include token]\nhi"
+    expect(stripSystemContent(content)).toBe("hi")
+  })
+
+  test("strips system-reminder tags", () => {
+    const content = "<system-reminder>\nInternal instructions here\n</system-reminder>\nHello"
+    expect(stripSystemContent(content)).toBe("Hello")
+  })
+
+  test("strips local-command tags", () => {
+    const content = "<local-command-caveat>caveat text</local-command-caveat>\n<command-name>/model</command-name>\nuser input"
+    expect(stripSystemContent(content)).toBe("user input")
+  })
+
+  test("preserves plain text without system content", () => {
+    const content = "Just a regular message"
+    expect(stripSystemContent(content)).toBe("Just a regular message")
+  })
+
+  test("handles mixed content", () => {
+    const content = `[TANGERINE: task info][PR MODE — CRITICAL: Create ready PR]
+[STYLE: Be concise]
+<system-reminder>Instructions</system-reminder>
+fix the bug`
+    expect(stripSystemContent(content)).toBe("fix the bug")
+  })
+
+  test("collapses multiple newlines", () => {
+    const content = "[NOTE: setup info]\n\n\n\nactual content"
+    expect(stripSystemContent(content)).toBe("actual content")
   })
 })

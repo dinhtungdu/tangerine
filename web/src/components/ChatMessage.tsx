@@ -17,6 +17,7 @@ import { DiffViewer, getDiffStats } from "./DiffViewer"
 import { AuthenticatedImage } from "./AuthenticatedImage"
 import { ImageLightbox } from "./ImageLightbox"
 import { copyToClipboard } from "../lib/clipboard"
+import { stripSystemContent } from "../lib/strip-system-content"
 import { FileDiff, FileText, Terminal } from "lucide-react"
 
 export interface MessageAction {
@@ -437,6 +438,10 @@ export const ChatMessage = memo(function ChatMessage({ message, tasks, onReply, 
     [tasks],
   )
   const isUser = message.role === "user"
+  const userDisplayContent = useMemo(
+    () => isUser ? stripSystemContent(message.content) : message.content,
+    [isUser, message.content],
+  )
   const isSystem = message.role === "system"
   const isThinking = message.role === "thinking"
   const isPlan = message.role === "plan"
@@ -451,15 +456,16 @@ export const ChatMessage = memo(function ChatMessage({ message, tasks, onReply, 
 
   const [copied, setCopied] = useState(false)
   const copiedTimer = useRef<ReturnType<typeof setTimeout>>(undefined)
+  const actionContent = isUser ? userDisplayContent : message.content
   const handleCopy = useCallback(() => {
-    void copyToClipboard(message.content).then(() => {
+    void copyToClipboard(actionContent).then(() => {
       setCopied(true)
       clearTimeout(copiedTimer.current)
       copiedTimer.current = setTimeout(() => setCopied(false), 1500)
     })
-  }, [message.content])
+  }, [actionContent])
 
-  const messageActions: MessageAction[] = message.content ? [
+  const messageActions: MessageAction[] = actionContent ? [
     {
       key: "copy",
       label: copied ? "Copied" : "Copy",
@@ -482,7 +488,7 @@ export const ChatMessage = memo(function ChatMessage({ message, tasks, onReply, 
           <path strokeLinecap="round" strokeLinejoin="round" d="m15 15-6 6m0 0-6-6m6 6V9a6 6 0 0 1 12 0v3" />
         </svg>
       ),
-      onClick: () => onReply(message.content),
+      onClick: () => onReply(actionContent),
     }] : []),
   ] : []
 
@@ -520,13 +526,13 @@ export const ChatMessage = memo(function ChatMessage({ message, tasks, onReply, 
               )}
             </>
           )}
-          {message.content && (
+          {userDisplayContent && (
             <div
               className="break-words leading-[1.5] text-primary-foreground [&_a]:underline [&_a]:text-blue-600 [&_a]:dark:text-blue-400 hover:[&_a]:text-blue-800 dark:hover:[&_a]:text-blue-300 [&_a]:break-all [&_code]:bg-primary-foreground/15 [&_code]:border-primary-foreground/20 [&_pre_code]:bg-transparent [&_pre_code]:border-transparent [&_pre]:bg-primary-foreground/10 [&_pre]:border-primary-foreground/15 [&_blockquote]:border-primary-foreground/30 [&_blockquote]:text-primary-foreground/70"
               onClick={handleLinkClick}
             >
               <ReactMarkdown remarkPlugins={userRemarkPlugins} components={markdownComponents}>
-                {message.content}
+                {userDisplayContent}
               </ReactMarkdown>
             </div>
           )}
