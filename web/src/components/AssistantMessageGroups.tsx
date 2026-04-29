@@ -1,4 +1,4 @@
-import { memo, useState, useCallback, useMemo } from "react"
+import { memo, useState, useCallback, useMemo, type ReactNode } from "react"
 import type { ActivityEntry } from "@tangerine/shared"
 import type { ChatMessage as ChatMessageType } from "../hooks/useSession"
 import { ChatMessage } from "./ChatMessage"
@@ -29,6 +29,14 @@ interface MessageGroup {
   hasToolsOrThinking: boolean
 }
 
+interface ToolSegmentSummary {
+  startTime: string
+  endTime: string
+  toolCount: number
+  filesChanged: number
+  errorCount: number
+}
+
 function isToolActivity(activity: ActivityEntry): boolean {
   return activity.event.startsWith("tool.")
 }
@@ -43,6 +51,30 @@ function getFilePathFromActivity(activity: ActivityEntry): string | null {
   const meta = activity.metadata as Record<string, unknown> | null
   const input = resolveToolInput(meta?.toolInput)
   return (input?.file_path as string | undefined) || (input?.path as string | undefined) || null
+}
+
+function summarizeToolSegment(items: ReadonlyArray<{ kind: "tool"; data: ActivityEntry }>): ToolSegmentSummary {
+  const changedFiles = new Set<string>()
+  let errorCount = 0
+
+  for (const item of items) {
+    if (isWriteOrEditActivity(item.data)) {
+      const path = getFilePathFromActivity(item.data)
+      if (path) changedFiles.add(path)
+    }
+    const meta = item.data.metadata as { status?: string } | null
+    if (meta?.status === "error") errorCount++
+  }
+
+  const first = items[0]
+  const last = items[items.length - 1]
+  return {
+    startTime: first?.data.timestamp || new Date().toISOString(),
+    endTime: last?.data.timestamp || first?.data.timestamp || new Date().toISOString(),
+    toolCount: items.length,
+    filesChanged: changedFiles.size,
+    errorCount,
+  }
 }
 
 function mergeMessagesAndActivities(
@@ -187,18 +219,6 @@ function AssistantGroup({
     setExpanded((v) => !v)
   }, [])
 
-  const textMessages = useMemo(
-    () => group.items.filter(
-      (item): item is { kind: "message"; data: ChatMessageType } =>
-        item.kind === "message" &&
-        item.data.role === "assistant"
-    ),
-    [group.items],
-  )
-
-  const showSummaryBar = group.toolCount >= 2
-
-  // Find the last tool index for status derivation
   const lastToolIdx = useMemo(() => {
     for (let i = group.items.length - 1; i >= 0; i--) {
       if (group.items[i]!.kind === "tool") return i
@@ -206,103 +226,81 @@ function AssistantGroup({
     return -1
   }, [group.items])
 
-  if (!showSummaryBar) {
-    return (
-      <>
-        {group.items.map((item, idx) => {
-          if (item.kind === "tool") {
-            const status = deriveToolStatus(item.data, isStreaming, idx === lastToolIdx)
-            return (
-              <div key={`tool-${item.data.id}`} className="pb-6">
+  const renderedItems: ReactNode[] = []
+  let toolSegment: Array<{ kind: "tool"; data: ActivityEntry; index: number }> = []
+
+  const flushToolSegment = () => {
+    if (toolSegment.length === 0) return
+    const segment = toolSegment
+    toolSegment = []
+
+    if (segment.length < 2) {
+      for (const item of segment) {
+        const status = deriveToolStatus(item.data, isStreaming, item.index === lastToolIdx)
+        renderedItems.push(
+          <div key={`tool-${item.data.id}`} className="pb-6">
+            <ToolCallDisplay content={buildToolContent(item.data)} status={status} />
+          </div>
+        )
+      }
+      return
+    }
+
+    const summary = summarizeToolSegment(segment)
+    renderedItems.push(
+      <div key={`tools-${segment[0]!.data.id}`} className="pb-6 flex flex-col gap-3">
+        <ToolCallsSummaryBar
+          isStreaming={isStreaming}
+          startTime={summary.startTime}
+          endTime={summary.endTime}
+          toolCount={summary.toolCount}
+          filesChanged={summary.filesChanged}
+          errorCount={summary.errorCount}
+          expanded={expanded}
+          onToggle={handleToggle}
+        />
+        {expanded && (
+          <div className="flex flex-col gap-4 pl-2 border-l-2 border-border">
+            {segment.map((item) => {
+              const status = deriveToolStatus(item.data, isStreaming, item.index === lastToolIdx)
+              return (
                 <ToolCallDisplay
+                  key={`tool-${item.data.id}`}
                   content={buildToolContent(item.data)}
                   status={status}
-                />
-              </div>
-            )
-          }
-          return (
-            <div key={`msg-${item.data.id}`} className="pb-6">
-              <ChatMessage message={item.data} tasks={tasks} onReply={onReply} />
-            </div>
-          )
-        })}
-        {isStreaming && (
-          <div className="mt-6 flex items-center gap-2 text-muted-foreground">
-            <span className="flex gap-0.5">
-              <span className="h-1.5 w-1.5 rounded-full bg-current animate-bounce [animation-delay:-0.3s]" />
-              <span className="h-1.5 w-1.5 rounded-full bg-current animate-bounce [animation-delay:-0.15s]" />
-              <span className="h-1.5 w-1.5 rounded-full bg-current animate-bounce" />
-            </span>
-            <span className="text-xs">Agent is working...</span>
-          </div>
-        )}
-      </>
-    )
-  }
-
-  return (
-    <div className="flex flex-col gap-3">
-      <ToolCallsSummaryBar
-        isStreaming={isStreaming}
-        startTime={group.startTime}
-        endTime={group.endTime}
-        toolCount={group.toolCount}
-        filesChanged={group.filesChanged}
-        errorCount={group.errorCount}
-        expanded={expanded}
-        onToggle={handleToggle}
-      />
-
-      {expanded && (
-        <>
-          <div className="flex flex-col gap-4 pl-2 border-l-2 border-border">
-            {group.items.map((item, idx) => {
-              if (item.kind === "tool") {
-                const status = deriveToolStatus(item.data, isStreaming, idx === lastToolIdx)
-                return (
-                  <ToolCallDisplay
-                    key={`tool-${item.data.id}`}
-                    content={buildToolContent(item.data)}
-                    status={status}
-                  />
-                )
-              }
-              if (item.data.role === "assistant") return null
-              const isLastThinking =
-                item.data.role === "thinking" && isStreaming && idx === group.items.length - 1
-              return (
-                <ChatMessage
-                  key={`msg-${item.data.id}`}
-                  message={item.data}
-                  tasks={tasks}
-                  onReply={onReply}
-                  isThinkingActive={isLastThinking}
                 />
               )
             })}
           </div>
-          <ToolCallsSummaryBar
-            isStreaming={isStreaming}
-            startTime={group.startTime}
-            endTime={group.endTime}
-            toolCount={group.toolCount}
-            filesChanged={group.filesChanged}
-            errorCount={group.errorCount}
-            expanded={expanded}
-            onToggle={handleToggle}
-          />
-        </>
-      )}
+        )}
+      </div>
+    )
+  }
 
-      {textMessages.length > 0 && (
-        <div className="flex flex-col gap-6">
-          {textMessages.map((item) => (
-            <ChatMessage key={`msg-${item.data.id}`} message={item.data} tasks={tasks} onReply={onReply} />
-          ))}
-        </div>
-      )}
+  group.items.forEach((item, idx) => {
+    if (item.kind === "tool") {
+      toolSegment.push({ ...item, index: idx })
+      return
+    }
 
+    flushToolSegment()
+    const isLastThinking = item.data.role === "thinking" && isStreaming && idx === group.items.length - 1
+    renderedItems.push(
+      <div key={`msg-${item.data.id}`} className="pb-6">
+        <ChatMessage
+          message={item.data}
+          tasks={tasks}
+          onReply={onReply}
+          isThinkingActive={isLastThinking}
+        />
+      </div>
+    )
+  })
+  flushToolSegment()
+
+  return (
+    <>
+      {renderedItems}
       {isStreaming && (
         <div className="mt-6 flex items-center gap-2 text-muted-foreground">
           <span className="flex gap-0.5">
@@ -313,7 +311,7 @@ function AssistantGroup({
           <span className="text-xs">Agent is working...</span>
         </div>
       )}
-    </div>
+    </>
   )
 }
 

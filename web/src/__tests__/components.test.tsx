@@ -1658,7 +1658,50 @@ describe("ChatMessage inline actions", () => {
 })
 
 describe("AssistantMessageGroups tool summaries", () => {
-  test("renders a second summary bar at the bottom when expanded", () => {
+  test("keeps assistant messages in timeline order around collapsed tool summaries", () => {
+    const messages = [
+      { id: "assistant-1", role: "assistant", content: "First answer", timestamp: "2026-04-18T12:00:00.000Z" },
+      { id: "assistant-2", role: "assistant", content: "Second answer", timestamp: "2026-04-18T12:00:10.000Z" },
+    ]
+    const activities = [
+      makeActivity({
+        id: 101,
+        event: "tool.write",
+        metadata: {
+          toolName: "Write",
+          toolInput: { file_path: "web/src/one.tsx" },
+          status: "success",
+        },
+        timestamp: "2026-04-18T12:00:03.000Z",
+      }),
+      makeActivity({
+        id: 102,
+        event: "tool.write",
+        metadata: {
+          toolName: "Write",
+          toolInput: { file_path: "web/src/two.tsx" },
+          status: "success",
+        },
+        timestamp: "2026-04-18T12:00:04.000Z",
+      }),
+    ]
+
+    const { container } = render(
+      <MemoryRouter>
+        <AssistantMessageGroups
+          messages={messages}
+          activities={activities}
+          isLastGroupStreaming={false}
+        />
+      </MemoryRouter>
+    )
+
+    const content = container.textContent || ""
+    expect(content.indexOf("First answer")).toBeLessThan(content.indexOf("2 tools"))
+    expect(content.indexOf("2 tools")).toBeLessThan(content.indexOf("Second answer"))
+  })
+
+  test("expands tool summaries in place without duplicate summary bars", () => {
     const timestamp = "2026-04-18T12:00:00.000Z"
     const messages = [
       { id: "assistant-1", role: "assistant", content: "Done", timestamp },
@@ -1700,7 +1743,9 @@ describe("AssistantMessageGroups tool summaries", () => {
 
     fireEvent.click(screen.getByRole("button", { name: /2 tools · 2 files/i }))
 
-    expect(screen.getAllByRole("button", { name: /2 tools · 2 files/i })).toHaveLength(2)
+    expect(screen.getAllByRole("button", { name: /2 tools · 2 files/i })).toHaveLength(1)
+    expect(screen.getAllByText(/web\/src\/one\.tsx/).length).toBeGreaterThan(0)
+    expect(screen.getAllByText(/web\/src\/two\.tsx/).length).toBeGreaterThan(0)
   })
 })
 
