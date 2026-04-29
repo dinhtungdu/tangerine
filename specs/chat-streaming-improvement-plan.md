@@ -172,6 +172,8 @@ interface ThinkingBlock extends BaseBlock {
   kind: "thinking"
   text: string
   redacted?: boolean
+  /** One per assistant turn; all thought deltas append into this block. */
+  streamKey: "turn-thinking"
 }
 
 interface ToolBlock extends BaseBlock {
@@ -208,7 +210,7 @@ For each turn:
 
 Expansion shows ordered blocks:
 
-- thinking text
+- thinking text; one Thinking block per assistant turn, with all thought chunks appended in place
 - tool input/output
 - terminal output
 - plan steps
