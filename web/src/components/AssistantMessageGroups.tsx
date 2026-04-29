@@ -6,8 +6,62 @@ import {
   deriveStreamingStatusLabel,
   splitTimelineItems,
   type TimelineGroup,
+  type TimelineRenderSegment,
 } from "../lib/timeline"
-import type { ActivityEntry } from "@tangerine/shared"
+import type { ActivityEntry, AgentContentBlock } from "@tangerine/shared"
+
+function isToolCallContent(content: string): boolean {
+  if (!content.startsWith("{")) return false
+  try {
+    const parsed = JSON.parse(content) as Record<string, unknown>
+    return "tool" in parsed || "name" in parsed || "command" in parsed
+  } catch {
+    return false
+  }
+}
+
+function wouldMessageRender(msg: ChatMessageType, isStreaming: boolean, isLastThinking: boolean): boolean {
+  const { role, content, contentBlock } = msg
+
+  if (role === "user" || role === "system" || role === "plan") return true
+
+  if (role === "thinking" || role === "narration") {
+    const isActive = isLastThinking
+    return isActive || content.trim().length > 0
+  }
+
+  if (role === "content") {
+    const block = contentBlock ?? (() => {
+      try {
+        const parsed = JSON.parse(content) as unknown
+        return typeof parsed === "object" && parsed !== null && "type" in parsed ? parsed as AgentContentBlock : null
+      } catch { return null }
+    })()
+    if (!block) return false
+    if (block.type === "text" || block.type === "diff") return false
+    return true
+  }
+
+  if (isToolCallContent(content)) return false
+
+  return true
+}
+
+type MessageSegment = Extract<TimelineRenderSegment, { kind: "message" }>
+
+function filterRenderableSegments(
+  segments: TimelineRenderSegment[],
+  isStreaming: boolean,
+  totalItems: number,
+): MessageSegment[] {
+  return segments.filter((seg): seg is MessageSegment => {
+    if (seg.kind === "tool") return false
+    const msg = seg.item.data
+    const isWorkNote = msg.role === "thinking" || msg.role === "narration"
+    const isLastThinking = isWorkNote && isStreaming && seg.index === totalItems - 1
+    return wouldMessageRender(msg, isStreaming, isLastThinking)
+  })
+}
 
 interface AssistantMessageGroupsProps {
   messages: ChatMessageType[]
@@ -44,19 +98,21 @@ function AssistantGroup({
   isStreaming: boolean
   footerSlot?: ReactNode
 }) {
-  const segments = useMemo(() => splitTimelineItems(group.items), [group.items])
+  const segments = useMemo(() => {
+    const all = splitTimelineItems(group.items)
+    return filterRenderableSegments(all, isStreaming, group.items.length)
+  }, [group.items, isStreaming])
 
   return (
     <>
       {segments.map((segment) => {
-        if (segment.kind === "tool") return null
-
-        const isWorkNote = segment.item.data.role === "thinking" || segment.item.data.role === "narration"
+        const msg = segment.item.data
+        const isWorkNote = msg.role === "thinking" || msg.role === "narration"
         const isLastThinking = isWorkNote && isStreaming && segment.index === group.items.length - 1
         return (
-          <div key={`msg-${segment.item.data.id}`} className="min-w-0 pb-6">
+          <div key={`msg-${msg.id}`} className="min-w-0 pb-6">
             <ChatMessage
-              message={segment.item.data}
+              message={msg}
               tasks={tasks}
               onReply={onReply}
               isThinkingActive={isLastThinking}
@@ -105,15 +161,14 @@ export const AssistantMessageGroups = memo(function AssistantMessageGroups({
         }
 
         return (
-          <div key={group.id} className="min-w-0 pb-6">
-            <AssistantGroup
-              group={group}
-              tasks={tasks}
-              onReply={onReply}
-              isStreaming={isStreaming}
-              footerSlot={isLast ? footerSlot : undefined}
-            />
-          </div>
+          <AssistantGroup
+            key={group.id}
+            group={group}
+            tasks={tasks}
+            onReply={onReply}
+            isStreaming={isStreaming}
+            footerSlot={isLast ? footerSlot : undefined}
+          />
         )
       })}
     </>
