@@ -1480,8 +1480,8 @@ describe("ChatMessage", async () => {
     expect(container.textContent).toBe("")
   })
 
-  test("renders ACP diff content block cards", () => {
-    renderChat({
+  test("does not render ACP diff content block cards", () => {
+    const { container } = renderChat({
       message: {
         id: "diff-1",
         role: "content",
@@ -1491,11 +1491,7 @@ describe("ChatMessage", async () => {
       },
     })
 
-    expect(screen.getByText("Diff")).toBeTruthy()
-    expect(screen.getByText("/repo/src/a.ts")).toBeTruthy()
-    expect(screen.getByText("+2")).toBeTruthy()
-    expect(screen.getByText("-1")).toBeTruthy()
-    expect(screen.getByText("const b = 3")).toBeTruthy()
+    expect(container.textContent).toBe("")
   })
 
   test("renders ACP terminal content block cards", () => {
@@ -2006,7 +2002,7 @@ describe("AssistantMessageGroups tool calls", () => {
     expect(label.parentElement?.className).toContain("overflow-hidden")
   })
 
-  test("keeps diff content blocks visible when tool calls are hidden", () => {
+  test("does not render diff content blocks", () => {
     const messages = [
       { id: "assistant-1", role: "assistant", content: "Reviewing changes", timestamp: "2026-04-18T12:00:00.000Z" },
       {
@@ -2017,29 +2013,19 @@ describe("AssistantMessageGroups tool calls", () => {
         contentBlock: { type: "diff", path: "/repo/src/a.ts", oldText: "const a = 1", newText: "const a = 2" },
       },
     ]
-    const activities = [
-      makeActivity({
-        id: 101,
-        event: "tool.write",
-        metadata: { toolName: "Write", toolInput: { file_path: "web/src/hidden.tsx" }, status: "success" },
-        timestamp: "2026-04-18T12:00:01.000Z",
-      }),
-    ]
 
     render(
       <MemoryRouter>
         <AssistantMessageGroups
           messages={messages}
-          activities={activities}
+          activities={[]}
           isLastGroupStreaming={false}
         />
       </MemoryRouter>
     )
 
-    expect(screen.getByText("Diff")).toBeTruthy()
-    expect(screen.getByText("/repo/src/a.ts")).toBeTruthy()
-    expect(screen.getByText("const a = 2")).toBeTruthy()
-    expect(screen.queryAllByText(/web\/src\/hidden\.tsx/)).toHaveLength(0)
+    expect(screen.queryByText("Diff")).toBeNull()
+    expect(screen.queryByText("/repo/src/a.ts")).toBeNull()
   })
 
   test("shows specific streaming status instead of generic working text", () => {
