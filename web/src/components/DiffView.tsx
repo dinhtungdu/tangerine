@@ -181,6 +181,21 @@ function useResolvedTheme() {
   return isDark ? "dark" as const : "light" as const
 }
 
+function useInView(ref: React.RefObject<HTMLElement | null>, rootMargin = "200px") {
+  const [inView, setInView] = useState(false)
+  useEffect(() => {
+    const el = ref.current
+    if (!el) return
+    const observer = new IntersectionObserver(
+      ([entry]) => { if (entry?.isIntersecting) { setInView(true); observer.disconnect() } },
+      { rootMargin },
+    )
+    observer.observe(el)
+    return () => observer.disconnect()
+  }, [ref, rootMargin])
+  return inView
+}
+
 function FileSection({ file, comments = [], onAddComment }: { file: DiffFile; comments?: DiffComment[]; onAddComment?: (comment: DiffComment) => void }) {
   const [collapsed, setCollapsed] = useState(false)
   const [viewMode, setViewMode] = useState<ViewMode>("split")
@@ -189,6 +204,7 @@ function FileSection({ file, comments = [], onAddComment }: { file: DiffFile; co
   const [copied, setCopied] = useState(false)
   const stats = useMemo(() => getFileStats(file.diff), [file.diff])
   const resolvedTheme = useResolvedTheme()
+  const visible = useInView(containerRef)
 
   useEffect(() => {
     const el = containerRef.current
@@ -304,7 +320,7 @@ function FileSection({ file, comments = [], onAddComment }: { file: DiffFile; co
           </div>
         </div>
       </div>
-      {!collapsed && (
+      {!collapsed && visible && (
         <>
           <PatchDiff<CommentAnnotation>
             patch={file.diff}
