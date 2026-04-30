@@ -342,6 +342,15 @@ function FileSection({ file, comments = [], onAddComment }: { file: DiffFile; co
             }}
             lineAnnotations={lineAnnotations}
             selectedLines={selectedLines}
+            renderGutterUtility={onAddComment ? () => (
+              <button className="flex h-full w-full items-center justify-center opacity-0 transition-opacity [*:hover>&]:opacity-100">
+                <span className="flex h-[18px] w-[18px] items-center justify-center rounded bg-status-info text-white">
+                  <svg className="h-2.5 w-2.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={3}>
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M12 4.5v15m7.5-7.5h-15" />
+                  </svg>
+                </span>
+              </button>
+            ) : undefined}
             renderAnnotation={(annotation) => {
               const data = annotation.metadata
               if (data.type === "form") {
