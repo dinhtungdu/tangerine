@@ -4,6 +4,7 @@
 
 import { Effect } from "effect"
 import path from "node:path"
+import fs from "node:fs"
 import type { Database } from "bun:sqlite"
 import type { WorktreeSlotRow } from "../db/types"
 import { TERMINAL_STATUSES } from "@tangerine/shared"
@@ -55,6 +56,64 @@ function dbTry<T>(op: () => T): Effect.Effect<T, DbError> {
   })
 }
 
+// --- Layout migration ---
+
+/** Migrate from old numbered-subdir layout ({project}/0, /1, ...) to sibling layout ({project}, {project}--wt-1, ...). */
+export function migrateWorktreeLayout(
+  db: Database,
+  projectId: string,
+  repoPath: string,
+  exec: LocalExec,
+): Effect.Effect<boolean, DbError | Error> {
+  return Effect.gen(function* () {
+    const oldSlot0 = path.join(repoPath, "0")
+
+    if (!fs.existsSync(oldSlot0) || !fs.existsSync(path.join(oldSlot0, ".git"))) {
+      return false
+    }
+
+    log.info("Migrating worktree layout", { projectId, from: oldSlot0, to: repoPath })
+
+    // Abort migration if any slots are bound to active tasks
+    const boundCount = (db.prepare(
+      "SELECT COUNT(*) as count FROM worktree_slots WHERE project_id = ? AND status = 'bound'",
+    ).get(projectId) as { count: number }).count
+    if (boundCount > 0) {
+      log.warn("Deferring worktree layout migration — active tasks present", { projectId, boundCount })
+      return false
+    }
+
+    // Remove old numbered worktrees (1, 2, ...)
+    const entries = fs.readdirSync(repoPath).filter((e) => /^\d+$/.test(e) && e !== "0")
+    for (const entry of entries) {
+      const entryPath = path.join(repoPath, entry)
+      yield* exec(`cd "${oldSlot0}" && git worktree remove --force "${entryPath}" 2>/dev/null; true`)
+      log.info("Removed old worktree", { path: entryPath })
+    }
+
+    // Clear all DB slots for this project — initPool will recreate them
+    yield* dbTry(() => {
+      db.prepare("DELETE FROM worktree_slots WHERE project_id = ?").run(projectId)
+    })
+
+    // Move old slot 0 to temporary name, remove parent dir, rename to final
+    const tmpPath = `${repoPath}--migrating`
+    yield* Effect.try({
+      try: () => {
+        fs.renameSync(oldSlot0, tmpPath)
+        fs.rmSync(repoPath, { recursive: true })
+        fs.renameSync(tmpPath, repoPath)
+      },
+      catch: (e) => new Error(`Migration filesystem move failed: ${e}`),
+    })
+
+    yield* exec(`cd "${repoPath}" && git worktree prune 2>/dev/null; true`)
+
+    log.info("Worktree layout migration complete", { projectId, repoPath })
+    return true
+  })
+}
+
 // --- Pool initialization ---
 
 /** Create worktree slots for a project if none exist yet. Idempotent. */
@@ -85,10 +144,8 @@ export function initPool(
       return existing
     }
 
-    // Create missing slots as siblings of 0 (the repo clone).
-    // Layout: {workspace}/{project}/0 (repo), 1, 2, ...
-    const projectDir = path.dirname(repoPath)
-
+    // Create missing slots as siblings of the repo clone.
+    // Layout: {workspace}/{project} (repo), {project}-1, {project}-2, ...
     const slots: WorktreeSlotRow[] = [...existing]
     const existingIds = new Set(existing.map((s) => s.id))
 
@@ -96,7 +153,7 @@ export function initPool(
       const slotId = `${projectId}-slot-${i}`
       if (existingIds.has(slotId)) continue
 
-      const slotPath = `${projectDir}/${i}`
+      const slotPath = `${repoPath}--wt-${i}`
 
       yield* exec(
         `cd ${repoPath} && git worktree add --detach ${slotPath} 2>/dev/null || true`,

@@ -15,10 +15,10 @@ Set up the Tangerine coding agent platform. Tangerine can run directly on the ho
 ```
 Host (laptop) — or VM (Lima)
 ├── tangerine server + dashboard (:3456)
-├── {workspace}/project-a/0 (main clone)
-│                          1 (task worktree)
-│                          2 (task worktree)
-├── {workspace}/project-b/0, 1, ...
+├── {workspace}/project-a      (main clone)
+│              /project-a--wt-1 (task worktree)
+│              /project-a--wt-2 (task worktree)
+├── {workspace}/project-b, project-b--wt-1, ...
 ├── ACP agents — local stdio processes
 └── Apache, MariaDB, tools — shared
 ```
@@ -272,12 +272,11 @@ User wants to add a project to an already-running Tangerine instance. You help t
    ```
    Use this resolved path as `{workspace}` for all subsequent steps. Never hardcode `~/tangerine-workspace`.
 
-3. **Clone the repo** into `{workspace}/{projectName}/0/`:
+3. **Clone the repo** into `{workspace}/{projectName}`:
    ```bash
-   mkdir -p {workspace}/my-project
-   git clone <repo-url> {workspace}/my-project/0
+   git clone <repo-url> {workspace}/my-project
    ```
-   The `/0` directory is the **main branch clone** — it is never assigned to tasks. This path must match what `getRepoDir()` in `packages/server/src/config.ts` computes: `join(resolveWorkspace(config), projectId, "0")`.
+   This is the **main branch clone** — it is never assigned to tasks. Task worktrees are created as siblings: `{workspace}/my-project--wt-1`, `{workspace}/my-project--wt-2`, etc. This path must match what `getRepoDir()` in `packages/server/src/config.ts` computes: `join(resolveWorkspace(config), projectId)`.
 
 4. **Scan the cloned repo** for stack indicators (see references/stacks.md):
    - Language runtimes and versions
@@ -290,7 +289,7 @@ User wants to add a project to an already-running Tangerine instance. You help t
 5. **Present the plan** before writing:
    - Detected stack summary
    - Proposed project name
-   - Clone path (`{workspace}/{projectName}/0`)
+   - Clone path (`{workspace}/{projectName}`)
    - Setup command — **required**, ask the user if it cannot be detected
    - Test command
    - Post-update command (install deps + build, runs after git pull)
@@ -379,13 +378,11 @@ Tangerine does not configure or verify credentials — it relies on the agent's 
   config.json             # all projects (managed by tangerine CLI)
   tangerine.db            # task database
 ~/tangerine-workspace/    # configurable via config.workspace
-  project-a/
-    0/               # main branch clone (never assigned to tasks)
-    1/               # task worktree
-    2/               # task worktree
+  project-a/         # main branch clone (never assigned to tasks)
+  project-a--wt-1/   # task worktree
+  project-a--wt-2/   # task worktree
   project-b/
-    0/
-    1/
+  project-b--wt-1/
 
 ~/workspace/tangerine/    # tangerine source code
 ```

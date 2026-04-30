@@ -172,7 +172,7 @@ describe("API routes", () => {
   describe("file mention routes", () => {
     test("lists project repo files filtered by query", async () => {
       const workspace = join(tmpdir(), `tangerine-files-${crypto.randomUUID()}`)
-      const repoDir = join(workspace, "test-project", "0")
+      const repoDir = join(workspace, "test-project")
       try {
         mkdirSync(join(repoDir, "web", "src"), { recursive: true })
         writeFileSync(join(repoDir, "web", "src", "ChatInput.tsx"), "export const ok = true\n")
@@ -218,7 +218,7 @@ describe("API routes", () => {
 
     test("falls back to project repo files when task has no worktree yet", async () => {
       const workspace = join(tmpdir(), `tangerine-task-fallback-files-${crypto.randomUUID()}`)
-      const repoDir = join(workspace, "test-project", "0")
+      const repoDir = join(workspace, "test-project")
       try {
         mkdirSync(join(repoDir, "src"), { recursive: true })
         writeFileSync(join(repoDir, "src", "RootFile.ts"), "export const root = true\n")
