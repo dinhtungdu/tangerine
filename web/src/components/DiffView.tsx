@@ -225,6 +225,13 @@ function FileSection({ file, comments = [], onAddComment }: { file: DiffFile; co
     setSelectedLines(range)
   }, [onAddComment])
 
+  const handleLineNumberClick = useCallback((props: { lineNumber: number; annotationSide: "additions" | "deletions" }) => {
+    if (!onAddComment) return
+    const range: SelectedLineRange = { start: props.lineNumber, end: props.lineNumber, side: props.annotationSide }
+    setPendingRange(range)
+    setSelectedLines(range)
+  }, [onAddComment])
+
   const handleCommentSubmit = useCallback((text: string) => {
     if (!pendingRange) return
     const side = pendingRange.side === "deletions" ? "left" : "right"
@@ -339,6 +346,7 @@ function FileSection({ file, comments = [], onAddComment }: { file: DiffFile; co
               overflow: "wrap",
               enableGutterUtility: !isNarrow && !!onAddComment,
               onGutterUtilityClick: !isNarrow ? handleGutterClick : undefined,
+              onLineNumberClick: onAddComment ? handleLineNumberClick : undefined,
             }}
             lineAnnotations={lineAnnotations}
             selectedLines={selectedLines}
