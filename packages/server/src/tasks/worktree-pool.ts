@@ -58,7 +58,7 @@ function dbTry<T>(op: () => T): Effect.Effect<T, DbError> {
 
 // --- Layout migration ---
 
-/** Migrate from old numbered-subdir layout ({project}/0, /1, ...) to sibling layout ({project}, {project}--wt-1, ...). */
+/** Migrate from old numbered-subdir layout ({project}/0, /1, ...) to sibling layout ({project}, {project}--1, ...). */
 export function migrateWorktreeLayout(
   db: Database,
   projectId: string,
@@ -183,7 +183,7 @@ export function initPool(
       const slotId = `${projectId}-slot-${i}`
       if (existingIds.has(slotId)) continue
 
-      const slotPath = `${repoPath}--wt-${i}`
+      const slotPath = `${repoPath}--${i}`
 
       yield* exec(
         `cd ${repoPath} && git worktree add --detach ${slotPath} 2>/dev/null || true`,

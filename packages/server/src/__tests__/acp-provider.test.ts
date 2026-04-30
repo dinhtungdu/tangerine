@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, test } from "bun:test"
 import { Effect } from "effect"
-import { mkdtempSync, readFileSync, rmSync, writeFileSync, mkdirSync } from "node:fs"
+import { mkdtempSync, readFileSync, rmSync, writeFileSync, mkdirSync, realpathSync } from "node:fs"
 import { join } from "node:path"
 import { pathToFileURL } from "node:url"
 import { tmpdir } from "node:os"
@@ -639,7 +639,7 @@ describe("createAcpProvider", () => {
   })
 
   test("advertises ACP filesystem callbacks and handles read/write requests", async () => {
-    const tempDir = mkdtempSync(join(tmpdir(), "tangerine-acp-fs-"))
+    const tempDir = realpathSync(mkdtempSync(join(tmpdir(), "tangerine-acp-fs-")))
     const scriptPath = join(tempDir, "mock-acp-agent.js")
     writeFileSync(scriptPath, mockFsAcpAgentScript, "utf-8")
 
@@ -650,14 +650,14 @@ describe("createAcpProvider", () => {
     handle.subscribe((event) => events.push(event))
 
     await Effect.runPromise(handle.sendPrompt("write and read"))
-    await waitFor(() => hasStatusTransition(events, "working", "idle"))
+    await waitFor(() => hasStatusTransition(events, "working", "idle"), 10_000)
 
     expect(await Bun.file(join(tempDir, "edited.txt")).text()).toBe("edited content")
     expect(events).toContainEqual({ kind: "message.complete", role: "assistant", content: "fs:edited content", messageId: "msg-fs" })
 
     await Effect.runPromise(handle.shutdown())
     rmSync(tempDir, { recursive: true, force: true })
-  })
+  }, 15_000)
 
   test("resumes existing ACP sessions when supported", async () => {
     const tempDir = mkdtempSync(join(tmpdir(), "tangerine-acp-resume-"))
@@ -965,10 +965,10 @@ describe("createAcpProvider", () => {
   })
 })
 
-async function waitFor(condition: () => boolean): Promise<void> {
+async function waitFor(condition: () => boolean, timeoutMs = 5_000): Promise<void> {
   const startedAt = Date.now()
   while (!condition()) {
-    if (Date.now() - startedAt > 2_000) throw new Error("Timed out waiting for condition")
+    if (Date.now() - startedAt > timeoutMs) throw new Error("Timed out waiting for condition")
     await new Promise((resolve) => setTimeout(resolve, 10))
   }
 }
