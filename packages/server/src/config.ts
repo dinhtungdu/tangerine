@@ -139,9 +139,9 @@ export function resolveWorkspace(config: TangerineConfig): string {
   return ws
 }
 
-/** Get the repo directory for a project: {workspace}/{projectId}/0 */
+/** Get the repo directory for a project: {workspace}/{projectId} */
 export function getRepoDir(config: TangerineConfig, projectId: string): string {
-  return join(resolveWorkspace(config), projectId, "0")
+  return join(resolveWorkspace(config), projectId)
 }
 
 /**

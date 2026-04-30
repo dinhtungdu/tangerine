@@ -8,7 +8,7 @@ import { SessionStartError } from "../errors"
 import { getRepoDir, resolveWorkspace } from "../config"
 import { normalizeTaskType, resolveTaskTypeConfig, DEFAULT_TASK_PERMISSION_MODE, type TangerineConfig, type TaskPermissionMode } from "@tangerine/shared"
 import type { TaskRow } from "../db/types"
-import { initPool, acquireSlot, acquireRootSlot } from "./worktree-pool"
+import { initPool, acquireSlot, acquireRootSlot, migrateWorktreeLayout } from "./worktree-pool"
 import { buildSystemNotes } from "./prompts"
 import { killProcessTree } from "../agent/process-tree"
 import { getAgentHandleMeta } from "../agent/provider"
@@ -118,6 +118,14 @@ export function startSession(
     const isExistingBranch = !isRunner && !!taskBranch && !taskBranch.startsWith("tangerine/")
     const branch = isRunner ? defaultBranch : (taskBranch ?? `tangerine/${taskPrefix}`)
     const repoDir = getRepoDir(deps.tangerineConfig, task.project_id)
+
+    // Migrate from old numbered-subdir layout if needed
+    yield* migrateWorktreeLayout(deps.db, task.project_id, repoDir, (cmd) => localExec(cmd)).pipe(
+      Effect.catchAll((e) => {
+        taskLog.warn("Worktree layout migration failed, continuing", { error: String(e) })
+        return Effect.succeed(false)
+      })
+    )
 
     const baseBranch = defaultBranch
 
@@ -379,7 +387,7 @@ export function reconnectSession(
     taskLog.info("Reconnecting orphaned task")
     yield* activity("session.reconnecting", "Reconnecting after server restart")
 
-    const worktreePath = task.worktree_path ?? `${resolveWorkspace(deps.tangerineConfig)}/${task.project_id}/${task.id.slice(0, 8)}`
+    const worktreePath = task.worktree_path ?? `${resolveWorkspace(deps.tangerineConfig)}/${task.project_id}-${task.id.slice(0, 8)}`
     const branch = task.branch ?? `tangerine/${task.id.slice(0, 8)}`
 
     // 1. Kill any lingering agent processes in the worktree before spawning a new one.

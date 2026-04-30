@@ -79,8 +79,7 @@ function createRepoFixture(root: string): { origin: string; workspace: string; r
   const origin = join(root, "origin.git")
   const seed = join(root, "seed")
   const workspace = join(root, "workspace")
-  const projectDir = join(workspace, "test-project")
-  const repoDir = join(projectDir, "0")
+  const repoDir = join(workspace, "test-project")
 
   git(["init", "--bare", origin])
   git(["init", "-b", "main", seed])
@@ -97,7 +96,7 @@ function createRepoFixture(root: string): { origin: string; workspace: string; r
   git(["-c", "user.email=test@example.com", "-c", "user.name=Test", "commit", "-qm", "feature"], seed)
   git(["push", "-u", "origin", "feature/review"], seed)
 
-  mkdirSync(projectDir, { recursive: true })
+  mkdirSync(workspace, { recursive: true })
   git(["clone", "--branch", "main", origin, repoDir])
   return { origin, workspace, repoDir }
 }
@@ -109,7 +108,7 @@ describe("startSession", () => {
     const previousGitWorkTree = process.env["GIT_WORK_TREE"]
     try {
       const { origin, workspace, repoDir } = createRepoFixture(root)
-      const workerPath = join(workspace, "test-project", "worker")
+      const workerPath = join(workspace, "test-project-worker")
       git(["worktree", "add", "-b", "feature/review", workerPath, "origin/feature/review"], repoDir)
       writeFileSync(join(workerPath, "local.txt"), "worker local\n")
       git(["add", "local.txt"], workerPath)
