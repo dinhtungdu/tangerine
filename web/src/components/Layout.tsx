@@ -60,7 +60,7 @@ export function Layout() {
 
   return (
     <ToastProvider>
-    <div ref={rootRef} className={`flex flex-col bg-background md:h-screen md:overflow-hidden ${isRoot ? "min-h-[100dvh]" : "h-[100dvh]"}`}>
+    <div ref={rootRef} className={`flex flex-col bg-background md:h-screen ${isRoot ? "min-h-[100dvh] md:overflow-hidden" : "h-[100dvh] overflow-hidden"}`}>
       {/* Desktop topbar */}
       <div className="hidden shrink-0 md:block">
         <Topbar sidebarOpen={sidebarOpen} onToggleSidebar={() => setSidebarOpen((o) => !o)} />
