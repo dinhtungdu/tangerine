@@ -1,4 +1,7 @@
 import { useState, useMemo, useRef, useEffect, useCallback } from "react"
+import { PatchDiff } from "@pierre/diffs/react"
+import type { DiffLineAnnotation } from "@pierre/diffs/react"
+import type { SelectedLineRange } from "@pierre/diffs"
 import { prepareWithSegments } from "@chenglou/pretext"
 import type { PreparedTextWithSegments } from "@chenglou/pretext"
 import { copyToClipboard } from "../lib/clipboard"
@@ -8,11 +11,6 @@ import { Button } from "@/components/ui/button"
 import { Textarea } from "@/components/ui/textarea"
 
 type ViewMode = "split" | "unified"
-
-interface SplitLine {
-  left: { num: number; content: string; type: "remove" | "context" } | null
-  right: { num: number; content: string; type: "add" | "context" } | null
-}
 
 export function getFileStats(diff: string) {
   let added = 0
@@ -43,12 +41,11 @@ function middleTruncate(path: string, font: string, maxWidth: number): string {
   const totalWidth = widths.reduce((a, b) => a + b, 0)
   if (totalWidth <= maxWidth) return path
 
-  const ellipsis = "\u2026"
+  const ellipsis = "…"
   const ellipsisW = (prepareWithSegments(ellipsis, font) as PreparedInternals).widths[0] ?? 0
   const available = maxWidth - ellipsisW
   if (available <= 0) return ellipsis
 
-  // Find where the filename starts in the segment list
   const name = fileName(path)
   const dirLen = path.length - name.length
   let charCount = 0
@@ -61,7 +58,6 @@ function middleTruncate(path: string, font: string, maxWidth: number): string {
   const nameW = widths.slice(nameStartSeg).reduce((a, b) => a + b, 0)
 
   if (nameW >= available) {
-    // Filename alone overflows — walk segments from the end
     let w = 0
     for (let i = segments.length - 1; i >= nameStartSeg; i--) {
       w += widths[i]!
@@ -73,7 +69,6 @@ function middleTruncate(path: string, font: string, maxWidth: number): string {
     return ellipsis + name
   }
 
-  // Walk dir segments forward until we exceed budget
   const dirBudget = available - nameW
   let w = 0
   for (let i = 0; i < nameStartSeg; i++) {
@@ -115,77 +110,6 @@ function MiddleTruncatedPath({ path, className }: { path: string; className?: st
   )
 }
 
-function parseSplitLines(diff: string): SplitLine[] {
-  const rawLines = diff.split("\n")
-  const result: SplitLine[] = []
-  let leftNum = 0
-  let rightNum = 0
-  let removes: string[] = []
-  let adds: string[] = []
-
-  function flushPending() {
-    const max = Math.max(removes.length, adds.length)
-    for (let i = 0; i < max; i++) {
-      result.push({
-        left: i < removes.length
-          ? { num: leftNum - removes.length + i + 1, content: removes[i] ?? "", type: "remove" }
-          : null,
-        right: i < adds.length
-          ? { num: rightNum - adds.length + i + 1, content: adds[i] ?? "", type: "add" }
-          : null,
-      })
-    }
-    removes = []
-    adds = []
-  }
-
-  for (const line of rawLines) {
-    if (line.startsWith("@@")) {
-      flushPending()
-      const match = line.match(/@@ -(\d+)(?:,\d+)? \+(\d+)/)
-      if (match) {
-        leftNum = parseInt(match[1]!) - 1
-        rightNum = parseInt(match[2]!) - 1
-      }
-      continue
-    }
-    if (line.startsWith("---") || line.startsWith("+++")) continue
-    if (line.startsWith("-")) {
-      leftNum++
-      removes.push(line.slice(1))
-    } else if (line.startsWith("+")) {
-      rightNum++
-      adds.push(line.slice(1))
-    } else {
-      flushPending()
-      leftNum++
-      rightNum++
-      const content = line.startsWith(" ") ? line.slice(1) : line
-      result.push({
-        left: { num: leftNum, content, type: "context" },
-        right: { num: rightNum, content, type: "context" },
-      })
-    }
-  }
-  flushPending()
-  return result
-}
-
-function hasCommentOnLine(comments: DiffComment[], filePath: string, lineNum: number, side: Side): boolean {
-  const prefix = side === "left" ? "L" : "R"
-  return comments.some(c => {
-    if (c.filePath !== filePath) return false
-    if (!c.lineRef.startsWith(prefix)) return false
-    const ref = c.lineRef.slice(1)
-    if (ref.includes("-")) {
-      const [start, end] = ref.split("-").map(Number)
-      return lineNum >= start! && lineNum <= end!
-    }
-    return Number(ref) === lineNum
-  })
-}
-
-// Inline comment form that appears between diff lines
 function InlineCommentForm({ onSubmit, onCancel, rangeLabel }: { onSubmit: (text: string) => void; onCancel: () => void; rangeLabel?: string | null }) {
   const [text, setText] = useState("")
   const ref = useRef<HTMLTextAreaElement>(null)
@@ -239,257 +163,125 @@ function InlineCommentForm({ onSubmit, onCancel, rangeLabel }: { onSubmit: (text
   )
 }
 
-type Side = "left" | "right"
+type AnnotationData =
+  | { type: "comment"; comment: DiffComment }
+  | { type: "form"; rangeLabel: string | null }
 
-interface LineRange {
-  start: number
-  end: number
-  side: Side
-}
-
-// GitHub-style: mousedown on "+" starts drag within one pane, mouseup opens form
-function useLineComment(
-  filePath: string,
-  getLineNum: (index: number, side: Side) => number,
-  onAddComment?: (comment: DiffComment) => void,
-) {
-  const [dragging, setDragging] = useState(false)
-  const [anchor, setAnchor] = useState<{ index: number; side: Side } | null>(null)
-  const [selection, setSelection] = useState<LineRange | null>(null)
-  const [showForm, setShowForm] = useState(false)
-
-  const handleGutterMouseDown = (lineIndex: number, side: Side) => {
-    if (!onAddComment) return
-    setShowForm(false)
-    setAnchor({ index: lineIndex, side })
-    setSelection({ start: lineIndex, end: lineIndex, side })
-    setDragging(true)
-  }
-
-  const handleLineMouseEnter = (lineIndex: number, side: Side) => {
-    if (!dragging || anchor === null) return
-    // Only extend within the same pane
-    if (side !== anchor.side) return
-    const start = Math.min(anchor.index, lineIndex)
-    const end = Math.max(anchor.index, lineIndex)
-    setSelection({ start, end, side: anchor.side })
-  }
+function useResolvedTheme() {
+  const [isDark, setIsDark] = useState(() => document.documentElement.classList.contains("dark"))
 
   useEffect(() => {
-    if (!dragging) return
-    const onUp = () => { setDragging(false); setShowForm(true) }
-    window.addEventListener("mouseup", onUp)
-    return () => window.removeEventListener("mouseup", onUp)
-  }, [dragging])
-
-  const getLineRef = (range: LineRange): string => {
-    const prefix = range.side === "left" ? "L" : "R"
-    const startNum = getLineNum(range.start, range.side)
-    const endNum = getLineNum(range.end, range.side)
-    return startNum === endNum ? `${prefix}${startNum}` : `${prefix}${startNum}-${endNum}`
-  }
-
-  const getRangeLabel = (): string | null => {
-    if (!selection) return null
-    const side = selection.side === "left" ? "Before" : "After"
-    const startNum = getLineNum(selection.start, selection.side)
-    const endNum = getLineNum(selection.end, selection.side)
-    if (startNum === endNum) return `${side} line ${startNum}`
-    return `${side} lines ${startNum} to ${endNum}`
-  }
-
-  const handleSubmit = (text: string) => {
-    if (!selection) return
-    onAddComment?.({
-      id: `${filePath}-${getLineRef(selection)}-${Date.now()}`,
-      filePath,
-      lineRef: getLineRef(selection),
-      side: selection.side,
-      text,
+    const observer = new MutationObserver(() => {
+      setIsDark(document.documentElement.classList.contains("dark"))
     })
-    setSelection(null)
-    setShowForm(false)
-    setAnchor(null)
-  }
+    observer.observe(document.documentElement, { attributes: true, attributeFilter: ["class"] })
+    return () => observer.disconnect()
+  }, [])
 
-  const handleCancel = () => {
-    setSelection(null)
-    setShowForm(false)
-    setAnchor(null)
-  }
-
-  const isInSelection = (i: number, side: Side) =>
-    selection && selection.side === side && i >= selection.start && i <= selection.end
-
-  return { handleGutterMouseDown, handleLineMouseEnter, handleSubmit, handleCancel, isInSelection, showForm, selection, getRangeLabel }
+  return isDark ? "dark" as const : "light" as const
 }
 
-// The "+" button shown on hover in the gutter
-// GitHub-style gutter: "+" button appears to the left of line number on hover
-function LineNum({ num, canComment, onMouseDown }: { num: number | string; canComment?: boolean; onMouseDown?: (e: React.MouseEvent) => void }) {
-  return (
-    <span className="group/gutter flex w-12 shrink-0 items-start select-none">
-      {canComment ? (
-        <button
-          onMouseDown={(e) => { e.preventDefault(); onMouseDown?.(e) }}
-          className="flex h-[22px] w-5 items-center justify-center opacity-0 outline-none group-hover/gutter:opacity-100 focus-visible:opacity-100 focus-visible:ring-1 focus-visible:ring-ring/50"
-          aria-label="Add comment"
-        >
-          <span className="flex h-[18px] w-[18px] items-center justify-center rounded bg-status-info text-white">
-            <svg className="h-2.5 w-2.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={3}>
-              <path strokeLinecap="round" strokeLinejoin="round" d="M12 4.5v15m7.5-7.5h-15" />
-            </svg>
-          </span>
-        </button>
-      ) : (
-        <span className="w-5" />
-      )}
-      <span className="w-7 text-right text-muted-foreground/50">{num}</span>
-    </span>
-  )
-}
-
-function SplitDiff({ diff, filePath, comments = [], onAddComment }: { diff: string; filePath: string; comments?: DiffComment[]; onAddComment?: (comment: DiffComment) => void }) {
-  const lines = useMemo(() => parseSplitLines(diff), [diff])
-
-  const getLineNum = (i: number, side: Side) => {
-    const line = lines[i]!
-    return side === "left" ? (line.left?.num ?? i + 1) : (line.right?.num ?? i + 1)
-  }
-
-  const { handleGutterMouseDown, handleLineMouseEnter, handleSubmit, handleCancel, isInSelection, showForm, selection, getRangeLabel } =
-    useLineComment(filePath, getLineNum, onAddComment)
-
-  return (
-    <div className="w-full overflow-hidden">
-      <div className="flex w-full">
-        <div className="min-w-0 flex-1 border-r border-border">
-          <div className="flex h-8 items-center bg-muted px-4">
-            <span className="font-mono text-xxs font-medium text-muted-foreground">Before</span>
-          </div>
-        </div>
-        <div className="min-w-0 flex-1">
-          <div className="flex h-8 items-center bg-muted px-4">
-            <span className="font-mono text-xxs font-medium text-muted-foreground">After</span>
-          </div>
-        </div>
-      </div>
-      <div className="py-1">
-        {lines.map((line, i) => {
-          const l = line.left
-          const r = line.right
-          const leftBg = l?.type === "remove" ? "bg-diff-remove-bg" : ""
-          const rightBg = r?.type === "add" ? "bg-diff-add-bg" : ""
-          const leftSelected = isInSelection(i, "left")
-          const rightSelected = isInSelection(i, "right")
-          const leftHasComment = !!(l?.num && hasCommentOnLine(comments, filePath, l.num, "left"))
-          const rightHasComment = !!(r?.num && hasCommentOnLine(comments, filePath, r.num, "right"))
-          return (
-            <div key={i}>
-              <div className="flex w-full">
-                <div
-                  className={`flex min-h-[22px] min-w-0 flex-1 border-r border-border font-mono text-xxs ${leftBg} ${leftSelected ? "border-l-2 border-l-status-info bg-status-info/5" : leftHasComment ? "border-l-2 border-l-diff-comment" : ""}`}
-                  onMouseEnter={() => handleLineMouseEnter(i, "left")}
-                >
-                  <LineNum num={l?.num ?? ""} canComment={!!onAddComment} onMouseDown={() => handleGutterMouseDown(i, "left")} />
-                  <span className={`min-w-0 flex-1 whitespace-pre-wrap break-all px-2 ${l?.type === "remove" ? "text-diff-remove" : "text-muted-foreground"}`}>
-                    {l?.content ?? ""}
-                  </span>
-                </div>
-                <div
-                  className={`flex min-h-[22px] min-w-0 flex-1 font-mono text-xxs ${rightBg} ${rightSelected ? "border-l-2 border-l-status-info bg-status-info/5" : rightHasComment ? "border-l-2 border-l-diff-comment" : ""}`}
-                  onMouseEnter={() => handleLineMouseEnter(i, "right")}
-                >
-                  <LineNum num={r?.num ?? ""} canComment={!!onAddComment} onMouseDown={() => handleGutterMouseDown(i, "right")} />
-                  <span className={`min-w-0 flex-1 whitespace-pre-wrap break-all px-2 ${r?.type === "add" ? "text-diff-add" : "text-muted-foreground"}`}>
-                    {r?.content ?? ""}
-                  </span>
-                </div>
-              </div>
-              {showForm && selection?.end === i && (
-                <InlineCommentForm onSubmit={handleSubmit} onCancel={handleCancel} rangeLabel={getRangeLabel()} />
-              )}
-            </div>
-          )
-        })}
-      </div>
-    </div>
-  )
-}
-
-function UnifiedDiff({ diff, filePath, comments = [], onAddComment }: { diff: string; filePath: string; comments?: DiffComment[]; onAddComment?: (comment: DiffComment) => void }) {
-  const rawLines = diff.split("\n")
-
-  // Track left (before) and right (after) line numbers separately so comment
-  // refs on removed lines (L...) and added/context lines (R...) match correctly.
-  const lineNums = useMemo(() => {
-    let left = 0
-    let right = 0
-    return rawLines.map((line) => {
-      if (line.startsWith("@@")) {
-        const match = line.match(/@@ -(\d+)(?:,\d+)? \+(\d+)/)
-        if (match) { left = parseInt(match[1]!) - 1; right = parseInt(match[2]!) - 1 }
-        return { display: null as number | null, leftNum: null as number | null, rightNum: null as number | null }
-      }
-      if (line.startsWith("+") && !line.startsWith("+++")) {
-        right++
-        return { display: right, leftNum: null, rightNum: right }
-      }
-      if (line.startsWith("-") && !line.startsWith("---")) {
-        left++
-        return { display: left, leftNum: left, rightNum: null }
-      }
-      left++; right++
-      return { display: right, leftNum: null, rightNum: right }
-    })
-  }, [rawLines])
-
-  const getLineNum = (i: number) => lineNums[i]?.display ?? i + 1
-
-  const { handleGutterMouseDown, handleLineMouseEnter, handleSubmit, handleCancel, isInSelection, showForm, selection, getRangeLabel } =
-    useLineComment(filePath, getLineNum, onAddComment)
-
-  return (
-    <pre className="w-full whitespace-pre-wrap break-all py-2 font-mono text-xxs leading-[1.7]">
-      {rawLines.map((line, i) => {
-        if (line.startsWith("---") || line.startsWith("+++")) return null
-
-        const color = line.startsWith("+") ? "text-diff-add bg-diff-add-bg"
-          : line.startsWith("-") ? "text-diff-remove bg-diff-remove-bg"
-          : line.startsWith("@@") ? "text-diff-hunk"
-          : "text-muted-foreground"
-        const nums = lineNums[i]
-        const lineHasComment = nums
-          ? (nums.leftNum ? hasCommentOnLine(comments, filePath, nums.leftNum, "left") : false)
-            || (nums.rightNum ? hasCommentOnLine(comments, filePath, nums.rightNum, "right") : false)
-          : false
-        const selected = isInSelection(i, "right")
-        return (
-          <span key={i} className="block">
-            <span className="flex items-start" onMouseEnter={() => handleLineMouseEnter(i, "right")}>
-              <LineNum num={nums?.display ?? ""} canComment={!!onAddComment} onMouseDown={() => handleGutterMouseDown(i, "right")} />
-              <span className={`flex-1 px-2 ${selected ? "border-l-2 border-status-info bg-status-info/5" : lineHasComment ? "border-l-2 border-l-diff-comment" : ""} ${color}`}>
-                {line}
-              </span>
-            </span>
-            {showForm && selection?.end === i && (
-              <InlineCommentForm onSubmit={handleSubmit} onCancel={handleCancel} rangeLabel={getRangeLabel()} />
-            )}
-          </span>
-        )
-      })}
-    </pre>
-  )
+function useInView(ref: React.RefObject<HTMLElement | null>, rootMargin = "200px") {
+  const [inView, setInView] = useState(false)
+  useEffect(() => {
+    const el = ref.current
+    if (!el) return
+    const observer = new IntersectionObserver(
+      ([entry]) => { if (entry?.isIntersecting) { setInView(true); observer.disconnect() } },
+      { rootMargin },
+    )
+    observer.observe(el)
+    return () => observer.disconnect()
+  }, [ref, rootMargin])
+  return inView
 }
 
 function FileSection({ file, comments = [], onAddComment }: { file: DiffFile; comments?: DiffComment[]; onAddComment?: (comment: DiffComment) => void }) {
   const [collapsed, setCollapsed] = useState(false)
   const [viewMode, setViewMode] = useState<ViewMode>("split")
+  const [isNarrow, setIsNarrow] = useState(false)
+  const containerRef = useRef<HTMLDivElement>(null)
   const [copied, setCopied] = useState(false)
   const stats = useMemo(() => getFileStats(file.diff), [file.diff])
+  const resolvedTheme = useResolvedTheme()
+  const visible = useInView(containerRef)
+
+  useEffect(() => {
+    const el = containerRef.current
+    if (!el) return
+    const observer = new ResizeObserver(([entry]) => {
+      setIsNarrow((entry?.contentRect.width ?? 0) < 900)
+    })
+    observer.observe(el)
+    return () => observer.disconnect()
+  }, [])
+
+  const [pendingRange, setPendingRange] = useState<SelectedLineRange | null>(null)
+  const [selectedLines, setSelectedLines] = useState<SelectedLineRange | null>(null)
+
+  const handleGutterClick = useCallback((range: SelectedLineRange) => {
+    if (!onAddComment) return
+    setPendingRange(range)
+    setSelectedLines(range)
+  }, [onAddComment])
+
+  const handleLineNumberClick = useCallback((props: { lineNumber: number; annotationSide: "additions" | "deletions" }) => {
+    if (!onAddComment) return
+    const range: SelectedLineRange = { start: props.lineNumber, end: props.lineNumber, side: props.annotationSide }
+    setPendingRange(range)
+    setSelectedLines(range)
+  }, [onAddComment])
+
+  const handleCommentSubmit = useCallback((text: string) => {
+    if (!pendingRange) return
+    const side = pendingRange.side === "deletions" ? "left" : "right"
+    const prefix = side === "left" ? "L" : "R"
+    const lineRef = pendingRange.start === pendingRange.end
+      ? `${prefix}${pendingRange.start}`
+      : `${prefix}${pendingRange.start}-${pendingRange.end}`
+    onAddComment?.({
+      id: `${file.path}-${lineRef}-${Date.now()}`,
+      filePath: file.path,
+      lineRef,
+      side,
+      text,
+    })
+    setPendingRange(null)
+    setSelectedLines(null)
+  }, [pendingRange, onAddComment, file.path])
+
+  const handleCommentCancel = useCallback(() => {
+    setPendingRange(null)
+    setSelectedLines(null)
+  }, [])
+
+  const rangeLabel = useMemo(() => {
+    if (!pendingRange) return null
+    const side = pendingRange.side === "deletions" ? "Before" : "After"
+    if (pendingRange.start === pendingRange.end) return `${side} line ${pendingRange.start}`
+    return `${side} lines ${pendingRange.start} to ${pendingRange.end}`
+  }, [pendingRange])
+
+  const lineAnnotations = useMemo(() => {
+    const annotations: DiffLineAnnotation<AnnotationData>[] = []
+    for (const comment of comments) {
+      const side = comment.side === "left" ? "deletions" : "additions" as const
+      const ref = comment.lineRef.slice(1)
+      const lineNum = ref.includes("-") ? Number(ref.split("-")[1]) : Number(ref)
+      annotations.push({ side, lineNumber: lineNum, metadata: { type: "comment", comment } })
+    }
+    if (pendingRange) {
+      annotations.push({
+        side: pendingRange.side === "deletions" ? "deletions" : "additions",
+        lineNumber: pendingRange.end,
+        metadata: { type: "form", rangeLabel },
+      })
+    }
+    return annotations
+  }, [comments, pendingRange, rangeLabel])
 
   return (
-    <div className="border-b border-border">
+    <div ref={containerRef} className="border-b border-border">
       <div className="flex h-12 items-center justify-between bg-background px-5">
         <div className="flex min-w-0 flex-1 items-center gap-1.5 group/path">
           <button
@@ -542,19 +334,43 @@ function FileSection({ file, comments = [], onAddComment }: { file: DiffFile; co
           </div>
         </div>
       </div>
-      {!collapsed && (
+      {!collapsed && visible && (
         <>
-          {/* Narrow container: always unified */}
-          <div className="@min-[900px]:hidden">
-            <UnifiedDiff diff={file.diff} filePath={file.path} comments={comments} onAddComment={onAddComment} />
-          </div>
-          {/* Wide container: respect toggle */}
-          <div className="hidden @min-[900px]:block">
-            {viewMode === "split"
-              ? <SplitDiff diff={file.diff} filePath={file.path} comments={comments} onAddComment={onAddComment} />
-              : <UnifiedDiff diff={file.diff} filePath={file.path} comments={comments} onAddComment={onAddComment} />
-            }
-          </div>
+          <PatchDiff<AnnotationData>
+            patch={file.diff}
+            options={{
+              theme: { dark: "pierre-dark", light: "pierre-light" },
+              themeType: resolvedTheme,
+              diffStyle: isNarrow ? "unified" : viewMode,
+              disableFileHeader: true,
+              overflow: "wrap",
+              enableGutterUtility: !isNarrow && !!onAddComment,
+              onGutterUtilityClick: !isNarrow ? handleGutterClick : undefined,
+              onLineNumberClick: onAddComment ? handleLineNumberClick : undefined,
+            }}
+            lineAnnotations={lineAnnotations}
+            selectedLines={selectedLines}
+            renderAnnotation={(annotation) => {
+              const data = annotation.metadata
+              if (data.type === "form") {
+                return (
+                  <InlineCommentForm
+                    onSubmit={handleCommentSubmit}
+                    onCancel={handleCommentCancel}
+                    rangeLabel={data.rangeLabel}
+                  />
+                )
+              }
+              return (
+                <div className="border-l-2 border-l-diff-comment bg-muted/30 px-4 py-2">
+                  <p className="text-xs leading-relaxed text-muted-foreground">
+                    <span className="mr-1.5 rounded bg-muted px-1.5 py-0.5 text-2xs font-medium">{data.comment.lineRef}</span>
+                    {data.comment.text}
+                  </p>
+                </div>
+              )
+            }}
+          />
         </>
       )}
     </div>
@@ -574,7 +390,11 @@ export function DiffView({ files, comments = [], onAddComment }: DiffViewProps) 
     <div className="@container h-full overflow-x-hidden overflow-y-auto bg-background">
       {files.map((file) => (
         <div key={file.path} id={`diff-file-${file.path}`}>
-          <FileSection file={file} comments={comments} onAddComment={onAddComment} />
+          <FileSection
+            file={file}
+            comments={comments.filter((c) => c.filePath === file.path)}
+            onAddComment={onAddComment}
+          />
         </div>
       ))}
     </div>
