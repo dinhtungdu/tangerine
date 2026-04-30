@@ -1185,15 +1185,26 @@ export async function start(): Promise<void> {
           state.suspended = true
           state.queuePaused = true
 
+          // Clear queued prompts so old messages don't replay on restart.
+          // The user stopped the agent to steer — next prompt is the new intent.
+          const clearEffects = Effect.all([
+            clearQueue(taskId),
+            setQueuedAgentState(taskId, "idle"),
+          ])
+
           // Try handle-based abort first.
           const handle = agentHandles.get(taskId)
           if (handle) {
-            return handle.abort().pipe(
-              Effect.mapError((e) => ({ _tag: e._tag, message: e.message }))
+            return Effect.flatMap(clearEffects, () =>
+              handle.abort().pipe(
+                Effect.mapError((e) => ({ _tag: e._tag, message: e.message }))
+              )
             )
           }
-          return taskManager.abortAgent(tmDeps, taskId).pipe(
-            Effect.mapError((e) => ({ _tag: e._tag, message: e.message }))
+          return Effect.flatMap(clearEffects, () =>
+            taskManager.abortAgent(tmDeps, taskId).pipe(
+              Effect.mapError((e) => ({ _tag: e._tag, message: e.message }))
+            )
           )
         },
         changeConfig: (taskId, config) =>
