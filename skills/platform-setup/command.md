@@ -28,7 +28,7 @@ Determine mode:
 Then follow the Project Setup Workflow in SKILL.md:
 1. Get repo URL (and optional project name) from user
 2. Read workspace: `jq -r '.workspace // "~/tangerine-workspace"' ~/tangerine/config.json`
-3. Clone repo to `{workspace}/<project>/0`
+3. Clone repo to `{workspace}/<project>`
 4. Scan the cloned repo for stack
 5. Ask which ACP agent command(s) to configure (Claude Agent via `@agentclientprotocol/claude-agent-acp`, Codex via `@zed-industries/codex-acp`, OpenCode via `opencode-ai acp`, Pi via `pi-acp`, or custom) and which should be `defaultAgent`
 6. Present plan, get confirmation

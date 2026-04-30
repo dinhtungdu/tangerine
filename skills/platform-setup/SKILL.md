@@ -15,10 +15,10 @@ Set up the Tangerine coding agent platform. Tangerine can run directly on the ho
 ```
 Host (laptop) — or VM (Lima)
 ├── tangerine server + dashboard (:3456)
-├── {workspace}/project-a   (main clone)
-│              /project-a-1 (task worktree)
-│              /project-a-2 (task worktree)
-├── {workspace}/project-b, project-b-1, ...
+├── {workspace}/project-a      (main clone)
+│              /project-a--wt-1 (task worktree)
+│              /project-a--wt-2 (task worktree)
+├── {workspace}/project-b, project-b--wt-1, ...
 ├── ACP agents — local stdio processes
 └── Apache, MariaDB, tools — shared
 ```
@@ -276,7 +276,7 @@ User wants to add a project to an already-running Tangerine instance. You help t
    ```bash
    git clone <repo-url> {workspace}/my-project
    ```
-   This is the **main branch clone** — it is never assigned to tasks. Task worktrees are created as siblings: `{workspace}/my-project-1`, `{workspace}/my-project-2`, etc. This path must match what `getRepoDir()` in `packages/server/src/config.ts` computes: `join(resolveWorkspace(config), projectId)`.
+   This is the **main branch clone** — it is never assigned to tasks. Task worktrees are created as siblings: `{workspace}/my-project--wt-1`, `{workspace}/my-project--wt-2`, etc. This path must match what `getRepoDir()` in `packages/server/src/config.ts` computes: `join(resolveWorkspace(config), projectId)`.
 
 4. **Scan the cloned repo** for stack indicators (see references/stacks.md):
    - Language runtimes and versions
@@ -379,10 +379,10 @@ Tangerine does not configure or verify credentials — it relies on the agent's 
   tangerine.db            # task database
 ~/tangerine-workspace/    # configurable via config.workspace
   project-a/         # main branch clone (never assigned to tasks)
-  project-a-1/       # task worktree
-  project-a-2/       # task worktree
+  project-a--wt-1/   # task worktree
+  project-a--wt-2/   # task worktree
   project-b/
-  project-b-1/
+  project-b--wt-1/
 
 ~/workspace/tangerine/    # tangerine source code
 ```

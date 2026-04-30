@@ -93,7 +93,7 @@ describe("worktree-pool", () => {
       )
       expect(slot.status).toBe("bound")
       expect(slot.task_id).toBe("task-1")
-      expect(slot.path).toMatch(/-\d+$/)
+      expect(slot.path).toMatch(/--wt-\d+$/)
     })
 
     test("fails when pool exhausted", async () => {
