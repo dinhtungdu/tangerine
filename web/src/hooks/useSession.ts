@@ -104,7 +104,7 @@ export function mergeActivitySnapshot(activities: ActivityEntry[], snapshot: Act
   return [...byId.values()].sort((a, b) => activityStartMs(a) - activityStartMs(b) || a.id - b.id)
 }
 
-export function mergeMessageSnapshot(current: ChatMessage[], snapshot: ChatMessage[], requestedAtMs: number): ChatMessage[] {
+function mergeMessageSnapshot(current: ChatMessage[], snapshot: ChatMessage[], requestedAtMs: number): ChatMessage[] {
   const additions: ChatMessage[] = []
   for (const message of current) {
     if (messageTimestampMs(message) < requestedAtMs) continue

@@ -78,8 +78,3 @@ export function taskHasCapability(type: string, storedCapabilities: string | nul
   const parsed: TaskCapability[] = JSON.parse(storedCapabilities)
   return parsed.includes(cap)
 }
-
-/** Generates a unique ID using the built-in crypto API */
-export function generateId(): string {
-  return crypto.randomUUID()
-}

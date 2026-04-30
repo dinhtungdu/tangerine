@@ -88,7 +88,7 @@ export interface AcpAgentCapabilities {
   close: boolean
 }
 
-export const ACP_AGENT_METADATA: AgentMetadata = {
+const ACP_AGENT_METADATA: AgentMetadata = {
   displayName: "ACP",
   abbreviation: "ACP",
   cliCommand: resolveAcpCommand(process.env).checkCommand,

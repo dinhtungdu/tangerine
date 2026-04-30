@@ -8,7 +8,7 @@ export interface AuthSession {
   authenticated: boolean
 }
 
-export class ApiError extends Error {
+class ApiError extends Error {
   status: number
   body: string
 
@@ -142,10 +142,6 @@ export async function resolveTask(id: string): Promise<void> {
   return request<void>(`/api/tasks/${id}/resolve`, { method: "POST" })
 }
 
-export async function fetchMessages(id: string): Promise<SessionLog[]> {
-  return request<SessionLog[]>(`/api/tasks/${id}/messages`)
-}
-
 export interface PaginatedMessages {
   messages: SessionLog[]
   hasMore: boolean
@@ -195,13 +191,6 @@ export async function fetchTaskSlashCommands(id: string): Promise<AgentSlashComm
 export async function fetchPendingPermission(id: string): Promise<import("@tangerine/shared").PermissionRequest | null> {
   const body = await request<{ permissionRequest?: import("@tangerine/shared").PermissionRequest | null }>(`/api/tasks/${id}/permission`)
   return body?.permissionRequest ?? null
-}
-
-export async function sendPrompt(id: string, text: string): Promise<void> {
-  return request<void>(`/api/tasks/${id}/prompt`, {
-    method: "POST",
-    body: JSON.stringify({ text }),
-  })
 }
 
 export async function abortTask(id: string): Promise<void> {
@@ -327,12 +316,6 @@ export async function archiveProject(projectName: string): Promise<void> {
 
 export async function unarchiveProject(projectName: string): Promise<void> {
   return request<void>(`/api/projects/${encodeURIComponent(projectName)}/unarchive`, { method: "POST" })
-}
-
-export async function syncProjectFork(projectName: string): Promise<ForkSyncResult> {
-  return request<ForkSyncResult>(`/api/projects/${encodeURIComponent(projectName)}/fork-sync`, {
-    method: "POST",
-  })
 }
 
 export async function updateProjectRepo(projectName: string): Promise<ProjectUpdateResult> {

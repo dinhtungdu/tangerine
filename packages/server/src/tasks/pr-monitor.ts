@@ -181,7 +181,7 @@ async function listPrUrl(repoSlug: string, branch: string, ghHost: string, expec
  * Look up an open PR for a branch on GitHub. Returns the PR URL if found, null otherwise.
  * For forks, search the upstream repo first since PRs usually target upstream.
  */
-export function lookupPrByBranch(repoUrl: string, branch: string): Effect.Effect<string | null, never> {
+function lookupPrByBranch(repoUrl: string, branch: string): Effect.Effect<string | null, never> {
   const repoSlug = extractGithubSlug(repoUrl)
   if (!repoSlug) return Effect.succeed(null)
   const ghHost = extractGithubHost(repoUrl) ?? "github.com"
@@ -200,7 +200,7 @@ export function lookupPrByBranch(repoUrl: string, branch: string): Effect.Effect
 }
 
 /** Read the current branch name from a git worktree. Returns null if the worktree is detached or unavailable. */
-export function readWorktreeBranch(worktreePath: string): Effect.Effect<string | null, never> {
+function readWorktreeBranch(worktreePath: string): Effect.Effect<string | null, never> {
   return Effect.tryPromise({
     try: async () => {
       const proc = Bun.spawn(["git", "-C", worktreePath, "branch", "--show-current"], {
@@ -217,7 +217,7 @@ export function readWorktreeBranch(worktreePath: string): Effect.Effect<string |
 }
 
 /** Read the remote.origin.url from a git worktree. Returns null if unavailable. */
-export function readWorktreeRemoteUrl(worktreePath: string): Effect.Effect<string | null, never> {
+function readWorktreeRemoteUrl(worktreePath: string): Effect.Effect<string | null, never> {
   return Effect.tryPromise({
     try: async () => {
       const proc = Bun.spawn(["git", "-C", worktreePath, "config", "--get", "remote.origin.url"], {

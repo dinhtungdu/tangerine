@@ -1,7 +1,7 @@
 import { z } from "zod"
 import { DEFAULT_AGENT_ID } from "./constants"
 
-export const predefinedPromptSchema = z.object({
+const predefinedPromptSchema = z.object({
   label: z.string(),
   text: z.string(),
 })
@@ -39,7 +39,7 @@ const taskTypeConfigObjectSchema = z.object({
   permissionMode: z.enum(["autoAccept", "skipPermissions"]).optional(),
 })
 
-export const taskTypeConfigSchema = z.unknown().superRefine((value, ctx) => {
+const taskTypeConfigSchema = z.unknown().superRefine((value, ctx) => {
   if (value && typeof value === "object" && !Array.isArray(value) && "autoApprove" in value) {
     ctx.addIssue({
       code: z.ZodIssueCode.custom,
@@ -48,7 +48,7 @@ export const taskTypeConfigSchema = z.unknown().superRefine((value, ctx) => {
   }
 }).pipe(taskTypeConfigObjectSchema)
 
-export const taskTypesSchema = z.object({
+const taskTypesSchema = z.object({
   worker: taskTypeConfigSchema.optional(),
   runner: taskTypeConfigSchema.optional(),
   reviewer: taskTypeConfigSchema.optional(),

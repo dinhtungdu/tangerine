@@ -238,14 +238,6 @@ export function getSessionLogsPaginated(
   })
 }
 
-export function getTasksByIds(db: Database, ids: string[]): Effect.Effect<TaskRow[], DbError> {
-  return dbTry(() => {
-    if (ids.length === 0) return []
-    const placeholders = ids.map(() => "?").join(",")
-    return db.prepare(`SELECT * FROM tasks WHERE id IN (${placeholders})`).all(...ids) as TaskRow[]
-  })
-}
-
 const TERMINAL_STATUSES = new Set(["done", "failed", "cancelled"])
 
 export function deleteTask(db: Database, id: string): Effect.Effect<void, DbError> {

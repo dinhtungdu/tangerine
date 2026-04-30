@@ -117,17 +117,6 @@ export function printTable(headers: string[], rows: string[][]): void {
 }
 
 /**
- * Prints a startup banner showing server info.
- */
-export function printBanner(port: number, projectName: string): void {
-  console.log()
-  console.log("  Tangerine")
-  console.log(`  Project:  ${projectName}`)
-  console.log(`  API:      http://localhost:${port}`)
-  console.log()
-}
-
-/**
  * Prints usage help for the CLI.
  */
 export function printHelp(): void {

@@ -2,7 +2,7 @@ import { timingSafeEqual } from "node:crypto"
 import type { Context } from "hono"
 import type { AppConfig } from "./config"
 
-export const INSECURE_NO_AUTH_ENV = "TANGERINE_INSECURE_NO_AUTH"
+const INSECURE_NO_AUTH_ENV = "TANGERINE_INSECURE_NO_AUTH"
 
 const PUBLIC_API_PATTERNS = [
   /^\/api\/health$/,
@@ -16,7 +16,7 @@ export function isAuthEnabled(config: AppConfig): boolean {
   return typeof config.credentials.tangerineAuthToken === "string" && config.credentials.tangerineAuthToken.length > 0
 }
 
-export function parseBearerToken(header: string | null | undefined): string | null {
+function parseBearerToken(header: string | null | undefined): string | null {
   if (!header) return null
   const match = header.trim().match(/^Bearer\s+(.+)$/i)
   return match?.[1] ?? null

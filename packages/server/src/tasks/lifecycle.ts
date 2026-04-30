@@ -482,7 +482,7 @@ export function reconnectSession(
   })
 }
 
-export function getAgentRuntimeMeta(handle: import("../agent/provider").AgentHandle): { agentPid: number | null; agentSessionId: string | null } {
+function getAgentRuntimeMeta(handle: import("../agent/provider").AgentHandle): { agentPid: number | null; agentSessionId: string | null } {
   const processMeta = handle as { __pid?: number }
   const agentMeta = getAgentHandleMeta(handle)
   return {

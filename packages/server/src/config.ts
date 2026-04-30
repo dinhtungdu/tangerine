@@ -6,10 +6,10 @@ import type { TangerineConfig, ProjectConfig, SslConfig } from "@tangerine/share
 
 export const TANGERINE_HOME = join(homedir(), "tangerine")
 export const CONFIG_PATH = join(TANGERINE_HOME, "config.json")
-export const CREDENTIALS_PATH = join(TANGERINE_HOME, ".credentials")
+const CREDENTIALS_PATH = join(TANGERINE_HOME, ".credentials")
 
 /** Resolve the active credentials file path (respects TANGERINE_CREDENTIALS env var). */
-export function resolveCredentialsPath(): string {
+function resolveCredentialsPath(): string {
   return process.env["TANGERINE_CREDENTIALS"] ?? CREDENTIALS_PATH
 }
 
@@ -27,7 +27,7 @@ export interface RawConfig {
 }
 
 /** Resolve the active config file path (respects TANGERINE_CONFIG env var). */
-export function resolveConfigPath(): string {
+function resolveConfigPath(): string {
   return process.env["TANGERINE_CONFIG"] ?? CONFIG_PATH
 }
 

@@ -19,7 +19,7 @@ export type TimelineRenderSegment =
 
 export type ToolDisplayStatus = "running" | "success" | "error"
 
-export function isToolActivity(activity: ActivityEntry): boolean {
+function isToolActivity(activity: ActivityEntry): boolean {
   return activity.event.startsWith("tool.")
 }
 
@@ -38,7 +38,7 @@ function timelineTimestampMs(item: TimelineItem): number {
   return Number.isFinite(parsed) ? parsed : 0
 }
 
-export function mergeMessagesAndActivities(
+function mergeMessagesAndActivities(
   messages: ChatMessage[],
   activities: ActivityEntry[],
 ): TimelineItem[] {
@@ -54,7 +54,7 @@ export function mergeMessagesAndActivities(
     .map(({ item }) => item)
 }
 
-export function groupTimelineItems(items: TimelineItem[]): TimelineGroup[] {
+function groupTimelineItems(items: TimelineItem[]): TimelineGroup[] {
   const groups: TimelineGroup[] = []
   let currentGroup: TimelineItem[] = []
   let groupStartTime = ""
@@ -110,13 +110,6 @@ export function splitTimelineItems(items: TimelineItem[]): TimelineRenderSegment
     if (item.kind === "tool") return { kind: "tool", item, index }
     return { kind: "message", item, index }
   })
-}
-
-export function getLastToolIndex(items: TimelineItem[]): number {
-  for (let index = items.length - 1; index >= 0; index--) {
-    if (items[index]!.kind === "tool") return index
-  }
-  return -1
 }
 
 export function buildToolContent(activity: ActivityEntry): string {

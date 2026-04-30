@@ -209,7 +209,6 @@ export function resetDb(): void {
   }
 }
 
-export { SCHEMA } from "./schema"
 export type { TaskRow, SessionLogRow } from "./types"
 export {
   createTask,

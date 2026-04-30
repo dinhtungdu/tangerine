@@ -221,7 +221,7 @@ export async function probeAcpAgent(agent: AcpProbeAgentConfig, options: AcpProb
   }
 }
 
-export function acpShellCommand(agent: AcpProbeAgentConfig | TangerineAgentConfig): string {
+function acpShellCommand(agent: AcpProbeAgentConfig | TangerineAgentConfig): string {
   return [agent.command, ...(agent.args ?? [])].join(" ").trim()
 }
 
