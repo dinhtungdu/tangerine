@@ -184,9 +184,21 @@ function useResolvedTheme() {
 function FileSection({ file, comments = [], onAddComment }: { file: DiffFile; comments?: DiffComment[]; onAddComment?: (comment: DiffComment) => void }) {
   const [collapsed, setCollapsed] = useState(false)
   const [viewMode, setViewMode] = useState<ViewMode>("split")
+  const [isNarrow, setIsNarrow] = useState(false)
+  const containerRef = useRef<HTMLDivElement>(null)
   const [copied, setCopied] = useState(false)
   const stats = useMemo(() => getFileStats(file.diff), [file.diff])
   const resolvedTheme = useResolvedTheme()
+
+  useEffect(() => {
+    const el = containerRef.current
+    if (!el) return
+    const observer = new ResizeObserver(([entry]) => {
+      setIsNarrow((entry?.contentRect.width ?? 0) < 900)
+    })
+    observer.observe(el)
+    return () => observer.disconnect()
+  }, [])
 
   const [pendingRange, setPendingRange] = useState<SelectedLineRange | null>(null)
   const [selectedLines, setSelectedLines] = useState<SelectedLineRange | null>(null)
@@ -239,7 +251,7 @@ function FileSection({ file, comments = [], onAddComment }: { file: DiffFile; co
   }, [pendingRange])
 
   return (
-    <div className="border-b border-border">
+    <div ref={containerRef} className="border-b border-border">
       <div className="flex h-12 items-center justify-between bg-background px-5">
         <div className="flex min-w-0 flex-1 items-center gap-1.5 group/path">
           <button
@@ -299,7 +311,7 @@ function FileSection({ file, comments = [], onAddComment }: { file: DiffFile; co
             options={{
               theme: { dark: "pierre-dark", light: "pierre-light" },
               themeType: resolvedTheme,
-              diffStyle: viewMode,
+              diffStyle: isNarrow ? "unified" : viewMode,
               disableFileHeader: true,
               overflow: "wrap",
               enableGutterUtility: !!onAddComment,
