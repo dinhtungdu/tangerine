@@ -337,8 +337,8 @@ function FileSection({ file, comments = [], onAddComment }: { file: DiffFile; co
               diffStyle: isNarrow ? "unified" : viewMode,
               disableFileHeader: true,
               overflow: "wrap",
-              enableGutterUtility: !!onAddComment,
-              onGutterUtilityClick: handleGutterClick,
+              enableGutterUtility: !isNarrow && !!onAddComment,
+              onGutterUtilityClick: !isNarrow ? handleGutterClick : undefined,
             }}
             lineAnnotations={lineAnnotations}
             selectedLines={selectedLines}
