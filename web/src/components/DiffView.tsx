@@ -163,9 +163,9 @@ function InlineCommentForm({ onSubmit, onCancel, rangeLabel }: { onSubmit: (text
   )
 }
 
-interface CommentAnnotation {
-  comment: DiffComment
-}
+type AnnotationData =
+  | { type: "comment"; comment: DiffComment }
+  | { type: "form"; rangeLabel: string | null }
 
 function useResolvedTheme() {
   const [isDark, setIsDark] = useState(() => document.documentElement.classList.contains("dark"))
@@ -248,23 +248,30 @@ function FileSection({ file, comments = [], onAddComment }: { file: DiffFile; co
     setSelectedLines(null)
   }, [])
 
-  const lineAnnotations = useMemo(() => {
-    const annotations: DiffLineAnnotation<CommentAnnotation>[] = []
-    for (const comment of comments) {
-      const side = comment.side === "left" ? "deletions" : "additions"
-      const ref = comment.lineRef.slice(1)
-      const lineNum = ref.includes("-") ? Number(ref.split("-")[1]) : Number(ref)
-      annotations.push({ side, lineNumber: lineNum, metadata: { comment } })
-    }
-    return annotations
-  }, [comments])
-
   const rangeLabel = useMemo(() => {
     if (!pendingRange) return null
     const side = pendingRange.side === "deletions" ? "Before" : "After"
     if (pendingRange.start === pendingRange.end) return `${side} line ${pendingRange.start}`
     return `${side} lines ${pendingRange.start} to ${pendingRange.end}`
   }, [pendingRange])
+
+  const lineAnnotations = useMemo(() => {
+    const annotations: DiffLineAnnotation<AnnotationData>[] = []
+    for (const comment of comments) {
+      const side = comment.side === "left" ? "deletions" : "additions" as const
+      const ref = comment.lineRef.slice(1)
+      const lineNum = ref.includes("-") ? Number(ref.split("-")[1]) : Number(ref)
+      annotations.push({ side, lineNumber: lineNum, metadata: { type: "comment", comment } })
+    }
+    if (pendingRange) {
+      annotations.push({
+        side: pendingRange.side === "deletions" ? "deletions" : "additions",
+        lineNumber: pendingRange.end,
+        metadata: { type: "form", rangeLabel },
+      })
+    }
+    return annotations
+  }, [comments, pendingRange, rangeLabel])
 
   return (
     <div ref={containerRef} className="border-b border-border">
@@ -322,7 +329,7 @@ function FileSection({ file, comments = [], onAddComment }: { file: DiffFile; co
       </div>
       {!collapsed && visible && (
         <>
-          <PatchDiff<CommentAnnotation>
+          <PatchDiff<AnnotationData>
             patch={file.diff}
             options={{
               theme: { dark: "pierre-dark", light: "pierre-light" },
@@ -335,22 +342,27 @@ function FileSection({ file, comments = [], onAddComment }: { file: DiffFile; co
             }}
             lineAnnotations={lineAnnotations}
             selectedLines={selectedLines}
-            renderAnnotation={(annotation) => (
-              <div className="border-l-2 border-l-diff-comment bg-muted/30 px-4 py-2">
-                <p className="text-xs leading-relaxed text-muted-foreground">
-                  <span className="mr-1.5 rounded bg-muted px-1.5 py-0.5 text-2xs font-medium">{annotation.metadata.comment.lineRef}</span>
-                  {annotation.metadata.comment.text}
-                </p>
-              </div>
-            )}
+            renderAnnotation={(annotation) => {
+              const data = annotation.metadata
+              if (data.type === "form") {
+                return (
+                  <InlineCommentForm
+                    onSubmit={handleCommentSubmit}
+                    onCancel={handleCommentCancel}
+                    rangeLabel={data.rangeLabel}
+                  />
+                )
+              }
+              return (
+                <div className="border-l-2 border-l-diff-comment bg-muted/30 px-4 py-2">
+                  <p className="text-xs leading-relaxed text-muted-foreground">
+                    <span className="mr-1.5 rounded bg-muted px-1.5 py-0.5 text-2xs font-medium">{data.comment.lineRef}</span>
+                    {data.comment.text}
+                  </p>
+                </div>
+              )
+            }}
           />
-          {pendingRange && (
-            <InlineCommentForm
-              onSubmit={handleCommentSubmit}
-              onCancel={handleCommentCancel}
-              rangeLabel={rangeLabel}
-            />
-          )}
         </>
       )}
     </div>
