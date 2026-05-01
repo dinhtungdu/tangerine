@@ -58,7 +58,7 @@ function dbTry<T>(op: () => T): Effect.Effect<T, DbError> {
 
 // --- Layout migration ---
 
-/** Migrate from old numbered-subdir layout ({project}/0, /1, ...) to sibling layout ({project}, {project}--wt-1, ...). */
+/** Migrate from old numbered-subdir layout ({project}/0, /1, ...) to sibling layout ({project}, {project}--1, ...). */
 export function migrateWorktreeLayout(
   db: Database,
   projectId: string,
@@ -114,6 +114,30 @@ export function migrateWorktreeLayout(
   })
 }
 
+// --- Stale path cleanup ---
+
+/** Remove slots with non-existent paths (e.g., after migration or manual deletion). */
+export function cleanupStalePaths(
+  db: Database,
+  projectId: string,
+): Effect.Effect<number, DbError> {
+  return dbTry(() => {
+    const slots = db.prepare(
+      "SELECT id, path FROM worktree_slots WHERE project_id = ?",
+    ).all(projectId) as { id: string; path: string }[]
+
+    let removed = 0
+    for (const slot of slots) {
+      if (!fs.existsSync(slot.path)) {
+        db.prepare("DELETE FROM worktree_slots WHERE id = ?").run(slot.id)
+        log.info("Removed stale slot with non-existent path", { slotId: slot.id, path: slot.path })
+        removed++
+      }
+    }
+    return removed
+  })
+}
+
 // --- Pool initialization ---
 
 /** Create worktree slots for a project if none exist yet. Idempotent. */
@@ -125,6 +149,12 @@ export function initPool(
   poolSize: number = DEFAULT_POOL_SIZE,
 ): Effect.Effect<WorktreeSlotRow[], DbError | Error> {
   return Effect.gen(function* () {
+    // Clean up slots with non-existent paths before initializing
+    const staleRemoved = yield* cleanupStalePaths(db, projectId)
+    if (staleRemoved > 0) {
+      log.info("Cleaned up stale slots", { projectId, removed: staleRemoved })
+    }
+
     // Always register slot 0 (the repo clone).
     // No git worktree needed; it already exists as the main repo.
     const slot0Id = `${projectId}-slot-0`
@@ -153,7 +183,7 @@ export function initPool(
       const slotId = `${projectId}-slot-${i}`
       if (existingIds.has(slotId)) continue
 
-      const slotPath = `${repoPath}--wt-${i}`
+      const slotPath = `${repoPath}--${i}`
 
       yield* exec(
         `cd ${repoPath} && git worktree add --detach ${slotPath} 2>/dev/null || true`,

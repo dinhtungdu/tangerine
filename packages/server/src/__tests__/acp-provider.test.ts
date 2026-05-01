@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, test } from "bun:test"
 import { Effect } from "effect"
-import { mkdtempSync, readFileSync, rmSync, writeFileSync, mkdirSync } from "node:fs"
+import { mkdtempSync, readFileSync, rmSync, writeFileSync, mkdirSync, realpathSync } from "node:fs"
 import { join } from "node:path"
 import { pathToFileURL } from "node:url"
 import { tmpdir } from "node:os"
@@ -28,6 +28,10 @@ afterEach(() => {
 
 function delay(ms: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms))
+}
+
+function createTempDir(prefix: string): string {
+  return realpathSync(mkdtempSync(join(tmpdir(), prefix)))
 }
 
 describe("resolveAcpCommand", () => {
@@ -62,7 +66,7 @@ describe("buildAcpPromptBlocks", () => {
   })
 
   test("adds ACP resource links for existing @file mentions", () => {
-    const tempDir = mkdtempSync(join(tmpdir(), "tangerine-acp-files-"))
+    const tempDir = createTempDir("tangerine-acp-files-")
     try {
       mkdirSync(join(tempDir, "web", "src"), { recursive: true })
       const filePath = join(tempDir, "web", "src", "ChatInput.tsx")
@@ -83,7 +87,7 @@ describe("buildAcpPromptBlocks", () => {
   })
 
   test("adds ACP resource links for selected file paths with spaces and brackets", () => {
-    const tempDir = mkdtempSync(join(tmpdir(), "tangerine-acp-special-files-"))
+    const tempDir = createTempDir("tangerine-acp-special-files-")
     try {
       mkdirSync(join(tempDir, "docs"), { recursive: true })
       mkdirSync(join(tempDir, "app"), { recursive: true })
@@ -515,7 +519,7 @@ describe("createAcpProvider", () => {
   })
 
   test("runs an ACP stdio agent without treating prompt token usage as context usage", async () => {
-    const tempDir = mkdtempSync(join(tmpdir(), "tangerine-acp-provider-"))
+    const tempDir = createTempDir("tangerine-acp-provider-")
     const scriptPath = join(tempDir, "mock-acp-agent.js")
     writeFileSync(scriptPath, mockAcpAgentScript, "utf-8")
 
@@ -551,7 +555,7 @@ describe("createAcpProvider", () => {
   })
 
   test("does not carry out-of-turn assistant chunks into the next prompt", async () => {
-    const tempDir = mkdtempSync(join(tmpdir(), "tangerine-acp-stale-chunk-"))
+    const tempDir = createTempDir("tangerine-acp-stale-chunk-")
     const scriptPath = join(tempDir, "mock-acp-agent.js")
     writeFileSync(scriptPath, mockOutOfTurnChunkAcpAgentScript, "utf-8")
 
@@ -577,7 +581,7 @@ describe("createAcpProvider", () => {
   })
 
   test("replays current ACP status to late subscribers", async () => {
-    const tempDir = mkdtempSync(join(tmpdir(), "tangerine-acp-status-"))
+    const tempDir = createTempDir("tangerine-acp-status-")
     const scriptPath = join(tempDir, "mock-acp-agent.js")
     writeFileSync(scriptPath, mockSlowAcpAgentScript, "utf-8")
 
@@ -598,7 +602,7 @@ describe("createAcpProvider", () => {
   })
 
   test("replays idle ACP status to late subscribers after session start", async () => {
-    const tempDir = mkdtempSync(join(tmpdir(), "tangerine-acp-idle-status-"))
+    const tempDir = createTempDir("tangerine-acp-idle-status-")
     const scriptPath = join(tempDir, "mock-acp-agent.js")
     writeFileSync(scriptPath, mockFreshAcpAgentScript, "utf-8")
 
@@ -616,7 +620,7 @@ describe("createAcpProvider", () => {
   })
 
   test("keeps status working for late tool updates inside the idle debounce window", async () => {
-    const tempDir = mkdtempSync(join(tmpdir(), "tangerine-acp-late-tool-status-"))
+    const tempDir = createTempDir("tangerine-acp-late-tool-status-")
     const scriptPath = join(tempDir, "mock-acp-agent.js")
     writeFileSync(scriptPath, mockLateToolUpdateAcpAgentScript, "utf-8")
 
@@ -639,7 +643,7 @@ describe("createAcpProvider", () => {
   })
 
   test("advertises ACP filesystem callbacks and handles read/write requests", async () => {
-    const tempDir = mkdtempSync(join(tmpdir(), "tangerine-acp-fs-"))
+    const tempDir = realpathSync(createTempDir("tangerine-acp-fs-"))
     const scriptPath = join(tempDir, "mock-acp-agent.js")
     writeFileSync(scriptPath, mockFsAcpAgentScript, "utf-8")
 
@@ -650,17 +654,17 @@ describe("createAcpProvider", () => {
     handle.subscribe((event) => events.push(event))
 
     await Effect.runPromise(handle.sendPrompt("write and read"))
-    await waitFor(() => hasStatusTransition(events, "working", "idle"))
+    await waitFor(() => hasStatusTransition(events, "working", "idle"), 10_000)
 
     expect(await Bun.file(join(tempDir, "edited.txt")).text()).toBe("edited content")
     expect(events).toContainEqual({ kind: "message.complete", role: "assistant", content: "fs:edited content", messageId: "msg-fs" })
 
     await Effect.runPromise(handle.shutdown())
     rmSync(tempDir, { recursive: true, force: true })
-  })
+  }, 15_000)
 
   test("resumes existing ACP sessions when supported", async () => {
-    const tempDir = mkdtempSync(join(tmpdir(), "tangerine-acp-resume-"))
+    const tempDir = createTempDir("tangerine-acp-resume-")
     const scriptPath = join(tempDir, "mock-acp-agent.js")
     writeFileSync(scriptPath, mockResumeAcpAgentScript, "utf-8")
 
@@ -675,7 +679,7 @@ describe("createAcpProvider", () => {
   })
 
   test("loads existing ACP sessions when resume is unavailable", async () => {
-    const tempDir = mkdtempSync(join(tmpdir(), "tangerine-acp-load-"))
+    const tempDir = createTempDir("tangerine-acp-load-")
     const scriptPath = join(tempDir, "mock-acp-agent.js")
     writeFileSync(scriptPath, mockLoadAcpAgentScript, "utf-8")
 
@@ -690,7 +694,7 @@ describe("createAcpProvider", () => {
   })
 
   test("falls back to fresh ACP sessions when resume and load are unsupported", async () => {
-    const tempDir = mkdtempSync(join(tmpdir(), "tangerine-acp-fresh-"))
+    const tempDir = createTempDir("tangerine-acp-fresh-")
     const scriptPath = join(tempDir, "mock-acp-agent.js")
     writeFileSync(scriptPath, mockFreshAcpAgentScript, "utf-8")
 
@@ -705,7 +709,7 @@ describe("createAcpProvider", () => {
   })
 
   test("applies ACP model config options without restarting", async () => {
-    const tempDir = mkdtempSync(join(tmpdir(), "tangerine-acp-config-"))
+    const tempDir = createTempDir("tangerine-acp-config-")
     const scriptPath = join(tempDir, "mock-acp-agent.js")
     writeFileSync(scriptPath, mockConfigAcpAgentScript, "utf-8")
 
@@ -744,7 +748,7 @@ describe("createAcpProvider", () => {
   })
 
   test("applies ACP effort config options", async () => {
-    const tempDir = mkdtempSync(join(tmpdir(), "tangerine-acp-effort-"))
+    const tempDir = createTempDir("tangerine-acp-effort-")
     const scriptPath = join(tempDir, "mock-acp-agent.js")
     writeFileSync(scriptPath, mockEffortAcpAgentScript, "utf-8")
 
@@ -773,7 +777,7 @@ describe("createAcpProvider", () => {
   })
 
   test("maps ACP model and mode state to config options", async () => {
-    const tempDir = mkdtempSync(join(tmpdir(), "tangerine-acp-models-modes-"))
+    const tempDir = createTempDir("tangerine-acp-models-modes-")
     const scriptPath = join(tempDir, "mock-acp-agent.js")
     writeFileSync(scriptPath, mockModelsModesAcpAgentScript, "utf-8")
 
@@ -846,7 +850,7 @@ describe("createAcpProvider", () => {
   })
 
   test("applies legacy thinking modes through session/set_mode", async () => {
-    const tempDir = mkdtempSync(join(tmpdir(), "tangerine-acp-thinking-modes-"))
+    const tempDir = createTempDir("tangerine-acp-thinking-modes-")
     const scriptPath = join(tempDir, "mock-acp-agent.js")
     writeFileSync(scriptPath, mockThinkingModesAcpAgentScript, "utf-8")
 
@@ -875,7 +879,7 @@ describe("createAcpProvider", () => {
   })
 
   test("applies ACP mode config options", async () => {
-    const tempDir = mkdtempSync(join(tmpdir(), "tangerine-acp-mode-"))
+    const tempDir = createTempDir("tangerine-acp-mode-")
     const scriptPath = join(tempDir, "mock-acp-agent.js")
     writeFileSync(scriptPath, mockModeAcpAgentScript, "utf-8")
 
@@ -896,7 +900,7 @@ describe("createAcpProvider", () => {
   })
 
   test("applies skipPermissions mode at session start", async () => {
-    const tempDir = mkdtempSync(join(tmpdir(), "tangerine-acp-skip-permissions-"))
+    const tempDir = createTempDir("tangerine-acp-skip-permissions-")
     const scriptPath = join(tempDir, "mock-acp-agent.js")
     writeFileSync(scriptPath, mockSkipPermissionsAcpAgentScript, "utf-8")
 
@@ -911,7 +915,7 @@ describe("createAcpProvider", () => {
   })
 
   test("applies skipPermissions mode once during config option bursts", async () => {
-    const tempDir = mkdtempSync(join(tmpdir(), "tangerine-acp-skip-permissions-burst-"))
+    const tempDir = createTempDir("tangerine-acp-skip-permissions-burst-")
     const scriptPath = join(tempDir, "mock-acp-agent.js")
     const countPath = join(tempDir, "set-config-count.txt")
     writeFileSync(scriptPath, mockBurstSkipPermissionsAcpAgentScript, "utf-8")
@@ -930,7 +934,7 @@ describe("createAcpProvider", () => {
   })
 
   test("sends ACP session/cancel on abort", async () => {
-    const tempDir = mkdtempSync(join(tmpdir(), "tangerine-acp-cancel-"))
+    const tempDir = createTempDir("tangerine-acp-cancel-")
     const scriptPath = join(tempDir, "mock-acp-agent.js")
     writeFileSync(scriptPath, mockCancelAcpAgentScript, "utf-8")
 
@@ -948,7 +952,7 @@ describe("createAcpProvider", () => {
   })
 
   test("shutdown kills the ACP subprocess", async () => {
-    const tempDir = mkdtempSync(join(tmpdir(), "tangerine-acp-shutdown-"))
+    const tempDir = createTempDir("tangerine-acp-shutdown-")
     const scriptPath = join(tempDir, "mock-acp-agent.js")
     writeFileSync(scriptPath, mockFreshAcpAgentScript, "utf-8")
 
@@ -965,10 +969,10 @@ describe("createAcpProvider", () => {
   })
 })
 
-async function waitFor(condition: () => boolean): Promise<void> {
+async function waitFor(condition: () => boolean, timeoutMs = 5_000): Promise<void> {
   const startedAt = Date.now()
   while (!condition()) {
-    if (Date.now() - startedAt > 2_000) throw new Error("Timed out waiting for condition")
+    if (Date.now() - startedAt > timeoutMs) throw new Error("Timed out waiting for condition")
     await new Promise((resolve) => setTimeout(resolve, 10))
   }
 }

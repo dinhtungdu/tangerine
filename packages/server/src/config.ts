@@ -140,14 +140,9 @@ export function resolveWorkspace(config: TangerineConfig): string {
 }
 
 /** Get the repo directory for a project: {workspace}/{projectId}.
- *  Falls back to old layout ({workspace}/{projectId}/0) if the new path is not a git repo. */
+ *  Always returns the new-style path — migration handles old layout. */
 export function getRepoDir(config: TangerineConfig, projectId: string): string {
-  const newPath = join(resolveWorkspace(config), projectId)
-  const oldPath = join(newPath, "0")
-  if (!existsSync(join(newPath, ".git")) && existsSync(join(oldPath, ".git"))) {
-    return oldPath
-  }
-  return newPath
+  return join(resolveWorkspace(config), projectId)
 }
 
 /**

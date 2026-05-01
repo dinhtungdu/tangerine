@@ -387,7 +387,7 @@ export function reconnectSession(
     taskLog.info("Reconnecting orphaned task")
     yield* activity("session.reconnecting", "Reconnecting after server restart")
 
-    const worktreePath = task.worktree_path ?? `${resolveWorkspace(deps.tangerineConfig)}/${task.project_id}--wt-${task.id.slice(0, 8)}`
+    const worktreePath = task.worktree_path ?? `${resolveWorkspace(deps.tangerineConfig)}/${task.project_id}--${task.id.slice(0, 8)}`
     const branch = task.branch ?? `tangerine/${task.id.slice(0, 8)}`
 
     // 1. Kill any lingering agent processes in the worktree before spawning a new one.
