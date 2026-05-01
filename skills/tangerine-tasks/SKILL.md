@@ -3,7 +3,7 @@ name: tangerine-tasks
 description: Reference for agents running inside a Tangerine task — API endpoints, env vars, and common workflows.
 metadata:
   author: tung
-  version: "1.8.0"
+  version: "1.8.2"
 ---
 
 # Tangerine Agent Reference
@@ -30,17 +30,40 @@ You are running inside a **Tangerine task**. Tangerine manages local agent proce
 |----------|---------|
 | `TANGERINE_TASK_ID` | Current task ID |
 | `TANGERINE_AUTH_TOKEN` | Auth token for the Tangerine API (may be empty when auth is disabled) |
+| `TANGERINE_PORT` | Resolved Tangerine API port (default `3456`; may come from config `port` or env) |
 
 API base:
 
 ```bash
-API=http://localhost:3456
+API=http://localhost:${TANGERINE_PORT:-3456}
 echo "$TANGERINE_TASK_ID"
 ```
 
-Always include `-H "Authorization: Bearer $TANGERINE_AUTH_TOKEN"` on every Tangerine API curl call. When auth is disabled the server ignores this header; when enabled the token is always set in your environment.
+The port is configurable. Tangerine resolves it from `TANGERINE_PORT`, then config `port`, then default `3456`; task system prompts should show the actual URL.
 
-> ⚠️ **Do NOT use the `${TANGERINE_AUTH_TOKEN:+-H "..."}` conditional pattern** — it breaks in OpenCode's shell context where each command runs in a fresh `zsh -lc` invocation. Use the inline form on every curl call instead.
+## Auth check
+
+Before private API calls, check whether Tangerine auth is enabled:
+
+```bash
+AUTH_SESSION=$(curl -s "$API/api/auth/session")
+echo "$AUTH_SESSION" | jq '{enabled, authenticated}'
+AUTH_ENABLED=$(echo "$AUTH_SESSION" | jq -r '.enabled // false')
+if [ "$AUTH_ENABLED" = "true" ] && [ -z "$TANGERINE_AUTH_TOKEN" ]; then
+  echo "Tangerine auth is enabled, but TANGERINE_AUTH_TOKEN is missing" >&2
+  exit 1
+fi
+```
+
+If `AUTH_ENABLED=true`, `TANGERINE_AUTH_TOKEN` must be non-empty and every private API curl call must include:
+
+```bash
+-H "Authorization: Bearer $TANGERINE_AUTH_TOKEN"
+```
+
+If auth is disabled, the header is optional. The examples below include it because this works when auth is enabled and is ignored when auth is disabled.
+
+> ⚠️ **Do NOT use the `${TANGERINE_AUTH_TOKEN:+-H "..."}` conditional pattern** — it breaks in OpenCode's shell context where each command runs in a fresh `zsh -lc` invocation. Use explicit commands instead.
 
 ## 🚨 PR Mode — CRITICAL (Worker Tasks)
 

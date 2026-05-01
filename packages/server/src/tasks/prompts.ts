@@ -65,7 +65,7 @@ function buildPrModeInstruction(prMode: "ready" | "draft" | "none", upstreamSlug
 export function buildSystemLayer(taskId: string, info: SystemNotesInfo, port = apiPort()): string[] {
   const notes: string[] = []
   notes.push(`[TANGERINE: You are running inside a Tangerine task (task ID: ${taskId}). The Tangerine API is at http://localhost:${port}. Load the tangerine-tasks skill for full API reference and common workflows.]`)
-  notes.push(`[AUTH: Always include ${AUTH_CURL_FLAG} on Tangerine API curl calls. When auth is disabled the server ignores this header.]`)
+  notes.push(`[AUTH: Check http://localhost:${port}/api/auth/session before private Tangerine API calls. If auth is enabled, TANGERINE_AUTH_TOKEN must be set and every private curl must include ${AUTH_CURL_FLAG}. If auth is disabled, the header is optional and ignored.]`)
 
   if (info.taskType === "worker") {
     const prMode = info.prMode ?? "none"
