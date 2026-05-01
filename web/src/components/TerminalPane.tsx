@@ -218,35 +218,37 @@ export function TerminalPane(props: TerminalPaneProps) {
   return (
     <div
       ref={wrapperRef}
-      className="flex flex-col overflow-hidden"
+      className="flex min-w-0 flex-col overflow-hidden"
       style={viewportHeight != null
         ? { height: viewportHeight, maxHeight: viewportHeight }
         : { height: "100%" }}
     >
-      <div className="relative min-h-0 flex-1">
-        <Terminal
-          ref={termRef}
-          autoResize
-          cursorBlink
-          onData={sendInput}
-          onResize={handleResize}
-          onReady={handleReady}
-          className="absolute inset-0 bg-card p-1"
-          style={{ height: "100%" }}
-        />
-        {connState !== "connected" && (
-          <div className="absolute inset-0 flex items-center justify-center bg-[#1a1a1a]">
-            <span className="text-sm text-muted-foreground">
-              {connState === "unavailable"
-                ? "Terminal not available"
-                : connState === "reconnecting"
-                  ? "Reconnecting..."
-                  : connState === "error"
-                    ? "Connection error"
-                    : "Connecting..."}
-            </span>
-          </div>
-        )}
+      <div className="flex min-h-0 min-w-0 flex-1 p-3">
+        <div className="relative min-h-0 min-w-0 flex-1 overflow-hidden rounded-lg bg-card">
+          <Terminal
+            ref={termRef}
+            autoResize
+            cursorBlink
+            onData={sendInput}
+            onResize={handleResize}
+            onReady={handleReady}
+            className="absolute inset-0 bg-card p-1"
+            style={{ height: "100%" }}
+          />
+          {connState !== "connected" && (
+            <div className="absolute inset-0 flex items-center justify-center bg-[#1a1a1a]">
+              <span className="text-sm text-muted-foreground">
+                {connState === "unavailable"
+                  ? "Terminal not available"
+                  : connState === "reconnecting"
+                    ? "Reconnecting..."
+                    : connState === "error"
+                      ? "Connection error"
+                      : "Connecting..."}
+              </span>
+            </div>
+          )}
+        </div>
       </div>
       <TerminalToolbar termRef={termRef} onInput={sendInput} />
     </div>

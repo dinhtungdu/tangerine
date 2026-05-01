@@ -182,31 +182,33 @@ export function TuiPane({ taskId }: TuiPaneProps) {
   }, [sendResize])
 
   return (
-    <div className="flex h-full flex-col overflow-hidden">
-      <div className="relative min-h-0 flex-1">
-        <Terminal
-          ref={termRef}
-          autoResize
-          cursorBlink
-          onData={sendInput}
-          onResize={handleResize}
-          onReady={handleReady}
-          className="absolute inset-0 bg-card p-1"
-          style={{ height: "100%" }}
-        />
-        {connState !== "connected" && (
-          <div className="absolute inset-0 flex items-center justify-center bg-[#1a1a1a]">
-            <span className="text-sm text-muted-foreground">
-              {connState === "exited"
-                ? `TUI exited${exitCode != null ? ` (code ${exitCode})` : ""}`
-                : connState === "reconnecting"
-                  ? "Reconnecting..."
-                  : connState === "error"
-                    ? "Connection error"
-                    : "Connecting to agent TUI..."}
-            </span>
-          </div>
-        )}
+    <div className="flex h-full min-w-0 flex-col overflow-hidden">
+      <div className="flex min-h-0 min-w-0 flex-1 p-3">
+        <div className="relative min-h-0 min-w-0 flex-1 overflow-hidden rounded-lg bg-card">
+          <Terminal
+            ref={termRef}
+            autoResize
+            cursorBlink
+            onData={sendInput}
+            onResize={handleResize}
+            onReady={handleReady}
+            className="absolute inset-0 bg-card p-1"
+            style={{ height: "100%" }}
+          />
+          {connState !== "connected" && (
+            <div className="absolute inset-0 flex items-center justify-center bg-[#1a1a1a]">
+              <span className="text-sm text-muted-foreground">
+                {connState === "exited"
+                  ? `TUI exited${exitCode != null ? ` (code ${exitCode})` : ""}`
+                  : connState === "reconnecting"
+                    ? "Reconnecting..."
+                    : connState === "error"
+                      ? "Connection error"
+                      : "Connecting to agent TUI..."}
+              </span>
+            </div>
+          )}
+        </div>
       </div>
     </div>
   )
