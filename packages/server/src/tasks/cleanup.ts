@@ -16,6 +16,7 @@ export interface CleanupDeps {
   getTask(taskId: string): Effect.Effect<TaskRow | null, Error>
   updateTask(taskId: string, updates: Partial<TaskRow>): Effect.Effect<unknown, Error>
   getAgentHandle(taskId: string): import("../agent/provider").AgentHandle | null
+  removeAgentHandle?(taskId: string): void
 }
 
 export function cleanupSession(
@@ -46,6 +47,11 @@ export function cleanupSession(
         Effect.tap(() => Effect.sync(() => taskLog.info("Agent shutdown"))),
         Effect.ignoreLogged,
       )
+    }
+    try {
+      deps.removeAgentHandle?.(taskId)
+    } catch {
+      // Cleanup must continue even if external bookkeeping fails.
     }
 
     // 1b. Kill agent by PID as fallback
