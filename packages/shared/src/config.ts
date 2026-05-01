@@ -61,6 +61,7 @@ export const agentConfigSchema = z.object({
   args: z.array(z.string()).optional(),
   env: z.record(z.string()).optional(),
   tuiCommand: z.string().optional(),
+  tuiResumeTemplate: z.array(z.string()).optional(),
 })
 
 export const projectConfigSchema = z.object({

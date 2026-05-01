@@ -1284,7 +1284,8 @@ export async function start(): Promise<void> {
       },
       getTuiCommand: (provider) => {
         const factory = factories[provider]
-        return factory?.metadata.tuiCommand
+        if (!factory?.metadata.tuiCommand) return undefined
+        return { command: factory.metadata.tuiCommand, resumeTemplate: factory.metadata.tuiResumeTemplate }
       },
       logActivity: (taskId, type, event, content, metadata) => logActivity(db, taskId, type, event, content, metadata),
       reconnectAfterTui: (taskId, sessionId) => {

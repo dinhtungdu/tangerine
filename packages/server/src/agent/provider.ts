@@ -56,6 +56,8 @@ export interface AgentMetadata {
   cliCommand: string
   /** CLI command to launch the agent's native TUI with --resume. Set when TUI mode is supported. */
   tuiCommand?: string
+  /** Template args for TUI resume, with {{sessionId}} placeholder. Default: ["--resume", "{{sessionId}}"]. */
+  tuiResumeTemplate?: string[]
 }
 
 /** Handle to a running ACP session — owns the process and event subscription */

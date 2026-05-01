@@ -59,7 +59,7 @@ export interface AppDeps {
   config: AppConfig
   getAgentHandle(taskId: string): import("../agent/provider").AgentHandle | null
   removeAgentHandle?(taskId: string): void
-  getTuiCommand?(provider: string): string | undefined
+  getTuiCommand?(provider: string): { command: string; resumeTemplate?: string[] } | undefined
   logActivity?(taskId: string, type: ActivityType, event: string, content: string, metadata?: Record<string, unknown>): Effect.Effect<unknown, Error>
   reconnectAfterTui?(taskId: string, sessionId: string): void
   onTuiExit?(taskId: string): void

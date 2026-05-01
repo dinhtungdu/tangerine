@@ -18,14 +18,15 @@ export function tuiRoutes(deps: AppDeps): Hono {
     if (!task) return c.json({ error: "Task not found" }, 404)
     if (task.status !== "running") return c.json({ error: "Task is not running" }, 400)
 
-    const tuiCommand = deps.getTuiCommand?.(task.provider)
-    if (!tuiCommand) return c.json({ error: "TUI not supported for this agent" }, 400)
+    const tuiConfig = deps.getTuiCommand?.(task.provider)
+    if (!tuiConfig) return c.json({ error: "TUI not supported for this agent" }, 400)
 
     if (isTuiActive(taskId)) return c.json({ error: "TUI already active" }, 400)
 
     try {
       await Effect.runPromise(
-        startTuiMode(taskId, tuiCommand, {
+        startTuiMode(taskId, tuiConfig.command, {
+          resumeTemplate: tuiConfig.resumeTemplate,
           getAgentHandle: deps.getAgentHandle,
           removeAgentHandle: deps.removeAgentHandle!,
           getTask: (id) => getTask(deps.db, id),

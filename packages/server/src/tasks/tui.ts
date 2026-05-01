@@ -151,6 +151,7 @@ export interface TuiStartDeps {
   getTask(taskId: string): Effect.Effect<TaskRow | null, Error>
   logActivity(taskId: string, type: "lifecycle" | "system", event: string, content: string, metadata?: Record<string, unknown>): Effect.Effect<unknown, Error>
   onTuiExit?(taskId: string): void
+  resumeTemplate?: string[]
 }
 
 export function startTuiMode(
@@ -182,7 +183,10 @@ export function startTuiMode(
       if (typeof value === "string") env[key] = value
     }
 
-    const pty = spawn(tuiCommand, ["--resume", sessionId], {
+    const resumeArgs = (deps.resumeTemplate ?? ["--resume", "{{sessionId}}"]).map(
+      (arg) => arg.replaceAll("{{sessionId}}", sessionId),
+    )
+    const pty = spawn(tuiCommand, resumeArgs, {
       cols: 80,
       rows: 24,
       name: "xterm-256color",

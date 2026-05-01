@@ -27,6 +27,8 @@ export interface AcpProviderConfig {
   env?: Record<string, string>
   /** CLI command for launching the agent's native TUI (e.g. "claude"). Auto-detected for Claude Code. */
   tuiCommand?: string
+  /** Template args for TUI resume, with {{sessionId}} placeholder. Default: ["--resume", "{{sessionId}}"]. */
+  tuiResumeTemplate?: string[]
 }
 
 export interface AcpTextContent {
@@ -563,6 +565,7 @@ export function createAcpProvider(config?: AcpProviderConfig): AgentFactory {
       abbreviation: config?.name ?? ACP_AGENT_METADATA.abbreviation,
       cliCommand: command.checkCommand,
       tuiCommand,
+      tuiResumeTemplate: config?.tuiResumeTemplate,
     },
     start(ctx: AgentStartContext): Effect.Effect<AgentHandle, SessionStartError> {
       return Effect.tryPromise({
