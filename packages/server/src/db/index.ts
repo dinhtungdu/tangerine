@@ -217,6 +217,7 @@ export {
   updateTask,
   updateTaskStatus,
   insertSessionLog,
+  deleteSessionLogsByRole,
   getSessionLogs,
   getSessionLogsPaginated,
   getChildTasks,

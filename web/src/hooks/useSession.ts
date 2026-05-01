@@ -515,7 +515,7 @@ export function useSession(taskId: string, initialContextTokens?: number, initia
         }
         if (data && typeof data === "object" && data.event === "plan" && Array.isArray(data.entries)) {
           const entries = data.entries as AgentPlanEntry[]
-          setMessages((prev) => [...prev, {
+          setMessages((prev) => [...prev.filter((m) => m.role !== "plan"), {
             id: `plan-${Date.now()}-${Math.random().toString(36).slice(2)}`,
             role: "plan",
             content: JSON.stringify(entries),

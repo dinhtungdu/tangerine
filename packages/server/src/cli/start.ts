@@ -4,7 +4,7 @@ import { Effect } from "effect"
 import { createLogger } from "../logger"
 import { loadConfig, getProjectConfig, TANGERINE_HOME, readRawConfig, writeRawConfig, isTestMode } from "../config"
 import { getDb } from "../db/index"
-import { createTask as dbCreateTask, getTask, listTasks, updateTask, insertSessionLog, markTaskResult } from "../db/queries"
+import { createTask as dbCreateTask, getTask, listTasks, updateTask, insertSessionLog, deleteSessionLogsByRole, markTaskResult } from "../db/queries"
 import { logActivity, cleanupActivities, hasActivityEvent, updateToolActivity } from "../activity"
 import type { TaskRow } from "../db/types"
 import { taskHasCapability } from "../api/helpers"
@@ -910,7 +910,8 @@ export async function start(): Promise<void> {
                   timestamp: new Date().toISOString(),
                 })
                 Effect.runPromise(
-                  insertSessionLog(db, { task_id: taskId, role: "plan", content: JSON.stringify(event.entries) }).pipe(
+                  deleteSessionLogsByRole(db, taskId, "plan").pipe(
+                    Effect.flatMap(() => insertSessionLog(db, { task_id: taskId, role: "plan", content: JSON.stringify(event.entries) })),
                     Effect.catchAll(() => Effect.void)
                   )
                 )
