@@ -115,18 +115,28 @@ function extractCheckCommand(shellCommand: string): string {
 
 const CLAUDE_ACP_COMMANDS = ["claude-code-acp", "claude-acp", "claude-agent-acp"]
 
-function isClaudeAcp(checkCommand: string): boolean {
+interface TuiDefaults {
+  command: string
+  resumeTemplate: string[]
+}
+
+const ACP_TUI_MAP: Array<{ prefixes: string[]; defaults: TuiDefaults }> = [
+  { prefixes: CLAUDE_ACP_COMMANDS, defaults: { command: "claude", resumeTemplate: ["--resume", "{{sessionId}}", "--dangerously-skip-permissions"] } },
+  { prefixes: ["codex-acp"],       defaults: { command: "codex",   resumeTemplate: ["resume", "{{sessionId}}"] } },
+  { prefixes: ["opencode-acp"],    defaults: { command: "opencode", resumeTemplate: ["-s", "{{sessionId}}"] } },
+  { prefixes: ["pi-acp"],          defaults: { command: "pi",      resumeTemplate: ["--session", "{{sessionId}}"] } },
+  { prefixes: ["hermes-acp"],      defaults: { command: "hermes",  resumeTemplate: ["--resume", "{{sessionId}}"] } },
+]
+
+function detectTuiDefaults(checkCommand: string): TuiDefaults | undefined {
   const basename = checkCommand.split("/").pop() ?? ""
-  return CLAUDE_ACP_COMMANDS.some((cmd) => basename.startsWith(cmd))
+  return ACP_TUI_MAP.find(({ prefixes }) => prefixes.some((p) => basename.startsWith(p)))?.defaults
 }
 
 function resolveTuiCommand(config: AcpProviderConfig | undefined, checkCommand: string): string | undefined {
   if (config?.tuiCommand) return config.tuiCommand
-  if (isClaudeAcp(checkCommand)) return "claude"
-  return undefined
+  return detectTuiDefaults(checkCommand)?.command
 }
-
-const CLAUDE_TUI_RESUME_TEMPLATE = ["--resume", "{{sessionId}}", "--dangerously-skip-permissions"]
 
 export function buildAcpPromptBlocks(text: string, images: PromptImage[] = [], supportsImages: boolean, workdir?: string): AcpPromptBlock[] {
   if (images.length > 0 && !supportsImages) {
@@ -571,7 +581,7 @@ export function createAcpProvider(config?: AcpProviderConfig): AgentFactory {
       abbreviation: config?.name ?? ACP_AGENT_METADATA.abbreviation,
       cliCommand: command.checkCommand,
       tuiCommand,
-      tuiResumeTemplate: config?.tuiResumeTemplate ?? (isClaudeAcp(command.checkCommand) ? CLAUDE_TUI_RESUME_TEMPLATE : undefined),
+      tuiResumeTemplate: config?.tuiResumeTemplate ?? detectTuiDefaults(command.checkCommand)?.resumeTemplate,
     },
     start(ctx: AgentStartContext): Effect.Effect<AgentHandle, SessionStartError> {
       return Effect.tryPromise({
