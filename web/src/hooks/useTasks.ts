@@ -185,7 +185,7 @@ export function useTasks(filter?: { status?: string; project?: string; search?: 
         if (heartbeat === socketHeartbeat) heartbeat = null
         if (unmounted || ws !== socket) return
         ws = null
-        reconnectTimer = setTimeout(() => { backoff = Math.min(backoff * 2, 30000); connect() }, backoff)
+        reconnectTimer = setTimeout(() => { backoff = Math.min(backoff * 2, 5000); connect() }, backoff)
       }
       socket.onerror = () => socket.close()
     }
