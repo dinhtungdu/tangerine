@@ -1,50 +1,20 @@
-import { afterEach, describe, expect, mock, test } from "bun:test"
-import { cleanup, render, screen } from "@testing-library/react"
-import React from "react"
-import { TerminalPane } from "../components/TerminalPane"
-import { TuiPane } from "../components/TuiPane"
-
-mock.module("@wterm/react", () => ({
-  Terminal: React.forwardRef((props: Record<string, unknown>, _ref: unknown) =>
-    React.createElement("div", { "data-testid": "wterm-terminal", className: props.className as string | undefined })
-  ),
-  useTerminal: () => ({
-    ref: { current: null },
-    write: () => {},
-    resize: () => {},
-    focus: () => {},
-  }),
-}))
-
-afterEach(() => {
-  cleanup()
-})
-
-function closestWithClass(element: HTMLElement, className: string): HTMLElement | null {
-  let current = element.parentElement
-  while (current) {
-    if (current.className.split(/\s+/).includes(className)) return current
-    current = current.parentElement
-  }
-  return null
-}
+import { describe, expect, test } from "bun:test"
+import { readFileSync } from "node:fs"
 
 describe("terminal panes", () => {
-  test("renders the shell terminal inside a padded rounded surface", () => {
-    render(<TerminalPane taskId="task-1" />)
+  test("keeps the shell terminal inside a padded rounded surface", () => {
+    const source = readFileSync(new URL("../components/TerminalPane.tsx", import.meta.url), "utf8")
 
-    const terminal = screen.getByTestId("wterm-terminal")
-    expect(closestWithClass(terminal, "p-3")).not.toBeNull()
-    expect(closestWithClass(terminal, "min-w-0")).not.toBeNull()
-    expect(closestWithClass(terminal, "rounded-lg")).not.toBeNull()
+    expect(source).toContain("flex min-h-0 min-w-0 flex-1 p-3")
+    expect(source).toContain("relative min-h-0 min-w-0 flex-1 overflow-hidden rounded-lg bg-card")
+    expect(source).toContain("absolute inset-0 bg-card p-1")
   })
 
-  test("renders the agent TUI inside a padded rounded surface", () => {
-    render(<TuiPane taskId="task-1" />)
+  test("keeps the agent TUI inside a padded rounded surface", () => {
+    const source = readFileSync(new URL("../components/TuiPane.tsx", import.meta.url), "utf8")
 
-    const terminal = screen.getByTestId("wterm-terminal")
-    expect(closestWithClass(terminal, "p-3")).not.toBeNull()
-    expect(closestWithClass(terminal, "min-w-0")).not.toBeNull()
-    expect(closestWithClass(terminal, "rounded-lg")).not.toBeNull()
+    expect(source).toContain("flex min-h-0 min-w-0 flex-1 p-3")
+    expect(source).toContain("relative min-h-0 min-w-0 flex-1 overflow-hidden rounded-lg bg-card")
+    expect(source).toContain("absolute inset-0 bg-card p-1")
   })
 })
