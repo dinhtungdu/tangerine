@@ -114,6 +114,34 @@ export function migrateWorktreeLayout(
   })
 }
 
+// --- Worktree naming migration ---
+
+/** Migrate old --wt-N naming to shorter --N naming. */
+export function migrateWorktreeNaming(
+  db: Database,
+  projectId: string,
+): Effect.Effect<number, DbError> {
+  return dbTry(() => {
+    const slots = db.prepare(
+      "SELECT id, path FROM worktree_slots WHERE project_id = ? AND path LIKE '%--wt-%'",
+    ).all(projectId) as { id: string; path: string }[]
+
+    let migrated = 0
+    for (const slot of slots) {
+      const newPath = slot.path.replace(/--wt-(\d+)$/, "--$1")
+      if (newPath === slot.path) continue
+
+      if (fs.existsSync(slot.path) && !fs.existsSync(newPath)) {
+        fs.renameSync(slot.path, newPath)
+        db.prepare("UPDATE worktree_slots SET path = ? WHERE id = ?").run(newPath, slot.id)
+        log.info("Migrated worktree naming", { slotId: slot.id, from: slot.path, to: newPath })
+        migrated++
+      }
+    }
+    return migrated
+  })
+}
+
 // --- Stale path cleanup ---
 
 /** Remove slots with non-existent paths (e.g., after migration or manual deletion). */
@@ -149,6 +177,12 @@ export function initPool(
   poolSize: number = DEFAULT_POOL_SIZE,
 ): Effect.Effect<WorktreeSlotRow[], DbError | Error> {
   return Effect.gen(function* () {
+    // Migrate old --wt-N naming to --N
+    const namingMigrated = yield* migrateWorktreeNaming(db, projectId)
+    if (namingMigrated > 0) {
+      log.info("Migrated worktree naming", { projectId, migrated: namingMigrated })
+    }
+
     // Clean up slots with non-existent paths before initializing
     const staleRemoved = yield* cleanupStalePaths(db, projectId)
     if (staleRemoved > 0) {
