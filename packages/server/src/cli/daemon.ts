@@ -100,7 +100,11 @@ export async function daemonStart(): Promise<void> {
   const factories = createAgentFactories({ agents: config.config.agents })
   const { errors, warnings } = checkSystemTools({
     hasGithubProject: config.config.projects.some((p) => isGithubRepo(p.repo)),
-    providers: Object.entries(factories).map(([id, factory]) => ({ id, cliCommand: factory.metadata.cliCommand })),
+    providers: Object.entries(factories).map(([id, factory]) => ({
+      id,
+      cliCommand: factory.metadata.cliCommand,
+      availabilityCommand: factory.metadata.availabilityCommand,
+    })),
   })
 
   if (errors.length > 0) {

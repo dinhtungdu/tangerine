@@ -53,8 +53,10 @@ export interface AgentMetadata {
   displayName: string
   /** Short label for compact UI. */
   abbreviation: string
-  /** CLI binary name used to invoke this ACP-compatible agent. */
+  /** CLI binary or package name for TUI detection (e.g., "claude-agent-acp"). */
   cliCommand: string
+  /** Command to check for availability via `which`. For bunx-wrapped packages, this is "bunx". */
+  availabilityCommand?: string
   /** CLI command to launch the agent's native TUI with --resume. Set when TUI mode is supported. */
   tuiCommand?: string
   /** Template args for TUI resume, with {{sessionId}} placeholder. Default: ["--resume", "{{sessionId}}"]. */

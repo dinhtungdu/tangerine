@@ -265,7 +265,11 @@ export async function start(): Promise<void> {
     if (!isTestMode()) {
       const { errors, warnings, capabilities } = checkSystemTools({
         hasGithubProject: config.config.projects.some((p) => isGithubRepo(p.repo)),
-        providers: Object.entries(factories).map(([id, factory]) => ({ id, cliCommand: factory.metadata.cliCommand })),
+        providers: Object.entries(factories).map(([id, factory]) => ({
+          id,
+          cliCommand: factory.metadata.cliCommand,
+          availabilityCommand: factory.metadata.availabilityCommand,
+        })),
       })
 
       systemCapabilities = capabilities

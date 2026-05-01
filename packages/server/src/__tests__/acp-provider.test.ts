@@ -40,6 +40,7 @@ describe("resolveAcpCommand", () => {
 
     expect(command.shellCommand).toBe("acp-agent")
     expect(command.checkCommand).toBe("acp-agent")
+    expect(command.availabilityCommand).toBe("acp-agent")
   })
 
   test("uses TANGERINE_ACP_COMMAND and extracts executable for system checks", () => {
@@ -47,30 +48,35 @@ describe("resolveAcpCommand", () => {
 
     expect(command.shellCommand).toBe("codex-acp --model gpt-5")
     expect(command.checkCommand).toBe("codex-acp")
+    expect(command.availabilityCommand).toBe("codex-acp")
   })
 
   test("extracts package name from bunx wrapper command", () => {
     const command = resolveAcpCommand({ TANGERINE_ACP_COMMAND: "bunx --bun @agentclientprotocol/claude-agent-acp" })
 
     expect(command.checkCommand).toBe("claude-agent-acp")
+    expect(command.availabilityCommand).toBe("bunx")
   })
 
   test("extracts package name from npx wrapper command", () => {
     const command = resolveAcpCommand({ TANGERINE_ACP_COMMAND: "npx -y @agentclientprotocol/claude-agent-acp" })
 
     expect(command.checkCommand).toBe("claude-agent-acp")
+    expect(command.availabilityCommand).toBe("npx")
   })
 
   test("extracts unscoped package name from bunx", () => {
     const command = resolveAcpCommand({ TANGERINE_ACP_COMMAND: "bunx claude-code-acp" })
 
     expect(command.checkCommand).toBe("claude-code-acp")
+    expect(command.availabilityCommand).toBe("bunx")
   })
 
   test("handles yarn dlx package runner", () => {
     const command = resolveAcpCommand({ TANGERINE_ACP_COMMAND: "yarn dlx @scope/claude-acp" })
 
     expect(command.checkCommand).toBe("claude-acp")
+    expect(command.availabilityCommand).toBe("yarn")
   })
 })
 

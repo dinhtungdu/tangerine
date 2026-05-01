@@ -33,7 +33,7 @@ export function applyLoginShellPath(): void {
  *  may be incomplete. */
 export function checkSystemTools(options: {
   hasGithubProject: boolean
-  providers?: Array<{ id: string; cliCommand: string }>
+  providers?: Array<{ id: string; cliCommand: string; availabilityCommand?: string }>
 }): SystemCheckResult {
   const errors: string[] = []
   const warnings: string[] = []
@@ -76,11 +76,12 @@ export function checkSystemTools(options: {
   }
 
   // Agent provider CLIs
-  for (const { id, cliCommand } of options.providers ?? []) {
-    const available = cmdExists(cliCommand)
+  for (const { id, cliCommand, availabilityCommand } of options.providers ?? []) {
+    const checkCmd = availabilityCommand ?? cliCommand
+    const available = cmdExists(checkCmd)
     capabilities.providers[id] = { available, cliCommand }
     if (!available) {
-      warnings.push(`${cliCommand} CLI is not installed — provider "${id}" will not be available.`)
+      warnings.push(`${checkCmd} CLI is not installed — provider "${id}" will not be available.`)
     }
   }
 

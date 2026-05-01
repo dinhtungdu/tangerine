@@ -18,6 +18,8 @@ export const DEFAULT_AGENT_STATUS_IDLE_DEBOUNCE_MS = 300
 export interface AcpCommandConfig {
   shellCommand: string
   checkCommand: string
+  /** Command to check for CLI availability (e.g., "bunx" for package-runner commands). */
+  availabilityCommand: string
 }
 
 export interface AcpProviderConfig {
@@ -123,44 +125,58 @@ function shellTokenize(command: string): string[] {
   return tokens
 }
 
-function extractCheckCommand(shellCommand: string): string {
+interface ExtractedCommand {
+  checkCommand: string
+  availabilityCommand: string
+}
+
+function extractCheckCommand(shellCommand: string): ExtractedCommand {
   const tokens = shellTokenize(shellCommand)
   const first = tokens[0]
-  if (!first) return DEFAULT_ACP_COMMAND
+  if (!first) return { checkCommand: DEFAULT_ACP_COMMAND, availabilityCommand: DEFAULT_ACP_COMMAND }
 
   const firstBase = first.split("/").pop() ?? first
 
-  if (!PACKAGE_RUNNERS.includes(firstBase)) return first
+  if (!PACKAGE_RUNNERS.includes(firstBase)) {
+    return { checkCommand: first, availabilityCommand: first }
+  }
 
-  // Skip package runner and its flags to find package name
+  // Package runner command — check runner binary for availability, extract package name for TUI
+  let packageName = first
   for (let i = 1; i < tokens.length; i++) {
     const token = tokens[i]!
     if (token.startsWith("-") || PACKAGE_RUNNER_FLAGS.has(token)) continue
     // For scoped packages like @scope/pkg, extract just the package name
     if (token.startsWith("@") && token.includes("/")) {
-      return token.split("/")[1]!
+      packageName = token.split("/")[1]!
+    } else {
+      packageName = token
     }
-    return token
+    break
   }
 
-  return first
+  return { checkCommand: packageName, availabilityCommand: firstBase }
 }
 
 export function resolveAcpCommand(env: Record<string, string | undefined>): AcpCommandConfig {
   const shellCommand = (env.TANGERINE_ACP_COMMAND?.trim() || DEFAULT_ACP_COMMAND)
-  return { shellCommand, checkCommand: extractCheckCommand(shellCommand) }
+  const extracted = extractCheckCommand(shellCommand)
+  return { shellCommand, ...extracted }
 }
 
 function resolveProviderCommand(config: AcpProviderConfig | undefined, env: Record<string, string | undefined>): AcpCommandConfig {
   if (!config) return resolveAcpCommand(env)
   const shellCommand = [config.command, ...(config.args ?? [])].join(" ").trim()
-  return { shellCommand, checkCommand: extractCheckCommand(shellCommand) }
+  const extracted = extractCheckCommand(shellCommand)
+  return { shellCommand, ...extracted }
 }
 
+const defaultAcpCommand = resolveAcpCommand(process.env)
 const ACP_AGENT_METADATA: AgentMetadata = {
   displayName: "ACP",
   abbreviation: "ACP",
-  cliCommand: resolveAcpCommand(process.env).checkCommand,
+  cliCommand: defaultAcpCommand.checkCommand,
+  availabilityCommand: defaultAcpCommand.availabilityCommand,
 }
 
 const CLAUDE_ACP_COMMANDS = ["claude-code-acp", "claude-acp", "claude-agent-acp"]
@@ -630,6 +646,7 @@ export function createAcpProvider(config?: AcpProviderConfig): AgentFactory {
       displayName: config?.name ?? ACP_AGENT_METADATA.displayName,
       abbreviation: config?.name ?? ACP_AGENT_METADATA.abbreviation,
       cliCommand: command.checkCommand,
+      availabilityCommand: command.availabilityCommand,
       tuiCommand,
       tuiResumeTemplate: config?.tuiResumeTemplate ?? detectTuiDefaults(command.checkCommand)?.resumeTemplate,
     },
