@@ -56,6 +56,11 @@ async function main(): Promise<void> {
       await install()
       break
     }
+    case "migrate": {
+      const { runMigrate } = await import("./migrate.ts")
+      await runMigrate(args.slice(1))
+      break
+    }
     case "acp": {
       const { runAcp } = await import("./acp.ts")
       await runAcp(args.slice(1))

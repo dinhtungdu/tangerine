@@ -130,6 +130,7 @@ Commands:
   stop               Stop the running daemon
   status             Show whether the daemon is running
   logs               Tail the server log file (follow mode)
+  migrate            Migrate old project worktree layout
   acp probe          Probe configured ACP adapter capabilities/events
   project add        Register a project
   project list       List registered projects
@@ -147,6 +148,7 @@ Options:
 Examples:
   tangerine project add --name my-app --repo https://github.com/me/app --setup "npm install"
   tangerine project list
+  tangerine migrate --project my-app
   tangerine acp probe --agent claude --json
   tangerine start
   tangerine task create --title "Fix bug"

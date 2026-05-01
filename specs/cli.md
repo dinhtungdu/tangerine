@@ -8,6 +8,7 @@ The `tangerine` CLI is implemented under `packages/server/src/cli/`.
 |---------|-------------|
 | `tangerine start` | Start the Tangerine server |
 | `tangerine install` | Create local directories and install Tangerine skills into the ACP skills dir |
+| `tangerine migrate` | Migrate projects from old numbered worktree layout to current sibling layout |
 | `tangerine project ...` | Manage registered projects |
 | `tangerine task ...` | Create manual tasks |
 | `tangerine acp probe` | Probe configured ACP adapter capabilities/config/events |
@@ -48,6 +49,19 @@ Installed skills:
 - `platform-setup`
 - `tangerine-tasks`
 - `browser-test`
+
+## `tangerine migrate`
+
+Migrates existing project directories from the old layout (`{workspace}/{project}/0`, `/1`, `/2`) to the current sibling layout (`{workspace}/{project}`, `{project}--1`, `{project}--2`).
+
+Behavior:
+
+- scans all configured projects by default
+- `--project, -p <name>` limits migration to one project
+- releases stale slots bound to terminal or missing tasks before migration
+- skips projects with active bound slots or active task worktree paths in the old layout, and exits non-zero so the user can finish/cancel tasks and rerun
+- clears terminal task `worktree_path` values that pointed at old numbered worktrees
+- recreates the worktree pool after a successful migration
 
 ## `tangerine acp probe`
 

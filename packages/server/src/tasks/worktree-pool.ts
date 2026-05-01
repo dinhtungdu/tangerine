@@ -56,7 +56,95 @@ function dbTry<T>(op: () => T): Effect.Effect<T, DbError> {
   })
 }
 
+function isOldLayoutWorktreePath(repoPath: string, worktreePath: string): boolean {
+  const relative = path.relative(path.resolve(repoPath), path.resolve(worktreePath))
+  return relative === "0" || /^\d+(?:$|[\\/])/.test(relative)
+}
+
+function countBlockingMigrationReferences(
+  db: Database,
+  projectId: string,
+  repoPath: string,
+): Effect.Effect<number, DbError> {
+  return dbTry(() => {
+    const refs = new Set<string>()
+    const boundSlots = db.prepare(
+      "SELECT id, task_id FROM worktree_slots WHERE project_id = ? AND status = 'bound'",
+    ).all(projectId) as Array<{ id: string; task_id: string | null }>
+    for (const slot of boundSlots) {
+      refs.add(slot.task_id ? `task:${slot.task_id}` : `slot:${slot.id}`)
+    }
+
+    const activeTasks = db.prepare(
+      "SELECT id, worktree_path FROM tasks WHERE project_id = ? AND status NOT IN ('done', 'failed', 'cancelled') AND worktree_path IS NOT NULL",
+    ).all(projectId) as Array<{ id: string; worktree_path: string | null }>
+    for (const task of activeTasks) {
+      if (task.worktree_path && isOldLayoutWorktreePath(repoPath, task.worktree_path)) {
+        refs.add(`task:${task.id}`)
+      }
+    }
+
+    return refs.size
+  })
+}
+
+function clearTerminalOldLayoutTaskPaths(
+  db: Database,
+  projectId: string,
+  repoPath: string,
+): Effect.Effect<number, DbError> {
+  return dbTry(() => {
+    const tasks = db.prepare(
+      "SELECT id, status, worktree_path FROM tasks WHERE project_id = ? AND worktree_path IS NOT NULL",
+    ).all(projectId) as Array<{ id: string; status: string; worktree_path: string | null }>
+
+    let cleared = 0
+    for (const task of tasks) {
+      if (task.worktree_path && TERMINAL_STATUSES.has(task.status) && isOldLayoutWorktreePath(repoPath, task.worktree_path)) {
+        db.prepare("UPDATE tasks SET worktree_path = NULL WHERE id = ?").run(task.id)
+        cleared++
+      }
+    }
+    return cleared
+  })
+}
+
 // --- Layout migration ---
+
+export type WorktreeLayoutMigrationPlan =
+  | { status: "current"; projectId: string; repoPath: string }
+  | { status: "needed"; projectId: string; repoPath: string; oldRepoPath: string; oldWorktreePaths: string[] }
+  | { status: "blocked"; projectId: string; repoPath: string; oldRepoPath: string; oldWorktreePaths: string[]; activeReferences: number }
+
+/** Inspect whether old numbered-subdir layout ({project}/0, /1, ...) needs migration. */
+export function planWorktreeLayoutMigration(
+  db: Database,
+  projectId: string,
+  repoPath: string,
+): Effect.Effect<WorktreeLayoutMigrationPlan, DbError | Error> {
+  return Effect.gen(function* () {
+    const oldRepoPath = path.join(repoPath, "0")
+
+    if (!fs.existsSync(oldRepoPath) || !fs.existsSync(path.join(oldRepoPath, ".git"))) {
+      return { status: "current", projectId, repoPath }
+    }
+
+    const oldWorktreePaths = yield* Effect.try({
+      try: () => fs.readdirSync(repoPath)
+        .filter((entry) => /^\d+$/.test(entry) && entry !== "0")
+        .map((entry) => path.join(repoPath, entry)),
+      catch: (e) => new Error(`Migration layout scan failed: ${e}`),
+    })
+
+    const activeReferences = yield* countBlockingMigrationReferences(db, projectId, repoPath)
+
+    if (activeReferences > 0) {
+      return { status: "blocked", projectId, repoPath, oldRepoPath, oldWorktreePaths, activeReferences }
+    }
+
+    return { status: "needed", projectId, repoPath, oldRepoPath, oldWorktreePaths }
+  })
+}
 
 /** Migrate from old numbered-subdir layout ({project}/0, /1, ...) to sibling layout ({project}, {project}--1, ...). */
 export function migrateWorktreeLayout(
@@ -66,29 +154,22 @@ export function migrateWorktreeLayout(
   exec: LocalExec,
 ): Effect.Effect<boolean, DbError | Error> {
   return Effect.gen(function* () {
-    const oldSlot0 = path.join(repoPath, "0")
+    const plan = yield* planWorktreeLayoutMigration(db, projectId, repoPath)
 
-    if (!fs.existsSync(oldSlot0) || !fs.existsSync(path.join(oldSlot0, ".git"))) {
+    if (plan.status === "current") {
       return false
     }
 
-    log.info("Migrating worktree layout", { projectId, from: oldSlot0, to: repoPath })
-
-    // Abort migration if any slots are bound to active tasks
-    const boundCount = (db.prepare(
-      "SELECT COUNT(*) as count FROM worktree_slots WHERE project_id = ? AND status = 'bound'",
-    ).get(projectId) as { count: number }).count
-    if (boundCount > 0) {
-      log.warn("Deferring worktree layout migration — active tasks present", { projectId, boundCount })
+    if (plan.status === "blocked") {
+      log.warn("Deferring worktree layout migration — active tasks present", { projectId, activeReferences: plan.activeReferences })
       return false
     }
 
-    // Remove old numbered worktrees (1, 2, ...)
-    const entries = fs.readdirSync(repoPath).filter((e) => /^\d+$/.test(e) && e !== "0")
-    for (const entry of entries) {
-      const entryPath = path.join(repoPath, entry)
-      yield* exec(`cd "${oldSlot0}" && git worktree remove --force "${entryPath}" 2>/dev/null; true`)
-      log.info("Removed old worktree", { path: entryPath })
+    log.info("Migrating worktree layout", { projectId, from: plan.oldRepoPath, to: repoPath })
+
+    for (const oldWorktreePath of plan.oldWorktreePaths) {
+      yield* exec(`cd "${plan.oldRepoPath}" && git worktree remove --force "${oldWorktreePath}" 2>/dev/null; true`)
+      log.info("Removed old worktree", { path: oldWorktreePath })
     }
 
     // Clear all DB slots for this project — initPool will recreate them
@@ -96,11 +177,16 @@ export function migrateWorktreeLayout(
       db.prepare("DELETE FROM worktree_slots WHERE project_id = ?").run(projectId)
     })
 
+    const clearedTaskPaths = yield* clearTerminalOldLayoutTaskPaths(db, projectId, repoPath)
+    if (clearedTaskPaths > 0) {
+      log.info("Cleared terminal task worktree paths for old layout", { projectId, cleared: clearedTaskPaths })
+    }
+
     // Move old slot 0 to temporary name, remove parent dir, rename to final
     const tmpPath = `${repoPath}--migrating`
     yield* Effect.try({
       try: () => {
-        fs.renameSync(oldSlot0, tmpPath)
+        fs.renameSync(plan.oldRepoPath, tmpPath)
         fs.rmSync(repoPath, { recursive: true })
         fs.renameSync(tmpPath, repoPath)
       },
