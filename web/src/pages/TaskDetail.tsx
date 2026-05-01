@@ -16,6 +16,7 @@ import { ActivityList } from "../components/ActivityList"
 import { ChangesPanel as DiffSidebar, type DiffComment } from "../components/ChangesPanel"
 import { ResizeHandle, PaneToggle } from "../components/PaneControls"
 import { TerminalPane } from "../components/TerminalPane"
+import { TuiPane } from "../components/TuiPane"
 import { formatPrNumber, formatTaskTitle } from "../lib/format"
 import {
   getResponsiveVisiblePanes,
@@ -675,7 +676,7 @@ export function TaskDetail() {
               responsiveVisiblePanes.has("chat") ? "md:flex md:flex-1" : "md:hidden",
             ].join(" ")}>
               {session.tuiMode ? (
-                <TerminalPane wsUrl={`/api/tasks/${chatTaskId}/tui-terminal`} />
+                <TuiPane taskId={chatTaskId!} />
               ) : (
               <ChatPanel
                 messages={session.messages}
