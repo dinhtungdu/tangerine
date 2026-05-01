@@ -163,6 +163,7 @@ export function wsRoutes(deps: AppDeps, upgradeWebSocket: UpgradeWebSocket): Hon
       // Store unsubscribe functions so we can clean up on close
       let unsubEvent: (() => void) | null = null
       let unsubStatus: (() => void) | null = null
+      let unsubAgentStatus: (() => void) | null = null
       let unsubQueue: (() => void) | null = null
       let heartbeat: WebSocketHeartbeat | null = null
       let authenticated = !authEnabled || requestAuthenticated
@@ -217,6 +218,12 @@ export function wsRoutes(deps: AppDeps, upgradeWebSocket: UpgradeWebSocket): Hon
               } catch {
                 // Client disconnected
               }
+            })
+
+            unsubAgentStatus = onAgentStatusChange((ev) => {
+              if (ev.taskId !== taskId) return
+              const msg: WsServerMessage = { type: "agent_status", agentStatus: ev.agentStatus }
+              try { ws.send(JSON.stringify(msg)) } catch { /* disconnected */ }
             })
           },
           () => {
@@ -318,6 +325,7 @@ export function wsRoutes(deps: AppDeps, upgradeWebSocket: UpgradeWebSocket): Hon
           heartbeat?.stop()
           unsubEvent?.()
           unsubStatus?.()
+          unsubAgentStatus?.()
           unsubQueue?.()
         },
       }

@@ -3,7 +3,7 @@ import type { WsServerMessage, WsClientMessage } from "@tangerine/shared"
 import { emitAuthFailure, getAuthToken } from "../lib/auth"
 import { createHeartbeatMonitor, type HeartbeatMonitor } from "../lib/ws-heartbeat"
 
-const MAX_BACKOFF = 30000
+const MAX_BACKOFF = 5000
 
 // Tag interface so we can associate a WebSocket with its task
 interface TaggedWebSocket extends WebSocket {
