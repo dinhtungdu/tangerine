@@ -138,6 +138,10 @@ function seedTask(db: Database, overrides?: Partial<Parameters<typeof dbCreateTa
   }))
 }
 
+function mockProject(name: string) {
+  return { name, repo: `${name}/repo`, defaultBranch: "main", setup: "echo ok", defaultAgent: "acp", prMode: "draft" as const, archived: false }
+}
+
 describe("API routes", () => {
   let db: Database
   let deps: AppDeps
@@ -328,10 +332,23 @@ describe("API routes", () => {
       expect(body).toHaveLength(1)
       expect(body[0]!.title).toBe("Match")
     })
+
+    test("omits tasks for removed projects", async () => {
+      seedTask(db, { title: "Current", project_id: "test-project" })
+      seedTask(db, { title: "Removed", project_id: "removed-project" })
+
+      const res = await app.fetch(new Request("http://localhost/api/tasks"))
+      const body = await res.json() as Array<{ title: string }>
+      expect(body.map((task) => task.title)).toEqual(["Current"])
+    })
   })
 
   describe("GET /api/tasks/counts", () => {
-    test("returns counts grouped by project", async () => {
+    test("returns counts grouped by configured project", async () => {
+      deps = createMockDeps(db, {
+        projects: [mockProject("test-project"), mockProject("other-project")],
+      })
+      app = createApp(deps).app
       seedTask(db, { title: "Task1", project_id: "test-project" })
       seedTask(db, { title: "Task2", project_id: "test-project" })
       seedTask(db, { title: "Task3", project_id: "other-project" })
@@ -341,6 +358,30 @@ describe("API routes", () => {
       const body = await res.json() as Record<string, number>
       expect(body["test-project"]).toBe(2)
       expect(body["other-project"]).toBe(1)
+    })
+
+    test("omits counts for removed projects", async () => {
+      seedTask(db, { title: "Current", project_id: "test-project" })
+      seedTask(db, { title: "Removed", project_id: "removed-project" })
+
+      const res = await app.fetch(new Request("http://localhost/api/tasks/counts"))
+      expect(res.status).toBe(200)
+      const body = await res.json() as Record<string, number>
+      expect(body).toEqual({ "test-project": 1 })
+    })
+
+    test("filters counts by project", async () => {
+      deps = createMockDeps(db, {
+        projects: [mockProject("test-project"), mockProject("other-project")],
+      })
+      app = createApp(deps).app
+      seedTask(db, { title: "Task1", project_id: "test-project" })
+      seedTask(db, { title: "Task2", project_id: "other-project" })
+
+      const res = await app.fetch(new Request("http://localhost/api/tasks/counts?project=test-project"))
+      expect(res.status).toBe(200)
+      const body = await res.json() as Record<string, number>
+      expect(body).toEqual({ "test-project": 1 })
     })
 
     test("filters by status", async () => {

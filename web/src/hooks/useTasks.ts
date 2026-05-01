@@ -33,18 +33,25 @@ export function useTasks(filter?: { status?: string; project?: string; search?: 
 
   const refetch = useCallback(async () => {
     try {
+      const currentFilter = filterRef.current
+      const currentProject = currentFilter?.project
       const countsData = await fetchTaskCounts({
-        status: filterRef.current?.status,
-        search: filterRef.current?.search,
+        status: currentFilter?.status,
+        project: currentProject,
+        search: currentFilter?.search,
       })
-      setCounts(countsData)
+      const projectCount = currentProject ? countsData[currentProject] : undefined
+      const scopedCounts: Record<string, number> = currentProject
+        ? (projectCount !== undefined ? { [currentProject]: projectCount } : {})
+        : countsData
+      setCounts(scopedCounts)
 
       // Fetch tasks for each project up to the limit we've loaded (or PAGE_SIZE for new projects)
-      const projectIds = Object.keys(countsData)
+      const projectIds = Object.keys(scopedCounts)
       const fetchPromises = projectIds.map(async (projectId) => {
         const limit = Math.max(loadedLimitsRef.current[projectId] ?? PAGE_SIZE, PAGE_SIZE)
         const tasks = await fetchTasks({
-          ...filterRef.current,
+          ...currentFilter,
           project: projectId,
           limit,
         })
@@ -67,6 +74,7 @@ export function useTasks(filter?: { status?: string; project?: string; search?: 
 
   const loadMore = useCallback(async (projectId: string) => {
     // Synchronous check using ref to prevent double-clicks
+    if (filterRef.current?.project && filterRef.current.project !== projectId) return
     if (loadingRef.current.has(projectId)) return
     loadingRef.current.add(projectId)
 
