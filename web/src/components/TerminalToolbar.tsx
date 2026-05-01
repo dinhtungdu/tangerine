@@ -43,6 +43,7 @@ export function TerminalToolbar({ termRef, onInput }: TerminalToolbarProps) {
   const keys: KeyDef[] = [
     { label: "^C", input: ctrl("C"), ariaLabel: "Send Ctrl+C (interrupt)" },
     { label: "Tab", input: "\t", ariaLabel: "Send Tab (autocomplete)" },
+    { label: "⇧Tab", input: "\x1b[Z", ariaLabel: "Send Shift+Tab" },
     { label: "↑", input: "\x1b[A", ariaLabel: "Arrow Up" },
     { label: "↓", input: "\x1b[B", ariaLabel: "Arrow Down" },
     {
