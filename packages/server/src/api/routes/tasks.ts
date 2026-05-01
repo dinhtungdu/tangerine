@@ -3,7 +3,7 @@ import { Hono } from "hono"
 import { getCapabilitiesForType, normalizeTaskType } from "@tangerine/shared"
 import type { TaskWriteResponse, TaskType, TaskSource } from "@tangerine/shared"
 import type { AppDeps } from "../app"
-import { mapTaskRow } from "../helpers"
+import { mapTaskRow, type TuiCommandResolver } from "../helpers"
 import { runEffect, runEffectVoid } from "../effect-helpers"
 import { getTask, listTasks, updateTask, deleteTask, markTaskSeen, getChildTasks, countTasksByProject } from "../../db/queries"
 import { TaskNotFoundError, TaskNotTerminalError, PrCapabilityError, BranchRenameError } from "../../errors"
@@ -19,6 +19,7 @@ const toWriteResponse = (row: { id: string; title: string; status: string }): Ta
 
 export function taskRoutes(deps: AppDeps): Hono {
   const app = new Hono()
+  const tuiResolver = deps.getTuiCommand as TuiCommandResolver | undefined
 
   app.get("/", (c) => {
     const status = c.req.query("status") || undefined
@@ -33,7 +34,7 @@ export function taskRoutes(deps: AppDeps): Hono {
     return runEffect(c,
       listTasks(deps.db, { status, projectId, search, limit, offset }).pipe(
         Effect.map(rows => rows.map(row => {
-          const task = mapTaskRow(row)
+          const task = mapTaskRow(row, tuiResolver)
           task.agentStatus = resolveAgentStatus(task, deps.getAgentHandle)
           return task
         }))
@@ -69,7 +70,7 @@ export function taskRoutes(deps: AppDeps): Hono {
       getTask(deps.db, c.req.param("id")).pipe(
         Effect.flatMap((row) => {
           if (!row) return Effect.fail(new TaskNotFoundError({ taskId: c.req.param("id") }))
-          const task = mapTaskRow(row)
+          const task = mapTaskRow(row, tuiResolver)
           task.agentStatus = resolveAgentStatus(task, deps.getAgentHandle)
           return Effect.succeed(task)
         })
@@ -132,7 +133,7 @@ export function taskRoutes(deps: AppDeps): Hono {
   app.get("/:id/children", (c) => {
     return runEffect(c,
       getChildTasks(deps.db, c.req.param("id")).pipe(
-        Effect.map(rows => rows.map(mapTaskRow))
+        Effect.map(rows => rows.map(row => mapTaskRow(row, tuiResolver)))
       )
     )
   })
@@ -215,7 +216,7 @@ export function taskRoutes(deps: AppDeps): Hono {
       Effect.gen(function* () {
         const row = yield* getTask(deps.db, taskId)
         if (!row) return yield* Effect.fail(new TaskNotFoundError({ taskId }))
-        if ("prUrl" in body && !mapTaskRow(row).capabilities.includes("pr-track")) {
+        if ("prUrl" in body && !mapTaskRow(row, tuiResolver).capabilities.includes("pr-track")) {
           return yield* Effect.fail(new PrCapabilityError({ taskId }))
         }
         const fields: Record<string, string | number | null> = {}
@@ -249,7 +250,7 @@ export function taskRoutes(deps: AppDeps): Hono {
 
         // Only tasks that create PRs should rename branches — reviewer tasks
         // track an existing PR by branch name, and renaming would break that.
-        if (!mapTaskRow(task).capabilities.includes("pr-create")) {
+        if (!mapTaskRow(task, tuiResolver).capabilities.includes("pr-create")) {
           return yield* Effect.fail(new BranchRenameError({
             message: "Only tasks with pr-create capability can rename branches",
             taskId,
