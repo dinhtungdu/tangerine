@@ -13,7 +13,7 @@ import { useNavigate } from "react-router-dom"
 import { AuthenticatedImage } from "./AuthenticatedImage"
 import { ImageLightbox } from "./ImageLightbox"
 import { copyToClipboard } from "../lib/clipboard"
-import { FileText, Terminal } from "lucide-react"
+import { FileText, Image, Terminal } from "lucide-react"
 
 export interface MessageAction {
   key: string
@@ -345,6 +345,38 @@ function getTerminalBlock(block: AgentContentBlock): { terminalId: string } | nu
   return terminalId ? { terminalId } : null
 }
 
+function ImageContentBlockCard({ message, block }: { message: ChatMessageType; block: AgentContentBlock }) {
+  const data = getStringField(block, "data")
+  const mimeType = getStringField(block, "mimeType") ?? "image/png"
+  const title = getStringField(block, "title") ?? getStringField(block, "name") ?? "Image"
+  const [lightboxOpen, setLightboxOpen] = useState(false)
+
+  const src = data
+    ? `data:${mimeType};base64,${data}`
+    : getStringField(block, "uri")
+
+  if (!src) return <GenericContentBlockCard message={message} block={block} />
+
+  return (
+    <ContentBlockFrame label="Image" timestamp={message.timestamp} icon={<Image />}>
+      <button onClick={() => setLightboxOpen(true)} className="cursor-zoom-in rounded outline-none focus-visible:ring-1 focus-visible:ring-ring/50">
+        <img
+          src={src}
+          alt={title}
+          className="max-h-80 rounded-md object-contain"
+        />
+      </button>
+      {lightboxOpen && (
+        <ImageLightbox
+          images={[{ src }]}
+          initialIndex={0}
+          onClose={() => setLightboxOpen(false)}
+        />
+      )}
+    </ContentBlockFrame>
+  )
+}
+
 function GenericContentBlockCard({ message, block }: { message: ChatMessageType; block: AgentContentBlock }) {
   const title = typeof block.title === "string" ? block.title
     : typeof block.name === "string" ? block.name
@@ -386,6 +418,7 @@ function ContentBlockMessage({ message }: { message: ChatMessageType }) {
   if (block.type === "text") return null
   if (block.type === "diff") return null
   if (block.type === "terminal") return <TerminalContentBlockCard message={message} block={block} />
+  if (block.type === "image") return <ImageContentBlockCard message={message} block={block} />
   return <GenericContentBlockCard message={message} block={block} />
 }
 
