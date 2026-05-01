@@ -1301,6 +1301,11 @@ export async function start(): Promise<void> {
             Effect.catchAll(() => Effect.void),
           )
         )
+        Effect.runPromise(
+          insertSessionLog(db, { task_id: taskId, role: "system", content: "Returned from TUI session" }).pipe(
+            Effect.catchAll(() => Effect.void),
+          )
+        )
         const task = Effect.runSync(getTask(db, taskId).pipe(Effect.catchAll(() => Effect.succeed(null))))
         if (task?.agent_session_id) {
           reconnectAfterTuiFn(taskId, task.agent_session_id)

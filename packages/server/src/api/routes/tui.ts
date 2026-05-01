@@ -3,7 +3,7 @@
 import { Effect } from "effect"
 import { Hono } from "hono"
 import type { AppDeps } from "../app"
-import { getTask } from "../../db/queries"
+import { getTask, insertSessionLog } from "../../db/queries"
 import { startTuiMode, stopTuiMode, isTuiActive } from "../../tasks/tui"
 import { getTaskState } from "../../tasks/task-state"
 
@@ -38,6 +38,12 @@ export function tuiRoutes(deps: AppDeps): Hono {
       return c.json({ error: err instanceof Error ? err.message : String(err) }, 500)
     }
 
+    await Effect.runPromise(
+      insertSessionLog(deps.db, { task_id: taskId, role: "system", content: "Switched to TUI mode" }).pipe(
+        Effect.catchAll(() => Effect.succeed(undefined))
+      )
+    )
+
     return c.json({ ok: true, mode: "tui" })
   })
 
@@ -57,6 +63,11 @@ export function tuiRoutes(deps: AppDeps): Hono {
 
     await Effect.runPromise(
       deps.logActivity!(taskId, "lifecycle", "tui.stopped", "Switched to Chat mode").pipe(
+        Effect.catchAll(() => Effect.succeed(undefined))
+      )
+    )
+    await Effect.runPromise(
+      insertSessionLog(deps.db, { task_id: taskId, role: "system", content: "Returned from TUI session" }).pipe(
         Effect.catchAll(() => Effect.succeed(undefined))
       )
     )
