@@ -1302,7 +1302,7 @@ export async function start(): Promise<void> {
           )
         )
         Effect.runPromise(
-          insertSessionLog(db, { task_id: taskId, role: "system", content: "Returned from TUI session" }).pipe(
+          insertSessionLog(db, { task_id: taskId, role: "system", content: "TUI session exited" }).pipe(
             Effect.catchAll(() => Effect.void),
           )
         )
