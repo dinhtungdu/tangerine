@@ -348,6 +348,10 @@ export async function start(): Promise<void> {
       getTask: (taskId) => getTask(db, taskId).pipe(Effect.mapError((e) => new Error(String(e)))),
       updateTask: (taskId, updates) => updateTask(db, taskId, updates).pipe(Effect.asVoid, Effect.mapError((e) => new Error(String(e)))),
       getAgentHandle: (taskId) => agentHandles.get(taskId) ?? null,
+      removeAgentHandle: (taskId) => {
+        const hadHandle = agentHandles.delete(taskId)
+        log.debug("Handle removed (cleanup)", { taskId, hadHandle, handleCount: agentHandles.size })
+      },
     }
 
     const tmDeps: TaskManagerDeps = {
@@ -1245,9 +1249,6 @@ export async function start(): Promise<void> {
             Effect.tap(() => clearQueue(taskId)),
             Effect.tap(() => Effect.sync(() => {
               clearTaskState(taskId)
-              const hadHandle = agentHandles.has(taskId)
-              agentHandles.delete(taskId)
-              log.debug("Handle removed (cleanup)", { taskId, hadHandle, handleCount: agentHandles.size })
             })),
             Effect.mapError((e) => ({ _tag: e._tag, message: e.message }))
           ),
