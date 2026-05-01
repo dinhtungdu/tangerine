@@ -66,7 +66,7 @@ Configure at least one ACP-compatible agent command in `~/tangerine/config.json`
 }
 ```
 
-Install Tangerine skills into the configured real agents via the skills.sh CLI:
+Install Tangerine skills (`platform-setup`, `tangerine-tasks`, `release-semver`) into the configured real agents via the skills.sh CLI:
 
 ```bash
 tangerine install
@@ -84,7 +84,7 @@ tangerine acp probe
 tangerine acp probe --agent claude --json
 ```
 
-Then ask your clanker to set up Tangerine and add projects using the `platform-setup` skill (`/platform-setup`).
+Then ask your clanker to set up Tangerine and add projects using the `platform-setup` skill (`/platform-setup`). Use `release-semver` (`/release-semver`) to coordinate unattended semver releases.
 
 Then start:
 ```bash
