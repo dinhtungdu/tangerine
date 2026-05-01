@@ -3,7 +3,7 @@ name: platform-setup
 description: Set up Tangerine on the host machine or inside a VM — install tools, configure projects, clone repos, and install agent skills.
 metadata:
   author: tung
-  version: "1.3.2"
+  version: "1.3.3"
 ---
 
 # Tangerine Init Skill
@@ -393,6 +393,36 @@ Only ask if you can't determine from the codebase:
 - Repo URL (if no git remote found)
 - Which ACP agent command(s) to configure (Claude Agent, Codex, OpenCode, Pi, or custom ACP command) and which one should be `defaultAgent`
 - Whether runner tasks should use different `taskTypes.runner.agent`, `model`, `reasoningEffort`, or `permissionMode` defaults than worker tasks
+
+## Migrating from Old Worktree Layout
+
+Older Tangerine installations used a numbered subdirectory layout:
+```
+{workspace}/project-a/0   # task worktree
+{workspace}/project-a/1   # task worktree
+```
+
+The current layout uses sibling directories:
+```
+{workspace}/project-a        # main branch clone
+{workspace}/project-a--wt-1  # task worktree
+{workspace}/project-a--wt-2  # task worktree
+```
+
+To migrate, run:
+```bash
+tangerine migrate
+```
+
+This will:
+- Move the main clone from `{workspace}/project/` to `{workspace}/project` (flatten)
+- Recreate worktree pool in the new sibling layout
+- Release any stale worktree slots from dead tasks
+
+Options:
+- `--project, -p <name>` — migrate one project only
+
+If active tasks still reference old worktrees, migration is blocked for that project. Finish or cancel running tasks first, then rerun.
 
 ## After Init
 
