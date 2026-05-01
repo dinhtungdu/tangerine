@@ -1,9 +1,10 @@
 ---
 name: release-semver
-description: Coordinate an unattended semver release: delegate version bump to a worker PR, auto-merge it, pull main, then publish.
+description: "Use when releasing a new semantic version of a project/package from Tangerine: resolve target version or bump kind, spawn a version-bump worker, merge its PR without bypassing protection, pull default branch, then publish/tag the release."
+compatibility: "Requires Tangerine task API, git, gh, jq, curl, Bun, network access, and package publish credentials."
 metadata:
   author: tung
-  version: "1.0.0"
+  version: "1.0.1"
 ---
 
 # Release Semver
