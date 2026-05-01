@@ -179,6 +179,16 @@ export function TerminalPane(props: TerminalPaneProps) {
     return () => vv.removeEventListener("resize", onResize)
   }, [])
 
+  useEffect(() => {
+    if (viewportHeight == null) return
+    const handle = termRef.current
+    if (!handle?.instance) return
+    requestAnimationFrame(() => {
+      const inst = handle.instance
+      if (inst) inst.resize(inst.cols, inst.rows)
+    })
+  }, [viewportHeight, termRef])
+
   const readyRef = useRef(false)
 
   useEffect(() => {
