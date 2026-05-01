@@ -1,7 +1,7 @@
 ---
 description: Set up Tangerine — on host machine or in a VM, install tools, configure projects, install agent skills
 ---
-Read SKILL.md for full instructions (`~/.config/acp/skills/platform-setup/SKILL.md`).
+Read sibling `SKILL.md` for full instructions. Skill install locations depend on the configured real agent (for example `~/.pi/agent/skills/platform-setup/SKILL.md`, `~/.claude/skills/platform-setup/SKILL.md`, `~/.codex/skills/platform-setup/SKILL.md`, or `~/.config/opencode/skills/platform-setup/SKILL.md`).
 
 **Step 0 — Detect environment (run these checks in parallel):**
 ```bash
@@ -23,7 +23,7 @@ Determine mode:
 **Mode 2 — Lima VM setup**: Follow Mode 2 steps in SKILL.md.
 
 **Mode 3 — Add a project**: Read reference first:
-- `~/.config/acp/skills/platform-setup/references/stacks.md`
+- `platform-setup/references/stacks.md` under the installed real-agent skill directory
 
 Then follow the Project Setup Workflow in SKILL.md:
 1. Get repo URL (and optional project name) from user
@@ -33,7 +33,7 @@ Then follow the Project Setup Workflow in SKILL.md:
 5. Ask which ACP agent command(s) to configure (Claude Agent via `@agentclientprotocol/claude-agent-acp`, Codex via `@zed-industries/codex-acp`, OpenCode via `opencode-ai acp`, Pi via `pi-acp`, or custom) and which should be `defaultAgent`
 6. Present plan, get confirmation
 7. Write project config to `~/tangerine/config.json`
-8. Run `bin/tangerine install` to install skills into the ACP skills dir
+8. Run `bin/tangerine install` to install skills into the configured real agent skill dirs via skills.sh
 9. Guide through `bin/tangerine start`
 
 $ARGUMENTS

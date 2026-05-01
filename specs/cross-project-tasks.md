@@ -39,11 +39,11 @@ tangerine-task create \
   --title "Fix N+1 query in post loader" \
   --description "Found while working on tangerine task abc123. The post loader at src/loaders/post.ts:42 fires a separate query per author. Should batch with IN clause."
 
-# Create with ACP agent override
+# Create with configured agent override
 tangerine-task create \
   --project "gutenberg" \
   --title "Update block editor API" \
-  --provider acp
+  --provider pi
 ```
 
 #### Auto-Attached Metadata

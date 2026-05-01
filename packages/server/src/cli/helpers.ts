@@ -124,7 +124,8 @@ export function printHelp(): void {
 Usage: tangerine <command> [options]
 
 Commands:
-  install            One-time setup (deps check, skill install)
+  install            One-time setup (skill install to configured agents)
+  uninstall          Remove skills from configured agents
   start              Start the Tangerine server (daemon mode)
   start --foreground Start the server in the foreground
   stop               Stop the running daemon

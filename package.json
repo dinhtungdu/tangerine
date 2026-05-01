@@ -18,8 +18,7 @@
     "packages/",
     "scripts/",
     "web/dist/",
-    "skills/",
-    ".agents/skills/"
+    "skills/"
   ],
   "license": "MIT",
   "scripts": {

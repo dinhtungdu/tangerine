@@ -52,11 +52,8 @@ export interface AgentMetadata {
   displayName: string
   /** Short label for compact UI. */
   abbreviation: string
-  /** CLI binary name used to invoke this ACP agent. */
+  /** CLI binary name used to invoke this ACP-compatible agent. */
   cliCommand: string
-  skills?: {
-    directory: string
-  }
 }
 
 /** Handle to a running ACP session — owns the process and event subscription */
@@ -89,7 +86,7 @@ export interface AgentHandle {
   isAlive?(): boolean
   /**
    * Return the list of skill names available in this agent session.
-   * ACP agents may expose this if they can report skill names.
+   * Agents may expose this if they can report skill names.
    */
   getSkills?(): string[]
   /** Return latest ACP session config options, if the provider exposes them. */

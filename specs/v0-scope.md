@@ -51,6 +51,7 @@ This file reflects the shipped baseline in the current codebase, not the origina
 
 - [x] `tangerine start`
 - [x] `tangerine install`
+- [x] `tangerine uninstall`
 - [x] `tangerine migrate`
 - [x] `tangerine project add|list|show|remove`
 - [x] `tangerine task create`

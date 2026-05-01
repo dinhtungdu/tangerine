@@ -133,7 +133,7 @@ Completed:
 4. Provider/model/reasoning metadata APIs replaced by ACP agents and session config options.
 5. Legacy provider files, tests, and dependencies removed.
 6. ACP plan/content/config/session-info/permission events mapped into dashboard state and activity logs.
-7. Install flow points skills at the ACP skills directory.
+7. Install flow uses the skills.sh CLI to install Tangerine skills into configured real agent directories, not an ACP directory.
 
 Remaining:
 
