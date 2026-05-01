@@ -1,6 +1,6 @@
 import { TERMINAL_STATUSES } from "@tangerine/shared"
 import type { Task } from "@tangerine/shared"
-import { MoreVertical, X, RefreshCw, Trash2, RotateCcw } from "lucide-react"
+import { MoreVertical, X, RefreshCw, Trash2, RotateCcw, TerminalSquare } from "lucide-react"
 import { executeAction } from "../lib/actions"
 import { useToast } from "../context/ToastContext"
 import {
@@ -14,10 +14,14 @@ export function TaskOverflowMenu({
   task,
   onRefetch,
   size = "sm",
+  tuiMode,
+  onTuiToggle,
 }: {
   task: Task
   onRefetch?: () => void
   size?: "sm" | "md"
+  tuiMode?: boolean
+  onTuiToggle?: () => void
 }) {
   const { showToast } = useToast()
 
@@ -25,8 +29,9 @@ export function TaskOverflowMenu({
   const isRetryable = task.status === "failed" || task.status === "cancelled"
   const isTerminated = TERMINAL_STATUSES.has(task.status)
   const isDeletable = isTerminated
+  const hasTui = isRunning && task.capabilities?.includes("tui") && onTuiToggle
 
-  const hasActions = isRunning || isRetryable || isDeletable
+  const hasActions = isRunning || isRetryable || isDeletable || hasTui
 
   if (!hasActions) return null
 
@@ -58,6 +63,15 @@ export function TaskOverflowMenu({
         <MoreVertical className={`${iconCls} text-muted-foreground`} />
       </DropdownMenuTrigger>
       <DropdownMenuContent align="end" className="min-w-[120px]">
+        {hasTui && (
+          <DropdownMenuItem
+            onClick={(e) => { e.preventDefault(); e.stopPropagation(); onTuiToggle!() }}
+            className={`flex items-center gap-2 text-muted-foreground hover:text-foreground ${itemCls}`}
+          >
+            <TerminalSquare className="h-3.5 w-3.5" />
+            {tuiMode ? "Switch to Chat" : "Switch to TUI"}
+          </DropdownMenuItem>
+        )}
         {isRunning && (
           <DropdownMenuItem
             onClick={(e) => { e.preventDefault(); e.stopPropagation(); handleAction("task.restart", "Failed to restart task") }}

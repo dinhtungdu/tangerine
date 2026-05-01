@@ -548,26 +548,6 @@ export function TaskDetail() {
               {statusLabel}
             </span>
             <div className="ml-auto flex items-center gap-2">
-              {hasTui && chatTask?.status === "running" && (
-                <button
-                  onClick={handleTuiToggle}
-                  disabled={tuiToggling}
-                  title={session.tuiMode ? "Switch to Chat" : "Switch to TUI"}
-                  className={[
-                    "hidden rounded-lg px-2 py-1 md:flex items-center gap-1 text-xs font-medium transition-colors",
-                    session.tuiMode
-                      ? "bg-foreground/10 text-foreground"
-                      : "text-muted-foreground hover:text-foreground hover:bg-muted",
-                    tuiToggling ? "opacity-50" : "",
-                  ].join(" ")}
-                >
-                  <svg className="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                    <rect x="3" y="3" width="18" height="18" rx="2" />
-                    <path strokeLinecap="round" d="M7 8l3 3-3 3m5 0h4" />
-                  </svg>
-                  <span>{session.tuiMode ? "Chat" : "TUI"}</span>
-                </button>
-              )}
               <div className="flex items-center gap-0.5 rounded-lg bg-muted p-[3px]">
                 <PaneToggle
                   desktopActive={responsiveVisiblePanes.has("chat")}
@@ -621,7 +601,7 @@ export function TaskDetail() {
                 </PaneToggle>
               </div>
               <div className="h-5 w-px bg-border" />
-              <TaskOverflowMenu task={task} onRefetch={handleRefetch} size="md" />
+              <TaskOverflowMenu task={task} onRefetch={handleRefetch} size="md" tuiMode={session.tuiMode} onTuiToggle={hasTui ? handleTuiToggle : undefined} />
             </div>
           </div>
         </div>
