@@ -58,4 +58,16 @@ describe("daemon", () => {
   test("fatal exit code does not restart", () => {
     expect(shouldRestartDaemon(DAEMON_FATAL_EXIT_CODE)).toBe(false)
   })
+
+  test("random crash exit codes trigger restart", () => {
+    expect(shouldRestartDaemon(1)).toBe(true)
+    expect(shouldRestartDaemon(2)).toBe(true)
+    expect(shouldRestartDaemon(127)).toBe(true)
+    expect(shouldRestartDaemon(137)).toBe(true)
+  })
+
+  test("DAEMON_FATAL_EXIT_CODE is distinct from restart code", () => {
+    expect(DAEMON_FATAL_EXIT_CODE).not.toBe(DAEMON_RESTART_EXIT_CODE)
+    expect(DAEMON_FATAL_EXIT_CODE).toBe(76)
+  })
 })

@@ -6,11 +6,12 @@ import { spawn, execSync } from "child_process"
 import { existsSync, readFileSync, writeFileSync, writeSync, unlinkSync, mkdirSync, openSync, constants as fsConstants } from "fs"
 import { join } from "path"
 import { homedir } from "os"
-import { DAEMON_RESTART_EXIT_CODE, shouldRestartDaemon } from "../daemon-exit"
+import { DAEMON_RESTART_EXIT_CODE, DAEMON_FATAL_EXIT_CODE, shouldRestartDaemon } from "../daemon-exit"
 import { applyLoginShellPath, checkSystemTools } from "./system-check"
 import { isGithubRepo } from "@tangerine/shared"
 import { createAgentFactories } from "../agent/factories"
 import { getStartupAuthError, getStartupAuthWarning } from "../auth"
+import { preflightPorts } from "./port-check"
 
 const TANGERINE_DIR = join(homedir(), "tangerine")
 const PID_FILE = join(TANGERINE_DIR, "tangerine.pid")
@@ -80,6 +81,17 @@ export async function daemonStart(): Promise<void> {
   const startupAuthWarning = getStartupAuthWarning(config, hostname)
   if (startupAuthWarning) {
     console.warn(`WARN ${startupAuthWarning}`)
+  }
+
+  // Port preflight: detect occupied ports before spawning the daemon.
+  const portResult = await preflightPorts(port, ssl?.port ?? null, hostname)
+  if (!portResult.ok) {
+    if (portResult.alreadyRunning) {
+      console.log(portResult.message)
+      process.exit(0)
+    }
+    console.error(`ERROR ${portResult.message}`)
+    process.exit(1)
   }
 
   // Run system checks before spawning so errors and warnings appear in the
@@ -224,20 +236,25 @@ export async function daemonLoop(): Promise<void> {
   process.on("SIGTERM", onSignal)
   process.on("SIGINT", onSignal)
 
+  // Circuit breaker: if the server crashes too many times in a short window,
+  // stop restarting to avoid a tight crash loop.
+  const MAX_CRASHES = 5
+  const CRASH_WINDOW_MS = 60_000
+  const crashTimestamps: number[] = []
+  let backoffMs = 1000
+
   // Restart loop
   while (!stopping) {
     const child = spawnServer()
 
     const exitCode = await new Promise<number | null>((resolve) => {
       child.on("exit", (code) => resolve(code))
-      // If we get a signal while waiting, kill the child
       const killChild = () => {
         stopping = true
         child.kill("SIGTERM")
       }
       process.on("SIGTERM", killChild)
       process.on("SIGINT", killChild)
-      // Clean up per-child listeners when child exits to avoid accumulation
       child.on("exit", () => {
         process.removeListener("SIGTERM", killChild)
         process.removeListener("SIGINT", killChild)
@@ -246,17 +263,43 @@ export async function daemonLoop(): Promise<void> {
 
     if (stopping) break
 
-    // Clean exit (code 0) — do not restart.
-    // Explicit restart exits use a non-zero code so the launcher respawns the server.
     if (!shouldRestartDaemon(exitCode)) {
+      if (exitCode === DAEMON_FATAL_EXIT_CODE) {
+        const msg = `[${new Date().toISOString()}] Server exited with fatal error (code ${exitCode}), not restarting. Check logs: tangerine logs\n`
+        writeSync(logFd, msg)
+      }
       break
     }
 
-    // Crash — respawn immediately
+    // Track crash timestamps for circuit breaker
+    const now = Date.now()
+    crashTimestamps.push(now)
+    // Evict old entries outside the window
+    while (crashTimestamps.length > 0 && crashTimestamps[0]! < now - CRASH_WINDOW_MS) {
+      crashTimestamps.shift()
+    }
+
     const timestamp = new Date().toISOString()
     const reason = exitCode === DAEMON_RESTART_EXIT_CODE ? "requested restart" : `code ${exitCode}`
-    const msg = `[${timestamp}] Server exited with ${reason}, restarting...\n`
+
+    if (exitCode !== DAEMON_RESTART_EXIT_CODE && crashTimestamps.length >= MAX_CRASHES) {
+      const msg = `[${timestamp}] Server crashed ${MAX_CRASHES} times in ${CRASH_WINDOW_MS / 1000}s — stopping to prevent crash loop. Check logs: tangerine logs\n`
+      writeSync(logFd, msg)
+      break
+    }
+
+    // Explicit restart request — no backoff needed
+    if (exitCode === DAEMON_RESTART_EXIT_CODE) {
+      const msg = `[${timestamp}] Server exited with ${reason}, restarting...\n`
+      writeSync(logFd, msg)
+      continue
+    }
+
+    // Crash — apply exponential backoff
+    const msg = `[${timestamp}] Server exited with ${reason}, restarting in ${backoffMs}ms...\n`
     writeSync(logFd, msg)
+    await new Promise((r) => setTimeout(r, backoffMs))
+    backoffMs = Math.min(backoffMs * 2, 30_000)
   }
 
   // Cleanup PID file on exit

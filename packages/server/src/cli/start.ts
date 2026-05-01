@@ -34,6 +34,7 @@ import { enqueue as enqueuePrompt, drainNext as drainQueuedPrompts, setAgentStat
 import { buildSystemNotes, buildPrWorkflowNote } from "../tasks/prompts"
 import { appendActiveStreamMessage, clearTaskState, completeActiveStreamMessage, getTaskState } from "../tasks/task-state"
 import { taskConfigUpdatesFromOptions } from "../agent/config-options"
+import { DAEMON_FATAL_EXIT_CODE } from "../daemon-exit"
 const log = createLogger("cli")
 
 /** Resolve custom system prompt for a task type from project config. */
@@ -1263,35 +1264,38 @@ export async function start(): Promise<void> {
     const port = config.credentials.serverPort
     const ssl = config.credentials.ssl
 
-    if (ssl) {
-      const sslPort = ssl.port
-      log.info("Server starting with TLS", { port, sslPort })
-      // HTTP server on the regular port (backward-compatible)
-      Bun.serve({
-        hostname,
-        port,
-        fetch: app.fetch,
-        websocket,
-      })
-      // HTTPS server on ssl.port
-      Bun.serve({
-        hostname,
-        port: sslPort,
-        fetch: app.fetch,
-        websocket,
-        tls: {
-          cert: Bun.file(ssl.cert),
-          key: Bun.file(ssl.key),
-        },
-      })
-    } else {
-      log.info("Server starting", { port })
-      Bun.serve({
-        hostname,
-        port,
-        fetch: app.fetch,
-        websocket,
-      })
+    try {
+      if (ssl) {
+        const sslPort = ssl.port
+        log.info("Server starting with TLS", { port, sslPort })
+        Bun.serve({
+          hostname,
+          port,
+          fetch: app.fetch,
+          websocket,
+        })
+        Bun.serve({
+          hostname,
+          port: sslPort,
+          fetch: app.fetch,
+          websocket,
+          tls: {
+            cert: Bun.file(ssl.cert),
+            key: Bun.file(ssl.key),
+          },
+        })
+      } else {
+        log.info("Server starting", { port })
+        Bun.serve({
+          hostname,
+          port,
+          fetch: app.fetch,
+          websocket,
+        })
+      }
+    } catch (err) {
+      log.error("Failed to bind server port — port may be in use", { port, error: String(err) })
+      process.exit(DAEMON_FATAL_EXIT_CODE)
     }
 
     startSpan.end({ port, projects: projectNames })

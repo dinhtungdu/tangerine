@@ -35,6 +35,7 @@ Tangerine is a local background coding agent platform. The target ACP-only imple
 - Project-agnostic setup through per-project config (with archive/unarchive support)
 - Typed task model: source, type, capabilities, provider, model, reasoning effort
 - Recoverable sessions: restart, reconnect, retry, and orphan cleanup are first-class paths
+- Daemon resilience: port preflight checks prevent launching when ports are occupied, bind failures exit with `DAEMON_FATAL_EXIT_CODE` (76) to prevent restart loops, and a circuit breaker stops the daemon after 5 crashes in 60 seconds with exponential backoff between retries
 
 ## Stack
 
