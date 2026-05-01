@@ -1,6 +1,6 @@
 {
   "name": "@dinhtungdu/tangerine",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "Local background coding agent platform with ACP agents and web dashboard",
   "devDependencies": {
     "@eslint/js": "^10.0.1",
