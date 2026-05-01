@@ -96,21 +96,23 @@ export function TerminalToolbar({ termRef, onInput }: TerminalToolbarProps) {
     <div className="md:hidden">
       <div className="flex gap-2 overflow-x-auto border-t border-border bg-muted px-2 py-2">
         {keys.map((key) => (
-          <button
+          <Button
             key={key.label}
-            onTouchStart={(e) => {
+            variant="outline"
+            size="lg"
+            onTouchStart={(e: React.TouchEvent) => {
               e.preventDefault()
               handlePress(key)
             }}
-            onMouseDown={(e) => {
+            onMouseDown={(e: React.MouseEvent) => {
               e.preventDefault()
               handlePress(key)
             }}
             aria-label={key.ariaLabel ?? key.label}
-            className="shrink-0 rounded-md border border-border bg-background px-3 py-2.5 text-sm font-medium text-muted-foreground outline-none active:bg-card active:text-foreground focus-visible:ring-1 focus-visible:ring-ring/50"
+            className="h-11 shrink-0 px-3 text-muted-foreground"
           >
             {key.label}
-          </button>
+          </Button>
         ))}
       </div>
       {showPasteInput && (
@@ -128,21 +130,21 @@ export function TerminalToolbar({ termRef, onInput }: TerminalToolbarProps) {
             }}
           />
           <Button
-            size="sm"
+            size="lg"
             onClick={submitPaste}
-            className="shrink-0"
+            className="h-11 shrink-0"
           >
             Send
           </Button>
           <Button
             variant="outline"
-            size="sm"
+            size="lg"
             onClick={() => {
               setShowPasteInput(false)
               termRef.current?.focus()
             }}
             aria-label="Cancel paste"
-            className="shrink-0"
+            className="h-11 shrink-0"
           >
             ✕
           </Button>
