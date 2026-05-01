@@ -13,8 +13,10 @@ Core flow:
 5. Queue/perform PR merge with `gh pr merge --auto --squash --delete-branch`; never use `--admin`.
 6. Pull default branch after merge.
 7. Verify version.
-8. Run repo release script, else `bun run check && bun publish`.
-9. Create tag/GitHub release only if repo release process did not.
-10. Report version, worker task UUID, PR URL, publish command, release URL.
+8. Detect if repo has a GitHub Actions workflow triggered by `release.published`.
+9. Create git tag `v$VERSION` and GitHub release (always).
+10. If release workflow exists: the GitHub release triggers publish automatically — do not run `bun publish` locally. Watch workflow run for success/failure.
+11. If no release workflow: fall back to repo release script or `bun run check && bun publish`.
+12. Report version, worker task UUID, PR URL, publish method, release/workflow URL.
 
 $ARGUMENTS

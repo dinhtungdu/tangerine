@@ -1,10 +1,10 @@
 ---
 name: release-semver
 description: "Use when releasing a new semantic version of a project/package from Tangerine: resolve target version or bump kind, spawn a version-bump worker, merge its PR without bypassing protection, pull default branch, then publish/tag the release."
-compatibility: "Requires Tangerine task API, git, gh, jq, curl, Bun, network access, and package publish credentials."
+compatibility: "Requires Tangerine task API, git, gh, jq, curl, Bun, network access. Package publish credentials only needed for repos without a GitHub release-triggered publish workflow."
 metadata:
   author: tung
-  version: "1.0.1"
+  version: "1.1.0"
 ---
 
 # Release Semver
@@ -152,22 +152,26 @@ ACTUAL_VERSION=$(jq -r '.version // empty' package.json 2>/dev/null || true)
 
 ## 7. Publish release
 
-Use repo release script if present. Otherwise use package fallback.
+Detect whether the repo has a GitHub Actions workflow triggered by `release.published`. If so, creating a GitHub release is the publish mechanism — no local npm credentials needed.
+
+### 7a. Detect release workflow
 
 ```bash
-bun run check
-
-if jq -e '.scripts.release' package.json >/dev/null 2>&1; then
-  bun run release
-elif [ -f package.json ]; then
-  bun publish
-else
-  echo "No release script/package.json; publish manually per repo docs" >&2
-  exit 1
-fi
+HAS_RELEASE_WORKFLOW=false
+for f in .github/workflows/*.yml .github/workflows/*.yaml; do
+  [ -f "$f" ] || continue
+  if grep -q 'release:' "$f" && grep -q 'published' "$f"; then
+    HAS_RELEASE_WORKFLOW=true
+    RELEASE_WORKFLOW_FILE="$f"
+    break
+  fi
+done
+echo "Release workflow detected: $HAS_RELEASE_WORKFLOW"
 ```
 
-If project expects GitHub releases/tags and no release script created them:
+### 7b. Create tag and GitHub release
+
+Always create the tag and GitHub release when they don't exist yet:
 
 ```bash
 TAG="v$NEXT_VERSION"
@@ -181,6 +185,42 @@ if ! gh release view "$TAG" >/dev/null 2>&1; then
 fi
 ```
 
+### 7c. Publish — workflow path vs local path
+
+**If `HAS_RELEASE_WORKFLOW=true`**: the GitHub release created above triggers the publish workflow. Do not run `bun publish` locally. Optionally watch the workflow run:
+
+```bash
+echo "GitHub release created — publish workflow will run automatically via $RELEASE_WORKFLOW_FILE"
+
+# Wait for workflow run to appear (triggered by release.published)
+sleep 10
+RUN_ID=$(gh run list --workflow="$(basename "$RELEASE_WORKFLOW_FILE")" --limit 1 --json databaseId --jq '.[0].databaseId')
+if [ -n "$RUN_ID" ]; then
+  echo "Watching workflow run $RUN_ID..."
+  gh run watch "$RUN_ID" --exit-status && echo "Publish workflow succeeded" || {
+    echo "Publish workflow failed — check: gh run view $RUN_ID" >&2
+    exit 1
+  }
+else
+  echo "Warning: could not find workflow run; verify publish at GitHub Actions" >&2
+fi
+```
+
+**If `HAS_RELEASE_WORKFLOW=false`**: fall back to local publish.
+
+```bash
+bun run check
+
+if jq -e '.scripts.release' package.json >/dev/null 2>&1; then
+  bun run release
+elif [ -f package.json ]; then
+  bun publish
+else
+  echo "No release script/package.json and no release workflow; publish manually per repo docs" >&2
+  exit 1
+fi
+```
+
 ## 8. Finish
 
 Report:
@@ -189,8 +229,9 @@ Report:
 - bump task full UUID
 - PR URL
 - merge status
-- publish command used
-- tag/release URL, if created
+- publish method (`release workflow` or local command used)
+- tag/release URL
+- workflow run URL (if applicable)
 
 If current task is a runner, call `/done` only after publish succeeds:
 
