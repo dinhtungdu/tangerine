@@ -5,7 +5,7 @@ import { existsSync, mkdirSync, readFileSync } from "fs"
 import { join, resolve } from "path"
 import { CONFIG_PATH, readRawConfig, TANGERINE_HOME } from "../config"
 
-const TANGERINE_SKILLS = ["platform-setup", "tangerine-tasks", "release-semver"] as const
+const TANGERINE_SKILLS = ["platform-setup", "tangerine-tasks"] as const
 const SUPPORTED_SKILL_AGENTS = ["claude-code", "codex", "opencode", "pi"] as const
 
 type SkillAction = "install" | "uninstall"
