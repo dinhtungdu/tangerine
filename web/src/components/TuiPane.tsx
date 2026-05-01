@@ -1,6 +1,7 @@
 import { useEffect, useRef, useCallback, useState } from "react"
 import { Terminal, useTerminal } from "@wterm/react"
 import "@wterm/react/css"
+import { TERMINAL_EMULATOR_CLASS_NAME, TERMINAL_OVERLAY_CLASS_NAME, TerminalSurface } from "./TerminalSurface"
 import { emitAuthFailure, getAuthToken } from "../lib/auth"
 import { sendTerminalPong } from "../lib/terminal-websocket"
 import { createHeartbeatMonitor, type HeartbeatMonitor } from "../lib/ws-heartbeat"
@@ -182,20 +183,10 @@ export function TuiPane({ taskId }: TuiPaneProps) {
   }, [sendResize])
 
   return (
-    <div className="flex h-full flex-col overflow-hidden">
-      <div className="relative min-h-0 flex-1">
-        <Terminal
-          ref={termRef}
-          autoResize
-          cursorBlink
-          onData={sendInput}
-          onResize={handleResize}
-          onReady={handleReady}
-          className="absolute inset-0 bg-card p-1"
-          style={{ height: "100%" }}
-        />
-        {connState !== "connected" && (
-          <div className="absolute inset-0 flex items-center justify-center bg-[#1a1a1a]">
+    <div className="flex h-full min-w-0 flex-col overflow-hidden">
+      <TerminalSurface
+        overlay={connState !== "connected" ? (
+          <div className={TERMINAL_OVERLAY_CLASS_NAME}>
             <span className="text-sm text-muted-foreground">
               {connState === "exited"
                 ? `TUI exited${exitCode != null ? ` (code ${exitCode})` : ""}`
@@ -206,8 +197,19 @@ export function TuiPane({ taskId }: TuiPaneProps) {
                     : "Connecting to agent TUI..."}
             </span>
           </div>
-        )}
-      </div>
+        ) : null}
+      >
+        <Terminal
+          ref={termRef}
+          autoResize
+          cursorBlink
+          onData={sendInput}
+          onResize={handleResize}
+          onReady={handleReady}
+          className={TERMINAL_EMULATOR_CLASS_NAME}
+          style={{ height: "100%" }}
+        />
+      </TerminalSurface>
     </div>
   )
 }

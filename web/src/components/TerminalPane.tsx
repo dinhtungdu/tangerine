@@ -2,6 +2,7 @@ import { useEffect, useRef, useCallback, useState } from "react"
 import { Terminal, useTerminal } from "@wterm/react"
 import "@wterm/react/css"
 import { TerminalToolbar } from "./TerminalToolbar"
+import { TERMINAL_EMULATOR_CLASS_NAME, TERMINAL_OVERLAY_CLASS_NAME, TerminalSurface } from "./TerminalSurface"
 import { emitAuthFailure, getAuthToken } from "../lib/auth"
 import { sendTerminalPong } from "../lib/terminal-websocket"
 import { createHeartbeatMonitor, type HeartbeatMonitor } from "../lib/ws-heartbeat"
@@ -218,24 +219,14 @@ export function TerminalPane(props: TerminalPaneProps) {
   return (
     <div
       ref={wrapperRef}
-      className="flex flex-col overflow-hidden"
+      className="flex min-w-0 flex-col overflow-hidden"
       style={viewportHeight != null
         ? { height: viewportHeight, maxHeight: viewportHeight }
         : { height: "100%" }}
     >
-      <div className="relative min-h-0 flex-1">
-        <Terminal
-          ref={termRef}
-          autoResize
-          cursorBlink
-          onData={sendInput}
-          onResize={handleResize}
-          onReady={handleReady}
-          className="absolute inset-0 bg-card p-1"
-          style={{ height: "100%" }}
-        />
-        {connState !== "connected" && (
-          <div className="absolute inset-0 flex items-center justify-center bg-[#1a1a1a]">
+      <TerminalSurface
+        overlay={connState !== "connected" ? (
+          <div className={TERMINAL_OVERLAY_CLASS_NAME}>
             <span className="text-sm text-muted-foreground">
               {connState === "unavailable"
                 ? "Terminal not available"
@@ -246,8 +237,19 @@ export function TerminalPane(props: TerminalPaneProps) {
                     : "Connecting..."}
             </span>
           </div>
-        )}
-      </div>
+        ) : null}
+      >
+        <Terminal
+          ref={termRef}
+          autoResize
+          cursorBlink
+          onData={sendInput}
+          onResize={handleResize}
+          onReady={handleReady}
+          className={TERMINAL_EMULATOR_CLASS_NAME}
+          style={{ height: "100%" }}
+        />
+      </TerminalSurface>
       <TerminalToolbar termRef={termRef} onInput={sendInput} />
     </div>
   )
