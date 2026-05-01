@@ -104,7 +104,7 @@ const markdownComponents: Components = {
   p: ({ children }) => <p className="my-1">{children}</p>,
   pre: ({ children }) => (
     <InsidePreContext.Provider value={true}>
-      <pre className="my-2 rounded-md bg-muted p-3 font-mono leading-[1.6] overflow-x-auto border border-border not-italic">
+      <pre className="my-2 rounded-md bg-muted p-2 font-mono leading-[1.6] overflow-x-auto border border-border not-italic">
         {children}
       </pre>
     </InsidePreContext.Provider>
