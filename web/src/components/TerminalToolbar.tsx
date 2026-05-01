@@ -59,6 +59,8 @@ export function TerminalToolbar({ termRef, onInput }: TerminalToolbarProps) {
         }
       },
     },
+    { label: "←", input: "\x1b[D", ariaLabel: "Arrow Left" },
+    { label: "→", input: "\x1b[C", ariaLabel: "Arrow Right" },
     { label: "Esc", input: "\x1b", ariaLabel: "Send Escape" },
     { label: "^D", input: ctrl("D"), ariaLabel: "Send Ctrl+D (EOF)" },
   ]
