@@ -42,19 +42,10 @@ export function TerminalToolbar({ termRef, onInput }: TerminalToolbarProps) {
 
   const keys: KeyDef[] = [
     { label: "^C", input: ctrl("C"), ariaLabel: "Send Ctrl+C (interrupt)" },
-    { label: "^D", input: ctrl("D"), ariaLabel: "Send Ctrl+D (EOF)" },
-    { label: "^Z", input: ctrl("Z"), ariaLabel: "Send Ctrl+Z (suspend)" },
     { label: "Tab", input: "\t", ariaLabel: "Send Tab (autocomplete)" },
-    { label: "Esc", input: "\x1b", ariaLabel: "Send Escape" },
+    { label: "⇧Tab", input: "\x1b[Z", ariaLabel: "Send Shift+Tab" },
     { label: "↑", input: "\x1b[A", ariaLabel: "Arrow Up" },
     { label: "↓", input: "\x1b[B", ariaLabel: "Arrow Down" },
-    { label: "←", input: "\x1b[D", ariaLabel: "Arrow Left" },
-    { label: "→", input: "\x1b[C", ariaLabel: "Arrow Right" },
-    { label: "^A", input: ctrl("A"), ariaLabel: "Send Ctrl+A (start of line)" },
-    { label: "^E", input: ctrl("E"), ariaLabel: "Send Ctrl+E (end of line)" },
-    { label: "^L", input: ctrl("L"), ariaLabel: "Send Ctrl+L (clear screen)" },
-    { label: "^O", input: ctrl("O"), ariaLabel: "Send Ctrl+O (write out in nano)" },
-    { label: "^X", input: ctrl("X"), ariaLabel: "Send Ctrl+X (exit nano)" },
     {
       label: "Paste",
       ariaLabel: "Paste from clipboard",
@@ -63,13 +54,15 @@ export function TerminalToolbar({ termRef, onInput }: TerminalToolbarProps) {
         if (text) {
           onInput(text)
         } else {
-          // Clipboard API unavailable (HTTP) — show textarea for manual paste
           setShowPasteInput(true)
-          // Focus the textarea on next frame so the user can long-press paste
           requestAnimationFrame(() => pasteRef.current?.focus())
         }
       },
     },
+    { label: "←", input: "\x1b[D", ariaLabel: "Arrow Left" },
+    { label: "→", input: "\x1b[C", ariaLabel: "Arrow Right" },
+    { label: "Esc", input: "\x1b", ariaLabel: "Send Escape" },
+    { label: "^D", input: ctrl("D"), ariaLabel: "Send Ctrl+D (EOF)" },
   ]
 
   function handlePress(key: KeyDef) {
