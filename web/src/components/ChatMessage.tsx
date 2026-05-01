@@ -104,7 +104,7 @@ const markdownComponents: Components = {
   p: ({ children }) => <p className="my-1">{children}</p>,
   pre: ({ children }) => (
     <InsidePreContext.Provider value={true}>
-      <pre className="my-2 rounded-md bg-muted p-3 font-mono text-xxs leading-[1.6] overflow-x-auto border border-border">
+      <pre className="my-2 rounded-md bg-muted p-3 font-mono text-sm leading-[1.6] overflow-x-auto border border-border">
         {children}
       </pre>
     </InsidePreContext.Provider>
@@ -113,7 +113,7 @@ const markdownComponents: Components = {
     const insidePre = useContext(InsidePreContext)
     // Apply inline-code styling only for true inline code, not unlanguaged fenced blocks
     if (!className && !insidePre) {
-      return <code className="rounded bg-muted px-1 py-0.5 font-mono text-xs border border-border">{children}</code>
+      return <code className="rounded bg-muted px-1 py-0.5 font-mono text-sm border border-border">{children}</code>
     }
     return <code className={className}>{children}</code>
   },
