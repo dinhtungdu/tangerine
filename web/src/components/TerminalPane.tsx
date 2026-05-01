@@ -211,6 +211,20 @@ export function TerminalPane(props: TerminalPaneProps) {
     connect()
   }, [connect])
 
+  useEffect(() => {
+    const el = wrapperRef.current
+    if (!el) return
+    function onPaste(e: ClipboardEvent) {
+      const text = e.clipboardData?.getData("text/plain")
+      if (text) {
+        e.preventDefault()
+        sendInput(text)
+      }
+    }
+    el.addEventListener("paste", onPaste)
+    return () => el.removeEventListener("paste", onPaste)
+  }, [sendInput])
+
   const handleResize = useCallback((cols: number, rows: number) => {
     sendResize(cols, rows)
   }, [sendResize])
