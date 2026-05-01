@@ -115,12 +115,18 @@ function extractCheckCommand(shellCommand: string): string {
 
 const CLAUDE_ACP_COMMANDS = ["claude-code-acp", "claude-acp", "claude-agent-acp"]
 
+function isClaudeAcp(checkCommand: string): boolean {
+  const basename = checkCommand.split("/").pop() ?? ""
+  return CLAUDE_ACP_COMMANDS.some((cmd) => basename.startsWith(cmd))
+}
+
 function resolveTuiCommand(config: AcpProviderConfig | undefined, checkCommand: string): string | undefined {
   if (config?.tuiCommand) return config.tuiCommand
-  const basename = checkCommand.split("/").pop() ?? ""
-  if (CLAUDE_ACP_COMMANDS.some((cmd) => basename.startsWith(cmd))) return "claude"
+  if (isClaudeAcp(checkCommand)) return "claude"
   return undefined
 }
+
+const CLAUDE_TUI_RESUME_TEMPLATE = ["--resume", "{{sessionId}}", "--dangerously-skip-permissions"]
 
 export function buildAcpPromptBlocks(text: string, images: PromptImage[] = [], supportsImages: boolean, workdir?: string): AcpPromptBlock[] {
   if (images.length > 0 && !supportsImages) {
@@ -565,7 +571,7 @@ export function createAcpProvider(config?: AcpProviderConfig): AgentFactory {
       abbreviation: config?.name ?? ACP_AGENT_METADATA.abbreviation,
       cliCommand: command.checkCommand,
       tuiCommand,
-      tuiResumeTemplate: config?.tuiResumeTemplate,
+      tuiResumeTemplate: config?.tuiResumeTemplate ?? (isClaudeAcp(command.checkCommand) ? CLAUDE_TUI_RESUME_TEMPLATE : undefined),
     },
     start(ctx: AgentStartContext): Effect.Effect<AgentHandle, SessionStartError> {
       return Effect.tryPromise({
