@@ -109,7 +109,7 @@ export function TerminalToolbar({ termRef, onInput }: TerminalToolbarProps) {
               handlePress(key)
             }}
             aria-label={key.ariaLabel ?? key.label}
-            className="h-11 shrink-0 px-3 font-mono text-sm text-muted-foreground"
+            className="h-11 min-w-11 shrink-0 px-3 font-mono text-sm text-muted-foreground"
           >
             {key.label}
           </Button>
