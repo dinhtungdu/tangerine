@@ -70,6 +70,8 @@ describe("buildSkillsCliArgs", () => {
       "platform-setup",
       "--skill",
       "tangerine-tasks",
+      "--skill",
+      "release-semver",
       "-y",
     ])
   })
@@ -86,6 +88,8 @@ describe("buildSkillsCliArgs", () => {
       "platform-setup",
       "--skill",
       "tangerine-tasks",
+      "--skill",
+      "release-semver",
       "-y",
     ])
   })

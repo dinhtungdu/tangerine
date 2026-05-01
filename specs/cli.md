@@ -60,11 +60,12 @@ Installed skills:
 
 - `platform-setup`
 - `tangerine-tasks`
+- `release-semver`
 
 Install command shape:
 
 ```bash
-npx skills add <tangerine-package-root> --global --agent <detected-agent> --skill platform-setup --skill tangerine-tasks -y
+npx skills add <tangerine-package-root> --global --agent <detected-agent> --skill platform-setup --skill tangerine-tasks --skill release-semver -y
 ```
 
 `browser-test` remains project-local and is not installed globally.
@@ -74,7 +75,7 @@ npx skills add <tangerine-package-root> --global --agent <detected-agent> --skil
 Current behavior:
 
 - uses the same config-based adapter detection as `install`
-- runs `npx skills remove --global --agent <detected-agent> --skill platform-setup --skill tangerine-tasks -y`
+- runs `npx skills remove --global --agent <detected-agent> --skill platform-setup --skill tangerine-tasks --skill release-semver -y`
 - leaves `~/tangerine`, project config, credentials, and external ACP agent adapters untouched
 - idempotent; rerunning is safe
 
