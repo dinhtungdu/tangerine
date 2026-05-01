@@ -3,7 +3,7 @@ export type AgentId = string
 export type ProviderType = AgentId
 export type TaskSource = "github" | "linear" | "manual" | "cross-project"
 export type TaskType = "worker" | "reviewer" | "runner"
-export type TaskCapability = "resolve" | "predefined-prompts" | "diff" | "continue" | "pr-track" | "pr-create"
+export type TaskCapability = "resolve" | "predefined-prompts" | "diff" | "continue" | "pr-track" | "pr-create" | "tui"
 
 /** Normalize persisted task types. Unknown legacy values map to runner. */
 export function normalizeTaskType(type: string | null | undefined): TaskType {
@@ -122,6 +122,7 @@ export type WsServerMessage =
   | { type: "task_changed"; taskId: string; change: "created" | "updated" | "deleted" }
   | { type: "queue"; queuedPrompts: PromptQueueEntry[] }
   | { type: "permission_request"; request: PermissionRequest }
+  | { type: "tui_mode"; active: boolean }
   | { type: "error"; message: string }
   | { type: "ping" }
 

@@ -1044,6 +1044,27 @@ export async function start(): Promise<void> {
       cleanupDeps,
     }
 
+    const reconnectAfterTuiFn = (taskId: string, sessionId: string) => {
+      const task = Effect.runSync(getTask(db, taskId).pipe(Effect.catchAll(() => Effect.succeed(null))))
+      if (!task || task.status !== "running") return
+      const projectConfig = getProjectConfig(config.config, task.project_id)
+      if (!projectConfig) return
+
+      getTaskState(taskId).reconnecting = true
+      const taskLifecycleDeps = { ...tmDeps.lifecycleDeps }
+      const factory = factories[task.provider]
+      if (factory) taskLifecycleDeps.agentFactory = factory
+
+      Effect.runFork(
+        reconnectSessionWithRetry(
+          { ...task, agent_session_id: sessionId } as TaskRow,
+          projectConfig,
+          taskLifecycleDeps,
+          tmDeps.retryDeps,
+        )
+      )
+    }
+
     const deps: AppDeps = {
       db,
       taskManager: {
@@ -1257,6 +1278,33 @@ export async function start(): Promise<void> {
       },
       config,
       getAgentHandle: (taskId) => agentHandles.get(taskId) ?? null,
+      removeAgentHandle: (taskId) => {
+        agentHandles.delete(taskId)
+        log.debug("Handle removed (tui)", { taskId, handleCount: agentHandles.size })
+      },
+      getTuiCommand: (provider) => {
+        const factory = factories[provider]
+        return factory?.metadata.tuiCommand
+      },
+      logActivity: (taskId, type, event, content, metadata) => logActivity(db, taskId, type, event, content, metadata),
+      reconnectAfterTui: (taskId, sessionId) => {
+        reconnectAfterTuiFn(taskId, sessionId)
+      },
+      onTuiExit: (taskId) => {
+        const state = getTaskState(taskId)
+        if (!state.tuiMode) return
+        state.tuiMode = false
+        emitTaskEvent(taskId, { event: "tui_mode", active: false })
+        Effect.runPromise(
+          logActivity(db, taskId, "lifecycle", "tui.exited", "TUI process exited, reconnecting ACP").pipe(
+            Effect.catchAll(() => Effect.void),
+          )
+        )
+        const task = Effect.runSync(getTask(db, taskId).pipe(Effect.catchAll(() => Effect.succeed(null))))
+        if (task?.agent_session_id) {
+          reconnectAfterTuiFn(taskId, task.agent_session_id)
+        }
+      },
       agentFactories: factories,
       systemCapabilities,
     }

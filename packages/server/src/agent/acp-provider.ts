@@ -25,6 +25,8 @@ export interface AcpProviderConfig {
   command: string
   args?: string[]
   env?: Record<string, string>
+  /** CLI command for launching the agent's native TUI (e.g. "claude"). Auto-detected for Claude Code. */
+  tuiCommand?: string
 }
 
 export interface AcpTextContent {
@@ -107,6 +109,15 @@ function resolveProviderCommand(config: AcpProviderConfig | undefined, env: Reco
 function extractCheckCommand(shellCommand: string): string {
   const match = shellCommand.match(/^\s*(?:"([^"]+)"|'([^']+)'|(\S+))/)
   return match?.[1] ?? match?.[2] ?? match?.[3] ?? DEFAULT_ACP_COMMAND
+}
+
+const CLAUDE_ACP_COMMANDS = ["claude-code-acp", "claude-acp"]
+
+function resolveTuiCommand(config: AcpProviderConfig | undefined, checkCommand: string): string | undefined {
+  if (config?.tuiCommand) return config.tuiCommand
+  const basename = checkCommand.split("/").pop() ?? ""
+  if (CLAUDE_ACP_COMMANDS.some((cmd) => basename.startsWith(cmd))) return "claude"
+  return undefined
 }
 
 export function buildAcpPromptBlocks(text: string, images: PromptImage[] = [], supportsImages: boolean, workdir?: string): AcpPromptBlock[] {
@@ -544,12 +555,14 @@ function wordCount(text: string): number {
 
 export function createAcpProvider(config?: AcpProviderConfig): AgentFactory {
   const command = resolveProviderCommand(config, process.env)
+  const tuiCommand = resolveTuiCommand(config, command.checkCommand)
   return {
     metadata: {
       ...ACP_AGENT_METADATA,
       displayName: config?.name ?? ACP_AGENT_METADATA.displayName,
       abbreviation: config?.name ?? ACP_AGENT_METADATA.abbreviation,
       cliCommand: command.checkCommand,
+      tuiCommand,
     },
     start(ctx: AgentStartContext): Effect.Effect<AgentHandle, SessionStartError> {
       return Effect.tryPromise({

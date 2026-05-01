@@ -53,6 +53,10 @@ export function initialTaskStreamMessages(
   }
   messages.push({ type: "event", data: { event: "slash.commands", commands: state.slashCommands } })
 
+  if (state.tuiMode) {
+    messages.push({ type: "tui_mode", active: true })
+  }
+
   return messages
 }
 
@@ -193,9 +197,14 @@ export function wsRoutes(deps: AppDeps, upgradeWebSocket: UpgradeWebSocket): Hon
 
             unsubEvent = deps.taskManager.onTaskEvent(taskId, (data: unknown) => {
               const d = data as Record<string, unknown>
-              const msg: WsServerMessage = d.type === "activity"
-                ? { type: "activity", entry: d.entry as import("@tangerine/shared").ActivityEntry }
-                : { type: "event", data }
+              let msg: WsServerMessage
+              if (d.type === "activity") {
+                msg = { type: "activity", entry: d.entry as import("@tangerine/shared").ActivityEntry }
+              } else if (d.event === "tui_mode") {
+                msg = { type: "tui_mode", active: d.active as boolean }
+              } else {
+                msg = { type: "event", data }
+              }
               try {
                 ws.send(JSON.stringify(msg))
               } catch {

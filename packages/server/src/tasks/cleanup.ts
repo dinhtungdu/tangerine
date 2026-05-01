@@ -7,6 +7,7 @@ import { SessionCleanupError } from "../errors"
 import type { TaskRow } from "../db/types"
 import { releaseSlot, localExec } from "./worktree-pool"
 import { clearTerminalSession } from "../api/routes/terminal-ws"
+import { clearTuiSession } from "./tui"
 
 const log = createLogger("cleanup")
 
@@ -58,8 +59,9 @@ export function cleanupSession(
       )
     }
 
-    // 2. Kill terminal shell and delete persisted history.
+    // 2. Kill terminal shell and TUI PTY, delete persisted history.
     clearTerminalSession(task.id)
+    clearTuiSession(task.id)
     taskLog.debug("Terminal session cleared")
 
     // 3. Release worktree slot back to pool.

@@ -103,6 +103,11 @@ export function createTask(
 
     const capabilities: TaskCapability[] = getCapabilitiesForType(taskType)
 
+    const agentFactory = deps.getAgentFactory?.(resolvedProvider)
+    if (agentFactory?.metadata.tuiCommand) {
+      capabilities.push("tui")
+    }
+
     const task = yield* deps.insertTask({
       id,
       project_id: params.projectId,

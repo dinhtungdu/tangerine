@@ -50,6 +50,8 @@ export interface TaskState {
   activeNarrationMessage?: ActiveStreamMessage
   /** Pending permission request awaiting user response. */
   pendingPermissionRequest?: PermissionRequest
+  /** True when the task is in TUI mode (ACP disconnected, native TUI PTY active). */
+  tuiMode: boolean
 }
 
 const taskStates = new Map<string, TaskState>()
@@ -72,6 +74,7 @@ function defaultState(): TaskState {
     slashCommands: [],
     sessionInfo: {},
     completedAssistantMessageIds: new Set(),
+    tuiMode: false,
   }
 }
 

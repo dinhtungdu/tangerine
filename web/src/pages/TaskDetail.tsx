@@ -2,7 +2,7 @@ import { useState, useEffect, useCallback, useRef, useMemo } from "react"
 import { useParams, Link, useOutletContext } from "react-router-dom"
 import type { SidebarContext } from "../components/Layout"
 import { resolveTaskTypeConfig, type Task } from "@tangerine/shared"
-import { fetchTask, fetchChildTasks, changeTaskConfig, markTaskSeen, resolveTask, startTask } from "../lib/api"
+import { fetchTask, fetchChildTasks, changeTaskConfig, markTaskSeen, resolveTask, startTask, startTuiMode, stopTuiMode } from "../lib/api"
 import { getTaskDisplayStatus, getPrStatusConfig } from "../lib/status"
 import { useSession } from "../hooks/useSession"
 import { useProject } from "../context/ProjectContext"
@@ -261,6 +261,24 @@ export function TaskDetail() {
   const hasPredefinedPrompts = chatTask?.capabilities.includes("predefined-prompts") ?? false
   const hasDiff = task?.capabilities.includes("diff") ?? false
   const canContinue = chatTask?.capabilities.includes("continue") ?? false
+  const hasTui = chatTask?.capabilities.includes("tui") ?? false
+
+  const [tuiToggling, setTuiToggling] = useState(false)
+  const handleTuiToggle = useCallback(async () => {
+    if (!chatTask || tuiToggling) return
+    setTuiToggling(true)
+    try {
+      if (session.tuiMode) {
+        await stopTuiMode(chatTask.id)
+      } else {
+        await startTuiMode(chatTask.id)
+      }
+    } catch (err) {
+      showToast(err instanceof Error ? err.message : "Failed to toggle TUI")
+    } finally {
+      setTuiToggling(false)
+    }
+  }, [chatTask, session.tuiMode, tuiToggling, showToast])
 
   const resolvedPrompts = useMemo(() => {
     if (!hasPredefinedPrompts || !chatTask || !current) return undefined
@@ -531,10 +549,10 @@ export function TaskDetail() {
             <div className="ml-auto flex items-center gap-2">
               <div className="flex items-center gap-0.5 rounded-lg bg-muted p-[3px]">
                 <PaneToggle
-                  desktopActive={responsiveVisiblePanes.has("chat")}
-                  mobileActive={mobilePane === "chat"}
-                  onDesktopClick={() => toggleDesktopPane("chat")}
-                  onMobileClick={() => showMobilePane("chat")}
+                  desktopActive={responsiveVisiblePanes.has("chat") && !session.tuiMode}
+                  mobileActive={mobilePane === "chat" && !session.tuiMode}
+                  onDesktopClick={() => { if (session.tuiMode) return; toggleDesktopPane("chat") }}
+                  onMobileClick={() => { if (session.tuiMode) return; showMobilePane("chat") }}
                   desktopButtonRef={desktopPaneProbeRef}
                   mobileButtonRef={mobilePaneProbeRef}
                   label="Chat"
@@ -543,6 +561,26 @@ export function TaskDetail() {
                     <path strokeLinecap="round" strokeLinejoin="round" d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" />
                   </svg>
                 </PaneToggle>
+                {hasTui && chatTask?.status === "running" && (
+                  <button
+                    onClick={handleTuiToggle}
+                    disabled={tuiToggling}
+                    title={session.tuiMode ? "Switch to Chat" : "Switch to TUI"}
+                    className={[
+                      "hidden rounded p-1 md:flex items-center gap-1 text-xs transition-colors",
+                      session.tuiMode
+                        ? "bg-foreground/10 text-foreground"
+                        : "text-muted-foreground hover:text-foreground",
+                      tuiToggling ? "opacity-50" : "",
+                    ].join(" ")}
+                  >
+                    <svg className="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                      <rect x="3" y="3" width="18" height="18" rx="2" />
+                      <path strokeLinecap="round" d="M7 8l3 3-3 3m5 0h4" />
+                    </svg>
+                    <span>TUI</span>
+                  </button>
+                )}
                 {hasDiff && (
                   <PaneToggle
                     desktopActive={responsiveVisiblePanes.has("diff")}
@@ -636,6 +674,9 @@ export function TaskDetail() {
               mobilePane === "chat" ? "flex-1" : "hidden",
               responsiveVisiblePanes.has("chat") ? "md:flex md:flex-1" : "md:hidden",
             ].join(" ")}>
+              {session.tuiMode ? (
+                <TerminalPane wsUrl={`/api/tasks/${chatTaskId}/tui-terminal`} />
+              ) : (
               <ChatPanel
                 messages={session.messages}
                 activities={session.activities}
@@ -671,6 +712,7 @@ export function TaskDetail() {
                 permissionRequest={session.permissionRequest}
                 onPermissionRespond={session.respondToPermission}
               />
+              )}
             </div>
           )}
 

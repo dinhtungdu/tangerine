@@ -54,6 +54,8 @@ export interface AgentMetadata {
   abbreviation: string
   /** CLI binary name used to invoke this ACP-compatible agent. */
   cliCommand: string
+  /** CLI command to launch the agent's native TUI with --resume. Set when TUI mode is supported. */
+  tuiCommand?: string
 }
 
 /** Handle to a running ACP session — owns the process and event subscription */

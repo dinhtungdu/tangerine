@@ -10,7 +10,7 @@ import type { AppConfig } from "../config"
 import { buildUnauthorizedResponse, isPublicApiPath, isRequestAuthenticated } from "../auth"
 import type { Database } from "bun:sqlite"
 import type { TaskRow } from "../db/types"
-import type { TaskSource, SystemCapabilities } from "@tangerine/shared"
+import type { TaskSource, SystemCapabilities, ActivityType } from "@tangerine/shared"
 import { verifyWebhookSignature, processWebhookPayload } from "../integrations/github"
 import type { WebhookIssuePayload } from "../integrations/github"
 import { authRoutes } from "./routes/auth"
@@ -21,6 +21,8 @@ import { projectRoutes } from "./routes/project"
 import { testRoutes } from "./routes/test"
 import { wsRoutes } from "./routes/ws"
 import { terminalWsRoutes } from "./routes/terminal-ws"
+import { tuiRoutes } from "./routes/tui"
+import { tuiWsRoutes } from "./routes/tui-ws"
 import type { AgentFactories } from "../agent/factories"
 
 const log = createLogger("api")
@@ -56,6 +58,11 @@ export interface AppDeps {
   }
   config: AppConfig
   getAgentHandle(taskId: string): import("../agent/provider").AgentHandle | null
+  removeAgentHandle?(taskId: string): void
+  getTuiCommand?(provider: string): string | undefined
+  logActivity?(taskId: string, type: ActivityType, event: string, content: string, metadata?: Record<string, unknown>): Effect.Effect<unknown, Error>
+  reconnectAfterTui?(taskId: string, sessionId: string): void
+  onTuiExit?(taskId: string): void
   agentFactories: AgentFactories
   systemCapabilities: SystemCapabilities
 }
@@ -88,8 +95,10 @@ export function createApp(deps: AppDeps): { app: Hono; websocket: ReturnType<typ
   // Test-only routes — returns 404 unless TEST_MODE=1
   app.route("/api/test", testRoutes(deps))
 
+  app.route("/api/tasks", tuiRoutes(deps))
   app.route("/api/tasks", wsRoutes(deps, upgradeWebSocket))
   app.route("/api/tasks", terminalWsRoutes(deps, upgradeWebSocket))
+  app.route("/api/tasks", tuiWsRoutes(deps, upgradeWebSocket))
 
   // Unknown API paths must not fall through to the SPA fallback.
   app.use("/api/*", async (c) => c.json({ error: "Not found" }, 404))

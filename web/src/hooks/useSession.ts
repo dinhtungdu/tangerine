@@ -40,6 +40,7 @@ interface UseSessionResult {
   slashCommands: AgentSlashCommand[]
   permissionRequest: PermissionRequest | null
   respondToPermission: (optionId: string) => Promise<void>
+  tuiMode: boolean
 }
 
 export function applyAssistantStreamMessage(
@@ -232,6 +233,7 @@ export function useSession(taskId: string, initialContextTokens?: number, initia
   const [configOptions, setConfigOptions] = useState<AgentConfigOption[]>([])
   const [slashCommands, setSlashCommands] = useState<AgentSlashCommand[]>([])
   const [permissionRequest, setPermissionRequest] = useState<PermissionRequest | null>(null)
+  const [tuiMode, setTuiMode] = useState(false)
   const { connected, messages: wsMessages, send } = useWebSocket(taskId)
   const activeTaskIdRef = useRef(taskId)
   activeTaskIdRef.current = taskId
@@ -638,6 +640,9 @@ export function useSession(taskId: string, initialContextTokens?: number, initia
           },
         ])
         break
+      case "tui_mode":
+        setTuiMode(msg.active)
+        break
       case "connected":
       case "ping":
         break
@@ -729,5 +734,5 @@ export function useSession(taskId: string, initialContextTokens?: number, initia
     await apiRespondToPermission(taskId, requestId, optionId)
   }, [taskId, permissionRequest])
 
-  return { messages, activities, agentStatus, agentStatusKnown, queueLength: visibleQueuedPrompts.length, queuedPrompts: visibleQueuedPrompts, connected, taskStatus, sendPrompt, abort, updateQueuedPrompt: handleUpdateQueuedPrompt, removeQueuedPrompt: handleRemoveQueuedPrompt, clearAllQueuedPrompts: handleClearAllQueuedPrompts, sendNowQueuedPrompt: handleSendNowQueuedPrompt, contextTokens, contextWindowMax, configOptions, slashCommands, permissionRequest, respondToPermission: handleRespondToPermission }
+  return { messages, activities, agentStatus, agentStatusKnown, queueLength: visibleQueuedPrompts.length, queuedPrompts: visibleQueuedPrompts, connected, taskStatus, sendPrompt, abort, updateQueuedPrompt: handleUpdateQueuedPrompt, removeQueuedPrompt: handleRemoveQueuedPrompt, clearAllQueuedPrompts: handleClearAllQueuedPrompts, sendNowQueuedPrompt: handleSendNowQueuedPrompt, contextTokens, contextWindowMax, configOptions, slashCommands, permissionRequest, respondToPermission: handleRespondToPermission, tuiMode }
 }

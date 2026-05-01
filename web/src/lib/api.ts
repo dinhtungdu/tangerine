@@ -323,3 +323,11 @@ export async function updateProjectRepo(projectName: string): Promise<ProjectUpd
     method: "POST",
   })
 }
+
+export async function startTuiMode(taskId: string): Promise<{ ok: boolean; mode: string }> {
+  return request<{ ok: boolean; mode: string }>(`/api/tasks/${taskId}/tui`, { method: "POST" })
+}
+
+export async function stopTuiMode(taskId: string): Promise<{ ok: boolean; mode: string }> {
+  return request<{ ok: boolean; mode: string }>(`/api/tasks/${taskId}/tui/stop`, { method: "POST" })
+}
