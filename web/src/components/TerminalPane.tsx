@@ -247,8 +247,8 @@ export function TerminalPane(props: TerminalPaneProps) {
         ? { height: viewportHeight, maxHeight: viewportHeight }
         : { height: "100%" }}
     >
-      <div className="flex min-h-0 min-w-0 flex-1 p-3">
-        <div className="relative min-h-0 min-w-0 flex-1 overflow-hidden rounded-lg bg-card">
+      <div className="flex min-h-0 min-w-0 flex-1 p-3 pb-0 md:pb-3">
+        <div className="relative min-h-0 min-w-0 flex-1 overflow-hidden rounded-lg md:rounded-lg rounded-b-none bg-card">
           <Terminal
             ref={termRef}
             autoResize

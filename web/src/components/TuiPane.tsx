@@ -1,6 +1,7 @@
 import { useEffect, useRef, useCallback, useState } from "react"
 import { Terminal, useTerminal } from "@wterm/react"
 import "@wterm/react/css"
+import { TerminalToolbar } from "./TerminalToolbar"
 import { emitAuthFailure, getAuthToken } from "../lib/auth"
 import { sendTerminalPong } from "../lib/terminal-websocket"
 import { createHeartbeatMonitor, type HeartbeatMonitor } from "../lib/ws-heartbeat"
@@ -183,8 +184,8 @@ export function TuiPane({ taskId }: TuiPaneProps) {
 
   return (
     <div className="flex h-full min-w-0 flex-col overflow-hidden">
-      <div className="flex min-h-0 min-w-0 flex-1 p-3">
-        <div className="relative min-h-0 min-w-0 flex-1 overflow-hidden rounded-lg bg-card">
+      <div className="flex min-h-0 min-w-0 flex-1 p-3 pb-0 md:pb-3">
+        <div className="relative min-h-0 min-w-0 flex-1 overflow-hidden rounded-lg md:rounded-lg rounded-b-none bg-card">
           <Terminal
             ref={termRef}
             autoResize
@@ -210,6 +211,7 @@ export function TuiPane({ taskId }: TuiPaneProps) {
           )}
         </div>
       </div>
+      <TerminalToolbar termRef={termRef} onInput={sendInput} />
     </div>
   )
 }
