@@ -35,6 +35,7 @@ export interface SeedPayload {
     updated_at?: string
     started_at?: string
     completed_at?: string
+    capabilities?: string
   }>
   activity_log?: Array<{
     task_id: string
@@ -102,6 +103,7 @@ export function testRoutes(deps: AppDeps): Hono {
         if (t.updated_at) { patches.push("updated_at = $updated_at"); params.$updated_at = t.updated_at }
         if (t.started_at) { patches.push("started_at = $started_at"); params.$started_at = t.started_at }
         if (t.completed_at) { patches.push("completed_at = $completed_at"); params.$completed_at = t.completed_at }
+        if (t.capabilities) { patches.push("capabilities = $capabilities"); params.$capabilities = t.capabilities }
 
         if (patches.length > 0) {
           db.prepare(`UPDATE tasks SET ${patches.join(", ")} WHERE id = $id`).run(params)
