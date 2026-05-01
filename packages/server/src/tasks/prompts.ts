@@ -80,6 +80,7 @@ export function buildSystemLayer(taskId: string, info: SystemNotesInfo, port = a
   if (info.taskType === "runner") {
     const projectNote = info.projectId ? `, projectId to "${info.projectId}"` : ""
     notes.push(`[RUNNER TASK: This task runs without a dedicated worktree or branch — no PR creation. You can run commands on the project root but CANNOT make code changes directly. For any implementation work (code changes, fixes, features), immediately create a worker sub-task via POST /api/tasks — do NOT ask for confirmation, just delegate. When creating worker tasks: use a clear title, include full context and requirements in description (the worker has no access to this conversation), and set parentTaskId to "${taskId}"${projectNote}. Complete when done by calling POST /api/tasks/${taskId}/done.]`)
+    notes.push(`[MULTI-REQUEST: Users may ask for multiple unrelated things in one conversation. Group related requests into the same worker task. Create separate workers for unrelated requests — if you have workers running but a new request is unrelated to all of them, spawn a new worker instead of adding to an existing one. Example: "fix login bug" → worker A; then "update README" → unrelated, create worker B.]`)
   }
 
   return notes
