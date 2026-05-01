@@ -683,11 +683,12 @@ export function useSession(taskId: string, initialContextTokens?: number, initia
           },
         ])
         break
-      case "tui_mode":
+      case "tui_mode": {
+        const wasActive = tuiMode
         setTuiMode(msg.active)
         if (!tuiModeInitializedRef.current) {
           tuiModeInitializedRef.current = true
-        } else {
+        } else if (msg.active !== wasActive) {
           setMessages((prev) => [
             ...prev,
             {
@@ -699,6 +700,7 @@ export function useSession(taskId: string, initialContextTokens?: number, initia
           ])
         }
         break
+      }
       case "connected":
       case "ping":
         break
