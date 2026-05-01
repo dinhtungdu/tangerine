@@ -242,6 +242,7 @@ export function useSession(taskId: string, initialContextTokens?: number, initia
   // Track optimistic user messages so WS broadcasts dedupe without hiding
   // real queued messages forever when the server briefly queues an idle send.
   const pendingOptimisticRef = useRef<Map<string, PendingOptimisticPrompt>>(new Map())
+  const tuiModeInitializedRef = useRef(false)
 
   // Sync context usage when persisted task values change (e.g. on initial load or poll).
   // Reset when switching tasks and new data hasn't loaded yet.
@@ -271,6 +272,7 @@ export function useSession(taskId: string, initialContextTokens?: number, initia
     processedCountRef.current = 0
     activeAssistantStreamIdRef.current = null
     backfillInProgressRef.current = false
+    tuiModeInitializedRef.current = false
     for (const pending of pendingOptimisticRef.current.values()) clearPendingOptimistic(pending)
     pendingOptimisticRef.current.clear()
     setQueueVisibilityNow(Date.now())
@@ -642,6 +644,19 @@ export function useSession(taskId: string, initialContextTokens?: number, initia
         break
       case "tui_mode":
         setTuiMode(msg.active)
+        if (!tuiModeInitializedRef.current) {
+          tuiModeInitializedRef.current = true
+        } else {
+          setMessages((prev) => [
+            ...prev,
+            {
+              id: `tui-${msg.active ? "start" : "stop"}-${Date.now()}`,
+              role: "system",
+              content: msg.active ? "Switched to TUI mode" : "Returned from TUI session",
+              timestamp: new Date().toISOString(),
+            },
+          ])
+        }
         break
       case "connected":
       case "ping":

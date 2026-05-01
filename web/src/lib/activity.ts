@@ -151,6 +151,24 @@ const LIFECYCLE_STYLES: Record<string, ActivityStyle> = {
     bg: "#6b728018",
     iconPaths: ["M6 1a5 5 0 1 0 0 10A5 5 0 0 0 6 1z", "M6 4v4M4 6h4"], // settings
   },
+  "tui.started": {
+    label: "Switched to TUI",
+    color: "#8b5cf6",
+    bg: "#8b5cf618",
+    iconPaths: ["M1 3l3 3-3 3M6 9h5"], // terminal
+  },
+  "tui.stopped": {
+    label: "Returned to Chat",
+    color: "#3b82f6",
+    bg: "#3b82f618",
+    iconPaths: ["M1 2h10v8H1z", "M4 5h4M4 7h2"], // chat
+  },
+  "tui.exited": {
+    label: "TUI exited",
+    color: "#f59e0b",
+    bg: "#f59e0b18",
+    iconPaths: ["M1 3l3 3-3 3M6 9h5"], // terminal
+  },
 }
 
 const DEFAULT_LIFECYCLE_STYLE: ActivityStyle = {
