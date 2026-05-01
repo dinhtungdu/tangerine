@@ -17,6 +17,13 @@ import { configuredProviderList, isConfiguredProvider } from "../provider-valida
 const toWriteResponse = (row: { id: string; title: string; status: string }): TaskWriteResponse =>
   ({ id: row.id, title: row.title, status: row.status as TaskWriteResponse["status"] })
 
+function configuredProjectScope(deps: AppDeps, projectId?: string): { projectId?: string; projectIds?: string[] } {
+  const configured = deps.config.config.projects.map((project) => project.name)
+  if (!projectId) return { projectIds: configured }
+  if (!configured.includes(projectId)) return { projectIds: [] }
+  return { projectId }
+}
+
 export function taskRoutes(deps: AppDeps): Hono {
   const app = new Hono()
   const tuiResolver = deps.getTuiCommand as TuiCommandResolver | undefined
@@ -32,7 +39,7 @@ export function taskRoutes(deps: AppDeps): Hono {
     const limit = !isNaN(limitParsed) ? Math.max(1, limitParsed) : undefined
     const offset = !isNaN(offsetParsed) ? Math.max(0, offsetParsed) : undefined
     return runEffect(c,
-      listTasks(deps.db, { status, projectId, search, limit, offset }).pipe(
+      listTasks(deps.db, { status, search, limit, offset, ...configuredProjectScope(deps, projectId) }).pipe(
         Effect.map(rows => rows.map(row => {
           const task = mapTaskRow(row, tuiResolver)
           task.agentStatus = resolveAgentStatus(task, deps.getAgentHandle)
@@ -44,8 +51,9 @@ export function taskRoutes(deps: AppDeps): Hono {
 
   app.get("/counts", (c) => {
     const status = c.req.query("status") || undefined
+    const projectId = c.req.query("project") || undefined
     const search = c.req.query("search") || undefined
-    return runEffect(c, countTasksByProject(deps.db, { status, search }))
+    return runEffect(c, countTasksByProject(deps.db, { status, search, ...configuredProjectScope(deps, projectId) }))
   })
 
   app.get("/:id/files", (c) => {

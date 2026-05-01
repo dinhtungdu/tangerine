@@ -637,6 +637,32 @@ describe("useTasks", () => {
     expect(result.current.error).toBeNull()
   })
 
+  test("does not fetch tasks for projects outside the active filter", async () => {
+    globalThis.fetch = mock((url: string) => {
+      if (url.includes("/api/tasks/counts")) {
+        return Promise.resolve(new Response(JSON.stringify({ "my-project": 1, "removed-project": 1 }), {
+          status: 200,
+          headers: { "Content-Type": "application/json" },
+        }))
+      }
+      return Promise.resolve(new Response(JSON.stringify([mockTasks[0]]), {
+        status: 200,
+        headers: { "Content-Type": "application/json" },
+      }))
+    }) as typeof fetch
+
+    const { result } = renderHook(() => useTasks({ project: "my-project" }))
+
+    await waitFor(() => {
+      expect(result.current.loading).toBe(false)
+    })
+
+    const calls = (globalThis.fetch as ReturnType<typeof mock>).mock.calls as unknown[][]
+    const urls = calls.map((c) => c[0] as string)
+    expect(urls.some((url) => url.includes("/api/tasks/counts") && url.includes("project=my-project"))).toBe(true)
+    expect(urls.some((url) => url.includes("/api/tasks?") && url.includes("project=removed-project"))).toBe(false)
+  })
+
   test("passes filter params to fetch", async () => {
     // Update mock to return counts for specific project
     globalThis.fetch = mock((url: string) => {

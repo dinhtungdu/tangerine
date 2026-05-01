@@ -45,6 +45,32 @@ function hasTaskListVisibleChange(fields: string[]): boolean {
   return fields.some((field) => TASK_LIST_VISIBLE_FIELDS.has(field as keyof TaskRow))
 }
 
+interface TaskProjectFilter {
+  projectId?: string
+  projectIds?: string[]
+}
+
+function addProjectConditions(conditions: string[], params: Record<string, string>, filter?: TaskProjectFilter): void {
+  if (filter?.projectId) {
+    conditions.push("project_id = $project_id")
+    params.$project_id = filter.projectId
+    return
+  }
+
+  if (!filter?.projectIds) return
+  if (filter.projectIds.length === 0) {
+    conditions.push("1 = 0")
+    return
+  }
+
+  const placeholders = filter.projectIds.map((projectId, index) => {
+    const key = `$project_id_${index}`
+    params[key] = projectId
+    return key
+  })
+  conditions.push(`project_id IN (${placeholders.join(", ")})`)
+}
+
 export function createTask(
   db: Database,
   task: Pick<TaskRow, "id" | "project_id" | "source" | "title"> &
@@ -85,7 +111,7 @@ export function getTask(db: Database, id: string): Effect.Effect<TaskRow | null,
   })
 }
 
-export function listTasks(db: Database, filter?: { status?: string; projectId?: string; search?: string; limit?: number; offset?: number }): Effect.Effect<TaskRow[], DbError> {
+export function listTasks(db: Database, filter?: { status?: string; projectId?: string; projectIds?: string[]; search?: string; limit?: number; offset?: number }): Effect.Effect<TaskRow[], DbError> {
   return dbTry(() => {
     const conditions: string[] = []
     const params: Record<string, string> = {}
@@ -93,10 +119,7 @@ export function listTasks(db: Database, filter?: { status?: string; projectId?: 
       conditions.push("status = $status")
       params.$status = filter.status
     }
-    if (filter?.projectId) {
-      conditions.push("project_id = $project_id")
-      params.$project_id = filter.projectId
-    }
+    addProjectConditions(conditions, params, filter)
     if (filter?.search) {
       // Strip leading "#" so that "#123" matches pr_url paths like "/pull/123"
       const searchNormalized = filter.search.startsWith("#") ? filter.search.slice(1) : filter.search
@@ -157,7 +180,7 @@ export function getChildTasks(db: Database, parentTaskId: string): Effect.Effect
   })
 }
 
-export function countTasksByProject(db: Database, filter?: { status?: string; search?: string }): Effect.Effect<Record<string, number>, DbError> {
+export function countTasksByProject(db: Database, filter?: { status?: string; projectId?: string; projectIds?: string[]; search?: string }): Effect.Effect<Record<string, number>, DbError> {
   return dbTry(() => {
     const conditions: string[] = []
     const params: Record<string, string> = {}
@@ -165,6 +188,7 @@ export function countTasksByProject(db: Database, filter?: { status?: string; se
       conditions.push("status = $status")
       params.$status = filter.status
     }
+    addProjectConditions(conditions, params, filter)
     if (filter?.search) {
       const searchNormalized = filter.search.startsWith("#") ? filter.search.slice(1) : filter.search
       conditions.push("(title LIKE $search OR description LIKE $search OR branch LIKE $search OR pr_url LIKE $search)")

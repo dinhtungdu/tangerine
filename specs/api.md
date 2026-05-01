@@ -19,7 +19,8 @@ Unknown `/api/*` paths return JSON 404 responses and never fall through to the w
 
 | Method | Path | Description |
 |--------|------|-------------|
-| GET | `/api/tasks` | List tasks. Supports `status`, `project`, and `search` query params |
+| GET | `/api/tasks` | List tasks for configured projects. Supports `status`, `project`, and `search` query params |
+| GET | `/api/tasks/counts` | Count tasks by configured project. Supports `status`, `project`, and `search` query params |
 | GET | `/api/tasks/:id` | Get one task |
 | POST | `/api/tasks` | Create a task |
 | GET | `/api/tasks/:id/children` | List child tasks |
