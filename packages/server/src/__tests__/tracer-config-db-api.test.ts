@@ -31,7 +31,7 @@ describe("tracer: config -> db -> api", () => {
     app.get("/api/tasks", (c) => {
       const status = c.req.query("status")
       const rows = Effect.runSync(listTasks(db, status ? { status } : undefined))
-      return c.json(rows.map(mapTaskRow))
+      return c.json(rows.map(row => mapTaskRow(row)))
     })
 
     app.get("/api/tasks/:id", (c) => {

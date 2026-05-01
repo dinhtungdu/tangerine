@@ -14,27 +14,31 @@ export function utc(ts: string | null): string | null {
   return ts.replace(" ", "T") + "Z"
 }
 
-// Canonical capabilities from type, plus provider-dependent capabilities from DB.
-// Canonical set is rebuilt each call so removing a capability takes effect immediately.
-// Provider-dependent capabilities (e.g. "tui") are only present in stored and must be preserved.
-const PROVIDER_DEPENDENT_CAPABILITIES: Set<TaskCapability> = new Set(["tui"])
+export type TuiCommandResolver = (provider: string) => { command: string } | undefined
 
-function mergeCapabilities(stored: string | null, task: { type?: string | null }): TaskCapability[] {
+function mergeCapabilities(stored: string | null, task: { type?: string | null; provider?: string | null }, getTuiCommand?: TuiCommandResolver): TaskCapability[] {
   const canonical = getCapabilitiesForType(normalizeTaskType(task.type))
-  if (!stored) return canonical
-  try {
-    const parsed: TaskCapability[] = JSON.parse(stored)
-    for (const cap of parsed) {
-      if (PROVIDER_DEPENDENT_CAPABILITIES.has(cap) && !canonical.includes(cap)) {
-        canonical.push(cap)
+
+  // Restore stored "tui" capability
+  if (stored) {
+    try {
+      const parsed: TaskCapability[] = JSON.parse(stored)
+      if (parsed.includes("tui") && !canonical.includes("tui")) {
+        canonical.push("tui")
       }
-    }
-  } catch { /* malformed stored capabilities — ignore */ }
+    } catch { /* malformed stored capabilities — ignore */ }
+  }
+
+  // Dynamic: check provider even if "tui" wasn't stored (pre-existing tasks)
+  if (!canonical.includes("tui") && task.provider && getTuiCommand?.(task.provider)) {
+    canonical.push("tui")
+  }
+
   return canonical
 }
 
 /** Maps a snake_case TaskRow from SQLite to a camelCase Task for API responses */
-export function mapTaskRow(row: TaskRow): Task {
+export function mapTaskRow(row: TaskRow, getTuiCommand?: TuiCommandResolver): Task {
   return {
     id: row.id,
     projectId: row.project_id,
@@ -64,7 +68,7 @@ export function mapTaskRow(row: TaskRow): Task {
     completedAt: utc(row.completed_at),
     lastSeenAt: utc(row.last_seen_at),
     lastResultAt: utc(row.last_result_at),
-    capabilities: mergeCapabilities(row.capabilities, row),
+    capabilities: mergeCapabilities(row.capabilities, row, getTuiCommand),
     contextTokens: row.context_tokens ?? 0,
     contextWindowMax: row.context_window_max ?? null,
   }
@@ -83,10 +87,7 @@ export function normalizeTimestamps<T extends object>(row: T): T {
 }
 
 /** Check if a task (by type + stored capabilities) has a given capability. */
-export function taskHasCapability(type: string, storedCapabilities: string | null, cap: TaskCapability): boolean {
-  const canonical = getCapabilitiesForType(normalizeTaskType(type))
-  if (canonical.includes(cap)) return true
-  if (!storedCapabilities) return false
-  const parsed: TaskCapability[] = JSON.parse(storedCapabilities)
-  return parsed.includes(cap)
+export function taskHasCapability(type: string, storedCapabilities: string | null, cap: TaskCapability, provider?: string | null, getTuiCommand?: TuiCommandResolver): boolean {
+  const caps = mergeCapabilities(storedCapabilities, { type, provider }, getTuiCommand)
+  return caps.includes(cap)
 }
