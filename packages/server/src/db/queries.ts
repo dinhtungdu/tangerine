@@ -207,6 +207,13 @@ export function insertSessionLog(
   })
 }
 
+export function deleteSessionLogsByRole(db: Database, taskId: string, role: string): Effect.Effect<number, DbError> {
+  return dbTry(() => {
+    const result = db.prepare("DELETE FROM session_logs WHERE task_id = ? AND role = ?").run(taskId, role)
+    return result.changes
+  })
+}
+
 export function getSessionLogs(db: Database, taskId: string): Effect.Effect<SessionLogRow[], DbError> {
   return dbTry(() => {
     return db.prepare("SELECT * FROM session_logs WHERE task_id = ? ORDER BY timestamp ASC").all(taskId) as SessionLogRow[]
