@@ -39,6 +39,7 @@ async function readClipboard(): Promise<string | null> {
 export function TerminalToolbar({ termRef, onInput }: TerminalToolbarProps) {
   const [showPasteInput, setShowPasteInput] = useState(false)
   const pasteRef = useReactRef<HTMLTextAreaElement>(null)
+  const shouldRestoreFocusRef = useReactRef(false)
 
   const keys: KeyDef[] = [
     { label: "^C", input: ctrl("C"), ariaLabel: "Send Ctrl+C (interrupt)" },
@@ -50,13 +51,22 @@ export function TerminalToolbar({ termRef, onInput }: TerminalToolbarProps) {
       label: "Paste",
       ariaLabel: "Paste from clipboard",
       input: async () => {
-        const text = await readClipboard()
-        if (text) {
-          onInput(text)
-          termRef.current?.focus()
-        } else {
-          setShowPasteInput(true)
-          requestAnimationFrame(() => pasteRef.current?.focus())
+        shouldRestoreFocusRef.current = true
+        try {
+          const text = await readClipboard()
+          if (text) {
+            onInput(text)
+          } else {
+            setShowPasteInput(true)
+            shouldRestoreFocusRef.current = false
+            requestAnimationFrame(() => pasteRef.current?.focus())
+            return
+          }
+        } finally {
+          if (shouldRestoreFocusRef.current) {
+            termRef.current?.focus()
+            shouldRestoreFocusRef.current = false
+          }
         }
       },
     },
@@ -69,10 +79,8 @@ export function TerminalToolbar({ termRef, onInput }: TerminalToolbarProps) {
   function handlePress(key: KeyDef) {
     if (typeof key.input === "function") {
       key.input()
-      // Async handlers manage their own focus
     } else {
       onInput(key.input)
-      // Refocus terminal after key press so the software keyboard stays up
       termRef.current?.focus()
     }
   }
@@ -86,32 +94,34 @@ export function TerminalToolbar({ termRef, onInput }: TerminalToolbarProps) {
 
   return (
     <div className="md:hidden">
-      <div className="flex gap-1.5 overflow-x-auto border-t border-border bg-muted px-2 py-1.5">
+      <div className="flex gap-2 overflow-x-auto border-t border-border bg-muted px-2 py-2">
         {keys.map((key) => (
-          <button
+          <Button
             key={key.label}
-            onTouchStart={(e) => {
+            variant="outline"
+            size="lg"
+            onTouchStart={(e: React.TouchEvent) => {
               e.preventDefault()
               handlePress(key)
             }}
-            onMouseDown={(e) => {
+            onMouseDown={(e: React.MouseEvent) => {
               e.preventDefault()
               handlePress(key)
             }}
             aria-label={key.ariaLabel ?? key.label}
-            className="shrink-0 rounded-md border border-border bg-background px-2 py-1 text-xs font-medium text-muted-foreground outline-none active:bg-card active:text-foreground focus-visible:ring-1 focus-visible:ring-ring/50"
+            className="h-11 shrink-0 px-3 text-muted-foreground"
           >
             {key.label}
-          </button>
+          </Button>
         ))}
       </div>
       {showPasteInput && (
-        <div className="flex items-center gap-2 border-t border-border bg-muted px-2 py-1.5">
+        <div className="flex items-center gap-2 border-t border-border bg-muted px-2 py-2">
           <textarea
             ref={pasteRef}
             rows={1}
             placeholder="Paste here, then tap Send"
-            className="min-h-[32px] flex-1 resize-none rounded-md border border-border bg-background px-2 py-1 text-xs text-foreground outline-none placeholder:text-muted-foreground focus-visible:border-ring focus-visible:ring-1 focus-visible:ring-ring/50"
+            className="min-h-[44px] flex-1 resize-none rounded-md border border-border bg-background px-3 py-2.5 text-sm text-foreground outline-none placeholder:text-muted-foreground focus-visible:border-ring focus-visible:ring-1 focus-visible:ring-ring/50"
             onKeyDown={(e) => {
               if (e.key === "Enter" && !e.shiftKey) {
                 e.preventDefault()
@@ -120,21 +130,21 @@ export function TerminalToolbar({ termRef, onInput }: TerminalToolbarProps) {
             }}
           />
           <Button
-            size="sm"
+            size="lg"
             onClick={submitPaste}
-            className="shrink-0"
+            className="h-11 shrink-0"
           >
             Send
           </Button>
           <Button
             variant="outline"
-            size="sm"
+            size="lg"
             onClick={() => {
               setShowPasteInput(false)
               termRef.current?.focus()
             }}
             aria-label="Cancel paste"
-            className="shrink-0"
+            className="h-11 shrink-0"
           >
             ✕
           </Button>
