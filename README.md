@@ -52,12 +52,7 @@ Install the package:
 bun i -g @dinhtungdu/tangerine
 ```
 
-Install the skills:
-```bash
-tangerine install
-```
-
-Configure at least one ACP agent command in `~/tangerine/config.json`. Common no-global-install examples:
+Configure at least one ACP-compatible agent command in `~/tangerine/config.json`. Tangerine uses this config to map adapters to real agent skill directories. Common no-global-install examples:
 
 ```json
 {
@@ -69,6 +64,17 @@ Configure at least one ACP agent command in `~/tangerine/config.json`. Common no
   ],
   "defaultAgent": "claude"
 }
+```
+
+Install Tangerine skills into the configured real agents via the skills.sh CLI:
+
+```bash
+tangerine install
+```
+
+Remove installed Tangerine skills from those agents:
+```bash
+tangerine uninstall
 ```
 
 Authenticate the underlying agent CLI/config outside Tangerine. Probe configured adapters before starting tasks:
@@ -134,7 +140,8 @@ bun run dev:web
 - `tangerine stop` — stop the running daemon
 - `tangerine status` — show daemon status
 - `tangerine logs` — tail the server log file
-- `tangerine install` — install agent skills
+- `tangerine install` — install skills into configured real agents
+- `tangerine uninstall` — remove skills from configured real agents
 - `tangerine project add|list|show|remove`
 - `tangerine task create`
 - `tangerine secret set|get|list|delete`

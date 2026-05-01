@@ -76,7 +76,7 @@ User is on the machine where Tangerine will run — either their host or inside 
 
 2. **Choose, install, and authenticate ACP agent command(s)**.
 
-   Tangerine is an ACP client only. It does not bundle provider adapters or manage LLM credentials. Configure one or more ACP commands in top-level `agents[]`.
+   Tangerine is an ACP client only. It does not bundle provider adapters or manage LLM credentials. Configure one or more ACP commands in top-level `agents[]`. `tangerine install` reads this config and installs Tangerine skills into the corresponding real agent directories via skills.sh (Claude Code, Codex, OpenCode, Pi); ACP itself is not a skill target.
 
    Common choices:
 

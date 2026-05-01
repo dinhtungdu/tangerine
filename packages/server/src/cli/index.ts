@@ -56,6 +56,11 @@ async function main(): Promise<void> {
       await install()
       break
     }
+    case "uninstall": {
+      const { uninstall } = await import("./install.ts")
+      await uninstall()
+      break
+    }
     case "migrate": {
       const { runMigrate } = await import("./migrate.ts")
       await runMigrate(args.slice(1))

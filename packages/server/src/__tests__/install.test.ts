@@ -1,32 +1,92 @@
 import { describe, expect, it } from "bun:test"
-import { mkdtempSync, mkdirSync, lstatSync, rmSync } from "fs"
-import { join } from "path"
-import { homedir, tmpdir } from "os"
-import { ACP_SKILLS_DIR, symlinkSkill } from "../cli/install"
+import { buildSkillsCliArgs, detectSkillAgentsFromConfig, runSkillsAction } from "../cli/install"
 
-describe("ACP skill install target", () => {
-  it("uses a provider-neutral ACP skills directory", () => {
-    expect(ACP_SKILLS_DIR).toBe(join(homedir(), ".config", "acp", "skills"))
+describe("detectSkillAgentsFromConfig", () => {
+  it("maps configured ACP adapter commands to real skills.sh agents", () => {
+    const config = {
+      agents: [
+        { id: "claude", name: "Claude", command: "bunx", args: ["--bun", "@agentclientprotocol/claude-agent-acp"] },
+        { id: "codex", name: "Codex", command: "codex-acp" },
+        { id: "opencode", name: "OpenCode", command: "opencode", args: ["acp"] },
+        { id: "pi", name: "Pi", command: "bunx --bun pi-acp" },
+      ],
+    }
+
+    expect(detectSkillAgentsFromConfig(config)).toEqual(["claude-code", "codex", "opencode", "pi"])
+  })
+
+  it("deduplicates repeated adapter mappings", () => {
+    const config = {
+      agents: [
+        { id: "pi-a", name: "Pi A", command: "pi-acp" },
+        { id: "pi-b", name: "Pi B", command: "bunx", args: ["--bun", "pi-acp"] },
+      ],
+    }
+
+    expect(detectSkillAgentsFromConfig(config)).toEqual(["pi"])
+  })
+
+  it("ignores unknown adapter commands", () => {
+    const config = {
+      agents: [
+        { id: "custom", name: "Custom", command: "my-acp-adapter" },
+      ],
+    }
+
+    expect(detectSkillAgentsFromConfig(config)).toEqual([])
   })
 })
 
-describe("symlinkSkill", () => {
-  it("creates a symlink and becomes idempotent on rerun", () => {
-    const tempDir = mkdtempSync(join(tmpdir(), "tangerine-install-"))
-    const sourceDir = join(tempDir, "source-skill")
-    const targetDir = join(tempDir, "target-skills")
+describe("runSkillsAction", () => {
+  it("runs skills.sh with detected agents", () => {
+    const calls: string[][] = []
 
-    mkdirSync(sourceDir, { recursive: true })
+    runSkillsAction("install", {
+      agents: [{ id: "pi", name: "Pi", command: "pi-acp" }],
+    }, (args) => {
+      calls.push(args)
+      return { exitCode: 0 }
+    })
 
-    const first = symlinkSkill(sourceDir, targetDir)
-    const target = join(targetDir, "source-skill")
+    expect(calls).toEqual([buildSkillsCliArgs("install", ["pi"])])
+  })
 
-    expect(first).toEqual({ created: true, skipped: null })
-    expect(lstatSync(target).isSymbolicLink()).toBe(true)
+  it("fails when config has no supported adapter commands", () => {
+    expect(() => runSkillsAction("install", { agents: [] }, () => ({ exitCode: 0 }))).toThrow("No supported ACP adapter commands")
+  })
+})
 
-    const second = symlinkSkill(sourceDir, targetDir)
-    expect(second).toEqual({ created: false, skipped: "already linked" })
+describe("buildSkillsCliArgs", () => {
+  it("builds skills.sh add args for detected real agents", () => {
+    expect(buildSkillsCliArgs("install", ["pi", "claude-code"], "/repo")).toEqual([
+      "add",
+      "/repo",
+      "--global",
+      "--agent",
+      "pi",
+      "--agent",
+      "claude-code",
+      "--skill",
+      "platform-setup",
+      "--skill",
+      "tangerine-tasks",
+      "-y",
+    ])
+  })
 
-    rmSync(tempDir, { recursive: true, force: true })
+  it("builds skills.sh remove args for detected real agents", () => {
+    expect(buildSkillsCliArgs("uninstall", ["codex", "opencode"], "/repo")).toEqual([
+      "remove",
+      "--global",
+      "--agent",
+      "codex",
+      "--agent",
+      "opencode",
+      "--skill",
+      "platform-setup",
+      "--skill",
+      "tangerine-tasks",
+      "-y",
+    ])
   })
 })

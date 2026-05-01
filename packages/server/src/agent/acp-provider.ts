@@ -1,8 +1,7 @@
 import { Effect } from "effect"
 import { statSync } from "node:fs"
 import { mkdir } from "node:fs/promises"
-import { homedir } from "node:os"
-import { basename, dirname, isAbsolute, join, relative, resolve } from "node:path"
+import { basename, dirname, isAbsolute, relative, resolve } from "node:path"
 import { pathToFileURL } from "node:url"
 import { createLogger } from "../logger"
 import { AgentError, PromptError, SessionStartError } from "../errors"
@@ -92,9 +91,6 @@ const ACP_AGENT_METADATA: AgentMetadata = {
   displayName: "ACP",
   abbreviation: "ACP",
   cliCommand: resolveAcpCommand(process.env).checkCommand,
-  skills: {
-    directory: join(homedir(), ".config", "acp", "skills"),
-  },
 }
 
 export function resolveAcpCommand(env: Record<string, string | undefined>): AcpCommandConfig {

@@ -7,7 +7,8 @@ The `tangerine` CLI is implemented under `packages/server/src/cli/`.
 | Command | Description |
 |---------|-------------|
 | `tangerine start` | Start the Tangerine server |
-| `tangerine install` | Create local directories and install Tangerine skills into the ACP skills dir |
+| `tangerine install` | Create local directories and install Tangerine skills into configured real agent skill dirs |
+| `tangerine uninstall` | Remove Tangerine skills from configured real agent skill dirs |
 | `tangerine migrate` | Migrate projects from old numbered worktree layout to current sibling layout |
 | `tangerine project ...` | Manage registered projects |
 | `tangerine task ...` | Create manual tasks |
@@ -32,8 +33,19 @@ If the server binds a non-loopback host (for example `0.0.0.0`) and `TANGERINE_A
 Current behavior:
 
 - ensures `~/tangerine` exists
-- symlinks repo skills into the provider-neutral ACP skills directory (`~/.config/acp/skills`)
+- reads configured ACP adapter commands from `~/tangerine/config.json` (or `TANGERINE_CONFIG`)
+- maps known adapter commands to skills.sh agent IDs, then runs the `skills` CLI to install Tangerine skills globally into those real agents
+- never treats `acp` as a skill target; ACP is the protocol, not an agent skill directory
 - does not install ACP agent adapters or manage LLM credentials
+
+Adapter-to-skill-agent mapping:
+
+| Configured adapter command | skills.sh agent |
+|----------------------------|-----------------|
+| `@agentclientprotocol/claude-agent-acp` / `claude-agent-acp` | `claude-code` |
+| `@zed-industries/codex-acp` / `codex-acp` | `codex` |
+| `opencode-ai acp` / `opencode acp` | `opencode` |
+| `pi-acp` | `pi` |
 
 Configured ACP agent examples:
 
@@ -48,7 +60,23 @@ Installed skills:
 
 - `platform-setup`
 - `tangerine-tasks`
-- `browser-test`
+
+Install command shape:
+
+```bash
+npx skills add <tangerine-package-root> --global --agent <detected-agent> --skill platform-setup --skill tangerine-tasks -y
+```
+
+`browser-test` remains project-local and is not installed globally.
+
+## `tangerine uninstall`
+
+Current behavior:
+
+- uses the same config-based adapter detection as `install`
+- runs `npx skills remove --global --agent <detected-agent> --skill platform-setup --skill tangerine-tasks -y`
+- leaves `~/tangerine`, project config, credentials, and external ACP agent adapters untouched
+- idempotent; rerunning is safe
 
 ## `tangerine migrate`
 

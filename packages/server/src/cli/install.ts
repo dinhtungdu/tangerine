@@ -1,10 +1,21 @@
 // CLI entrypoint: one-time setup for Tangerine.
-// Checks system deps, creates directories, and symlinks agent skills.
+// Creates local directories and installs Tangerine skills into real agent directories.
 
-import { existsSync, lstatSync, mkdirSync, readFileSync, rmSync, symlinkSync, readlinkSync } from "fs"
+import { existsSync, mkdirSync, readFileSync } from "fs"
 import { join, resolve } from "path"
-import { homedir } from "os"
-import { TANGERINE_HOME } from "../config"
+import { CONFIG_PATH, readRawConfig, TANGERINE_HOME } from "../config"
+
+const TANGERINE_SKILLS = ["platform-setup", "tangerine-tasks"] as const
+const SUPPORTED_SKILL_AGENTS = ["claude-code", "codex", "opencode", "pi"] as const
+
+type SkillAction = "install" | "uninstall"
+type SkillAgent = (typeof SUPPORTED_SKILL_AGENTS)[number]
+
+export interface SkillsCliResult {
+  exitCode: number
+}
+
+export type SkillsCliRunner = (args: string[]) => SkillsCliResult
 
 // Walk up from this file to find the package root (directory with package.json
 // containing the package name). Works from both source and bundled locations.
@@ -12,7 +23,7 @@ function findProjectRoot(): string {
   let dir = import.meta.dir
   for (let i = 0; i < 5; i++) {
     try {
-      const pkg = JSON.parse(readFileSync(join(dir, "package.json"), "utf8"))
+      const pkg = JSON.parse(readFileSync(join(dir, "package.json"), "utf8")) as { name?: unknown }
       if (pkg.name === "@dinhtungdu/tangerine") return dir
     } catch { /* not this directory */ }
     dir = resolve(dir, "..")
@@ -20,18 +31,6 @@ function findProjectRoot(): string {
   return resolve(import.meta.dir, "../../../../")
 }
 const PROJECT_ROOT = findProjectRoot()
-export const ACP_SKILLS_DIR = join(homedir(), ".config", "acp", "skills")
-
-// Skills to symlink into agent skill directories.
-// source: path relative to PROJECT_ROOT
-// - platform-setup: for the operator to set up projects
-// - tangerine-tasks: for agents running inside tasks to understand the API
-// - browser-test: for agents to visually verify web UI changes
-const SKILLS_TO_INSTALL: Array<{ name: string; source: string }> = [
-  { name: "platform-setup", source: join(PROJECT_ROOT, "skills", "platform-setup") },
-  { name: "tangerine-tasks", source: join(PROJECT_ROOT, "skills", "tangerine-tasks") },
-  { name: "browser-test", source: join(PROJECT_ROOT, ".agents", "skills", "browser-test") },
-]
 
 function check(label: string, ok: boolean, hint?: string): void {
   if (ok) {
@@ -46,62 +45,115 @@ function ensureDir(dir: string): void {
   mkdirSync(dir, { recursive: true })
 }
 
-export function symlinkSkill(
-  skillSource: string,
-  targetDir: string,
-): { created: boolean; skipped: string | null } {
-  const skillName = skillSource.split("/").at(-1)!
-  const target = join(targetDir, skillName)
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null && !Array.isArray(value)
+}
 
-  // lstatSync detects broken symlinks that existsSync misses
-  let targetExists = false
+function stringArray(value: unknown): string[] {
+  if (!Array.isArray(value)) return []
+  return value.filter((item): item is string => typeof item === "string")
+}
+
+export function detectSkillAgentFromCommand(command: string, args: string[] = []): SkillAgent | null {
+  const invocation = [command, ...args].join(" ").toLowerCase()
+
+  if (invocation.includes("@agentclientprotocol/claude-agent-acp") || invocation.includes("claude-agent-acp")) {
+    return "claude-code"
+  }
+  if (invocation.includes("@zed-industries/codex-acp") || invocation.includes("codex-acp")) {
+    return "codex"
+  }
+  if (invocation.includes("opencode-ai") || (/\bopencode\b/.test(invocation) && /\bacp\b/.test(invocation))) {
+    return "opencode"
+  }
+  if (invocation.includes("pi-acp")) {
+    return "pi"
+  }
+
+  return null
+}
+
+export function detectSkillAgentsFromConfig(config: unknown): SkillAgent[] {
+  if (!isRecord(config) || !Array.isArray(config["agents"])) return []
+
+  const detected: SkillAgent[] = []
+  for (const agent of config["agents"]) {
+    if (!isRecord(agent) || typeof agent["command"] !== "string") continue
+    const skillAgent = detectSkillAgentFromCommand(agent["command"], stringArray(agent["args"]))
+    if (skillAgent && !detected.includes(skillAgent)) detected.push(skillAgent)
+  }
+  return detected
+}
+
+export function buildSkillsCliArgs(action: SkillAction, agents: string[], source = PROJECT_ROOT): string[] {
+  const args = action === "install" ? ["add", source, "--global"] : ["remove", "--global"]
+
+  for (const agent of agents) {
+    args.push("--agent", agent)
+  }
+  for (const skill of TANGERINE_SKILLS) {
+    args.push("--skill", skill)
+  }
+  args.push("-y")
+
+  return args
+}
+
+function defaultSkillsCliRunner(args: string[]): SkillsCliResult {
   try {
-    lstatSync(target)
-    targetExists = true
-  } catch {
-    // Does not exist at all
+    const result = Bun.spawnSync(["npx", "-y", "skills", ...args], {
+      stdout: "inherit",
+      stderr: "inherit",
+      env: process.env,
+    })
+    return { exitCode: result.exitCode }
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error)
+    throw new Error(`Unable to run skills CLI: ${message}`, { cause: error })
+  }
+}
+
+export function runSkillsAction(action: SkillAction, config: unknown, runner: SkillsCliRunner = defaultSkillsCliRunner): void {
+  const agents = detectSkillAgentsFromConfig(config)
+  if (agents.length === 0) {
+    throw new Error(
+      `No supported ACP adapter commands found in ${CONFIG_PATH}. Configure one of: claude-agent-acp, codex-acp, opencode acp, pi-acp. Supported skill targets: ${SUPPORTED_SKILL_AGENTS.join(", ")}.`
+    )
   }
 
-  if (targetExists) {
-    try {
-      const current = readlinkSync(target)
-      if (resolve(current) === resolve(skillSource)) {
-        return { created: false, skipped: "already linked" }
-      }
-    } catch {
-      // Not a symlink — existing dir/file, don't touch
-      return { created: false, skipped: "path exists (not a symlink), not overwriting" }
-    }
-    // Symlink exists but points elsewhere — replace it
-    rmSync(target)
+  const skillsDir = join(PROJECT_ROOT, "skills")
+  if (!existsSync(skillsDir)) {
+    throw new Error(`Tangerine skills directory not found at ${skillsDir}`)
   }
 
-  ensureDir(targetDir)
-  symlinkSync(skillSource, target)
-  return { created: true, skipped: null }
+  check(`target agents: ${agents.join(", ")}`, true)
+  check(`skills: ${TANGERINE_SKILLS.join(", ")}`, true)
+
+  const args = buildSkillsCliArgs(action, agents)
+  const result = runner(args)
+  if (result.exitCode !== 0) {
+    throw new Error(`skills CLI failed with exit code ${result.exitCode}`)
+  }
 }
 
 export async function install(): Promise<void> {
   console.log("\nTangerine install\n")
 
-  // 1. Directory structure
   console.log("Directories:")
   ensureDir(TANGERINE_HOME)
   check(`${TANGERINE_HOME}`, true)
 
-  console.log(`\nACP skills:`)
-  for (const skill of SKILLS_TO_INSTALL) {
-    if (!existsSync(skill.source)) {
-      check(`${skill.name} skill`, false, `skill source not found at ${skill.source}`)
-      continue
-    }
-    const result = symlinkSkill(skill.source, ACP_SKILLS_DIR)
-    if (result.created) {
-      check(`${skill.name} skill → ${ACP_SKILLS_DIR}/${skill.name}`, true)
-    } else {
-      check(`${skill.name} skill (${result.skipped})`, true)
-    }
-  }
+  console.log("\nAgent skills:")
+  runSkillsAction("install", readRawConfig())
+
+  console.log()
+}
+
+export async function uninstall(): Promise<void> {
+  console.log("\nTangerine uninstall\n")
+
+  console.log("Agent skills:")
+  runSkillsAction("uninstall", readRawConfig())
 
   console.log()
 }

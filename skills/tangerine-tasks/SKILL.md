@@ -99,7 +99,6 @@ curl -X POST "$API/api/tasks" \
     "title": "Fix flaky timeout in retry loop",
     "type": "worker",
     "description": "The retry loop uses a fixed 5s timeout...",
-    "provider": "acp",
     "parentTaskId": "abc123",
     "source": "cross-project"
   }'
@@ -116,7 +115,6 @@ curl -X POST "$API/api/tasks" \
     "title": "Review PR #123",
     "type": "reviewer",
     "description": "Check for regressions",
-    "provider": "acp",
     "branch": "tangerine/abc12345",
     "prUrl": "https://github.com/org/repo/pull/123",
     "parentTaskId": "abc123",
@@ -128,7 +126,7 @@ curl -X POST "$API/api/tasks" \
 > - Set `branch` to the **PR's source branch** (e.g. `tangerine/abc12345`), NOT the PR number shorthand (`#123`) or a new branch. The reviewer must check out the same branch as the PR.
 > - Always set `prUrl` to the full PR URL (e.g. `https://github.com/org/repo/pull/123`). The poller can discover it from the branch as a fallback, but setting it upfront ensures immediate tracking.
 
-Provider values are configured ACP agent IDs from `agents[]` (default: `acp`). Omit `provider` to use project/global `defaultAgent`. Put durable custom instructions in `taskTypes.<type>.systemPrompt`, not provider names, task titles, or one-off prompts.
+Provider values are real configured agent IDs from `agents[]` (for example `claude`, `codex`, `opencode`, or `pi`). Omit `provider` to use project/global `defaultAgent`. Put durable custom instructions in `taskTypes.<type>.systemPrompt`, not provider names, task titles, or one-off prompts.
 
 Task types — **always pass the correct type**:
 
@@ -416,7 +414,7 @@ Typical task fields exposed by the API:
   "source": "manual",
   "title": "Fix the failing test",
   "status": "running",
-  "provider": "acp",
+  "provider": "pi",
   "model": "gpt-5",
   "reasoningEffort": "high",
   "branch": "tangerine/abc12345",
