@@ -388,7 +388,7 @@ export function ChatPanel({
   }, [messages.length, activities.length, isAtBottom])
 
   return (
-    <div className="flex h-full min-w-0 flex-col bg-background text-base">
+    <div className="flex h-full min-w-0 flex-col bg-background text-base md:text-sm">
       {/* Messages */}
       <div className="relative min-w-0 flex-1 overflow-hidden">
         <div
