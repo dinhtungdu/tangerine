@@ -111,7 +111,7 @@ function extractCheckCommand(shellCommand: string): string {
   return match?.[1] ?? match?.[2] ?? match?.[3] ?? DEFAULT_ACP_COMMAND
 }
 
-const CLAUDE_ACP_COMMANDS = ["claude-code-acp", "claude-acp"]
+const CLAUDE_ACP_COMMANDS = ["claude-code-acp", "claude-acp", "claude-agent-acp"]
 
 function resolveTuiCommand(config: AcpProviderConfig | undefined, checkCommand: string): string | undefined {
   if (config?.tuiCommand) return config.tuiCommand
