@@ -80,21 +80,17 @@ mock.module("@base-ui/react/select", () => {
   }
 })
 
-mock.module("@xterm/xterm", () => ({
-  Terminal: class {
-    cols = 80
-    rows = 24
-    loadAddon() {}
-    open() {}
-    onData() { return { dispose() {} } }
-    write() {}
-    writeln() {}
-    clear() {}
-    dispose() {}
-  },
+mock.module("@wterm/react", () => ({
+  Terminal: React.forwardRef((_props: Record<string, unknown>, _ref: unknown) =>
+    React.createElement("div", { "data-testid": "wterm-terminal" })
+  ),
+  useTerminal: () => ({
+    ref: { current: null },
+    write: () => {},
+    resize: () => {},
+    focus: () => {},
+  }),
 }))
-mock.module("@xterm/addon-fit", () => ({ FitAddon: class { fit() {} } }))
-mock.module("@xterm/addon-web-links", () => ({ WebLinksAddon: class {} }))
 mock.module("../components/TerminalPane", () => ({
   TerminalPane: () => React.createElement("div", { "data-testid": "terminal-pane" }),
 }))

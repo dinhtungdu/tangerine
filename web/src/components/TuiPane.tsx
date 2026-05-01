@@ -1,10 +1,8 @@
 import { useEffect, useRef, useCallback, useState } from "react"
-import { Terminal } from "@xterm/xterm"
-import { FitAddon } from "@xterm/addon-fit"
-import { WebLinksAddon } from "@xterm/addon-web-links"
-import "@xterm/xterm/css/xterm.css"
+import { Terminal, useTerminal } from "@wterm/react"
+import "@wterm/react/css"
 import { emitAuthFailure, getAuthToken } from "../lib/auth"
-import { sendTerminalPong, sendTerminalResize } from "../lib/terminal-websocket"
+import { sendTerminalPong } from "../lib/terminal-websocket"
 import { createHeartbeatMonitor, type HeartbeatMonitor } from "../lib/ws-heartbeat"
 
 interface TuiPaneProps {
@@ -15,9 +13,7 @@ type ConnState = "connecting" | "connected" | "reconnecting" | "error" | "exited
 
 export function TuiPane({ taskId }: TuiPaneProps) {
   const wsPath = `/api/tasks/${taskId}/tui-terminal`
-  const containerRef = useRef<HTMLDivElement>(null)
-  const termRef = useRef<Terminal | null>(null)
-  const fitRef = useRef<FitAddon | null>(null)
+  const { ref: termRef, write } = useTerminal()
   const wsRef = useRef<WebSocket | null>(null)
   const reconnectTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const heartbeatRef = useRef<HeartbeatMonitor | null>(null)
@@ -35,9 +31,15 @@ export function TuiPane({ taskId }: TuiPaneProps) {
     }
   }, [])
 
+  const sendResize = useCallback((cols: number, rows: number) => {
+    const ws = wsRef.current
+    if (ws?.readyState === WebSocket.OPEN) {
+      ws.send(JSON.stringify({ type: "resize", cols, rows }))
+    }
+  }, [])
+
   const connect = useCallback(() => {
-    const term = termRef.current
-    if (!term || disposedRef.current) return
+    if (!termRef.current || disposedRef.current) return
 
     const protocol = window.location.protocol === "https:" ? "wss:" : "ws:"
     const url = `${protocol}//${window.location.host}${wsPath}`
@@ -77,10 +79,9 @@ export function TuiPane({ taskId }: TuiPaneProps) {
         ws.send(JSON.stringify({ type: "auth", token }))
       }
       requestAnimationFrame(() => {
-        const fit = fitRef.current
-        if (fit) {
-          fit.fit()
-          sendTerminalResize(ws, term)
+        const handle = termRef.current
+        if (handle?.instance) {
+          sendResize(handle.instance.cols, handle.instance.rows)
         }
       })
     }
@@ -96,16 +97,15 @@ export function TuiPane({ taskId }: TuiPaneProps) {
         if (msg.type === "connected") {
           everConnectedRef.current = true
           setConnState("connected")
-          const fit = fitRef.current
-          if (fit) {
-            fit.fit()
-            sendTerminalResize(ws, term)
+          const handle = termRef.current
+          if (handle?.instance) {
+            sendResize(handle.instance.cols, handle.instance.rows)
           }
         } else if (msg.type === "scrollback") {
-          term.clear()
-          term.write(msg.data)
+          write("\x1b[2J\x1b[H")
+          write(msg.data)
         } else if (msg.type === "output") {
-          term.write(msg.data)
+          write(msg.data)
         } else if (msg.type === "exit") {
           setExitCode(msg.code)
           setConnState("exited")
@@ -113,7 +113,7 @@ export function TuiPane({ taskId }: TuiPaneProps) {
           hadErrorRef.current = true
           if (msg.message === "Unauthorized") emitAuthFailure()
           setConnState("error")
-          term.writeln(`\r\n[Error: ${msg.message}]`)
+          write(`\r\n[Error: ${msg.message}]\r\n`)
         }
       } catch {
         // Ignore unparseable
@@ -143,74 +143,14 @@ export function TuiPane({ taskId }: TuiPaneProps) {
     ws.onerror = () => {
       ws.close()
     }
-  }, [wsPath])
+  }, [wsPath, sendResize, write, termRef])
+
+  const readyRef = useRef(false)
 
   useEffect(() => {
-    if (!containerRef.current) return
     disposedRef.current = false
-
-    const term = new Terminal({
-      cursorBlink: true,
-      fontSize: 13,
-      fontFamily: "'SF Mono', 'Fira Code', 'Cascadia Code', Menlo, monospace",
-      theme: {
-        background: "#1a1a1a",
-        foreground: "#e0e0e0",
-        cursor: "#e0e0e0",
-        selectionBackground: "#444",
-      },
-      scrollback: 10000,
-      convertEol: true,
-    })
-
-    const fitAddon = new FitAddon()
-    const webLinksAddon = new WebLinksAddon()
-    term.loadAddon(fitAddon)
-    term.loadAddon(webLinksAddon)
-
-    termRef.current = term
-    fitRef.current = fitAddon
-
-    term.open(containerRef.current)
-    fitAddon.fit()
-
-    term.onData(sendInput)
-
-    const resizeObserver = new ResizeObserver(() => {
-      fitAddon.fit()
-      sendTerminalResize(wsRef.current, term)
-    })
-    resizeObserver.observe(containerRef.current)
-
-    connect()
-
-    function onVisibilityChange() {
-      if (document.visibilityState !== "visible") return
-      const ws = wsRef.current
-      if (!ws || ws.readyState !== WebSocket.OPEN) {
-        if (reconnectTimerRef.current) {
-          clearTimeout(reconnectTimerRef.current)
-          reconnectTimerRef.current = null
-        }
-        backoffRef.current = 1000
-        setConnState(everConnectedRef.current ? "reconnecting" : "connecting")
-        if (ws && ws.readyState === WebSocket.CONNECTING) {
-          ws.onopen = null
-          ws.onmessage = null
-          ws.onerror = null
-          ws.onclose = null
-          ws.close()
-          wsRef.current = null
-        }
-        connect()
-      }
-    }
-    document.addEventListener("visibilitychange", onVisibilityChange)
-
     return () => {
       disposedRef.current = true
-      document.removeEventListener("visibilitychange", onVisibilityChange)
-      resizeObserver.disconnect()
       if (reconnectTimerRef.current) clearTimeout(reconnectTimerRef.current)
       heartbeatRef.current?.stop()
       heartbeatRef.current = null
@@ -227,16 +167,33 @@ export function TuiPane({ taskId }: TuiPaneProps) {
       setExitCode(null)
       everConnectedRef.current = false
       hadErrorRef.current = false
-      term.dispose()
-      termRef.current = null
-      fitRef.current = null
+      readyRef.current = false
     }
+  }, [])
+
+  const handleReady = useCallback(() => {
+    if (readyRef.current) return
+    readyRef.current = true
+    connect()
   }, [connect])
+
+  const handleResize = useCallback((cols: number, rows: number) => {
+    sendResize(cols, rows)
+  }, [sendResize])
 
   return (
     <div className="flex h-full flex-col overflow-hidden">
       <div className="relative min-h-0 flex-1">
-        <div ref={containerRef} className="absolute inset-0 bg-card p-1" />
+        <Terminal
+          ref={termRef}
+          autoResize
+          cursorBlink
+          onData={sendInput}
+          onResize={handleResize}
+          onReady={handleReady}
+          className="absolute inset-0 bg-card p-1"
+          style={{ height: "100%" }}
+        />
         {connState !== "connected" && (
           <div className="absolute inset-0 flex items-center justify-center bg-[#1a1a1a]">
             <span className="text-sm text-muted-foreground">

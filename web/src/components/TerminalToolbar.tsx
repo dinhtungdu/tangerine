@@ -1,9 +1,9 @@
 import { useState, useRef as useReactRef } from "react"
-import type { Terminal } from "@xterm/xterm"
+import type { TerminalHandle } from "@wterm/react"
 import { Button } from "@/components/ui/button"
 
 interface TerminalToolbarProps {
-  termRef: React.RefObject<Terminal | null>
+  termRef: React.RefObject<TerminalHandle | null>
   onInput: (data: string) => void
 }
 

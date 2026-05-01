@@ -16,7 +16,7 @@ export default defineConfig({
         manualChunks: {
           "vendor-react": ["react", "react-dom", "react-router-dom"],
           "vendor-ui": ["@base-ui/react", "cmdk", "sonner"],
-          "vendor-xterm": ["@xterm/xterm", "@xterm/addon-fit", "@xterm/addon-web-links"],
+          "vendor-wterm": ["@wterm/react"],
           "vendor-markdown": ["react-markdown", "remark-gfm", "remark-breaks"],
         },
       },
