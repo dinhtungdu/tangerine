@@ -9,6 +9,7 @@ const PUBLIC_API_PATTERNS = [
   /^\/api\/auth\/session$/,
   /^\/api\/tasks\/[^/]+\/ws$/,
   /^\/api\/tasks\/[^/]+\/terminal$/,
+  /^\/api\/tasks\/[^/]+\/tui-terminal$/,
   /^\/api\/tasks\/agent-status\/ws$/,
 ]
 

@@ -53,9 +53,7 @@ export function initialTaskStreamMessages(
   }
   messages.push({ type: "event", data: { event: "slash.commands", commands: state.slashCommands } })
 
-  if (state.tuiMode) {
-    messages.push({ type: "tui_mode", active: true })
-  }
+  messages.push({ type: "tui_mode", active: state.tuiMode })
 
   return messages
 }

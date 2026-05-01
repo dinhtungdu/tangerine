@@ -129,6 +129,12 @@ export function checkTask(
         return "healthy"
       }
 
+      // Skip when TUI mode owns the session — ACP handle is intentionally removed
+      if (state.tuiMode) {
+        taskLog.debug("TUI mode active, skipping health check")
+        return "healthy"
+      }
+
       // Skip if a reconnect is already in progress — don't count this cycle
       // as a failed restart attempt, since another fiber is handling recovery.
       if (state.reconnecting) {

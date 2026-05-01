@@ -14,11 +14,23 @@ export function utc(ts: string | null): string | null {
   return ts.replace(" ", "T") + "Z"
 }
 
-// Return canonical capabilities for the task role.
-// Stored capabilities are ignored — canonical is the source of truth.
-// This ensures removing a capability from getCapabilitiesForType() takes effect immediately.
-function mergeCapabilities(_stored: string | null, task: { type?: string | null }): TaskCapability[] {
-  return getCapabilitiesForType(normalizeTaskType(task.type))
+// Canonical capabilities from type, plus provider-dependent capabilities from DB.
+// Canonical set is rebuilt each call so removing a capability takes effect immediately.
+// Provider-dependent capabilities (e.g. "tui") are only present in stored and must be preserved.
+const PROVIDER_DEPENDENT_CAPABILITIES: Set<TaskCapability> = new Set(["tui"])
+
+function mergeCapabilities(stored: string | null, task: { type?: string | null }): TaskCapability[] {
+  const canonical = getCapabilitiesForType(normalizeTaskType(task.type))
+  if (!stored) return canonical
+  try {
+    const parsed: TaskCapability[] = JSON.parse(stored)
+    for (const cap of parsed) {
+      if (PROVIDER_DEPENDENT_CAPABILITIES.has(cap) && !canonical.includes(cap)) {
+        canonical.push(cap)
+      }
+    }
+  } catch { /* malformed stored capabilities — ignore */ }
+  return canonical
 }
 
 /** Maps a snake_case TaskRow from SQLite to a camelCase Task for API responses */

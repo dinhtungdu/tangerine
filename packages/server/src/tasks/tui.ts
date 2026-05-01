@@ -271,9 +271,12 @@ export function clearTuiSession(taskId: string): void {
       const pid = parseInt(content, 10)
       if (!Number.isNaN(pid)) {
         process.kill(pid, 0)
-        process.kill(pid, "SIGKILL")
+        const cmdline = readFileSync(`/proc/${pid}/cmdline`, "utf-8")
+        if (cmdline.includes("claude") || cmdline.includes("node")) {
+          process.kill(pid, "SIGKILL")
+        }
       }
-    } catch { /* process gone */ }
+    } catch { /* process gone or /proc unavailable */ }
     try { unlinkSync(pp) } catch { /* no file */ }
     try { unlinkSync(tuiHistPath(taskId)) } catch { /* no file */ }
   }
