@@ -23,7 +23,7 @@ packages/
 web/
   src/             # Vite + React dashboard
 specs/             # Architecture and design docs
-skills/            # Agent skill definitions (tangerine-tasks, platform-setup, server-management)
+skills/            # Agent skill definitions (tangerine-tasks, platform-setup)
 ```
 
 ## Key Decisions
@@ -50,7 +50,7 @@ skills/            # Agent skill definitions (tangerine-tasks, platform-setup, s
 - **Spec-first for new features**: New features or architecture changes → write/update the spec before coding. Bug fixes, small refactors, spikes → code first, update specs if architecture changed. At the start of each task, ask: "Does this need a spec update first?"
 - **Gate UI on capabilities, not titles**: Use `task.capabilities.includes("feature")` to show/hide UI features per task type. Use `task.type` (`worker`/`reviewer`/`runner`) as the source of truth for task behavior — capabilities are derived from type in `manager.ts`. Add new capabilities in `shared/types.ts` → assign by type in `manager.ts` → check in UI.
 - **Never prompt a running worker with new scope**: `/prompt` is only for unblocking or clarifying a worker's existing scope. New or unrelated requirements must go in a new task — never tacked onto a running one via `/prompt`.
-- **Skills live in `skills/`**: When updating agent skills (tangerine-tasks, platform-setup, server-management), edit `skills/<name>/SKILL.md` in this repo — not `~/.claude/skills/`. The repo is the source of truth.
+- **Skills live in `skills/`**: When updating agent skills (tangerine-tasks, platform-setup), edit `skills/<name>/SKILL.md` in this repo — not `~/.claude/skills/`. The repo is the source of truth.
 - **Daemon vs foreground startup**: `tangerine start` runs as a detached daemon — the server process (`start.ts`) writes stdout/stderr to the log file, not the terminal. Anything a user needs to see at startup (errors, warnings, URLs) must be printed in `daemon.ts` (the launcher), not `start.ts`. When touching startup output or checks, ask: "Will the user see this in daemon mode?"
 - **No inline duplication**: If the same logic appears in more than one place, extract it into a shared module immediately. Don't copy-paste and adjust — find the right abstraction level and put it there once.
 
