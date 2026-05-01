@@ -3,7 +3,7 @@ export type AgentId = string
 export type ProviderType = AgentId
 export type TaskSource = "github" | "linear" | "manual" | "cross-project"
 export type TaskType = "worker" | "reviewer" | "runner"
-export type TaskCapability = "resolve" | "predefined-prompts" | "diff" | "continue" | "pr-track" | "pr-create" | "tui"
+export type TaskCapability = "resolve" | "predefined-prompts" | "diff" | "continue" | "pr-track" | "pr-create" | "tui" | "image-prompts"
 
 /** Normalize persisted task types. Unknown legacy values map to runner. */
 export function normalizeTaskType(type: string | null | undefined): TaskType {

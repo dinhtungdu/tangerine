@@ -324,6 +324,10 @@ export async function updateProjectRepo(projectName: string): Promise<ProjectUpd
   })
 }
 
+export async function fetchTuiStatus(taskId: string): Promise<{ mode: "tui" | "chat" }> {
+  return request<{ mode: "tui" | "chat" }>(`/api/tasks/${taskId}/tui/status`)
+}
+
 export async function startTuiMode(taskId: string): Promise<{ ok: boolean; mode: string }> {
   return request<{ ok: boolean; mode: string }>(`/api/tasks/${taskId}/tui`, { method: "POST" })
 }

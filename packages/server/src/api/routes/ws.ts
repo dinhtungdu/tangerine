@@ -54,6 +54,7 @@ export function initialTaskStreamMessages(
   messages.push({ type: "event", data: { event: "slash.commands", commands: state.slashCommands } })
 
   messages.push({ type: "tui_mode", active: state.tuiMode })
+  messages.push({ type: "event", data: { event: "capabilities.update", imagePrompts: state.supportsImagePrompts } })
 
   return messages
 }

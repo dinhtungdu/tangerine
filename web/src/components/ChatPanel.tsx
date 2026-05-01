@@ -46,6 +46,7 @@ interface ChatPanelProps {
   contextWindowMax?: number
   permissionRequest?: PermissionRequest | null
   onPermissionRespond?: (optionId: string) => void | Promise<void>
+  supportsImagePrompts?: boolean
 }
 
 const EMPTY_ACTIVITIES: ActivityEntry[] = []
@@ -243,6 +244,7 @@ export function ChatPanel({
   contextWindowMax,
   permissionRequest,
   onPermissionRespond,
+  supportsImagePrompts,
 }: ChatPanelProps) {
   const scrollRef = useRef<HTMLDivElement>(null)
   const contentRef = useRef<HTMLDivElement>(null)
@@ -498,6 +500,7 @@ export function ChatPanel({
           autoFocusKey={autoFocusKey}
           contextTokens={contextTokens}
           contextWindowMax={contextWindowMax}
+          supportsImagePrompts={supportsImagePrompts}
         />
         </>
       )}

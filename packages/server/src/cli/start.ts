@@ -1019,6 +1019,12 @@ export async function start(): Promise<void> {
                 getTaskState(taskId).lastError = event.message
                 break
               }
+              case "capabilities.update": {
+                const capState = getTaskState(taskId)
+                capState.supportsImagePrompts = event.imagePrompts
+                emitTaskEvent(taskId, { event: "capabilities.update", imagePrompts: event.imagePrompts })
+                break
+              }
             }
             } catch (err) {
               log.error("Subscribe callback error", { taskId, kind: event.kind, error: String(err) })

@@ -44,6 +44,8 @@ interface ChatInputProps {
   contextTokens?: number
   /** Max context window size in tokens for the current model */
   contextWindowMax?: number
+  /** Whether the current agent/model supports image prompts. Defaults to true. */
+  supportsImagePrompts?: boolean
 }
 
 function loadChatDraft(key: string): { text?: string; pendingImages?: PendingImage[] } {
@@ -59,7 +61,7 @@ export function appendQuotedText(existingText: string, quotedText: string): stri
   return `${prefix}${quotedText}\n\n`
 }
 
-export function ChatInput({ onSend, disabled, queueLength, taskId, isWorking, onAbort, model, reasoningEffort, onModelChange, onReasoningEffortChange, onModeChange, configOptions, predefinedPrompts, slashCommands = [], quotedMessage, onQuoteDismiss, selectedText, onQuoteSelection, autoFocusKey, contextTokens, contextWindowMax }: ChatInputProps) {
+export function ChatInput({ onSend, disabled, queueLength, taskId, isWorking, onAbort, model, reasoningEffort, onModelChange, onReasoningEffortChange, onModeChange, configOptions, predefinedPrompts, slashCommands = [], quotedMessage, onQuoteDismiss, selectedText, onQuoteSelection, autoFocusKey, contextTokens, contextWindowMax, supportsImagePrompts = true }: ChatInputProps) {
   const draftKey = taskId ? `tangerine:chat-draft:${taskId}` : null
 
   const [text, setText] = useState(() => draftKey ? (loadChatDraft(draftKey).text ?? "") : "")
@@ -208,6 +210,7 @@ export function ChatInput({ onSend, disabled, queueLength, taskId, isWorking, on
   }, [])
 
   const handlePaste = useCallback((e: ClipboardEvent<HTMLTextAreaElement>) => {
+    if (!supportsImagePrompts) return
     const items = e.clipboardData.items
     for (const item of items) {
       if (item.type.startsWith("image/")) {
@@ -225,7 +228,7 @@ export function ChatInput({ onSend, disabled, queueLength, taskId, isWorking, on
         reader.readAsDataURL(file)
       }
     }
-  }, [])
+  }, [supportsImagePrompts])
 
   const removeImage = useCallback((index: number) => {
     setPendingImages((prev) => prev.filter((_, i) => i !== index))
@@ -464,23 +467,27 @@ export function ChatInput({ onSend, disabled, queueLength, taskId, isWorking, on
             }}
           >
             <div className="flex min-w-0 items-center gap-1.5">
-              <input
-                ref={fileInputRef}
-                type="file"
-                accept="image/*"
-                multiple
-                onChange={handleFileSelect}
-                className="hidden"
-              />
-              <Button
-                variant="ghost"
-                size="icon-xs"
-                onClick={() => fileInputRef.current?.click()}
-                aria-label="Attach file"
-                className="text-muted-foreground hover:text-foreground"
-              >
-                <Paperclip className="h-4 w-4" />
-              </Button>
+              {supportsImagePrompts && (
+                <>
+                  <input
+                    ref={fileInputRef}
+                    type="file"
+                    accept="image/*"
+                    multiple
+                    onChange={handleFileSelect}
+                    className="hidden"
+                  />
+                  <Button
+                    variant="ghost"
+                    size="icon-xs"
+                    onClick={() => fileInputRef.current?.click()}
+                    aria-label="Attach image"
+                    className="text-muted-foreground hover:text-foreground"
+                  >
+                    <Paperclip className="h-4 w-4" />
+                  </Button>
+                </>
+              )}
               {(canChangeModel || displayedModel || effectiveReasoningChange || effectiveModeChange) && (
                 <ModelEffortPopover
                   models={displayedModels}

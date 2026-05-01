@@ -692,6 +692,7 @@ export function TaskDetail() {
                 contextWindowMax={session.contextWindowMax ?? undefined}
                 permissionRequest={session.permissionRequest}
                 onPermissionRespond={session.respondToPermission}
+                supportsImagePrompts={session.supportsImagePrompts}
               />
               )}
             </div>

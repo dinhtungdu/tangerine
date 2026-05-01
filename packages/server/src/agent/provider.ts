@@ -34,6 +34,7 @@ export type AgentEvent =
   | { kind: "session.info"; title?: string | null; updatedAt?: string | null; metadata?: Record<string, unknown> }
   | { kind: "permission.request"; requestId: string; toolName?: string; toolCallId?: string; options: PermissionRequestOption[] }
   | { kind: "permission.decision"; toolName?: string; optionId: string; optionName: string; optionKind: string }
+  | { kind: "capabilities.update"; imagePrompts: boolean }
 
 export interface PermissionRequestOption {
   optionId: string

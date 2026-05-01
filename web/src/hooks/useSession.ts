@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback, useRef } from "react"
 import type { AgentConfigOption, AgentContentBlock, AgentPlanEntry, AgentSlashCommand, WsServerMessage, TaskStatus, ActivityEntry, PromptImage, PromptQueueEntry, PermissionRequest, Task } from "@tangerine/shared"
-import { fetchMessagesPaginated, fetchActivities, fetchQueuedPrompts, fetchTaskConfigOptions, fetchTaskSlashCommands, fetchPendingPermission, removeQueuedPrompt, updateQueuedPrompt, sendNowQueuedPrompt, respondToPermission as apiRespondToPermission, type SessionLog } from "../lib/api"
+import { fetchMessagesPaginated, fetchActivities, fetchQueuedPrompts, fetchTaskConfigOptions, fetchTaskSlashCommands, fetchPendingPermission, removeQueuedPrompt, updateQueuedPrompt, sendNowQueuedPrompt, respondToPermission as apiRespondToPermission, fetchTuiStatus, type SessionLog } from "../lib/api"
 import { useWebSocket } from "./useWebSocket"
 
 export interface ChatMessageImage {
@@ -41,6 +41,7 @@ interface UseSessionResult {
   permissionRequest: PermissionRequest | null
   respondToPermission: (optionId: string) => Promise<void>
   tuiMode: boolean
+  supportsImagePrompts: boolean
 }
 
 export function applyAssistantStreamMessage(
@@ -233,7 +234,14 @@ export function useSession(taskId: string, initialContextTokens?: number, initia
   const [configOptions, setConfigOptions] = useState<AgentConfigOption[]>([])
   const [slashCommands, setSlashCommands] = useState<AgentSlashCommand[]>([])
   const [permissionRequest, setPermissionRequest] = useState<PermissionRequest | null>(null)
-  const [tuiMode, setTuiMode] = useState(false)
+  const [tuiMode, setTuiMode] = useState(() => {
+    try {
+      const stored = localStorage.getItem(`tangerine:tuiMode:${taskId}`)
+      return stored === "true"
+    } catch {
+      return false
+    }
+  })
   const { connected, messages: wsMessages, send } = useWebSocket(taskId)
   const activeTaskIdRef = useRef(taskId)
   activeTaskIdRef.current = taskId
@@ -243,6 +251,7 @@ export function useSession(taskId: string, initialContextTokens?: number, initia
   // real queued messages forever when the server briefly queues an idle send.
   const pendingOptimisticRef = useRef<Map<string, PendingOptimisticPrompt>>(new Map())
   const tuiModeInitializedRef = useRef(false)
+  const [supportsImagePrompts, setSupportsImagePrompts] = useState(true)
 
   // Sync context usage when persisted task values change (e.g. on initial load or poll).
   // Reset when switching tasks and new data hasn't loaded yet.
@@ -273,9 +282,13 @@ export function useSession(taskId: string, initialContextTokens?: number, initia
     activeAssistantStreamIdRef.current = null
     backfillInProgressRef.current = false
     tuiModeInitializedRef.current = false
+    setSupportsImagePrompts(true)
     for (const pending of pendingOptimisticRef.current.values()) clearPendingOptimistic(pending)
     pendingOptimisticRef.current.clear()
     setQueueVisibilityNow(Date.now())
+    try {
+      localStorage.removeItem(`tangerine:tuiMode:${taskId}`)
+    } catch { /* ignore */ }
   }, [taskId])
 
   useEffect(() => {
@@ -284,6 +297,29 @@ export function useSession(taskId: string, initialContextTokens?: number, initia
       pendingOptimisticRef.current.clear()
     }
   }, [])
+
+  // Fetch TUI mode from server on load to restore state after page refresh
+  useEffect(() => {
+    let cancelled = false
+    fetchTuiStatus(taskId).then((res) => {
+      if (cancelled) return
+      const isActive = res.mode === "tui"
+      setTuiMode(isActive)
+      tuiModeInitializedRef.current = true
+      try {
+        localStorage.setItem(`tangerine:tuiMode:${taskId}`, String(isActive))
+      } catch { /* ignore */ }
+    }).catch(() => { /* ignore */ })
+    return () => { cancelled = true }
+  }, [taskId])
+
+  // Persist tuiMode to localStorage when it changes (after first init)
+  useEffect(() => {
+    if (!tuiModeInitializedRef.current) return
+    try {
+      localStorage.setItem(`tangerine:tuiMode:${taskId}`, String(tuiMode))
+    } catch { /* ignore */ }
+  }, [taskId, tuiMode])
 
   // Clear stale stream ID when disconnected to prevent corrupted messages on reconnect
   useEffect(() => {
@@ -606,6 +642,11 @@ export function useSession(taskId: string, initialContextTokens?: number, initia
                 options: ev.options as PermissionRequest["options"],
               })
             }
+          } else if (eventType === "capabilities.update") {
+            const ev = data as { imagePrompts?: boolean }
+            if (typeof ev.imagePrompts === "boolean") {
+              setSupportsImagePrompts(ev.imagePrompts)
+            }
           }
         }
         break
@@ -749,5 +790,5 @@ export function useSession(taskId: string, initialContextTokens?: number, initia
     await apiRespondToPermission(taskId, requestId, optionId)
   }, [taskId, permissionRequest])
 
-  return { messages, activities, agentStatus, agentStatusKnown, queueLength: visibleQueuedPrompts.length, queuedPrompts: visibleQueuedPrompts, connected, taskStatus, sendPrompt, abort, updateQueuedPrompt: handleUpdateQueuedPrompt, removeQueuedPrompt: handleRemoveQueuedPrompt, clearAllQueuedPrompts: handleClearAllQueuedPrompts, sendNowQueuedPrompt: handleSendNowQueuedPrompt, contextTokens, contextWindowMax, configOptions, slashCommands, permissionRequest, respondToPermission: handleRespondToPermission, tuiMode }
+  return { messages, activities, agentStatus, agentStatusKnown, queueLength: visibleQueuedPrompts.length, queuedPrompts: visibleQueuedPrompts, connected, taskStatus, sendPrompt, abort, updateQueuedPrompt: handleUpdateQueuedPrompt, removeQueuedPrompt: handleRemoveQueuedPrompt, clearAllQueuedPrompts: handleClearAllQueuedPrompts, sendNowQueuedPrompt: handleSendNowQueuedPrompt, contextTokens, contextWindowMax, configOptions, slashCommands, permissionRequest, respondToPermission: handleRespondToPermission, tuiMode, supportsImagePrompts }
 }

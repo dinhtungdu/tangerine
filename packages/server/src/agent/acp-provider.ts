@@ -8,6 +8,7 @@ import { AgentError, PromptError, SessionStartError } from "../errors"
 import { killDescendants, killProcessTreeEscalated } from "./process-tree"
 import { isAgentEffortOption, type AgentConfigOption, type AgentContentBlock, type AgentPlanEntry, type AgentSlashCommand } from "@tangerine/shared"
 import type { AgentEvent, AgentFactory, AgentHandle, AgentStartContext, PromptImage, AgentMetadata } from "./provider"
+import { getTaskState } from "../tasks/task-state"
 
 const log = createLogger("acp-provider")
 const ACP_PROTOCOL_VERSION = 1
@@ -870,7 +871,16 @@ async function startAcpSession(ctx: AgentStartContext, config?: AcpProviderConfi
               emitFlushedThoughts()
               for (const event of mapper.flushAssistantMessage()) emit(event)
               const message = error instanceof Error ? error.message : String(error)
-              emit({ kind: "error", message })
+              // Detect image support failure from the ACP agent and disable future image prompts
+              if (capabilities.imagePrompts && /image.*not support|does not support.*image|cannot read.*image/i.test(message)) {
+                capabilities.imagePrompts = false
+                const state = getTaskState(ctx.taskId)
+                state.supportsImagePrompts = false
+                emit({ kind: "capabilities.update", imagePrompts: false })
+                emit({ kind: "error", message: "This model does not support image input. Images were removed from your prompt." })
+              } else {
+                emit({ kind: "error", message })
+              }
               // Clear tool state on error - cancelled/failed prompts may not send terminal tool events
               statusTracker.clearTools()
               statusTracker.end(turnId)

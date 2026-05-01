@@ -52,6 +52,8 @@ export interface TaskState {
   pendingPermissionRequest?: PermissionRequest
   /** True when the task is in TUI mode (ACP disconnected, native TUI PTY active). */
   tuiMode: boolean
+  /** Whether the current ACP agent + model combination supports image prompts. Starts true (optimistic), set false on first image error. */
+  supportsImagePrompts: boolean
 }
 
 const taskStates = new Map<string, TaskState>()
@@ -75,6 +77,7 @@ function defaultState(): TaskState {
     sessionInfo: {},
     completedAssistantMessageIds: new Set(),
     tuiMode: false,
+    supportsImagePrompts: true,
   }
 }
 
