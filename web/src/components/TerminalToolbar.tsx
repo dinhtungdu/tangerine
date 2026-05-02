@@ -41,6 +41,18 @@ export function TerminalToolbar({ termRef, onInput }: TerminalToolbarProps) {
   const pasteRef = useReactRef<HTMLTextAreaElement>(null)
   const shouldRestoreFocusRef = useReactRef(false)
 
+  function focusTerminal() {
+    const handle = termRef.current
+    if (!handle) return
+    handle.focus()
+    const inst = handle.instance as Record<string, unknown> | null
+    const el = inst?.element as HTMLElement | undefined
+    if (el) {
+      const maxScroll = el.scrollHeight - el.clientHeight
+      if (maxScroll > 0) el.scrollTop = maxScroll
+    }
+  }
+
   const ctrlKeys: KeyDef[] = [
     { label: "⌃C", input: ctrl("C"), ariaLabel: "Send Ctrl+C (interrupt)" },
     { label: "⌃D", input: ctrl("D"), ariaLabel: "Send Ctrl+D (EOF)" },
@@ -76,7 +88,7 @@ export function TerminalToolbar({ termRef, onInput }: TerminalToolbarProps) {
         }
       } finally {
         if (shouldRestoreFocusRef.current) {
-          termRef.current?.focus()
+          focusTerminal()
           shouldRestoreFocusRef.current = false
         }
       }
@@ -88,7 +100,7 @@ export function TerminalToolbar({ termRef, onInput }: TerminalToolbarProps) {
       key.input()
     } else {
       onInput(key.input)
-      termRef.current?.focus()
+      focusTerminal()
     }
   }
 
@@ -96,7 +108,7 @@ export function TerminalToolbar({ termRef, onInput }: TerminalToolbarProps) {
     const text = pasteRef.current?.value
     if (text) onInput(text)
     setShowPasteInput(false)
-    termRef.current?.focus()
+    focusTerminal()
   }
 
   const renderKey = (key: KeyDef) => (
@@ -121,7 +133,7 @@ export function TerminalToolbar({ termRef, onInput }: TerminalToolbarProps) {
 
   return (
     <div className="md:hidden">
-      <div className="flex items-center gap-1 overflow-x-auto border-t border-white/5 bg-black/40 px-2 py-1.5 backdrop-blur-md">
+      <div className="flex items-center gap-1 overflow-x-auto px-2 py-1.5">
         <div className="flex gap-0.5">
           {ctrlKeys.map(renderKey)}
         </div>
@@ -137,7 +149,7 @@ export function TerminalToolbar({ termRef, onInput }: TerminalToolbarProps) {
         {renderKey(pasteKey)}
       </div>
       {showPasteInput && (
-        <div className="flex items-center gap-2 border-t border-white/5 bg-black/40 px-2 py-1.5 backdrop-blur-md">
+        <div className="flex items-center gap-2 px-2 py-1.5">
           <textarea
             ref={pasteRef}
             rows={1}
@@ -162,7 +174,7 @@ export function TerminalToolbar({ termRef, onInput }: TerminalToolbarProps) {
             size="sm"
             onClick={() => {
               setShowPasteInput(false)
-              termRef.current?.focus()
+              focusTerminal()
             }}
             aria-label="Cancel paste"
             className="h-8 min-w-8 shrink-0 rounded-full text-muted-foreground/80 hover:bg-white/10"
