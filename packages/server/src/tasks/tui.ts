@@ -265,7 +265,9 @@ export function clearTuiSession(taskId: string): void {
 
   if (session) {
     if (session.writeTimer) clearTimeout(session.writeTimer)
+    const pid = session.pty.pid
     try { session.pty.kill() } catch { /* already dead */ }
+    killProcessTreeEscalated(pid)
     try { unlinkSync(session.histPath) } catch { /* no file */ }
     try { unlinkSync(tuiPidPath(taskId)) } catch { /* no file */ }
   } else {
@@ -277,7 +279,7 @@ export function clearTuiSession(taskId: string): void {
         process.kill(pid, 0)
         const cmdline = readFileSync(`/proc/${pid}/cmdline`, "utf-8")
         if (cmdline.includes("claude") || cmdline.includes("node")) {
-          process.kill(pid, "SIGKILL")
+          killProcessTreeEscalated(pid)
         }
       }
     } catch { /* process gone or /proc unavailable */ }

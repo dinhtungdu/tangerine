@@ -20,6 +20,7 @@ import { createWebSocketHeartbeat, type WebSocketHeartbeat } from "../ws-heartbe
 import { isAuthEnabled, isRequestAuthenticated, isValidAuthToken } from "../../auth"
 import { getTask } from "../../db/queries"
 import { createLogger } from "../../logger"
+import { killProcessTreeEscalated } from "../../agent/process-tree"
 import { tmpdir } from "os"
 
 const log = createLogger("terminal-ws")
@@ -240,7 +241,9 @@ function clearTerminalSessionKind(taskId: string): void {
       clearTimeout(session.writeTimer)
       session.writeTimer = null
     }
+    const pid = session.pty.pid
     try { session.pty.kill() } catch { /* already dead */ }
+    killProcessTreeEscalated(pid)
     try { unlinkSync(session.histPath) } catch { /* no file */ }
     try { unlinkSync(pidPath(taskId)) } catch { /* no file */ }
   } else {
@@ -255,7 +258,7 @@ function clearTerminalSessionKind(taskId: string): void {
         process.kill(pid, 0) // throws ESRCH if process is gone
         const cmdline = readFileSync(`/proc/${pid}/cmdline`, "utf-8")
         if (isExpectedPersistedProcess(cmdline)) {
-          process.kill(pid, "SIGKILL")
+          killProcessTreeEscalated(pid)
         }
       }
     } catch { /* process gone, /proc unavailable, or not a shell — skip */ }
