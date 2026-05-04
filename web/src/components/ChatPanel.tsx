@@ -401,7 +401,7 @@ export function ChatPanel({
               No messages yet. Send a prompt to start.
             </div>
           ) : (
-            <div ref={contentRef} className="min-w-0 px-4 pb-12 pt-4">
+            <div ref={contentRef} className="flex min-h-full min-w-0 flex-col justify-end px-4 pb-12 pt-4">
               <AssistantMessageGroups
                 messages={visibleMessages}
                 activities={activities}
