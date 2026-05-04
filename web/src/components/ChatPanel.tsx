@@ -362,30 +362,31 @@ export function ChatPanel({
     return () => vv.removeEventListener("resize", onResize)
   }, [])
 
-  // Auto-scroll only when user is already at the bottom
-  const prevCountRef = useRef({ messages: 0, activities: 0 })
+  // Auto-scroll when content height grows and user is already at bottom.
+  // ResizeObserver catches all growth: new messages, streaming content, activity updates.
+  const isAtBottomRef = useRef(isAtBottom)
+  isAtBottomRef.current = isAtBottom
   useEffect(() => {
-    const messagesGrew = messages.length > prevCountRef.current.messages
-    const activitiesGrew = activities.length > prevCountRef.current.activities
-    if ((messagesGrew || activitiesGrew) && isAtBottom) {
+    const content = contentRef.current
+    if (!content) return
+    let prevHeight = content.scrollHeight
+    const observer = new ResizeObserver(() => {
+      const newHeight = content.scrollHeight
+      if (newHeight <= prevHeight) { prevHeight = newHeight; return }
+      prevHeight = newHeight
+      if (!isAtBottomRef.current) return
       const tag = document.activeElement?.tagName
       const inputFocused = tag === "TEXTAREA" || tag === "INPUT"
-      // Suppress scroll when virtual keyboard is open to prevent pushing the input below it.
-      // Use a ref updated by visualViewport resize events (avoids stale snapshot at effect time).
-      // Fall back to maxTouchPoints when visualViewport is unavailable (rare legacy browsers).
       const keyboardOpen = window.visualViewport
         ? keyboardOpenRef.current
         : (navigator.maxTouchPoints > 0 && inputFocused)
-      const lastMessageIsUser = messagesGrew && messages[messages.length - 1]?.role === "user"
-      if (!(inputFocused && keyboardOpen) || lastMessageIsUser) {
-        // Use direct scrollTop instead of scrollIntoView to avoid mobile Safari
-        // viewport repositioning when virtual keyboard is open
-        const scroller = scrollRef.current
-        if (scroller) scroller.scrollTop = scroller.scrollHeight
-      }
-    }
-    prevCountRef.current = { messages: messages.length, activities: activities.length }
-  }, [messages.length, activities.length, isAtBottom])
+      if (inputFocused && keyboardOpen) return
+      const scroller = scrollRef.current
+      if (scroller) scroller.scrollTop = scroller.scrollHeight
+    })
+    observer.observe(content)
+    return () => observer.disconnect()
+  }, [taskId])
 
   return (
     <div className="flex h-full min-w-0 flex-col bg-background text-base md:text-sm">
