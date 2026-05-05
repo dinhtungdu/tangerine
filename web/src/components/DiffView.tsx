@@ -196,8 +196,8 @@ function useInView(ref: React.RefObject<HTMLElement | null>, rootMargin = "200px
   return inView
 }
 
-function FileSection({ file, comments = [], onAddComment }: { file: DiffFile; comments?: DiffComment[]; onAddComment?: (comment: DiffComment) => void }) {
-  const [collapsed, setCollapsed] = useState(false)
+function FileSection({ file, comments = [], onAddComment, viewed = false, onToggleViewed }: { file: DiffFile; comments?: DiffComment[]; onAddComment?: (comment: DiffComment) => void; viewed?: boolean; onToggleViewed?: (path: string) => void }) {
+  const [collapsed, setCollapsed] = useState(viewed)
   const [viewMode, setViewMode] = useState<ViewMode>("split")
   const [isNarrow, setIsNarrow] = useState(false)
   const containerRef = useRef<HTMLDivElement>(null)
@@ -332,6 +332,20 @@ function FileSection({ file, comments = [], onAddComment }: { file: DiffFile; co
               Unified
             </button>
           </div>
+          {onToggleViewed && (
+            <label className="flex cursor-pointer items-center gap-1.5 text-xs text-muted-foreground select-none" onClick={(e) => e.stopPropagation()}>
+              <input
+                type="checkbox"
+                checked={viewed}
+                onChange={() => {
+                  onToggleViewed(file.path)
+                  if (!viewed) setCollapsed(true)
+                }}
+                className="h-3.5 w-3.5 cursor-pointer rounded border-border accent-foreground"
+              />
+              Viewed
+            </label>
+          )}
         </div>
       </div>
       {!collapsed && visible && (
@@ -381,9 +395,11 @@ interface DiffViewProps {
   files: DiffFile[]
   comments?: DiffComment[]
   onAddComment?: (comment: DiffComment) => void
+  viewedFiles?: Set<string>
+  onToggleViewed?: (path: string) => void
 }
 
-export function DiffView({ files, comments = [], onAddComment }: DiffViewProps) {
+export function DiffView({ files, comments = [], onAddComment, viewedFiles, onToggleViewed }: DiffViewProps) {
   if (files.length === 0) return null
 
   return (
@@ -394,6 +410,8 @@ export function DiffView({ files, comments = [], onAddComment }: DiffViewProps) 
             file={file}
             comments={comments.filter((c) => c.filePath === file.path)}
             onAddComment={onAddComment}
+            viewed={viewedFiles?.has(file.path)}
+            onToggleViewed={onToggleViewed}
           />
         </div>
       ))}
