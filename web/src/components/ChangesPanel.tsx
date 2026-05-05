@@ -19,9 +19,11 @@ interface ChangesPanelProps {
   onUpdateComment?: (id: string, text: string) => void
   onSendComments?: (comments: DiffComment[]) => void
   onScrollToFile?: (path: string) => void
+  viewedFiles?: Set<string>
+  onToggleViewed?: (path: string) => void
 }
 
-export function ChangesPanel({ files, comments, onRemoveComment, onUpdateComment, onSendComments, onScrollToFile }: ChangesPanelProps) {
+export function ChangesPanel({ files, comments, onRemoveComment, onUpdateComment, onSendComments, onScrollToFile, viewedFiles, onToggleViewed }: ChangesPanelProps) {
   const [editingId, setEditingId] = useState<string | null>(null)
   const [editText, setEditText] = useState("")
   const editRef = useRef<HTMLTextAreaElement>(null)
@@ -69,7 +71,7 @@ export function ChangesPanel({ files, comments, onRemoveComment, onUpdateComment
         <div className="hidden h-11 items-center justify-between px-3 @min-[700px]/diff:flex">
           <span className="text-xs font-semibold text-foreground">Changed Files</span>
           <span className="flex h-4 min-w-4 items-center justify-center rounded-full bg-muted px-1.5 font-mono text-2xs font-medium text-muted-foreground">
-            {files.length}
+            {viewedFiles ? `${viewedFiles.size}/${files.length}` : files.length}
           </span>
         </div>
         {files.map((file) => {
@@ -77,10 +79,20 @@ export function ChangesPanel({ files, comments, onRemoveComment, onUpdateComment
           const fileComments = comments.filter((c) => c.filePath === file.path)
           return (
             <div key={file.path}>
+              <div className="flex h-auto w-full items-center gap-2 rounded-none border-b border-border px-4 py-1.5 @min-[700px]/diff:py-2">
+                {onToggleViewed && (
+                  <input
+                    type="checkbox"
+                    checked={viewedFiles?.has(file.path) ?? false}
+                    onChange={() => onToggleViewed(file.path)}
+                    className="h-3.5 w-3.5 shrink-0 cursor-pointer rounded border-border accent-foreground"
+                    title="Mark as viewed"
+                  />
+                )}
               <Button
                 variant="ghost"
                 onClick={() => onScrollToFile?.(file.path)}
-                className="flex h-auto w-full items-center gap-2 rounded-none border-b border-border px-4 py-1.5 text-left hover:bg-muted/50 @min-[700px]/diff:py-2"
+                className={`flex h-auto min-w-0 flex-1 items-center gap-2 rounded-none px-0 py-0 text-left hover:bg-transparent ${viewedFiles?.has(file.path) ? "opacity-50" : ""}`}
               >
                 <svg className="h-3.5 w-3.5 shrink-0 text-muted-foreground" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
                   <path strokeLinecap="round" strokeLinejoin="round" d="M19.5 14.25v-2.625a3.375 3.375 0 0 0-3.375-3.375h-1.5A1.125 1.125 0 0 1 13.5 7.125v-1.5a3.375 3.375 0 0 0-3.375-3.375H8.25m2.25 0H5.625c-.621 0-1.125.504-1.125 1.125v17.25c0 .621.504 1.125 1.125 1.125h12.75c.621 0 1.125-.504 1.125-1.125V11.25a9 9 0 0 0-9-9Z" />
@@ -99,6 +111,7 @@ export function ChangesPanel({ files, comments, onRemoveComment, onUpdateComment
                   </span>
                 )}
               </Button>
+              </div>
               {/* Inline comments for this file */}
               {fileComments.length > 0 && (
                 <div className="flex flex-col gap-2 border-b border-border px-3 py-2">

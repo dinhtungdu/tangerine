@@ -88,6 +88,23 @@ export function TaskDetail() {
       return next
     })
   }, [diffCommentsKey])
+  const viewedFilesKey = `diff-viewed:${id}`
+  const [viewedFiles, setViewedFiles] = useState<Set<string>>(new Set())
+  useEffect(() => {
+    try {
+      const s = localStorage.getItem(`diff-viewed:${id}`)
+      setViewedFiles(s ? new Set(JSON.parse(s) as string[]) : new Set())
+    } catch { setViewedFiles(new Set()) }
+  }, [id])
+  const handleToggleViewed = useCallback((path: string) => {
+    setViewedFiles((prev) => {
+      const next = new Set(prev)
+      if (next.has(path)) next.delete(path)
+      else next.add(path)
+      try { localStorage.setItem(viewedFilesKey, JSON.stringify([...next])) } catch { /* ignore */ }
+      return next
+    })
+  }, [viewedFilesKey])
   const [copiedId, setCopiedId] = useState(false)
   const handleCopyId = useCallback(() => {
     if (!id) return
@@ -716,7 +733,7 @@ export function TaskDetail() {
               <div className="flex min-h-0 flex-1 flex-col @min-[700px]/diff:flex-row">
                 <div className="min-w-0 flex-1 overflow-y-auto">
                   {diffFiles.length > 0 ? (
-                    <DiffView files={diffFiles} comments={diffComments} onAddComment={isTerminated ? undefined : handleAddComment} />
+                    <DiffView files={diffFiles} comments={diffComments} onAddComment={isTerminated ? undefined : handleAddComment} viewedFiles={viewedFiles} onToggleViewed={handleToggleViewed} />
                   ) : (
                     <div className="flex h-full items-center justify-center text-sm text-muted-foreground">
                       No file changes yet
@@ -731,6 +748,8 @@ export function TaskDetail() {
                     onRemoveComment={handleRemoveComment}
                     onUpdateComment={handleUpdateComment}
                     onSendComments={handleSendComments}
+                    viewedFiles={viewedFiles}
+                    onToggleViewed={handleToggleViewed}
                   />
                 )}
               </div>
