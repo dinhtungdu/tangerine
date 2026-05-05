@@ -1119,7 +1119,11 @@ export async function start(): Promise<void> {
             // Skip empty messages (no text and no images)
             if (!text && (!images || images.length === 0)) return
 
-            getTaskState(taskId).queuePaused = false
+            const taskState_ = getTaskState(taskId)
+            taskState_.queuePaused = false
+            if (taskState_.suspended) {
+              clearSuspended(taskId)
+            }
 
             // Prepend system notes to the first prompt for a task
             let promptText = text
