@@ -17,6 +17,7 @@ const statusChangeListeners = new Map<string, Set<StatusChangeHandler>>()
 interface AgentState {
   status: "idle" | "working"
   lastProgressAt?: number // Updated on any output, not just turn start
+  activeTools: number // Count of running tools (tool.start without tool.end)
 }
 const agentState = new Map<string, AgentState>()
 
@@ -74,6 +75,7 @@ export function hasAgentWorkingState(taskId: string): boolean {
 export function isAgentStalled(taskId: string): boolean {
   const state = agentState.get(taskId)
   if (!state || state.status !== "working" || !state.lastProgressAt) return false
+  if (state.activeTools > 0) return false
   return Date.now() - state.lastProgressAt >= AGENT_PROGRESS_TIMEOUT_MS
 }
 
@@ -101,7 +103,8 @@ export function getEffectiveAgentStatus(taskId: string): "idle" | "working" {
 
 /** Update the agent working state for a task and broadcast to global listeners. */
 export function setAgentWorkingState(taskId: string, status: "idle" | "working"): void {
-  const state: AgentState = { status }
+  const existing = agentState.get(taskId)
+  const state: AgentState = { status, activeTools: existing?.activeTools ?? 0 }
   if (status === "working") {
     state.lastProgressAt = Date.now()
   }
@@ -120,6 +123,18 @@ export function recordAgentProgress(taskId: string): void {
   if (state?.status === "working") {
     state.lastProgressAt = Date.now()
   }
+}
+
+/** Track tool start — prevents stall detection while tools are running. */
+export function trackToolStart(taskId: string): void {
+  const state = agentState.get(taskId)
+  if (state) state.activeTools++
+}
+
+/** Track tool end — re-enables stall detection when no tools are running. */
+export function trackToolEnd(taskId: string): void {
+  const state = agentState.get(taskId)
+  if (state && state.activeTools > 0) state.activeTools--
 }
 
 /** Clean up agent working state when a task is terminal. */

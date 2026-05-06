@@ -13,7 +13,7 @@ import type { AppDeps } from "../api/app"
 import { normalizeTaskType, resolveDefaultAgentId, resolveTaskTypeConfig } from "@tangerine/shared"
 import * as taskManager from "../tasks/manager"
 import type { TaskManagerDeps } from "../tasks/manager"
-import { onTaskEvent, onStatusChange, emitTaskEvent, setAgentWorkingState, getAgentWorkingState, getEffectiveAgentStatus, recordAgentProgress, hasAgentWorkingState } from "../tasks/events"
+import { onTaskEvent, onStatusChange, emitTaskEvent, setAgentWorkingState, getAgentWorkingState, getEffectiveAgentStatus, recordAgentProgress, hasAgentWorkingState, trackToolStart, trackToolEnd } from "../tasks/events"
 import { cleanupSession } from "../tasks/cleanup"
 import type { CleanupDeps } from "../tasks/cleanup"
 import { startOrphanCleanup, findOrphans, cleanupOrphans } from "../tasks/orphan-cleanup"
@@ -810,6 +810,7 @@ export async function start(): Promise<void> {
               }
               case "tool.start": {
                 recordAgentProgress(taskId)
+                trackToolStart(taskId)
                 const { activityType, activityEvent } = classifyTool(event.toolName)
                 Effect.runPromise(
                   updateToolActivity(db, taskId, {
@@ -842,6 +843,7 @@ export async function start(): Promise<void> {
               }
               case "tool.end": {
                 recordAgentProgress(taskId)
+                trackToolEnd(taskId)
                 const { activityType, activityEvent } = classifyTool(event.toolName)
                 Effect.runPromise(
                   updateToolActivity(db, taskId, {
