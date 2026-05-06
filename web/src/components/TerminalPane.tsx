@@ -15,7 +15,7 @@ type ConnState = "connecting" | "connected" | "reconnecting" | "error" | "unavai
 export function TerminalPane(props: TerminalPaneProps) {
   const wsPath = props.wsUrl ?? `/api/tasks/${props.taskId}/terminal`
   const wrapperRef = useRef<HTMLDivElement>(null)
-  const { ref: termRef, write } = useTerminal()
+  const { ref: termRef, write: rawWrite } = useTerminal()
   const wsRef = useRef<WebSocket | null>(null)
   const reconnectTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const heartbeatRef = useRef<HeartbeatMonitor | null>(null)
@@ -25,6 +25,20 @@ export function TerminalPane(props: TerminalPaneProps) {
   const hadErrorRef = useRef(false)
   const permanentErrorRef = useRef(false)
   const [connState, setConnState] = useState<ConnState>("connecting")
+
+  // WTerm's _scrollToBottom rounds to row boundaries, but _isScrolledToBottom
+  // uses a 5px threshold — when the remainder exceeds 5px, auto-scroll breaks.
+  const write = useCallback((data: string) => {
+    const handle = termRef.current
+    const el = (handle?.instance as Record<string, unknown> | null)?.element as HTMLElement | undefined
+    const wasAtBottom = !el || el.scrollHeight - el.scrollTop - el.clientHeight < 30
+    rawWrite(data)
+    if (wasAtBottom && el) {
+      requestAnimationFrame(() => {
+        el.scrollTop = el.scrollHeight - el.clientHeight
+      })
+    }
+  }, [rawWrite, termRef])
 
   const sendInput = useCallback((data: string) => {
     const ws = wsRef.current
