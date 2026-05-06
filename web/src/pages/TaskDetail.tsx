@@ -673,7 +673,7 @@ export function TaskDetail() {
               responsiveVisiblePanes.has("chat") ? "md:flex md:flex-1" : "md:hidden",
             ].join(" ")}>
               {session.tuiMode ? (
-                <TuiPane taskId={chatTaskId!} />
+                <TuiPane key={chatTaskId} taskId={chatTaskId!} />
               ) : (
               <ChatPanel
                 messages={session.messages}
@@ -771,7 +771,7 @@ export function TaskDetail() {
               ].join(" ")}
               style={responsiveVisiblePanes.has("terminal") && !desktopIsSolo && firstVisiblePane !== "terminal" ? { "--pane-w": `${terminalWidth}px` } as React.CSSProperties : undefined}
             >
-              <TerminalPane taskId={id!} />
+              <TerminalPane key={id} taskId={id!} />
             </div>
           )}
 
