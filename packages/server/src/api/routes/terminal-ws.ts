@@ -302,7 +302,7 @@ export function terminalWsRoutes(deps: AppDeps, upgradeWebSocket: UpgradeWebSock
               }
             }
 
-            const userShell = process.env.SHELL || "/bin/zsh"
+            const userShell = process.env.SHELL || "/bin/sh"
             const launch: TerminalProcessLaunch = { command: userShell, args: ["--login"], cwd: task.worktree_path }
 
             const session = getOrCreateSession(taskId, launch)
