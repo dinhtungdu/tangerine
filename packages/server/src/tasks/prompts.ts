@@ -50,12 +50,12 @@ function buildPrModeInstruction(prMode: "ready" | "draft" | "none", upstreamSlug
   const repoFlag = upstreamSlug ? ` --repo ${upstreamSlug}` : ""
   const forkNote = upstreamSlug ? ` Fork — PRs target upstream (${upstreamSlug}).` : ""
   if (prMode === "ready") {
-    return `prMode="ready". MUST create ready PR: \`gh pr create${repoFlag}\`. No --draft.${forkNote}`
+    return `prMode="ready". You MUST create a ready-to-review PR: \`gh pr create${repoFlag}\`. Never use --draft.${forkNote}`
   }
   if (prMode === "none") {
-    return `prMode="none". No push, no PR. Commit and stop.`
+    return `prMode="none". Do NOT push or create a PR. Commit your work and stop.`
   }
-  return `prMode="draft". MUST use --draft: \`gh pr create --draft${repoFlag}\`. No ready PRs.${forkNote}`
+  return `prMode="draft". You MUST pass --draft when creating PRs: \`gh pr create --draft${repoFlag}\`. Never create a ready PR.${forkNote}`
 }
 
 /**
@@ -79,8 +79,8 @@ export function buildSystemLayer(taskId: string, info: SystemNotesInfo, port = a
 
   if (info.taskType === "runner") {
     const projectNote = info.projectId ? `, projectId="${info.projectId}"` : ""
-    notes.push(`[RUNNER: No worktree — no PR. Commands only, no code changes. Implementation → POST /api/tasks immediately. Workers: clear title + full context (no convo access), parentTaskId="${taskId}"${projectNote}. Done → POST /api/tasks/${taskId}/done.]`)
-    notes.push(`[MULTI-REQUEST: Multiple requests possible. Related → same worker. Unrelated → separate workers. Ex: "fix login" → worker A; "update README" → worker B.]`)
+    notes.push(`[RUNNER: You MUST NOT edit files, write code, or create branches/PRs — you have no worktree. Run commands and research only. For any implementation → POST /api/tasks immediately, no confirmation needed. Workers need: clear title + full context in description (no convo access), parentTaskId="${taskId}"${projectNote}. When done → POST /api/tasks/${taskId}/done.]`)
+    notes.push(`[MULTI-REQUEST: Multiple unrelated requests possible. Group related → same worker. Unrelated → separate workers. Example: "fix login" → worker A; "update README" → unrelated, worker B.]`)
   }
 
   return notes
