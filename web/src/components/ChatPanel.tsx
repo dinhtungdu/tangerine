@@ -389,7 +389,7 @@ export function ChatPanel({
   }, [taskId])
 
   return (
-    <div className="flex h-full min-w-0 flex-col bg-background text-base md:text-sm">
+    <div className="flex h-full min-w-0 flex-col bg-background text-base md:text-[14px]">
       {/* Messages */}
       <div className="relative min-w-0 flex-1 overflow-hidden">
         <div
