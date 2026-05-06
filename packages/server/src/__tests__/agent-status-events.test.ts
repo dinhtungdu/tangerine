@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach } from "bun:test"
-import { setAgentWorkingState, getAgentWorkingState, onAgentStatusChange, clearAgentWorkingState, getEffectiveAgentStatus, isAgentStalled, resetIfStalled, recordAgentProgress, AGENT_PROGRESS_TIMEOUT_MS } from "../tasks/events"
+import { setAgentWorkingState, getAgentWorkingState, onAgentStatusChange, clearAgentWorkingState, getEffectiveAgentStatus, isAgentStalled, resetIfStalled, recordAgentProgress, trackToolStart, trackToolEnd, AGENT_PROGRESS_TIMEOUT_MS } from "../tasks/events"
 
 describe("agent status events", () => {
   const testTaskId = "agent-status-test-" + Date.now()
@@ -129,6 +129,26 @@ describe("stall detection with time manipulation", () => {
       // Should return idle and reset state
       expect(getEffectiveAgentStatus(taskId)).toBe("idle")
       expect(getAgentWorkingState(taskId)).toBe("idle")
+    } finally {
+      Date.now = originalNow
+    }
+  })
+
+  it("active tools prevent stall detection", async () => {
+    setAgentWorkingState(taskId, "working")
+    trackToolStart(taskId)
+
+    const originalNow = Date.now
+    const futureTime = originalNow() + AGENT_PROGRESS_TIMEOUT_MS + 1000
+    Date.now = () => futureTime
+
+    try {
+      expect(isAgentStalled(taskId)).toBe(false)
+      expect(getEffectiveAgentStatus(taskId)).toBe("working")
+
+      trackToolEnd(taskId)
+      expect(isAgentStalled(taskId)).toBe(true)
+      expect(getEffectiveAgentStatus(taskId)).toBe("idle")
     } finally {
       Date.now = originalNow
     }
