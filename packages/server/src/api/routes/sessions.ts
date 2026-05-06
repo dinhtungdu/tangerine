@@ -9,6 +9,7 @@ import { TaskNotFoundError } from "../../errors"
 import { getProjectConfig, getRepoDir, TANGERINE_HOME } from "../../config"
 import { getActiveStreamMessages, getTaskState } from "../../tasks/task-state"
 import { editQueuedPrompt, getQueuedPrompts, removeQueuedPrompt, takeQueuedPrompt, getAgentState } from "../../agent/prompt-queue"
+import { getAgentWorkingState } from "../../tasks/events"
 
 function gitDiff(cmd: string, cwd: string): Effect.Effect<string, never> {
   return Effect.tryPromise({
@@ -163,6 +164,12 @@ export function sessionRoutes(deps: AppDeps): Hono {
         const agentState = yield* getAgentState(taskId)
         if (agentState === "busy") {
           yield* deps.taskManager.abortTask(taskId).pipe(Effect.catchAll(() => Effect.void))
+          // Wait for cancel to settle so sendPrompt finds agent idle and sends
+          // directly, avoiding re-enqueue (which flashes in UI and relies on drain).
+          for (let i = 0; i < 16; i++) {
+            if (getAgentWorkingState(taskId) !== "working") break
+            yield* Effect.sleep("50 millis")
+          }
         }
         yield* deps.taskManager.sendPrompt(taskId, entry.text, entry.images, entry.fromTaskId)
       }),
