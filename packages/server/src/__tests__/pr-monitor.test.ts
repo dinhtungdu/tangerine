@@ -693,19 +693,19 @@ describe("buildSystemNotes", () => {
   test("injects draft prMode instruction for worker tasks (default)", () => {
     const notes = buildSystemNotes("test-id", { taskType: "worker", prMode: "draft" })
     expect(notes.some((n) => n.includes("PR MODE") && n.includes("--draft"))).toBe(true)
-    expect(notes.some((n) => n.includes("No ready PRs"))).toBe(true)
+    expect(notes.some((n) => n.includes("Never create a ready PR"))).toBe(true)
   })
 
   test("injects ready prMode instruction for worker tasks", () => {
     const notes = buildSystemNotes("test-id", { taskType: "worker", prMode: "ready" })
     expect(notes.some((n) => n.includes("PR MODE") && n.includes('"ready"'))).toBe(true)
-    expect(notes.some((n) => n.includes("No --draft"))).toBe(true)
+    expect(notes.some((n) => n.includes("Never use --draft"))).toBe(true)
   })
 
   test("injects none prMode instruction for worker tasks", () => {
     const notes = buildSystemNotes("test-id", { taskType: "worker", prMode: "none" })
     expect(notes.some((n) => n.includes("PR MODE") && n.includes('"none"'))).toBe(true)
-    expect(notes.some((n) => n.includes("No push, no PR"))).toBe(true)
+    expect(notes.some((n) => n.includes("Do NOT push or create a PR"))).toBe(true)
     // none mode should NOT include workflow note or PR template note
     expect(notes.some((n) => n.includes("rename-branch"))).toBe(false)
     expect(notes.some((n) => n.includes("PR TEMPLATE"))).toBe(false)
@@ -714,7 +714,7 @@ describe("buildSystemNotes", () => {
   test("defaults to none prMode when prMode not provided for worker tasks", () => {
     const notes = buildSystemNotes("test-id", { taskType: "worker" })
     expect(notes.some((n) => n.includes("PR MODE") && n.includes('"none"'))).toBe(true)
-    expect(notes.some((n) => n.includes("No push, no PR"))).toBe(true)
+    expect(notes.some((n) => n.includes("Do NOT push or create a PR"))).toBe(true)
   })
 
   test("does not inject prMode instruction for non-worker tasks", () => {
