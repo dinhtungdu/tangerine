@@ -7,7 +7,7 @@
 
 import { Effect, Schedule } from "effect"
 import type { Database } from "bun:sqlite"
-import { DEFAULT_API_PORT } from "@tangerine/shared"
+import { apiBase } from "./prompts"
 import { createLogger } from "../logger"
 import type { TaskRow } from "../db/types"
 import type { CleanupDeps } from "./cleanup"
@@ -327,7 +327,7 @@ export function pollPrStatuses(deps: PrMonitorDeps): Effect.Effect<void, never> 
 
     log.debug("Polling PR statuses", { count: withPr.length })
 
-    const apiPort = Number(process.env["TANGERINE_PORT"] ?? DEFAULT_API_PORT)
+    const base = apiBase()
     const checker = deps.checkPrState ?? checkPrState
     for (const task of withPr) {
       const state = yield* checker(task.pr_url!)
@@ -360,7 +360,7 @@ export function pollPrStatuses(deps: PrMonitorDeps): Effect.Effect<void, never> 
             task.id,
             `[TANGERINE: Your PR has been merged (${task.pr_url}). ` +
             `If you have post-merge work to do (e.g., publish a release, update documentation), do it now. ` +
-            `When you're done, call \`curl -X POST ${AUTH_CURL_FLAG} http://localhost:${apiPort}/api/tasks/${task.id}/done\` to complete the task.]`
+            `When you're done, call \`curl -X POST ${AUTH_CURL_FLAG} ${base}/api/tasks/${task.id}/done\` to complete the task.]`
           )
         } else {
           log.info("PR merged, completing non-running task", { taskId: task.id, prUrl: task.pr_url, status: task.status })
@@ -404,7 +404,7 @@ export function pollPrStatuses(deps: PrMonitorDeps): Effect.Effect<void, never> 
             task.id,
             `[TANGERINE: Your PR has been closed without merge (${task.pr_url}). ` +
             `If you need to inform a parent task or do cleanup, do it now. ` +
-            `When you're done, call \`curl -X POST ${AUTH_CURL_FLAG} http://localhost:${apiPort}/api/tasks/${task.id}/cancel\` to cancel the task.]`
+            `When you're done, call \`curl -X POST ${AUTH_CURL_FLAG} ${base}/api/tasks/${task.id}/cancel\` to cancel the task.]`
           )
         } else {
           log.info("PR closed without merge, cancelling non-running task", { taskId: task.id, prUrl: task.pr_url, status: task.status })

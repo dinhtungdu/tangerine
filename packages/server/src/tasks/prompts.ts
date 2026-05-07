@@ -12,6 +12,10 @@ import { AUTH_CURL_FLAG } from "./api-auth"
 
 const apiPort = () => Number(process.env["TANGERINE_PORT"] ?? DEFAULT_API_PORT)
 
+/** Resolved API base URL (protocol + host + port). Set by start.ts at boot. */
+export const apiBase = () =>
+  process.env["TANGERINE_API_BASE"] ?? `http://localhost:${apiPort()}`
+
 export interface SystemNotesInfo {
   setupCommand?: string
   taskType?: TaskType
@@ -30,7 +34,7 @@ const DEFAULT_STYLE = `[STYLE: Extremely short responses. Sacrifice grammar for 
  * Build the PR workflow instruction: rename branch, push, create PR.
  * Used in initial prompts, reconnect nudges, and PR nudges.
  */
-export function buildPrWorkflowNote(taskId: string, port = apiPort(), prMode: "ready" | "draft" | "none" = "none", upstreamSlug?: string): string {
+export function buildPrWorkflowNote(taskId: string, base = apiBase(), prMode: "ready" | "draft" | "none" = "none", upstreamSlug?: string): string {
   const repoFlag = upstreamSlug ? ` --repo ${upstreamSlug}` : ""
   const prCommand =
     prMode === "none"
@@ -39,7 +43,7 @@ export function buildPrWorkflowNote(taskId: string, port = apiPort(), prMode: "r
         ? `\`git push -u origin HEAD\` then \`gh pr create${repoFlag}\`.`
         : `\`git push -u origin HEAD\` then \`gh pr create --draft${repoFlag}\`.`
   return (
-    `1) Rename branch: curl -X POST ${AUTH_CURL_FLAG} http://localhost:${port}/api/tasks/${taskId}/rename-branch ` +
+    `1) Rename branch: curl -X POST ${AUTH_CURL_FLAG} ${base}/api/tasks/${taskId}/rename-branch ` +
     `-H "Content-Type: application/json" -d '{"branch":"fix/<slug>"}'. ` +
     `2) ${prCommand}`
   )
@@ -62,24 +66,24 @@ function buildPrModeInstruction(prMode: "ready" | "draft" | "none", upstreamSlug
  * System layer: operational notes that are always injected, not configurable.
  * Includes: Tangerine identity and PR workflow (workers).
  */
-export function buildSystemLayer(taskId: string, info: SystemNotesInfo, port = apiPort()): string[] {
+export function buildSystemLayer(taskId: string, info: SystemNotesInfo, base = apiBase()): string[] {
   const notes: string[] = []
-  notes.push(`[TANGERINE: Task ${taskId}. API: http://localhost:${port}. Load tangerine-tasks skill for API ref.]`)
-  notes.push(`[AUTH: Check http://localhost:${port}/api/auth/session first. Auth enabled → TANGERINE_AUTH_TOKEN + ${AUTH_CURL_FLAG} required. Auth disabled → header optional.]`)
+  notes.push(`[TANGERINE: Task ${taskId}. API: ${base}. Load tangerine-tasks skill for API ref.]`)
+  notes.push(`[AUTH: Check ${base}/api/auth/session first. Auth enabled → TANGERINE_AUTH_TOKEN + ${AUTH_CURL_FLAG} required. Auth disabled → header optional.]`)
 
   if (info.taskType === "worker") {
     const prMode = info.prMode ?? "none"
     const prModeInstruction = buildPrModeInstruction(prMode, info.upstreamSlug)
     notes.push(`[PR MODE — CRITICAL: ${prModeInstruction}]`)
     if (prMode !== "none") {
-      notes.push(`[DONE: ${buildPrWorkflowNote(taskId, port, prMode, info.upstreamSlug)} Don't stop at commit.]`)
+      notes.push(`[DONE: ${buildPrWorkflowNote(taskId, base, prMode, info.upstreamSlug)} Don't stop at commit.]`)
       notes.push(`[PR TEMPLATE: Check first: \`cat .github/pull_request_template.md 2>/dev/null || cat .github/PULL_REQUEST_TEMPLATE.md 2>/dev/null\`. If exists, MUST use as PR body. Follow strictly — no skipped/added sections.]`)
     }
   }
 
   if (info.taskType === "runner") {
     const projectNote = info.projectId ? `, projectId="${info.projectId}"` : ""
-    notes.push(`[RUNNER: You MUST NOT edit files, write code, or create branches/PRs — you have no worktree. Run commands and research only. For any implementation → POST /api/tasks immediately, no confirmation needed. Workers need: clear title + full context in description (no convo access), parentTaskId="${taskId}"${projectNote}. When done → POST /api/tasks/${taskId}/done.]`)
+    notes.push(`[RUNNER: You MUST NOT edit files, write code, or create branches/PRs — you have no worktree. Run commands and research only. For any implementation → POST ${base}/api/tasks immediately, no confirmation needed. Workers need: clear title + full context in description (no convo access), parentTaskId="${taskId}"${projectNote}. When done → POST ${base}/api/tasks/${taskId}/done.]`)
     notes.push(`[MULTI-REQUEST: Multiple unrelated requests possible. Group related → same worker. Unrelated → separate workers. Example: "fix login" → worker A; "update README" → unrelated, worker B.]`)
   }
 
@@ -106,9 +110,9 @@ export function buildUserLayer(taskId: string, info: SystemNotesInfo): string[] 
 }
 
 /** Build system notes prepended to the first prompt for a task. */
-export function buildSystemNotes(taskId: string, info: SystemNotesInfo, port = apiPort()): string[] {
+export function buildSystemNotes(taskId: string, info: SystemNotesInfo, base = apiBase()): string[] {
   return [
-    ...buildSystemLayer(taskId, info, port),
+    ...buildSystemLayer(taskId, info, base),
     ...buildUserLayer(taskId, info),
   ]
 }
