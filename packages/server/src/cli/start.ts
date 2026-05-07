@@ -1250,6 +1250,13 @@ export async function start(): Promise<void> {
             )
           )
         },
+        cancelAgentWork: (taskId) => {
+          const handle = agentHandles.get(taskId)
+          if (!handle) return Effect.void as Effect.Effect<void, { _tag: string; message: string }>
+          return handle.abort().pipe(
+            Effect.mapError((e) => ({ _tag: e._tag, message: e.message }))
+          )
+        },
         changeConfig: (taskId, config) =>
           taskManager.changeConfig(tmDeps, taskId, config).pipe(
             Effect.mapError((e) => ({ _tag: "TaskError" as const, message: e instanceof Error ? e.message : String(e) }))
