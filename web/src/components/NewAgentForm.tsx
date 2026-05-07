@@ -1,5 +1,6 @@
 import { useState, useCallback, useEffect, useMemo, useRef, forwardRef, useImperativeHandle, type ClipboardEvent, type KeyboardEvent } from "react"
 import { isGithubRepo, isProviderAvailable, getCapabilitiesForType, isVideoMediaType, type ProviderType, type PromptImage, type PromptMediaType, type Task, type TaskType } from "@tangerine/shared"
+import { Paperclip } from "lucide-react"
 import { useProject } from "../context/ProjectContext"
 import { HarnessSelector } from "./HarnessSelector"
 import { FileMentionPicker } from "./FileMentionPicker"
@@ -94,6 +95,7 @@ export const NewAgentForm = forwardRef<NewAgentFormHandle, NewAgentFormProps>(fu
   const branch = effectiveProject?.defaultBranch ?? "main"
 
   const textareaRef = useRef<HTMLTextAreaElement>(null)
+  const fileInputRef = useRef<HTMLInputElement>(null)
 
   useImperativeHandle(ref, () => ({
     focus() { textareaRef.current?.focus() },
@@ -142,6 +144,24 @@ export const NewAgentForm = forwardRef<NewAgentFormHandle, NewAgentFormProps>(fu
 
   const removeImage = useCallback((index: number) => {
     setPendingImages((prev) => prev.filter((_, i) => i !== index))
+  }, [])
+
+  const handleFileSelect = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
+    const files = e.target.files
+    if (!files) return
+    for (const file of files) {
+      if (!file.type.startsWith("image/") && !file.type.startsWith("video/")) continue
+      const reader = new FileReader()
+      reader.onload = () => {
+        const dataUrl = reader.result as string
+        const commaIdx = dataUrl.indexOf(",")
+        const mediaType = dataUrl.slice(5, commaIdx).split(";")[0] as PromptMediaType
+        const data = dataUrl.slice(commaIdx + 1)
+        setPendingImages((prev) => prev.length >= MAX_IMAGES ? prev : [...prev, { dataUrl, mediaType, data }])
+      }
+      reader.readAsDataURL(file)
+    }
+    e.target.value = ""
   }, [])
 
   const handleMentionSelect = useCallback((task: Task) => {
@@ -395,6 +415,23 @@ export const NewAgentForm = forwardRef<NewAgentFormHandle, NewAgentFormProps>(fu
             {/* Inline controls below textarea */}
             <div className="flex flex-col gap-2.5 overflow-visible border-t border-border px-3 py-2.5">
               <div className="flex flex-wrap items-center gap-2 overflow-visible">
+                <input
+                  ref={fileInputRef}
+                  type="file"
+                  accept="image/*,video/*"
+                  multiple
+                  onChange={handleFileSelect}
+                  className="hidden"
+                />
+                <Button
+                  variant="ghost"
+                  size="icon-xs"
+                  onClick={() => fileInputRef.current?.click()}
+                  aria-label="Attach image"
+                  className="text-muted-foreground hover:text-foreground"
+                >
+                  <Paperclip className="h-4 w-4" />
+                </Button>
                 {activeProjects.length > 0 && (
                   <ProjectSelector
                     projects={projects}
