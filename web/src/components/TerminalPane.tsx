@@ -168,37 +168,6 @@ export function TerminalPane(props: TerminalPaneProps) {
     }
   }, [wsPath, sendResize, write, termRef])
 
-  useEffect(() => {
-    const vv = window.visualViewport
-    if (!vv) return
-
-    function onResize() {
-      const vv = window.visualViewport!
-      const el = wrapperRef.current
-      if (!el) return
-
-      if (window.innerHeight - vv.height > 100) {
-        const topInViewport = el.getBoundingClientRect().top - (vv.offsetTop ?? 0)
-        const h = Math.max(vv.height - topInViewport, 100)
-        el.style.height = `${h}px`
-        el.style.maxHeight = `${h}px`
-      } else {
-        el.style.height = "100%"
-        el.style.maxHeight = ""
-      }
-
-      requestAnimationFrame(() => {
-        const handle = termRef.current
-        if (handle?.instance) {
-          handle.instance.resize(handle.instance.cols, handle.instance.rows)
-        }
-      })
-    }
-
-    vv.addEventListener("resize", onResize)
-    return () => vv.removeEventListener("resize", onResize)
-  }, [termRef])
-
   const readyRef = useRef(false)
 
   useEffect(() => {
