@@ -673,12 +673,11 @@ describe("buildSystemNotes", () => {
   test("uses TANGERINE_API_BASE when set", () => {
     const prev = process.env["TANGERINE_API_BASE"]
     try {
-      process.env["TANGERINE_API_BASE"] = "https://localhost:3443"
+      process.env["TANGERINE_API_BASE"] = "http://localhost:9999"
       const note = buildPrWorkflowNote("test-id")
-      expect(note).toContain("https://localhost:3443/api/tasks/test-id/rename-branch")
+      expect(note).toContain("http://localhost:9999/api/tasks/test-id/rename-branch")
       const notes = buildSystemNotes("test-id", { taskType: "worker", prMode: "ready" })
-      expect(notes.some((n) => n.includes("API: https://localhost:3443"))).toBe(true)
-      expect(notes.some((n) => n.includes("http://localhost:"))).toBe(false)
+      expect(notes.some((n) => n.includes("API: http://localhost:9999"))).toBe(true)
     } finally {
       if (prev === undefined) delete process.env["TANGERINE_API_BASE"]
       else process.env["TANGERINE_API_BASE"] = prev

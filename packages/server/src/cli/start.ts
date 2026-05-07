@@ -225,10 +225,7 @@ export async function start(): Promise<void> {
     // Republish the resolved HTTP port so prompt builders (pr-monitor, prompts) pick up
     // the config-derived value without each call site needing to thread it through.
     process.env["TANGERINE_PORT"] = String(config.credentials.serverPort)
-    // When SSL is configured, agents should use the HTTPS endpoint.
-    process.env["TANGERINE_API_BASE"] = config.credentials.ssl
-      ? `https://localhost:${config.credentials.ssl.port}`
-      : `http://localhost:${config.credentials.serverPort}`
+    process.env["TANGERINE_API_BASE"] = `http://localhost:${config.credentials.serverPort}`
     log.info("Config loaded", { projects: projectNames, home: TANGERINE_HOME, testMode: isTestMode() })
 
     const startupAuthError = getStartupAuthError(config, hostname)
