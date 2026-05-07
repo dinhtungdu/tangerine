@@ -59,6 +59,7 @@ function createMockDeps(db: Database, configOverrides?: Partial<AppDeps["config"
         return Effect.succeed(undefined as void)
       },
       abortTask() { return Effect.succeed(undefined as void) },
+      cancelAgentWork() { return Effect.succeed(undefined as void) },
       changeConfig() { return Effect.void },
       cleanupTask() { return Effect.void },
       startTask() { return Effect.void },

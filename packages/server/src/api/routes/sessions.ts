@@ -163,10 +163,11 @@ export function sessionRoutes(deps: AppDeps): Hono {
         if (!entry) return yield* Effect.fail(new TaskNotFoundError({ taskId: promptId }))
         const agentState = yield* getAgentState(taskId)
         if (agentState === "busy") {
-          yield* deps.taskManager.abortTask(taskId).pipe(Effect.catchAll(() => Effect.void))
-          // Wait for cancel to settle so sendPrompt finds agent idle and sends
-          // directly, avoiding re-enqueue (which flashes in UI and relies on drain).
-          for (let i = 0; i < 16; i++) {
+          // Use cancelAgentWork (not abortTask) — we only need to cancel current
+          // work, not suspend/pause-queue/clear-queue which are abort side effects
+          // that cause the prompt to get stuck or re-enqueued.
+          yield* deps.taskManager.cancelAgentWork(taskId).pipe(Effect.catchAll(() => Effect.void))
+          for (let i = 0; i < 40; i++) {
             if (getAgentWorkingState(taskId) !== "working") break
             yield* Effect.sleep("50 millis")
           }

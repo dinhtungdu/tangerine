@@ -84,6 +84,7 @@ function createMockDeps(db: Database, configOverrides?: Partial<AppDeps["config"
         return Effect.succeed(undefined as void)
       },
       abortTask() { return Effect.succeed(undefined as void) },
+      cancelAgentWork() { return Effect.succeed(undefined as void) },
       changeConfig(taskId: string, config: { model?: string; reasoningEffort?: string; mode?: string }) {
         return Effect.sync(() => {
           if (config.model) db.prepare("UPDATE tasks SET model = ? WHERE id = ?").run(config.model, taskId)
