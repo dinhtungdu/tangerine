@@ -168,40 +168,36 @@ export function TerminalPane(props: TerminalPaneProps) {
     }
   }, [wsPath, sendResize, write, termRef])
 
-  const [viewportHeight, setViewportHeight] = useState<number | null>(null)
-
   useEffect(() => {
     const vv = window.visualViewport
     if (!vv) return
 
     function onResize() {
       const vv = window.visualViewport!
+      const el = wrapperRef.current
+      if (!el) return
+
       if (window.innerHeight - vv.height > 100) {
-        const el = wrapperRef.current
-        if (el) {
-          const topInViewport = el.getBoundingClientRect().top - (vv.offsetTop ?? 0)
-          setViewportHeight(Math.max(vv.height - topInViewport, 100))
-        } else {
-          setViewportHeight(vv.height)
-        }
+        const topInViewport = el.getBoundingClientRect().top - (vv.offsetTop ?? 0)
+        const h = Math.max(vv.height - topInViewport, 100)
+        el.style.height = `${h}px`
+        el.style.maxHeight = `${h}px`
       } else {
-        setViewportHeight(null)
+        el.style.height = "100%"
+        el.style.maxHeight = ""
       }
+
+      requestAnimationFrame(() => {
+        const handle = termRef.current
+        if (handle?.instance) {
+          handle.instance.resize(handle.instance.cols, handle.instance.rows)
+        }
+      })
     }
 
     vv.addEventListener("resize", onResize)
     return () => vv.removeEventListener("resize", onResize)
-  }, [])
-
-  useEffect(() => {
-    if (viewportHeight == null) return
-    const handle = termRef.current
-    if (!handle?.instance) return
-    requestAnimationFrame(() => {
-      const inst = handle.instance
-      if (inst) inst.resize(inst.cols, inst.rows)
-    })
-  }, [viewportHeight, termRef])
+  }, [termRef])
 
   const readyRef = useRef(false)
 
@@ -244,9 +240,7 @@ export function TerminalPane(props: TerminalPaneProps) {
     <div
       ref={wrapperRef}
       className="flex min-w-0 flex-col overflow-hidden"
-      style={viewportHeight != null
-        ? { height: viewportHeight, maxHeight: viewportHeight }
-        : { height: "100%" }}
+      style={{ height: "100%" }}
     >
       <div className="flex min-h-0 min-w-0 flex-1 p-3 pb-0 md:pb-3">
         <div className="relative min-h-0 min-w-0 flex-1 overflow-hidden rounded-lg md:rounded-lg rounded-b-none bg-card">
