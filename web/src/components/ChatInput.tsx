@@ -2,7 +2,7 @@ import React, { useState, useRef, useCallback, useEffect, type KeyboardEvent, ty
 import { ArrowUp, X, Quote, Paperclip } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Textarea } from "@/components/ui/textarea"
-import { isAgentEffortOption, type AgentConfigOption, type AgentSlashCommand, type PromptImage, type PredefinedPrompt, type Task } from "@tangerine/shared"
+import { isAgentEffortOption, isVideoMediaType, type AgentConfigOption, type AgentSlashCommand, type PromptImage, type PromptMediaType, type PredefinedPrompt, type Task } from "@tangerine/shared"
 import { ModelEffortPopover, type EffortOption } from "./ModelEffortPopover"
 import { FileMentionPicker } from "./FileMentionPicker"
 import { MentionPicker } from "./MentionPicker"
@@ -213,7 +213,7 @@ export function ChatInput({ onSend, disabled, queueLength, taskId, isWorking, on
     if (!supportsImagePrompts) return
     const items = e.clipboardData.items
     for (const item of items) {
-      if (item.type.startsWith("image/")) {
+      if (item.type.startsWith("image/") || item.type.startsWith("video/")) {
         const file = item.getAsFile()
         if (!file) continue
         const reader = new FileReader()
@@ -221,7 +221,7 @@ export function ChatInput({ onSend, disabled, queueLength, taskId, isWorking, on
           const dataUrl = reader.result as string
           const commaIdx = dataUrl.indexOf(",")
           const meta = dataUrl.slice(5, commaIdx) // strip "data:"
-          const mediaType = meta.split(";")[0] as PromptImage["mediaType"]
+          const mediaType = meta.split(";")[0] as PromptMediaType
           const data = dataUrl.slice(commaIdx + 1)
           setPendingImages((prev) => [...prev, { dataUrl, mediaType, data }])
         }
@@ -238,13 +238,13 @@ export function ChatInput({ onSend, disabled, queueLength, taskId, isWorking, on
     const files = e.target.files
     if (!files) return
     for (const file of files) {
-      if (file.type.startsWith("image/")) {
+      if (file.type.startsWith("image/") || file.type.startsWith("video/")) {
         const reader = new FileReader()
         reader.onload = () => {
           const dataUrl = reader.result as string
           const commaIdx = dataUrl.indexOf(",")
           const meta = dataUrl.slice(5, commaIdx)
-          const mediaType = meta.split(";")[0] as PromptImage["mediaType"]
+          const mediaType = meta.split(";")[0] as PromptMediaType
           const data = dataUrl.slice(commaIdx + 1)
           setPendingImages((prev) => [...prev, { dataUrl, mediaType, data }])
         }
@@ -385,19 +385,27 @@ export function ChatInput({ onSend, disabled, queueLength, taskId, isWorking, on
         </div>
       )}
 
-      {/* Pasted image thumbnails */}
+      {/* Pasted media thumbnails */}
       {pendingImages.length > 0 && (
         <div className="mb-2 flex flex-wrap gap-1.5">
           {pendingImages.map((img, i) => (
             <div key={i} className="relative">
-              <img
-                src={img.dataUrl}
-                alt="Pasted image"
-                className="h-14 w-14 rounded-md border border-border object-cover"
-              />
+              {isVideoMediaType(img.mediaType) ? (
+                <video
+                  src={img.dataUrl}
+                  muted
+                  className="h-14 w-14 rounded-md border border-border object-cover"
+                />
+              ) : (
+                <img
+                  src={img.dataUrl}
+                  alt="Pasted image"
+                  className="h-14 w-14 rounded-md border border-border object-cover"
+                />
+              )}
               <button
                 onClick={() => removeImage(i)}
-                aria-label="Remove image"
+                aria-label="Remove media"
                 className="absolute -right-1 -top-1 flex h-4 w-4 items-center justify-center rounded-full bg-foreground text-2xs text-white outline-none focus-visible:ring-1 focus-visible:ring-ring/50"
               >
                 <X className="h-2.5 w-2.5" />
@@ -472,7 +480,7 @@ export function ChatInput({ onSend, disabled, queueLength, taskId, isWorking, on
                   <input
                     ref={fileInputRef}
                     type="file"
-                    accept="image/*"
+                    accept="image/*,video/*"
                     multiple
                     onChange={handleFileSelect}
                     className="hidden"
