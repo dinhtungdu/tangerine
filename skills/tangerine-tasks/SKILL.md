@@ -3,7 +3,7 @@ name: tangerine-tasks
 description: Reference for agents running inside a Tangerine task — API endpoints, env vars, and common workflows.
 metadata:
   author: tung
-  version: "1.8.2"
+  version: "1.8.3"
 ---
 
 # Tangerine Agent Reference
@@ -30,16 +30,19 @@ You are running inside a **Tangerine task**. Tangerine manages local agent proce
 |----------|---------|
 | `TANGERINE_TASK_ID` | Current task ID |
 | `TANGERINE_AUTH_TOKEN` | Auth token for the Tangerine API (may be empty when auth is disabled) |
-| `TANGERINE_PORT` | Resolved Tangerine API port (default `3456`; may come from config `port` or env) |
+| `TANGERINE_API_BASE` | Full HTTP base URL for the API (e.g. `http://localhost:6789`). **Use this for all API calls.** |
+| `TANGERINE_PORT` | Resolved HTTP port (default `3456`; may come from config `port` or env) |
 
 API base:
 
+> **Use the API URL from your system prompt first.** It is injected as `[TANGERINE: Task <id>. API: <url>. ...]` and is always authoritative. The env var `TANGERINE_API_BASE` matches it. Only fall back to port-based construction if neither is available.
+
 ```bash
-API=http://localhost:${TANGERINE_PORT:-3456}
+API="${TANGERINE_API_BASE:-http://localhost:${TANGERINE_PORT:-3456}}"
 echo "$TANGERINE_TASK_ID"
 ```
 
-The port is configurable. Tangerine resolves it from `TANGERINE_PORT`, then config `port`, then default `3456`; task system prompts should show the actual URL.
+The port is configurable. Tangerine resolves it from `TANGERINE_PORT`, then config `port`, then default `3456`. Agents always use HTTP for API calls — even when SSL is configured, the HTTP endpoint remains available and avoids TLS verification issues with self-signed certs.
 
 ## Auth check
 
