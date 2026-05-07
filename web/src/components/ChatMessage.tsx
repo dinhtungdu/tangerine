@@ -10,7 +10,7 @@ import type { AgentContentBlock, AgentPlanEntry } from "@tangerine/shared"
 import type { ChatMessage as ChatMessageType } from "../hooks/useSession"
 import { formatTimestamp } from "../lib/format"
 import { useNavigate } from "react-router-dom"
-import { AuthenticatedImage } from "./AuthenticatedImage"
+import { AuthenticatedMedia } from "./AuthenticatedMedia"
 import { ImageLightbox } from "./ImageLightbox"
 import { copyToClipboard } from "../lib/clipboard"
 import { FileText, Image, Terminal } from "lucide-react"
@@ -541,28 +541,45 @@ export const ChatMessage = memo(function ChatMessage({ message, tasks, onReply, 
     return (
       <div ref={messageRef} onClick={handleGroupClick} className="animate-fade-in group relative flex flex-col items-end gap-0.5">
         <div className="max-w-[85%] rounded-xl bg-primary px-3.5 py-2.5">
-          {message.images && message.images.length > 0 && (
-            <>
-              <div className="mb-2 flex flex-wrap gap-1">
-                {message.images.map((img, i) => (
-                  <button key={i} onClick={() => setLightboxIndex(i)} className="cursor-zoom-in rounded outline-none focus-visible:ring-1 focus-visible:ring-ring/50">
-                    <AuthenticatedImage
-                      src={img.src}
-                      alt="Attached image"
-                      className="h-16 w-16 rounded-md object-cover"
-                    />
-                  </button>
-                ))}
-              </div>
-              {lightboxIndex !== null && (
-                <ImageLightbox
-                  images={message.images}
-                  initialIndex={lightboxIndex}
-                  onClose={() => setLightboxIndex(null)}
-                />
-              )}
-            </>
-          )}
+          {message.images && message.images.length > 0 && (() => {
+            const imageOnly = message.images!.filter((img) => !img.isVideo)
+            let imageIdx = 0
+            return (
+              <>
+                <div className="mb-2 flex flex-wrap gap-1">
+                  {message.images!.map((img, i) => {
+                    if (img.isVideo) {
+                      return (
+                        <AuthenticatedMedia
+                          key={i}
+                          src={img.src}
+                          controls
+                          className="max-h-48 max-w-xs rounded-md"
+                        />
+                      )
+                    }
+                    const idx = imageIdx++
+                    return (
+                      <button key={i} onClick={() => setLightboxIndex(idx)} className="cursor-zoom-in rounded outline-none focus-visible:ring-1 focus-visible:ring-ring/50">
+                        <AuthenticatedMedia
+                          src={img.src}
+                          alt="Attached image"
+                          className="h-16 w-16 rounded-md object-cover"
+                        />
+                      </button>
+                    )
+                  })}
+                </div>
+                {lightboxIndex !== null && (
+                  <ImageLightbox
+                    images={imageOnly}
+                    initialIndex={lightboxIndex}
+                    onClose={() => setLightboxIndex(null)}
+                  />
+                )}
+              </>
+            )
+          })()}
           {message.content && (
             <div
               className="break-words leading-[1.5] text-primary-foreground [&_a]:underline [&_a]:text-blue-600 [&_a]:dark:text-blue-400 hover:[&_a]:text-blue-800 dark:hover:[&_a]:text-blue-300 [&_a]:break-all [&_code]:bg-primary-foreground/15 [&_code]:border-primary-foreground/20 [&_pre_code]:bg-transparent [&_pre_code]:border-transparent [&_pre]:bg-primary-foreground/10 [&_pre]:border-primary-foreground/15 [&_blockquote]:border-primary-foreground/30 [&_blockquote]:text-primary-foreground/70"
@@ -635,20 +652,37 @@ export const ChatMessage = memo(function ChatMessage({ message, tasks, onReply, 
           {message.content}
         </ReactMarkdown>
       </div>
-      {message.images && message.images.length > 0 && (
-        <>
-          <div className="flex flex-wrap gap-1">
-            {message.images.map((img, i) => (
-              <button key={i} onClick={() => setLightboxIndex(i)} className="cursor-zoom-in">
-                <AuthenticatedImage src={img.src} alt="Agent image" className="h-16 w-16 rounded-md object-cover" />
-              </button>
-            ))}
-          </div>
-          {lightboxIndex !== null && (
-            <ImageLightbox images={message.images} initialIndex={lightboxIndex} onClose={() => setLightboxIndex(null)} />
-          )}
-        </>
-      )}
+      {message.images && message.images.length > 0 && (() => {
+        const imageOnly = message.images!.filter((img) => !img.isVideo)
+        let imageIdx = 0
+        return (
+          <>
+            <div className="flex flex-wrap gap-1">
+              {message.images!.map((img, i) => {
+                if (img.isVideo) {
+                  return (
+                    <AuthenticatedMedia
+                      key={i}
+                      src={img.src}
+                      controls
+                      className="max-h-48 max-w-xs rounded-md"
+                    />
+                  )
+                }
+                const idx = imageIdx++
+                return (
+                  <button key={i} onClick={() => setLightboxIndex(idx)} className="cursor-zoom-in">
+                    <AuthenticatedMedia src={img.src} alt="Agent image" className="h-16 w-16 rounded-md object-cover" />
+                  </button>
+                )
+              })}
+            </div>
+            {lightboxIndex !== null && (
+              <ImageLightbox images={imageOnly} initialIndex={lightboxIndex} onClose={() => setLightboxIndex(null)} />
+            )}
+          </>
+        )
+      })()}
       <MessageActionsBar actions={messageActions} align="start" />
     </div>
   )

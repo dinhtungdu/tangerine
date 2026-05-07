@@ -1,5 +1,5 @@
 import { useState, useCallback, useEffect, useMemo, useRef, forwardRef, useImperativeHandle, type ClipboardEvent, type KeyboardEvent } from "react"
-import { isGithubRepo, isProviderAvailable, getCapabilitiesForType, type ProviderType, type PromptImage, type Task, type TaskType } from "@tangerine/shared"
+import { isGithubRepo, isProviderAvailable, getCapabilitiesForType, isVideoMediaType, type ProviderType, type PromptImage, type PromptMediaType, type Task, type TaskType } from "@tangerine/shared"
 import { useProject } from "../context/ProjectContext"
 import { HarnessSelector } from "./HarnessSelector"
 import { FileMentionPicker } from "./FileMentionPicker"
@@ -124,14 +124,14 @@ export const NewAgentForm = forwardRef<NewAgentFormHandle, NewAgentFormProps>(fu
 
   const handlePaste = useCallback((e: ClipboardEvent<HTMLTextAreaElement>) => {
     for (const item of e.clipboardData.items) {
-      if (item.type.startsWith("image/")) {
+      if (item.type.startsWith("image/") || item.type.startsWith("video/")) {
         const file = item.getAsFile()
         if (!file) continue
         const reader = new FileReader()
         reader.onload = () => {
           const dataUrl = reader.result as string
           const commaIdx = dataUrl.indexOf(",")
-          const mediaType = dataUrl.slice(5, commaIdx).split(";")[0] as PromptImage["mediaType"]
+          const mediaType = dataUrl.slice(5, commaIdx).split(";")[0] as PromptMediaType
           const data = dataUrl.slice(commaIdx + 1)
           setPendingImages((prev) => prev.length >= MAX_IMAGES ? prev : [...prev, { dataUrl, mediaType, data }])
         }
@@ -332,10 +332,14 @@ export const NewAgentForm = forwardRef<NewAgentFormHandle, NewAgentFormProps>(fu
               <div className="flex flex-wrap gap-1.5 px-4 pt-3">
                 {pendingImages.map((img, i) => (
                   <div key={i} className="relative">
-                    <img src={img.dataUrl} alt="Pasted image" className="h-14 w-14 rounded-md border border-border object-cover" />
+                    {isVideoMediaType(img.mediaType) ? (
+                      <video src={img.dataUrl} muted className="h-14 w-14 rounded-md border border-border object-cover" />
+                    ) : (
+                      <img src={img.dataUrl} alt="Pasted image" className="h-14 w-14 rounded-md border border-border object-cover" />
+                    )}
                     <button
                       onClick={() => removeImage(i)}
-                      aria-label="Remove image"
+                      aria-label="Remove media"
                       className="absolute -right-1 -top-1 flex h-4 w-4 items-center justify-center rounded-full bg-foreground text-2xs text-background outline-none focus-visible:ring-1 focus-visible:ring-ring/50"
                     >×</button>
                   </div>

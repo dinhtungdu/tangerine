@@ -1,10 +1,11 @@
 import { useState, useEffect, useCallback, useRef } from "react"
-import type { AgentConfigOption, AgentContentBlock, AgentPlanEntry, AgentSlashCommand, WsServerMessage, TaskStatus, ActivityEntry, PromptImage, PromptQueueEntry, PermissionRequest, Task } from "@tangerine/shared"
+import { isVideoSrc, type AgentConfigOption, type AgentContentBlock, type AgentPlanEntry, type AgentSlashCommand, type WsServerMessage, type TaskStatus, type ActivityEntry, type PromptImage, type PromptQueueEntry, type PermissionRequest, type Task } from "@tangerine/shared"
 import { fetchMessagesPaginated, fetchActivities, fetchQueuedPrompts, fetchTaskConfigOptions, fetchTaskSlashCommands, fetchPendingPermission, removeQueuedPrompt, updateQueuedPrompt, sendNowQueuedPrompt, respondToPermission as apiRespondToPermission, fetchTuiStatus, type SessionLog } from "../lib/api"
 import { useWebSocket } from "./useWebSocket"
 
 export interface ChatMessageImage {
   src: string
+  isVideo?: boolean
 }
 
 export interface ChatMessage {
@@ -385,7 +386,10 @@ export function useSession(taskId: string, initialContextTokens?: number, initia
     if (log.images) {
       try {
         const filenames = JSON.parse(log.images) as string[]
-        msg.images = filenames.map((f) => ({ src: `/api/tasks/${taskIdForImages}/images/${f}` }))
+        msg.images = filenames.map((f) => {
+          const src = `/api/tasks/${taskIdForImages}/images/${f}`
+          return { src, isVideo: isVideoSrc(src) }
+        })
       } catch { /* ignore malformed */ }
     }
     return msg
@@ -573,7 +577,10 @@ export function useSession(taskId: string, initialContextTokens?: number, initia
           // Handle agent-produced images (filenames saved by server)
           const imgData = (data as Record<string, unknown>).images
           if (Array.isArray(imgData)) {
-            newMsg.images = (imgData as string[]).map((f) => ({ src: `/api/tasks/${taskId}/images/${f}` }))
+            newMsg.images = (imgData as string[]).map((f) => {
+              const src = `/api/tasks/${taskId}/images/${f}`
+              return { src, isVideo: isVideoSrc(src) }
+            })
           }
           if (isStreamedAgentRole(newMsg.role)) {
             const streamId = activeAssistantStreamIdRef.current
@@ -731,7 +738,10 @@ export function useSession(taskId: string, initialContextTokens?: number, initia
             role: "user",
             content: text,
             timestamp: new Date(now).toISOString(),
-            images: optimisticImages?.map((img) => ({ src: `data:${img.mediaType};base64,${img.data}` })),
+            images: optimisticImages?.map((img) => ({
+              src: `data:${img.mediaType};base64,${img.data}`,
+              isVideo: isVideoSrc(`data:${img.mediaType};base64,`),
+            })),
           },
         ])
         setAgentStatus("working")

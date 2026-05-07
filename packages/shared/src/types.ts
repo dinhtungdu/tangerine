@@ -139,9 +139,24 @@ export interface PermissionRequest {
   options: PermissionRequestOption[]
 }
 
+export type ImageMediaType = "image/png" | "image/jpeg" | "image/gif" | "image/webp"
+export type VideoMediaType = "video/mp4" | "video/webm" | "video/quicktime" | "video/ogg"
+export type PromptMediaType = ImageMediaType | VideoMediaType
+
 export interface PromptImage {
-  mediaType: "image/png" | "image/jpeg" | "image/gif" | "image/webp"
+  mediaType: PromptMediaType
   data: string // base64-encoded bytes (no data: URL prefix)
+}
+
+export function isVideoMediaType(mediaType: string): boolean {
+  return mediaType.startsWith("video/")
+}
+
+export function isVideoSrc(src: string): boolean {
+  const lower = src.toLowerCase()
+  if (lower.startsWith("data:video/")) return true
+  const ext = lower.split(".").pop()?.split("?")[0]
+  return ext === "mp4" || ext === "webm" || ext === "mov" || ext === "ogg"
 }
 
 export interface PromptQueueEntry {
