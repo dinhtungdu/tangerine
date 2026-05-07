@@ -145,6 +145,26 @@ describe("buildAcpPromptBlocks", () => {
       rmSync(tempDir, { recursive: true, force: true })
     }
   })
+
+  test("filters video from image blocks and adds text note", () => {
+    const images = [
+      { mediaType: "image/png" as const, data: "imgdata" },
+      { mediaType: "video/mp4" as const, data: "viddata" },
+    ]
+    const result = buildAcpPromptBlocks("check this", images, true)
+    expect(result).toEqual([
+      { type: "text", text: "check this\n\n[1 video attached — video playback is not supported by the agent, but the video is visible in the Tangerine chat UI]" },
+      { type: "image", mimeType: "image/png", data: "imgdata" },
+    ])
+  })
+
+  test("video-only prompt does not throw even without image support", () => {
+    const images = [{ mediaType: "video/mp4" as const, data: "viddata" }]
+    const result = buildAcpPromptBlocks("see video", images, false)
+    expect(result).toEqual([
+      { type: "text", text: "see video\n\n[1 video attached — video playback is not supported by the agent, but the video is visible in the Tangerine chat UI]" },
+    ])
+  })
 })
 
 describe("createPromptStatusTracker", () => {

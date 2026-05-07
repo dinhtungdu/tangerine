@@ -6,7 +6,7 @@ import { pathToFileURL } from "node:url"
 import { createLogger } from "../logger"
 import { AgentError, PromptError, SessionStartError } from "../errors"
 import { killDescendants, killProcessTreeEscalated } from "./process-tree"
-import { isAgentEffortOption, type AgentConfigOption, type AgentContentBlock, type AgentPlanEntry, type AgentSlashCommand } from "@tangerine/shared"
+import { isAgentEffortOption, isVideoMediaType, type AgentConfigOption, type AgentContentBlock, type AgentPlanEntry, type AgentSlashCommand } from "@tangerine/shared"
 import type { AgentEvent, AgentFactory, AgentHandle, AgentStartContext, PromptImage, AgentMetadata } from "./provider"
 import { getTaskState } from "../tasks/task-state"
 
@@ -205,14 +205,22 @@ function resolveTuiCommand(config: AcpProviderConfig | undefined, checkCommand: 
 }
 
 export function buildAcpPromptBlocks(text: string, images: PromptImage[] = [], supportsImages: boolean, workdir?: string): AcpPromptBlock[] {
-  if (images.length > 0 && !supportsImages) {
+  const imageOnly = images.filter((img) => !isVideoMediaType(img.mediaType))
+  const videoCount = images.length - imageOnly.length
+
+  if (imageOnly.length > 0 && !supportsImages) {
     throw new Error("ACP agent does not support image prompts")
   }
 
   const blocks: AcpPromptBlock[] = []
-  if (text.length > 0) blocks.push({ type: "text", text })
+  const textParts = [text]
+  if (videoCount > 0) {
+    textParts.push(`[${videoCount} video${videoCount > 1 ? "s" : ""} attached — video playback is not supported by the agent, but the video is visible in the Tangerine chat UI]`)
+  }
+  const fullText = textParts.filter(Boolean).join("\n\n")
+  if (fullText.length > 0) blocks.push({ type: "text", text: fullText })
   for (const file of extractFileMentionLinks(text, workdir)) blocks.push(file)
-  for (const image of images) {
+  for (const image of imageOnly) {
     blocks.push({ type: "image", mimeType: image.mediaType, data: image.data })
   }
   return blocks
