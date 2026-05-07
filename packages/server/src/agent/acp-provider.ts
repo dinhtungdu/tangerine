@@ -1019,10 +1019,14 @@ async function startAcpSession(ctx: AgentStartContext, config?: AcpProviderConfi
           pending.resolve({ outcome: { outcome: "cancelled" } })
         }
         pendingPermissions.clear()
-        if (sessionId && capabilities.close) {
-          rpc.request("session/close", { sessionId }).catch(() => undefined)
-        } else if (sessionId) {
-          rpc.notify("session/cancel", { sessionId })
+        try {
+          if (sessionId && capabilities.close) {
+            rpc.request("session/close", { sessionId }).catch(() => undefined)
+          } else if (sessionId) {
+            rpc.notify("session/cancel", { sessionId })
+          }
+        } catch {
+          // Process stdin may already be closed
         }
         rpc.stop()
         subscribers.clear()
@@ -1131,7 +1135,12 @@ export class AcpRpcConnection {
     const promise = new Promise<unknown>((resolve, reject) => {
       this.pending.set(String(id), { resolve, reject })
     })
-    this.send(message)
+    try {
+      this.send(message)
+    } catch (error) {
+      this.pending.delete(String(id))
+      return Promise.reject(error)
+    }
     return promise
   }
 

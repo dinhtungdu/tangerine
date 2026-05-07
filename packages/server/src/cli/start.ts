@@ -401,7 +401,7 @@ export async function start(): Promise<void> {
           // change restarts the agent with a new handle for the same task).
           const existingHandle = agentHandles.get(taskId)
           if (existingHandle && existingHandle !== session.agentHandle) {
-            Effect.runPromise(existingHandle.shutdown().pipe(Effect.catchAll(() => Effect.void)))
+            Effect.runPromise(existingHandle.shutdown().pipe(Effect.catchAllCause(() => Effect.void)))
           }
           agentHandles.set(taskId, session.agentHandle)
           log.debug("Handle stored", { taskId, pid: (session.agentHandle as { __pid?: number }).__pid, handleCount: agentHandles.size })
