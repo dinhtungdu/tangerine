@@ -24,6 +24,7 @@ export {
   type PromptMediaType,
   isVideoMediaType,
   isVideoSrc,
+  mimeToExtension,
   type PromptQueueEntry,
   type LogLevel,
   type SystemLogEntry,

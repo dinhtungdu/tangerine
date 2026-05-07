@@ -10,7 +10,7 @@ import type { TaskRow } from "../db/types"
 import { taskHasCapability } from "../api/helpers"
 import { createApp } from "../api/app"
 import type { AppDeps } from "../api/app"
-import { normalizeTaskType, resolveDefaultAgentId, resolveTaskTypeConfig } from "@tangerine/shared"
+import { normalizeTaskType, resolveDefaultAgentId, resolveTaskTypeConfig, mimeToExtension } from "@tangerine/shared"
 import * as taskManager from "../tasks/manager"
 import type { TaskManagerDeps } from "../tasks/manager"
 import { onTaskEvent, onStatusChange, emitTaskEvent, setAgentWorkingState, getAgentWorkingState, getEffectiveAgentStatus, recordAgentProgress, hasAgentWorkingState, trackToolStart, trackToolEnd } from "../tasks/events"
@@ -318,7 +318,7 @@ export async function start(): Promise<void> {
 
           imageFilenames = []
           for (const img of images) {
-            const ext = img.mediaType.split("/")[1] ?? "png"
+            const ext = mimeToExtension(img.mediaType)
             const filename = `${Date.now()}-${Math.random().toString(36).slice(2, 8)}.${ext}`
             yield* Effect.tryPromise({
               try: () => Bun.write(
@@ -686,7 +686,7 @@ export async function start(): Promise<void> {
                         await Bun.write(`${imagesDir}/.keep`, "")
                         const filenames: string[] = []
                         for (const img of event.images!) {
-                          const ext = img.mediaType.split("/")[1] ?? "png"
+                          const ext = mimeToExtension(img.mediaType)
                           const filename = `${Date.now()}-${Math.random().toString(36).slice(2, 8)}.${ext}`
                           await Bun.write(`${imagesDir}/${filename}`, Buffer.from(img.data, "base64"))
                           filenames.push(filename)
@@ -1096,7 +1096,7 @@ export async function start(): Promise<void> {
                   await Bun.write(`${imagesDir}/.keep`, "")
                   const manifest: Array<{ filename: string; mediaType: string }> = []
                   for (const img of images!) {
-                    const ext = img.mediaType.split("/")[1] ?? "png"
+                    const ext = mimeToExtension(img.mediaType)
                     const filename = `${Date.now()}-${Math.random().toString(36).slice(2, 8)}.${ext}`
                     await Bun.write(`${imagesDir}/${filename}`, Buffer.from(img.data, "base64"))
                     manifest.push({ filename, mediaType: img.mediaType })

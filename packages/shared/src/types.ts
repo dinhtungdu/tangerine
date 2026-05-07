@@ -152,6 +152,17 @@ export function isVideoMediaType(mediaType: string): boolean {
   return mediaType.startsWith("video/")
 }
 
+const MIME_EXT_MAP: Record<string, string> = {
+  "video/quicktime": "mov",
+  "video/x-matroska": "mkv",
+  "video/x-msvideo": "avi",
+  "image/svg+xml": "svg",
+}
+
+export function mimeToExtension(mediaType: string): string {
+  return MIME_EXT_MAP[mediaType] ?? mediaType.split("/")[1] ?? "bin"
+}
+
 export function isVideoSrc(src: string): boolean {
   const lower = src.toLowerCase()
   if (lower.startsWith("data:video/")) return true
