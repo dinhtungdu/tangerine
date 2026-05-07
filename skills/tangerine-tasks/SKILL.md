@@ -3,7 +3,7 @@ name: tangerine-tasks
 description: Reference for agents running inside a Tangerine task — API endpoints, env vars, and common workflows.
 metadata:
   author: tung
-  version: "1.8.2"
+  version: "1.8.3"
 ---
 
 # Tangerine Agent Reference
@@ -26,20 +26,24 @@ You are running inside a **Tangerine task**. Tangerine manages local agent proce
 
 ## Environment
 
+> 🚨 **Use the API URL from your system prompt.** When Tangerine starts your task, it injects the actual API URL (e.g. `API: http://localhost:6789`). **Always use that URL** — it is authoritative and reflects the running server's actual port.
+
 | Variable | Meaning |
 |----------|---------|
 | `TANGERINE_TASK_ID` | Current task ID |
 | `TANGERINE_AUTH_TOKEN` | Auth token for the Tangerine API (may be empty when auth is disabled) |
-| `TANGERINE_PORT` | Resolved Tangerine API port (default `3456`; may come from config `port` or env) |
+| `TANGERINE_PORT` | API port — may or may not be set. Prefer the system prompt URL over this variable |
 
-API base:
+API base — extract from your system prompt first, fall back to env var:
 
 ```bash
+# Prefer the URL from your system prompt, e.g. http://localhost:6789
+# Only use this fallback if no URL was provided in the system prompt:
 API=http://localhost:${TANGERINE_PORT:-3456}
 echo "$TANGERINE_TASK_ID"
 ```
 
-The port is configurable. Tangerine resolves it from `TANGERINE_PORT`, then config `port`, then default `3456`; task system prompts should show the actual URL.
+The port is configurable (default `3456`). Your system prompt always shows the actual URL for the running server — use that, not the default.
 
 ## Auth check
 
