@@ -24,11 +24,6 @@ const defaultRunnerPrompts: z.infer<typeof predefinedPromptSchema>[] = [
   { label: "Status update", text: "Status update" },
 ]
 
-const defaultReviewerPrompts: z.infer<typeof predefinedPromptSchema>[] = [
-  { label: "Summarize findings", text: "Summarize findings" },
-  { label: "Approve", text: "Approve" },
-]
-
 const taskTypeConfigObjectSchema = z.object({
   systemPrompt: z.string().optional(),
   predefinedPrompts: z.array(predefinedPromptSchema).optional(),
@@ -51,8 +46,7 @@ const taskTypeConfigSchema = z.unknown().superRefine((value, ctx) => {
 const taskTypesSchema = z.object({
   worker: taskTypeConfigSchema.optional(),
   runner: taskTypeConfigSchema.optional(),
-  reviewer: taskTypeConfigSchema.optional(),
-})
+}).strict()
 
 export const agentConfigSchema = z.object({
   id: z.string().min(1),
@@ -143,10 +137,9 @@ export type ResolvedTaskTypeConfig = Omit<TaskTypeConfig, "predefinedPrompts"> &
 export type SslConfig = z.infer<typeof sslConfigSchema>
 export type TangerineConfig = z.infer<typeof tangerineConfigSchema>
 
-const DEFAULTS: Record<"worker" | "reviewer" | "runner", { predefinedPrompts: PredefinedPrompt[] }> = {
+const DEFAULTS: Record<"worker" | "runner", { predefinedPrompts: PredefinedPrompt[] }> = {
   worker: { predefinedPrompts: defaultWorkerPrompts },
   runner: { predefinedPrompts: defaultRunnerPrompts },
-  reviewer: { predefinedPrompts: defaultReviewerPrompts },
 }
 
 export const DEFAULT_TASK_PERMISSION_MODE: TaskPermissionMode = "skipPermissions"
@@ -154,7 +147,7 @@ export const DEFAULT_TASK_PERMISSION_MODE: TaskPermissionMode = "skipPermissions
 /** Resolve per-task-type config from the taskTypes section, with defaults. */
 export function resolveTaskTypeConfig(
   project: ProjectConfig,
-  taskType: "worker" | "reviewer" | "runner",
+  taskType: "worker" | "runner",
 ): ResolvedTaskTypeConfig {
   const override = project.taskTypes?.[taskType]
   return {
@@ -170,7 +163,7 @@ export function resolveTaskTypeConfig(
 export function resolveDefaultAgentId(
   config: TangerineConfig,
   project?: Pick<ProjectConfig, "defaultAgent" | "defaultProvider" | "taskTypes">,
-  taskType?: "worker" | "reviewer" | "runner",
+  taskType?: "worker" | "runner",
 ): string {
   const taskTypeAgent = taskType ? project?.taskTypes?.[taskType]?.agent : undefined
   return taskTypeAgent ?? project?.defaultAgent ?? config.defaultAgent ?? project?.defaultProvider ?? config.agents[0]?.id ?? DEFAULT_AGENT_ID

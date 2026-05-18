@@ -92,20 +92,6 @@ export function StatusPage() {
                 taskType="runner"
                 prompts={resolveTaskTypeConfig(current, "runner").predefinedPrompts}
               />
-              <SystemPromptEditor
-                key={`${current.name}-reviewer-sp`}
-                project={current.name}
-                title="Reviewer System Prompt"
-                taskType="reviewer"
-                value={resolveTaskTypeConfig(current, "reviewer").systemPrompt}
-              />
-              <PredefinedPromptsEditor
-                key={`${current.name}-reviewer`}
-                project={current.name}
-                title="Reviewer Quick Replies"
-                taskType="reviewer"
-                prompts={resolveTaskTypeConfig(current, "reviewer").predefinedPrompts}
-              />
             </>
           )}
 

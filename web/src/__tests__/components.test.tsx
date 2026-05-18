@@ -495,7 +495,7 @@ describe("NewAgentForm", () => {
     expect(screen.getByAltText("Pasted image")).toBeTruthy()
   })
 
-  test("type selector defaults to worker and can be changed to reviewer", async () => {
+  test("type selector defaults to worker, omits reviewer, and can be changed to runner", async () => {
     mockProjectsFetch()
     const submitted: { type?: string }[] = []
 
@@ -511,16 +511,15 @@ describe("NewAgentForm", () => {
     // Flush the fetchProjects microtask so draftKey stabilizes before interacting
     await act(async () => {})
 
-    // Default is worker (active toggle has shadow-sm class)
     const workerBtn = screen.getAllByText("Worker")[0]!
-    const reviewerBtn = screen.getAllByText("Reviewer")[0]!
+    const runnerBtn = screen.getAllByText("Runner")[0]!
+    expect(screen.queryByText("Reviewer")).toBeNull()
     expect(workerBtn.className).toContain("shadow-sm")
-    expect(reviewerBtn.className).not.toContain("shadow-sm")
+    expect(runnerBtn.className).not.toContain("shadow-sm")
 
-    // Click reviewer toggle
-    fireEvent.click(reviewerBtn)
+    fireEvent.click(runnerBtn)
     await act(async () => {})
-    expect(reviewerBtn.className).toContain("shadow-sm")
+    expect(runnerBtn.className).toContain("shadow-sm")
     expect(workerBtn.className).not.toContain("shadow-sm")
   })
 

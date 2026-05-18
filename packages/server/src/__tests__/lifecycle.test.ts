@@ -102,18 +102,12 @@ function createRepoFixture(root: string): { origin: string; workspace: string; r
 }
 
 describe("startSession", () => {
-  test("checks out reviewer worktrees on a local branch when a worker uses the PR branch", async () => {
+  test("treats legacy reviewer rows as runner tasks", async () => {
     const root = mkdtempSync(join(tmpdir(), "tangerine-lifecycle-"))
     const previousGitDir = process.env["GIT_DIR"]
     const previousGitWorkTree = process.env["GIT_WORK_TREE"]
     try {
       const { origin, workspace, repoDir } = createRepoFixture(root)
-      const workerPath = join(workspace, "test-project-worker")
-      git(["worktree", "add", "-b", "feature/review", workerPath, "origin/feature/review"], repoDir)
-      writeFileSync(join(workerPath, "local.txt"), "worker local\n")
-      git(["add", "local.txt"], workerPath)
-      git(["-c", "user.email=test@example.com", "-c", "user.name=Test", "commit", "-qm", "worker local"], workerPath)
-      const workerHeadBefore = git(["rev-parse", "HEAD"], workerPath)
       const trap = join(root, "trap")
       git(["init", trap])
       // Git hooks export repo-scoped env vars; lifecycle must ignore them for task repos.
@@ -158,10 +152,9 @@ describe("startSession", () => {
         prMode: "none",
       }, deps))
 
-      expect(git(["branch", "--show-current"], session.worktreePath)).toBe("tangerine/reviewer/review-t")
-      expect(git(["rev-parse", "feature/review"], repoDir)).toBe(workerHeadBefore)
-      expect(git(["rev-parse", "HEAD"], workerPath)).toBe(workerHeadBefore)
-      expect(task.branch).toBe("feature/review")
+      expect(session.worktreePath).toBe(repoDir)
+      expect(git(["branch", "--show-current"], session.worktreePath)).toBe("main")
+      expect(task.branch).toBeNull()
     } finally {
       if (previousGitDir === undefined) delete process.env["GIT_DIR"]
       else process.env["GIT_DIR"] = previousGitDir

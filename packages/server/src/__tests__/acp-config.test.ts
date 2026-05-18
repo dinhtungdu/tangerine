@@ -70,16 +70,33 @@ describe("ACP agent config", () => {
           setup: "bun install",
           taskTypes: {
             worker: { permissionMode: "skipPermissions" },
-            reviewer: { permissionMode: "autoAccept" },
+            runner: { permissionMode: "autoAccept" },
           },
         },
       ],
     })
 
     expect(resolveTaskTypeConfig(config.projects[0]!, "worker").permissionMode).toBe("skipPermissions")
-    expect(resolveTaskTypeConfig(config.projects[0]!, "reviewer").permissionMode).toBe("autoAccept")
-    expect(resolveTaskTypeConfig(config.projects[0]!, "runner").permissionMode).toBe("skipPermissions")
-    expect(resolveTaskPermissionMode(config.projects[0]!, "runner")).toBe("skipPermissions")
+    expect(resolveTaskTypeConfig(config.projects[0]!, "runner").permissionMode).toBe("autoAccept")
+    expect(resolveTaskPermissionMode(config.projects[0]!, "runner")).toBe("autoAccept")
+  })
+
+  test("rejects reviewer task-type config", () => {
+    const parsed = tangerineConfigSchema.safeParse({
+      defaultAgent: "acp",
+      agents: [{ id: "acp", name: "Default ACP", command: "acp-agent" }],
+      projects: [
+        {
+          name: "app",
+          repo: "org/app",
+          setup: "bun install",
+          taskTypes: { reviewer: { systemPrompt: "Nope" } },
+        },
+      ],
+    })
+
+    expect(parsed.success).toBe(false)
+    expect(parsed.error?.issues[0]?.message).toContain("Unrecognized key")
   })
 
   test("rejects legacy autoApprove task-type config", () => {

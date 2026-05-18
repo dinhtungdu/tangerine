@@ -39,9 +39,9 @@ Unknown `/api/*` paths return JSON 404 responses and never fall through to the w
 ```json
 {
   "projectId": "my-project",
-  "title": "Review PR #123",
-  "type": "reviewer",
-  "description": "Check for regressions",
+  "title": "Fix flaky timeout",
+  "type": "worker",
+  "description": "Retry loop uses a fixed timeout",
   "provider": "acp",
   "model": "gpt-5",
   "reasoningEffort": "high",
@@ -59,10 +59,9 @@ If `provider` is omitted, task creation resolves `project.defaultAgent`, then to
 Current task types:
 
 - `worker`
-- `reviewer`
 - `runner`
 
-Unknown persisted task-type values normalize to `runner` for legacy compatibility. Public task creation accepts only `worker`, `reviewer`, and `runner`.
+Unknown persisted task-type values, including legacy `reviewer`, normalize to `runner` for compatibility. Public task creation accepts only `worker` and `runner`.
 
 ### Auth
 
