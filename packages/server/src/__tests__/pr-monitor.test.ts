@@ -420,22 +420,20 @@ describe("pollPrStatuses", () => {
     expect(deps.activities).toHaveLength(0)
   })
 
-  test("discovers pr_url for reviewer tasks by branch", async () => {
+  test("does not discover pr_url for legacy reviewer rows", async () => {
     const prUrl = "https://github.com/test/repo/pull/20"
     const task = makeTaskRow({ pr_url: null, branch: "tangerine/abc123", type: "reviewer" })
     const deps = makeDeps([task], { [prUrl]: "open" }, { "tangerine/abc123": prUrl })
 
     await Effect.runPromise(pollPrStatuses(deps))
 
-    const prUpdate = deps.updates.find((u) => u.updates.pr_url)
-    expect(prUpdate).toBeDefined()
-    expect(prUpdate!.updates.pr_url).toBe(prUrl)
-    expect(deps.activities.some((a) => a.event === "pr.discovered")).toBe(true)
+    expect(deps.updates.some((u) => u.updates.pr_url)).toBe(false)
+    expect(deps.activities.some((a) => a.event === "pr.discovered")).toBe(false)
   })
 
-  test("notifies reviewer task when PR is merged", async () => {
+  test("notifies worker task when PR is merged", async () => {
     const prUrl = "https://github.com/test/repo/pull/21"
-    const task = makeTaskRow({ pr_url: prUrl, type: "reviewer" })
+    const task = makeTaskRow({ pr_url: prUrl, type: "worker" })
     const deps = makeDeps([task], { [prUrl]: "merged" })
 
     await Effect.runPromise(pollPrStatuses(deps))
@@ -446,16 +444,16 @@ describe("pollPrStatuses", () => {
     expect(deps.prompts[0]!.taskId).toBe(task.id)
   })
 
-  test("discovers and notifies reviewer task in same cycle", async () => {
+  test("does not discover and notify legacy reviewer rows in same cycle", async () => {
     const prUrl = "https://github.com/test/repo/pull/22"
     const task = makeTaskRow({ pr_url: null, branch: "tangerine/review1", type: "reviewer" })
     const deps = makeDeps([task], { [prUrl]: "merged" }, { "tangerine/review1": prUrl })
 
     await Effect.runPromise(pollPrStatuses(deps))
 
-    expect(deps.activities.some((a) => a.event === "pr.discovered")).toBe(true)
-    expect(deps.activities.some((a) => a.event === "pr.merged")).toBe(true)
-    expect(deps.prompts).toHaveLength(1)
+    expect(deps.activities.some((a) => a.event === "pr.discovered")).toBe(false)
+    expect(deps.activities.some((a) => a.event === "pr.merged")).toBe(false)
+    expect(deps.prompts).toHaveLength(0)
   })
 
   test("discovers pr_url for provisioning tasks", async () => {
@@ -619,7 +617,7 @@ describe("pollPrStatuses", () => {
     expect(deps.updates).toHaveLength(0)
   })
 
-  test("skips branch sync for reviewer tasks so PR branch remains authoritative", async () => {
+  test("skips branch sync for legacy reviewer rows", async () => {
     const task = makeTaskRow({
       branch: "feature/review",
       worktree_path: "/workspace/worktrees/slot-0",
@@ -661,7 +659,7 @@ describe("pollPrStatuses", () => {
 })
 
 // ---------------------------------------------------------------------------
-// buildSystemNotes — reviewer tasks should not get the "push and create PR" note
+// buildSystemNotes — non-worker tasks should not get the "push and create PR" note
 // ---------------------------------------------------------------------------
 
 describe("buildSystemNotes", () => {
@@ -691,11 +689,6 @@ describe("buildSystemNotes", () => {
 
   test("excludes PR creation note when taskType is undefined", () => {
     const notes = buildSystemNotes("test-id", {})
-    expect(notes.some((n) => n.includes("rename-branch"))).toBe(false)
-  })
-
-  test("excludes PR creation note for reviewer tasks", () => {
-    const notes = buildSystemNotes("test-id", { taskType: "reviewer" })
     expect(notes.some((n) => n.includes("rename-branch"))).toBe(false)
   })
 
@@ -731,8 +724,8 @@ describe("buildSystemNotes", () => {
     expect(notes.some((n) => n.includes("Do NOT push or create a PR"))).toBe(true)
   })
 
-  test("does not inject prMode instruction for non-worker tasks", () => {
-    const notes = buildSystemNotes("test-id", { taskType: "reviewer", prMode: "draft" })
+  test("does not inject prMode instruction for runner tasks", () => {
+    const notes = buildSystemNotes("test-id", { taskType: "runner", prMode: "draft" })
     expect(notes.some((n) => n.includes("PR MODE"))).toBe(false)
   })
 
@@ -807,16 +800,8 @@ describe("buildUserLayer", () => {
     expect(notes.some((n) => n.includes("STYLE"))).toBe(false)
   })
 
-  test("replaces defaults for reviewer with custom system prompt", () => {
-    const notes = buildUserLayer("test-id", {
-      taskType: "reviewer",
-      customSystemPrompt: "Focus on performance issues.",
-    })
-    expect(notes).toEqual(["Focus on performance issues."])
-  })
-
-  test("uses defaults when no custom prompt provided", () => {
-    const notes = buildUserLayer("test-id", { taskType: "reviewer" })
+  test("uses defaults for worker when no custom prompt", () => {
+    const notes = buildUserLayer("test-id", { taskType: "worker" })
     expect(notes.some((n) => n.includes("STYLE"))).toBe(true)
   })
 
@@ -869,18 +854,8 @@ describe("resolveTaskTypeConfig", () => {
     expect(result.reasoningEffort).toBe("high")
   })
 
-  test("returns reviewer config from taskTypes", () => {
-    const project = {
-      ...baseProject,
-      taskTypes: { reviewer: { predefinedPrompts: [{ label: "rev", text: "rev" }] } },
-    } as ProjectConfig
-    const result = resolveTaskTypeConfig(project, "reviewer")
-    expect(result.predefinedPrompts).toEqual([{ label: "rev", text: "rev" }])
-  })
-
   test("returns default prompts per task type", () => {
     expect(resolveTaskTypeConfig(baseProject, "worker").predefinedPrompts[0]!.label).toBe("Are you proud of your code?")
     expect(resolveTaskTypeConfig(baseProject, "runner").predefinedPrompts[0]!.label).toBe("Check active tasks")
-    expect(resolveTaskTypeConfig(baseProject, "reviewer").predefinedPrompts[0]!.label).toBe("Summarize findings")
   })
 })

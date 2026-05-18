@@ -8,7 +8,7 @@ metadata:
 
 # Tangerine Agent Reference
 
-> 🚨 **CRITICAL — READ FIRST (applies to ALL task roles: worker, reviewer, runner):**
+> 🚨 **CRITICAL — READ FIRST (applies to ALL task roles: worker, runner):**
 > **`gh pr review`, `gh pr comment`, `gh pr merge`** — follow these rules strictly:
 > - **Personal repos** (repo owner matches `gh api user --jq .login`): allowed when needed
 > - **All other repos**: NEVER, unless the user has **explicitly asked** you to do so in this task
@@ -20,7 +20,7 @@ metadata:
 >
 > If CI is pending, use `gh pr merge --auto --squash` to queue the merge for when checks pass. Do NOT bypass CI with `--admin`.
 >
-> This applies regardless of task role — workers, reviewers, and runners must all follow these rules.
+> This applies regardless of task role — workers and runners must follow these rules.
 
 You are running inside a **Tangerine task**. Tangerine manages local agent processes, git worktrees, task lifecycle, and a web/API control plane.
 
@@ -112,7 +112,6 @@ curl -X POST -H "Authorization: Bearer $TANGERINE_AUTH_TOKEN" "$API/api/tasks/$T
 
 > **IMPORTANT — when to call `/done`:**
 > - **Workers**: Do NOT call `/done` proactively after PR creation. The agent auto-suspends. When the PR is merged, Tangerine re-prompts you with post-merge instructions — call `/done` then (or `/cancel` if the PR was closed without merging).
-> - **Reviewers**: post the review summary in this task. Do NOT call `/done` unless post-merge/closure instructions say so.
 
 Create a worker task:
 
@@ -130,34 +129,11 @@ curl -X POST "$API/api/tasks" \
   }'
 ```
 
-Create a reviewer task:
-
-```bash
-curl -X POST "$API/api/tasks" \
-  -H "Authorization: Bearer $TANGERINE_AUTH_TOKEN" \
-  -H "Content-Type: application/json" \
-  -d '{
-    "projectId": "my-project",
-    "title": "Review PR #123",
-    "type": "reviewer",
-    "description": "Check for regressions",
-    "branch": "tangerine/abc12345",
-    "prUrl": "https://github.com/org/repo/pull/123",
-    "parentTaskId": "abc123",
-    "source": "cross-project"
-  }'
-```
-
-> **Reviewer task requirements**:
-> - Set `branch` to the **PR's source branch** (e.g. `tangerine/abc12345`), NOT the PR number shorthand (`#123`) or a new branch. The reviewer must check out the same branch as the PR.
-> - Always set `prUrl` to the full PR URL (e.g. `https://github.com/org/repo/pull/123`). The poller can discover it from the branch as a fallback, but setting it upfront ensures immediate tracking.
-
 Provider values are real configured agent IDs from `agents[]` (for example `claude`, `codex`, `opencode`, or `pi`). Omit `provider` to use project/global `defaultAgent`. Put durable custom instructions in `taskTypes.<type>.systemPrompt`, not provider names, task titles, or one-off prompts.
 
 Task types — **always pass the correct type**:
 
 - `worker` — default for implementation (features, fixes, refactors). Gets a worktree, branch, and PR tracking.
-- `reviewer` — **MUST use for any code review task** (reviewing a PR, auditing a diff, checking for regressions). Never use `worker` for review work — reviewer tasks get review-specific capabilities and UI treatment.
 - `runner` — no worktree allocation, runs on project root, no PR tracking, agent self-completes. Use for publish, deploy, or any non-code-change task.
 
 Example runner task (no worktree, no PR):
@@ -180,7 +156,7 @@ curl -X POST "$API/api/tasks" \
 
 Projects can define custom system prompts per task type. Use these for persistent custom instructions such as review focus, coding standards, operational policy, or reporting style.
 
-Supported task types: `worker`, `reviewer`, `runner`.
+Supported task types: `worker`, `runner`.
 
 ```json
 {
@@ -191,9 +167,6 @@ Supported task types: `worker`, `reviewer`, `runner`.
     "taskTypes": {
       "worker": {
         "systemPrompt": "Follow the project coding standards. Keep changes small."
-      },
-      "reviewer": {
-        "systemPrompt": "Review for regressions, security issues, and missing tests."
       },
       "runner": {
         "systemPrompt": "Keep tasks small. Send unrelated issues to triage."
@@ -407,7 +380,7 @@ Choose a short slug that describes the change (e.g. `fix/worktree-cleanup`, `fea
 
 ## Required: Self Review
 
-Worker and reviewer tasks must inspect their own diff before finalizing.
+Worker tasks must inspect their own diff before finalizing.
 
 ### Worker tasks — self-review before PR
 
@@ -416,13 +389,6 @@ Worker and reviewer tasks must inspect their own diff before finalizing.
 3. Share the review result.
 4. Only then run `git push origin HEAD` and create PR according to project `prMode` (see above).
 
-### Reviewer tasks — review the PR changes
-
-1. Review the PR diff against the base branch.
-2. Include findings in the review report.
-3. **Post the full review summary as your final message in this task** — verdict, key findings, any bugs found. This is what the user sees when they open the reviewer task.
-
-> 🚨 **CRITICAL**: The review summary MUST be posted in **this task's own conversation** — do NOT skip this.
 
 ## Reporting
 

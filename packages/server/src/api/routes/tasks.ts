@@ -87,7 +87,7 @@ export function taskRoutes(deps: AppDeps): Hono {
   })
 
   app.post("/", async (c) => {
-    const body = await c.req.json<{ projectId?: string; title?: string; type?: "worker" | "reviewer" | "runner"; description?: string; provider?: string; model?: string; reasoningEffort?: string; source?: string; sourceId?: string; sourceUrl?: string; branch?: string; prUrl?: string; parentTaskId?: string; images?: import("../../agent/provider").PromptImage[] }>()
+    const body = await c.req.json<{ projectId?: string; title?: string; type?: "worker" | "runner"; description?: string; provider?: string; model?: string; reasoningEffort?: string; source?: string; sourceId?: string; sourceUrl?: string; branch?: string; prUrl?: string; parentTaskId?: string; images?: import("../../agent/provider").PromptImage[] }>()
     if (!body.title) {
       return c.json({ error: "title is required" }, 400)
     }
@@ -103,14 +103,14 @@ export function taskRoutes(deps: AppDeps): Hono {
     if (body.provider !== undefined && !isConfiguredProvider(deps, body.provider)) {
       return c.json({ error: `Invalid provider: ${body.provider}. Must be ${configuredProviderList(deps)}` }, 400)
     }
-    const validTypes = new Set(["worker", "reviewer", "runner"])
+    const validTypes = new Set(["worker", "runner"])
     if (body.type && !validTypes.has(body.type)) {
-      return c.json({ error: `Invalid type: ${body.type}. Must be worker, reviewer, or runner` }, 400)
+      return c.json({ error: `Invalid type: ${body.type}. Must be worker or runner` }, 400)
     }
     const source = body.source === "cross-project" ? "cross-project" : "manual"
 
     if (body.prUrl && !getCapabilitiesForType((body.type ?? "worker") as TaskType).includes("pr-track")) {
-      return c.json({ error: `prUrl is not allowed for task type "${body.type ?? "worker"}" — only pr-track capable types (worker, reviewer) support PR tracking` }, 400)
+      return c.json({ error: `prUrl is not allowed for task type "${body.type ?? "worker"}" — only worker tasks support PR tracking` }, 400)
     }
 
     // Resolve branch from PR URL or direct branch name
@@ -256,8 +256,7 @@ export function taskRoutes(deps: AppDeps): Hono {
         const task = yield* getTask(deps.db, taskId)
         if (!task) return yield* Effect.fail(new TaskNotFoundError({ taskId }))
 
-        // Only tasks that create PRs should rename branches — reviewer tasks
-        // track an existing PR by branch name, and renaming would break that.
+        // Only tasks that create PRs should rename branches.
         if (!mapTaskRow(task, tuiResolver).capabilities.includes("pr-create")) {
           return yield* Effect.fail(new BranchRenameError({
             message: "Only tasks with pr-create capability can rename branches",

@@ -596,13 +596,15 @@ describe("API routes", () => {
       expect(capturedPrUrl).toBe("https://github.com/test/repo/pull/42")
     })
 
-    test("accepts prUrl for reviewer tasks", async () => {
+    test("rejects reviewer task type", async () => {
       const res = await app.fetch(new Request("http://localhost/api/tasks", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ projectId: "test-project", title: "Task", type: "reviewer", prUrl: "https://github.com/test/repo/pull/42" }),
       }))
-      expect(res.status).toBe(201)
+      expect(res.status).toBe(400)
+      const body = await res.json() as { error: string }
+      expect(body.error).toContain("Must be worker or runner")
     })
 
     test("rejects unknown task types", async () => {
@@ -613,7 +615,7 @@ describe("API routes", () => {
       }))
       expect(res.status).toBe(400)
       const body = await res.json() as { error: string }
-      expect(body.error).toContain("Must be worker, reviewer, or runner")
+      expect(body.error).toContain("Must be worker or runner")
     })
 
     test("rejects prUrl for runner tasks", async () => {
@@ -624,7 +626,7 @@ describe("API routes", () => {
       }))
       expect(res.status).toBe(400)
       const body = await res.json() as { error: string }
-      expect(body.error).toContain("pr-track")
+      expect(body.error).toContain("only worker tasks")
     })
   })
 
@@ -757,7 +759,7 @@ describe("API routes", () => {
       expect(res.status).toBe(404)
     })
 
-    test("rejects rename for reviewer tasks", async () => {
+    test("rejects rename for legacy reviewer rows", async () => {
       const row = seedTask(db, { type: "reviewer" })
       db.prepare("UPDATE tasks SET worktree_path = '/tmp/test', branch = 'tangerine/old' WHERE id = ?").run(row.id)
       const res = await app.fetch(new Request(`http://localhost/api/tasks/${row.id}/rename-branch`, {
@@ -1361,6 +1363,22 @@ describe("API routes", () => {
       }))
       expect(res.status).toBe(400)
     })
+
+    test("rejects reviewer task type config", async () => {
+      const res = await app.fetch(new Request("http://localhost/api/projects", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          name: "new-project",
+          repo: "https://github.com/test/new",
+          setup: "npm install",
+          taskTypes: { reviewer: { systemPrompt: "Nope" } },
+        }),
+      }))
+      expect(res.status).toBe(400)
+      const body = await res.json() as { error: string }
+      expect(body.error).toContain("worker or runner")
+    })
   })
 
   describe("PUT /api/projects/:name", () => {
@@ -1394,6 +1412,17 @@ describe("API routes", () => {
       expect(res.status).toBe(200)
       const body = await res.json() as { name: string }
       expect(body.name).toBe("test-project")
+    })
+
+    test("rejects reviewer task type config", async () => {
+      const res = await app.fetch(new Request("http://localhost/api/projects/test-project", {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ taskTypes: { reviewer: { systemPrompt: "Nope" } } }),
+      }))
+      expect(res.status).toBe(400)
+      const body = await res.json() as { error: string }
+      expect(body.error).toContain("worker or runner")
     })
   })
 

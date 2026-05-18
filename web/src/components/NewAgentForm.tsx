@@ -33,6 +33,10 @@ interface PendingImage extends PromptImage {
 
 type FormTaskType = TaskType
 
+function normalizeDraftTaskType(taskType: unknown): FormTaskType {
+  return taskType === "runner" ? "runner" : "worker"
+}
+
 function loadDraftFromKey(key: string): { description?: string; customBranch?: string; taskType?: FormTaskType; pendingImages?: PendingImage[] } {
   try {
     return JSON.parse(localStorage.getItem(key) ?? "{}") as { description?: string; customBranch?: string; taskType?: FormTaskType; pendingImages?: PendingImage[] }
@@ -90,7 +94,7 @@ export const NewAgentForm = forwardRef<NewAgentFormHandle, NewAgentFormProps>(fu
       setProvider(resolveAvailableAgent({ agents, systemCapabilities, project: effectiveProject, globalDefaultAgent }))
     }
   }, [agents, systemCapabilities, provider, configuredAgentIds, effectiveProject, globalDefaultAgent])
-  const [taskType, setTaskType] = useState<FormTaskType>(() => loadDraftFromKey(draftKey).taskType ?? "worker")
+  const [taskType, setTaskType] = useState<FormTaskType>(() => normalizeDraftTaskType(loadDraftFromKey(draftKey).taskType))
   const [submitting, setSubmitting] = useState(false)
   const branch = effectiveProject?.defaultBranch ?? "main"
 
@@ -202,7 +206,7 @@ export const NewAgentForm = forwardRef<NewAgentFormHandle, NewAgentFormProps>(fu
       setDescription(draft.description ?? "")
       setCustomBranch(draft.customBranch ?? refBranch ?? "")
       setPendingImages(draft.pendingImages ?? [])
-      setTaskType(draft.taskType ?? "worker")
+      setTaskType(normalizeDraftTaskType(draft.taskType))
       return
     }
     try {
@@ -273,7 +277,7 @@ export const NewAgentForm = forwardRef<NewAgentFormHandle, NewAgentFormProps>(fu
             </p>
           </div>
 
-          {/* Worker / Reviewer / Runner toggle */}
+          {/* Worker / Runner toggle */}
           <div className="flex justify-center">
             <div className="inline-flex rounded-lg border border-border bg-muted p-0.5">
               <Button
@@ -282,12 +286,6 @@ export const NewAgentForm = forwardRef<NewAgentFormHandle, NewAgentFormProps>(fu
                 onClick={() => setTaskType("worker")}
                 className={`rounded-md px-4 py-1.5 text-sm font-medium ${taskType === "worker" ? "bg-background text-foreground shadow-sm" : "text-muted-foreground hover:text-foreground"}`}
               >Worker</Button>
-              <Button
-                variant="ghost"
-                size="sm"
-                onClick={() => setTaskType("reviewer")}
-                className={`rounded-md px-4 py-1.5 text-sm font-medium ${taskType === "reviewer" ? "bg-background text-foreground shadow-sm" : "text-muted-foreground hover:text-foreground"}`}
-              >Reviewer</Button>
               <Button
                 variant="ghost"
                 size="sm"

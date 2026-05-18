@@ -52,6 +52,16 @@ function shellExec(cmd: string, cwd: string) {
   })
 }
 
+const CONFIGURABLE_TASK_TYPES = new Set(["worker", "runner"])
+
+function unsupportedTaskTypeConfigKey(taskTypes: unknown): string | null {
+  if (!taskTypes || typeof taskTypes !== "object" || Array.isArray(taskTypes)) return null
+  for (const key of Object.keys(taskTypes)) {
+    if (!CONFIGURABLE_TASK_TYPES.has(key)) return key
+  }
+  return null
+}
+
 function buildProjectsResponse(deps: AppDeps) {
   return {
     projects: deps.config.config.projects,
@@ -102,6 +112,11 @@ export function projectRoutes(deps: AppDeps): Hono {
     const body = await c.req.json().catch(() => ({})) as Record<string, unknown>
     return runEffect(c,
       Effect.gen(function* () {
+        const invalidTaskType = unsupportedTaskTypeConfigKey(body.taskTypes)
+        if (invalidTaskType) {
+          return yield* Effect.fail(new ConfigValidationError({ message: `Unsupported task type config "${invalidTaskType}". Must be worker or runner` }))
+        }
+
         // Validate the project config shape
         const parsed = projectConfigSchema.safeParse(body)
         if (!parsed.success) {
@@ -142,6 +157,11 @@ export function projectRoutes(deps: AppDeps): Hono {
         const index = deps.config.config.projects.findIndex((p) => p.name === name)
         if (index === -1) {
           return yield* Effect.fail(new ProjectNotFoundError({ name }))
+        }
+
+        const invalidTaskType = unsupportedTaskTypeConfigKey(body.taskTypes)
+        if (invalidTaskType) {
+          return yield* Effect.fail(new ConfigValidationError({ message: `Unsupported task type config "${invalidTaskType}". Must be worker or runner` }))
         }
 
         // Merge fields — name is immutable, taskTypes is deep-merged per task type

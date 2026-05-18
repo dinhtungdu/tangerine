@@ -72,7 +72,7 @@ Current sections:
 
 - active runs summary
 - project update status / update action
-- predefined prompt editors for worker, runner, and reviewer prompts
+- predefined prompt editors for worker and runner prompts
 - editable queued prompt cards shown while the agent is working
 - system log viewer
 

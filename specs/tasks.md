@@ -38,7 +38,6 @@ Other Tangerine tasks can prompt another task by calling `POST /api/tasks/:id/pr
 Current `type` values:
 
 - `worker`
-- `reviewer`
 - `runner`
 
 Capabilities are derived from type in `tasks/manager.ts`:
@@ -46,10 +45,9 @@ Capabilities are derived from type in `tasks/manager.ts`:
 | Type | Capabilities |
 |------|--------------|
 | `worker` | `resolve`, `predefined-prompts`, `diff`, `continue`, `pr-track`, `pr-create` |
-| `reviewer` | `resolve`, `predefined-prompts`, `diff`, `pr-track` |
-| `runner` | `resolve`, `predefined-prompts`, `diff`, `continue` |
+| `runner` | `resolve`, `predefined-prompts`, `continue` |
 
-Unknown persisted task-type values normalize to `runner` for legacy compatibility. New task creation accepts only `worker`, `reviewer`, and `runner`.
+Unknown persisted task-type values, including legacy `reviewer`, normalize to `runner` for compatibility. New task creation accepts only `worker` and `runner`.
 
 ## Lifecycle
 
@@ -72,7 +70,7 @@ At a high level:
 1. Read project config
 2. Fetch repo state
 3. Acquire or create a worktree slot
-4. Create branch/worktree; reviewer tasks keep the PR source branch in `tasks.branch` for PR monitoring and check out a reviewer-local normal branch from that source (not detached HEAD) so they do not move an active worker branch ref
+4. Create branch/worktree for workers; runners use the project root without branch isolation
 5. Start local ACP agent process for the chosen agent ID/provider field
 6. Persist ACP session/process metadata
 7. Stream events to logs and WebSockets

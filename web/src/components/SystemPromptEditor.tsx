@@ -6,7 +6,7 @@ import { Textarea } from "@/components/ui/textarea"
 
 interface SystemPromptEditorProps {
   project: string
-  taskType: "worker" | "reviewer" | "runner"
+  taskType: "worker" | "runner"
   title: string
   value?: string
   placeholder?: string

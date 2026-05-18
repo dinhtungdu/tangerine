@@ -103,7 +103,7 @@ The main persisted tables are:
 
 Notable task fields in the active schema:
 
-- `type` — "worker" (worktree + branch + PR tracking), "reviewer" (PR review on a reviewer-local branch while `branch` stores the PR source for PR tracking), "runner" (no worktree, runs on project root, no PR tracking, agent self-completes). Unknown persisted type values normalize to runner for legacy compatibility.
+- `type` — "worker" (worktree + branch + PR tracking), "runner" (no worktree, runs on project root, no PR tracking, agent self-completes). Unknown persisted type values, including legacy "reviewer", normalize to runner for compatibility.
 - `provider` — migration-compatible selected ACP agent id
 - `model` — selected from ACP session config option category `model` when available
 - `reasoning_effort` — selected from ACP session config option category `thought_level` or `effort` when available
