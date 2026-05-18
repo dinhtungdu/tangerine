@@ -5,6 +5,7 @@ import { TerminalToolbar } from "./TerminalToolbar"
 import { emitAuthFailure, getAuthToken } from "../lib/auth"
 import { sendTerminalPong } from "../lib/terminal-websocket"
 import { createHeartbeatMonitor, type HeartbeatMonitor } from "../lib/ws-heartbeat"
+import { patchWTermScrollBehavior } from "../lib/wterm-scroll"
 
 interface TuiPaneProps {
   taskId: string
@@ -184,11 +185,12 @@ export function TuiPane({ taskId }: TuiPaneProps) {
     }
   }, [])
 
-  const handleReady = useCallback(() => {
+  const handleReady = useCallback((instance: unknown) => {
     if (readyRef.current) return
     readyRef.current = true
+    patchWTermScrollBehavior(instance ?? termRef.current?.instance)
     connect()
-  }, [connect])
+  }, [connect, termRef])
 
   const handleResize = useCallback((cols: number, rows: number) => {
     sendResize(cols, rows)

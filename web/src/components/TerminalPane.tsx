@@ -5,6 +5,7 @@ import { TerminalToolbar } from "./TerminalToolbar"
 import { emitAuthFailure, getAuthToken } from "../lib/auth"
 import { sendTerminalPong } from "../lib/terminal-websocket"
 import { createHeartbeatMonitor, type HeartbeatMonitor } from "../lib/ws-heartbeat"
+import { patchWTermScrollBehavior } from "../lib/wterm-scroll"
 
 type TerminalPaneProps =
   | { taskId: string; wsUrl?: never }
@@ -194,27 +195,11 @@ export function TerminalPane(props: TerminalPaneProps) {
     }
   }, [])
 
-  const handleReady = useCallback(() => {
+  const handleReady = useCallback((instance: unknown) => {
     if (readyRef.current) return
     readyRef.current = true
 
-    // WTerm's _scrollToBottom rounds to row boundaries, but _isScrolledToBottom
-    // uses a 5px threshold — when the rounding gap exceeds 5px the auto-scroll
-    // breaks and every keystroke oscillates between rounded/exact positions,
-    // causing visible jumping.  Patch both methods on the instance.
-    const inst = termRef.current?.instance as Record<string, unknown> | undefined
-    if (inst) {
-      inst._scrollToBottom = function (this: { element: HTMLElement }) {
-        const el = this.element
-        const max = el.scrollHeight - el.clientHeight
-        el.scrollTop = max <= 0 ? 0 : max
-      }
-      inst._isScrolledToBottom = function (this: { element: HTMLElement }) {
-        const el = this.element
-        return el.scrollHeight - el.scrollTop - el.clientHeight < 30
-      }
-    }
-
+    patchWTermScrollBehavior(instance ?? termRef.current?.instance)
     connect()
   }, [connect, termRef])
 
